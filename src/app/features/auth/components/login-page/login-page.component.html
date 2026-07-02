@@ -1,0 +1,238 @@
+<div class="min-h-screen flex" [class.animate-leave]="isTransitioning()">
+  <!-- Left side - Enhanced Brand Experience -->
+  <div
+    class="hidden lg:block lg:w-3/5 relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900"
+    [class.animate-brand-exit]="isTransitioning()">
+    <!-- Video Background with Enhanced Overlay -->
+    <video #videoElement class="absolute inset-0 min-h-full min-w-full object-cover opacity-40" autoplay loop muted
+      playsinline preload="auto" (loadeddata)="ensureVideoPlays()" (pause)="ensureVideoPlays()">
+      <source src="assets/videos/login.register.mp4" type="video/mp4">
+    </video>
+
+    <!-- Enhanced Gradient Overlays -->
+    <div class="absolute inset-0 bg-gradient-to-br from-blue-900/60 via-indigo-900/40 to-slate-900/80"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent"></div>
+
+    <div class="relative h-full flex flex-col justify-between p-6 lg:p-10 xl:p-12 text-white">
+      <!-- Enhanced Main Content -->
+      <div class="space-y-8 pr-2 lg:pr-6 mt-auto mb-auto">
+        <!-- Main Tagline -->
+        <div class="space-y-6">
+          <h2 class="text-4xl lg:text-5xl font-bold leading-relaxed text-left">
+            <span class="block bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent pb-1">
+              The All-in-One
+            </span>
+            <span class="block bg-gradient-to-r from-blue-300 to-indigo-400 bg-clip-text text-transparent pt-1 pb-2">
+              Smart CRM
+            </span>
+          </h2>
+          <p class="text-xl font-semibold text-blue-200">
+            One platform. Every connection. Total control.
+          </p>
+        </div>
+      </div>
+
+      <!-- Simple Footer -->
+      <div class="text-blue-200/60 text-sm">
+        Trusted all-in-one CRM for modern professionals
+      </div>
+    </div>
+  </div>
+
+  <!-- Right side - Enhanced Login Form -->
+  <div class="flex-1 lg:w-2/5 flex flex-col bg-white relative">
+    <!-- Background Pattern -->
+    <div class="absolute inset-0 opacity-[0.02]">
+      <div class="absolute inset-0"
+        style="background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.15) 1px, transparent 0); background-size: 20px 20px;">
+      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col justify-center px-6 sm:px-8 lg:px-12 xl:px-16 py-12 relative z-10">
+      <div class="w-full max-w-md mx-auto" [class.animate-form-leave]="isTransitioning()"
+        [class.animate-form-processing]="isLoggingIn() && !isTransitioning()">
+
+        <!-- Enhanced Header -->
+        <div class="text-center mb-10">
+          <h2 class="text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
+            Welcome Back
+          </h2>
+          <p class="text-gray-600 text-lg">
+            Sign in to your professional account
+          </p>
+          <div class="mt-2 h-1 w-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mx-auto"></div>
+        </div>
+
+        <!-- Enhanced Form -->
+        <form [formGroup]="form" class="space-y-6">
+          <!-- Email Field -->
+          <div class="space-y-2">
+            <label for="email" class="block text-sm font-semibold text-gray-800">
+              Email Address
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <ion-icon name="mail" class="h-5 w-5 text-gray-400"></ion-icon>
+              </div>
+              <input type="email" id="email" name="email" formControlName="email"
+                class="block w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50/50"
+                placeholder="your-email@company.com" />
+            </div>
+          </div>
+
+          <!-- Password Field -->
+          <div class="space-y-2">
+            <label for="password" class="block text-sm font-semibold text-gray-800">
+              Password
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <ion-icon name="lock-closed" class="h-5 w-5 text-gray-400"></ion-icon>
+              </div>
+              <input [type]="showPassword() ? 'text' : 'password'" id="password" name="password"
+                formControlName="password"
+                class="block w-full pl-12 pr-12 py-4 border-2 border-gray-200 rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50/50 "
+                placeholder="••••••••••••" />
+
+              <!-- Toggle visibility button -->
+              <button type="button" (click)="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+                <ion-icon [name]="showPassword() ? 'eye-off' : 'eye'" class="h-5 w-5"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- Remember & Forgot -->
+          <div class="flex items-center justify-between py-2">
+            <div class="flex items-center">
+              <input id="remember_me" formControlName="rememberMe" type="checkbox"
+                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors duration-200" />
+              <label for="remember_me" class="ml-3 block text-sm font-medium text-gray-700">
+                Keep me signed in
+              </label>
+            </div>
+            <a href="#"
+              class="text-sm font-semibold text-blue-600 hover:text-blue-500 transition-colors duration-200">
+              Forgot your password?
+            </a>
+          </div>
+
+          <!-- Inline form error (reemplaza el ToastService del proyecto original) -->
+          @if (formError()) {
+            <p class="text-sm font-medium text-red-600">{{ formError() }}</p>
+          }
+
+          <!-- Enhanced Login Button -->
+          <button (click)="onSubmit()" type="submit" [disabled]="isLoggingIn()" [class.opacity-75]="isLoggingIn()"
+            [class.animate-button-success]="loginStage() === 'success'"
+            class="group relative w-full flex justify-center py-4 px-4 border border-transparent rounded-xl text-base font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none disabled:shadow-lg">
+            <span [class.invisible]="isLoggingIn()" class="flex items-center gap-2">
+              <ion-icon name="log-in" class="text-xl"></ion-icon>
+              Sign In
+            </span>
+
+            <!-- Loading States -->
+            @if (isLoggingIn()) {
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="flex items-center gap-3">
+                  @if (loginStage() === 'validating') {
+                    <div class="flex items-center gap-2">
+                      <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span class="text-sm">{{ getLoginStageMessage() }}</span>
+                    </div>
+                  }
+                  @if (loginStage() === 'authenticating') {
+                    <div class="flex items-center gap-2">
+                      <ion-icon name="key" class="text-lg animate-pulse"></ion-icon>
+                      <span class="text-sm">{{ getLoginStageMessage() }}</span>
+                    </div>
+                  }
+                  @if (loginStage() === 'success') {
+                    <div class="flex items-center gap-2">
+                      <ion-icon name="checkmark-circle" class="text-lg text-green-200 animate-bounce"></ion-icon>
+                      <span class="text-sm">{{ getLoginStageMessage() }}</span>
+                    </div>
+                  }
+                  @if (loginStage() === 'redirecting') {
+                    <div class="flex items-center gap-2">
+                      <ion-icon name="arrow-forward" class="text-lg animate-pulse"></ion-icon>
+                      <span class="text-sm">{{ getLoginStageMessage() }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </button>
+        </form>
+
+        <!-- Enhanced Footer -->
+        <div class="mt-10 text-center">
+          <p class="text-gray-600">
+            Don't have an account?
+            <a href="https://demo.stacktaxvision.com"
+              class="font-semibold text-blue-600 hover:text-blue-500 transition-colors duration-200 ml-1">
+              Create professional account
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enhanced Footer with Legal Links -->
+    <div class="relative z-10 border-t border-gray-100 px-6 sm:px-8 lg:px-12 xl:px-16 py-6">
+      <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-4 text-xs text-gray-500">
+          <a href="https://demo.stacktaxvision.com/terms-of-service" target="_blank"
+            class="hover:text-gray-700 transition-colors duration-200">Terms of Service</a>
+          <span>•</span>
+          <a href="https://demo.stacktaxvision.com/privacy-policy" target="_blank"
+            class="hover:text-gray-700 transition-colors duration-200">Privacy Policy</a>
+        </div>
+        <div class="text-xs text-gray-500">
+          © {{ currentYear }}. All rights reserved.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimalist Loading Overlay -->
+  @if (isTransitioning()) {
+    <div class="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 animate-overlay-enter flex items-center justify-center">
+      <div class="text-center relative">
+        <!-- Subtle background glow -->
+        <div class="absolute inset-0 bg-blue-500/5 rounded-full blur-2xl transform scale-100"></div>
+
+        <div class="relative">
+          <!-- Minimalist Loading Animation -->
+          <div class="w-16 h-16 mx-auto mb-8 relative">
+            <div class="w-full h-full border-3 border-gray-200 rounded-full animate-spin"
+              style="border-top-color: #3B82F6;"></div>
+            <div class="absolute inset-2 border-2 border-gray-100 rounded-full animate-spin"
+              style="border-top-color: #6366F1; animation-direction: reverse; animation-duration: 1.5s;"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+
+          <h2 class="text-xl font-semibold text-gray-900 mb-2 animate-fade-up" style="animation-delay: 200ms">
+            Signing in...
+          </h2>
+          <p class="text-gray-500 text-sm animate-fade-up" style="animation-delay: 400ms">
+            {{ getLoginStageMessage() }}
+          </p>
+
+          <!-- Minimalist Progress Dots -->
+          <div class="mt-8 flex justify-center space-x-3">
+            @for (stage of ['validating', 'authenticating', 'success', 'redirecting']; track stage; let i = $index) {
+              <div class="w-2 h-2 rounded-full transition-all duration-500"
+                [class.bg-blue-500]="getCurrentStageIndex() >= i" [class.bg-gray-300]="getCurrentStageIndex() < i"
+                [class.scale-125]="getCurrentStageIndex() === i">
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</div>
