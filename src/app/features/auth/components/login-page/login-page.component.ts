@@ -28,9 +28,19 @@ export class LoginPageComponent {
   readonly showPassword = signal(false);
   readonly isLoggingIn = signal(false);
   readonly formError = signal<string | null>(null);
+  readonly isTyping = signal(false);
+
+  private typingTimeout: ReturnType<typeof setTimeout> | undefined;
 
   togglePasswordVisibility(): void {
     this.showPassword.update(v => !v);
+  }
+
+  onTyping(): void {
+    this.isTyping.set(true);
+    clearTimeout(this.typingTimeout);
+    // La animación fluida sigue viva un momento después de la última tecla y luego se asienta.
+    this.typingTimeout = setTimeout(() => this.isTyping.set(false), 800);
   }
 
   onSubmit(): void {
