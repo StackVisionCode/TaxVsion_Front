@@ -1,6 +1,6 @@
 <ng-container *ngIf="!isMobile; else mobileSidebar">
   <div
-    class="relative hidden h-[calc(100vh-63px)] md:flex md:flex-col bg-white shadow-xl border-r border-gray-200 transition-all duration-200 sticky top-[63px] z-40"
+    class="relative hidden h-[calc(100vh-var(--navbar-h))] md:flex md:flex-col bg-white shadow-xl border-r border-gray-200 transition-all duration-200 sticky top-navbar z-40"
     [ngClass]="{ 'w-64': isExpanded(), 'w-16': !isExpanded() }"
   >
     <!-- Background decoration -->

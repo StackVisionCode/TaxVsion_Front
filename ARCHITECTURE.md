@@ -76,6 +76,16 @@ Antes de crear un componente o servicio nuevo dentro de una feature:
 - Stores de una feature → provistos en `providers` del route config de esa feature (se destruyen automáticamente al salir de esa rama de rutas).
 - Componentes `ui/` (presentacionales) nunca inyectan el store — reciben datos vía `input()`/`model()` y emiten vía `output()`. Solo el componente contenedor en `components/` inyecta el store.
 
+## Layout: altura del navbar (`--navbar-h`)
+
+`layout/navbar/` es `position: fixed` (queda fuera del flujo del documento), así que **todo** contenedor raíz que muestre el navbar debe reservarle espacio explícitamente o el contenido se renderiza tapado debajo de él. Esto ya pasó una vez (`layout/app-shell` no reservaba el espacio) y se corrigió centralizando la regla:
+
+- Fuente única de verdad: `--navbar-h: 65px` (63px de alto del navbar + 1px de borde + 1px de margen de seguridad), definida en `src/styles.css` (`:root`).
+- Alias de Tailwind: `navbar` en `tailwind.config.js` → `spacing.navbar = 'var(--navbar-h)'`, así que `pt-navbar`, `top-navbar`, etc. quedan disponibles como utilidades normales.
+- Para expresiones `calc()` (alturas tipo "100vh menos el navbar") usar `h-[calc(100vh-var(--navbar-h))]` directamente, ya que Tailwind no interpola tokens del theme dentro de `calc()`.
+
+**Regla dura**: ningún componente debe usar un valor `Npx` suelto para posicionarse relativo al navbar (ni `pt-[65px]`, ni `top-[63px]`, etc.) — siempre `pt-navbar` / `top-navbar` / `var(--navbar-h)`. Si el alto del navbar cambia alguna vez, se edita `--navbar-h` una sola vez y todo el layout se actualiza solo. Consumidores actuales: `layout/app-shell` (`pt-navbar` en el wrapper raíz) y `layout/sidebar` (`top-navbar` + `h-[calc(100vh-var(--navbar-h))]`).
+
 ## Origen de este proyecto
 
 Este proyecto nace como reemplazo independiente de `CRMTAXPROFRONTEND` (Angular 18, npm, ~44 módulos bajo `pages/`, deuda de organización: nombres inconsistentes español/inglés, servicios duplicados, sin ESLint/Prettier/Husky, dos god components). En vez de migrar in-place, se decidió arrancar un proyecto nuevo y limpio, y portar cada feature manualmente siguiendo el mismo mapeo y orden de tiers que se había diseñado para la migración in-place:

@@ -2,4 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Altura del navbar fijo (63px de alto + 1px de borde + 1px de margen de
+     seguridad). Única fuente de verdad para cualquier componente que se
+     posicione relativo al navbar. Ver ARCHITECTURE.md -> "Layout". */
+  --navbar-h: 65px;
+}
+
 /* You can add global styles to this file, and also import other style files */
