@@ -1,0 +1,196 @@
+<div *ngIf="isOpen" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  (click)="onBackdropClick($event)">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-slideUp"
+    (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex items-center justify-between">
+      <h2 class="text-xl font-semibold text-white flex items-center gap-3">
+        <ion-icon name="add-outline" class="text-2xl"></ion-icon>
+        New Appointment
+      </h2>
+      <button (click)="dismiss()"
+        class="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
+        <ion-icon name="close-outline" class="text-2xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Form Content -->
+    <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+      <form [formGroup]="form" class="space-y-6" (ngSubmit)="save()">
+
+        <!-- Client -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Client
+          </label>
+          <select formControlName="clientId"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+            <option value="">Select a customer (optional)</option>
+            <option *ngFor="let client of clients" [value]="client.id">{{ client.name }}</option>
+          </select>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Title *
+          </label>
+          <input type="text" formControlName="title"
+            [class.border-red-400]="isFieldInvalid('title')" [class.ring-2]="isFieldInvalid('title')"
+            [class.ring-red-100]="isFieldInvalid('title')"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Enter appointment title...">
+          <p *ngIf="isFieldInvalid('title')" class="mt-1.5 text-xs font-medium text-red-500">
+            Title is required.
+          </p>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Description
+          </label>
+          <textarea formControlName="description" rows="3"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+            placeholder="Enter a description..."></textarea>
+        </div>
+
+        <!-- Date & Time -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Start Date and Time *
+            </label>
+            <input type="datetime-local" formControlName="startDateTime"
+              [class.border-red-400]="isFieldInvalid('startDateTime')"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              End Date and Time *
+            </label>
+            <input type="datetime-local" formControlName="endDateTime"
+              [class.border-red-400]="isFieldInvalid('endDateTime')"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Location
+          </label>
+          <input type="text" formControlName="location"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Enter location...">
+        </div>
+
+        <!-- Meeting URL -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Meeting Link
+          </label>
+          <input type="url" formControlName="meetingUrl"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="https://zoom.us/j/...">
+        </div>
+
+        <!-- Appointment Type -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Appointment Type *
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <button *ngFor="let typeConfig of appointmentTypes" type="button" (click)="selectType(typeConfig.id)"
+              [class.ring-2]="form.get('typeId')?.value === typeConfig.id"
+              [style.borderColor]="form.get('typeId')?.value === typeConfig.id ? typeConfig.color : '#e5e7eb'"
+              class="flex items-center gap-3 px-4 py-3 border-2 rounded-xl hover:bg-gray-50 transition-all">
+              <ion-icon [name]="typeConfig.icon" class="text-xl" [style.color]="typeConfig.color"></ion-icon>
+              <span class="text-sm font-medium text-gray-700">{{ typeConfig.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recurrence -->
+        <div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" formControlName="isRecurring"
+              class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <span class="text-sm font-medium text-gray-700">
+              Recurring Appointment
+            </span>
+          </label>
+
+          <select *ngIf="form.get('isRecurring')?.value" formControlName="recurrencePatternId"
+            class="mt-3 w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+            <option *ngFor="let pattern of recurrencePatterns" [ngValue]="pattern.id">
+              {{ pattern.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Reminders -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-medium text-gray-700">
+              Reminders
+            </label>
+            <button type="button" (click)="addReminder()"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+              <ion-icon name="add-outline"></ion-icon>
+              Add Reminder
+            </button>
+          </div>
+
+          <div class="space-y-2" formArrayName="reminders">
+            <div *ngFor="let reminder of reminders.controls; let i = index" [formGroupName]="i"
+              class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <input type="number" formControlName="minutesBefore" min="0" step="15"
+                class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <span class="text-sm text-gray-600">minutes before</span>
+
+              <select formControlName="methodId"
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option *ngFor="let method of reminderMethods" [ngValue]="method.id">
+                  {{ method.label }}
+                </option>
+              </select>
+
+              <button type="button" (click)="removeReminder(i)"
+                class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Notes
+          </label>
+          <textarea formControlName="notes" rows="2"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+            placeholder="Enter additional notes..."></textarea>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
+      <button type="button" (click)="dismiss()" [disabled]="saving()"
+        class="px-6 py-2.5 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="save()" [disabled]="form.invalid || saving()"
+        class="px-6 py-2.5 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+        <div *ngIf="saving()" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <ion-icon *ngIf="!saving()" name="checkmark-outline" class="text-lg"></ion-icon>
+        Create
+      </button>
+    </div>
+
+  </div>
+</div>

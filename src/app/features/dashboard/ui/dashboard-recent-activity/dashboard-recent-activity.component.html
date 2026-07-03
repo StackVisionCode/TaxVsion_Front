@@ -1,0 +1,64 @@
+<div class="activity-container">
+  <!-- Empty State -->
+  <div *ngIf="!hasActivities()" class="empty-state">
+    <div class="empty-icon">
+      <ion-icon name="pulse-outline" class="text-4xl text-gray-400"></ion-icon>
+    </div>
+    <p class="text-sm font-medium text-gray-700">No recent activity</p>
+    <p class="text-xs text-gray-500 mt-1">Activity will appear here</p>
+  </div>
+
+  <!-- Activities List -->
+  <div *ngIf="hasActivities()" class="activities-list">
+    <div *ngFor="let activity of displayedActivities(); trackBy: trackByActivityId" class="activity-item"
+      (click)="handleActivityClick(activity)"
+      [class.clickable]="activity.type === 'notification'"
+      [class.unread]="activity.type === 'notification' && !activity.isRead">
+
+      <!-- Icon -->
+      <div [class]="activity.iconColor" class="activity-icon">
+        <ion-icon [name]="activity.icon + '-outline'" class="text-xl"></ion-icon>
+      </div>
+
+      <!-- Content -->
+      <div class="activity-content">
+        <div class="activity-header">
+          <h4 class="activity-title">
+            {{ activity.title }}
+            <span *ngIf="activity.priorityLabel" class="priority-badge">
+              {{ activity.priorityLabel }}
+            </span>
+          </h4>
+          <span class="activity-time">
+            {{ activity.relativeTime }}
+          </span>
+        </div>
+
+        <p class="activity-description">{{ activity.description }}</p>
+
+        <!-- Metadata -->
+        <div *ngIf="activity.location || activity.device" class="activity-metadata">
+          <span *ngIf="activity.type === 'session' && activity.location" class="metadata-item">
+            <ion-icon name="location-outline" class="text-xs"></ion-icon>
+            {{ activity.location }}
+          </span>
+          <span *ngIf="activity.type === 'session' && activity.device" class="metadata-item">
+            <ion-icon name="phone-portrait-outline" class="text-xs"></ion-icon>
+            {{ activity.device }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Unread indicator -->
+      <div *ngIf="activity.type === 'notification' && !activity.isRead" class="unread-indicator"></div>
+    </div>
+  </div>
+
+  <!-- View All Link -->
+  <div *ngIf="hasActivities() && activities().length > 8" class="view-all">
+    <a class="view-all-link">
+      View all ({{ activities().length }})
+      <ion-icon name="arrow-forward-outline" class="text-sm ml-1"></ion-icon>
+    </a>
+  </div>
+</div>

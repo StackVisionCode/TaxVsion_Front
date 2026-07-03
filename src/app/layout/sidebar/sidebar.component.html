@@ -1,0 +1,265 @@
+<ng-container *ngIf="!isMobile; else mobileSidebar">
+  <div
+    class="relative hidden h-[calc(100vh-63px)] md:flex md:flex-col bg-white shadow-xl border-r border-gray-200 transition-all duration-200 sticky top-[63px] z-40"
+    [ngClass]="{ 'w-64': isExpanded(), 'w-16': !isExpanded() }"
+  >
+    <!-- Background decoration -->
+    <div
+      class="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-green-50/30 pointer-events-none"
+    ></div>
+
+    <!-- Hamburger Button -->
+    <div class="px-2 py-4">
+      <button
+        (click)="toggleSidebar()"
+        class="w-full p-3 rounded-xl hover:bg-gray-100 transition-all duration-300 flex justify-center group relative overflow-hidden"
+      >
+        <div
+          class="absolute inset-0 bg-gradient-to-r from-blue-50 to-green-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"
+        ></div>
+        <ion-icon
+          name="menu-outline"
+          class="text-2xl text-gray-600 group-hover:text-gray-900 transition-all duration-300 relative z-10 group-hover:scale-110"
+        >
+        </ion-icon>
+      </button>
+    </div>
+
+    <!-- Navigation Menu with scroll -->
+    <div class="flex flex-1 min-h-0 flex-col px-1 pb-3">
+      <div class="flex flex-col space-y-2 overflow-y-auto">
+      <div
+        *ngFor="let item of menuItems(); trackBy: trackByIndex"
+        class="relative"
+      >
+        <ng-container *ngIf="canShowItem(item)" id="menuSidebar">
+          <!-- Main menu item -->
+          <button
+            type="button"
+            (click)="handleMenuClick($event, item)"
+            (mouseenter)="onMenuItemMouseEnter($event, item)"
+            (mouseleave)="onMenuItemMouseLeave(item)"
+            [disabled]="!isClickable()"
+            class="w-full relative flex items-center rounded-xl cursor-pointer group transition-all duration-200 overflow-hidden"
+            [ngClass]="{
+              'justify-center p-3': !isExpanded(),
+              'p-3': isExpanded(),
+              'bg-gradient-to-r from-blue-50 to-green-50 shadow-md border border-blue-200':
+                item.isActive && !item.isSpecial,
+              'bg-gradient-to-r from-purple-100 via-pink-100 to-cyan-100 shadow-lg border border-purple-300 ai-glow':
+                item.isSpecial && item.label === 'AI' && item.isActive,
+              'bg-gradient-to-r from-purple-50 via-pink-50 to-cyan-50 shadow-md border border-purple-200':
+                item.isSpecial && item.label === 'AI' && !item.isActive,
+              'bg-gradient-to-r from-orange-50 via-yellow-50 to-amber-50 shadow-md border border-orange-200':
+                item.isSpecial && item.label === 'Community' && !item.isActive,
+              'bg-gradient-to-r from-orange-100 via-yellow-100 to-amber-100 shadow-lg border border-orange-300':
+                item.isSpecial && item.label === 'Community' && item.isActive,
+              'hover:bg-gray-100': !item.isSpecial && !item.isActive,
+              'hover:bg-gradient-to-r hover:from-purple-200 hover:via-pink-200 hover:to-cyan-200':
+                item.isSpecial && item.label === 'AI',
+              'hover:bg-gradient-to-r hover:from-orange-200 hover:via-yellow-200 hover:to-amber-200':
+                item.isSpecial && item.label === 'Community',
+            }"
+          >
+            <!-- Hover effect background for expanded state -->
+            <div
+              *ngIf="isExpanded() && !item.isSpecial"
+              class="absolute inset-0 bg-gradient-to-r from-blue-50 to-green-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl z-0"
+            ></div>
+
+            <!-- Special AI shimmer effect -->
+            <div
+              *ngIf="item.isSpecial && item.label === 'AI'"
+              class="absolute inset-0 bg-gradient-to-r from-purple-200 via-pink-200 to-cyan-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl z-0"
+            ></div>
+
+            <!-- Special Community shimmer effect -->
+            <div
+              *ngIf="item.isSpecial && item.label === 'Community'"
+              class="absolute inset-0 bg-gradient-to-r from-orange-200 via-yellow-200 to-amber-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl z-0"
+            ></div>
+
+            <!-- Animated sparkles for AI -->
+            <div
+              *ngIf="item.isSpecial && item.label === 'AI'"
+              class="absolute inset-0 rounded-xl overflow-hidden pointer-events-none z-10"
+            >
+              <div
+                class="absolute top-2 right-2 w-1 h-1 bg-yellow-400 rounded-full animate-ping"
+              ></div>
+              <div
+                class="absolute bottom-2 left-2 w-1 h-1 bg-purple-400 rounded-full animate-ping"
+                style="animation-delay: 0.5s"
+              ></div>
+              <div
+                class="absolute top-1/2 left-1/2 w-1 h-1 bg-cyan-400 rounded-full animate-ping"
+                style="animation-delay: 1s"
+              ></div>
+            </div>
+
+            <!-- Icon container with enhanced styling for collapsed state -->
+            <div
+              class="relative z-10 flex items-center justify-center transition-all duration-300 pointer-events-none"
+              [ngClass]="{ 'w-10 h-10': !isExpanded(), 'w-6 h-6': isExpanded() }"
+            >
+              <ng-container *ngIf="item.svgIcon; else defaultIcon">
+                <span
+                  class="transition-all duration-300 group-hover:scale-110"
+                  [ngClass]="{
+                    'w-5 h-5': !isExpanded(),
+                    'w-4 h-4': isExpanded(),
+                    'text-blue-600': item.isActive && !item.isSpecial,
+                    'text-gray-700':
+                      !item.isActive && !isExpanded() && !item.isSpecial,
+                    'text-gray-600':
+                      !item.isActive && isExpanded() && !item.isSpecial,
+                    'group-hover:text-green-600':
+                      !item.isActive && !item.isSpecial,
+                    'text-purple-600':
+                      item.isSpecial && item.label === 'AI' && item.isActive,
+                    'text-purple-500':
+                      item.isSpecial && item.label === 'AI' && !item.isActive,
+                    'text-orange-600':
+                      item.isSpecial &&
+                      item.label === 'Community' &&
+                      item.isActive,
+                    'text-orange-500':
+                      item.isSpecial &&
+                      item.label === 'Community' &&
+                      !item.isActive,
+                    'group-hover:text-purple-700':
+                      item.isSpecial && item.label === 'AI',
+                    'group-hover:text-orange-700':
+                      item.isSpecial && item.label === 'Community',
+                  }"
+                  [innerHTML]="item.svgIcon"
+                ></span>
+              </ng-container>
+              <ng-template #defaultIcon>
+                <ion-icon
+                  [name]="item.icon"
+                  class="transition-all duration-300 group-hover:scale-110"
+                  [ngClass]="{
+                    'text-2xl': !isExpanded(),
+                    'text-xl': isExpanded(),
+                    'text-blue-600': item.isActive && !item.isSpecial,
+                    'text-gray-700':
+                      !item.isActive && !isExpanded() && !item.isSpecial,
+                    'text-gray-600':
+                      !item.isActive && isExpanded() && !item.isSpecial,
+                    'group-hover:text-green-600':
+                      !item.isActive && !item.isSpecial,
+                    'text-purple-600':
+                      item.isSpecial && item.label === 'AI' && item.isActive,
+                    'text-purple-500':
+                      item.isSpecial && item.label === 'AI' && !item.isActive,
+                    'text-orange-600':
+                      item.isSpecial &&
+                      item.label === 'Community' &&
+                      item.isActive,
+                    'text-orange-500':
+                      item.isSpecial &&
+                      item.label === 'Community' &&
+                      !item.isActive,
+                    'group-hover:text-purple-700':
+                      item.isSpecial && item.label === 'AI',
+                    'group-hover:text-orange-700':
+                      item.isSpecial && item.label === 'Community',
+                  }"
+                ></ion-icon>
+              </ng-template>
+            </div>
+
+            <!-- Label -->
+            <span
+              *ngIf="isExpanded()"
+              class="ml-3 text-sm font-medium transition-all duration-300 relative z-10 pointer-events-none select-none"
+              [ngClass]="{
+                'text-gray-900 font-semibold': item.isActive && !item.isSpecial,
+                'text-gray-700': !item.isActive && !item.isSpecial,
+                'group-hover:text-gray-900': !item.isActive && !item.isSpecial,
+                'text-purple-700 font-bold':
+                  item.isSpecial && item.label === 'AI' && item.isActive,
+                'text-orange-700 font-bold':
+                  item.isSpecial && item.label === 'Community' && item.isActive,
+                'text-purple-600 font-semibold':
+                  item.isSpecial && item.label === 'AI' && !item.isActive,
+                'text-orange-600 font-semibold':
+                  item.isSpecial &&
+                  item.label === 'Community' &&
+                  !item.isActive,
+                'group-hover:text-purple-800':
+                  item.isSpecial && item.label === 'AI',
+                'group-hover:text-orange-800':
+                  item.isSpecial && item.label === 'Community',
+              }"
+            >
+              {{ item.label }}
+            </span>
+
+            <!-- Enhanced notification badge for collapsed state -->
+            <div
+              *ngIf="item.badge && !item.isSpecial"
+              class="absolute bg-green-500 rounded-full animate-pulse shadow-lg border-2 border-white pointer-events-none"
+              [ngClass]="{
+                'top-1 right-1 w-3 h-3': !isExpanded(),
+                'top-2 right-2 w-2 h-2': isExpanded(),
+              }"
+            ></div>
+
+            <!-- Special AI glow effect for collapsed state -->
+            <div
+              *ngIf="item.isSpecial && item.label === 'AI' && !isExpanded()"
+              class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse shadow-lg border-2 border-white flex items-center justify-center pointer-events-none"
+            >
+              <ion-icon name="sparkles" class="text-white text-xs"></ion-icon>
+            </div>
+
+            <!-- Special Community glow effect for collapsed state -->
+            <div
+              *ngIf="
+                item.isSpecial && item.label === 'Community' && !isExpanded()
+              "
+              class="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full animate-pulse shadow-lg border-2 border-white flex items-center justify-center pointer-events-none"
+            >
+              <ion-icon name="people" class="text-white text-xs"></ion-icon>
+            </div>
+          </button>
+          <!-- Tooltip for collapsed state (moved outside button to avoid clipping) -->
+          <div
+            *ngIf="!isExpanded()"
+            class="sidebar-tooltip"
+            [class.show]="item.showTooltip"
+            [ngStyle]="{
+              left: (item.tooltipX || 0) + 'px',
+              top: (item.tooltipY || 0) + 'px',
+            }"
+          >
+            {{ item.label }}
+          </div>
+        </ng-container>
+      </div>
+      </div>
+    </div>
+  </div>
+</ng-container>
+
+<ng-template #mobileSidebar>
+  <div class="flex flex-col gap-2">
+    <div *ngFor="let item of menuItems(); trackBy: trackByIndex">
+      <ng-container *ngIf="canShowItem(item)">
+        <button
+          type="button"
+          (click)="handleMenuClick($event, item)"
+          class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-blue-50 hover:text-gray-900 border border-transparent hover:border-blue-200 w-full"
+        >
+          <ion-icon
+            [name]="item.icon"
+            class="mr-3 h-4 w-4 text-blue-500"
+          ></ion-icon>
+          <span class="flex-1 text-left">{{ item.label }}</span>
+        </button>
+      </ng-container>
+    </div>
+  </div>
+</ng-template>

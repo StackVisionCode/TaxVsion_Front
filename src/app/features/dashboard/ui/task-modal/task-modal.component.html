@@ -1,0 +1,238 @@
+<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  (click)="onBackdropClick($event)">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-slideUp"
+    (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-purple-500 to-purple-600 px-6 py-4 flex items-center justify-between">
+      <h2 class="text-xl font-semibold text-white flex items-center gap-3">
+        <ion-icon [name]="isEditMode() ? 'create-outline' : 'add-outline'" class="text-2xl"></ion-icon>
+        {{ isEditMode() ? 'Edit Task' : 'New Task' }}
+      </h2>
+      <button (click)="onClose()"
+        class="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
+        <ion-icon name="close-outline" class="text-2xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Form Content -->
+    <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+      <form [formGroup]="form" class="space-y-6">
+
+        <!-- Assignment Type Selection -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Assign To
+          </label>
+
+          <!-- Assignment Type Buttons -->
+          <div class="flex gap-2 mb-3">
+            <button type="button"
+              (click)="setAssignmentType('none')"
+              [class]="form.get('assignmentType')?.value === 'none'
+                ? 'flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg font-medium transition-all'
+                : 'flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-medium hover:bg-gray-200 transition-all'">
+              <ion-icon name="person-outline" class="mr-1"></ion-icon>
+              Unassigned
+            </button>
+            <button type="button"
+              (click)="setAssignmentType('team_member')"
+              [class]="form.get('assignmentType')?.value === 'team_member'
+                ? 'flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg font-medium transition-all'
+                : 'flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-medium hover:bg-gray-200 transition-all'">
+              <ion-icon name="people-outline" class="mr-1"></ion-icon>
+              Team Member
+            </button>
+            <button type="button"
+              (click)="setAssignmentType('customer')"
+              [class]="form.get('assignmentType')?.value === 'customer'
+                ? 'flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg font-medium transition-all'
+                : 'flex-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-medium hover:bg-gray-200 transition-all'">
+              <ion-icon name="briefcase-outline" class="mr-1"></ion-icon>
+              Customer
+            </button>
+          </div>
+
+          <!-- Team Member Selection -->
+          <div *ngIf="form.get('assignmentType')?.value === 'team_member'" class="animate-fadeIn">
+            <select formControlName="assignedToUserId"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+              <option value="">Select a team member</option>
+              <option *ngFor="let member of teamMembers" [value]="member.id">
+                {{ member.name }}
+                <span *ngIf="member.isOwner"> (Owner)</span>
+              </option>
+            </select>
+          </div>
+
+          <!-- Customer Selection -->
+          <div *ngIf="form.get('assignmentType')?.value === 'customer'" class="animate-fadeIn">
+            <select formControlName="customerId"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+              <option value="">Select a customer (optional)</option>
+              <option *ngFor="let client of clients" [value]="client.id">
+                {{ client.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Title *
+          </label>
+          <input type="text" formControlName="title"
+            class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+            [class.border-gray-300]="!(form.get('title')?.invalid && form.get('title')?.touched)"
+            [class.border-red-400]="form.get('title')?.invalid && form.get('title')?.touched"
+            placeholder="Enter task title...">
+          <p *ngIf="form.get('title')?.invalid && form.get('title')?.touched" class="mt-1 text-xs text-red-500">
+            Title is required.
+          </p>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Description
+          </label>
+          <textarea formControlName="description" rows="3"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+            placeholder="Enter task description..."></textarea>
+        </div>
+
+        <!-- Due Date & Priority -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Due Date
+            </label>
+            <input type="datetime-local" formControlName="dueDate"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Priority *
+            </label>
+            <select formControlName="priorityId"
+              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              [style.borderColor]="getPriorityColor(form.get('priorityId')?.value)">
+              <option *ngFor="let priority of priorityOptions" [ngValue]="priority.id">
+                {{ priority.label }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Status (only in edit mode) -->
+        <div *ngIf="isEditMode()">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Status
+          </label>
+          <select formControlName="statusId"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all">
+            <option *ngFor="let status of statusOptions" [ngValue]="status.id">
+              {{ status.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Completion Percentage (only in edit mode) -->
+        <div *ngIf="isEditMode()">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Completion Percentage: {{ form.get('completionPercentage')?.value }}%
+          </label>
+          <input type="range" formControlName="completionPercentage" min="0" max="100"
+            step="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500">
+          <div class="flex justify-between text-xs text-gray-500 mt-1">
+            <span>0%</span>
+            <span>25%</span>
+            <span>50%</span>
+            <span>75%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            Tags
+          </label>
+          <div class="flex items-center gap-2 mb-2">
+            <input type="text" [value]="newTag" (input)="newTag = $any($event.target).value"
+              (keyup.enter)="addTag()"
+              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              placeholder="Add a tag...">
+            <button type="button" (click)="addTag()"
+              class="px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors">
+              <ion-icon name="add-outline" class="text-lg"></ion-icon>
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let tag of tags(); let i = index"
+              class="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+              {{ tag }}
+              <button type="button" (click)="removeTag(i)" class="hover:text-purple-900 transition-colors">
+                <ion-icon name="close-outline" class="text-sm"></ion-icon>
+              </button>
+            </span>
+          </div>
+        </div>
+
+        <!-- Reminders -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-medium text-gray-700">
+              Reminders
+            </label>
+            <button type="button" (click)="addReminder()"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors">
+              <ion-icon name="add-outline"></ion-icon>
+              Add Reminder
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <div *ngFor="let reminder of reminders(); let i = index"
+              class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <input type="number" [value]="reminder.minutesBefore"
+                (input)="updateReminderMinutes(i, $any($event.target).value)" min="0" step="15"
+                class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+              <span class="text-sm text-gray-600">minutes before</span>
+
+              <select [value]="reminder.methodId" (change)="updateReminderMethod(i, $any($event.target).value)"
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                <option *ngFor="let method of reminderMethods" [value]="method.id">
+                  {{ method.label }}
+                </option>
+              </select>
+
+              <button type="button" (click)="removeReminder(i)"
+                class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
+      <button type="button" (click)="onClose()" [disabled]="saving()"
+        class="px-6 py-2.5 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="onSave()" [disabled]="!isFormValid() || saving()"
+        class="px-6 py-2.5 bg-purple-500 text-white font-medium rounded-xl hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+        <div *ngIf="saving()" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <ion-icon *ngIf="!saving()" name="checkmark-outline" class="text-lg"></ion-icon>
+        {{ isEditMode() ? 'Update' : 'Create' }}
+      </button>
+    </div>
+
+  </div>
+</div>

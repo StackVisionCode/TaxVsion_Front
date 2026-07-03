@@ -1,0 +1,425 @@
+<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  (click)="onBackdropClick($event)">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden animate-slideUp"
+    (click)="$event.stopPropagation()">
+
+    <!-- APPOINTMENT DETAILS -->
+    <ng-container *ngIf="isAppointment && appointment">
+      <!-- Header -->
+      <div class="relative overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-5">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                <ion-icon [name]="appointmentTypeConfig?.icon || 'calendar-outline'"
+                  class="text-2xl text-white"></ion-icon>
+              </div>
+              <div>
+                <span class="text-blue-100 text-xs font-medium uppercase tracking-wider">
+                  {{ appointmentTypeConfig?.label }}
+                </span>
+                <h2 class="text-xl font-semibold text-white mt-0.5 line-clamp-2">{{ appointment.title }}</h2>
+              </div>
+            </div>
+            <button (click)="close()"
+              class="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg -mr-2 -mt-1">
+              <ion-icon name="close-outline" class="text-2xl"></ion-icon>
+            </button>
+          </div>
+
+          <!-- Status Badge -->
+          <div class="mt-4 flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+              [style.backgroundColor]="appointmentStatusConfig?.color + '30'" [style.color]="'white'">
+              <span class="w-2 h-2 rounded-full" [style.backgroundColor]="appointmentStatusConfig?.color"></span>
+              {{ appointmentStatusConfig?.label }}
+            </span>
+            <span *ngIf="appointment.isRecurring"
+              class="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full text-xs font-medium text-white">
+              <ion-icon name="repeat-outline" class="text-sm"></ion-icon>
+              {{ recurrencePatternConfig?.label }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 overflow-y-auto max-h-[calc(90vh-280px)] space-y-5">
+
+        <!-- Date & Time -->
+        <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="time-outline" class="text-xl text-blue-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900">{{ formatDate(appointment.startTime) }}</p>
+            <p class="text-sm text-gray-600 mt-0.5">
+              {{ formatTime(appointment.startTime) }} - {{ formatTime(appointment.endTime) }}
+            </p>
+            <p class="text-xs text-blue-600 mt-1">{{ formatRelativeTime(appointment.startTime) }}</p>
+          </div>
+        </div>
+
+        <!-- Customer -->
+        <div *ngIf="appointment.customerName" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="person-outline" class="text-xl text-green-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Customer</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ appointment.customerName }}</p>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div *ngIf="appointment.location" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="location-outline" class="text-xl text-orange-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Location</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ appointment.location }}</p>
+          </div>
+        </div>
+
+        <!-- Meeting URL -->
+        <div *ngIf="appointment.meetingUrl" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="videocam-outline" class="text-xl text-purple-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Meeting Link</p>
+            <a [href]="appointment.meetingUrl" target="_blank"
+              class="text-sm font-medium text-blue-600 hover:text-blue-700 mt-0.5 truncate block">
+              {{ appointment.meetingUrl }}
+            </a>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div *ngIf="appointment.description" class="space-y-2">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">Description</h4>
+          <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-2xl p-4">
+            {{ appointment.description }}
+          </p>
+        </div>
+
+        <!-- Attendees -->
+        <div *ngIf="appointment.attendees && appointment.attendees.length > 0" class="space-y-3">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">
+            Attendees ({{ appointment.attendees.length }})
+          </h4>
+          <div class="space-y-2">
+            <div *ngFor="let attendee of appointment.attendees"
+              class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <!-- Icon based on attendee type (customer vs team member) -->
+              <div [class]="attendee.customerId
+                ? 'w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0'
+                : 'w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0'">
+                <ion-icon [name]="attendee.customerId ? 'briefcase-outline' : 'person-outline'"
+                  [class]="attendee.customerId ? 'text-green-600' : 'text-blue-600'"></ion-icon>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-medium text-gray-900 truncate">{{ attendee.name || attendee.email }}</p>
+                  <!-- Badge to show attendee type -->
+                  <span [class]="attendee.customerId
+                    ? 'text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full'
+                    : 'text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full'">
+                    {{ attendee.customerId ? 'Customer' : 'Team Member' }}
+                  </span>
+                </div>
+                <p *ngIf="attendee.name && attendee.email" class="text-xs text-gray-500 truncate">{{ attendee.email }}</p>
+              </div>
+              <span class="text-xs px-2 py-1 rounded-full"
+                [style.backgroundColor]="getAttendeeStatus(attendee.statusId).color + '20'"
+                [style.color]="getAttendeeStatus(attendee.statusId).color">
+                {{ getAttendeeStatus(attendee.statusId).label }}
+              </span>
+              <ion-icon *ngIf="attendee.isOrganizer" name="star" class="text-yellow-500 text-sm"
+                title="Organizer"></ion-icon>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reminders -->
+        <div *ngIf="appointment.reminders && appointment.reminders.length > 0" class="space-y-3">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">
+            Reminders ({{ appointment.reminders.length }})
+          </h4>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let reminder of appointment.reminders"
+              class="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+              <ion-icon [name]="getReminderMethod(reminder.methodId).icon" class="text-sm"></ion-icon>
+              {{ reminder.minutesBefore }} minutes before
+              <span *ngIf="reminder.isSent" class="text-green-600">✓</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div *ngIf="appointment.notes" class="space-y-2">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">Notes</h4>
+          <p class="text-sm text-gray-600 italic bg-yellow-50 rounded-2xl p-4 border-l-4 border-yellow-400">
+            {{ appointment.notes }}
+          </p>
+        </div>
+
+        <!-- Created By -->
+        <div *ngIf="appointment.creatorName" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="create-outline" class="text-xl text-indigo-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Created By</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ appointment.creatorName }}</p>
+            <p *ngIf="appointment.creatorEmail" class="text-xs text-gray-500 mt-0.5">{{ appointment.creatorEmail }}</p>
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between text-xs text-gray-400">
+            <span>Created: {{ formatDateTime(appointment.createdAt) }}</span>
+            <span *ngIf="appointment.updatedAt">
+              Updated: {{ formatDateTime(appointment.updatedAt) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <button *ngIf="canCancelAppointment" (click)="onCancel()" [disabled]="cancelling() || deleting()"
+            class="px-4 py-2 text-orange-600 font-medium rounded-xl hover:bg-orange-50 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <div *ngIf="cancelling()"
+              class="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+            <ion-icon *ngIf="!cancelling()" name="close-circle-outline"></ion-icon>
+            Cancel Appointment
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button (click)="onDelete()" [disabled]="deleting() || cancelling()"
+            class="px-4 py-2 text-red-600 font-medium rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <div *ngIf="deleting()"
+              class="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+            <ion-icon *ngIf="!deleting()" name="trash-outline"></ion-icon>
+            Delete
+          </button>
+          <button (click)="onEdit()" [disabled]="deleting() || cancelling()"
+            class="px-5 py-2 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <ion-icon name="create-outline"></ion-icon>
+            Edit
+          </button>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- TASK DETAILS -->
+    <ng-container *ngIf="isTask && task">
+      <!-- Header -->
+      <div class="relative overflow-hidden">
+        <div class="bg-gradient-to-r from-purple-500 to-purple-600 px-6 py-5">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                <ion-icon name="checkbox-outline" class="text-2xl text-white"></ion-icon>
+              </div>
+              <div>
+                <span class="text-purple-100 text-xs font-medium uppercase tracking-wider">
+                  Task
+                </span>
+                <h2 class="text-xl font-semibold text-white mt-0.5 line-clamp-2">{{ task.title }}</h2>
+              </div>
+            </div>
+            <button (click)="close()"
+              class="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg -mr-2 -mt-1">
+              <ion-icon name="close-outline" class="text-2xl"></ion-icon>
+            </button>
+          </div>
+
+          <!-- Status & Priority Badges -->
+          <div class="mt-4 flex items-center gap-2 flex-wrap">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+              [style.backgroundColor]="taskStatusConfig?.color + '30'" [style.color]="'white'">
+              <span class="w-2 h-2 rounded-full" [style.backgroundColor]="taskStatusConfig?.color"></span>
+              {{ taskStatusConfig?.label }}
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+              [style.backgroundColor]="taskPriorityConfig?.color + '30'" [style.color]="'white'">
+              <ion-icon [name]="taskPriorityConfig?.icon || 'flag-outline'" class="text-sm"></ion-icon>
+              {{ taskPriorityConfig?.label }} Priority
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 overflow-y-auto max-h-[calc(90vh-280px)] space-y-5">
+
+        <!-- Progress Bar -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500 uppercase tracking-wider">Progress</span>
+            <span class="text-sm font-semibold" [style.color]="taskPriorityConfig?.color">
+              {{ task.completionPercentage }}%
+            </span>
+          </div>
+          <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-500" [style.width.%]="task.completionPercentage"
+              [style.backgroundColor]="taskPriorityConfig?.color">
+            </div>
+          </div>
+        </div>
+
+        <!-- Due Date -->
+        <div *ngIf="task.dueDate" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="calendar-outline" class="text-xl text-purple-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Due Date</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ formatDate(task.dueDate) }}</p>
+            <p class="text-xs mt-1" [class.text-red-600]="isTaskOverdue(task)"
+              [class.text-purple-600]="!isTaskOverdue(task)">
+              {{ formatRelativeTime(task.dueDate) }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Assigned To (Team Member) -->
+        <div *ngIf="task.assignedToUserName" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="person-outline" class="text-xl text-blue-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Assigned To</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ task.assignedToUserName }}</p>
+            <p *ngIf="task.assignedToUserEmail" class="text-xs text-gray-500 mt-0.5">{{ task.assignedToUserEmail }}</p>
+          </div>
+          <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+            Team Member
+          </span>
+        </div>
+
+        <!-- Customer -->
+        <div *ngIf="task.customerName" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="briefcase-outline" class="text-xl text-green-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Customer</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ task.customerName }}</p>
+          </div>
+          <span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+            Customer
+          </span>
+        </div>
+
+        <!-- Description -->
+        <div *ngIf="task.description" class="space-y-2">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">Description</h4>
+          <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-2xl p-4">
+            {{ task.description }}
+          </p>
+        </div>
+
+        <!-- Tags -->
+        <div *ngIf="task.tags && task.tags.length > 0" class="space-y-3">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">Tags</h4>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let tag of task.tags"
+              class="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+              <ion-icon name="pricetag-outline" class="text-xs mr-1.5"></ion-icon>
+              {{ tag }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Reminders -->
+        <div *ngIf="task.reminders && task.reminders.length > 0" class="space-y-3">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">
+            Reminders ({{ task.reminders.length }})
+          </h4>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let reminder of task.reminders"
+              class="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs font-medium">
+              <ion-icon [name]="getReminderMethod(reminder.methodId).icon" class="text-sm"></ion-icon>
+              {{ reminder.minutesBefore }} minutes before
+              <span *ngIf="reminder.isSent" class="text-green-600">✓</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Subtasks -->
+        <div *ngIf="task.subTasks && task.subTasks.length > 0" class="space-y-3">
+          <h4 class="text-xs text-gray-500 uppercase tracking-wider px-1">
+            Subtasks ({{ task.subTasks.length }})
+          </h4>
+          <div class="space-y-2">
+            <div *ngFor="let subtask of task.subTasks" class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+              <ion-icon [name]="subtask.statusId === 4 ? 'checkbox' : 'square-outline'"
+                [class.text-green-600]="subtask.statusId === 4" [class.text-gray-400]="subtask.statusId !== 4"
+                class="text-lg"></ion-icon>
+              <span class="flex-1 text-sm" [class.line-through]="subtask.statusId === 4"
+                [class.text-gray-400]="subtask.statusId === 4" [class.text-gray-700]="subtask.statusId !== 4">
+                {{ subtask.title }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Created By -->
+        <div *ngIf="task.creatorName" class="flex items-start gap-4 p-4 bg-gray-50 rounded-2xl">
+          <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+            <ion-icon name="create-outline" class="text-xl text-indigo-600"></ion-icon>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Created By</p>
+            <p class="text-sm font-medium text-gray-900 mt-0.5">{{ task.creatorName }}</p>
+            <p *ngIf="task.creatorEmail" class="text-xs text-gray-500 mt-0.5">{{ task.creatorEmail }}</p>
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between text-xs text-gray-400">
+            <span>Created: {{ formatDateTime(task.createdAt) }}</span>
+            <span *ngIf="task.completedAt">
+              Completed: {{ formatDateTime(task.completedAt) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <button *ngIf="canCompleteTask" (click)="onCompleteTask()" [disabled]="completing() || deleting()"
+            class="px-4 py-2 text-green-600 font-medium rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <div *ngIf="completing()"
+              class="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+            <ion-icon *ngIf="!completing()" name="checkmark-circle-outline"></ion-icon>
+            Mark as Complete
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button (click)="onDelete()" [disabled]="deleting() || completing()"
+            class="px-4 py-2 text-red-600 font-medium rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <div *ngIf="deleting()"
+              class="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+            <ion-icon *ngIf="!deleting()" name="trash-outline"></ion-icon>
+            Delete
+          </button>
+          <button (click)="onEdit()" [disabled]="deleting() || completing()"
+            class="px-5 py-2 bg-purple-500 text-white font-medium rounded-xl hover:bg-purple-600 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
+            <ion-icon name="create-outline"></ion-icon>
+            Edit
+          </button>
+        </div>
+      </div>
+    </ng-container>
+
+  </div>
+</div>

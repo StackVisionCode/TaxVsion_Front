@@ -1,0 +1,152 @@
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Optimización de rendimiento */
+* {
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.transition-all {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+button {
+  transform: translateZ(0);
+  will-change: background-color, transform;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ai-glow {
+  animation: aiGlow 3s ease-in-out infinite;
+  will-change: box-shadow, transform;
+}
+
+@keyframes aiGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(147, 51, 234, 0.3);
+    transform: scale(1) translateZ(0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(147, 51, 234, 0.5);
+    transform: scale(1.02) translateZ(0);
+  }
+}
+
+.duration-200 {
+  transition-duration: 200ms !important;
+}
+
+button:hover {
+  transition-duration: 150ms;
+}
+
+.sidebar-tooltip {
+  position: fixed;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 999999;
+
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 200ms ease-out;
+  visibility: hidden;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.sidebar-tooltip.show {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+  visibility: visible;
+    z-index: 999999;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+.overflow-hidden {
+  contain: layout style;
+}
+
+.overflow-y-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shadow-xl {
+  will-change: box-shadow;
+}
+
+ion-icon {
+  will-change: transform, color;
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+/* ============================================
+   TOOLTIPS - SOLUCIÓN DEFINITIVA (legacy desactivado)
+   ============================================ */
+
+::ng-deep .sidebar-tooltip-legacy {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  margin-left: 0.5rem;
+  background-color: #1f2937;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 99999;
+
+  /* Estado inicial */
+  opacity: 0;
+  transform: translateX(-15px) translateY(-50%) scale(0.85);
+  transition: all 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  visibility: hidden;
+}
+
+::ng-deep button:hover .sidebar-tooltip-legacy {
+  opacity: 1;
+  transform: translateX(0) translateY(-50%) scale(1);
+  visibility: visible;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5),
+              0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Delay para que no aparezca instantáneamente */
+::ng-deep .sidebar-tooltip-legacy {
+  transition-delay: 150ms;
+}
+
+::ng-deep button:hover .sidebar-tooltip-legacy {
+  transition-delay: 0ms;
+}
+
+/* Pequeña flecha opcional */
+::ng-deep .sidebar-tooltip-legacy::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 4px 4px 4px 0;
+  border-color: transparent #8b5cf6 transparent transparent;
+}

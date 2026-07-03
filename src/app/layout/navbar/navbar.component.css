@@ -1,0 +1,117 @@
+:host {
+  display: block;
+  position: relative;
+  z-index: 50;
+}
+
+input {
+  outline: none;
+  border: none;
+}
+
+/* Prevent text selection */
+header {
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Backdrop filter support */
+@supports (backdrop-filter: blur(12px)) {
+  header {
+    background-color: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* Animations */
+.dropdown-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.dropdown-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms, transform 200ms;
+}
+
+.dropdown-exit {
+  opacity: 1;
+}
+
+.dropdown-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 200ms, transform 200ms;
+}
+
+/* TaxPro Dropdown Styles */
+.taxpro-dropdown {
+  animation: taxproDropdownFadeIn 0.2s ease-out;
+}
+
+@keyframes taxproDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.taxpro-module-item {
+  transition: all 0.15s ease;
+}
+
+.taxpro-module-item:hover {
+  background-color: #eff6ff;
+  transform: translateX(4px);
+}
+
+.taxpro-module-item:hover .module-icon {
+  transform: scale(1.1);
+}
+
+.module-icon {
+  transition: transform 0.15s ease;
+}
+
+/* Truncate long company/user names */
+.max-w-xs {
+  max-width: 20rem;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* User dropdown improvements */
+[data-dropdown="user"] button {
+  min-width: 0;
+}
+
+[data-dropdown="user"] button span {
+  max-width: 180px;
+}
+
+/* Smooth transitions */
+[data-dropdown="user"] .group:hover span {
+  color: #1f2937;
+}
+
+/* Badge styles */
+.inline-flex ion-icon {
+  vertical-align: middle;
+}
+
+/* Hide any large building icon in the user menu header */
+[data-dropdown="user"] .bg-gradient-to-r.from-blue-50.to-green-50 ion-icon[name="business"],
+[data-dropdown="user"] .bg-gradient-to-r.from-blue-50.to-green-50 ion-icon[name="business-outline"],
+[data-dropdown="user"] .bg-gradient-to-r.from-blue-50.to-green-50 ion-icon[name="business-sharp"] {
+  display: none !important;
+}

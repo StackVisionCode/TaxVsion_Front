@@ -1,0 +1,385 @@
+<!-- Main navbar -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-lg backdrop-blur-sm">
+  <div class="flex h-[63px] items-center justify-between px-4">
+    <!-- Mobile menu button -->
+    <button (click)="toggleMobileMenu()"
+      class="mr-2 flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200 md:hidden">
+      <ion-icon name="menu-outline" class="h-5 w-5"></ion-icon>
+      <span class="sr-only">Open menu</span>
+    </button>
+
+    <!-- Logo -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center"></div>
+    </div>
+
+    <!-- Search bar -->
+    <div class="flex-1 flex items-center justify-center max-w-[720px] px-4">
+      <div class="w-full relative">
+        <div
+          class="h-10 bg-gray-50 hover:bg-gray-100 rounded-full flex items-center transition-all duration-300 border border-gray-200 hover:border-blue-300 shadow-sm">
+          <ion-icon name="search-outline" class="absolute left-4 w-5 h-5 text-blue-500"></ion-icon>
+          <input type="text" placeholder="Search customers by name, email or SSN/ITIN..."
+            [ngModel]="searchQuery()" (ngModelChange)="onSearchChange($event)" (focus)="onSearchFocus()"
+            (blur)="onSearchBlur()"
+            class="w-full h-full bg-transparent px-12 text-sm text-gray-700 placeholder-gray-500 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400">
+
+          <!-- Clear button -->
+          <button *ngIf="searchQuery()" (click)="clearSearch()"
+            class="absolute right-4 w-4 h-4 text-gray-400 hover:text-gray-600 transition-colors">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </div>
+
+        <!-- Search Results Dropdown -->
+        <div *ngIf="isSearchDropdownOpen() && searchResults().length > 0"
+          class="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto">
+
+          <!-- Results header -->
+          <div class="px-4 py-2 border-b border-gray-100 bg-gray-50 rounded-t-xl">
+            <span class="text-xs font-medium text-gray-600">
+              {{ searchResults().length }} client{{ searchResults().length !== 1 ? 's' : '' }} found
+            </span>
+          </div>
+
+          <!-- Results list -->
+          <div class="py-1">
+            <div *ngFor="let customer of searchResults(); trackBy: trackByCustomer" (click)="selectCustomer(customer)"
+              class="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors duration-200 border-b border-gray-50 last:border-b-0">
+
+              <!-- Customer avatar -->
+              <div
+                class="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                {{ getCustomerInitials(customer) }}
+              </div>
+
+              <!-- Customer info -->
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-gray-900 truncate">
+                  {{ getCustomerFullName(customer) }}
+                </div>
+                <div class="text-sm text-gray-500 truncate">
+                  {{ customer.email || 'No email' }}
+                </div>
+                <div class="text-xs text-gray-400">
+                  SSN/ITIN: {{ customer.ssnOrItin }}
+                </div>
+              </div>
+
+              <!-- Arrow icon -->
+              <div class="flex-shrink-0">
+                <ion-icon name="chevron-forward-outline" class="w-4 h-4 text-gray-400"></ion-icon>
+              </div>
+            </div>
+          </div>
+
+          <!-- No results message -->
+          <div *ngIf="searchQuery() && searchResults().length === 0" class="px-4 py-6 text-center text-gray-500">
+            <ion-icon name="search-outline" class="w-8 h-8 mx-auto mb-2 text-gray-300"></ion-icon>
+            <p class="text-sm">No clients found</p>
+            <p class="text-xs text-gray-400 mt-1">Try a different search term</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right section -->
+    <nav class="flex items-center gap-3">
+      <!-- Language selector -->
+      <div class="relative" data-dropdown="language">
+        <button (click)="toggleLanguage()"
+          class="flex h-9 items-center gap-1 rounded-full border border-blue-200 bg-white px-3 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-blue-50 hover:border-blue-300 shadow-sm">
+          <span>{{ currentLanguage() }}</span>
+          <ion-icon name="chevron-down-outline" class="h-4 w-4 text-blue-500"></ion-icon>
+        </button>
+
+        <!-- Language dropdown -->
+        <div *ngIf="isLanguageOpen()"
+          class="absolute right-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl backdrop-blur-sm">
+          <div *ngFor="let lang of languages" (click)="selectLanguage(lang)"
+            class="flex cursor-pointer items-center justify-between px-4 py-3 text-sm text-gray-700 transition-all duration-200 hover:bg-blue-50 hover:text-gray-900">
+            <span>{{ lang.label }}</span>
+            <ion-icon *ngIf="lang.code === currentLanguage().toLowerCase()" name="checkmark-outline"
+              class="ml-auto h-4 w-4 text-green-500">
+            </ion-icon>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications button -->
+      <div class="relative" data-dropdown="notifications">
+        <button (click)="toggleNotifications()"
+          class="relative flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-white transition-all duration-300 hover:bg-blue-50 hover:border-blue-300 shadow-sm group overflow-hidden">
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          </div>
+          <ion-icon name="notifications-outline"
+            class="w-5 h-5 text-blue-600 relative z-10 group-hover:scale-110 transition-transform duration-200"></ion-icon>
+          <span class="sr-only">Notifications</span>
+        </button>
+
+        <!-- Notifications badge -->
+        <span *ngIf="notificationCount() > 0"
+          class="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-red-600 text-[10px] font-bold text-white shadow-lg border-2 border-white z-[60] pointer-events-none">
+          {{ notificationCount() > 9 ? '9+' : notificationCount() }}
+        </span>
+
+        <!-- Notifications dropdown -->
+        <div *ngIf="isNotificationsOpen()"
+          class="absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl backdrop-blur-sm">
+
+          <!-- Dropdown header -->
+          <div class="border-b border-gray-100 px-4 py-3 bg-gradient-to-r from-blue-50 to-green-50">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
+              <div class="flex items-center gap-2">
+                <button (click)="deleteAllRead()"
+                  class="text-xs text-red-600 hover:text-red-700 transition-colors duration-200 font-medium flex items-center gap-1"
+                  [disabled]="!hasReadNotifications()" [class.opacity-50]="!hasReadNotifications()"
+                  [class.cursor-not-allowed]="!hasReadNotifications()" title="Clear read">
+                  <ion-icon name="trash-outline" class="w-3 h-3"></ion-icon>
+                  <span class="hidden sm:inline">Clear read</span>
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <button (click)="markAllAsRead()"
+                class="text-xs text-blue-600 hover:text-blue-700 transition-colors duration-200 font-medium"
+                [disabled]="notificationCount() === 0" [class.opacity-50]="notificationCount() === 0"
+                [class.cursor-not-allowed]="notificationCount() === 0">
+                Mark all as read
+              </button>
+              <button (click)="clearAllNotifications()"
+                class="text-xs text-gray-600 hover:text-gray-700 transition-colors duration-200 font-medium flex items-center gap-1"
+                [disabled]="!hasNotifications()" [class.opacity-50]="!hasNotifications()"
+                [class.cursor-not-allowed]="!hasNotifications()" title="Clear all">
+                <ion-icon name="close-circle-outline" class="w-3 h-3"></ion-icon>
+                <span>Clear all</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notifications list -->
+          <div class="max-h-80 overflow-y-auto">
+            <div *ngFor="let notification of notifications(); trackBy: trackByNotificationId"
+              class="group relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-all duration-200"
+              [ngClass]="{'bg-blue-50/30': !notification.isRead}">
+
+              <div class="flex items-start gap-3">
+                <!-- Notification icon -->
+                <div class="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0"
+                  [ngClass]="getNotificationBgColor(notification.type)">
+                  <ion-icon [name]="notification.icon" class="h-4 w-4"
+                    [ngClass]="getNotificationTypeColor(notification.type)">
+                  </ion-icon>
+                </div>
+
+                <!-- Notification content -->
+                <div class="flex-1 min-w-0 cursor-pointer" (click)="markAsRead(notification.id, $event)">
+                  <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-gray-900 truncate pr-2">{{ notification.title }}</p>
+                    <div class="flex items-center gap-1">
+                      <!-- Unread indicator -->
+                      <div *ngIf="!notification.isRead" class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                    </div>
+                  </div>
+                  <p class="text-xs text-gray-600 mt-1 line-clamp-2">{{ notification.message }}</p>
+                  <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-gray-500">{{ notification.time }}</p>
+                    <!-- Priority badge -->
+                    <span *ngIf="notification.priority" class="text-xs px-2 py-0.5 rounded-full" [ngClass]="{
+                  'bg-yellow-100 text-yellow-700': notification.priority === 2,
+                  'bg-red-100 text-red-700': notification.priority === 3
+                }">
+                      {{ notification.priority === 3 ? 'Urgent' : 'High' }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Action buttons (visible on hover) -->
+                <div
+                  class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <!-- Mark as read button -->
+                  <button *ngIf="!notification.isRead" (click)="markAsRead(notification.id, $event)"
+                    class="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-100 transition-colors"
+                    title="Mark read">
+                    <ion-icon name="checkmark-outline" class="w-4 h-4"></ion-icon>
+                  </button>
+
+                  <!-- Delete button -->
+                  <button (click)="deleteNotification(notification.id, $event)"
+                    class="flex h-7 w-7 items-center justify-center rounded-lg text-red-600 hover:bg-red-100 transition-colors"
+                    title="Delete">
+                    <ion-icon name="trash-outline" class="w-4 h-4"></ion-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div *ngIf="notifications().length === 0" class="px-4 py-8 text-center">
+              <ion-icon name="notifications-off-outline" class="w-12 h-12 text-gray-300 mx-auto mb-3"></ion-icon>
+              <p class="text-sm font-medium text-gray-600">No notifications</p>
+              <p class="text-xs text-gray-400 mt-1">You're all caught up!</p>
+            </div>
+          </div>
+
+          <!-- Footer with "View all" button -->
+          <div class="border-t border-gray-100 px-4 py-3 bg-gray-50">
+            <button (click)="navigateToNotificationCenter()"
+              class="w-full text-center text-sm text-blue-600 hover:text-blue-700 transition-colors duration-200 font-medium py-2 hover:bg-blue-50 rounded-lg">
+              View all notifications
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- User menu -->
+      <div class="relative" data-dropdown="user">
+        <button (click)="toggleUserMenu()"
+          class="flex h-9 items-center gap-2 rounded-full border border-blue-200 bg-white px-3 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-blue-50 hover:border-blue-300 shadow-sm group max-w-xs">
+
+          <!-- Company + TaxUser Name (truncated) -->
+          <span class="hidden sm:inline group-hover:text-gray-900 transition-colors duration-200 truncate">
+            {{ getUserDisplayName() }}
+          </span>
+
+          <!-- TaxUser Avatar with fallbacks -->
+          <div
+            class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-green-500 text-white shadow-md ring-2 ring-blue-100 flex-shrink-0 overflow-hidden">
+            <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
+              class="w-full h-full object-cover" (error)="onImageError($event)">
+            <span *ngIf="!getUserImageSrc()" class="text-xs font-bold">{{ getUserInitials() }}</span>
+          </div>
+        </button>
+
+        <!-- Enhanced user dropdown -->
+        <div *ngIf="isUserMenuOpen()"
+          class="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl backdrop-blur-sm">
+
+          <!-- User Info Header -->
+          <div class="border-b border-gray-100 px-4 py-4 bg-gradient-to-r from-blue-50 to-green-50">
+            <div class="flex items-start gap-3">
+              <!-- TaxUser Avatar (larger) -->
+              <div
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-green-500 text-white shadow-lg ring-2 ring-blue-200 flex-shrink-0 overflow-hidden">
+                <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
+                  class="w-full h-full object-cover" (error)="onImageError($event)">
+                <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <!-- TaxUser Name -->
+                <p class="text-sm font-bold text-gray-900 truncate">
+                  {{ getTaxUserFullName() || getUserEmail() }}
+                </p>
+
+                <!-- Company Name -->
+                <p class="text-xs text-gray-600 truncate" *ngIf="getCompanyName()">
+                  {{ getCompanyName() }}
+                </p>
+
+                <!-- Email -->
+                <p class="text-xs text-gray-500 truncate mt-0.5">
+                  {{ getUserEmail() }}
+                </p>
+
+                <!-- Role Badge -->
+                <div class="mt-2">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                    [ngClass]="user().isOwner ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'">
+                    <ion-icon [name]="user().isOwner ? 'shield-checkmark-outline' : 'person-outline'"
+                      class="w-3 h-3 mr-1"></ion-icon>
+                    {{ getUserRole() }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Menu Items -->
+          <div class="py-1">
+            <a routerLink="/app/profile"
+              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-all duration-200 hover:bg-blue-50 hover:text-gray-900 group">
+              <ion-icon name="person-outline" class="mr-3 h-4 w-4 text-blue-500 group-hover:text-blue-600"></ion-icon>
+              <span>My Profile</span>
+            </a>
+
+            <a routerLink="/app/company/users"
+              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-all duration-200 hover:bg-blue-50 hover:text-gray-900 group">
+              <ion-icon name="people-outline" class="mr-3 h-4 w-4 text-blue-500 group-hover:text-blue-600"></ion-icon>
+              <span>User Management</span>
+            </a>
+
+            <a routerLink="/app/company/settings"
+              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-all duration-200 hover:bg-blue-50 hover:text-gray-900 group">
+              <ion-icon name="business-outline"
+                class="mr-3 h-4 w-4 text-blue-500 group-hover:text-blue-600"></ion-icon>
+              <span>Company Settings</span>
+            </a>
+          </div>
+
+          <!-- Logout -->
+          <div class="border-t border-gray-100 py-1">
+            <a (click)="logout()"
+              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-all duration-200 hover:bg-red-50 hover:text-red-600 group cursor-pointer">
+              <ion-icon name="log-out-outline" class="mr-3 h-4 w-4 text-red-500 group-hover:text-red-600"></ion-icon>
+              <span>Logout</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- Enhanced mobile menu -->
+<div *ngIf="isMobileMenuOpen()" class="fixed inset-0 z-50 flex md:hidden" (click)="closeMobileMenu($event)">
+  <div class="fixed inset-0 bg-black/20 backdrop-blur-sm" aria-hidden="true"></div>
+  <div
+    class="fixed bottom-0 left-0 top-0 w-full max-w-xs overflow-y-auto bg-white p-6 shadow-xl border-r border-gray-200">
+    <!-- Mobile menu content -->
+    <div class="flex flex-col gap-6 relative">
+      <!-- Mobile user header -->
+      <div class="flex items-center gap-3 pt-2 pb-4 border-b border-gray-200">
+        <!-- TaxUser Avatar -->
+        <div
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-green-500 text-white shadow-lg flex-shrink-0 overflow-hidden">
+          <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
+            class="w-full h-full object-cover" (error)="onImageError($event)">
+          <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
+        </div>
+
+        <div class="flex-1 min-w-0">
+          <!-- TaxUser Name -->
+          <p class="text-sm font-bold text-gray-900 truncate">
+            {{ getTaxUserFullName() || 'User' }}
+          </p>
+
+          <!-- Company Name -->
+          <p class="text-xs text-gray-600 truncate" *ngIf="getCompanyName()">
+            {{ getCompanyName() }}
+          </p>
+
+          <!-- Role Badge -->
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1"
+            [ngClass]="user().isOwner ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'">
+            {{ getUserRole() }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Mobile search bar -->
+      <div class="relative">
+        <div class="h-10 bg-gray-50 rounded-full flex items-center border border-gray-200">
+          <ion-icon name="search-outline" class="absolute left-3 h-4 w-4 text-blue-500"></ion-icon>
+          <input type="search" placeholder="Search..."
+            class="h-full w-full bg-transparent pl-10 pr-4 text-sm text-gray-700 placeholder-gray-500 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </div>
+      </div>
+
+      <!-- Mobile navigation: reuses the Sidebar in mobile mode -->
+      <app-sidebar [isMobile]="true"></app-sidebar>
+    </div>
+  </div>
+</div>

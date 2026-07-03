@@ -1,0 +1,123 @@
+<!-- Loading State -->
+<div *ngIf="loading()" class="h-full flex items-center justify-center p-6">
+  <div class="flex flex-col items-center gap-2">
+    <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+    <p class="text-xs text-gray-400">Loading storage...</p>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div *ngIf="!loading()" class="h-full flex flex-col p-5 gap-4">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div
+        class="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+        <ion-icon name="cloud-outline" class="text-white text-lg"></ion-icon>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-gray-800">Storage Overview</h3>
+        <p class="text-[11px] text-gray-400">Company storage usage</p>
+      </div>
+    </div>
+    <button (click)="loadData()"
+      class="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors">
+      <ion-icon name="refresh-outline" class="text-gray-400 text-sm"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Usage Ring + Stats -->
+  <div class="flex items-center gap-4">
+    <!-- Circular Progress -->
+    <div class="relative w-[88px] h-[88px] flex-shrink-0">
+      <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" stroke-width="10" />
+        <!-- Company segment -->
+        <circle cx="50" cy="50" r="42" fill="none" [attr.stroke]="'url(#companyGrad)'" stroke-width="10"
+          stroke-linecap="round"
+          [attr.stroke-dasharray]="(companyPercent() * 2.639) + ' ' + (263.9 - companyPercent() * 2.639)"
+          stroke-dashoffset="0" class="transition-all duration-700" />
+        <!-- Customer segment -->
+        <circle cx="50" cy="50" r="42" fill="none" [attr.stroke]="'url(#customerGrad)'" stroke-width="10"
+          stroke-linecap="round"
+          [attr.stroke-dasharray]="(customerPercent() * 2.639) + ' ' + (263.9 - customerPercent() * 2.639)"
+          [attr.stroke-dashoffset]="-(companyPercent() * 2.639)" class="transition-all duration-700" />
+        <defs>
+          <linearGradient id="companyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3b82f6" />
+            <stop offset="100%" stop-color="#6366f1" />
+          </linearGradient>
+          <linearGradient id="customerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#10b981" />
+            <stop offset="100%" stop-color="#34d399" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <ng-container *ngIf="isUnlimitedPlan(); else percentDisplay">
+          <span class="text-lg font-bold text-emerald-600">∞</span>
+          <span class="text-[9px] text-gray-400">Unlimited</span>
+        </ng-container>
+        <ng-template #percentDisplay>
+          <span class="text-lg font-bold" [ngClass]="getUsageColor()">{{ usagePercent() | number:'1.0-0' }}%</span>
+          <span class="text-[9px] text-gray-400">used</span>
+        </ng-template>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="flex-1 space-y-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-500">Total Space</span>
+        <span class="text-xs font-semibold text-gray-700">
+          {{ isUnlimitedPlan() ? 'Unlimited' : formatBytes(summary().maxBytes) }}
+        </span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-500">Used Space</span>
+        <span class="text-xs font-semibold" [ngClass]="getUsageColor()">{{ formatBytes(summary().usedBytes) }}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-500">Free Space</span>
+        <span class="text-xs font-semibold text-gray-500">
+          {{ isUnlimitedPlan() ? 'Unlimited' : formatFreeSpace() }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="flex items-center gap-4 text-[11px]">
+    <div class="flex items-center gap-1.5">
+      <div class="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+      <span class="text-gray-500">Company</span>
+      <span class="font-medium text-gray-700">{{ formatBytes(summary().companyOwnUsedBytes) }}</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <div class="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"></div>
+      <span class="text-gray-500">Customers</span>
+      <span class="font-medium text-gray-700">{{ formatBytes(summary().customerUsedBytes) }}</span>
+    </div>
+  </div>
+
+  <!-- Quick Stats Row -->
+  <div class="grid grid-cols-2 gap-2">
+    <div class="bg-slate-50 rounded-lg px-3 py-2 text-center">
+      <p class="text-lg font-bold text-gray-800">{{ summary().totalCustomers }}</p>
+      <p class="text-[10px] text-gray-400">Customers</p>
+    </div>
+    <div class="bg-slate-50 rounded-lg px-3 py-2 text-center">
+      <p class="text-lg font-bold text-gray-800">{{ summary().totalFiles }}</p>
+      <p class="text-[10px] text-gray-400">Files</p>
+    </div>
+  </div>
+
+  <!-- View Details Button -->
+  <a [routerLink]="['/app/storage-management']"
+    class="mt-auto flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 text-xs font-medium rounded-xl transition-all duration-200 border border-blue-100">
+    <ion-icon name="analytics-outline" class="text-sm"></ion-icon>
+    View Details
+    <ion-icon name="arrow-forward-outline" class="text-xs"></ion-icon>
+  </a>
+</div>

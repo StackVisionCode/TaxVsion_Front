@@ -1,0 +1,150 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: fit-content;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(147, 51, 234, 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(147, 51, 234, 0.3);
+  border-radius: 20px;
+  transition: background-color 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(147, 51, 234, 0.5);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Line Clamp Utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Sticky Note Hover Effects */
+.group:hover .corner-fold {
+  transform: scale(1.1);
+}
+
+/* Rotate variations for sticky notes */
+.rotate-1 {
+  transform: rotate(1deg);
+}
+
+.-rotate-1 {
+  transform: rotate(-1deg);
+}
+
+.rotate-2 {
+  transform: rotate(2deg);
+}
+
+.-rotate-2 {
+  transform: rotate(-2deg);
+}
+
+/* Reset rotation on hover for better readability */
+.group:hover {
+  transform: rotate(0deg) !important;
+}
+
+/* Modal Backdrop */
+.fixed.inset-0 {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+.group {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Grid responsive adjustments */
+@media (max-width: 640px) {
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Hover lift effect for notes */
+.group:hover {
+  filter: brightness(1.05);
+}
+
+/* Image fade-in on load */
+img {
+  animation: fadeIn 0.5s ease-in;
+}
+
+/* Customer badge hover effect */
+.absolute.top-2.left-2 {
+  transition: all 0.2s ease;
+}
+
+.group:hover .absolute.top-2.left-2 {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}

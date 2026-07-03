@@ -1,0 +1,9 @@
+<div class="min-h-screen flex flex-col">
+  <app-navbar></app-navbar>
+  <div class="flex flex-1 min-h-0">
+    <app-sidebar (sidebarStateChange)="onSidebarStateChange($event)"></app-sidebar>
+    <main class="relative min-w-0 flex-1 bg-gray-50 overflow-y-auto">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

@@ -1,0 +1,179 @@
+.calls-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 280px; // ✅ Máximo antes de scroll
+  padding-right: 4px;
+
+  /* Scrollbar personalizado */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+
+    &:hover {
+      background: #94a3b8;
+    }
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+// Item de llamada
+.call-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; // 12px
+  padding: 0.625rem; // 10px
+  background-color: #f9fafb;
+  border-radius: 0.75rem; // 12px
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+
+  &:hover {
+    background-color: #f1f5f9;
+    transform: translateX(2px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  &:active {
+    transform: translateX(2px) scale(0.98);
+  }
+
+  // Animación de entrada
+  animation: slideIn 0.3s ease-out;
+}
+
+// Botón de acción
+.action-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+// Animaciones
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+// Utilities para truncate
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Estado de carga con animación
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Pulse para indicadores live
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+// Responsive adjustments
+@media (max-width: 640px) {
+  .calls-scroll-container {
+    max-height: 240px;
+  }
+
+  .call-item {
+    padding: 0.5rem; // 8px en móvil
+    gap: 0.5rem; // 8px en móvil
+  }
+}
+
+// Estados especiales
+.call-item {
+
+  // Llamada perdida
+  &.missed {
+    .call-item {
+      background-color: #fef2f2;
+
+      &:hover {
+        background-color: #fee2e2;
+      }
+    }
+  }
+
+  // Llamada en progreso
+  &.ongoing {
+    border: 1px solid #86efac;
+    background-color: #f0fdf4;
+
+    &:hover {
+      background-color: #dcfce7;
+    }
+  }
+}
+
+// Mejoras visuales
+.relative {
+  position: relative;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.min-w-0 {
+  min-width: 0;
+}

@@ -1,0 +1,313 @@
+<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+  (click)="onBackdropClick($event)">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-slideUp"
+    (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-gray-700 to-gray-800 px-6 py-5">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
+            <ion-icon name="time-outline" class="text-2xl text-white"></ion-icon>
+          </div>
+          <div>
+            <h2 class="text-xl font-semibold text-white">History</h2>
+            <p class="text-gray-300 text-sm">View all your appointments and tasks</p>
+          </div>
+        </div>
+        <button (click)="close()"
+          class="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
+          <ion-icon name="close-outline" class="text-2xl"></ion-icon>
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="mt-5 flex gap-2">
+        <button (click)="setActiveTab('appointments')"
+          class="px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
+          [class.bg-white]="activeTab() === 'appointments'"
+          [class.text-gray-800]="activeTab() === 'appointments'"
+          [class.bg-white-10]="activeTab() !== 'appointments'"
+          [class.text-white]="activeTab() !== 'appointments'"
+          [class.hover:bg-white-20]="activeTab() !== 'appointments'">
+          <ion-icon name="calendar-outline"></ion-icon>
+          Appointments
+          <span class="px-2 py-0.5 rounded-full text-xs"
+            [class.bg-blue-100]="activeTab() === 'appointments'"
+            [class.text-blue-700]="activeTab() === 'appointments'"
+            [class.bg-white-20]="activeTab() !== 'appointments'">
+            {{ appointments().length }}
+          </span>
+        </button>
+        <button (click)="setActiveTab('tasks')"
+          class="px-5 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2"
+          [class.bg-white]="activeTab() === 'tasks'"
+          [class.text-gray-800]="activeTab() === 'tasks'"
+          [class.bg-white-10]="activeTab() !== 'tasks'"
+          [class.text-white]="activeTab() !== 'tasks'"
+          [class.hover:bg-white-20]="activeTab() !== 'tasks'">
+          <ion-icon name="checkbox-outline"></ion-icon>
+          Tasks
+          <span class="px-2 py-0.5 rounded-full text-xs"
+            [class.bg-purple-100]="activeTab() === 'tasks'"
+            [class.text-purple-700]="activeTab() === 'tasks'"
+            [class.bg-white20]="activeTab() !== 'tasks'">
+            {{ tasks().length }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Search -->
+        <div class="flex-1 min-w-[200px]">
+          <div class="relative">
+            <ion-icon name="search-outline" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></ion-icon>
+            <input type="text"
+              [ngModel]="currentFilters().search"
+              (ngModelChange)="updateSearch($event)"
+              class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              placeholder="Search by title, description, customer...">
+          </div>
+        </div>
+
+        <!-- Date Range -->
+        <div class="flex items-center gap-2">
+          <input type="date"
+            [ngModel]="currentFilters().startDate"
+            (ngModelChange)="updateStartDate($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+          <span class="text-gray-400">-</span>
+          <input type="date"
+            [ngModel]="currentFilters().endDate"
+            (ngModelChange)="updateEndDate($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+        </div>
+
+        <!-- Type/Priority Filter -->
+        <ng-container *ngIf="activeTab() === 'appointments'">
+          <select [ngModel]="currentFilters().typeId" (ngModelChange)="updateTypeId($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[140px]">
+            <option [ngValue]="null">All Types</option>
+            <option *ngFor="let type of appointmentTypeOptions" [ngValue]="type.id">{{ type.label }}</option>
+          </select>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab() === 'tasks'">
+          <select [ngModel]="currentFilters().priorityId" (ngModelChange)="updatePriorityId($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm min-w-[140px]">
+            <option [ngValue]="null">All Priorities</option>
+            <option *ngFor="let priority of taskPriorityOptions" [ngValue]="priority.id">{{ priority.label }}</option>
+          </select>
+        </ng-container>
+
+        <!-- Status Filter -->
+        <ng-container *ngIf="activeTab() === 'appointments'">
+          <select [ngModel]="currentFilters().statusId" (ngModelChange)="updateAppointmentStatusId($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-w-[140px]">
+            <option [ngValue]="null">All Statuses</option>
+            <option *ngFor="let status of appointmentStatusOptions" [ngValue]="status.id">{{ status.label }}</option>
+          </select>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab() === 'tasks'">
+          <select [ngModel]="currentFilters().statusId" (ngModelChange)="updateTaskStatusId($event)"
+            class="px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm min-w-[140px]">
+            <option [ngValue]="null">All Statuses</option>
+            <option *ngFor="let status of taskStatusOptions" [ngValue]="status.id">{{ status.label }}</option>
+          </select>
+        </ng-container>
+
+        <!-- Clear Filters -->
+        <button *ngIf="hasActiveFilters()" (click)="clearFilters()"
+          class="px-3 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-xl transition-colors text-sm flex items-center gap-1">
+          <ion-icon name="close-outline"></ion-icon>
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="overflow-y-auto" style="max-height: calc(90vh - 340px);">
+
+      <!-- APPOINTMENTS LIST -->
+      <div *ngIf="activeTab() === 'appointments'">
+        <!-- Empty State -->
+        <div *ngIf="filteredAppointments().length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+          <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <ion-icon name="calendar-outline" class="text-4xl text-gray-400"></ion-icon>
+          </div>
+          <h3 class="text-lg font-medium text-gray-800 mb-1">No appointments found</h3>
+          <p class="text-gray-500 text-sm">{{ hasActiveFilters() ? 'No appointments match your filters' : "You haven't created any appointments yet" }}</p>
+        </div>
+
+        <!-- Appointments List -->
+        <div *ngIf="filteredAppointments().length > 0" class="divide-y divide-gray-100">
+          <div *ngFor="let appointment of filteredAppointments()"
+            (click)="onAppointmentClick(appointment)"
+            class="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors group">
+            <!-- Type Icon -->
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+              [style.backgroundColor]="getAppointmentType(appointment.typeId).color + '15'">
+              <ion-icon [name]="getAppointmentType(appointment.typeId).icon" class="text-xl"
+                [style.color]="getAppointmentType(appointment.typeId).color"></ion-icon>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-medium text-gray-900 truncate">{{ appointment.title }}</h4>
+                <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                  [style.backgroundColor]="getAppointmentStatus(appointment.statusId).color + '20'"
+                  [style.color]="getAppointmentStatus(appointment.statusId).color">
+                  {{ getAppointmentStatus(appointment.statusId).label }}
+                </span>
+              </div>
+              <div class="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                <span class="flex items-center gap-1">
+                  <ion-icon name="calendar-outline" class="text-xs"></ion-icon>
+                  {{ formatDate(appointment.startTime) }}
+                </span>
+                <span class="flex items-center gap-1">
+                  <ion-icon name="time-outline" class="text-xs"></ion-icon>
+                  {{ formatTime(appointment.startTime) }}
+                </span>
+                <span *ngIf="appointment.customerName" class="flex items-center gap-1 truncate">
+                  <ion-icon name="person-outline" class="text-xs"></ion-icon>
+                  {{ appointment.customerName }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Arrow -->
+            <ion-icon name="chevron-forward-outline"
+              class="text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0"></ion-icon>
+          </div>
+        </div>
+      </div>
+
+      <!-- TASKS LIST -->
+      <div *ngIf="activeTab() === 'tasks'">
+        <!-- Empty State -->
+        <div *ngIf="filteredTasks().length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+          <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <ion-icon name="checkbox-outline" class="text-4xl text-gray-400"></ion-icon>
+          </div>
+          <h3 class="text-lg font-medium text-gray-800 mb-1">No tasks found</h3>
+          <p class="text-gray-500 text-sm">{{ hasActiveFilters() ? 'No tasks match your filters' : "You haven't created any tasks yet" }}</p>
+        </div>
+
+        <!-- Tasks List -->
+        <div *ngIf="filteredTasks().length > 0" class="divide-y divide-gray-100">
+          <div *ngFor="let task of filteredTasks()"
+            (click)="onTaskClick(task)"
+            class="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors group">
+            <!-- Priority Icon -->
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+              [style.backgroundColor]="getTaskPriority(task.priorityId).color + '15'">
+              <ion-icon [name]="getTaskPriority(task.priorityId).icon" class="text-xl"
+                [style.color]="getTaskPriority(task.priorityId).color"></ion-icon>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-medium text-gray-900 truncate"
+                  [class.line-through]="task.statusId === 4"
+                  [class.text-gray-400]="task.statusId === 4">
+                  {{ task.title }}
+                </h4>
+                <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                  [style.backgroundColor]="getTaskStatus(task.statusId).color + '20'"
+                  [style.color]="getTaskStatus(task.statusId).color">
+                  {{ getTaskStatus(task.statusId).label }}
+                </span>
+                <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                  [style.backgroundColor]="getTaskPriority(task.priorityId).color + '20'"
+                  [style.color]="getTaskPriority(task.priorityId).color">
+                  {{ getTaskPriority(task.priorityId).label }}
+                </span>
+              </div>
+              <div class="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                <span *ngIf="task.dueDate" class="flex items-center gap-1"
+                  [class.text-red-500]="isOverdue(task.dueDate) && task.statusId !== 4">
+                  <ion-icon name="calendar-outline" class="text-xs"></ion-icon>
+                  {{ formatDate(task.dueDate) }}
+                </span>
+                <span *ngIf="task.customerName" class="flex items-center gap-1 truncate">
+                  <ion-icon name="person-outline" class="text-xs"></ion-icon>
+                  {{ task.customerName }}
+                </span>
+                <span class="flex items-center gap-1">
+                  <ion-icon name="analytics-outline" class="text-xs"></ion-icon>
+                  {{ task.completionPercentage }}%
+                </span>
+              </div>
+              <!-- Tags -->
+              <div *ngIf="task.tags && task.tags.length > 0" class="flex flex-wrap gap-1 mt-2">
+                <span *ngFor="let tag of task.tags.slice(0, 3)"
+                  class="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full">
+                  {{ tag }}
+                </span>
+                <span *ngIf="task.tags.length > 3" class="text-xs text-gray-400">
+                  +{{ task.tags.length - 3 }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Arrow -->
+            <ion-icon name="chevron-forward-outline"
+              class="text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0"></ion-icon>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination Footer -->
+    <div *ngIf="currentPagination().totalPages > 1"
+      class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+      <!-- Results info -->
+      <span class="text-sm text-gray-600">
+        Showing
+        {{ ((currentPagination().page - 1) * currentPagination().pageSize) + 1 }}-{{ Math.min(currentPagination().page * currentPagination().pageSize, currentPagination().totalItems) }}
+        of
+        {{ currentPagination().totalItems }}
+      </span>
+
+      <!-- Pagination controls -->
+      <div class="flex items-center gap-1">
+        <button (click)="goToPage(1)" [disabled]="currentPagination().page === 1"
+          class="p-2 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <ion-icon name="play-back-outline" class="text-sm"></ion-icon>
+        </button>
+        <button (click)="goToPage(currentPagination().page - 1)" [disabled]="currentPagination().page === 1"
+          class="p-2 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <ion-icon name="chevron-back-outline" class="text-sm"></ion-icon>
+        </button>
+
+        <ng-container *ngFor="let page of paginationPages()">
+          <button (click)="goToPage(page)"
+            class="w-9 h-9 rounded-lg text-sm font-medium transition-colors"
+            [class.bg-blue-500]="page === currentPagination().page && activeTab() === 'appointments'"
+            [class.bg-purple-500]="page === currentPagination().page && activeTab() === 'tasks'"
+            [class.text-white]="page === currentPagination().page"
+            [class.hover:bg-gray-200]="page !== currentPagination().page">
+            {{ page }}
+          </button>
+        </ng-container>
+
+        <button (click)="goToPage(currentPagination().page + 1)" [disabled]="currentPagination().page === currentPagination().totalPages"
+          class="p-2 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
+        </button>
+        <button (click)="goToPage(currentPagination().totalPages)" [disabled]="currentPagination().page === currentPagination().totalPages"
+          class="p-2 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <ion-icon name="play-forward-outline" class="text-sm"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

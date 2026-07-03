@@ -1,0 +1,117 @@
+<div class="mini-calendar-container">
+
+  <!-- Calendar Header -->
+  <div class="calendar-header">
+    <div class="month-nav">
+      <button (click)="prevMonth()" class="nav-btn">
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+
+      <div class="month-title-wrap">
+        <h3 class="month-title">{{ currentMonthYear() }}</h3>
+        <button (click)="goToToday()" class="today-btn">Today</button>
+      </div>
+
+      <button (click)="nextMonth()" class="nav-btn">
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Week Days -->
+  <div class="weekdays-grid">
+    <div *ngFor="let day of weekDaysShort" class="weekday-label">
+      {{ day }}
+    </div>
+  </div>
+
+  <!-- Calendar Grid -->
+  <div class="calendar-grid">
+    <div *ngFor="let day of calendarDays()" [class]="getDayClass(day)" (click)="onDayClick(day)">
+
+      <span class="day-number">{{ day.day }}</span>
+
+      <div *ngIf="day.hasEvents" class="event-dot" [style.backgroundColor]="getDayDotColor(day)">
+        <span class="event-count" *ngIf="day.eventsCount > 1">
+          {{ day.eventsCount }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="calendar-stats">
+    <div class="stat-item">
+      <div class="stat-icon-wrapper blue">
+        <ion-icon name="calendar-outline"></ion-icon>
+      </div>
+      <div class="stat-content">
+        <span class="stat-value">{{ todayEventsCount() }}</span>
+        <span class="stat-label">Today</span>
+      </div>
+    </div>
+
+    <div class="stat-divider"></div>
+
+    <div class="stat-item">
+      <div class="stat-icon-wrapper green">
+        <ion-icon name="time-outline"></ion-icon>
+      </div>
+      <div class="stat-content">
+        <span class="stat-value">{{ upcomingEventsCount() }}</span>
+        <span class="stat-label">Upcoming</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL - SIMPLE Y BONITO -->
+<div *ngIf="showModal() && selectedDay()" class="modal-backdrop" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-left">
+        <ion-icon name="calendar-outline" class="header-icon"></ion-icon>
+        <div>
+          <h3 class="modal-title">{{ formatModalDate(selectedDay()!.date) }}</h3>
+          <p class="modal-subtitle">
+            {{ selectedDay()!.eventsCount }}
+            {{ selectedDay()!.eventsCount === 1 ? 'event' : 'events' }}
+          </p>
+        </div>
+      </div>
+      <button class="close-btn" (click)="closeModal()">
+        <ion-icon name="close-outline"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <div *ngFor="let event of selectedDay()!.events" class="event-card">
+
+        <div class="event-left" [style.backgroundColor]="getEventColor(event)">
+          <ion-icon [name]="getEventIcon(event)"></ion-icon>
+        </div>
+
+        <div class="event-right">
+          <div class="event-header-row">
+            <span class="event-type">{{ getEventTypeLabel(event) }}</span>
+            <span class="event-time">{{ formatEventTime(event) }}</span>
+          </div>
+
+          <h4 class="event-title">{{ event.title }}</h4>
+
+          <p *ngIf="event.description" class="event-description">
+            {{ event.description }}
+          </p>
+
+          <div *ngIf="event.location" class="event-location">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>{{ event.location }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
