@@ -115,17 +115,17 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.bodyTooltipEl.setAttribute('role', 'tooltip');
       Object.assign(this.bodyTooltipEl.style, {
         position: 'fixed',
-        backgroundColor: '#10b981',
+        backgroundColor: '#111827',
         color: '#fff',
-        padding: '8px 12px',
-        borderRadius: '8px',
-        fontSize: '14px',
+        padding: '6px 12px',
+        borderRadius: '9999px',
+        fontSize: '13px',
         fontWeight: '500',
         pointerEvents: 'none',
         whiteSpace: 'nowrap',
         zIndex: String(2147483647),
         boxShadow:
-          '0 20px 25px -5px rgba(16,185,129,0.35), 0 10px 10px -5px rgba(16,185,129,0.25)',
+          '0 10px 15px -3px rgba(17,24,39,0.25), 0 4px 6px -4px rgba(17,24,39,0.2)',
         transition: 'opacity 150ms ease, transform 150ms ease',
       } as CSSStyleDeclaration);
       document.body.appendChild(this.bodyTooltipEl);
