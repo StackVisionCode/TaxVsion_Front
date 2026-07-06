@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -42,11 +42,6 @@ interface NavbarCustomer {
   ssnOrItin: string;
 }
 
-interface NavbarLanguage {
-  code: string;
-  label: string;
-}
-
 @Component({
   selector: 'app-navbar',
   imports: [CommonModule, RouterModule, FormsModule, SidebarComponent],
@@ -57,12 +52,12 @@ interface NavbarLanguage {
 export class NavbarComponent {
   private readonly router = inject(Router);
 
+  @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
+
   // Dropdown / panel visibility
-  readonly isLanguageOpen = signal(false);
   readonly isUserMenuOpen = signal(false);
   readonly isMobileMenuOpen = signal(false);
   readonly isNotificationsOpen = signal(false);
-  readonly isTaxProDropdownOpen = signal(false);
 
   // Static "logged in" user placeholder
   readonly user = signal<NavbarUser>({
@@ -156,16 +151,6 @@ export class NavbarComponent {
 
   readonly isSearchDropdownOpen = computed(() => this.searchFocused() && this.searchQuery().trim().length > 0);
 
-  // Static language options (visual only, no i18n library wired up)
-  readonly languages: NavbarLanguage[] = [
-    { code: 'es', label: 'Español' },
-    { code: 'en', label: 'English' },
-    { code: 'pt', label: 'Português' },
-    { code: 'fr', label: 'Français' },
-  ];
-
-  readonly currentLanguage = signal('EN');
-
   // ==========================================
   // Mobile menu
   // ==========================================
@@ -190,38 +175,24 @@ export class NavbarComponent {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    const isLanguageDropdown = target.closest('[data-dropdown="language"]');
     const isUserDropdown = target.closest('[data-dropdown="user"]');
     const isNotificationsDropdown = target.closest('[data-dropdown="notifications"]');
-    const isTaxProDropdown = target.closest('.relative');
 
-    if (!isLanguageDropdown && this.isLanguageOpen()) {
-      this.isLanguageOpen.set(false);
-    }
     if (!isUserDropdown && this.isUserMenuOpen()) {
       this.isUserMenuOpen.set(false);
     }
     if (!isNotificationsDropdown && this.isNotificationsOpen()) {
       this.isNotificationsOpen.set(false);
     }
-    if (!isTaxProDropdown && this.isTaxProDropdownOpen()) {
-      this.isTaxProDropdownOpen.set(false);
+  }
+
+  // Cmd+F / Ctrl+F focuses the command-style search (reference behavior).
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      this.searchInput?.nativeElement.focus();
     }
-  }
-
-  // ==========================================
-  // Language selector
-  // ==========================================
-
-  toggleLanguage(): void {
-    this.isLanguageOpen.update(open => !open);
-    this.isUserMenuOpen.set(false);
-    this.isNotificationsOpen.set(false);
-  }
-
-  selectLanguage(lang: NavbarLanguage): void {
-    this.currentLanguage.set(lang.code.toUpperCase());
-    this.isLanguageOpen.set(false);
   }
 
   // ==========================================
@@ -230,7 +201,6 @@ export class NavbarComponent {
 
   toggleUserMenu(): void {
     this.isUserMenuOpen.update(open => !open);
-    this.isLanguageOpen.set(false);
     this.isNotificationsOpen.set(false);
   }
 
@@ -242,17 +212,6 @@ export class NavbarComponent {
 
   getCompanyName(): string {
     return this.user().companyName;
-  }
-
-  getUserDisplayName(): string {
-    const u = this.user();
-    const companyName = this.getCompanyName();
-    const taxUserName = this.getTaxUserFullName();
-
-    if (companyName && taxUserName) {
-      return `${companyName} · ${taxUserName}`;
-    }
-    return companyName || taxUserName || u.email;
   }
 
   getUserInitials(): string {
@@ -303,9 +262,7 @@ export class NavbarComponent {
 
   toggleNotifications(): void {
     this.isNotificationsOpen.update(open => !open);
-    this.isLanguageOpen.set(false);
     this.isUserMenuOpen.set(false);
-    this.isTaxProDropdownOpen.set(false);
   }
 
   getNotificationTypeColor(type: NavbarNotification['type']): string {
