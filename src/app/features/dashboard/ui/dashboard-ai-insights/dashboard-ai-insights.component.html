@@ -1,0 +1,25 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <h2 class="text-xl font-bold text-gray-900">AI Insights</h2>
+
+  <div class="mt-4 flex flex-col gap-4">
+    <div *ngFor="let insight of insights" class="overflow-hidden rounded-2xl border border-gray-100">
+      <!-- Card header -->
+      <div class="flex items-center gap-3 bg-gray-50/80 px-4 py-3">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+          [ngClass]="insight.iconBg">
+          <ion-icon [name]="insight.icon" class="text-lg"></ion-icon>
+        </span>
+        <h3 class="text-sm font-bold text-gray-900">{{ insight.title }}</h3>
+      </div>
+
+      <!-- Card body -->
+      <div class="px-4 py-3">
+        <p class="text-sm leading-relaxed text-gray-600">{{ insight.description }}</p>
+        <a href="#" (click)="$event.preventDefault()"
+          class="mt-2 inline-block text-sm font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700">
+          View Details
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

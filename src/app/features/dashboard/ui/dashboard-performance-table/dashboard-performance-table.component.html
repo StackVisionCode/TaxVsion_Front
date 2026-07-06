@@ -1,0 +1,41 @@
+<div class="bg-white rounded-[28px] p-6">
+  <h2 class="text-xl font-bold text-gray-900">Performance Analytics</h2>
+
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th
+            class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+            Task</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-center font-semibold text-gray-900">Accuracy</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-center font-semibold text-gray-900">Duration</th>
+          <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows; let last = last">
+          <td class="px-4 py-4 text-gray-900" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ row.task }}
+          </td>
+          <td class="px-4 py-4 text-gray-600" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ row.date }}
+          </td>
+          <td class="px-4 py-4 text-center text-gray-600" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ row.accuracy }}
+          </td>
+          <td class="px-4 py-4 text-center text-gray-600" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ row.duration }}
+          </td>
+          <td class="px-4 py-4" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2 font-medium" [ngClass]="statusTextClass(row.status)">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDotClass(row.status)"></span>
+              {{ row.status }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

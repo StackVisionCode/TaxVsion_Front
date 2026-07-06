@@ -1,10 +1,21 @@
-<div class="p-4 sm:p-6 lg:p-8 space-y-6">
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-    <p class="text-sm text-gray-500 mt-1">Welcome back, here's what's happening today.</p>
+<div class="min-h-full bg-gradient-to-br from-[#F5F3FA] via-[#FAF7F3] to-[#F7F3EE] p-4 sm:p-6">
+  <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Row 1: hero + right column -->
+    <div class="lg:col-span-2">
+      <app-dashboard-hero></app-dashboard-hero>
+    </div>
+    <div class="flex flex-col gap-4">
+      <app-dashboard-hours-saved></app-dashboard-hours-saved>
+      <app-dashboard-pro-banner></app-dashboard-pro-banner>
+    </div>
+
+    <!-- Rows 2-3: charts/table + AI insights column -->
+    <div class="lg:col-span-2 flex flex-col gap-6">
+      <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
+      <app-dashboard-performance-table></app-dashboard-performance-table>
+    </div>
+    <div>
+      <app-dashboard-ai-insights></app-dashboard-ai-insights>
+    </div>
   </div>
-
-  <app-dashboard-filters></app-dashboard-filters>
-
-  <app-dashboard-modules></app-dashboard-modules>
 </div>

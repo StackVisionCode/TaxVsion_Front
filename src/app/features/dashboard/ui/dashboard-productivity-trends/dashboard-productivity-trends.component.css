@@ -1,0 +1,31 @@
+.trend-bar {
+  min-height: 2.75rem;
+  transition: height 300ms ease;
+}
+
+.trend-bar--light {
+  background-color: #a99beb;
+}
+
+.trend-bar--lighter {
+  background-color: #d6cef4;
+}
+
+.trend-bar--vivid {
+  background-color: #7c6ae0;
+}
+
+.trend-bar--medium {
+  background-color: #9d8de8;
+}
+
+/* Jueves: rayas diagonales púrpura sobre blanco, como en la referencia. */
+.trend-bar--striped {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    55deg,
+    #8b7be8 0 5px,
+    transparent 5px 12px
+  );
+  border: 1px solid #e5e0fa;
+}
