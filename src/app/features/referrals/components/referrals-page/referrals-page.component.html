@@ -1,0 +1,101 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Balance hero + stat cards -->
+  <div class="grid gap-4 grid-cols-1 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
+    <!-- Prominent balance hero -->
+    <div class="relative overflow-hidden rounded-[28px] bg-gray-900 p-6 text-white">
+      <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/5"></div>
+      <div class="absolute -right-2 top-24 h-24 w-24 rounded-full bg-white/5"></div>
+      <div class="relative z-10 flex h-full flex-col justify-between">
+        <div class="flex items-center gap-2 text-white/70">
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+            <ion-icon name="gift-outline" class="text-lg"></ion-icon>
+          </span>
+          <span class="text-sm font-medium">Total earned</span>
+        </div>
+        <div class="mt-6">
+          <p class="text-4xl font-bold tracking-tight">{{ formatCurrency(totalEarned()) }}</p>
+          <p class="mt-2 text-sm text-white/60">Rewards from friends who joined TaxVision</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pastel stat cards -->
+    <div class="rounded-[24px] bg-[#F2E3C9] p-5 flex flex-col justify-between">
+      <p class="text-sm text-gray-600">Total referrals</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalReferrals() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#CBD9F2] p-5 flex flex-col justify-between">
+      <p class="text-sm text-gray-600">Pending</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ pendingCount() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#EEEBFA] p-5 flex flex-col justify-between">
+      <p class="text-sm text-gray-600">Completed</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ completedCount() }}</p>
+    </div>
+  </div>
+
+  <!-- Your referral code -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Your referral code</h2>
+        <p class="mt-1 text-sm text-gray-500">Share it and earn a reward for every friend who signs up</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="inline-flex items-center rounded-full border border-gray-200 px-5 py-2 font-mono text-sm font-semibold tracking-wider text-gray-900">
+          {{ referralCode }}
+        </span>
+
+        <button type="button" (click)="copyLink()"
+          class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+          <ion-icon [name]="copied() ? 'checkmark-outline' : 'link-outline'" class="text-base"></ion-icon>
+          {{ copied() ? 'Copied!' : 'Copy link' }}
+        </button>
+
+        <button type="button" aria-label="Share on X"
+          class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors">
+          <ion-icon name="logo-twitter" class="text-base"></ion-icon>
+        </button>
+        <button type="button" aria-label="Share by email"
+          class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors">
+          <ion-icon name="mail-outline" class="text-base"></ion-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Referrals table -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Referrals</h2>
+        <p class="mt-1 text-sm text-gray-500">People you invited and their reward status</p>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="statusFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        {{ filterLabel(option) }}
+      </button>
+
+      <div
+        class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+        <input type="text" placeholder="Search by name or email" [ngModel]="search()" name="search"
+          (ngModelChange)="onSearchChange($event)"
+          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="mt-5">
+      <app-referral-table [referrals]="pagedReferrals()"></app-referral-table>
+      <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReferrals().length" [pageSize]="pageSize"
+        (pageChange)="currentPage.set($event)"></app-pagination>
+    </div>
+  </div>
+</div>

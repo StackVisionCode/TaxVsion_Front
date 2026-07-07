@@ -1,0 +1,24 @@
+<div>
+  <!-- Suggestion chips -->
+  <div *ngIf="showSuggestions" class="mb-3 flex flex-wrap gap-2">
+    <button *ngFor="let suggestion of suggestions" type="button" (click)="sendSuggestion(suggestion)"
+      [disabled]="disabled"
+      class="rounded-full border border-[#D6CEF4] bg-[#EEEBFA] px-4 py-2 text-xs font-medium text-[#7C6AE0] hover:bg-[#E3DDF7] transition-colors disabled:opacity-50">
+      {{ suggestion }}
+    </button>
+  </div>
+
+  <!-- Input row -->
+  <form class="flex items-center gap-2" (ngSubmit)="submit()">
+    <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Ask TaxVision AI anything..." [ngModel]="draft()" name="draft"
+        (ngModelChange)="draft.set($event)" [disabled]="disabled"
+        class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+    </div>
+    <button type="submit" [disabled]="disabled"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
+      aria-label="Send message">
+      <ion-icon name="send-outline" class="text-base"></ion-icon>
+    </button>
+  </form>
+</div>

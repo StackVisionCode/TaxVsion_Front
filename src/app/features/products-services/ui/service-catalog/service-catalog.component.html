@@ -1,0 +1,134 @@
+<div class="bg-white rounded-[28px] p-6">
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Catalog</h2>
+      <p class="mt-1 text-sm text-gray-500">Services and products offered to clients</p>
+    </div>
+
+    <button type="button" (click)="addService.emit()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="add-outline" class="text-base"></ion-icon>
+      Add service
+    </button>
+  </div>
+
+  <!-- Search + category filters + view toggle -->
+  <div class="mt-4 flex flex-wrap items-center gap-3">
+    <div class="relative w-full sm:w-64">
+      <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
+        <input type="text" placeholder="Search services..." [ngModel]="searchTerm()"
+          (ngModelChange)="onSearchChange($event)"
+          class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button *ngFor="let filter of filters" type="button" (click)="setFilter(filter)"
+        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="activeFilter() === filter ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        {{ filter }}
+      </button>
+    </div>
+
+    <div class="ml-auto flex items-center rounded-full border border-gray-200 p-0.5">
+      <button type="button" (click)="viewMode.set('table')"
+        class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+        [ngClass]="viewMode() === 'table' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+        aria-label="Table view">
+        <ion-icon name="list-outline" class="text-base"></ion-icon>
+      </button>
+      <button type="button" (click)="viewMode.set('grid')"
+        class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+        [ngClass]="viewMode() === 'grid' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+        aria-label="Grid view">
+        <ion-icon name="grid-outline" class="text-base"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Table view -->
+  <div *ngIf="viewMode() === 'table'" class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Service</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Price</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+          <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let service of pagedServices(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                [ngClass]="categoryCircle(service.category)">
+                <ion-icon [name]="categoryIcon(service.category)" class="text-base text-gray-700"></ion-icon>
+              </span>
+              <span>
+                <span class="block font-medium text-gray-900">{{ service.name }}</span>
+                <span class="block text-xs text-gray-400">{{ service.code }}</span>
+              </span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="inline-block rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="categoryChip(service.category)">
+              {{ service.category }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-right font-bold text-gray-900 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">${{ service.price }}</td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="service.status === 'active' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+              {{ statusLabel(service.status) }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
+            [class.border-b]="!last" [class.border-gray-100]="!last">
+            <button type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors ml-auto"
+              aria-label="Edit service">
+              <ion-icon name="create-outline" class="text-base"></ion-icon>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="filteredServices().length === 0" class="px-4 py-10 text-center">
+      <ion-icon name="search-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No services match your search</p>
+    </div>
+  </div>
+
+  <!-- Grid view -->
+  <div *ngIf="viewMode() === 'grid'" class="mt-4 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+    <div *ngFor="let service of pagedServices()" class="rounded-2xl border border-gray-100 p-4">
+      <div class="flex items-center gap-3">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="categoryCircle(service.category)">
+          <ion-icon [name]="categoryIcon(service.category)" class="text-lg text-gray-700"></ion-icon>
+        </span>
+        <span class="min-w-0">
+          <span class="block text-sm font-semibold text-gray-900 truncate">{{ service.name }}</span>
+          <span class="block text-xs text-gray-400">{{ service.code }}</span>
+        </span>
+      </div>
+      <div class="mt-3 flex items-center justify-between">
+        <span class="text-lg font-bold text-gray-900">${{ service.price }}</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
+          {{ statusLabel(service.status) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <app-pagination [currentPage]="currentPage()" [totalItems]="filteredServices().length" [pageSize]="pageSize"
+    (pageChange)="currentPage.set($event)"></app-pagination>
+</div>

@@ -1,0 +1,91 @@
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+    <thead>
+      <tr>
+        <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Document name</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Client</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Signers</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Sent date</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Completed date</th>
+        <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let request of requests; trackBy: trackByRequestId; let last = last" (click)="onRowClick(request)"
+        class="group cursor-pointer">
+        <td class="rounded-l-2xl px-4 py-3.5 font-medium text-gray-900 transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          {{ request.documentName }}
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ request.client }}
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <div class="flex -space-x-2">
+            <span *ngFor="let signer of visibleSigners(request)"
+              class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white"
+              [ngClass]="signer.color" [title]="signer.name">
+              {{ signer.initials }}
+            </span>
+            <span *ngIf="extraSignersCount(request) > 0"
+              class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-600">
+              +{{ extraSignersCount(request) }}
+            </span>
+          </div>
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="statusChip(request.status)">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(request.status)"></span>
+            {{ statusLabel(request.status) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ formatDate(request.sentDate) }}
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ formatDate(request.completedDate) }}
+        </td>
+        <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          <div class="relative inline-block text-left" data-dropdown="signature-menu">
+            <button type="button" (click)="toggleMenu(request, $event)"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              aria-label="Signature request options">
+              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+            </button>
+            <div *ngIf="openMenuId() === request.id"
+              class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <button type="button" (click)="onViewClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="eye-outline" class="text-base"></ion-icon>
+                View
+              </button>
+              <button type="button" (click)="onResendClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+                Resend reminder
+              </button>
+              <button *ngIf="canCancel(request)" type="button" (click)="onCancelClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+                <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
+                Cancel request
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="requests.length === 0" class="px-4 py-10 text-center">
+    <ion-icon name="create-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No signature requests match your search</p>
+  </div>
+</div>

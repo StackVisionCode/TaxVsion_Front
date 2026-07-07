@@ -1,0 +1,79 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <div class="flex flex-wrap items-center gap-3">
+    <button type="button" (click)="back.emit()"
+      class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+      aria-label="Back to files">
+      <ion-icon name="chevron-back-outline" class="text-base"></ion-icon>
+    </button>
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Recycle bin</h2>
+      <p class="mt-0.5 text-sm text-gray-500">Deleted items are kept for 30 days</p>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="mt-5 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))] max-w-md">
+    <div class="rounded-2xl bg-[#EEEBFA] p-5">
+      <p class="text-sm text-gray-500">Deleted files</p>
+      <p class="mt-1 text-3xl font-bold text-gray-900">{{ fileCount() }}</p>
+    </div>
+    <div class="rounded-2xl bg-[#F2E3C9] p-5">
+      <p class="text-sm text-gray-500">Deleted folders</p>
+      <p class="mt-1 text-3xl font-bold text-gray-900">{{ folderCount() }}</p>
+    </div>
+  </div>
+
+  <!-- Items table -->
+  <div class="mt-5 overflow-x-auto" *ngIf="items().length > 0; else emptyBin">
+    <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Deleted</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
+          <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of items(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100">
+                <ion-icon [name]="item.kind === 'folder' ? 'folder-outline' : 'document-text-outline'"
+                  class="text-base text-gray-500"></ion-icon>
+              </span>
+              <span class="font-medium text-gray-700">{{ item.name }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ item.deletedAt }}</td>
+          <td class="px-4 py-3.5 text-right text-gray-500 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ item.size }}</td>
+          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
+            [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2">
+              <button type="button" (click)="restore(item)"
+                class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors">
+                Restore
+              </button>
+              <button type="button" (click)="deleteForever(item)"
+                class="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
+                Delete forever
+              </button>
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #emptyBin>
+    <div class="px-4 py-12 text-center">
+      <ion-icon name="trash-outline" class="text-4xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm font-medium text-gray-600">Recycle bin is empty</p>
+      <p class="text-xs text-gray-400 mt-1">Deleted files and folders will appear here</p>
+    </div>
+  </ng-template>
+</div>

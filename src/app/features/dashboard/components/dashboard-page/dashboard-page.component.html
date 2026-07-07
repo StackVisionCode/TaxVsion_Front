@@ -1,21 +1,45 @@
-<div class="min-h-full bg-gradient-to-br from-[#F5F3FA] via-[#FAF7F3] to-[#F7F3EE] p-4 sm:p-6">
-  <div class="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Row 1: hero + right column -->
-    <div class="lg:col-span-2">
-      <app-dashboard-hero></app-dashboard-hero>
-    </div>
-    <div class="flex flex-col gap-4">
-      <app-dashboard-hours-saved></app-dashboard-hours-saved>
-      <app-dashboard-pro-banner></app-dashboard-pro-banner>
-    </div>
+<div class="min-h-full pt-3 pb-1">
+  <!-- Filtros del dashboard (incluye el botón Edit layout) -->
+  <app-dashboard-filters class="block mb-6"></app-dashboard-filters>
 
-    <!-- Rows 2-3: charts/table + AI insights column -->
-    <div class="lg:col-span-2 flex flex-col gap-6">
-      <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
-      <app-dashboard-performance-table></app-dashboard-performance-table>
-    </div>
-    <div>
-      <app-dashboard-ai-insights></app-dashboard-ai-insights>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" [class.edit-mode]="layout.editMode()" cdkDropList
+    cdkDropListOrientation="mixed" [cdkDropListData]="layout.widgets()" (cdkDropListDropped)="onDrop($event)">
+    <div *ngFor="let widget of layout.widgets(); trackBy: trackById" class="widget-cell relative"
+      [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }" [attr.data-widget-id]="widget.id" cdkDrag
+      [cdkDragDisabled]="!layout.editMode()">
+      <!-- Placeholder mientras se arrastra: hueco suave del mismo tamaño -->
+      <div *cdkDragPlaceholder
+        class="h-full min-h-32 rounded-[28px] border-2 border-dashed border-[#D6CEF4] bg-white/50"></div>
+
+      <!-- Handle visual en modo edición -->
+      <span *ngIf="layout.editMode()"
+        class="drag-handle absolute -top-2 -right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-md ring-1 ring-gray-200 pointer-events-none">
+        <ion-icon name="reorder-three-outline" class="text-lg"></ion-icon>
+      </span>
+
+      <ng-container [ngSwitch]="widget.id">
+        <app-dashboard-hero *ngSwitchCase="'hero'"></app-dashboard-hero>
+
+        <div *ngSwitchCase="'side-stack'" class="flex flex-col gap-4 h-full">
+          <app-dashboard-pro-banner></app-dashboard-pro-banner>
+        </div>
+
+        <div *ngSwitchCase="'analytics-stack'" class="flex flex-col gap-6 h-full">
+          <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
+          <app-dashboard-performance-table></app-dashboard-performance-table>
+        </div>
+
+        <app-dashboard-tasks *ngSwitchCase="'tasks'"></app-dashboard-tasks>
+        <app-dashboard-mini-calendar *ngSwitchCase="'mini-calendar'"></app-dashboard-mini-calendar>
+        <app-dashboard-recent-chats *ngSwitchCase="'recent-chats'"></app-dashboard-recent-chats>
+        <app-dashboard-recent-activity *ngSwitchCase="'recent-activity'"></app-dashboard-recent-activity>
+        <app-dashboard-video-calls *ngSwitchCase="'video-calls'"></app-dashboard-video-calls>
+        <app-dashboard-invoices-chart *ngSwitchCase="'invoices-chart'"></app-dashboard-invoices-chart>
+        <app-dashboard-storage-usage *ngSwitchCase="'storage-usage'"></app-dashboard-storage-usage>
+        <app-dashboard-signed-documents *ngSwitchCase="'signed-documents'"></app-dashboard-signed-documents>
+        <app-dashboard-monthly-clients *ngSwitchCase="'monthly-clients'"></app-dashboard-monthly-clients>
+        <app-dashboard-notes *ngSwitchCase="'notes'"></app-dashboard-notes>
+      </ng-container>
     </div>
   </div>
 </div>

@@ -1,0 +1,93 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Stats row -->
+  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+    <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+      <p class="text-sm text-gray-600">Total clients</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalClients() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+      <p class="text-sm text-gray-600">Active</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeClients() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+      <p class="text-sm text-gray-600">Individuals</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ individualClients() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+      <p class="text-sm text-gray-600">Companies</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ companyClients() }}</p>
+    </div>
+  </div>
+
+  <!-- Clients card -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Clients</h2>
+        <p class="mt-1 text-sm text-gray-500">Manage your individual and company clients</p>
+      </div>
+      <button type="button" (click)="openCreatePanel()"
+        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        New Client
+      </button>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <button type="button" (click)="setTypeFilter('all')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="typeFilter() === 'all' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        All types
+      </button>
+      <button type="button" (click)="setTypeFilter('individual')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="typeFilter() === 'individual' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Individuals
+      </button>
+      <button type="button" (click)="setTypeFilter('company')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="typeFilter() === 'company' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Companies
+      </button>
+
+      <span class="mx-1 h-6 w-px bg-gray-100"></span>
+
+      <button type="button" (click)="setStatusFilter('all')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="statusFilter() === 'all' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        All statuses
+      </button>
+      <button type="button" (click)="setStatusFilter('active')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="statusFilter() === 'active' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Active
+      </button>
+      <button type="button" (click)="setStatusFilter('inactive')"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="statusFilter() === 'inactive' ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Inactive
+      </button>
+
+      <div
+        class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+        <input type="text" placeholder="Search clients" [ngModel]="search()" name="search"
+          (ngModelChange)="onSearchChange($event)"
+          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="mt-5">
+      <app-client-table [clients]="pagedClients()" (editRequested)="openEditPanel($event)"
+        (toggleActiveRequested)="toggleActive($event)" (deleteRequested)="deleteClient($event)"></app-client-table>
+      <app-pagination [currentPage]="currentPage()" [totalItems]="visibleClients().length" [pageSize]="pageSize"
+        (pageChange)="currentPage.set($event)"></app-pagination>
+    </div>
+  </div>
+</div>
+
+<!-- Create / edit overlay -->
+<app-client-form-panel [isOpen]="isPanelOpen()" [client]="editingClient()" (closed)="closePanel()"
+  (saved)="handleSaved($event)"></app-client-form-panel>

@@ -1,0 +1,18 @@
+<form class="flex items-center gap-2" (ngSubmit)="submit()">
+  <button type="button" aria-label="Attach file"
+    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+    <ion-icon name="attach-outline" class="text-lg"></ion-icon>
+  </button>
+
+  <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+    <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"
+      (ngModelChange)="draft.set($event)"
+      class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+  </div>
+
+  <button type="submit"
+    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+    aria-label="Send message">
+    <ion-icon name="send-outline" class="text-base"></ion-icon>
+  </button>
+</form>

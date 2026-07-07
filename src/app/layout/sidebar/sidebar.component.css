@@ -9,6 +9,32 @@ button:disabled {
 }
 
 .overflow-y-auto {
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Pill que se desliza suavemente hacia el ítem activo cada vez que cambia
+   la ruta o se expande/colapsa el sidebar. */
+.sidebar-active-indicator {
+  transition:
+    top 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    left 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Pequeño "pop" del ícono al convertirse en el ítem activo. */
+@keyframes icon-pop {
+  0% {
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.icon-pop {
+  animation: icon-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }

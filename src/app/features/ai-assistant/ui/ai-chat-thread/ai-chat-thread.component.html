@@ -1,0 +1,38 @@
+<div class="flex flex-col gap-4">
+  <div *ngFor="let message of messages" class="flex" [class.justify-end]="message.role === 'user'">
+    <!-- AI bubble -->
+    <div *ngIf="message.role === 'ai'" class="flex items-start gap-2 max-w-lg">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7C6AE0] text-white">
+        <ion-icon name="sparkles-outline" class="text-sm"></ion-icon>
+      </span>
+      <div>
+        <div class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
+          <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{{ message.text }}</p>
+        </div>
+        <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
+      </div>
+    </div>
+
+    <!-- User bubble -->
+    <div *ngIf="message.role === 'user'" class="max-w-lg text-right">
+      <div class="rounded-2xl rounded-br-md bg-gray-900 px-4 py-3">
+        <p class="text-sm leading-relaxed text-white whitespace-pre-line">{{ message.text }}</p>
+      </div>
+      <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
+    </div>
+  </div>
+
+  <!-- Typing indicator -->
+  <div *ngIf="isTyping" class="flex items-center gap-2">
+    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7C6AE0] text-white">
+      <ion-icon name="sparkles-outline" class="text-sm"></ion-icon>
+    </span>
+    <div class="flex items-center gap-1 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
+      <span class="typing-dot h-1.5 w-1.5 rounded-full bg-gray-400"></span>
+      <span class="typing-dot h-1.5 w-1.5 rounded-full bg-gray-400" style="animation-delay: 150ms"></span>
+      <span class="typing-dot h-1.5 w-1.5 rounded-full bg-gray-400" style="animation-delay: 300ms"></span>
+    </div>
+  </div>
+
+  <div #scrollAnchor></div>
+</div>

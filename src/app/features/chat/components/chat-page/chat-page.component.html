@@ -1,0 +1,48 @@
+<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
+  <!-- Conversation rail -->
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-1">
+    <h2 class="text-xl font-bold text-gray-900 px-1">Chat</h2>
+    <p class="mt-1 text-sm text-gray-500 px-1">Team conversations</p>
+
+    <div class="mt-4">
+      <app-chat-conversation-list [conversations]="conversations()" [selectedId]="activeConversationId()"
+        (conversationSelected)="selectConversation($event)"></app-chat-conversation-list>
+    </div>
+  </div>
+
+  <!-- Thread card -->
+  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem]">
+    <!-- Thread header -->
+    <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+      <div class="relative shrink-0">
+        <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
+          [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
+        <span *ngIf="activeConversation.online" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+      </div>
+      <div>
+        <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
+        <span class="flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
+          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+          {{ activeConversation.online ? 'Online' : 'Offline' }}
+        </span>
+      </div>
+
+      <button type="button"
+        class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        <ion-icon name="information-circle-outline" class="text-base text-gray-400"></ion-icon>
+        Info
+      </button>
+    </div>
+
+    <!-- Thread -->
+    <div class="flex-1 overflow-y-auto py-4">
+      <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
+        [otherAvatarColor]="activeConversation.avatarColor"></app-chat-thread>
+    </div>
+
+    <!-- Composer -->
+    <div class="pt-4 border-t border-gray-100">
+      <app-chat-composer (send)="sendMessage($event)"></app-chat-composer>
+    </div>
+  </div>
+</div>

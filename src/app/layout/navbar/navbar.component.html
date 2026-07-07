@@ -1,6 +1,6 @@
-<!-- Main navbar -->
-<header class="fixed top-0 left-0 right-0 z-50 bg-[#FBFAF9] border-b border-gray-200/70">
-  <div class="flex h-[63px] items-center gap-4 px-4 sm:px-6">
+<!-- Top bar: transparente, flota sobre el fondo de la página junto al sidebar -->
+<header class="relative z-40">
+  <div class="flex h-[63px] items-center gap-4">
     <!-- Mobile menu button -->
     <button (click)="toggleMobileMenu()"
       class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200 md:hidden">
@@ -260,19 +260,19 @@
 
           <!-- Menu Items -->
           <div class="py-1">
-            <a routerLink="/app/profile"
+            <a routerLink="/profile"
               class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
               <ion-icon name="person-outline" class="mr-3 text-base text-gray-400"></ion-icon>
               <span>My Profile</span>
             </a>
 
-            <a routerLink="/app/company/users"
+            <a routerLink="/company/users"
               class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
               <ion-icon name="people-outline" class="mr-3 text-base text-gray-400"></ion-icon>
               <span>User Management</span>
             </a>
 
-            <a routerLink="/app/company/settings"
+            <a routerLink="/company/settings"
               class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
               <ion-icon name="business-outline" class="mr-3 text-base text-gray-400"></ion-icon>
               <span>Company Settings</span>

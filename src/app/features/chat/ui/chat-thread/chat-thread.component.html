@@ -1,0 +1,52 @@
+<div class="flex flex-col gap-3">
+  <ng-container *ngFor="let message of messages; let i = index">
+    <!-- Date separator -->
+    <div *ngIf="showDateSeparator(i)" class="my-2 flex justify-center">
+      <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">{{ message.dateGroup }}</span>
+    </div>
+
+    <div class="flex" [class.justify-end]="message.senderId === 'me'">
+      <!-- Their message -->
+      <div *ngIf="message.senderId === 'them'" class="flex max-w-lg items-end gap-2">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+          [ngClass]="otherAvatarColor">{{ initials(otherName) }}</span>
+        <div>
+          <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
+            <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{{ message.text }}</p>
+          </div>
+          <div *ngIf="message.attachment"
+            class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+              <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+            </span>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
+              <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+            </div>
+          </div>
+          <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
+        </div>
+      </div>
+
+      <!-- My message -->
+      <div *ngIf="message.senderId === 'me'" class="max-w-lg text-right">
+        <div *ngIf="message.text" class="rounded-2xl rounded-br-md bg-gray-900 px-4 py-3">
+          <p class="text-sm leading-relaxed text-white whitespace-pre-line">{{ message.text }}</p>
+        </div>
+        <div *ngIf="message.attachment"
+          class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+            <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+          </span>
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
+            <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+          </div>
+        </div>
+        <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
+      </div>
+    </div>
+  </ng-container>
+
+  <div #scrollAnchor></div>
+</div>

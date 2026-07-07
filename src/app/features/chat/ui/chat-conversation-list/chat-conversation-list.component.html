@@ -1,0 +1,38 @@
+<div>
+  <!-- Search pill -->
+  <div class="mb-3 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+    <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+    <input type="text" placeholder="Search conversations" [ngModel]="search()" name="search"
+      (ngModelChange)="search.set($event)"
+      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+  </div>
+
+  <!-- Conversation list -->
+  <div class="flex flex-col gap-1">
+    <button *ngFor="let conv of filteredConversations" type="button" (click)="select(conv.id)"
+      class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
+      [ngClass]="conv.id === selectedId ? 'bg-gray-900 text-white' : 'hover:bg-gray-50 text-gray-700'">
+      <div class="relative shrink-0">
+        <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
+          [ngClass]="conv.avatarColor">{{ initials(conv.name) }}</span>
+        <span *ngIf="conv.online" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2"
+          [ngClass]="conv.id === selectedId ? 'ring-gray-900' : 'ring-white'"></span>
+      </div>
+
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-sm font-semibold">{{ conv.name }}</span>
+          <span class="shrink-0 text-[11px]" [ngClass]="conv.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ lastTime(conv) }}</span>
+        </div>
+        <div class="mt-0.5 flex items-center justify-between gap-2">
+          <span class="truncate text-xs" [ngClass]="conv.id === selectedId ? 'text-gray-300' : 'text-gray-500'">{{ preview(conv) }}</span>
+          <span *ngIf="conv.unread > 0"
+            class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+            [ngClass]="conv.id === selectedId ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'">{{ conv.unread }}</span>
+        </div>
+      </div>
+    </button>
+
+    <p *ngIf="filteredConversations.length === 0" class="px-3 py-6 text-center text-sm text-gray-400">No conversations found</p>
+  </div>
+</div>

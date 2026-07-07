@@ -25,8 +25,8 @@
     </div>
   </div>
 
-  <!-- Body -->
-  <div class="mt-6 flex flex-col sm:flex-row items-stretch gap-6">
+  <!-- Body: flex-wrap para adaptarse al ancho del slot (span 1 o 2) -->
+  <div class="mt-6 flex flex-wrap items-stretch gap-6">
     <!-- Summary mini-card -->
     <div class="shrink-0 self-center rounded-2xl bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
       <div class="text-3xl font-bold text-gray-900">{{ summary().total }}</div>
@@ -38,7 +38,7 @@
     </div>
 
     <!-- Pill bar chart -->
-    <div class="flex-1 flex items-end justify-around gap-2 min-h-[13rem] pt-8">
+    <div class="flex-1 min-w-[15rem] flex items-end justify-around gap-2 min-h-[13rem] pt-8">
       <div *ngFor="let bar of bars(); let i = index" class="flex h-full flex-col items-center justify-end gap-2"
         (mouseenter)="onBarEnter(i)" (mouseleave)="onBarLeave()">
         <div class="relative flex h-44 w-11 items-end justify-center">

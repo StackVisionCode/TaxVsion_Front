@@ -1,0 +1,34 @@
+<div class="flex flex-col gap-6">
+  <!-- Stat cards -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h2 class="text-xl font-bold text-gray-900">Summary</h2>
+    <p class="mt-1 text-sm text-gray-500">Key numbers for this client</p>
+
+    <div class="mt-4 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+      <div *ngFor="let stat of stats()" class="relative rounded-[24px] p-6 h-40 flex flex-col justify-between"
+        [ngClass]="stat.bg">
+        <div>
+          <h3 class="text-base font-bold text-gray-900">{{ stat.title }}</h3>
+          <p class="mt-1 text-xs text-gray-500">{{ stat.subtitle }}</p>
+        </div>
+        <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stat.value }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h2 class="text-xl font-bold text-gray-900">Recent activity</h2>
+    <p class="mt-1 text-sm text-gray-500">Latest touchpoints for this client</p>
+
+    <div class="mt-4 flex flex-col divide-y divide-gray-100">
+      <div *ngFor="let entry of recentActivity" class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white" [ngClass]="entry.iconClass">
+          <ion-icon [name]="entry.icon" class="text-lg"></ion-icon>
+        </span>
+        <p class="min-w-0 flex-1 text-sm font-medium text-gray-900">{{ entry.text }}</p>
+        <span class="shrink-0 text-xs text-gray-400">{{ entry.time }}</span>
+      </div>
+    </div>
+  </div>
+</div>

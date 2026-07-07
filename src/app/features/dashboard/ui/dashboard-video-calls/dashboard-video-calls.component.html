@@ -1,0 +1,59 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <div class="flex items-start justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Video Calls</h2>
+      <p class="mt-1 text-sm text-gray-500">Client meetings and check-ins</p>
+    </div>
+
+    <!-- Today counter chip -->
+    <span *ngIf="todayCount() > 0"
+      class="shrink-0 rounded-full border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-600">
+      {{ todayCount() }} today
+    </span>
+  </div>
+
+  <!-- Call list -->
+  <div class="mt-4 flex flex-col gap-1">
+    <div *ngFor="let call of calls(); trackBy: trackByCallId"
+      class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 transition-colors">
+
+      <!-- Avatar -->
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+        [ngClass]="call.avatarBg">
+        {{ call.initials }}
+      </span>
+
+      <!-- Name + status line -->
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium text-gray-900">{{ call.name }}</p>
+
+        <div class="mt-0.5 flex items-center gap-1.5 text-xs">
+          <ng-container [ngSwitch]="call.status">
+            <!-- Ongoing -->
+            <ng-container *ngSwitchCase="'ongoing'">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+              <span class="font-medium text-emerald-600">{{ call.detail }}</span>
+            </ng-container>
+
+            <!-- Upcoming -->
+            <span *ngSwitchCase="'upcoming'" class="text-gray-500">{{ call.detail }}</span>
+
+            <!-- Completed -->
+            <span *ngSwitchCase="'completed'" class="text-gray-500">{{ call.detail }}</span>
+
+            <!-- Missed -->
+            <span *ngSwitchCase="'missed'" class="font-medium text-red-500">{{ call.detail }}</span>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Ghost call button -->
+      <button type="button"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        <ion-icon name="videocam-outline" class="text-base"></ion-icon>
+        <span class="sr-only">Start video call with {{ call.name }}</span>
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,11 @@
+/* Pill negro que se desliza suavemente hacia el mensaje seleccionado al
+   cambiar de selección (mismo timing que el indicador del sidebar y del rail
+   de carpetas). Al ser hijo del contenedor scrolleable, acompaña el scroll
+   del contenido de forma natural. */
+.mail-list-indicator {
+  transition:
+    top 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    left 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}

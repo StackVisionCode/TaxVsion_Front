@@ -1,0 +1,32 @@
+<div class="flex flex-col gap-3">
+  <ng-container *ngFor="let message of messages">
+    <div class="flex" [class.justify-end]="message.direction === 'outbound'">
+      <!-- Inbound message -->
+      <div *ngIf="message.direction === 'inbound'" class="flex max-w-md items-end gap-2">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+          [ngClass]="avatarColor">{{ initials(contactName) }}</span>
+        <div>
+          <div class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
+            <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{{ message.text }}</p>
+          </div>
+          <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
+        </div>
+      </div>
+
+      <!-- Outbound message -->
+      <div *ngIf="message.direction === 'outbound'" class="max-w-md text-right">
+        <div class="rounded-2xl rounded-br-md bg-gray-900 px-4 py-3">
+          <p class="text-sm leading-relaxed text-white whitespace-pre-line">{{ message.text }}</p>
+        </div>
+        <p class="mt-1 flex items-center justify-end gap-1 text-xs" [ngClass]="statusColor(message.status)">
+          <span>{{ message.time }}</span>
+          <span>·</span>
+          <ion-icon [name]="statusIcon(message.status)" class="text-sm"></ion-icon>
+          {{ statusLabel(message.status) }}
+        </p>
+      </div>
+    </div>
+  </ng-container>
+
+  <div #scrollAnchor></div>
+</div>

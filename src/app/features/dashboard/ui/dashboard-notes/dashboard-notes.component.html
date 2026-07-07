@@ -1,0 +1,39 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <h2 class="text-xl font-bold text-gray-900">Notes</h2>
+  <p class="mt-1 text-sm text-gray-500">Quick thoughts</p>
+
+  <!-- Quick-add row -->
+  <div class="mt-4 flex items-center gap-2">
+    <input type="text" placeholder="Write a note..." [ngModel]="draft()" (ngModelChange)="draft.set($event)"
+      (keyup.enter)="addNote()"
+      class="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none" />
+    <button type="button" (click)="addNote()"
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="add-outline" class="text-xl"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Notes list -->
+  <div class="mt-4 flex flex-col gap-3">
+    <div *ngFor="let note of notes(); let i = index" class="group rounded-2xl border border-gray-100 p-4">
+      <div class="flex items-start gap-3">
+        <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" [style.background-color]="dotColor(i)"></span>
+
+        <div class="min-w-0 flex-1">
+          <p class="text-sm leading-relaxed text-gray-700">{{ note.text }}</p>
+          <p class="mt-1 text-xs text-gray-400">{{ relativeTime(note.createdAt) }}</p>
+        </div>
+
+        <button type="button" (click)="removeNote(note.id)"
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-600">
+          <ion-icon name="close-outline" class="text-base"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+    <p *ngIf="notes().length === 0" class="py-6 text-center text-sm text-gray-400">
+      No notes yet. Write one above.
+    </p>
+  </div>
+</div>

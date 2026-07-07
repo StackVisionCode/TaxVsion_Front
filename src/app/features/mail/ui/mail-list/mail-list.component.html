@@ -1,0 +1,54 @@
+<div class="flex flex-col h-full">
+  <!-- Search pill -->
+  <div class="mb-3 shrink-0 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+    <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+    <input type="text" placeholder="Search mail" [ngModel]="search()" name="search"
+      (ngModelChange)="onSearchChange($event)"
+      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+  </div>
+
+  <!-- Message list -->
+  <div #listScroll class="relative flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto">
+    <!-- Pill deslizante del mensaje seleccionado -->
+    <div *ngIf="indicatorReady()"
+      class="mail-list-indicator absolute rounded-2xl bg-gray-900 pointer-events-none"
+      [style.top.px]="indicatorTop()" [style.left.px]="indicatorLeft()" [style.width.px]="indicatorWidth()"
+      [style.height.px]="indicatorHeight()"></div>
+
+    <button #messageButton *ngFor="let message of filteredMessages(); trackBy: trackByMessageId" type="button" (click)="select(message.id)"
+      class="relative z-10 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors"
+      [ngClass]="message.id === selectedId ? 'text-white' : 'hover:bg-gray-50 text-gray-700'">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+        [ngClass]="message.avatarColor">{{ message.senderInitials }}</span>
+
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span *ngIf="!message.isRead" class="h-1.5 w-1.5 shrink-0 rounded-full"
+              [ngClass]="message.id === selectedId ? 'bg-white' : 'bg-gray-900'"></span>
+            <span class="truncate text-sm" [ngClass]="!message.isRead ? 'font-bold' : 'font-medium'">{{ message.senderName }}</span>
+          </span>
+          <span class="shrink-0 text-[11px]" [ngClass]="message.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ message.time }}</span>
+        </div>
+
+        <p class="mt-0.5 truncate text-sm"
+          [ngClass]="{ 'font-semibold': !message.isRead, 'font-normal': message.isRead, 'text-white': message.id === selectedId, 'text-gray-800': message.id !== selectedId }">
+          {{ message.subject }}
+        </p>
+
+        <div class="mt-0.5 flex items-center justify-between gap-2">
+          <span class="truncate text-xs" [ngClass]="message.id === selectedId ? 'text-gray-300' : 'text-gray-500'">{{ message.preview }}</span>
+          <button type="button" (click)="toggleStar(message.id, $event)"
+            class="shrink-0 rounded-full p-1 transition-colors"
+            [ngClass]="message.id === selectedId ? 'hover:bg-white/10' : 'hover:bg-gray-100'"
+            [attr.aria-label]="message.isStarred ? 'Unstar email' : 'Star email'">
+            <ion-icon [name]="message.isStarred ? 'star' : 'star-outline'" class="text-sm"
+              [ngClass]="message.isStarred ? 'text-amber-400' : (message.id === selectedId ? 'text-gray-400' : 'text-gray-300')"></ion-icon>
+          </button>
+        </div>
+      </div>
+    </button>
+
+    <p *ngIf="filteredMessages().length === 0" class="px-3 py-6 text-center text-sm text-gray-400">No messages found</p>
+  </div>
+</div>

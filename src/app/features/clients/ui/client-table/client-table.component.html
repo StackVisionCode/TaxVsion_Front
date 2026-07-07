@@ -1,0 +1,93 @@
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+    <thead>
+      <tr>
+        <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Email</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">SSN/ITIN or EIN</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Occupation / Structure</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Created</th>
+        <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let client of clients; trackBy: trackByClientId; let i = index; let last = last"
+        [routerLink]="['/clients', client.id]" class="group cursor-pointer">
+        <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="flex items-center gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+              [ngClass]="avatarClass(i)">{{ initials(client) }}</span>
+            <span class="font-medium text-gray-900">{{ client.displayName }}</span>
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ client.email }}
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="block text-gray-700">{{ taxIdLabel(client) }}</span>
+          <span class="block text-xs text-gray-400">{{ taxIdCaption(client) }}</span>
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-block rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="typeBadgeClass(client)">
+            {{ typeLabel(client) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ secondaryDetail(client) }}
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="statusChip(client)">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(client)"></span>
+            {{ client.isActive ? 'Active' : 'Inactive' }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ formatDate(client.createdAt) }}
+        </td>
+        <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          <div class="relative inline-block text-left" data-dropdown="client-menu" (click)="onMenuClick($event)">
+            <button type="button" (click)="toggleMenu(client, $event)"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              aria-label="Client options">
+              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+            </button>
+            <div *ngIf="openMenuId() === client.id"
+              class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <button type="button" (click)="onEditClick(client, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+                Edit
+              </button>
+              <button type="button" (click)="onToggleActiveClick(client, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon [name]="client.isActive ? 'pause-circle-outline' : 'checkmark-circle-outline'" class="text-base"></ion-icon>
+                {{ client.isActive ? 'Mark as inactive' : 'Mark as active' }}
+              </button>
+              <button type="button" (click)="onDeleteClick(client, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                Delete
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="clients.length === 0" class="px-4 py-10 text-center">
+    <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No clients match your search</p>
+  </div>
+</div>

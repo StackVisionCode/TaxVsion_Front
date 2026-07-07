@@ -1,0 +1,85 @@
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
+    <thead>
+      <tr>
+        <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Email</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Role</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Last active</th>
+        <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let member of members; let last = last" class="group">
+        <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="flex items-center gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+              [ngClass]="member.avatarColor">
+              {{ member.initials }}
+            </span>
+            <span class="font-medium text-gray-900">{{ member.name }}</span>
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-600 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+          [class.border-gray-100]="!last">{{ member.email }}</td>
+        <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-block rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="roleChip(member.role)">
+            {{ roleLabel(member.role) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(member.status)">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDotClass(member.status)"></span>
+            {{ statusLabel(member.status) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+          [class.border-gray-100]="!last">{{ member.lastActive }}</td>
+        <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl relative"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          <div *ngIf="member.role !== 'owner'" class="relative inline-block" [attr.data-dropdown]="'member-menu-' + member.id">
+            <button type="button" (click)="toggleMenu(member)"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors ml-auto"
+              aria-label="Member actions">
+              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+            </button>
+
+            <div *ngIf="openMenuId() === member.id"
+              class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg text-left">
+              <button type="button" (click)="editRole.emit(member); closeMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-sm text-gray-400"></ion-icon>
+                Edit role
+              </button>
+              <button *ngIf="member.status === 'invited'" type="button" (click)="resendInvite.emit(member); closeMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="mail-outline" class="text-sm text-gray-400"></ion-icon>
+                Resend invite
+              </button>
+              <button *ngIf="member.status !== 'invited'" type="button" (click)="toggleSuspend.emit(member); closeMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon [name]="member.status === 'suspended' ? 'play-circle-outline' : 'pause-circle-outline'"
+                  class="text-sm text-gray-400"></ion-icon>
+                {{ member.status === 'suspended' ? 'Reactivate' : 'Suspend' }}
+              </button>
+              <button type="button" (click)="remove.emit(member); closeMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-sm text-red-400"></ion-icon>
+                Remove
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="members.length === 0" class="px-4 py-10 text-center">
+    <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No team members match your search</p>
+  </div>
+</div>

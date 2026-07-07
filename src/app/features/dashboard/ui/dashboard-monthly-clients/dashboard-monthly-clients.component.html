@@ -1,0 +1,42 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <h2 class="text-xl font-bold text-gray-900">New Clients</h2>
+  <p class="mt-1 text-sm text-gray-500">Monthly growth</p>
+
+  <!-- Headline number + delta chip -->
+  <div class="mt-4 flex items-center gap-3">
+    <div class="text-4xl font-bold text-gray-900">{{ currentMonthCount }}</div>
+    <span class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600">
+      {{ monthlyDelta }}
+    </span>
+  </div>
+
+  <!-- Mini pill-bar chart (last 6 months) -->
+  <div class="mt-6 flex items-end justify-between gap-2 h-24">
+    <div *ngFor="let month of months" class="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+      <div class="w-6 rounded-full min-h-[1.5rem]" [style.height.%]="barHeight(month)"
+        [style.background-color]="month.color"></div>
+      <span class="text-xs text-gray-400">{{ month.label }}</span>
+    </div>
+  </div>
+
+  <!-- Recent additions -->
+  <p class="mt-6 text-xs font-semibold uppercase tracking-wide text-gray-400">Recent additions</p>
+  <div class="mt-2 flex flex-col">
+    <div *ngFor="let client of recentClients; let last = last" class="flex items-center gap-3 py-2.5"
+      [class.border-b]="!last" [class.border-gray-100]="!last">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+        [ngClass]="client.avatarBg">
+        {{ client.initials }}
+      </span>
+      <div class="min-w-0 flex-1 flex items-center gap-2">
+        <p class="truncate text-sm font-medium text-gray-900">{{ client.name }}</p>
+        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+          [ngClass]="typeChipClass(client.type)">
+          {{ client.type }}
+        </span>
+      </div>
+      <span class="shrink-0 text-sm font-bold text-gray-900">{{ client.revenue }}</span>
+    </div>
+  </div>
+</div>

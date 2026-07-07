@@ -1,0 +1,95 @@
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+    <thead>
+      <tr>
+        <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Campaign name</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Channel</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Audience</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Sent date</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Recipients</th>
+        <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Open rate</th>
+        <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let campaign of campaigns; trackBy: trackByCampaignId; let last = last" (click)="onRowClick(campaign)"
+        class="group cursor-pointer">
+        <td class="rounded-l-2xl px-4 py-3.5 font-medium text-gray-900 transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          {{ campaign.name }}
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="channelChip(campaign.channel)">
+            <ion-icon [name]="channelIcon(campaign.channel)" class="text-sm"></ion-icon>
+            {{ channelLabel(campaign.channel) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ campaign.audience }}
+        </td>
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="statusChip(campaign.status)">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(campaign.status)"></span>
+            {{ statusLabel(campaign.status) }}
+          </span>
+        </td>
+        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ formatDate(campaign.scheduledDate) }}
+        </td>
+        <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          {{ campaign.recipients | number }}
+        </td>
+        <td class="px-4 py-3.5 text-right text-gray-700 transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          {{ openRate(campaign).toFixed(0) }}%
+        </td>
+        <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          <div class="relative inline-block text-left" data-dropdown="campaign-menu">
+            <button type="button" (click)="toggleMenu(campaign, $event)"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              aria-label="Campaign options">
+              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+            </button>
+            <div *ngIf="openMenuId() === campaign.id"
+              class="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <button type="button" (click)="onEditClick(campaign, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+                Edit
+              </button>
+              <button type="button" (click)="onDuplicateClick(campaign, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="copy-outline" class="text-base"></ion-icon>
+                Duplicate
+              </button>
+              <button *ngIf="canPause(campaign)" type="button" (click)="onPauseResumeClick(campaign, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon [name]="campaign.status === 'paused' ? 'play-outline' : 'pause-outline'" class="text-base"></ion-icon>
+                {{ pauseResumeLabel(campaign) }}
+              </button>
+              <button type="button" (click)="onDeleteClick(campaign, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                Delete
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="campaigns.length === 0" class="px-4 py-10 text-center">
+    <ion-icon name="megaphone-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No campaigns match your search</p>
+  </div>
+</div>

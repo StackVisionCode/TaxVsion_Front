@@ -3,8 +3,8 @@
   <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Hello {{ userName }}</h1>
   <p class="mt-2 text-sm text-gray-500">Monitor your firm's performance in real time.</p>
 
-  <!-- Stat cards -->
-  <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <!-- Stat cards: auto-fit para adaptarse al ancho del slot (span 1 o 2) -->
+  <div class="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
     <div *ngFor="let stat of stats" class="relative rounded-[24px] p-6 h-56 sm:h-60 flex flex-col justify-between"
       [ngClass]="stat.bg">
       <div>

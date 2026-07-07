@@ -1,0 +1,121 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Header card -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-center gap-5">
+      <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-2xl font-bold text-white"
+        [ngClass]="avatarColor">
+        {{ initials() }}
+      </div>
+
+      <div class="min-w-0 flex-1">
+        <h2 class="text-xl font-bold text-gray-900">{{ fullName() }}</h2>
+        <div class="mt-1.5">
+          <span class="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-0.5 text-xs font-medium text-white">
+            <ion-icon [name]="isOwner ? 'shield-checkmark-outline' : 'person-outline'" class="text-xs"></ion-icon>
+            {{ roleLabel }}
+          </span>
+        </div>
+        <p class="mt-2 text-sm text-gray-500">{{ email() }}</p>
+      </div>
+
+      <button type="button"
+        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        Change photo
+      </button>
+    </div>
+  </div>
+
+  <!-- Personal information card -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Personal information</h2>
+        <p class="mt-1 text-sm text-gray-500">Update your name, email and phone number</p>
+      </div>
+      <span *ngIf="profileToast()"
+        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-100">
+        <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
+        {{ profileToast() }}
+      </span>
+    </div>
+
+    <div class="mt-5 grid gap-3 sm:grid-cols-2">
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">First name</span>
+        <input type="text" [ngModel]="firstName()" name="firstName" (ngModelChange)="firstName.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Last name</span>
+        <input type="text" [ngModel]="lastName()" name="lastName" (ngModelChange)="lastName.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Email</span>
+        <input type="email" [ngModel]="email()" name="email" (ngModelChange)="email.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Phone</span>
+        <input type="tel" [ngModel]="phone()" name="phone" (ngModelChange)="phone.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <div class="mt-5 flex justify-end">
+      <button type="button" (click)="saveProfile()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        Save changes
+      </button>
+    </div>
+  </div>
+
+  <!-- Security card -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Security</h2>
+        <p class="mt-1 text-sm text-gray-500">Change your password</p>
+      </div>
+      <span *ngIf="passwordToast()"
+        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
+        [ngClass]="passwordToast()?.kind === 'success'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+          : 'bg-red-50 text-red-700 border-red-100'">
+        <ion-icon [name]="passwordToast()?.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
+          class="text-sm"></ion-icon>
+        {{ passwordToast()?.message }}
+      </span>
+    </div>
+
+    <div class="mt-5 flex flex-col gap-3 max-w-md">
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="password" placeholder="Current password" [ngModel]="currentPassword()" name="currentPassword"
+          (ngModelChange)="currentPassword.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="password" placeholder="New password" [ngModel]="newPassword()" name="newPassword"
+          (ngModelChange)="newPassword.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="password" placeholder="Confirm new password" [ngModel]="confirmPassword()" name="confirmPassword"
+          (ngModelChange)="confirmPassword.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <div class="mt-5 flex justify-end">
+      <button type="button" (click)="updatePassword()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        Update password
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,29 @@
+<div class="bg-white rounded-[28px] p-6">
+  <!-- Header -->
+  <div>
+    <h2 class="text-xl font-bold text-gray-900">Frequently asked questions</h2>
+    <p class="mt-1 text-sm text-gray-500">Quick answers to the things teams ask us most</p>
+  </div>
+
+  <!-- Accordion -->
+  <div class="mt-4 flex flex-col gap-3">
+    <div *ngFor="let faq of faqs" class="overflow-hidden rounded-2xl border border-gray-100">
+      <button type="button" (click)="toggle(faq.id)"
+        class="flex w-full items-center justify-between gap-3 bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100/80">
+        <span class="flex items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+            <ion-icon name="help-outline" class="text-lg"></ion-icon>
+          </span>
+          <span class="text-sm font-bold text-gray-900">{{ faq.question }}</span>
+        </span>
+        <ion-icon name="chevron-down-outline"
+          class="shrink-0 text-base text-gray-400 transition-transform duration-200"
+          [class.rotate-180]="openFaqId() === faq.id"></ion-icon>
+      </button>
+
+      <div *ngIf="openFaqId() === faq.id" class="px-4 py-3">
+        <p class="text-sm leading-relaxed text-gray-600">{{ faq.answer }}</p>
+      </div>
+    </div>
+  </div>
+</div>

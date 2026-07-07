@@ -1,6 +1,6 @@
 <ng-container *ngIf="!isMobile; else mobileSidebar">
   <div
-    class="relative hidden h-[calc(100vh-var(--navbar-h))] md:flex md:flex-col bg-[#FBFAF9] border-r border-gray-200/70 transition-all duration-200 sticky top-navbar z-40"
+    class="relative hidden md:flex md:flex-col shrink-0 bg-white rounded-[24px] shadow-sm transition-[width] duration-200 sticky top-4 h-[calc(100vh-2rem)] z-40"
     [ngClass]="{ 'w-64': isExpanded(), 'w-16': !isExpanded() }"
   >
     <!-- Brand block -->
@@ -44,13 +44,24 @@
 
     <!-- Navigation Menu with scroll -->
     <div class="flex flex-1 min-h-0 flex-col px-2 pt-4 pb-3">
-      <div class="flex flex-col gap-1 overflow-y-auto">
+      <div #listContainer class="relative flex flex-col gap-1 overflow-y-auto">
+        <!-- Sliding active indicator: glides between items on route/expand changes -->
+        <div
+          *ngIf="indicatorReady()"
+          class="sidebar-active-indicator absolute rounded-full bg-gray-900 shadow-sm pointer-events-none"
+          [style.top.px]="indicatorTop()"
+          [style.left.px]="indicatorLeft()"
+          [style.width.px]="indicatorWidth()"
+          [style.height.px]="indicatorHeight()"
+        ></div>
+
         <div
           *ngFor="let item of menuItems(); trackBy: trackByIndex"
           class="relative"
         >
           <ng-container *ngIf="canShowItem(item)">
             <button
+              #itemButton
               type="button"
               (click)="handleMenuClick($event, item)"
               (mouseenter)="onMenuItemMouseEnter($event, item)"
@@ -60,14 +71,14 @@
               [ngClass]="{
                 'w-full gap-3 px-4 py-2.5': isExpanded(),
                 'mx-auto h-10 w-10 justify-center': !isExpanded(),
-                'bg-gray-900 text-white shadow-sm': item.isActive,
+                'text-white': item.isActive,
                 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
               }"
             >
               <ion-icon
                 [name]="item.icon"
                 class="text-lg shrink-0 pointer-events-none"
-                [ngClass]="item.isActive ? 'text-white' : 'text-gray-500'"
+                [ngClass]="[item.isActive ? 'text-white' : 'text-gray-500', item.isActive ? 'icon-pop' : '']"
               ></ion-icon>
 
               <span
@@ -80,7 +91,7 @@
               <!-- Notification badge -->
               <span
                 *ngIf="item.badge"
-                class="absolute rounded-full bg-emerald-500 border-2 border-[#FBFAF9] pointer-events-none"
+                class="absolute rounded-full bg-emerald-500 border-2 border-white pointer-events-none"
                 [ngClass]="{
                   'top-0.5 right-0.5 h-2.5 w-2.5': !isExpanded(),
                   'top-2 right-3 h-2 w-2': isExpanded(),

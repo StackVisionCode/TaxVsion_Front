@@ -2,11 +2,15 @@ import {
   AfterViewInit,
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
   EventEmitter,
   Input,
   OnDestroy,
   OnInit,
   Output,
+  QueryList,
+  ViewChild,
+  ViewChildren,
   inject,
   signal,
 } from '@angular/core';
@@ -36,12 +40,22 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   @Output() sidebarStateChange = new EventEmitter<boolean>();
   @Input() isMobile = false;
 
+  @ViewChild('listContainer') private listContainerRef?: ElementRef<HTMLElement>;
+  @ViewChildren('itemButton') private itemButtons?: QueryList<ElementRef<HTMLElement>>;
+
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
   private bodyTooltipEl: HTMLDivElement | null = null;
 
   readonly isExpanded = signal(false);
   private readonly navigationInProgress = signal(false);
+
+  /** Posición/tamaño del pill deslizante que resalta el ítem activo del sidebar. */
+  readonly indicatorTop = signal(0);
+  readonly indicatorLeft = signal(0);
+  readonly indicatorWidth = signal(0);
+  readonly indicatorHeight = signal(0);
+  readonly indicatorReady = signal(false);
 
   readonly menuItems = signal<MenuItem[]>([
     { label: 'Dashboard', icon: 'grid-outline', route: '/dashboard', isActive: false },
@@ -70,6 +84,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       )
       .subscribe((event) => {
         this.updateActiveState(event.url);
+        setTimeout(() => this.syncIndicator());
       });
   }
 
@@ -80,7 +95,16 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
         this.isExpanded.set(true);
         this.sidebarStateChange.emit(true);
       }
+      this.syncIndicator();
+      // The expand toggle above changes each row's width/padding classes;
+      // Angular needs its own render tick before getBoundingClientRect()
+      // reflects that, so re-measure once more right after it settles
+      // (same reasoning as the toggleSidebar() re-sync below).
+      setTimeout(() => this.syncIndicator(), 220);
     });
+
+    // Re-sync if the menu list itself ever changes shape.
+    this.itemButtons?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => this.syncIndicator());
   }
 
   ngOnDestroy(): void {
@@ -162,6 +186,12 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!next) {
       this.menuItems.update((items) => items.map((item) => ({ ...item, isOpen: false })));
     }
+
+    // The sidebar's own width animates (transition-all duration-200), which shifts
+    // where a centered collapsed button ends up -- re-sync once immediately and
+    // again after that transition settles so the pill lands in the right spot.
+    setTimeout(() => this.syncIndicator());
+    setTimeout(() => this.syncIndicator(), 220);
   }
 
   handleMenuClick(event: MouseEvent, item: MenuItem): void {
@@ -268,6 +298,36 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
         return item;
       });
     });
+  }
+
+  /**
+   * Mide la posición real del botón activo (vía getBoundingClientRect, no
+   * offsetTop) para que el pill deslizante funcione sin importar el
+   * contenedor posicionado intermedio de cada fila del *ngFor.
+   */
+  private syncIndicator(): void {
+    const container = this.listContainerRef?.nativeElement;
+    const buttons = this.itemButtons?.toArray();
+    if (!container || !buttons?.length) {
+      this.indicatorReady.set(false);
+      return;
+    }
+
+    const activeIndex = this.menuItems().findIndex((item) => item.isActive);
+    const activeButton = activeIndex >= 0 ? buttons[activeIndex]?.nativeElement : undefined;
+    if (!activeButton) {
+      this.indicatorReady.set(false);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+
+    this.indicatorTop.set(buttonRect.top - containerRect.top + container.scrollTop);
+    this.indicatorLeft.set(buttonRect.left - containerRect.left + container.scrollLeft);
+    this.indicatorWidth.set(buttonRect.width);
+    this.indicatorHeight.set(buttonRect.height);
+    this.indicatorReady.set(true);
   }
 
   isClickable(): boolean {

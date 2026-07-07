@@ -1,0 +1,64 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Calendar</h2>
+      <p class="mt-1 text-sm text-gray-500">{{ monthLabel() }}</p>
+    </div>
+
+    <!-- Month navigation -->
+    <div class="flex items-center gap-2">
+      <button type="button" (click)="prevMonth()" aria-label="Previous month"
+        class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
+        <ion-icon name="chevron-back-outline" class="text-sm"></ion-icon>
+      </button>
+      <button type="button" (click)="nextMonth()" aria-label="Next month"
+        class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors">
+        <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Weekday initials -->
+  <div class="mt-5 grid grid-cols-7">
+    <span *ngFor="let weekDay of weekDays" class="text-center text-xs font-medium text-gray-400">
+      {{ weekDay }}
+    </span>
+  </div>
+
+  <!-- Day grid -->
+  <div class="mt-2 grid grid-cols-7 gap-y-1">
+    <div *ngFor="let day of calendarDays()" class="flex flex-col items-center">
+      <span class="flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors"
+        [ngClass]="dayClass(day)">
+        {{ day.day }}
+      </span>
+      <!-- Event dot (transparent placeholder keeps rows aligned) -->
+      <span class="h-1.5 w-1.5 rounded-full"
+        [style.background-color]="day.hasEvents ? '#7C6AE0' : 'transparent'"></span>
+    </div>
+  </div>
+
+  <!-- Footer stat chips -->
+  <div class="mt-5 grid grid-cols-2 gap-3">
+    <div class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F2E3C9]">
+        <ion-icon name="today-outline" class="text-lg text-gray-900"></ion-icon>
+      </span>
+      <div>
+        <div class="text-lg font-bold leading-tight text-gray-900">{{ todayCount() }}</div>
+        <p class="text-xs text-gray-500">Today</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CBD9F2]">
+        <ion-icon name="calendar-outline" class="text-lg text-gray-900"></ion-icon>
+      </span>
+      <div>
+        <div class="text-lg font-bold leading-tight text-gray-900">{{ upcomingCount() }}</div>
+        <p class="text-xs text-gray-500">Upcoming</p>
+      </div>
+    </div>
+  </div>
+</div>

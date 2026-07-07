@@ -1,0 +1,116 @@
+<div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4" (click)="close()">
+  <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
+    (click)="$event.stopPropagation()">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">{{ isEditMode() ? 'Edit Invoice' : 'New Invoice' }}</h2>
+        <p class="mt-1 text-sm text-gray-500">
+          {{ isEditMode() ? 'Update the details of this invoice' : 'Create a new invoice for a client' }}
+        </p>
+      </div>
+      <button type="button" (click)="close()"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        aria-label="Close panel">
+        <ion-icon name="close-outline" class="text-lg"></ion-icon>
+      </button>
+    </div>
+
+    <div class="mt-5 flex flex-col gap-3">
+      <!-- Client -->
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Client</span>
+        <input type="text" placeholder="Client or business name" [ngModel]="client()" name="client"
+          (ngModelChange)="client.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <label
+          class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+          <span class="text-sm text-gray-400">Issued</span>
+          <input type="date" [ngModel]="issueDate()" name="issueDate" (ngModelChange)="issueDate.set($event)"
+            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+        </label>
+        <label
+          class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+          <span class="text-sm text-gray-400">Due</span>
+          <input type="date" [ngModel]="dueDate()" name="dueDate" (ngModelChange)="dueDate.set($event)"
+            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+        </label>
+      </div>
+
+      <!-- Status dropdown -->
+      <div class="relative" data-dropdown="invoice-status">
+        <button type="button" (click)="toggleStatusDropdown()"
+          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+          <span>{{ statusLabel(status()) }}</span>
+          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+        </button>
+        <div *ngIf="isStatusOpen()"
+          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <button *ngFor="let option of statuses" type="button" (click)="selectStatus(option)"
+            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            {{ statusLabel(option) }}
+            <ion-icon *ngIf="option === status()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Line items -->
+      <div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-900">Line items</span>
+          <button type="button" (click)="addLineItem()"
+            class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+            <ion-icon name="add-outline" class="text-sm"></ion-icon>
+            Add line item
+          </button>
+        </div>
+
+        <div class="mt-2 flex flex-col gap-2">
+          <div *ngFor="let item of lineItems()" class="flex items-center gap-2">
+            <div
+              class="flex h-10 flex-1 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+              <input type="text" placeholder="Description" [ngModel]="item.description"
+                (ngModelChange)="updateDescription(item.id, $event)"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </div>
+            <input type="number" min="0" placeholder="Qty" [ngModel]="item.quantity"
+              (ngModelChange)="updateQuantity(item.id, $event)"
+              class="h-10 w-16 rounded-full border border-gray-200 bg-white px-3 text-center text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors" />
+            <input type="number" min="0" step="0.01" placeholder="Price" [ngModel]="item.unitPrice"
+              (ngModelChange)="updateUnitPrice(item.id, $event)"
+              class="h-10 w-24 rounded-full border border-gray-200 bg-white px-3 text-center text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors" />
+            <span class="w-20 shrink-0 text-right text-sm font-semibold text-gray-900">{{ formatCurrency(lineTotal(item)) }}</span>
+            <button type="button" (click)="removeLineItem(item.id)"
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
+              aria-label="Remove line item">
+              <ion-icon name="close-outline" class="text-base"></ion-icon>
+            </button>
+          </div>
+
+          <p *ngIf="lineItems().length === 0" class="py-3 text-center text-sm text-gray-400">
+            No line items yet. Add one to get started.
+          </p>
+        </div>
+      </div>
+
+      <!-- Running total -->
+      <div class="mt-2 flex items-center justify-between rounded-2xl border border-gray-100 bg-[#FAF9F7] px-4 py-3">
+        <span class="text-sm font-medium text-gray-500">Total</span>
+        <span class="text-xl font-bold text-gray-900">{{ formatCurrency(grandTotal()) }}</span>
+      </div>
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="save()" [disabled]="!canSave()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+        {{ isEditMode() ? 'Save changes' : 'Create invoice' }}
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,151 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <a routerLink="/settings"
+    class="-ml-3 flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+    <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+    Back to settings
+  </a>
+
+  <!-- Fila superior: donut de uso + tarjetas de categorías -->
+  <div class="grid gap-6 lg:grid-cols-12">
+    <div class="lg:col-span-5">
+      <app-used-storage-card [groups]="groups()" [totalBytes]="totalBytes" [uploadBytes]="uploadBytes"
+        [downloadBytes]="downloadBytes"></app-used-storage-card>
+    </div>
+
+    <!-- Categories -->
+    <div class="lg:col-span-7">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold text-gray-900">Categories</h2>
+        <button type="button" (click)="toggleCategories()"
+          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[#7C6AE0] hover:bg-[#EEEBFA] transition-colors">
+          {{ showAllCategories() ? 'Show less' : 'View All' }}
+          <span
+            class="flex h-6 w-6 items-center justify-center rounded-full border border-[#D6CEF4] transition-transform"
+            [class.rotate-90]="showAllCategories()">
+            <ion-icon name="chevron-forward-outline" class="text-xs"></ion-icon>
+          </span>
+        </button>
+      </div>
+
+      <div class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+        <div *ngFor="let group of visibleGroups()" class="category-card-wrap relative cursor-pointer"
+          (click)="selectCategory(group.name)">
+          <!-- Círculo del icono flotando fuera de la tarjeta (la esquina se recorta vía .category-card) -->
+          <span class="category-icon absolute -top-3 -left-3 z-10 flex h-16 w-16 items-center justify-center rounded-full shadow-sm"
+            [style.background-color]="group.color">
+            <ion-icon [name]="group.icon" class="text-2xl text-white"></ion-icon>
+          </span>
+
+          <div class="category-card rounded-[24px] bg-white p-5 ring-2 transition-shadow"
+            [style.--tw-ring-color]="selectedCategory() === group.name ? group.color : 'transparent'">
+            <p class="text-right text-lg font-bold text-gray-900">{{ formatBytes(group.sizeBytes) }}</p>
+            <p class="mt-5 text-center font-semibold text-gray-900">{{ group.name }}</p>
+            <p class="mt-0.5 text-center text-xs text-gray-400">{{ group.fileCount.toLocaleString() }} files</p>
+            <div class="mx-2 mt-3 border-t border-gray-100 pt-3 text-center">
+              <p class="text-sm text-gray-400">Last update</p>
+              <p class="mt-1 text-sm font-medium text-gray-700">{{ group.lastUpdate }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All Files -->
+  <div class="flex-1">
+    <div class="bg-white rounded-[28px] p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">All Files</h2>
+          <p class="mt-1 text-sm text-gray-500">
+            {{ selectedCategory() ? filteredFiles().length + ' file(s) in ' + selectedCategory() : 'Every file across all categories' }}
+          </p>
+        </div>
+        <button *ngIf="selectedCategory()" type="button" (click)="clearCategoryFilter()"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+          <ion-icon name="close-outline" class="text-sm"></ion-icon>
+          Clear filter
+        </button>
+      </div>
+
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+              <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
+              <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Shared with</th>
+              <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Date</th>
+              <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
+              <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let file of pagedFiles(); let last = last" class="group">
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span class="flex items-center gap-3">
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FAF9F7]">
+                    <ion-icon [name]="file.icon" class="text-base text-gray-600"></ion-icon>
+                  </span>
+                  <span class="min-w-0 truncate font-medium text-gray-900">{{ file.name }}</span>
+                </span>
+              </td>
+
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
+                  [style.background-color]="categoryColor(file.category) + '1A'"
+                  [style.color]="categoryColor(file.category)">
+                  {{ file.category }}
+                </span>
+              </td>
+
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span *ngIf="file.sharedWith.length > 0; else onlyYou" class="flex -space-x-2">
+                  <span *ngFor="let initials of file.sharedWith"
+                    class="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
+                    [ngClass]="contactColor(initials)">
+                    {{ initials }}
+                  </span>
+                </span>
+                <ng-template #onlyYou>
+                  <span class="rounded-full bg-gray-900 px-2.5 py-0.5 text-[10px] font-semibold text-white">Only you</span>
+                </ng-template>
+              </td>
+
+              <td class="px-4 py-3.5 text-right text-xs text-gray-400 group-hover:bg-gray-50 transition-colors"
+                [class.border-b]="!last" [class.border-gray-100]="!last">{{ file.date }}</td>
+
+              <td class="px-4 py-3.5 text-right text-xs font-medium text-gray-500 group-hover:bg-gray-50 transition-colors"
+                [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatBytes(file.sizeBytes) }}</td>
+
+              <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
+                [class.border-b]="!last" [class.border-gray-100]="!last">
+                <button type="button" (click)="shareFile(file)"
+                  class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-900 hover:border-gray-900 hover:text-white transition-colors">
+                  Share
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div *ngIf="pagedFiles().length === 0" class="px-4 py-10 text-center">
+          <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
+          <p class="mt-2 text-sm text-gray-500">No files in this category</p>
+        </div>
+      </div>
+
+      <app-pagination [currentPage]="currentPage()" [totalItems]="filteredFiles().length" [pageSize]="pageSize"
+        (pageChange)="currentPage.set($event)"></app-pagination>
+    </div>
+  </div>
+
+  <!-- Toast transitorio -->
+  <div *ngIf="toast()"
+    class="fixed bottom-6 right-6 z-50 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+    {{ toast() }}
+  </div>
+</div>

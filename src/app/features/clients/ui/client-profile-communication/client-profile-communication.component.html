@@ -1,0 +1,28 @@
+<div>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h3 class="text-lg font-bold text-gray-900">Communication log</h3>
+
+    <div class="flex items-center gap-1 rounded-full border border-gray-200 p-1">
+      <button *ngFor="let filter of filters" type="button" (click)="setFilter(filter.value)"
+        class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="activeFilter() === filter.value ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        {{ filter.label }}
+      </button>
+    </div>
+  </div>
+
+  <div class="mt-4 flex flex-col gap-3">
+    <div *ngFor="let entry of visibleEntries()" class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" [ngClass]="channelCircle(entry.channel)">
+        <ion-icon [name]="channelIcon(entry.channel)" class="text-base"></ion-icon>
+      </span>
+      <p class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{{ entry.summary }}</p>
+      <p class="shrink-0 text-xs text-gray-400">{{ entry.timestamp }}</p>
+    </div>
+
+    <div *ngIf="visibleEntries().length === 0" class="px-4 py-10 text-center">
+      <ion-icon name="time-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No activity for this filter</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,131 @@
+<div class="grid gap-6 grid-cols-1 lg:grid-cols-2" *ngIf="client as c">
+  <!-- Contact information -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h2 class="text-xl font-bold text-gray-900">Contact information</h2>
+    <p class="mt-1 text-sm text-gray-500">How to reach this client</p>
+
+    <div class="mt-4 flex flex-col divide-y divide-gray-100">
+      <div class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#CBD9F2] text-indigo-600">
+          <ion-icon name="mail-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400">Email</p>
+          <p class="truncate text-sm font-medium text-gray-900">{{ c.email }}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F2E3C9] text-orange-500">
+          <ion-icon name="call-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400">Phone</p>
+          <p class="truncate text-sm font-medium text-gray-900">{{ c.phone }}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEEBFA] text-[#7C6AE0]">
+          <ion-icon name="location-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400">Address</p>
+          <p class="text-sm font-medium text-gray-900">{{ c.address }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Personal details (individual) -->
+  <div class="bg-white rounded-[28px] p-6" *ngIf="c.type === 'individual'; else businessDetails">
+    <h2 class="text-xl font-bold text-gray-900">Personal details</h2>
+    <p class="mt-1 text-sm text-gray-500">Tax identification and background</p>
+
+    <div class="mt-4 grid grid-cols-2 gap-4">
+      <div class="rounded-2xl border border-gray-100 p-4">
+        <p class="text-xs text-gray-400">SSN / ITIN</p>
+        <p class="mt-1 text-sm font-semibold text-gray-900">{{ maskTail(c.individual?.ssnOrItin) }}</p>
+      </div>
+      <div class="rounded-2xl border border-gray-100 p-4">
+        <p class="text-xs text-gray-400">Date of birth</p>
+        <p class="mt-1 text-sm font-semibold text-gray-900">{{ formatDate(c.individual?.dateOfBirth) }}</p>
+      </div>
+      <div class="rounded-2xl border border-gray-100 p-4">
+        <p class="text-xs text-gray-400">Occupation</p>
+        <p class="mt-1 text-sm font-semibold text-gray-900">{{ c.individual?.occupation ?? '—' }}</p>
+      </div>
+      <div class="rounded-2xl border border-gray-100 p-4">
+        <p class="text-xs text-gray-400">Marital status</p>
+        <p class="mt-1 text-sm font-semibold text-gray-900">{{ c.individual?.maritalStatus ?? '—' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Business details (company) -->
+  <ng-template #businessDetails>
+    <div class="bg-white rounded-[28px] p-6">
+      <h2 class="text-xl font-bold text-gray-900">Business details</h2>
+      <p class="mt-1 text-sm text-gray-500">Tax identification and entity structure</p>
+
+      <div class="mt-4 grid grid-cols-2 gap-4">
+        <div class="rounded-2xl border border-gray-100 p-4">
+          <p class="text-xs text-gray-400">EIN</p>
+          <p class="mt-1 text-sm font-semibold text-gray-900">{{ maskTail(c.company?.ein) }}</p>
+        </div>
+        <div class="rounded-2xl border border-gray-100 p-4">
+          <p class="text-xs text-gray-400">Formation date</p>
+          <p class="mt-1 text-sm font-semibold text-gray-900">{{ formatDate(c.company?.formationDate) }}</p>
+        </div>
+        <div class="rounded-2xl border border-gray-100 p-4">
+          <p class="text-xs text-gray-400">Business structure</p>
+          <p class="mt-1 text-sm font-semibold text-gray-900">{{ c.company?.businessStructure ?? '—' }}</p>
+        </div>
+        <div class="rounded-2xl border border-gray-100 p-4">
+          <p class="text-xs text-gray-400">Principal activity</p>
+          <p class="mt-1 text-sm font-semibold text-gray-900">{{ c.company?.principalBusinessActivity ?? '—' }}</p>
+        </div>
+      </div>
+    </div>
+  </ng-template>
+
+  <!-- Dependents -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h2 class="text-xl font-bold text-gray-900">Dependents</h2>
+    <p class="mt-1 text-sm text-gray-500">Household dependents on file</p>
+
+    <div *ngIf="c.dependents && c.dependents.length > 0; else noDependents" class="mt-4 flex flex-col divide-y divide-gray-100">
+      <div *ngFor="let dependent of c.dependents" class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DCDCDC] text-gray-700">
+          <ion-icon name="person-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-gray-900">{{ dependent.name }}</p>
+          <p class="text-xs text-gray-400">{{ dependent.relationship }}</p>
+        </div>
+        <span class="shrink-0 text-xs text-gray-500">{{ formatDate(dependent.dateOfBirth) }}</span>
+      </div>
+    </div>
+
+    <ng-template #noDependents>
+      <div class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+        No dependents on file.
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- Spouse -->
+  <div class="bg-white rounded-[28px] p-6" *ngIf="c.spouse as spouse">
+    <h2 class="text-xl font-bold text-gray-900">Spouse</h2>
+    <p class="mt-1 text-sm text-gray-500">Spousal information on file</p>
+
+    <div class="mt-4 flex items-center gap-4 rounded-2xl border border-gray-100 p-4">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+        <ion-icon name="heart-outline" class="text-lg"></ion-icon>
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-gray-900">{{ spouse.name }}</p>
+        <p class="text-xs text-gray-400">{{ maskTail(spouse.ssnOrItin) }}</p>
+      </div>
+      <span class="shrink-0 text-xs text-gray-500">{{ formatDate(spouse.dateOfBirth) }}</span>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,79 @@
+<div class="bg-white rounded-[28px] px-5 py-4 flex flex-wrap items-center gap-3">
+  <!-- View selector -->
+  <div class="relative" data-dropdown="dashboard-view">
+    <button type="button" (click)="toggleViewDropdown()"
+      class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+      <ion-icon name="grid-outline" class="text-base text-gray-500"></ion-icon>
+      {{ view() }}
+      <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+    </button>
+
+    <div *ngIf="isViewOpen()"
+      class="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <button *ngFor="let option of views" type="button" (click)="selectView(option)"
+        class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        {{ option }}
+        <ion-icon *ngIf="option === view()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Date range -->
+  <label
+    class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 cursor-pointer focus-within:border-gray-300 transition-colors">
+    <span class="text-xs font-medium text-gray-400">From</span>
+    <input type="date" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)"
+      class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+  </label>
+
+  <label
+    class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 cursor-pointer focus-within:border-gray-300 transition-colors">
+    <span class="text-xs font-medium text-gray-400">To</span>
+    <input type="date" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)"
+      class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+  </label>
+
+  <!-- Applied summary chip -->
+  <span *ngIf="applied()"
+    class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
+    {{ applied() }}
+    <button type="button" (click)="clear()" class="flex items-center text-emerald-600 hover:text-emerald-800"
+      aria-label="Clear filters">
+      <ion-icon name="close-outline" class="text-sm"></ion-icon>
+    </button>
+  </span>
+
+  <!-- Apply + Edit layout -->
+  <div class="ml-auto flex items-center gap-2">
+    <button *ngIf="applied()" type="button" (click)="clear()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Clear
+    </button>
+    <button type="button" (click)="apply()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="search-outline" class="text-base"></ion-icon>
+      Apply
+    </button>
+
+    <!-- Separador sutil -->
+    <span class="h-6 w-px bg-gray-200 mx-1"></span>
+
+    <!-- Reset layout (solo en edición y con cambios) -->
+    <button *ngIf="layout.editMode() && layout.isDirty()" type="button" (click)="layout.resetLayout()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Reset
+    </button>
+
+    <!-- Edit layout / Done -->
+    <button *ngIf="!layout.editMode()" type="button" (click)="layout.toggleEditMode()"
+      class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+      <ion-icon name="create-outline" class="text-base text-gray-500"></ion-icon>
+      Edit layout
+    </button>
+    <button *ngIf="layout.editMode()" type="button" (click)="layout.toggleEditMode()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+      Done
+    </button>
+  </div>
+</div>

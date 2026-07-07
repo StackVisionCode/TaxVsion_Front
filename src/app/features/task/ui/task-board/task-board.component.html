@@ -1,0 +1,55 @@
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" cdkDropListGroup>
+  <div *ngFor="let column of columns"
+    class="flex min-h-[20rem] flex-col gap-3 rounded-2xl border border-gray-100 p-4 transition-colors">
+    <!-- Column header -->
+    <div class="flex items-center gap-2">
+      <span class="h-2.5 w-2.5 rounded-full" [ngClass]="column.dotClass"></span>
+      <h3 class="text-sm font-semibold text-gray-900">{{ column.label }}</h3>
+      <span class="ml-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+        {{ bucketFor(column.id).length }}
+      </span>
+    </div>
+
+    <!-- Column cards: cada columna es un drop list conectado a las demás -->
+    <div class="task-dropzone flex flex-1 flex-col gap-3 rounded-xl" cdkDropList [id]="dropListIdFor(column.id)"
+      [cdkDropListData]="bucketFor(column.id)" (cdkDropListDropped)="onDrop($event, column.id)">
+      <div *ngFor="let task of bucketFor(column.id); trackBy: trackByTaskId" cdkDrag [cdkDragData]="task"
+        (cdkDragEnded)="onDragEnded()" (click)="openTask(task)"
+        class="task-card cursor-grab rounded-2xl border border-gray-100 bg-white p-4 hover:border-gray-200 hover:shadow-sm active:cursor-grabbing">
+        <p class="text-sm font-semibold text-gray-900">{{ task.title }}</p>
+        <p class="mt-1 truncate text-xs text-gray-500">{{ task.client }}</p>
+
+        <div class="mt-2.5 flex items-center justify-between gap-2">
+          <span class="text-xs" [ngClass]="isOverdue(task) ? 'font-medium text-red-500' : 'text-gray-500'">
+            {{ formatDue(task.dueDate) }}
+          </span>
+          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            [ngClass]="priorityChipClass(task.priority)">
+            {{ task.priority }}
+          </span>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between">
+          <!-- Quick status move: 4 tiny dots, one per column -->
+          <div class="flex items-center gap-1.5" (click)="$event.stopPropagation()">
+            <button *ngFor="let target of columns" type="button" (click)="moveTask(task, target.id, $event)"
+              [title]="'Move to ' + target.label" [attr.aria-label]="'Move to ' + target.label"
+              class="h-2.5 w-2.5 rounded-full border transition-colors"
+              [ngClass]="task.status === target.id ? target.dotClass + ' border-transparent' : 'border-gray-300 bg-transparent hover:border-gray-400'">
+            </button>
+          </div>
+
+          <!-- Assignee avatar -->
+          <span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+            [ngClass]="task.assigneeColor" [title]="task.assigneeName">
+            {{ task.assigneeInitials }}
+          </span>
+        </div>
+      </div>
+
+      <p *ngIf="bucketFor(column.id).length === 0" class="py-6 text-center text-xs text-gray-400">
+        Drop tasks here
+      </p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,29 @@
+/* Recorte cóncavo en la esquina superior izquierda de cada tarjeta de
+   categoría: una máscara radial "carva" la esquina para que el círculo del
+   icono (hermano absoluto, fuera de la tarjeta) parezca encastrado con un
+   halo de fondo alrededor, como en el diseño de referencia. El centro
+   (20px, 20px) coincide con el centro del círculo de 64px posicionado en
+   -12px/-12px; el radio transparente de 38px deja ~6px de aire visible. */
+.category-card {
+  -webkit-mask-image: radial-gradient(circle at 20px 20px, transparent 38px, #000 39px);
+  mask-image: radial-gradient(circle at 20px 20px, transparent 38px, #000 39px);
+}
+
+/* Pop con rebote del círculo al hacer hover sobre la tarjeta (misma curva
+   bouncy que el resto de la app). El scale máximo es 1.12 para que el
+   círculo (r=32px) no toque el borde del recorte de la máscara (r=38px). */
+.category-icon {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.category-icon ion-icon {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.category-card-wrap:hover .category-icon {
+  transform: scale(1.12);
+}
+
+.category-card-wrap:hover .category-icon ion-icon {
+  transform: rotate(-10deg);
+}

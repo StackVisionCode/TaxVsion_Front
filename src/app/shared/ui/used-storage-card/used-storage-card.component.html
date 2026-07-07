@@ -1,0 +1,50 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <h2 class="text-xl font-bold text-gray-900">Used Storage</h2>
+  <p class="mt-1 text-sm text-gray-500">{{ formatBytes(usedBytes()) }} of {{ formatBytes(totalBytes) }} used</p>
+
+  <div class="mt-5 flex flex-wrap items-center gap-6">
+    <!-- Donut de puntos segmentados -->
+    <div class="relative h-44 w-44 shrink-0">
+      <svg viewBox="0 0 180 180" class="h-full w-full">
+        <circle *ngFor="let dot of outerDots()" class="donut-dot" [attr.cx]="dot.x" [attr.cy]="dot.y"
+          [attr.r]="dot.r" [attr.fill]="dot.color" [style.animation-delay]="dot.delay"></circle>
+        <circle *ngFor="let dot of innerDots()" class="donut-dot" [attr.cx]="dot.x" [attr.cy]="dot.y"
+          [attr.r]="dot.r" [attr.fill]="dot.color" [style.animation-delay]="dot.delay"></circle>
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span class="text-3xl font-bold text-gray-900">{{ displayPercent() }}%</span>
+        <span class="text-xs text-gray-500">Free Storage</span>
+      </div>
+    </div>
+
+    <!-- Leyenda -->
+    <div class="min-w-[9rem] flex-1 rounded-2xl bg-[#FAF9F7] p-4">
+      <div *ngFor="let group of groups" class="legend-row flex items-center justify-between gap-3 py-1.5">
+        <span class="flex items-center gap-2.5">
+          <span class="h-2.5 w-2.5 rounded-full" [style.background-color]="group.color"></span>
+          <span class="text-sm text-gray-700">{{ group.name }}</span>
+        </span>
+        <span class="text-xs font-medium text-gray-500">{{ formatBytes(group.sizeBytes) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storage type -->
+  <p class="mt-5 text-sm font-semibold text-gray-900">Storage Type</p>
+  <div class="mt-2 rounded-2xl bg-[#FAF9F7] p-4">
+    <div class="flex items-center justify-between gap-3 py-1.5">
+      <span class="flex items-center gap-2.5">
+        <span class="h-2.5 w-2.5 rounded-full bg-gray-900"></span>
+        <span class="text-sm text-gray-700">Upload</span>
+      </span>
+      <span class="text-xs font-medium text-gray-500">{{ formatBytes(uploadBytes) }}</span>
+    </div>
+    <div class="flex items-center justify-between gap-3 py-1.5">
+      <span class="flex items-center gap-2.5">
+        <span class="h-2.5 w-2.5 rounded-full bg-gray-300"></span>
+        <span class="text-sm text-gray-700">Download</span>
+      </span>
+      <span class="text-xs font-medium text-gray-500">{{ formatBytes(downloadBytes) }}</span>
+    </div>
+  </div>
+</div>

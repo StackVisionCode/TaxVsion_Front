@@ -1,0 +1,58 @@
+/* Entrada escalonada: cada hijo directo de la página recién activada
+   (fila de stats, tarjeta principal, panel, columna, etc.) se anima por
+   separado con un delay creciente y un "sabor" cíclico distinto — ambos
+   asignados desde app-shell.component.ts. Cuando un hijo es detectado como
+   fila de stats (guard en onRouteActivate), sus propias tarjetas reciben el
+   sabor en vez del contenedor, imitando el tratamiento por-widget ya usado
+   en el Dashboard. */
+.stagger-enter {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+/* --- sabor 0: fade + slide-up clásico --- */
+.stagger-enter[data-stagger-flavor="0"] { animation-name: stagger-fade-in; }
+@keyframes stagger-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- sabor 1: zoom-in suave --- */
+.stagger-enter[data-stagger-flavor="1"] { animation-name: stagger-zoom-in; }
+@keyframes stagger-zoom-in {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* --- sabor 2: desliza desde la izquierda --- */
+.stagger-enter[data-stagger-flavor="2"] { animation-name: stagger-slide-left; }
+@keyframes stagger-slide-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* --- sabor 3: desliza desde la derecha --- */
+.stagger-enter[data-stagger-flavor="3"] { animation-name: stagger-slide-right; }
+@keyframes stagger-slide-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* --- sabor 4: cae desde arriba --- */
+.stagger-enter[data-stagger-flavor="4"] { animation-name: stagger-drop-top; }
+@keyframes stagger-drop-top {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- sabor 5: pop juguetón con leve giro --- */
+.stagger-enter[data-stagger-flavor="5"] {
+  animation-name: stagger-pop-rotate;
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes stagger-pop-rotate {
+  from { opacity: 0; transform: scale(0.88) rotate(-2deg); }
+  to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
