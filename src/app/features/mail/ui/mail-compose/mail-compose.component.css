@@ -1,0 +1,43 @@
+/* Entrada del editor al abrir "New message": el bloque completo aparece con
+   un fade + leve deslizamiento/zoom, y sus secciones internas (header,
+   campos, toolbox, textarea, footer) entran escalonadas para un efecto
+   fluido y profesional. Como el componente es DOM recién creado por el
+   *ngIf del padre, la animación se dispara sola una vez. */
+:host {
+  display: block;
+  animation: compose-in 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes compose-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Stagger sutil de las secciones internas del editor. */
+.compose-root > * {
+  animation: compose-section-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.compose-root > *:nth-child(1) { animation-delay: 60ms; }
+.compose-root > *:nth-child(2) { animation-delay: 110ms; }
+.compose-root > *:nth-child(3) { animation-delay: 160ms; }
+.compose-root > *:nth-child(4) { animation-delay: 210ms; }
+.compose-root > *:nth-child(5) { animation-delay: 260ms; }
+.compose-root > *:nth-child(6) { animation-delay: 300ms; }
+
+@keyframes compose-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

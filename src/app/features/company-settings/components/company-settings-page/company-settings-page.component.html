@@ -1,0 +1,111 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Header -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gray-900 text-lg font-bold text-white">
+          <ion-icon name="business-outline" class="text-2xl"></ion-icon>
+        </span>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">{{ companyName() }}</h2>
+          <p class="mt-1 text-sm text-gray-500">Manage your firm's legal and business information</p>
+        </div>
+      </div>
+
+      <span *ngIf="toast()"
+        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
+        <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
+        {{ toast() }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Business identity -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h3 class="text-xl font-bold text-gray-900">Business identity</h3>
+    <p class="mt-1 text-sm text-gray-500">This information appears on invoices and client-facing documents</p>
+
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Company</span>
+        <input type="text" [ngModel]="companyName()" (ngModelChange)="companyName.set($event)"
+          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
+      </div>
+
+      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Brand</span>
+        <input type="text" [ngModel]="brand()" (ngModelChange)="brand.set($event)"
+          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
+      </div>
+
+      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">EIN</span>
+        <input type="text" [ngModel]="ein()" (ngModelChange)="ein.set($event)"
+          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
+      </div>
+
+      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Phone</span>
+        <input type="text" [ngModel]="phone()" (ngModelChange)="phone.set($event)"
+          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
+      </div>
+
+      <!-- Business structure dropdown -->
+      <div class="relative" data-dropdown="business-structure">
+        <button type="button" (click)="toggleStructureDropdown()"
+          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+          {{ businessStructure() }}
+          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+        </button>
+
+        <div *ngIf="isStructureOpen()"
+          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <button *ngFor="let structure of structures" type="button" (click)="selectStructure(structure)"
+            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            {{ structure }}
+            <ion-icon *ngIf="structure === businessStructure()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <textarea rows="3" placeholder="Brief description of your firm" [ngModel]="description()"
+      (ngModelChange)="description.set($event)"
+      class="mt-4 w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors resize-none"></textarea>
+  </div>
+
+  <!-- Address -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h3 class="text-xl font-bold text-gray-900">Business address</h3>
+    <p class="mt-1 text-sm text-gray-500">Used on invoices and official correspondence</p>
+
+    <div class="mt-4 flex flex-col gap-3">
+      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+        <input type="text" placeholder="Street address" [ngModel]="addressLine()" (ngModelChange)="addressLine.set($event)"
+          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="City" [ngModel]="city()" (ngModelChange)="city.set($event)"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="State" [ngModel]="state()" (ngModelChange)="state.set($event)"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="ZIP" [ngModel]="zip()" (ngModelChange)="zip.set($event)"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5 flex justify-end">
+      <button type="button" (click)="save()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        Save changes
+      </button>
+    </div>
+  </div>
+</div>

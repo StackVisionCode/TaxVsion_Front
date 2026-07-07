@@ -1,0 +1,77 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <ng-container *ngIf="!previewRequest(); else previewView">
+    <!-- Stats row -->
+    <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+      <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+        <p class="text-sm text-gray-600">Total requests</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalRequests()) }}</p>
+      </div>
+      <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+        <p class="text-sm text-gray-600">Pending signatures</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(pendingSignatures()) }}</p>
+      </div>
+      <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+        <p class="text-sm text-gray-600">Completed this month</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(completedThisMonth()) }}</p>
+      </div>
+      <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+        <p class="text-sm text-gray-600">Avg time to sign</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ avgTimeToSign }}</p>
+      </div>
+    </div>
+
+    <!-- Signature requests card -->
+    <div class="bg-white rounded-[28px] p-6">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Signature Requests</h2>
+          <p class="mt-1 text-sm text-gray-500">Track documents sent out for client signature</p>
+        </div>
+        <button type="button" (click)="openCreatePanel()"
+          class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          New Signature Request
+        </button>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="activeFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          {{ filterLabel(option) }}
+        </button>
+
+        <div
+          class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+          <input type="text" placeholder="Search documents or clients" [ngModel]="search()" name="search"
+            (ngModelChange)="onSearchChange($event)"
+            class="h-full w-56 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="mt-5">
+        <app-signature-table [requests]="pagedRequests()" (previewRequested)="openPreview($event)"
+          (resendRequested)="resendReminder($event)" (cancelRequested)="cancelRequest($event)"></app-signature-table>
+        <app-pagination [currentPage]="currentPage()" [totalItems]="visibleRequests().length" [pageSize]="pageSize"
+          (pageChange)="currentPage.set($event)"></app-pagination>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-template #previewView>
+    <app-signature-preview [request]="previewRequest()" (back)="closePreview()"></app-signature-preview>
+  </ng-template>
+</div>
+
+<!-- Create overlay -->
+<app-signature-request-panel [isOpen]="isPanelOpen()" (closed)="closePanel()"
+  (sent)="handleSent($event)"></app-signature-request-panel>
+
+<!-- Transient toast -->
+<div *ngIf="toastMessage()"
+  class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+  {{ toastMessage() }}
+</div>

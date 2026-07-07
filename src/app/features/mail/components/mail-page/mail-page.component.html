@@ -1,0 +1,35 @@
+<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
+  <!-- Folders rail -->
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-2">
+    <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
+    <p class="mt-1 text-sm text-gray-500 px-1">Your inbox</p>
+
+    <div class="mt-4">
+      <app-mail-folder-list [folders]="folders()" [activeFolderId]="activeFolderId()"
+        (folderSelected)="selectFolder($event)" (composeClicked)="openCompose()"></app-mail-folder-list>
+    </div>
+  </div>
+
+  <!-- Message list -->
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-4 flex flex-col min-h-0">
+    <app-mail-list class="flex-1 min-h-0" [messages]="messages()" [activeFolderId]="activeFolderId()"
+      [selectedId]="selectedMessageId()" (messageSelected)="selectMessage($event)"
+      (starToggled)="toggleStar($event)"></app-mail-list>
+  </div>
+
+  <!-- Reading pane / compose editor -->
+  <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col">
+    <app-mail-compose *ngIf="isComposeOpen(); else readingView" class="flex-1 min-h-0"
+      (closed)="closeCompose()" (sent)="handleSent()"></app-mail-compose>
+    <ng-template #readingView>
+      <app-mail-reading-pane class="flex-1 min-h-0" [message]="selectedMessage()"
+        (starToggled)="toggleStar($event)"></app-mail-reading-pane>
+    </ng-template>
+  </div>
+</div>
+
+<!-- Sent toast -->
+<div *ngIf="showSentToast()" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
+  <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
+  Message sent
+</div>

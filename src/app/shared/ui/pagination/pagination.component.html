@@ -1,0 +1,24 @@
+<div *ngIf="showControls()" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-gray-500">
+    Showing <span class="font-medium text-gray-700">{{ rangeStart() }}–{{ rangeEnd() }}</span> of
+    <span class="font-medium text-gray-700">{{ totalItems }}</span>
+  </p>
+
+  <div class="flex items-center gap-2">
+    <button type="button" (click)="goToPrevious()" [disabled]="currentPage <= 1"
+      class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+      aria-label="Previous page">
+      <ion-icon name="chevron-back-outline" class="text-base"></ion-icon>
+    </button>
+
+    <span class="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-700">
+      Page {{ currentPage }} of {{ totalPages() }}
+    </span>
+
+    <button type="button" (click)="goToNext()" [disabled]="currentPage >= totalPages()"
+      class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+      aria-label="Next page">
+      <ion-icon name="chevron-forward-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+</div>

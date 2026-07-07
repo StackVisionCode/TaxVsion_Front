@@ -1,0 +1,209 @@
+:host {
+  display: block;
+}
+
+/* ============================================
+   Coreografía de salida del login
+   verifying → sinking → loading → fading
+   ============================================ */
+
+/* 2. La tarjeta se hunde: escala hacia abajo, cae y se desvanece. */
+.login-sink {
+  animation: login-sink 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes login-sink {
+  0% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+  40% {
+    transform: scale(0.94) translateY(16px);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.55) translateY(90px);
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+
+/* 3. Overlay del loader: entra con fade suave. */
+.loader-overlay {
+  animation: loader-fade-in 300ms ease both;
+}
+
+@keyframes loader-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 4. Desvanecimiento final antes de navegar al dashboard. */
+.loader-fade-out {
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+/* Bolitas en círculo: cada span se posiciona rotado y su ::after pulsa
+   escalonado (así la rotación de posición no pelea con la animación). */
+.loader-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: loader-dot-pulse 1s ease-in-out infinite;
+}
+
+.loader-dot:nth-child(odd)::after {
+  background-color: #7c6ae0;
+}
+
+.loader-dot:nth-child(even)::after {
+  background-color: #a99beb;
+}
+
+.loader-dot:nth-child(1) { transform: rotate(0deg) translateY(-36px); }
+.loader-dot:nth-child(2) { transform: rotate(45deg) translateY(-36px); }
+.loader-dot:nth-child(3) { transform: rotate(90deg) translateY(-36px); }
+.loader-dot:nth-child(4) { transform: rotate(135deg) translateY(-36px); }
+.loader-dot:nth-child(5) { transform: rotate(180deg) translateY(-36px); }
+.loader-dot:nth-child(6) { transform: rotate(225deg) translateY(-36px); }
+.loader-dot:nth-child(7) { transform: rotate(270deg) translateY(-36px); }
+.loader-dot:nth-child(8) { transform: rotate(315deg) translateY(-36px); }
+
+.loader-dot:nth-child(1)::after { animation-delay: 0ms; }
+.loader-dot:nth-child(2)::after { animation-delay: 125ms; }
+.loader-dot:nth-child(3)::after { animation-delay: 250ms; }
+.loader-dot:nth-child(4)::after { animation-delay: 375ms; }
+.loader-dot:nth-child(5)::after { animation-delay: 500ms; }
+.loader-dot:nth-child(6)::after { animation-delay: 625ms; }
+.loader-dot:nth-child(7)::after { animation-delay: 750ms; }
+.loader-dot:nth-child(8)::after { animation-delay: 875ms; }
+
+@keyframes loader-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Asterisco de marca en el centro, con pulso sutil. */
+.loader-center {
+  animation: loader-center-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes loader-center-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* Texto de estado con entrada suave. */
+.loader-caption {
+  animation: loader-caption-up 500ms ease 150ms both;
+}
+
+@keyframes loader-caption-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+input:focus {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Animación fluida del panel izquierdo
+   Los blobs siempre tienen su animación asignada pero en pausa;
+   escribir en el formulario (.fluid-active) la pone en marcha,
+   así arranca y se detiene sin saltos.
+   ============================================ */
+.fluid-blob {
+  border-radius: 50%;
+  animation-play-state: paused;
+  will-change: transform, border-radius;
+}
+
+.fluid-active .fluid-blob {
+  animation-play-state: running;
+}
+
+.fluid-blob-1 {
+  animation: fluid-morph-1 4s ease-in-out infinite;
+}
+
+.fluid-blob-2 {
+  animation: fluid-morph-2 5s ease-in-out infinite;
+}
+
+.fluid-blob-3 {
+  animation: fluid-morph-3 3.5s ease-in-out infinite;
+}
+
+@keyframes fluid-morph-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    border-radius: 60% 40% 55% 45% / 55% 60% 40% 45%;
+  }
+  33% {
+    transform: translate(40px, 30px) scale(1.15);
+    border-radius: 45% 55% 40% 60% / 60% 45% 55% 40%;
+  }
+  66% {
+    transform: translate(-20px, 50px) scale(0.95);
+    border-radius: 55% 45% 60% 40% / 40% 55% 45% 60%;
+  }
+}
+
+@keyframes fluid-morph-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    border-radius: 50% 50% 45% 55% / 55% 45% 55% 45%;
+  }
+  33% {
+    transform: translate(-50px, -30px) scale(1.2);
+    border-radius: 40% 60% 55% 45% / 45% 55% 40% 60%;
+  }
+  66% {
+    transform: translate(25px, -45px) scale(1.05);
+    border-radius: 60% 40% 45% 55% / 55% 60% 45% 40%;
+  }
+}
+
+@keyframes fluid-morph-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    border-radius: 55% 45% 50% 50% / 50% 55% 45% 50%;
+  }
+  50% {
+    transform: translate(60px, -35px) scale(1.3);
+    border-radius: 45% 55% 60% 40% / 60% 40% 55% 45%;
+  }
+}

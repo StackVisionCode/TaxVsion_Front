@@ -1,0 +1,131 @@
+<div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
+  <!-- Ambient background glow -->
+  <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-purple-300/40 rounded-full blur-3xl"></div>
+
+  <div class="relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-indigo-200/70 overflow-hidden flex flex-col lg:flex-row"
+    [class.login-sink]="isSunk()">
+    <!-- Left side - Gradient brand panel -->
+    <div class="hidden lg:flex lg:w-1/2 relative m-3 rounded-[1.75rem] overflow-hidden"
+      [class.fluid-active]="isTyping()">
+      <div class="absolute inset-0 bg-gradient-to-br from-sky-400 via-blue-700 to-purple-600"></div>
+      <!-- Fluid blobs: se agitan como líquido mientras se escribe en el formulario -->
+      <div class="fluid-blob fluid-blob-1 absolute -top-10 -left-10 w-72 h-72 bg-cyan-300/50 blur-3xl"></div>
+      <div class="fluid-blob fluid-blob-2 absolute bottom-0 right-0 w-72 h-72 bg-purple-400/50 blur-3xl"></div>
+      <div class="fluid-blob fluid-blob-3 absolute top-1/3 left-1/4 w-56 h-56 bg-blue-300/40 blur-3xl"></div>
+
+      <div class="relative z-10 flex flex-col justify-between w-full p-10">
+        <span class="text-white text-4xl font-bold leading-none">*</span>
+
+        <div class="text-white space-y-2">
+          <p class="text-sm font-medium text-white/80">You can easily</p>
+          <h2 class="text-3xl font-bold leading-snug">
+            Manage your clients, tasks and documents in one place
+          </h2>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side - Login form -->
+    <div class="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
+      <div class="w-full max-w-sm mx-auto">
+        <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+        <h1 class="mt-4 text-3xl font-bold text-gray-900">Welcome back</h1>
+        <p class="mt-2 text-sm text-gray-500">
+          Sign in to access your tasks, notes, and projects anytime, anywhere.
+        </p>
+
+        <form [formGroup]="form" class="mt-8 space-y-5" (ngSubmit)="onSubmit()" (input)="onTyping()">
+          <!-- Email -->
+          <div class="space-y-1.5">
+            <label for="email" class="block text-sm font-medium text-gray-800">Your email</label>
+            <input type="email" id="email" formControlName="email"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
+              placeholder="you@company.com" />
+          </div>
+
+          <!-- Password -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="password" class="block text-sm font-medium text-gray-800">Password</label>
+              <a href="#" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Forgot password?</a>
+            </div>
+            <div class="relative">
+              <input [type]="showPassword() ? 'text' : 'password'" id="password" formControlName="password"
+                class="block w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
+                placeholder="••••••••••" />
+              <button type="button" (click)="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600"
+                [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+                <ion-icon [name]="showPassword() ? 'eye-off' : 'eye'" class="text-lg"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          @if (formError()) {
+            <p class="text-sm font-medium text-red-600">{{ formError() }}</p>
+          }
+
+          <!-- Submit -->
+          <button type="submit" [disabled]="isLoggingIn()"
+            class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+            @if (isLoggingIn()) {
+              <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              <span>Signing in...</span>
+            } @else {
+              <span>Sign In</span>
+            }
+          </button>
+        </form>
+
+        <!-- Divider -->
+        <div class="mt-6 flex items-center gap-3">
+          <span class="flex-1 h-px bg-gray-200"></span>
+          <span class="text-xs text-gray-400">or continue with</span>
+          <span class="flex-1 h-px bg-gray-200"></span>
+        </div>
+
+        <!-- Social buttons (visual only, sin proveedores conectados) -->
+        <div class="mt-4 grid grid-cols-3 gap-3">
+          <button type="button"
+            class="flex items-center justify-center py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-colors">
+            Bē
+          </button>
+          <button type="button"
+            class="flex items-center justify-center py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+            <ion-icon name="logo-google" class="text-lg text-gray-700"></ion-icon>
+          </button>
+          <button type="button"
+            class="flex items-center justify-center py-3 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+            <ion-icon name="logo-facebook" class="text-lg text-blue-600"></ion-icon>
+          </button>
+        </div>
+
+        <p class="mt-8 text-center text-sm text-gray-600">
+          Don't have an account?
+          <a href="https://demo.stacktaxvision.com" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loader circular de bolitas: aparece cuando la tarjeta ya se hundió -->
+  @if (showLoader()) {
+    <div class="loader-overlay absolute inset-0 z-20 flex flex-col items-center justify-center"
+      [class.loader-fade-out]="phase() === 'fading'">
+      <div class="relative h-24 w-24">
+        <!-- 8 bolitas orbitando -->
+        @for (dot of loaderDots; track $index) {
+          <span class="loader-dot absolute left-1/2 top-1/2 h-3 w-3 -ml-1.5 -mt-1.5 rounded-full"></span>
+        }
+
+        <!-- Marca en el centro con pulso sutil -->
+        <span
+          class="loader-center absolute inset-0 flex items-center justify-center text-indigo-600 text-3xl font-bold select-none">*</span>
+      </div>
+
+      <p class="loader-caption mt-6 text-sm text-gray-500">Preparing your dashboard...</p>
+    </div>
+  }
+</div>

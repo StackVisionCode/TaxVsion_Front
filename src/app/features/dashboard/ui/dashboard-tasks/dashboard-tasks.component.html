@@ -1,0 +1,56 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <h2 class="text-xl font-bold text-gray-900">Tasks</h2>
+  <p class="mt-1 text-sm text-gray-500">What needs attention</p>
+
+  <!-- Filter tabs (pills) -->
+  <div class="mt-4 flex items-center gap-2">
+    <button *ngFor="let option of filters" type="button" (click)="setFilter(option)"
+      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+      [ngClass]="filter() === option ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      {{ option }}
+    </button>
+  </div>
+
+  <!-- Task list -->
+  <div class="mt-3 flex flex-col">
+    <div *ngFor="let task of visibleTasks(); let last = last" class="flex items-center gap-3 py-3.5"
+      [class.border-b]="!last" [class.border-gray-100]="!last">
+      <!-- Round checkbox -->
+      <button type="button" (click)="toggleTask(task.id)"
+        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
+        [ngClass]="task.completed
+          ? 'border-emerald-500 bg-emerald-500 text-white'
+          : 'border-gray-300 bg-white text-transparent hover:border-gray-400'">
+        <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
+      </button>
+
+      <!-- Title + meta -->
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium"
+          [ngClass]="task.completed ? 'text-gray-400 line-through' : 'text-gray-900'">
+          {{ task.title }}
+        </p>
+        <p class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+          <span *ngIf="task.client" class="truncate">{{ task.client }}</span>
+          <span *ngIf="task.client" class="h-1 w-1 shrink-0 rounded-full bg-gray-300"></span>
+          <span class="shrink-0" [class.text-red-500]="isOverdue(task) && !task.completed"
+            [class.font-medium]="isOverdue(task) && !task.completed">
+            {{ formatDue(task.dueDate) }}
+          </span>
+        </p>
+      </div>
+
+      <!-- Priority chip -->
+      <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium"
+        [ngClass]="priorityChipClass(task.priority)">
+        {{ task.priority }}
+      </span>
+    </div>
+
+    <!-- Empty state -->
+    <p *ngIf="visibleTasks().length === 0" class="py-8 text-center text-sm text-gray-500">
+      Nothing here — you're all caught up.
+    </p>
+  </div>
+</div>

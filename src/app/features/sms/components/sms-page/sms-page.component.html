@@ -1,0 +1,91 @@
+<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
+  <!-- Conversation rail -->
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-1">
+    <div class="flex items-start justify-between gap-2 px-1">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">SMS</h2>
+        <p class="mt-1 text-sm text-gray-500">Client text messages</p>
+      </div>
+      <button type="button" (click)="openBroadcast()"
+        class="flex shrink-0 items-center gap-1.5 rounded-full bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="megaphone-outline" class="text-sm"></ion-icon>
+        New broadcast
+      </button>
+    </div>
+
+    <div class="mt-4">
+      <app-sms-conversation-list [conversations]="conversations()" [selectedId]="activeConversationId()"
+        (conversationSelected)="selectConversation($event)"></app-sms-conversation-list>
+    </div>
+  </div>
+
+  <!-- Thread card -->
+  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem]">
+    <!-- Thread header -->
+    <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+        [ngClass]="activeConversation().avatarColor">{{ initials(activeConversation().contactName) }}</span>
+      <div>
+        <h2 class="text-base font-bold text-gray-900">{{ activeConversation().contactName }}</h2>
+        <span class="text-xs text-gray-400">{{ activeConversation().phone }}</span>
+      </div>
+
+      <button type="button"
+        class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        <ion-icon name="call-outline" class="text-base text-gray-400"></ion-icon>
+        Call
+      </button>
+    </div>
+
+    <!-- Thread -->
+    <div class="flex-1 overflow-y-auto py-4">
+      <app-sms-thread [messages]="activeConversation().messages" [contactName]="activeConversation().contactName"
+        [avatarColor]="activeConversation().avatarColor"></app-sms-thread>
+    </div>
+
+    <!-- Composer -->
+    <div class="pt-4 border-t border-gray-100">
+      <app-sms-composer (send)="sendMessage($event)"></app-sms-composer>
+    </div>
+  </div>
+</div>
+
+<!-- New broadcast overlay -->
+<div *ngIf="isBroadcastOpen()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4" (click)="closeBroadcast()">
+  <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl" (click)="$event.stopPropagation()">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">New broadcast</h2>
+        <p class="mt-1 text-sm text-gray-500">Send one text message to every contact</p>
+      </div>
+      <button type="button" (click)="closeBroadcast()"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        aria-label="Close panel">
+        <ion-icon name="close-outline" class="text-lg"></ion-icon>
+      </button>
+    </div>
+
+    <div class="mt-5">
+      <textarea rows="4" placeholder="Write your broadcast message..." [ngModel]="broadcastText()" name="broadcastText"
+        (ngModelChange)="broadcastText.set($event)"
+        class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" (click)="closeBroadcast()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="sendBroadcast()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        Send to all contacts
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Broadcast sent toast -->
+<div *ngIf="showBroadcastToast()" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
+  <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
+  Broadcast sent to all contacts
+</div>

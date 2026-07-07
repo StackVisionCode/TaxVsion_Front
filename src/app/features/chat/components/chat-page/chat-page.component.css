@@ -1,0 +1,11 @@
+/* Chat siempre debe ocupar todo el alto disponible. El host, como item flex
+   del wrapper #routeContent (flex-col en app-shell), crece a llenar la
+   pantalla; así el grid interno con su fila 1fr estira el rail y la tarjeta
+   de conversación hasta abajo. min-height:0 permite que la tarjeta del hilo
+   maneje su propio scroll interno sin desbordar. */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}

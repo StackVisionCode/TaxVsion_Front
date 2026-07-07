@@ -1,0 +1,61 @@
+<div class="bg-white rounded-[28px] p-6" *ngIf="meeting as m">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">{{ m.title }}</h2>
+      <p class="mt-1 text-sm text-gray-500">{{ m.client }}</p>
+    </div>
+    <span class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600">
+      <span class="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
+      Live preview
+    </span>
+  </div>
+
+  <!-- Video grid mock -->
+  <div class="mt-4 grid gap-3 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+    <div *ngFor="let participant of m.participants.slice(0, 4)"
+      class="flex aspect-video flex-col items-center justify-center gap-2 rounded-2xl bg-gray-900">
+      <span class="flex h-14 w-14 items-center justify-center rounded-full text-lg font-semibold text-white"
+        [ngClass]="participant.color">
+        {{ participant.initials }}
+      </span>
+      <span class="text-xs font-medium text-white">{{ participant.name }}</span>
+    </div>
+
+    <div *ngIf="m.participants.length === 0"
+      class="flex aspect-video flex-col items-center justify-center gap-2 rounded-2xl bg-gray-900">
+      <span class="flex h-14 w-14 items-center justify-center rounded-full bg-gray-700 text-lg font-semibold text-white">
+        ME
+      </span>
+      <span class="text-xs font-medium text-white">You</span>
+    </div>
+  </div>
+
+  <!-- Control bar -->
+  <div class="mt-5 flex items-center justify-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+    <button type="button" (click)="toggleMic()"
+      class="flex h-11 w-11 items-center justify-center rounded-full transition-colors"
+      [ngClass]="isMicOn() ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100' : 'bg-red-500 text-white hover:bg-red-600'"
+      [attr.aria-pressed]="isMicOn()" aria-label="Toggle microphone">
+      <ion-icon [name]="isMicOn() ? 'mic-outline' : 'mic-off-outline'" class="text-lg"></ion-icon>
+    </button>
+
+    <button type="button" (click)="toggleCamera()"
+      class="flex h-11 w-11 items-center justify-center rounded-full transition-colors"
+      [ngClass]="isCameraOn() ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100' : 'bg-red-500 text-white hover:bg-red-600'"
+      [attr.aria-pressed]="isCameraOn()" aria-label="Toggle camera">
+      <ion-icon [name]="isCameraOn() ? 'videocam-outline' : 'videocam-off-outline'" class="text-lg"></ion-icon>
+    </button>
+
+    <button type="button"
+      class="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
+      aria-label="Share screen">
+      <ion-icon name="desktop-outline" class="text-lg"></ion-icon>
+    </button>
+
+    <button type="button" (click)="leave()"
+      class="flex items-center gap-2 rounded-full bg-red-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+      <ion-icon name="call-outline" class="text-base"></ion-icon>
+      Leave meeting
+    </button>
+  </div>
+</div>

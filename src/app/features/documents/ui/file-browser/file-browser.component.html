@@ -1,0 +1,162 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header: back + client + actions -->
+  <div class="flex flex-wrap items-center gap-3">
+    <button type="button" (click)="back.emit()"
+      class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+      aria-label="Back to clients">
+      <ion-icon name="chevron-back-outline" class="text-base"></ion-icon>
+    </button>
+
+    <div class="min-w-0">
+      <h2 class="text-xl font-bold text-gray-900 truncate">{{ clientName }}</h2>
+      <p class="mt-0.5 text-sm text-gray-500">Client documents</p>
+    </div>
+
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <button type="button" (click)="openRecycleBin.emit()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+        <ion-icon name="trash-outline" class="text-base text-gray-500"></ion-icon>
+        Recycle bin
+      </button>
+      <button type="button" (click)="addFolder()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+        <ion-icon name="folder-open-outline" class="text-base text-gray-500"></ion-icon>
+        New folder
+      </button>
+      <button type="button"
+        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+        Upload
+      </button>
+    </div>
+  </div>
+
+  <!-- Breadcrumbs + search + view toggle -->
+  <div class="mt-5 flex flex-wrap items-center gap-3">
+    <nav class="flex items-center gap-1 text-sm">
+      <button type="button" (click)="goToRoot()"
+        class="rounded-full px-3 py-1.5 font-medium transition-colors"
+        [ngClass]="breadcrumbs().length === 0 ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        All files
+      </button>
+      <ng-container *ngFor="let crumb of breadcrumbs(); let last = last">
+        <ion-icon name="chevron-forward-outline" class="text-xs text-gray-300"></ion-icon>
+        <button type="button" (click)="goToBreadcrumb(crumb)"
+          class="rounded-full px-3 py-1.5 font-medium transition-colors"
+          [ngClass]="last ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+          {{ crumb.name }}
+        </button>
+      </ng-container>
+    </nav>
+
+    <div class="ml-auto flex items-center gap-2">
+      <!-- Search -->
+      <div class="relative w-56">
+        <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
+          <input type="text" placeholder="Search files..." [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)"
+            class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- View toggle pills -->
+      <div class="flex items-center rounded-full border border-gray-200 p-0.5">
+        <button type="button" (click)="viewMode.set('table')"
+          class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+          [ngClass]="viewMode() === 'table' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+          aria-label="Table view">
+          <ion-icon name="list-outline" class="text-base"></ion-icon>
+        </button>
+        <button type="button" (click)="viewMode.set('grid')"
+          class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+          [ngClass]="viewMode() === 'grid' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+          aria-label="Grid view">
+          <ion-icon name="grid-outline" class="text-base"></ion-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table view -->
+  <div *ngIf="viewMode() === 'table'" class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
+          <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Modified</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Folders first -->
+        <tr *ngFor="let folder of visibleFolders()" (click)="openFolder(folder)" class="cursor-pointer group">
+          <td class="px-4 py-3.5 border-b border-gray-100 group-hover:bg-gray-50 transition-colors rounded-l-2xl">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EEEBFA]">
+                <ion-icon name="folder-outline" class="text-base text-[#7C6AE0]"></ion-icon>
+              </span>
+              <span class="font-medium text-gray-900">{{ folder.name }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 border-b border-gray-100 group-hover:bg-gray-50 transition-colors">
+            <span class="inline-block rounded-full border border-[#D6CEF4] px-3 py-0.5 text-xs font-medium text-[#7C6AE0]">Folder</span>
+          </td>
+          <td class="px-4 py-3.5 border-b border-gray-100 text-right text-gray-400 group-hover:bg-gray-50 transition-colors">—</td>
+          <td class="px-4 py-3.5 border-b border-gray-100 text-gray-500 group-hover:bg-gray-50 transition-colors rounded-r-2xl">—</td>
+        </tr>
+
+        <!-- Files -->
+        <tr *ngFor="let file of visibleFiles(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" [ngClass]="kindCircle(file.kind)">
+                <ion-icon [name]="kindIcon(file.kind)" class="text-base text-gray-700"></ion-icon>
+              </span>
+              <span class="font-medium text-gray-900 truncate max-w-xs">{{ file.name }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="inline-block rounded-full border px-3 py-0.5 text-xs font-medium uppercase" [ngClass]="kindChip(file.kind)">
+              {{ file.kind }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-right text-gray-500 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ file.size }}</td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors rounded-r-2xl"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ file.date }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Grid view -->
+  <div *ngIf="viewMode() === 'grid'" class="mt-4 grid gap-4 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+    <button *ngFor="let folder of visibleFolders()" type="button" (click)="openFolder(folder)"
+      class="rounded-2xl border border-gray-100 p-4 text-left hover:bg-gray-50 transition-colors">
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-[#EEEBFA]">
+        <ion-icon name="folder-outline" class="text-lg text-[#7C6AE0]"></ion-icon>
+      </span>
+      <p class="mt-3 text-sm font-medium text-gray-900 truncate">{{ folder.name }}</p>
+      <p class="mt-0.5 text-xs text-gray-400">Folder</p>
+    </button>
+
+    <div *ngFor="let file of visibleFiles()" class="rounded-2xl border border-gray-100 p-4 hover:bg-gray-50 transition-colors">
+      <span class="flex h-11 w-11 items-center justify-center rounded-full" [ngClass]="kindCircle(file.kind)">
+        <ion-icon [name]="kindIcon(file.kind)" class="text-lg text-gray-700"></ion-icon>
+      </span>
+      <p class="mt-3 text-sm font-medium text-gray-900 truncate">{{ file.name }}</p>
+      <p class="mt-0.5 text-xs text-gray-400">{{ file.size }} · {{ file.date }}</p>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="isEmpty()" class="px-4 py-12 text-center">
+    <ion-icon name="folder-open-outline" class="text-4xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm font-medium text-gray-600">Nothing here</p>
+    <p class="text-xs text-gray-400 mt-1">No files or folders match this view</p>
+  </div>
+</div>

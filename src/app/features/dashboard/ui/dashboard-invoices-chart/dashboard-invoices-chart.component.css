@@ -1,0 +1,20 @@
+.revenue-bar {
+  min-height: 2.75rem;
+  transition: height 300ms ease;
+}
+
+.revenue-bar--light {
+  background-color: #a99beb;
+}
+
+.revenue-bar--lighter {
+  background-color: #d6cef4;
+}
+
+.revenue-bar--vivid {
+  background-color: #7c6ae0;
+}
+
+.revenue-bar--medium {
+  background-color: #9d8de8;
+}

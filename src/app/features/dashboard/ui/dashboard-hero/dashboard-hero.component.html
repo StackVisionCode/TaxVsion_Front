@@ -1,0 +1,24 @@
+<div class="bg-white rounded-[28px] p-6 sm:p-8 h-full">
+  <!-- Greeting -->
+  <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Hello {{ userName }}</h1>
+  <p class="mt-2 text-sm text-gray-500">Monitor your firm's performance in real time.</p>
+
+  <!-- Stat cards: auto-fit para adaptarse al ancho del slot (span 1 o 2) -->
+  <div class="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+    <div *ngFor="let stat of stats" class="relative rounded-[24px] p-6 h-56 sm:h-60 flex flex-col justify-between"
+      [ngClass]="stat.bg">
+      <div>
+        <h3 class="text-lg font-bold text-gray-900">{{ stat.title }}</h3>
+        <p class="mt-1 text-sm text-gray-500">{{ stat.subtitle }}</p>
+      </div>
+
+      <div class="text-3xl sm:text-4xl font-bold text-gray-900">{{ stat.value }}</div>
+
+      <!-- Black circular arrow button with notch effect -->
+      <button type="button"
+        class="absolute -bottom-1 -right-1 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900 text-white ring-8 ring-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="arrow-forward-outline" class="text-lg -rotate-45"></ion-icon>
+      </button>
+    </div>
+  </div>
+</div>

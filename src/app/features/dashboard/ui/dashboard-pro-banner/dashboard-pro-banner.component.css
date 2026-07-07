@@ -1,0 +1,11 @@
+/* Fondo oscuro con vetas diagonales que evocan la foto abstracta de la
+   referencia, en CSS puro (sin imagen externa). */
+.banner-bg {
+  background:
+    repeating-linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.06) 0 18px,
+      rgba(255, 255, 255, 0) 18px 42px
+    ),
+    linear-gradient(120deg, #4e4a63 0%, #3d3a56 35%, #565273 65%, #2f2c44 100%);
+}

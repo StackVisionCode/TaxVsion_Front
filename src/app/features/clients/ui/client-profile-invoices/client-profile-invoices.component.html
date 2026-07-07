@@ -1,0 +1,49 @@
+<div>
+  <h3 class="text-lg font-bold text-gray-900">Invoices</h3>
+
+  <div class="mt-4 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-2xl border border-gray-100 bg-[#EEEBFA] p-4">
+      <p class="text-xs font-medium text-gray-500">Total invoiced</p>
+      <p class="mt-1 text-xl font-bold text-gray-900">{{ formatCurrency(totalInvoiced()) }}</p>
+    </div>
+    <div class="rounded-2xl border border-gray-100 bg-[#F2E3C9] p-4">
+      <p class="text-xs font-medium text-gray-500">Outstanding balance</p>
+      <p class="mt-1 text-xl font-bold text-gray-900">{{ formatCurrency(outstandingBalance()) }}</p>
+    </div>
+    <div class="rounded-2xl border border-gray-100 bg-[#CBD9F2] p-4">
+      <p class="text-xs font-medium text-gray-500">Invoices paid</p>
+      <p class="mt-1 text-xl font-bold text-gray-900">{{ paidCount() }} / {{ invoices().length }}</p>
+    </div>
+  </div>
+
+  <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+    <table class="w-full min-w-[520px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Invoice #</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Issue date</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Amount</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let invoice of invoices(); let last = last" class="group">
+          <td class="px-4 py-3.5 font-medium text-gray-900 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ invoice.invoiceNumber }}</td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ invoice.issueDate }}</td>
+          <td class="px-4 py-3.5 text-right font-bold text-gray-900 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatCurrency(invoice.amount) }}</td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+              [ngClass]="statusChip(invoice.status)">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(invoice.status)"></span>
+              {{ statusLabel(invoice.status) }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

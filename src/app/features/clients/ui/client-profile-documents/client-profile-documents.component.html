@@ -1,0 +1,57 @@
+<div>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h3 class="text-lg font-bold text-gray-900">Documents</h3>
+
+    <div class="relative w-56">
+      <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
+        <input type="text" placeholder="Search files..." [ngModel]="searchTerm()"
+          (ngModelChange)="searchTerm.set($event)"
+          class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+    <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Uploaded</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
+          <th class="bg-[#FAF9F7] px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let doc of visibleDocuments(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" [ngClass]="kindCircle(doc.kind)">
+                <ion-icon [name]="kindIcon(doc.kind)" class="text-base text-gray-700"></ion-icon>
+              </span>
+              <span class="font-medium text-gray-900 truncate max-w-xs">{{ doc.name }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ doc.date }}</td>
+          <td class="px-4 py-3.5 text-right text-gray-500 group-hover:bg-gray-50 transition-colors"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ doc.size }}</td>
+          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <button type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              aria-label="Download file">
+              <ion-icon name="download-outline" class="text-sm"></ion-icon>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="visibleDocuments().length === 0" class="px-4 py-10 text-center">
+      <ion-icon name="document-text-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No documents match your search</p>
+    </div>
+  </div>
+</div>

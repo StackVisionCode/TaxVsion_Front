@@ -1,0 +1,59 @@
+<div class="flex flex-col gap-1">
+  <div *ngFor="let notification of notifications; trackBy: trackByNotificationId"
+    (click)="onRowClick(notification)"
+    class="group relative flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50"
+    [ngClass]="notification.isRead ? 'bg-white' : 'bg-[#FAF9F7]'">
+
+    <!-- Icon circle -->
+    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+      [ngClass]="[iconBgFor(notification.type), iconTextFor(notification.type)]">
+      <ion-icon [name]="iconFor(notification.type)" class="text-lg"></ion-icon>
+    </span>
+
+    <!-- Info -->
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <span *ngIf="!notification.isRead" class="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-600"></span>
+        <p class="truncate text-sm text-gray-900" [ngClass]="!notification.isRead ? 'font-bold' : 'font-medium'">
+          {{ notification.title }}
+        </p>
+      </div>
+      <p class="mt-0.5 truncate text-sm text-gray-500">{{ notification.message }}</p>
+    </div>
+
+    <!-- Relative time -->
+    <span class="shrink-0 text-xs text-gray-400">{{ notification.time }}</span>
+
+    <!-- Ghost "..." menu -->
+    <div class="relative shrink-0 text-left" data-dropdown="notification-menu">
+      <button type="button" (click)="toggleMenu(notification, $event)"
+        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+        aria-label="Notification options">
+        <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+      </button>
+      <div *ngIf="openMenuId() === notification.id"
+        class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+        <button *ngIf="!notification.isRead" type="button" (click)="onMarkReadClick(notification, $event)"
+          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50">
+          <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+          Mark as read
+        </button>
+        <button *ngIf="notification.isRead" type="button" (click)="onMarkUnreadClick(notification, $event)"
+          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50">
+          <ion-icon name="mail-unread-outline" class="text-base"></ion-icon>
+          Mark as unread
+        </button>
+        <button type="button" (click)="onDeleteClick(notification, $event)"
+          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 transition-colors hover:bg-gray-50">
+          <ion-icon name="trash-outline" class="text-base"></ion-icon>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="notifications.length === 0" class="px-4 py-12 text-center">
+    <ion-icon name="notifications-off-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No notifications to show</p>
+  </div>
+</div>

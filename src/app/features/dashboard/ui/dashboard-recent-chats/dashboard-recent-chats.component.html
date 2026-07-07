@@ -1,0 +1,46 @@
+<div class="bg-white rounded-[28px] p-6 h-full">
+  <!-- Header -->
+  <div class="flex items-start justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Recent Chats</h2>
+      <p class="mt-1 text-sm text-gray-500">Latest client conversations</p>
+    </div>
+
+    <!-- Unread counter pill -->
+    <span *ngIf="unreadTotal() > 0"
+      class="shrink-0 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white">
+      {{ unreadTotal() }} unread
+    </span>
+  </div>
+
+  <!-- Chat list -->
+  <div class="mt-4 flex flex-col gap-1">
+    <button *ngFor="let chat of chats(); trackBy: trackByChatId" type="button" (click)="markAsRead(chat)"
+      class="flex w-full items-center gap-3 px-3 py-3 rounded-2xl text-left hover:bg-gray-50 transition-colors">
+
+      <!-- Avatar with online dot -->
+      <div class="relative shrink-0">
+        <span class="flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold text-white"
+          [ngClass]="chat.avatarBg">
+          {{ chat.initials }}
+        </span>
+        <span *ngIf="chat.isOnline"
+          class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+      </div>
+
+      <!-- Name + last message -->
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center justify-between gap-2">
+          <p class="truncate text-sm text-gray-900" [ngClass]="chat.unreadCount > 0 ? 'font-semibold' : 'font-medium'">
+            {{ chat.name }}
+          </p>
+          <span class="shrink-0 text-xs text-gray-400">{{ chat.time }}</span>
+        </div>
+        <p class="mt-0.5 truncate text-sm text-gray-500">{{ chat.lastMessage }}</p>
+      </div>
+
+      <!-- Unread indicator -->
+      <span *ngIf="chat.unreadCount > 0" class="h-2 w-2 shrink-0 rounded-full bg-gray-900"></span>
+    </button>
+  </div>
+</div>

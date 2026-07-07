@@ -1,0 +1,18 @@
+<!-- Fondo fijo al viewport: se pinta una vez y solo se compone al scrollear
+     (evita el re-pintado del gradiente en cada frame que causaba lag). -->
+<div class="fixed inset-0 -z-10 bg-gradient-to-br from-[#F5F3FA] via-[#FAF7F3] to-[#F7F3EE]" aria-hidden="true"></div>
+
+<div class="min-h-screen flex gap-4 p-4">
+  <!-- Floating sidebar card (reaches the top, rounded) -->
+  <app-sidebar (sidebarStateChange)="onSidebarStateChange($event)"></app-sidebar>
+
+  <!-- Right column: transparent top bar + routed content -->
+  <div class="flex-1 min-w-0 flex flex-col">
+    <app-navbar></app-navbar>
+    <main class="relative min-w-0 flex-1">
+      <div #routeContent class="min-h-full flex flex-col">
+        <router-outlet (activate)="onRouteActivate()"></router-outlet>
+      </div>
+    </main>
+  </div>
+</div>

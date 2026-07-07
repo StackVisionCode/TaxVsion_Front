@@ -1,0 +1,123 @@
+<div *ngIf="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4" (click)="close()">
+  <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
+    (click)="$event.stopPropagation()">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">{{ isEditMode() ? 'Edit Task' : 'New Task' }}</h2>
+        <p class="mt-1 text-sm text-gray-500">
+          {{ isEditMode() ? 'Update the details of this task' : 'Add a task to the board' }}
+        </p>
+      </div>
+      <button type="button" (click)="close()"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        aria-label="Close panel">
+        <ion-icon name="close-outline" class="text-lg"></ion-icon>
+      </button>
+    </div>
+
+    <div class="mt-5 flex flex-col gap-3">
+      <!-- Title -->
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="text" placeholder="Task title" [ngModel]="title()" name="title"
+          (ngModelChange)="title.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <!-- Description -->
+      <textarea rows="3" placeholder="Description" [ngModel]="description()" name="description"
+        (ngModelChange)="description.set($event)"
+        class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+
+      <!-- Client -->
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Client</span>
+        <input type="text" placeholder="Client or customer name" [ngModel]="client()" name="client"
+          (ngModelChange)="client.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <!-- Due date -->
+      <label
+        class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="text-sm text-gray-400">Due</span>
+        <input type="date" [ngModel]="dueDate()" name="dueDate" (ngModelChange)="dueDate.set($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Priority dropdown -->
+        <div class="relative" data-dropdown="task-priority">
+          <button type="button" (click)="togglePriorityDropdown()"
+            class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+            <span>{{ priority() }}</span>
+            <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+          </button>
+          <div *ngIf="isPriorityOpen()"
+            class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+            <button *ngFor="let option of priorities" type="button" (click)="selectPriority(option)"
+              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              {{ option }}
+              <ion-icon *ngIf="option === priority()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+            </button>
+          </div>
+        </div>
+
+        <!-- Status dropdown -->
+        <div class="relative" data-dropdown="task-status">
+          <button type="button" (click)="toggleStatusDropdown()"
+            class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+            <span>{{ statusLabel(status()) }}</span>
+            <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+          </button>
+          <div *ngIf="isStatusOpen()"
+            class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+            <button *ngFor="let option of statuses" type="button" (click)="selectStatus(option.id)"
+              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              {{ option.label }}
+              <ion-icon *ngIf="option.id === status()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assignee dropdown -->
+      <div class="relative" data-dropdown="task-assignee">
+        <button type="button" (click)="toggleAssigneeDropdown()"
+          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+          <span class="flex items-center gap-2">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+              [ngClass]="assignee().color">
+              {{ assignee().initials }}
+            </span>
+            {{ assignee().name }}
+          </span>
+          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+        </button>
+        <div *ngIf="isAssigneeOpen()"
+          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <button *ngFor="let member of team" type="button" (click)="selectAssignee(member)"
+            class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+              [ngClass]="member.color">
+              {{ member.initials }}
+            </span>
+            {{ member.name }}
+            <ion-icon *ngIf="member.initials === assignee().initials" name="checkmark-outline"
+              class="ml-auto text-sm text-gray-900"></ion-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="save()" [disabled]="!canSave()"
+        class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+        {{ isEditMode() ? 'Save changes' : 'Create task' }}
+      </button>
+    </div>
+  </div>
+</div>

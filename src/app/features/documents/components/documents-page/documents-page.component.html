@@ -1,0 +1,9 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col">
+  <app-client-picker *ngIf="view() === 'clients'" class="flex-1 min-h-0"
+    (clientSelected)="onClientSelected($event)"></app-client-picker>
+
+  <app-file-browser *ngIf="view() === 'browser'" class="flex-1 min-h-0" [clientName]="selectedClient()?.name ?? ''"
+    (back)="backToClients()" (openRecycleBin)="showRecycleBin()"></app-file-browser>
+
+  <app-recycle-bin *ngIf="view() === 'recycle-bin'" class="flex-1 min-h-0" (back)="backToBrowser()"></app-recycle-bin>
+</div>

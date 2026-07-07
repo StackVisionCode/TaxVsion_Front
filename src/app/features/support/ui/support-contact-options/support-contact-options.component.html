@@ -1,0 +1,42 @@
+<div class="bg-white rounded-[28px] p-6">
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Support</h2>
+      <p class="mt-1 text-sm text-gray-500">We are here to help — pick the channel that suits you best</p>
+    </div>
+
+    <span class="flex items-center gap-2 rounded-full border border-green-200 px-3 py-1 text-xs font-medium text-green-600">
+      <span class="h-2 w-2 rounded-full bg-green-500"></span>
+      Support team online
+    </span>
+  </div>
+
+  <!-- Contact tiles -->
+  <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div *ngFor="let option of options" class="flex flex-col overflow-hidden rounded-2xl border border-gray-100">
+      <!-- Tile header -->
+      <div class="flex items-center gap-3 bg-gray-50/80 px-4 py-3">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" [ngClass]="option.circleClass">
+          <ion-icon [name]="option.icon" class="text-lg"></ion-icon>
+        </span>
+        <h3 class="text-sm font-bold text-gray-900">{{ option.title }}</h3>
+      </div>
+
+      <!-- Tile body -->
+      <div class="flex flex-1 flex-col px-4 py-3">
+        <p class="text-sm leading-relaxed text-gray-600">{{ option.description }}</p>
+
+        <div class="mt-3 flex flex-1 flex-wrap items-end justify-between gap-2">
+          <span class="rounded-full border px-3 py-1 text-xs font-medium" [ngClass]="option.chipClass">
+            {{ option.chipLabel }}
+          </span>
+          <a href="#" (click)="$event.preventDefault()"
+            class="text-sm font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700">
+            {{ option.actionLabel }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

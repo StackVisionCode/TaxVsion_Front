@@ -1,0 +1,131 @@
+<ng-container *ngIf="!isMobile; else mobileSidebar">
+  <div
+    class="relative hidden md:flex md:flex-col shrink-0 bg-white rounded-[24px] shadow-sm transition-[width] duration-200 sticky top-4 h-[calc(100vh-2rem)] z-40"
+    [ngClass]="{ 'w-64': isExpanded(), 'w-16': !isExpanded() }"
+  >
+    <!-- Brand block -->
+    <div
+      class="flex items-center px-4 pt-5 pb-4"
+      [ngClass]="{ 'justify-between': isExpanded(), 'justify-center': !isExpanded() }"
+    >
+      <div class="flex items-center gap-2 select-none">
+        <span class="text-indigo-600 text-2xl font-bold leading-none">*</span>
+        <span
+          *ngIf="isExpanded()"
+          class="text-gray-900 text-sm font-bold tracking-widest"
+          >TAXVISION</span
+        >
+      </div>
+
+      <!-- Collapse toggle (inline with brand when expanded) -->
+      <button
+        *ngIf="isExpanded()"
+        (click)="toggleSidebar()"
+        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200"
+        aria-label="Collapse sidebar"
+      >
+        <ion-icon name="menu-outline" class="text-xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Collapse toggle (own row when collapsed) -->
+    <div *ngIf="!isExpanded()" class="flex justify-center pb-2">
+      <button
+        (click)="toggleSidebar()"
+        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200"
+        aria-label="Expand sidebar"
+      >
+        <ion-icon name="menu-outline" class="text-xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Divider under brand -->
+    <div class="mx-4 border-b border-gray-200"></div>
+
+    <!-- Navigation Menu with scroll -->
+    <div class="flex flex-1 min-h-0 flex-col px-2 pt-4 pb-3">
+      <div #listContainer class="relative flex flex-col gap-1 overflow-y-auto">
+        <!-- Sliding active indicator: glides between items on route/expand changes -->
+        <div
+          *ngIf="indicatorReady()"
+          class="sidebar-active-indicator absolute rounded-full bg-gray-900 shadow-sm pointer-events-none"
+          [style.top.px]="indicatorTop()"
+          [style.left.px]="indicatorLeft()"
+          [style.width.px]="indicatorWidth()"
+          [style.height.px]="indicatorHeight()"
+        ></div>
+
+        <div
+          *ngFor="let item of menuItems(); trackBy: trackByIndex"
+          class="relative"
+        >
+          <ng-container *ngIf="canShowItem(item)">
+            <button
+              #itemButton
+              type="button"
+              (click)="handleMenuClick($event, item)"
+              (mouseenter)="onMenuItemMouseEnter($event, item)"
+              (mouseleave)="onMenuItemMouseLeave(item)"
+              [disabled]="!isClickable()"
+              class="relative flex items-center rounded-full cursor-pointer transition-colors duration-200"
+              [ngClass]="{
+                'w-full gap-3 px-4 py-2.5': isExpanded(),
+                'mx-auto h-10 w-10 justify-center': !isExpanded(),
+                'text-white': item.isActive,
+                'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
+              }"
+            >
+              <ion-icon
+                [name]="item.icon"
+                class="text-lg shrink-0 pointer-events-none"
+                [ngClass]="[item.isActive ? 'text-white' : 'text-gray-500', item.isActive ? 'icon-pop' : '']"
+              ></ion-icon>
+
+              <span
+                *ngIf="isExpanded()"
+                class="text-sm font-medium truncate pointer-events-none select-none"
+              >
+                {{ item.label }}
+              </span>
+
+              <!-- Notification badge -->
+              <span
+                *ngIf="item.badge"
+                class="absolute rounded-full bg-emerald-500 border-2 border-white pointer-events-none"
+                [ngClass]="{
+                  'top-0.5 right-0.5 h-2.5 w-2.5': !isExpanded(),
+                  'top-2 right-3 h-2 w-2': isExpanded(),
+                }"
+              ></span>
+            </button>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-container>
+
+<ng-template #mobileSidebar>
+  <div class="flex flex-col gap-1">
+    <div *ngFor="let item of menuItems(); trackBy: trackByIndex">
+      <ng-container *ngIf="canShowItem(item)">
+        <button
+          type="button"
+          (click)="handleMenuClick($event, item)"
+          class="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
+          [ngClass]="{
+            'bg-gray-900 text-white': item.isActive,
+            'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
+          }"
+        >
+          <ion-icon
+            [name]="item.icon"
+            class="text-lg shrink-0"
+            [ngClass]="item.isActive ? 'text-white' : 'text-gray-500'"
+          ></ion-icon>
+          <span class="flex-1 text-left truncate">{{ item.label }}</span>
+        </button>
+      </ng-container>
+    </div>
+  </div>
+</ng-template>
