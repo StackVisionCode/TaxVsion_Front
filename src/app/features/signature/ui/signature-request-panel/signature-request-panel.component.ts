@@ -2,115 +2,217 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  Input,
-  OnChanges,
+  HostListener,
   Output,
-  SimpleChanges,
+  ViewChild,
   computed,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Signer, SignatureRequest } from '../signature-table/signature-table.component';
+import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
+import { SignatureWizardDocumentStepComponent } from '../signature-wizard-document-step/signature-wizard-document-step.component';
+import { SignatureWizardReviewStepComponent } from '../signature-wizard-review-step/signature-wizard-review-step.component';
+import { SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
+import { EditorSigner, PlacedField, RequestRules, WizardClient, WizardDocument } from './signature-wizard.model';
+import { initialsOf } from './signature-wizard.mock';
 
-const SIGNER_COLORS = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-emerald-500', 'bg-gray-900'];
+type WizardStep = 1 | 2 | 3 | 4;
+
+/** Fases de la coreografía de envío: el papel se crea → se firma → sale. */
+type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
 
 /**
- * Overlay de creación de una solicitud de firma (mismo patrón que
- * campaign-form-panel/meeting-schedule-panel): tarjeta centrada
- * `rounded-[28px]` sobre backdrop con stopPropagation. A diferencia de esos
- * paneles, este es exclusivamente de creación (una solicitud de firma no se
- * edita una vez enviada, solo se cancela o se reenvía desde la tabla), por
- * lo que no recibe ningún @Input de "registro a editar" ni necesita el
- * patrón isEditMode/ngOnChanges. Los firmantes se arman con un mini-form
- * (nombre + email) y un botón fantasma "Add signer" que agrega un chip
- * removible, igual que la lista de participantes de meeting-schedule-panel
- * pero con email además de nombre.
+ * Wizard de "New Signature Request" (adaptado del flujo del CRM: cliente →
+ * documento → editor de campos sobre el PDF → review → enviar). Es un takeover
+ * in-page (mismo patrón que la vista previa): el padre lo monta con *ngIf
+ * reemplazando la lista, dentro del shell (sidebar + navbar siguen visibles).
+ * Cada paso es un sub-componente; el editor (paso 3) queda montado (oculto en
+ * los demás pasos) para preservar los campos al navegar, y al pasar 3→4 se
+ * snapshotean firmantes/campos para el resumen. Sin backend: `send()` arma el
+ * `SignatureRequest` y lo emite (el POST /signature/requests real queda como
+ * punto de integración futuro).
  */
 @Component({
   selector: 'app-signature-request-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SignatureWizardClientStepComponent,
+    SignatureWizardDocumentStepComponent,
+    SignatureWizardReviewStepComponent,
+    SignaturePdfEditorComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-request-panel.component.html',
+  styleUrl: './signature-request-panel.component.css',
 })
-export class SignatureRequestPanelComponent implements OnChanges {
-  @Input() isOpen = false;
+export class SignatureRequestPanelComponent {
   @Output() closed = new EventEmitter<void>();
   @Output() sent = new EventEmitter<SignatureRequest>();
 
-  readonly documentName = signal('');
-  readonly client = signal('');
+  @ViewChild('editor') private editor?: SignaturePdfEditorComponent;
+
+  readonly currentStep = signal<WizardStep>(1);
+  readonly selectedClient = signal<WizardClient | null>(null);
+  readonly selectedDocument = signal<WizardDocument | null>(null);
   readonly dueDate = signal('');
   readonly notes = signal('');
+  readonly fieldCount = signal(0);
 
-  readonly signerNameDraft = signal('');
-  readonly signerEmailDraft = signal('');
-  readonly signers = signal<Signer[]>([]);
+  /** Snapshots tomados al pasar 3→4 (el editor sigue montado para que Back preserve). */
+  readonly signersSnapshot = signal<EditorSigner[]>([]);
+  readonly fieldsSnapshot = signal<PlacedField[]>([]);
+  readonly rulesSnapshot = signal<RequestRules | null>(null);
+
+  /** Coreografía de envío (overlay a pantalla completa). */
+  readonly sendPhase = signal<SendPhase>('idle');
+  readonly isSending = computed(() => this.sendPhase() !== 'idle');
+  readonly sendCaption = computed(() => {
+    switch (this.sendPhase()) {
+      case 'paper':
+        return 'Creating document…';
+      case 'signing':
+        return 'Signing…';
+      case 'done':
+        return 'Request sent';
+      default:
+        return '';
+    }
+  });
+  /** Líneas del "papel" del overlay (solo presentación). */
+  readonly paperLines = [92, 76, 84, 60, 88];
+
+  readonly steps: WizardStep[] = [1, 2, 3, 4];
+  readonly stepTitles = ['Client', 'Document', 'Fields', 'Review'];
+  readonly stepSubtitles = [
+    'Choose who this request is for',
+    'Pick or upload the document to sign',
+    'Place the signature fields',
+    'Review everything and send',
+  ];
+  readonly stepTitle = computed(() => this.stepTitles[this.currentStep() - 1]);
+  readonly stepSubtitle = computed(() => this.stepSubtitles[this.currentStep() - 1]);
+
+  readonly canProceed = computed(() => {
+    switch (this.currentStep()) {
+      case 1:
+        return this.selectedClient() !== null;
+      case 2:
+        return this.selectedDocument() !== null;
+      case 3:
+        return this.fieldCount() > 0;
+      default:
+        return true;
+    }
+  });
 
   readonly canSend = computed(
-    () => this.documentName().trim().length > 0 && this.client().trim().length > 0 && this.signers().length > 0,
+    () =>
+      this.selectedClient() !== null &&
+      this.selectedDocument() !== null &&
+      this.fieldsSnapshot().length > 0,
   );
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['isOpen'] && this.isOpen) {
-      this.resetForm();
-    }
+  onClientSelected(client: WizardClient): void {
+    this.selectedClient.set(client);
   }
 
-  addSigner(): void {
-    const name = this.signerNameDraft().trim();
-    const email = this.signerEmailDraft().trim();
-    if (!name || !email) {
+  onDocumentSelected(doc: WizardDocument): void {
+    this.selectedDocument.set(doc);
+  }
+
+  next(): void {
+    if (!this.canProceed()) {
       return;
     }
-    const initials = name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-    const color = SIGNER_COLORS[this.signers().length % SIGNER_COLORS.length];
-    const signer: Signer = { name, initials, email, color, status: 'pending', signedAt: null };
-    this.signers.update(list => [...list, signer]);
-    this.signerNameDraft.set('');
-    this.signerEmailDraft.set('');
+    // Al salir del editor se congela el estado para el resumen del paso 4.
+    if (this.currentStep() === 3) {
+      this.signersSnapshot.set(this.editor?.getSigners() ?? []);
+      this.fieldsSnapshot.set(this.editor?.getFields() ?? []);
+      this.rulesSnapshot.set(this.editor?.getRules() ?? null);
+    }
+    this.currentStep.update(step => Math.min(4, step + 1) as WizardStep);
   }
 
-  removeSigner(index: number): void {
-    this.signers.update(list => list.filter((_, i) => i !== index));
+  back(): void {
+    this.currentStep.update(step => Math.max(1, step - 1) as WizardStep);
+  }
+
+  /** El stepper permite volver a cualquier paso ya completado (nunca saltar adelante). */
+  goToStep(step: WizardStep): void {
+    if (step < this.currentStep()) {
+      this.currentStep.set(step);
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.close();
   }
 
   close(): void {
+    if (this.isSending()) {
+      return;
+    }
     this.closed.emit();
-    this.resetForm();
   }
 
   send(): void {
-    if (!this.canSend()) {
+    const client = this.selectedClient();
+    const doc = this.selectedDocument();
+    if (!this.canSend() || !client || !doc || this.isSending()) {
       return;
     }
-    const result: SignatureRequest = {
+
+    const signers: Signer[] = this.signersSnapshot().map(signer => ({
+      name: signer.name,
+      initials: initialsOf(signer.name),
+      email: signer.email,
+      color: signer.color,
+      status: 'pending' as const,
+      signedAt: null,
+      channel: signer.channel,
+    }));
+
+    const pdfPayload = this.editor?.buildPdfPayload() ?? [];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const request: SignatureRequest = {
       id: `signature-${Date.now()}`,
-      documentName: this.documentName().trim(),
-      client: this.client().trim(),
-      signers: this.signers(),
+      documentName: doc.name,
+      client: client.displayName,
+      clientId: client.id,
+      signers,
       status: 'pending',
-      sentDate: new Date().toISOString().slice(0, 10),
-      dueDate: this.dueDate() || new Date().toISOString().slice(0, 10),
+      sentDate: today,
+      dueDate: this.dueDate() || today,
       completedDate: null,
       notes: this.notes().trim(),
+      signatureFields: this.fieldsSnapshot(),
+      rules: this.rulesSnapshot() ?? undefined,
     };
-    this.sent.emit(result);
-    this.resetForm();
+
+    // Punto de integración futuro con el backend: POST /signature/requests.
+    console.debug('[signature] POST /signature/requests', { request, pdfPayload });
+
+    void this.playSendSequence(request);
   }
 
-  private resetForm(): void {
-    this.documentName.set('');
-    this.client.set('');
-    this.dueDate.set('');
-    this.notes.set('');
-    this.signerNameDraft.set('');
-    this.signerEmailDraft.set('');
-    this.signers.set([]);
+  /** Coreografía de envío: el papel se crea (líneas), se firma (trazo) y sale. */
+  private async playSendSequence(request: SignatureRequest): Promise<void> {
+    this.sendPhase.set('paper');
+    await this.delay(1000);
+    this.sendPhase.set('signing');
+    await this.delay(1500);
+    this.sendPhase.set('done');
+    await this.delay(800);
+    this.sendPhase.set('idle');
+    this.sent.emit(request);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

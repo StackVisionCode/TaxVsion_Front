@@ -1,4 +1,18 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  ElementRef,
+  HostListener,
+  QueryList,
+  ViewChild,
+  ViewChildren,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 
 interface TrendBar {
@@ -12,8 +26,11 @@ type TrendRange = 'Week' | 'Month';
 
 /**
  * Widget "Productivity Trends" (referencia "Aether"): gráfico de barras píldora
- * con tooltip negro que sigue el hover, jueves con patrón rayado, y dropdown
- * Week/Month funcional que intercambia datasets estáticos. Sin backend.
+ * con tooltip negro que se DESLIZA con el hover (un solo elemento persistente,
+ * posición medida vía getBoundingClientRect — mismo patrón que el pill
+ * deslizante del sidebar — en vez de destruir/crear un tooltip por barra, que
+ * hacía que "saltara" de una posición a otra), jueves con patrón rayado, y
+ * dropdown Week/Month funcional que intercambia datasets estáticos. Sin backend.
  */
 @Component({
   selector: 'app-dashboard-productivity-trends',
@@ -22,7 +39,12 @@ type TrendRange = 'Week' | 'Month';
   templateUrl: './dashboard-productivity-trends.component.html',
   styleUrl: './dashboard-productivity-trends.component.css',
 })
-export class DashboardProductivityTrendsComponent {
+export class DashboardProductivityTrendsComponent implements AfterViewInit {
+  private readonly destroyRef = inject(DestroyRef);
+
+  @ViewChild('chartTrack') private chartTrackRef?: ElementRef<HTMLElement>;
+  @ViewChildren('barBox') private barBoxes?: QueryList<ElementRef<HTMLElement>>;
+
   private static readonly WEEK_DATA: TrendBar[] = [
     { label: 'Sun', hours: 0, style: 'empty' },
     { label: 'Mon', hours: 4, style: 'light' },
@@ -44,7 +66,9 @@ export class DashboardProductivityTrendsComponent {
   readonly isRangeOpen = signal(false);
   readonly ranges: TrendRange[] = ['Week', 'Month'];
 
-  /** Índice de la barra con tooltip visible; por defecto la primera con datos. */
+  /** Índice de la barra con tooltip visible; "sticky" — se queda en la última
+   *  barra con datos que se hizo hover, no vuelve a la de por defecto al
+   *  sacar el mouse. Por defecto la primera con datos. */
   readonly hoveredIndex = signal<number | null>(null);
 
   readonly bars = computed<TrendBar[]>(() =>
@@ -63,12 +87,31 @@ export class DashboardProductivityTrendsComponent {
 
   readonly tooltipIndex = computed<number | null>(() => {
     const hovered = this.hoveredIndex();
-    if (hovered !== null && this.bars()[hovered]?.hours > 0) {
+    if (hovered !== null) {
       return hovered;
     }
     const firstWithData = this.bars().findIndex(b => b.hours > 0);
     return firstWithData === -1 ? null : firstWithData;
   });
+
+  readonly tooltipBar = computed<TrendBar | null>(() => {
+    const i = this.tooltipIndex();
+    return i === null ? null : (this.bars()[i] ?? null);
+  });
+
+  /** Posición del tooltip deslizante, en px relativos a #chartTrack (no %: inmune a gaps/padding). */
+  readonly tooltipLeft = signal(0);
+  readonly tooltipTop = signal(0);
+  readonly tooltipReady = signal(false);
+
+  ngAfterViewInit(): void {
+    this.syncTooltipPosition();
+    // El *ngFor recrea las barras al cambiar de rango (Week/Month): re-medir
+    // una vez que el nuevo set de #barBox termine de renderizar.
+    this.barBoxes?.changes.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      setTimeout(() => this.syncTooltipPosition());
+    });
+  }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
@@ -97,10 +140,41 @@ export class DashboardProductivityTrendsComponent {
   }
 
   onBarEnter(index: number): void {
+    // Días vacíos (Sun/Sat) no tienen datos que mostrar: se ignoran y el
+    // tooltip se queda pegado en la última barra válida.
+    if ((this.bars()[index]?.hours ?? 0) <= 0) {
+      return;
+    }
     this.hoveredIndex.set(index);
+    this.syncTooltipPosition();
   }
 
-  onBarLeave(): void {
-    this.hoveredIndex.set(null);
+  /**
+   * Mide la posición real de la barra activa (getBoundingClientRect, no
+   * porcentajes del CSS) para que el tooltip se deslice con precisión sin
+   * importar anchos/gaps del flex — mismo patrón que el pill del sidebar.
+   */
+  private syncTooltipPosition(): void {
+    const container = this.chartTrackRef?.nativeElement;
+    const boxes = this.barBoxes?.toArray();
+    const index = this.tooltipIndex();
+    const bar = this.tooltipBar();
+    if (!container || !boxes?.length || index === null || !bar) {
+      this.tooltipReady.set(false);
+      return;
+    }
+    const box = boxes[index]?.nativeElement;
+    if (!box) {
+      this.tooltipReady.set(false);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+    const barTopY = boxRect.bottom - (boxRect.height * this.barHeight(bar)) / 100;
+
+    this.tooltipLeft.set(boxRect.left - containerRect.left + boxRect.width / 2);
+    this.tooltipTop.set(barTopY - containerRect.top);
+    this.tooltipReady.set(true);
   }
 }

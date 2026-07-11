@@ -1,4 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  QueryList,
+  ViewChild,
+  ViewChildren,
+  computed,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface RevenueBar {
@@ -16,8 +26,11 @@ interface RevenueSummaryItem {
 
 /**
  * "Monthly Revenue" widget (Aether reference): wide card with tall pill bars
- * for the last 6 months, a black pill tooltip that follows the hover (default
- * on the highest month) and a paid/pending/overdue summary row. Static data.
+ * for the last 6 months, a black pill tooltip that SLIDES with the hover (a
+ * single persistent element, position measured via getBoundingClientRect —
+ * same pattern as the sidebar's active pill — instead of mounting/unmounting
+ * a tooltip per bar, which made it jump) and a paid/pending/overdue summary
+ * row. Static data.
  */
 @Component({
   selector: 'app-dashboard-invoices-chart',
@@ -26,7 +39,10 @@ interface RevenueSummaryItem {
   templateUrl: './dashboard-invoices-chart.component.html',
   styleUrl: './dashboard-invoices-chart.component.css',
 })
-export class DashboardInvoicesChartComponent {
+export class DashboardInvoicesChartComponent implements AfterViewInit {
+  @ViewChild('chartTrack') private chartTrackRef?: ElementRef<HTMLElement>;
+  @ViewChildren('barBox') private barBoxes?: QueryList<ElementRef<HTMLElement>>;
+
   readonly bars: RevenueBar[] = [
     { label: 'Jan', amount: 22600, style: 'light' },
     { label: 'Feb', amount: 24900, style: 'lighter' },
@@ -45,7 +61,9 @@ export class DashboardInvoicesChartComponent {
     { label: 'Overdue', amount: '$7,200', dot: 'bg-red-500' },
   ];
 
-  /** Index of the bar with the visible tooltip; defaults to the highest month. */
+  /** Index of the bar with the visible tooltip; "sticky" — stays on the last
+   *  hovered bar instead of resetting when the mouse leaves. Defaults to the
+   *  highest month until the first hover. */
   readonly hoveredIndex = signal<number | null>(null);
 
   private readonly maxAmount = Math.max(...this.bars.map(b => b.amount), 1);
@@ -56,6 +74,16 @@ export class DashboardInvoicesChartComponent {
   );
 
   readonly tooltipIndex = computed<number>(() => this.hoveredIndex() ?? this.highestIndex);
+  readonly tooltipBar = computed<RevenueBar>(() => this.bars[this.tooltipIndex()]);
+
+  /** Posición del tooltip deslizante, en px relativos a #chartTrack (no %: inmune a gaps/padding). */
+  readonly tooltipLeft = signal(0);
+  readonly tooltipTop = signal(0);
+  readonly tooltipReady = signal(false);
+
+  ngAfterViewInit(): void {
+    this.syncTooltipPosition();
+  }
 
   barHeight(bar: RevenueBar): number {
     return Math.round((bar.amount / this.maxAmount) * 100);
@@ -67,9 +95,31 @@ export class DashboardInvoicesChartComponent {
 
   onBarEnter(index: number): void {
     this.hoveredIndex.set(index);
+    this.syncTooltipPosition();
   }
 
-  onBarLeave(): void {
-    this.hoveredIndex.set(null);
+  /**
+   * Mide la posición real de la barra activa (getBoundingClientRect, no
+   * porcentajes del CSS) para que el tooltip se deslice con precisión sin
+   * importar anchos/gaps del flex — mismo patrón que el pill del sidebar.
+   */
+  private syncTooltipPosition(): void {
+    const container = this.chartTrackRef?.nativeElement;
+    const boxes = this.barBoxes?.toArray();
+    const index = this.tooltipIndex();
+    const bar = this.tooltipBar();
+    const box = boxes?.[index]?.nativeElement;
+    if (!container || !box || !bar) {
+      this.tooltipReady.set(false);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const boxRect = box.getBoundingClientRect();
+    const barTopY = boxRect.bottom - (boxRect.height * this.barHeight(bar)) / 100;
+
+    this.tooltipLeft.set(boxRect.left - containerRect.left + boxRect.width / 2);
+    this.tooltipTop.set(barTopY - containerRect.top);
+    this.tooltipReady.set(true);
   }
 }

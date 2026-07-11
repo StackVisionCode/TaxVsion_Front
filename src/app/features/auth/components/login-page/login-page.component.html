@@ -3,7 +3,7 @@
   <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
   <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-purple-300/40 rounded-full blur-3xl"></div>
 
-  <div class="relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-indigo-200/70 overflow-hidden flex flex-col lg:flex-row"
+  <div class="auth-card relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-indigo-200/70 overflow-hidden flex flex-col lg:flex-row"
     [class.login-sink]="isSunk()">
     <!-- Left side - Gradient brand panel -->
     <div class="hidden lg:flex lg:w-1/2 relative m-3 rounded-[1.75rem] overflow-hidden"
@@ -49,7 +49,7 @@
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <label for="password" class="block text-sm font-medium text-gray-800">Password</label>
-              <a href="#" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Forgot password?</a>
+              <a routerLink="/forgot-password" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Forgot password?</a>
             </div>
             <div class="relative">
               <input [type]="showPassword() ? 'text' : 'password'" id="password" formControlName="password"
@@ -104,7 +104,7 @@
 
         <p class="mt-8 text-center text-sm text-gray-600">
           Don't have an account?
-          <a href="https://demo.stacktaxvision.com" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</a>
+          <a routerLink="/register" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</a>
         </p>
       </div>
     </div>

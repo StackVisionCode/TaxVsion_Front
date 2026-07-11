@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InvoiceItem, InvoiceLineItem, InvoiceStatus } from '../invoice-table/invoice-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const STATUSES: InvoiceStatus[] = ['draft', 'pending', 'paid', 'overdue'];
 
@@ -36,7 +37,7 @@ function nextLineItemId(): string {
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })

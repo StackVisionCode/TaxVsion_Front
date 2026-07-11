@@ -45,7 +45,9 @@ const SEED_FILES: DocFile[] = [
 /**
  * Explorador de archivos del módulo Documents (estilo "Aether"): breadcrumbs
  * píldora, toggle tabla/grid, búsqueda local y navegación real entre carpetas
- * fake. "New folder" agrega de verdad a la lista local; "Upload" es visual.
+ * fake. "New folder" y "Upload" agregan de verdad a la lista local (el tipo
+ * de archivo se infiere de la extensión real elegida; no hay parseo/preview
+ * de contenido, solo metadata).
  */
 @Component({
   selector: 'app-file-browser',
@@ -114,6 +116,50 @@ export class FileBrowserComponent {
       ...folders,
       { id: `f-new-${Date.now()}`, name: `New folder ${count}`, parentId: this.currentFolderId() },
     ]);
+  }
+
+  onFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+    if (!files || files.length === 0) {
+      return;
+    }
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const folderId = this.currentFolderId();
+    const uploaded: DocFile[] = Array.from(files).map((file, index) => ({
+      id: `d-new-${Date.now()}-${index}`,
+      name: file.name,
+      folderId,
+      size: this.formatSize(file.size),
+      date: today,
+      kind: this.kindFromFileName(file.name),
+    }));
+    this.files.update(list => [...list, ...uploaded]);
+    input.value = '';
+  }
+
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+      return `${Math.round(bytes / 1024)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  private kindFromFileName(name: string): FileKind {
+    const ext = name.split('.').pop()?.toLowerCase() ?? '';
+    if (['xlsx', 'xls', 'csv'].includes(ext)) {
+      return 'xlsx';
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      return 'img';
+    }
+    if (['doc', 'docx'].includes(ext)) {
+      return 'doc';
+    }
+    return 'pdf';
   }
 
   kindIcon(kind: FileKind): string {

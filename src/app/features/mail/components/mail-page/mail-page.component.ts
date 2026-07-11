@@ -240,6 +240,21 @@ export class MailPageComponent {
     );
   }
 
+  archiveMessage(id: string): void {
+    this.moveMessage(id, 'archive');
+  }
+
+  deleteMessage(id: string): void {
+    this.moveMessage(id, 'trash');
+  }
+
+  private moveMessage(id: string, folderId: string): void {
+    this.messages.update(list => list.map(message => (message.id === id ? { ...message, folderId } : message)));
+    if (this.selectedMessageId() === id) {
+      this.selectedMessageId.set(null);
+    }
+  }
+
   openCompose(): void {
     this.isComposeOpen.set(true);
   }

@@ -3,6 +3,27 @@
 }
 
 /* ============================================
+   Entrada tranquila de la tarjeta (compartida con register/forgot):
+   simple fade + leve subida, sin pop ni efectos de esconder/expulsar.
+   fill-mode backwards: no pelea con .login-sink, que redefine
+   `animation` sobre la misma tarjeta — por eso este bloque va ANTES.
+   ============================================ */
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-card {
+  animation: auth-card-in 500ms ease-out backwards;
+}
+
+/* ============================================
    Coreografía de salida del login
    verifying → sinking → loading → fading
    ============================================ */

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ClientItem, ClientTableComponent, ClientType } from '../../ui/client-table/client-table.component';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 type TypeFilter = 'all' | ClientType;
 type StatusFilter = 'all' | 'active' | 'inactive';
@@ -281,7 +282,14 @@ const SEED_CLIENTS: ClientItem[] = [
  */
 @Component({
   selector: 'app-client-directory-page',
-  imports: [CommonModule, FormsModule, ClientTableComponent, ClientFormPanelComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ClientTableComponent,
+    ClientFormPanelComponent,
+    PaginationComponent,
+    ConfirmDialogComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-directory-page.component.html',
 })
@@ -294,6 +302,12 @@ export class ClientDirectoryPageComponent {
 
   readonly isPanelOpen = signal(false);
   readonly editingClient = signal<ClientItem | null>(null);
+  readonly pendingDelete = signal<ClientItem | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const client = this.pendingDelete();
+    return client ? `You're about to delete client ${client.displayName}. This can't be undone.` : '';
+  });
 
   readonly totalClients = computed(() => this.clients().length);
   readonly activeClients = computed(() => this.clients().filter(client => client.isActive).length);
@@ -370,6 +384,15 @@ export class ClientDirectoryPageComponent {
   }
 
   deleteClient(client: ClientItem): void {
+    this.pendingDelete.set(client);
+  }
+
+  confirmDelete(): void {
+    const client = this.pendingDelete();
+    if (!client) {
+      return;
+    }
     this.clients.update(list => list.filter(item => item.id !== client.id));
+    this.pendingDelete.set(null);
   }
 }

@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CampaignChannel, CampaignItem, CampaignStatus } from '../campaign-table/campaign-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const CHANNELS: CampaignChannel[] = ['email', 'sms', 'whatsapp', 'push'];
 const STATUSES: CampaignStatus[] = ['draft', 'scheduled', 'active', 'sent', 'paused'];
@@ -31,7 +32,7 @@ const AUDIENCES = ['All active clients', 'New clients this month', 'Overdue acco
  */
 @Component({
   selector: 'app-campaign-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './campaign-form-panel.component.html',
 })

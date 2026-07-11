@@ -4,10 +4,16 @@
       <h2 class="text-xl font-bold text-gray-900">{{ m.title }}</h2>
       <p class="mt-1 text-sm text-gray-500">{{ m.client }}</p>
     </div>
-    <span class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600">
-      <span class="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
-      Live preview
-    </span>
+    <div class="flex items-center gap-2">
+      <span *ngIf="isSharingScreen()" class="flex items-center gap-2 rounded-full border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-600">
+        <ion-icon name="desktop-outline" class="text-sm"></ion-icon>
+        Sharing screen
+      </span>
+      <span class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600">
+        <span class="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
+        Live preview
+      </span>
+    </div>
   </div>
 
   <!-- Video grid mock -->
@@ -46,10 +52,11 @@
       <ion-icon [name]="isCameraOn() ? 'videocam-outline' : 'videocam-off-outline'" class="text-lg"></ion-icon>
     </button>
 
-    <button type="button"
-      class="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
-      aria-label="Share screen">
-      <ion-icon name="desktop-outline" class="text-lg"></ion-icon>
+    <button type="button" (click)="toggleShareScreen()"
+      class="flex h-11 w-11 items-center justify-center rounded-full transition-colors"
+      [ngClass]="isSharingScreen() ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'"
+      [attr.aria-pressed]="isSharingScreen()" aria-label="Share screen">
+      <ion-icon [name]="isSharingScreen() ? 'desktop' : 'desktop-outline'" class="text-lg"></ion-icon>
     </button>
 
     <button type="button" (click)="leave()"

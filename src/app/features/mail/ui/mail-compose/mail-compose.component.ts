@@ -7,7 +7,7 @@ interface ComposeAttachment {
   size: number;
 }
 
-interface FormatTool {
+export interface FormatTool {
   key: string;
   label: string;
   /** Glifo de texto (B, I, …) o, si es null, se usa el ion-icon `icon`. */
@@ -16,8 +16,8 @@ interface FormatTool {
   icon?: string;
 }
 
-/** Botones de formato del toolbox (visuales sobre el textarea plano). */
-const FORMAT_TOOLS: FormatTool[] = [
+/** Botones de formato del toolbox (visuales sobre el textarea plano); se reusan en el reply inline del reading pane. */
+export const FORMAT_TOOLS: FormatTool[] = [
   { key: 'bold', label: 'Bold', glyph: 'B', glyphClass: 'font-bold' },
   { key: 'italic', label: 'Italic', glyph: 'I', glyphClass: 'italic font-serif' },
   { key: 'underline', label: 'Underline', glyph: 'U', glyphClass: 'underline' },

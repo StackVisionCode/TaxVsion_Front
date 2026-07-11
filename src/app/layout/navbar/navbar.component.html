@@ -98,12 +98,18 @@
 
         <!-- Notifications dropdown -->
         <div *ngIf="isNotificationsOpen()"
-          class="absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
           <!-- Dropdown header -->
           <div class="border-b border-gray-100 px-4 py-3">
             <div class="flex items-center justify-between mb-2">
-              <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
+              <h3 class="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                Notifications
+                <span *ngIf="notificationCount() > 0"
+                  class="rounded-full bg-gray-900 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  {{ notificationCount() }} new
+                </span>
+              </h3>
               <button (click)="deleteAllRead()"
                 class="text-xs text-gray-500 hover:text-red-600 transition-colors duration-200 font-medium flex items-center gap-1"
                 [disabled]="!hasReadNotifications()" [class.opacity-50]="!hasReadNotifications()"
@@ -132,7 +138,7 @@
           <!-- Notifications list -->
           <div class="max-h-80 overflow-y-auto">
             <div *ngFor="let notification of notifications(); trackBy: trackByNotificationId"
-              class="group relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-all duration-200"
+              class="dropdown-menu-item group relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50"
               [ngClass]="{'bg-gray-50/70': !notification.isRead}">
 
               <div class="flex items-start gap-3">
@@ -216,14 +222,14 @@
 
         <!-- User dropdown -->
         <div *ngIf="isUserMenuOpen()"
-          class="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
-          <!-- User Info Header -->
-          <div class="border-b border-gray-100 px-4 py-4">
+          <!-- User Info Header: fondo con degradado sutil de marca -->
+          <div class="border-b border-gray-100 bg-gradient-to-br from-indigo-50 via-white to-[#F3F0FC] px-4 py-4">
             <div class="flex items-start gap-3">
-              <!-- TaxUser Avatar (larger) -->
+              <!-- TaxUser Avatar (larger, con anillo blanco para que "flote" sobre el degradado) -->
               <div
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden">
+                class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden ring-4 ring-white shadow-md">
                 <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
                   class="w-full h-full object-cover" (error)="onImageError($event)">
                 <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
@@ -248,7 +254,7 @@
                 <!-- Role Badge -->
                 <div class="mt-2">
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-900 text-white">
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-900 text-white shadow-sm">
                     <ion-icon [name]="user().isOwner ? 'shield-checkmark-outline' : 'person-outline'"
                       class="text-xs mr-1"></ion-icon>
                     {{ getUserRole() }}
@@ -259,31 +265,40 @@
           </div>
 
           <!-- Menu Items -->
-          <div class="py-1">
+          <div class="py-1.5">
             <a routerLink="/profile"
-              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
-              <ion-icon name="person-outline" class="mr-3 text-base text-gray-400"></ion-icon>
+              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
+              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+                <ion-icon name="person-outline" class="text-base text-indigo-600"></ion-icon>
+              </span>
               <span>My Profile</span>
             </a>
 
             <a routerLink="/company/users"
-              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
-              <ion-icon name="people-outline" class="mr-3 text-base text-gray-400"></ion-icon>
+              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
+              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEEBFA]">
+                <ion-icon name="people-outline" class="text-base text-[#7C6AE0]"></ion-icon>
+              </span>
               <span>User Management</span>
             </a>
 
             <a routerLink="/company/settings"
-              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-900">
-              <ion-icon name="business-outline" class="mr-3 text-base text-gray-400"></ion-icon>
+              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
+              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F2E3C9]">
+                <ion-icon name="business-outline" class="text-base text-orange-600"></ion-icon>
+              </span>
               <span>Company Settings</span>
             </a>
           </div>
 
           <!-- Logout -->
-          <div class="border-t border-gray-100 py-1">
+          <div class="border-t border-gray-100 py-1.5">
             <a (click)="logout()"
-              class="flex items-center px-4 py-3 text-sm text-gray-700 transition-colors duration-200 hover:bg-red-50 hover:text-red-600 cursor-pointer group">
-              <ion-icon name="log-out-outline" class="mr-3 text-base text-gray-400 group-hover:text-red-500"></ion-icon>
+              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 cursor-pointer group">
+              <span
+                class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 transition-colors group-hover:bg-red-100">
+                <ion-icon name="log-out-outline" class="text-base text-red-500"></ion-icon>
+              </span>
               <span>Logout</span>
             </a>
           </div>

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SmsConversationListComponent, SmsConversation } from '../../ui/sms-conversation-list/sms-conversation-list.component';
 import { SmsThreadComponent, SmsMessage } from '../../ui/sms-thread/sms-thread.component';
 import { SmsComposerComponent } from '../../ui/sms-composer/sms-composer.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 function nowLabel(): string {
   return 'Just now';
@@ -97,7 +98,7 @@ const SEED_CONVERSATIONS: SmsConversation[] = [
  */
 @Component({
   selector: 'app-sms-page',
-  imports: [CommonModule, FormsModule, SmsConversationListComponent, SmsThreadComponent, SmsComposerComponent],
+  imports: [CommonModule, FormsModule, SmsConversationListComponent, SmsThreadComponent, SmsComposerComponent, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sms-page.component.html',
   styleUrl: './sms-page.component.css',
@@ -108,7 +109,7 @@ export class SmsPageComponent {
 
   readonly isBroadcastOpen = signal(false);
   readonly broadcastText = signal('');
-  readonly showBroadcastToast = signal(false);
+  readonly toastMessage = signal<string | null>(null);
 
   readonly activeConversation = computed<SmsConversation>(
     () => this.conversations().find(conv => conv.id === this.activeConversationId()) ?? this.conversations()[0],
@@ -163,7 +164,20 @@ export class SmsPageComponent {
     // cierra el overlay y confirma con un toast transitorio.
     this.isBroadcastOpen.set(false);
     this.broadcastText.set('');
-    this.showBroadcastToast.set(true);
-    setTimeout(() => this.showBroadcastToast.set(false), 2500);
+    this.showToast('Broadcast sent to all contacts');
+  }
+
+  callContact(): void {
+    // Sin integración real de telefonía: confirma la intención con un toast.
+    this.showToast(`Calling ${this.activeConversation().contactName}...`);
+  }
+
+  private showToast(message: string): void {
+    this.toastMessage.set(message);
+    setTimeout(() => {
+      if (this.toastMessage() === message) {
+        this.toastMessage.set(null);
+      }
+    }, 2500);
   }
 }

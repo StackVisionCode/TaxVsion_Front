@@ -5,6 +5,7 @@ import { CampaignItem, CampaignStatus, CampaignTableComponent } from '../../ui/c
 import { CampaignFormPanelComponent } from '../../ui/campaign-form-panel/campaign-form-panel.component';
 import { CampaignPreviewComponent } from '../../ui/campaign-preview/campaign-preview.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 type StatusFilter = 'All' | CampaignStatus;
 const PAGE_SIZE = 8;
@@ -196,6 +197,7 @@ const SEED_CAMPAIGNS: CampaignItem[] = [
     CampaignFormPanelComponent,
     CampaignPreviewComponent,
     PaginationComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './campaigns-page.component.html',
@@ -210,6 +212,12 @@ export class CampaignsPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingCampaign = signal<CampaignItem | null>(null);
   readonly previewCampaign = signal<CampaignItem | null>(null);
+  readonly pendingDelete = signal<CampaignItem | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const campaign = this.pendingDelete();
+    return campaign ? `You're about to delete campaign ${campaign.name}. This can't be undone.` : '';
+  });
 
   readonly totalCampaigns = computed(() => this.campaigns().length);
 
@@ -315,10 +323,19 @@ export class CampaignsPageComponent {
   }
 
   deleteCampaign(campaign: CampaignItem): void {
+    this.pendingDelete.set(campaign);
+  }
+
+  confirmDelete(): void {
+    const campaign = this.pendingDelete();
+    if (!campaign) {
+      return;
+    }
     this.campaigns.update(list => list.filter(item => item.id !== campaign.id));
     if (this.previewCampaign()?.id === campaign.id) {
       this.previewCampaign.set(null);
     }
+    this.pendingDelete.set(null);
   }
 
   openPreview(campaign: CampaignItem): void {

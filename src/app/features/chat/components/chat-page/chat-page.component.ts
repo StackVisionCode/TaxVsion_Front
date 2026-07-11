@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ChatConversationListComponent, ChatConversation } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatThreadComponent, ChatMessage } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 function nowLabel(): string {
   return 'Just now';
@@ -17,7 +18,7 @@ function nowLabel(): string {
  */
 @Component({
   selector: 'app-chat-page',
-  imports: [CommonModule, ChatConversationListComponent, ChatThreadComponent, ChatComposerComponent],
+  imports: [CommonModule, ChatConversationListComponent, ChatThreadComponent, ChatComposerComponent, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
   styleUrl: './chat-page.component.css',
@@ -105,9 +106,24 @@ export class ChatPageComponent {
   ]);
 
   readonly activeConversationId = signal('conv-1');
+  readonly isInfoOpen = signal(false);
 
   get activeConversation(): ChatConversation {
     return this.conversations().find(conv => conv.id === this.activeConversationId()) ?? this.conversations()[0];
+  }
+
+  get sharedAttachments(): { name: string; size: string }[] {
+    return this.activeConversation.messages
+      .filter((message): message is ChatMessage & { attachment: { name: string; size: string } } => !!message.attachment)
+      .map(message => message.attachment);
+  }
+
+  openInfo(): void {
+    this.isInfoOpen.set(true);
+  }
+
+  closeInfo(): void {
+    this.isInfoOpen.set(false);
   }
 
   selectConversation(id: string): void {

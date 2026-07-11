@@ -70,3 +70,7 @@
 <!-- Create / edit overlay -->
 <app-invoice-form-panel [isOpen]="isPanelOpen()" [invoice]="editingInvoice()" (closed)="closePanel()"
   (saved)="handleSaved($event)"></app-invoice-form-panel>
+
+<!-- Delete confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete invoice?" [message]="deleteMessage()"
+  (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

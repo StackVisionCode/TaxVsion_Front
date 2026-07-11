@@ -1,0 +1,117 @@
+<div class="flex flex-col gap-6">
+  <!-- Stat cards -->
+  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+    <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+      <p class="text-sm text-gray-600">Total calls</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCalls() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+      <p class="text-sm text-gray-600">Completed</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ completedCalls() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+      <p class="text-sm text-gray-600">Missed</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ missedCalls() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+      <p class="text-sm text-gray-600">Avg. duration</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatDuration(avgDurationSeconds()) }}</p>
+    </div>
+  </div>
+
+  <!-- Filters + table -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h2 class="text-xl font-bold text-gray-900">Call history</h2>
+    <p class="mt-1 text-sm text-gray-500">All calls logged for this client</p>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <button *ngFor="let option of kindFilters" type="button" (click)="setKindFilter(option.value)"
+        class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+        [ngClass]="kindFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        {{ option.label }}
+      </button>
+      <span class="mx-1 h-4 w-px bg-gray-200"></span>
+      <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
+        class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+        [ngClass]="statusFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        {{ option.label }}
+      </button>
+    </div>
+
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <button *ngFor="let option of dateRangeFilters" type="button" (click)="setDateRange(option.value)"
+        class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+        [ngClass]="dateRange() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        {{ option.label }}
+      </button>
+
+      <div class="ml-auto flex h-9 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
+        <input type="text" placeholder="Search by participant" [ngModel]="search()" name="search"
+          (ngModelChange)="setSearch($event)"
+          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+      <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Direction</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Participant</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date &amp; time</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Duration</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+            <th class="bg-[#FAF9F7] px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let call of pagedCalls(); let last = last" class="group">
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <ion-icon [name]="kindIcon(call.kind)" class="text-base text-gray-500"></ion-icon>
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <ion-icon [name]="directionIcon(call.direction)" class="text-sm text-gray-400"></ion-icon>
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="flex items-center gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold text-white">
+                  {{ initials(call.participantName) }}
+                </span>
+                <span class="font-medium text-gray-900">{{ call.participantName }}</span>
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              {{ formatTimestamp(call.timestamp) }}
+            </td>
+            <td class="px-4 py-3.5 text-right text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              {{ formatDuration(call.durationSeconds) }}
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(call.status)">
+                <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(call.status)"></span>
+                {{ statusLabel(call.status) }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <button type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="View call details">
+                <ion-icon name="eye-outline" class="text-sm"></ion-icon>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="visibleCalls().length === 0" class="px-4 py-10 text-center">
+        <ion-icon name="call-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">No calls match your filters</p>
+      </div>
+    </div>
+
+    <app-pagination [currentPage]="currentPage()" [totalItems]="visibleCalls().length" [pageSize]="pageSize"
+      (pageChange)="currentPage.set($event)"></app-pagination>
+  </div>
+</div>

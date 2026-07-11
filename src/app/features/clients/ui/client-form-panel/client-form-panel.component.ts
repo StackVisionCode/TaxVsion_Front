@@ -19,6 +19,7 @@ import {
   MaritalStatus,
   Occupation,
 } from '../client-table/client-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const OCCUPATIONS: Occupation[] = [
   'Accountant',
@@ -58,7 +59,7 @@ function nextClientId(): string {
  */
 @Component({
   selector: 'app-client-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-form-panel.component.html',
 })

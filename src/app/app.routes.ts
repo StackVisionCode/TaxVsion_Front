@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
+import { authGuard } from '@core/auth/auth.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -8,8 +9,16 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
   },
   {
+    // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
+    path: 'sign/:token',
+    loadComponent: () =>
+      import('./features/signature/components/sign-page/sign-page.component').then(m => m.SignPageComponent),
+    title: 'Sign document',
+  },
+  {
     path: '',
     component: AppShellComponent,
+    canActivateChild: [authGuard],
     children: [
       {
         path: 'dashboard',

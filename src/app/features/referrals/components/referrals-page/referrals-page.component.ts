@@ -100,4 +100,22 @@ export class ReferralsPageComponent {
     this.copied.set(true);
     setTimeout(() => this.copied.set(false), 2000);
   }
+
+  private get referralUrl(): string {
+    return `https://taxvision.app/join?ref=${this.referralCode}`;
+  }
+
+  shareOnX(): void {
+    const text = encodeURIComponent(`Join TaxVision using my referral code ${this.referralCode} and we both get rewarded!`);
+    const url = encodeURIComponent(this.referralUrl);
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'noopener,noreferrer');
+  }
+
+  shareByEmail(): void {
+    const subject = encodeURIComponent('Join me on TaxVision');
+    const body = encodeURIComponent(
+      `Use my referral code ${this.referralCode} when you sign up for TaxVision and we both get rewarded!\n\n${this.referralUrl}`,
+    );
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
 }

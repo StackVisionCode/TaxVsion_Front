@@ -58,14 +58,14 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly indicatorReady = signal(false);
 
   readonly menuItems = signal<MenuItem[]>([
-    { label: 'Dashboard', icon: 'grid-outline', route: '/dashboard', isActive: false },
+    { label: 'Dashboard', icon: 'speedometer-outline', route: '/dashboard', isActive: false },
     { label: 'Mail', icon: 'mail-outline', route: '/email' },
     { label: 'Task', icon: 'checkmark-done-outline', route: '/task' },
     { label: 'Clients', icon: 'people-outline', route: '/clients' },
     { label: 'Documents', icon: 'document-text-outline', route: '/documents' },
     { label: 'Invoices', icon: 'receipt-outline', route: '/invoices' },
-    { label: 'Products/Services', icon: 'barcode-outline', route: '/products-services' },
-    { label: 'Signature', icon: 'pencil-outline', route: '/signature' },
+    { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services' },
+    { label: 'Signature', icon: 'create-outline', route: '/signature' },
     { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat' },
     { label: 'Meetings', icon: 'videocam-outline', route: '/meetings' },
     { label: 'Support', icon: 'headset-outline', route: '/support' },

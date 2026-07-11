@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Product, ProductTableComponent, stockLevel } from '../../ui/product-table/product-table.component';
 import { ProductFormPanelComponent } from '../../ui/product-form-panel/product-form-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 type CategoryFilter = 'All' | string;
 
@@ -144,7 +145,14 @@ const SEED_PRODUCTS: Product[] = [
  */
 @Component({
   selector: 'app-inventory-page',
-  imports: [CommonModule, FormsModule, ProductTableComponent, ProductFormPanelComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ProductTableComponent,
+    ProductFormPanelComponent,
+    PaginationComponent,
+    ConfirmDialogComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './inventory-page.component.html',
 })
@@ -158,6 +166,12 @@ export class InventoryPageComponent {
 
   readonly isPanelOpen = signal(false);
   readonly editingProduct = signal<Product | null>(null);
+  readonly pendingDelete = signal<Product | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const product = this.pendingDelete();
+    return product ? `You're about to delete product ${product.name} (${product.sku}). This can't be undone.` : '';
+  });
 
   readonly totalProducts = computed(() => this.products().length);
 
@@ -241,6 +255,15 @@ export class InventoryPageComponent {
   }
 
   deleteProduct(product: Product): void {
+    this.pendingDelete.set(product);
+  }
+
+  confirmDelete(): void {
+    const product = this.pendingDelete();
+    if (!product) {
+      return;
+    }
     this.products.update(list => list.filter(item => item.id !== product.id));
+    this.pendingDelete.set(null);
   }
 }

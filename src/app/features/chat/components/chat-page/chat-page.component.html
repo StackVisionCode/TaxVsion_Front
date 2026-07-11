@@ -27,7 +27,7 @@
         </span>
       </div>
 
-      <button type="button"
+      <button type="button" (click)="openInfo()"
         class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
         <ion-icon name="information-circle-outline" class="text-base text-gray-400"></ion-icon>
         Info
@@ -46,3 +46,35 @@
     </div>
   </div>
 </div>
+
+<!-- Conversation info -->
+<app-modal [isOpen]="isInfoOpen()" heading="Conversation info" size="sm" (closed)="closeInfo()">
+  <div class="mt-4 flex flex-col items-center text-center">
+    <span class="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
+      [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
+    <p class="mt-3 text-base font-bold text-gray-900">{{ activeConversation.name }}</p>
+    <span class="mt-1 flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
+      <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+      {{ activeConversation.online ? 'Online' : 'Offline' }}
+    </span>
+  </div>
+
+  <div class="mt-5">
+    <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Shared files</span>
+    <div class="mt-2 flex flex-col gap-2">
+      <div *ngFor="let file of sharedAttachments" class="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CBD9F2]">
+          <ion-icon name="document-outline" class="text-base text-gray-700"></ion-icon>
+        </span>
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
+          <span class="block text-xs text-gray-400">{{ file.size }}</span>
+        </span>
+      </div>
+
+      <p *ngIf="sharedAttachments.length === 0" class="px-2 py-4 text-center text-sm text-gray-400">
+        No files shared in this conversation
+      </p>
+    </div>
+  </div>
+</app-modal>

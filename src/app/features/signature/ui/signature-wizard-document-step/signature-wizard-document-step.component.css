@@ -1,0 +1,53 @@
+/* Entrada escalonada de las filas de documento (mismo idioma que el paso de cliente). */
+.doc-row {
+  animation: doc-row-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.doc-list .doc-row:nth-child(1) { animation-delay: 0ms; }
+.doc-list .doc-row:nth-child(2) { animation-delay: 40ms; }
+.doc-list .doc-row:nth-child(3) { animation-delay: 80ms; }
+.doc-list .doc-row:nth-child(4) { animation-delay: 120ms; }
+.doc-list .doc-row:nth-child(5) { animation-delay: 160ms; }
+.doc-list .doc-row:nth-child(n + 6) { animation-delay: 200ms; }
+
+@keyframes doc-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Panel de detalle del documento (recreado por *ngFor+trackBy al cambiar selección). */
+.doc-detail {
+  animation: doc-detail-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes doc-detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Pulso sutil del dropzone mientras se arrastra un archivo encima. */
+.dropzone-active {
+  animation: dropzone-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dropzone-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.01);
+  }
+}

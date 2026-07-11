@@ -58,7 +58,8 @@
       <!-- List -->
       <div class="mt-5">
         <app-meeting-list [meetings]="visibleMeetings()" (edit)="openEditPanel($event)"
-          (cancel)="cancelMeeting($event)" (join)="joinMeeting($event)"></app-meeting-list>
+          (cancel)="cancelMeeting($event)" (join)="joinMeeting($event)"
+          (viewRecording)="viewRecording($event)"></app-meeting-list>
       </div>
     </div>
   </ng-container>
@@ -71,3 +72,9 @@
 <!-- Schedule / edit overlay -->
 <app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="editingMeeting()" (closed)="closePanel()"
   (saved)="handleSaved($event)"></app-meeting-schedule-panel>
+
+<!-- Toast -->
+<div *ngIf="toastMessage()" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
+  <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
+  {{ toastMessage() }}
+</div>

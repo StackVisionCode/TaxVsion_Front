@@ -1,0 +1,73 @@
+<div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
+  <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-purple-300/40 rounded-full blur-3xl"></div>
+
+  <div class="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl shadow-indigo-200/70 px-8 sm:px-10 py-10">
+    <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+    @if (recoveryCodes(); as codes) {
+      <!-- Paso 3: códigos de recuperación (mostrar una sola vez) -->
+      <h1 class="mt-4 text-2xl font-bold text-gray-900">Guarda tus códigos de recuperación</h1>
+      <p class="mt-2 text-sm text-gray-500">
+        Guárdalos en un lugar seguro. Cada código sirve una sola vez para entrar si pierdes tu dispositivo.
+        No volverás a verlos.
+      </p>
+      <ul class="mt-6 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-4 font-mono text-sm text-gray-800">
+        @for (code of codes; track code) {
+          <li class="py-1 text-center tracking-wider">{{ code }}</li>
+        }
+      </ul>
+      <button type="button" (click)="onFinish()"
+        class="mt-8 w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+        Ya los guardé, continuar
+      </button>
+    } @else {
+      <!-- Pasos 1-2: registrar la clave y confirmar el primer código -->
+      <h1 class="mt-4 text-2xl font-bold text-gray-900">Configura la verificación en dos pasos</h1>
+      <p class="mt-2 text-sm text-gray-500">
+        Tu organización requiere MFA. Registra esta cuenta en tu app de autenticación
+        (Google Authenticator, Authy, 1Password…) e ingresa el código generado.
+      </p>
+
+      @if (loadingSetup()) {
+        <div class="mt-8 flex items-center gap-3 text-sm text-gray-500">
+          <span class="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></span>
+          Preparando la configuración...
+        </div>
+      } @else if (setupError()) {
+        <p class="mt-8 text-sm font-medium text-red-600">{{ setupError() }}</p>
+      } @else if (setup(); as data) {
+        <div class="mt-6 space-y-2">
+          <p class="text-sm font-medium text-gray-800">Clave (entrada manual)</p>
+          <code class="block w-full rounded-xl bg-gray-50 px-4 py-3 font-mono text-sm tracking-wider text-gray-800 break-all select-all">{{ data.secret }}</code>
+          <p class="text-xs text-gray-400 break-all">
+            Enlace de configuración: <span class="select-all">{{ data.otpAuthUri }}</span>
+          </p>
+        </div>
+
+        <form [formGroup]="form" class="mt-6 space-y-5" (ngSubmit)="onConfirm()">
+          <div class="space-y-1.5">
+            <label for="code" class="block text-sm font-medium text-gray-800">Código generado</label>
+            <input type="text" id="code" formControlName="code" inputmode="numeric" autocomplete="one-time-code"
+              maxlength="6" placeholder="000000"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+          </div>
+
+          @if (formError()) {
+            <p class="text-sm font-medium text-red-600">{{ formError() }}</p>
+          }
+
+          <button type="submit" [disabled]="submitting()"
+            class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+            @if (submitting()) {
+              <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              <span>Activando...</span>
+            } @else {
+              <span>Activar y continuar</span>
+            }
+          </button>
+        </form>
+      }
+    }
+  </div>
+</div>

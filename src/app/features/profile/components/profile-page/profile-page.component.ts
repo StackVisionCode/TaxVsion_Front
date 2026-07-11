@@ -42,6 +42,20 @@ export class ProfilePageComponent {
     return (first || last || 'U').slice(0, 2).toUpperCase();
   });
 
+  readonly avatarPhotoUrl = signal<string | null>(null);
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => this.avatarPhotoUrl.set(reader.result as string);
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
   // Security fields (fake, no real crypto/API)
   readonly currentPassword = signal('');
   readonly newPassword = signal('');

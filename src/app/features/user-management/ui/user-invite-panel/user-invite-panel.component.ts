@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MemberRole, ROLE_OPTIONS, RoleOption, TeamMember } from '../user-table/user-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const AVATAR_PALETTE = ['bg-indigo-500', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-green-500'];
 
@@ -50,7 +51,7 @@ function pickAvatarColor(seed: string): string {
  */
 @Component({
   selector: 'app-user-invite-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-invite-panel.component.html',
 })

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 const PAGE_SIZE = 8;
 
@@ -111,7 +112,14 @@ const SEED_MEMBERS: TeamMember[] = [
  */
 @Component({
   selector: 'app-user-management-page',
-  imports: [CommonModule, FormsModule, UserTableComponent, UserInvitePanelComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    UserTableComponent,
+    UserInvitePanelComponent,
+    PaginationComponent,
+    ConfirmDialogComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-management-page.component.html',
 })
@@ -121,6 +129,12 @@ export class UserManagementPageComponent {
 
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
+  readonly pendingDelete = signal<TeamMember | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const member = this.pendingDelete();
+    return member ? `You're about to remove ${member.name} from the team. This can't be undone.` : '';
+  });
 
   readonly toast = signal<string | null>(null);
   private toastTimer?: ReturnType<typeof setTimeout>;
@@ -190,8 +204,17 @@ export class UserManagementPageComponent {
   }
 
   removeMember(member: TeamMember): void {
+    this.pendingDelete.set(member);
+  }
+
+  confirmDelete(): void {
+    const member = this.pendingDelete();
+    if (!member) {
+      return;
+    }
     this.members.update(list => list.filter(item => item.id !== member.id));
     this.showToast(`${member.name} removed`);
+    this.pendingDelete.set(null);
   }
 
   private showToast(message: string): void {

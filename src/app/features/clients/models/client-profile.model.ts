@@ -35,6 +35,7 @@ export interface ClientDependent {
   relationship: string;
   /** ISO date string (YYYY-MM-DD). */
   dateOfBirth: string;
+  ssnOrItin?: string;
 }
 
 export interface ClientSpouse {
@@ -42,6 +43,10 @@ export interface ClientSpouse {
   ssnOrItin: string;
   /** ISO date string (YYYY-MM-DD). */
   dateOfBirth: string;
+  phone?: string;
+  email?: string;
+  /** ISO date string (YYYY-MM-DD). */
+  createdAt?: string;
 }
 
 export interface ClientProfile {
@@ -84,13 +89,16 @@ export const SEED_CLIENT_PROFILES: ClientProfile[] = [
       maritalStatus: 'Married',
     },
     dependents: [
-      { name: 'Sofia Gonzalez', relationship: 'Daughter', dateOfBirth: '2014-09-03' },
-      { name: 'Mateo Gonzalez', relationship: 'Son', dateOfBirth: '2017-11-19' },
+      { name: 'Sofia Gonzalez', relationship: 'Daughter', dateOfBirth: '2014-09-03', ssnOrItin: '456-78-9123' },
+      { name: 'Mateo Gonzalez', relationship: 'Son', dateOfBirth: '2017-11-19', ssnOrItin: '567-89-1234' },
     ],
     spouse: {
       name: 'Carlos Gonzalez',
       ssnOrItin: '987-65-4321',
       dateOfBirth: '1983-03-11',
+      phone: '(305) 555-0177',
+      email: 'carlos.gonzalez@example.com',
+      createdAt: '2023-02-14',
     },
   },
   {
@@ -141,7 +149,7 @@ export const SEED_CLIENT_PROFILES: ClientProfile[] = [
       occupation: 'Business Owner',
       maritalStatus: 'Divorced',
     },
-    dependents: [{ name: 'Lucas Torres', relationship: 'Son', dateOfBirth: '2009-07-25' }],
+    dependents: [{ name: 'Lucas Torres', relationship: 'Son', dateOfBirth: '2009-07-25', ssnOrItin: '678-91-2345' }],
   },
   {
     id: 'client-5',

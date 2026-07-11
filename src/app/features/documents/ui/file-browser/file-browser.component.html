@@ -23,11 +23,12 @@
         <ion-icon name="folder-open-outline" class="text-base text-gray-500"></ion-icon>
         New folder
       </button>
-      <button type="button"
-        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <label
+        class="flex cursor-pointer items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
         <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
         Upload
-      </button>
+        <input type="file" multiple class="hidden" (change)="onFilesSelected($event)" />
+      </label>
     </div>
   </div>
 

@@ -2,9 +2,10 @@
   <!-- Header card -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex flex-wrap items-center gap-5">
-      <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-2xl font-bold text-white"
-        [ngClass]="avatarColor">
-        {{ initials() }}
+      <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full text-2xl font-bold text-white"
+        [ngClass]="avatarPhotoUrl() ? '' : avatarColor">
+        <img *ngIf="avatarPhotoUrl(); else avatarInitials" [src]="avatarPhotoUrl()" alt="Profile photo" class="h-full w-full object-cover" />
+        <ng-template #avatarInitials>{{ initials() }}</ng-template>
       </div>
 
       <div class="min-w-0 flex-1">
@@ -18,10 +19,11 @@
         <p class="mt-2 text-sm text-gray-500">{{ email() }}</p>
       </div>
 
-      <button type="button"
-        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+      <label
+        class="cursor-pointer rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
         Change photo
-      </button>
+        <input type="file" accept="image/*" class="hidden" (change)="onPhotoSelected($event)" />
+      </label>
     </div>
   </div>
 

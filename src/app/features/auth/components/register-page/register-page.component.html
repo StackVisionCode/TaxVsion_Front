@@ -1,0 +1,190 @@
+<div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
+  <!-- Ambient background glow (mismo que el login) -->
+  <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-purple-300/40 rounded-full blur-3xl"></div>
+
+  <div
+    class="auth-card relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-indigo-200/70 overflow-hidden flex flex-col lg:flex-row">
+    <!-- Left side - Gradient brand panel -->
+    <div class="hidden lg:flex lg:w-1/2 relative m-3 rounded-[1.75rem] overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-sky-400 via-blue-700 to-purple-600"></div>
+      <div class="absolute -top-10 -left-10 w-72 h-72 bg-cyan-300/50 blur-3xl"></div>
+      <div class="absolute bottom-0 right-0 w-72 h-72 bg-purple-400/50 blur-3xl"></div>
+
+      <div class="relative z-10 flex flex-col justify-between w-full p-10">
+        <span class="text-white text-4xl font-bold leading-none">*</span>
+
+        <div class="text-white space-y-2">
+          <p class="text-sm font-medium text-white/80">Join TaxVision</p>
+          <h2 class="text-3xl font-bold leading-snug">
+            Create your account and run your tax firm from one place
+          </h2>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side - Register form / success -->
+    <div class="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
+      <div class="w-full max-w-sm mx-auto">
+        @if (!isDone()) {
+          <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+          <h1 class="mt-4 text-3xl font-bold text-gray-900">Create your account</h1>
+          <p class="mt-2 text-sm text-gray-500">Step {{ currentStep() }} of {{ totalSteps }} — {{ stepTitle() }}</p>
+
+          <!-- Step progress bars -->
+          <div class="mt-4 flex gap-2">
+            @for (title of stepTitles; track $index) {
+              <span class="h-1.5 flex-1 rounded-full transition-colors"
+                [class.bg-indigo-600]="$index < currentStep()" [class.bg-gray-200]="$index >= currentStep()"></span>
+            }
+          </div>
+
+          <form [formGroup]="form" class="mt-6" (ngSubmit)="onSubmit()">
+            <!-- Paso 1: datos personales -->
+            @if (currentStep() === 1) {
+              <div class="step-content space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="space-y-1.5">
+                    <label for="firstName" class="block text-sm font-medium text-gray-800">First name</label>
+                    <input type="text" id="firstName" formControlName="firstName" placeholder="Jordan"
+                      class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="lastName" class="block text-sm font-medium text-gray-800">Last name</label>
+                    <input type="text" id="lastName" formControlName="lastName" placeholder="Reyes"
+                      class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                  </div>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="email" class="block text-sm font-medium text-gray-800">Your email</label>
+                  <input type="email" id="email" formControlName="email" placeholder="you@company.com"
+                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="phone" class="block text-sm font-medium text-gray-800">Phone number</label>
+                  <input type="tel" id="phone" formControlName="phone" placeholder="(555) 123-4567"
+                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                </div>
+              </div>
+            }
+
+            <!-- Paso 2: la firma -->
+            @if (currentStep() === 2) {
+              <div class="step-content space-y-4">
+                <div class="space-y-1.5">
+                  <label for="businessName" class="block text-sm font-medium text-gray-800">Business name</label>
+                  <input type="text" id="businessName" formControlName="businessName"
+                    placeholder="E.g.: Reyes Tax Consulting"
+                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="description" class="block text-sm font-medium text-gray-800">
+                    Description <span class="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea id="description" formControlName="description" rows="4"
+                    placeholder="Briefly describe your specialty or services"
+                    class="block w-full resize-none px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"></textarea>
+                </div>
+              </div>
+            }
+
+            <!-- Paso 3: contraseña + términos -->
+            @if (currentStep() === 3) {
+              <div class="step-content space-y-4">
+                <div class="space-y-1.5">
+                  <label for="password" class="block text-sm font-medium text-gray-800">Password</label>
+                  <div class="relative">
+                    <input [type]="showPassword() ? 'text' : 'password'" id="password" formControlName="password"
+                      placeholder="Minimum 8 characters"
+                      class="block w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                    <button type="button" (click)="togglePasswordVisibility()"
+                      class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600"
+                      [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+                      <ion-icon [name]="showPassword() ? 'eye-off' : 'eye'" class="text-lg"></ion-icon>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="confirmPassword" class="block text-sm font-medium text-gray-800">Confirm password</label>
+                  <input [type]="showPassword() ? 'text' : 'password'" id="confirmPassword"
+                    formControlName="confirmPassword" placeholder="Repeat the password"
+                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+                </div>
+
+                <label class="flex items-start gap-3 cursor-pointer pt-1">
+                  <input type="checkbox" formControlName="acceptTerms"
+                    class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  <span class="text-sm text-gray-600">
+                    I agree to the <a href="#" class="font-medium text-indigo-600 hover:text-indigo-500">Terms of
+                      Service</a> and
+                    <a href="#" class="font-medium text-indigo-600 hover:text-indigo-500">Privacy Policy</a>
+                  </span>
+                </label>
+              </div>
+            }
+
+            @if (formError()) {
+              <p class="mt-4 text-sm font-medium text-red-600">{{ formError() }}</p>
+            }
+
+            <!-- Navegación de pasos -->
+            <div class="mt-6 flex items-center gap-3">
+              @if (currentStep() > 1) {
+                <button type="button" (click)="prevStep()"
+                  class="flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+                  Back
+                </button>
+              }
+
+              @if (currentStep() < totalSteps) {
+                <button type="button" (click)="nextStep()"
+                  class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+                  Continue
+                  <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+                </button>
+              } @else {
+                <button type="submit" [disabled]="isCreating()"
+                  class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+                  @if (isCreating()) {
+                    <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+                    <span>Creating account...</span>
+                  } @else {
+                    <span>Create account</span>
+                  }
+                </button>
+              }
+            </div>
+          </form>
+
+          <p class="mt-8 text-center text-sm text-gray-600">
+            Already have an account?
+            <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign in</a>
+          </p>
+        } @else {
+          <!-- Vista de éxito -->
+          <div class="success-content text-center">
+            <span
+              class="success-check mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+              <ion-icon name="checkmark-outline" class="text-3xl text-emerald-600"></ion-icon>
+            </span>
+            <h1 class="mt-6 text-3xl font-bold text-gray-900">Account created!</h1>
+            <p class="mt-2 text-sm text-gray-500">
+              Welcome to TaxVision, {{ form.value.firstName }}. Your firm
+              <span class="font-medium text-gray-700">{{ form.value.businessName }}</span> is ready to go.
+            </p>
+            <a routerLink="/login"
+              class="mt-8 flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+              Go to sign in
+            </a>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

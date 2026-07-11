@@ -1,0 +1,135 @@
+<app-modal [isOpen]="isOpen" heading="Create signature" subheading="Draw, type, or upload your signature"
+  size="xl" (closed)="cancel()">
+
+  <!-- Signature name -->
+  <div class="mt-4">
+    <label class="mb-1 block text-sm font-medium text-gray-800">Signature name</label>
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" name="signatureName" maxlength="100" placeholder="e.g. My formal signature"
+        [ngModel]="signatureName()" (ngModelChange)="signatureName.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+  </div>
+
+  <!-- Mode tabs -->
+  <div class="mt-5 inline-flex items-center rounded-full border border-gray-200 p-1">
+    <button type="button" (click)="setMode('draw')"
+      class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="mode() === 'draw' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="pencil-outline" class="text-sm"></ion-icon>
+      Draw
+    </button>
+    <button type="button" (click)="setMode('type')"
+      class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="mode() === 'type' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="text-outline" class="text-sm"></ion-icon>
+      Type
+    </button>
+    <button type="button" (click)="setMode('upload')"
+      class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="mode() === 'upload' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
+      Upload
+    </button>
+  </div>
+
+  <!-- DRAW -->
+  <div *ngIf="mode() === 'draw'" class="mt-4">
+    <p class="mb-2 text-sm text-gray-500">Draw your signature using your mouse or touchscreen.</p>
+    <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7]">
+      <canvas #drawCanvas class="h-48 w-full touch-none" style="touch-action: none;"
+        (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)"
+        (pointerup)="onPointerUp()" (pointerleave)="onPointerUp()"></canvas>
+      <p *ngIf="!hasDrawing()"
+        class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-gray-400">
+        Sign above using your mouse or touchscreen
+      </p>
+    </div>
+  </div>
+
+  <!-- TYPE -->
+  <div *ngIf="mode() === 'type'" class="mt-4 flex flex-col gap-3">
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" name="typedText" placeholder="Type your full name"
+        [ngModel]="typedText()" (ngModelChange)="typedText.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <button *ngFor="let preset of fontPresets" type="button" (click)="selectFont(preset)"
+        class="rounded-xl border px-3 py-2 text-center transition-colors"
+        [ngClass]="selectedFont().name === preset.name ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:bg-gray-50'">
+        <span class="text-lg text-gray-900" [style.font-family]="preset.fontFamily"
+          [style.font-style]="preset.fontStyle" [style.font-weight]="preset.fontWeight">{{ preset.name }}</span>
+      </button>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-4">
+      <label class="flex items-center gap-2 text-sm text-gray-600">
+        Color
+        <input type="color" name="fontColor" [ngModel]="fontColor()" (ngModelChange)="fontColor.set($event)"
+          class="h-7 w-9 cursor-pointer rounded border border-gray-200 bg-white p-0.5" />
+      </label>
+      <label class="flex flex-1 items-center gap-2 text-sm text-gray-600">
+        Size
+        <input type="range" name="fontSize" min="24" max="64" [ngModel]="fontSize()"
+          (ngModelChange)="fontSize.set(+$event)" class="flex-1 accent-gray-900" />
+      </label>
+    </div>
+
+    <div class="flex h-32 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] px-4">
+      <span *ngIf="typedText().trim(); else typePlaceholder" class="select-none whitespace-nowrap"
+        [ngStyle]="getTypedSignatureStyle()">{{ typedText() }}</span>
+      <ng-template #typePlaceholder>
+        <p class="text-sm text-gray-400">Your signature preview will appear here</p>
+      </ng-template>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div *ngIf="mode() === 'upload'" class="mt-4">
+    <div *ngIf="!uploadedDataUrl()" class="rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] p-8 text-center">
+      <ion-icon name="cloud-upload-outline" class="text-4xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">Upload an image of your signature</p>
+      <label class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        <ion-icon name="folder-open-outline" class="text-sm"></ion-icon>
+        Choose file
+        <input type="file" accept="image/png,image/jpeg" class="hidden" (change)="onFileUpload($event)" />
+      </label>
+      <p class="mt-2 text-xs text-gray-400">PNG or JPEG, up to 4MB</p>
+      <p *ngIf="uploadError()" class="mt-2 text-xs text-red-500">{{ uploadError() }}</p>
+    </div>
+
+    <div *ngIf="uploadedDataUrl() as url" class="rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] p-4">
+      <img [src]="url" alt="Uploaded signature" class="mx-auto max-h-40 object-contain" />
+      <div class="mt-3 flex items-center justify-between">
+        <span class="truncate text-sm text-gray-500">{{ uploadedFileName() }}</span>
+        <button type="button" (click)="removeUpload()" class="text-sm text-red-500 hover:text-red-700 transition-colors">
+          Remove
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear (draw / type) -->
+  <div *ngIf="mode() !== 'upload'" class="mt-3 flex justify-end">
+    <button type="button" (click)="clearCurrent()"
+      class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      <ion-icon name="refresh-outline" class="text-sm"></ion-icon>
+      Clear
+    </button>
+  </div>
+
+  <!-- Footer -->
+  <div class="mt-6 flex items-center justify-end gap-3">
+    <button type="button" (click)="cancel()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+      Cancel
+    </button>
+    <button type="button" (click)="confirm()" [disabled]="!canSave()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+      Save signature
+    </button>
+  </div>
+</app-modal>

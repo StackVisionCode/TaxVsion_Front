@@ -1,0 +1,169 @@
+<div>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Reminders</h3>
+      <p class="mt-1 text-sm text-gray-500">{{ visibleReminders().length }} total items</p>
+    </div>
+    <button type="button" (click)="openCreate()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="add-outline" class="text-base"></ion-icon>
+      New Reminder
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="mt-4 flex flex-wrap items-center gap-2">
+    <button *ngFor="let option of kindFilters" type="button" (click)="setKindFilter(option.value)"
+      class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+      [ngClass]="kindFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      {{ option.label }}
+    </button>
+  </div>
+
+  <div class="mt-2 flex flex-wrap items-center gap-2">
+    <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
+      class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+      [ngClass]="statusFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      {{ option.label }}
+    </button>
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <div class="flex h-9 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <ion-icon name="search-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
+      <input type="text" placeholder="Search reminders" [ngModel]="search()" name="search"
+        (ngModelChange)="setSearch($event)"
+        class="h-full w-44 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+    <label class="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer">
+      <span class="text-xs text-gray-400">From</span>
+      <input type="date" [ngModel]="fromDate()" name="fromDate" (ngModelChange)="fromDate.set($event)"
+        class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+    </label>
+    <label class="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer">
+      <span class="text-xs text-gray-400">To</span>
+      <input type="date" [ngModel]="toDate()" name="toDate" (ngModelChange)="toDate.set($event)"
+        class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+    </label>
+  </div>
+
+  <!-- Table -->
+  <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+    <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Title</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date &amp; time</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+          <th class="bg-[#FAF9F7] px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let reminder of pagedReminders(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2 text-gray-700">
+              <ion-icon [name]="kindIcon(reminder.kind)" class="text-base"></ion-icon>
+              {{ kindLabel(reminder.kind) }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="block font-medium text-gray-900">{{ reminder.title }}</span>
+            <span *ngIf="reminder.description" class="block text-xs text-gray-400">{{ reminder.description }}</span>
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ formatDateTime(reminder.datetime) }}
+          </td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(reminder.status)">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(reminder.status)"></span>
+              {{ statusLabel(reminder.status) }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <div *ngIf="reminder.status === 'scheduled'" class="flex items-center justify-end gap-2">
+              <button type="button" (click)="openEdit(reminder)"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Edit reminder">
+                <ion-icon name="create-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" (click)="requestCancel(reminder)"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                aria-label="Cancel reminder">
+                <ion-icon name="close-outline" class="text-sm"></ion-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="visibleReminders().length === 0" class="px-4 py-10 text-center">
+      <ion-icon name="alarm-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No reminders match your filters</p>
+    </div>
+  </div>
+
+  <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReminders().length" [pageSize]="pageSize"
+    (pageChange)="currentPage.set($event)"></app-pagination>
+</div>
+
+<!-- Reminder form -->
+<app-modal [isOpen]="isModalOpen()" [heading]="editingReminderId() !== null ? 'Edit Reminder' : 'New Reminder'"
+  subheading="Schedule a follow-up for this client" size="md" (closed)="closeModal()">
+
+  <div class="mt-5 flex flex-col gap-3">
+    <div class="relative" data-dropdown="reminder-kind">
+      <button type="button" (click)="toggleKindDropdown()"
+        class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+        <span>{{ kindLabel(formKind()) }}</span>
+        <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+      </button>
+      <div *ngIf="isKindDropdownOpen()"
+        class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+        <button *ngFor="let option of kindOptions" type="button" (click)="selectKind(option.value)"
+          class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          {{ option.label }}
+          <ion-icon *ngIf="option.value === formKind()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Title" [ngModel]="formTitle()" name="formTitle" (ngModelChange)="formTitle.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <textarea rows="2" placeholder="Description (optional)" [ngModel]="formDescription()" name="formDescription"
+      (ngModelChange)="formDescription.set($event)"
+      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+
+    <div class="grid grid-cols-2 gap-3">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="text-sm text-gray-400">Date</span>
+        <input type="date" [ngModel]="formDate()" name="formDate" (ngModelChange)="formDate.set($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="text-sm text-gray-400">Time</span>
+        <input type="time" [ngModel]="formTime()" name="formTime" (ngModelChange)="formTime.set($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+    </div>
+  </div>
+
+  <div class="mt-5 flex items-center justify-end gap-2">
+    <button type="button" (click)="closeModal()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Cancel
+    </button>
+    <button type="button" (click)="save()" [disabled]="!canSave()"
+      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      {{ editingReminderId() !== null ? 'Save changes' : 'Create reminder' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Cancel confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel reminder?" [message]="pendingCancelMessage()"
+  confirmLabel="Cancel reminder" (confirmed)="confirmCancel()" (cancelled)="pendingCancel.set(null)"></app-confirm-dialog>

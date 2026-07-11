@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MeetingItem } from '../meeting-list/meeting-list.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const DURATIONS = [15, 30, 45, 60, 90];
 
@@ -28,7 +29,7 @@ const PARTICIPANT_COLORS = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'b
  */
 @Component({
   selector: 'app-meeting-schedule-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-schedule-panel.component.html',
 })

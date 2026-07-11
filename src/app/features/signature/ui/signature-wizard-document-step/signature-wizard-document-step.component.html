@@ -1,0 +1,143 @@
+<div class="grid gap-5 lg:grid-cols-[1fr_280px]">
+  <!-- Columna izquierda: tabs + contenido -->
+  <div>
+    <!-- Tabs -->
+    <div class="inline-flex items-center rounded-full border border-gray-200 p-1">
+      <button type="button" (click)="setTab('existing')"
+        class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="tab() === 'existing' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        <ion-icon name="folder-open-outline" class="text-sm"></ion-icon>
+        Choose existing
+      </button>
+      <button type="button" (click)="setTab('upload')"
+        class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="tab() === 'upload' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
+        Upload
+      </button>
+    </div>
+
+    <!-- Choose existing -->
+    <div *ngIf="tab() === 'existing'" class="mt-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <button *ngFor="let option of kindFilters" type="button" (click)="setKindFilter(option)"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="kindFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          {{ filterLabel(option) }}
+        </button>
+
+        <div class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+          <input type="text" name="docSearch" placeholder="Search documents"
+            [ngModel]="search()" (ngModelChange)="search.set($event)"
+            class="h-full w-44 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        </div>
+      </div>
+
+      <p class="mt-3 text-xs text-gray-400">
+        {{ filtered().length }} {{ filtered().length === 1 ? 'document' : 'documents' }}
+      </p>
+
+      <div class="doc-list mt-2 flex max-h-[22rem] flex-col gap-1.5 overflow-y-auto pr-1">
+        <button *ngFor="let doc of filtered()" type="button" (click)="select(doc)"
+          class="doc-row flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors"
+          [ngClass]="doc.id === selectedId ? 'border-gray-900 bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="circle(doc.kind)">
+            <ion-icon [name]="icon(doc.kind)" class="text-base text-gray-700"></ion-icon>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium text-gray-900">{{ doc.name }}</span>
+            <span class="mt-0.5 block text-xs text-gray-500">{{ doc.size }} · Modified {{ doc.date }}</span>
+          </span>
+          <span class="hidden shrink-0 rounded-full border px-3 py-0.5 text-xs font-medium uppercase sm:inline-block"
+            [ngClass]="chip(doc.kind)">{{ doc.kind }}</span>
+          <ion-icon *ngIf="doc.id === selectedId" name="checkmark-circle" class="shrink-0 text-lg text-gray-900"></ion-icon>
+        </button>
+
+        <!-- Empty state -->
+        <div *ngIf="filtered().length === 0" class="px-4 py-10 text-center">
+          <ion-icon name="folder-open-outline" class="text-4xl text-gray-300"></ion-icon>
+          <p class="mt-2 text-sm font-medium text-gray-600">No documents found</p>
+          <p class="mt-1 text-xs text-gray-400">Try another name or switch to Upload</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div *ngIf="tab() === 'upload'" class="mt-4">
+      <label class="dropzone flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors"
+        [ngClass]="isDragging() ? 'dropzone-active border-gray-900 bg-gray-50' : 'border-gray-200 bg-[#FAF9F7] hover:border-gray-300'"
+        (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
+        <ion-icon name="cloud-upload-outline" class="text-4xl"
+          [ngClass]="isDragging() ? 'text-gray-900' : 'text-gray-300'"></ion-icon>
+        <span class="mt-2 text-sm font-medium" [ngClass]="isDragging() ? 'text-gray-900' : 'text-gray-600'">
+          {{ isDragging() ? 'Drop it here' : 'Click to upload or drag and drop' }}
+        </span>
+        <span class="mt-1 text-xs text-gray-400">PDF, DOC or DOCX, up to 25MB</span>
+        <input type="file" accept=".pdf,.doc,.docx" class="hidden" (change)="onFileSelected($event)" />
+      </label>
+
+      <p *ngIf="uploadError()" class="mt-2 text-xs text-red-500">{{ uploadError() }}</p>
+
+      <div *ngIf="uploaded() as doc"
+        class="doc-row mt-3 flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors"
+        [ngClass]="doc.id === selectedId ? 'border-gray-900 bg-gray-50' : 'border-gray-100'">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="circle(doc.kind)">
+          <ion-icon [name]="icon(doc.kind)" class="text-base text-gray-700"></ion-icon>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-medium text-gray-900">{{ doc.name }}</span>
+          <span class="mt-0.5 block text-xs text-gray-500">{{ doc.size }} · Just uploaded</span>
+        </span>
+        <button type="button" (click)="removeUpload()"
+          class="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
+          Remove
+        </button>
+        <ion-icon *ngIf="doc.id === selectedId" name="checkmark-circle" class="shrink-0 text-lg text-gray-900"></ion-icon>
+      </div>
+
+      <p *ngIf="uploaded() && uploaded()!.kind !== 'pdf'" class="mt-2 text-xs text-gray-400">
+        Note: field placement preview renders as blank pages for non-PDF files.
+      </p>
+    </div>
+  </div>
+
+  <!-- Columna derecha: detalle del seleccionado (sticky) -->
+  <aside class="hidden self-start lg:sticky lg:top-4 lg:block">
+    <div *ngFor="let doc of selectedAsList(); trackBy: trackDocument"
+      class="doc-detail rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+      <div class="flex flex-col items-center text-center">
+        <span class="flex h-16 w-16 items-center justify-center rounded-2xl" [ngClass]="circle(doc.kind)">
+          <ion-icon [name]="icon(doc.kind)" class="text-2xl text-gray-700"></ion-icon>
+        </span>
+        <p class="mt-3 break-all text-sm font-semibold text-gray-900">{{ doc.name }}</p>
+        <span class="mt-1.5 inline-block rounded-full border px-3 py-0.5 text-xs font-medium uppercase"
+          [ngClass]="chip(doc.kind)">{{ doc.kind }}</span>
+      </div>
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Size</dt>
+          <dd class="mt-0.5 text-gray-700">{{ doc.size }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Last modified</dt>
+          <dd class="mt-0.5 text-gray-700">{{ doc.date }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Source</dt>
+          <dd class="mt-0.5 text-gray-700">{{ doc.blob ? 'Uploaded from your device' : 'Client documents' }}</dd>
+        </div>
+      </dl>
+
+      <p *ngIf="doc.kind !== 'pdf'" class="mt-4 rounded-xl bg-white px-3 py-2 text-xs text-gray-500">
+        Non-PDF files show blank placement pages in the next step.
+      </p>
+    </div>
+
+    <div *ngIf="!selectedDocument()" class="doc-detail flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
+      <ion-icon name="document-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-400">Select or upload a document to see its details</p>
+    </div>
+  </aside>
+</div>

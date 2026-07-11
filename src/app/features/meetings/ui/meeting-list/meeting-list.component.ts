@@ -41,6 +41,7 @@ export class MeetingListComponent {
   @Output() edit = new EventEmitter<MeetingItem>();
   @Output() cancel = new EventEmitter<MeetingItem>();
   @Output() join = new EventEmitter<MeetingItem>();
+  @Output() viewRecording = new EventEmitter<MeetingItem>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -117,5 +118,10 @@ export class MeetingListComponent {
   onJoinClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
     this.join.emit(meeting);
+  }
+
+  onViewRecordingClick(meeting: MeetingItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.viewRecording.emit(meeting);
   }
 }

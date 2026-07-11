@@ -3,6 +3,14 @@
   transition: height 300ms ease;
 }
 
+/* Tooltip deslizante: se mueve suavemente entre barras en vez de saltar
+   (misma curva que el pill activo del sidebar). */
+.chart-tooltip {
+  transition:
+    left 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .trend-bar--light {
   background-color: #a99beb;
 }

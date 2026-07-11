@@ -62,6 +62,12 @@
     <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-700">{{ req.notes }}</p>
   </div>
 
+  <!-- Preparer signature stamp -->
+  <div *ngIf="req.preparerSignatureDataUrl" class="mt-6 flex items-center gap-3 rounded-2xl border border-gray-100 p-4">
+    <img [src]="req.preparerSignatureDataUrl" alt="Preparer signature" class="h-10 max-w-[160px] object-contain" />
+    <p class="text-xs text-gray-400">Prepared &amp; stamped by you</p>
+  </div>
+
   <!-- Signer progress -->
   <div class="mt-6">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Signer progress</p>
