@@ -31,6 +31,22 @@ export interface RefreshRequest {
   refreshToken: string;
 }
 
+/** Cuerpo de POST /auth/password/forgot. Siempre responde 202, exista o no el email (anti-enumeración). */
+export interface ForgotPasswordRequest {
+  email: string;
+  tenantId?: string | null;
+}
+
+/**
+ * Cuerpo de POST /auth/password/reset. `token` es el valor de la query string
+ * `?token=` del link que el usuario recibe por correo (`{portal}/reset-password?token=...`),
+ * no un código que el usuario escribe — no hay paso intermedio de "verificar código".
+ */
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
 export interface Tenant {
   id: string;
   name: string;

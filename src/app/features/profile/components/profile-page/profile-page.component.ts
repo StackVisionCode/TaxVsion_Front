@@ -28,7 +28,7 @@ export class ProfilePageComponent {
   // Personal information fields
   readonly firstName = signal('Jordan');
   readonly lastName = signal('Reyes');
-  readonly email = signal('jordan.reyes@taxvision.com');
+  readonly email = signal('jordan.reyes@taxprooffice.com');
   readonly phone = signal('(555) 214-7890');
 
   readonly fullName = computed(() => `${this.firstName()} ${this.lastName()}`.trim());

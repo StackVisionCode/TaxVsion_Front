@@ -27,7 +27,7 @@ export class MfaService {
       return of({
         secret: 'MOCKSECRET234567',
         otpAuthUri:
-          'otpauth://totp/TaxVision:demo@taxvision.local?secret=MOCKSECRET234567&issuer=TaxVision&algorithm=SHA1&digits=6&period=30',
+          'otpauth://totp/TaxProOffice:demo@taxprooffice.local?secret=MOCKSECRET234567&issuer=TaxProOffice&algorithm=SHA1&digits=6&period=30',
       });
     }
     return this.http.post<SetupTotpResponse>(`${this.base}/auth/mfa/totp/setup`, {});

@@ -1,9 +1,9 @@
 import { Environment } from './environment.model';
 
-// Gateway YARP del backend TaxVision en desarrollo (ver TaxVsion_BackEnd/src/Gateway).
+// Gateway YARP del backend TaxPro Office en desarrollo (ver TaxVsion_BackEnd/src/Gateway).
 export const environment: Environment = {
   production: false,
-  apiUrl: 'http://localhost:5047',
+  apiUrl: 'https://api.taxprocore.com',
   // TODO: reemplazar por el GUID real del tenant sembrado en el backend (seed/migraciones).
   //       En modo mock (authMock: true) este valor no se valida.
   tenantId: '00000000-0000-0000-0000-000000000000',

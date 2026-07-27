@@ -3,7 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '@env/environment';
 import { TokenService } from './token.service';
-import { AuthTokens, LoginRequest, LoginResponse, MeResponse, RefreshRequest } from './auth.model';
+import {
+  AuthTokens,
+  ForgotPasswordRequest,
+  LoginRequest,
+  LoginResponse,
+  MeResponse,
+  RefreshRequest,
+  ResetPasswordRequest,
+} from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 
 /** Desenlace del login, ya interpretado por el servicio (el componente solo enruta). */
@@ -114,6 +122,24 @@ export class AuthService {
     );
   }
 
+  /** Siempre resuelve (202 anti-enumeración): el backend nunca revela si el email existe. */
+  forgotPassword(email: string): Observable<void> {
+    const req: ForgotPasswordRequest = { email, tenantId: environment.tenantId || null };
+    if (environment.authMock) {
+      return defer(() => of(void 0));
+    }
+    return this.http.post<void>(`${this.base}/auth/password/forgot`, req);
+  }
+
+  /** `token` sale del query param `?token=` del link emailado (`/reset-password?token=...`), no de un código tipeado. */
+  resetPassword(token: string, newPassword: string): Observable<void> {
+    const req: ResetPasswordRequest = { token, newPassword };
+    if (environment.authMock) {
+      return defer(() => of(void 0));
+    }
+    return this.http.post<void>(`${this.base}/auth/password/reset`, req);
+  }
+
   /** Limpia todo el estado de sesión en el cliente (sin llamar al backend). */
   logoutLocal(): void {
     this.tokenService.clear();
@@ -172,7 +198,7 @@ export class AuthService {
       id: '00000000-0000-0000-0000-000000000001',
       name: 'Usuario',
       lastName: 'Demo',
-      email: 'demo@taxvision.local',
+      email: 'demo@taxprooffice.local',
       actorType: 'TenantAdmin',
       customerId: null,
       tenant: { id: environment.tenantId, name: 'Tenant Demo', subDomain: 'demo' },

@@ -17,7 +17,7 @@ import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const AVATAR_PALETTE = ['bg-indigo-500', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-green-500'];
 
-/** Turns "sofia.martinez@taxvision.com" into "Sofia Martinez" for freshly-invited members. */
+/** Turns "sofia.martinez@taxprooffice.com" into "Sofia Martinez" for freshly-invited members. */
 function deriveNameFromEmail(email: string): string {
   const localPart = email.split('@')[0] ?? '';
   const words = localPart.split(/[._\-+0-9]+/).filter(Boolean);

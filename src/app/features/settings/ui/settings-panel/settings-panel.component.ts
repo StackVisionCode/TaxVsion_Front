@@ -1,17 +1,22 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, Input, OnChanges, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, Input, OnChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ThemeService } from '@core/theme/theme.service';
 
 type SettingField =
   | { kind: 'toggle'; key: string; label: string; description: string; value: boolean }
   | { kind: 'select'; key: string; label: string; description: string; value: string; options: string[] }
-  | { kind: 'text'; key: string; label: string; description: string; value: string };
+  | { kind: 'text'; key: string; label: string; description: string; value: string }
+  | { kind: 'color'; key: string; label: string; description: string; value: string };
 
 const PANELS: Record<string, SettingField[]> = {
   overview: [
     { kind: 'text', key: 'firmName', label: 'Firm name', description: 'Shown on invoices and client emails', value: 'Reyes Tax & Accounting' },
     { kind: 'select', key: 'timezone', label: 'Default timezone', description: 'Used for due dates and reminders', value: 'Eastern Time (ET)', options: ['Eastern Time (ET)', 'Central Time (CT)', 'Mountain Time (MT)', 'Pacific Time (PT)'] },
     { kind: 'toggle', key: 'darkMode', label: 'Compact sidebar by default', description: 'Start every session with the sidebar collapsed', value: false },
+    // Los value reales se sobreescriben en ngOnChanges con ThemeService — estos son solo placeholders iniciales.
+    { kind: 'color', key: 'primaryColor', label: 'Primary color', description: 'Main accent used for buttons, links and highlights', value: '#4f46e5' },
+    { kind: 'color', key: 'secondaryColor', label: 'Secondary color', description: 'Complementary accent used across icons and badges', value: '#f97316' },
   ],
   accounts: [
     { kind: 'toggle', key: 'requireSsn', label: 'Require SSN/ITIN on intake', description: 'Block saving a new client without this field', value: true },
@@ -28,7 +33,7 @@ const PANELS: Record<string, SettingField[]> = {
   mail: [
     { kind: 'toggle', key: 'emailNotifs', label: 'Email notifications', description: 'Notify me about client replies and uploads', value: true },
     { kind: 'toggle', key: 'signature', label: 'Signature on outgoing mail', description: "Append your firm's signature block", value: true },
-    { kind: 'text', key: 'replyTo', label: 'Default reply-to', description: 'Used when clients respond to notifications', value: 'support@taxvision.com' },
+    { kind: 'text', key: 'replyTo', label: 'Default reply-to', description: 'Used when clients respond to notifications', value: 'support@taxprooffice.com' },
   ],
   signature: [
     { kind: 'toggle', key: 'reminders', label: 'Auto-remind unsigned documents', description: 'Send a nudge after 48 hours', value: true },
@@ -56,15 +61,23 @@ const PANELS: Record<string, SettingField[]> = {
   templateUrl: './settings-panel.component.html',
 })
 export class SettingsPanelComponent implements OnChanges {
+  private readonly theme = inject(ThemeService);
+
   @Input() moduleId = 'overview';
   @Input() moduleTitle = 'Overview';
 
   readonly fields = signal<SettingField[]>(PANELS['overview']);
   readonly openDropdownKey = signal<string | null>(null);
   readonly showSaved = signal(false);
+  readonly colorPresets = this.theme.presets;
 
   ngOnChanges(): void {
-    this.fields.set(PANELS[this.moduleId] ?? []);
+    // Los color fields arrancan con el color realmente activo (ThemeService), no el placeholder de PANELS.
+    this.fields.set(
+      (PANELS[this.moduleId] ?? []).map(field =>
+        field.kind === 'color' ? { ...field, value: this.colorFor(field.key) } : field,
+      ),
+    );
     this.openDropdownKey.set(null);
     this.showSaved.set(false);
   }
@@ -98,6 +111,22 @@ export class SettingsPanelComponent implements OnChanges {
     this.fields.update(fields =>
       fields.map(f => (f.kind === 'text' && f.key === key ? { ...f, value } : f)),
     );
+  }
+
+  /** A diferencia de los demás campos, el color se aplica al instante (no espera a "Save changes"). */
+  updateColor(key: string, hex: string): void {
+    if (key === 'secondaryColor') {
+      this.theme.setSecondaryColor(hex);
+    } else {
+      this.theme.setPrimaryColor(hex);
+    }
+    this.fields.update(fields =>
+      fields.map(f => (f.kind === 'color' && f.key === key ? { ...f, value: this.colorFor(key) } : f)),
+    );
+  }
+
+  private colorFor(key: string): string {
+    return key === 'secondaryColor' ? this.theme.secondaryColor() : this.theme.primaryColor();
   }
 
   save(): void {

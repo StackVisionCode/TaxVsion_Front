@@ -1,3 +1,11 @@
+<div *ngIf="loading() && !client()" class="min-h-full pt-3 pb-1">
+  <div class="bg-white rounded-[28px] p-6 text-sm text-gray-400">Loading client…</div>
+</div>
+
+<div *ngIf="loadError() && !client()" class="min-h-full pt-3 pb-1">
+  <div class="bg-white rounded-[28px] p-6 text-sm text-red-600">{{ loadError() }}</div>
+</div>
+
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
   <!-- Header -->
   <div class="bg-white rounded-[28px] p-6">
@@ -39,12 +47,35 @@
     </div>
 
     <!-- Tab nav -->
-    <div class="mt-6 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-      <button *ngFor="let tab of tabs" type="button" (click)="selectTab(tab.id)"
-        class="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="tab.id === activeTab() ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
-        {{ tab.label }}
-      </button>
+    <div class="mt-6 flex flex-wrap gap-2">
+      <ng-container *ngFor="let item of navItems">
+        <!-- Single tab -->
+        <button *ngIf="item.kind === 'tab'" type="button" (click)="selectTab(item.id)"
+          class="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="item.id === activeTab() ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
+          {{ item.label }}
+        </button>
+
+        <!-- Group of tabs behind a dropdown -->
+        <div *ngIf="item.kind === 'group'" class="relative shrink-0" data-dropdown="profile-tab-group">
+          <button type="button" (click)="toggleGroup(item.label, $event)"
+            class="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+            [ngClass]="isGroupActive(item) ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
+            {{ item.label }}
+            <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
+          </button>
+
+          <div *ngIf="openGroupLabel() === item.label"
+            class="absolute left-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+            <button *ngFor="let tab of item.tabs" type="button" (click)="selectTab(tab.id)"
+              class="flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors"
+              [ngClass]="tab.id === activeTab() ? 'text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-50'">
+              {{ tab.label }}
+              <ion-icon *ngIf="tab.id === activeTab()" name="checkmark-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+        </div>
+      </ng-container>
     </div>
   </div>
 

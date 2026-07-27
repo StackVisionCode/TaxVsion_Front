@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface HeroStat {
@@ -10,8 +10,9 @@ interface HeroStat {
 
 /**
  * Zona hero del dashboard (referencia "Aether"): saludo grande + 3 stat cards
- * pastel con botón circular negro recortado en la esquina. Datos estáticos,
- * adaptados al dominio CRM.
+ * pastel con botón circular negro recortado en la esquina. `userName` lo pasa
+ * el contenedor (DashboardPageComponent) desde el usuario real logueado; las
+ * stat cards siguen siendo datos estáticos.
  */
 @Component({
   selector: 'app-dashboard-hero',
@@ -20,7 +21,7 @@ interface HeroStat {
   templateUrl: './dashboard-hero.component.html',
 })
 export class DashboardHeroComponent {
-  readonly userName = 'Jordan';
+  @Input() userName = '';
 
   readonly stats: HeroStat[] = [
     { title: 'Total Customers', subtitle: 'Active portfolio', value: '128', bg: 'bg-[#F2E3C9]' },
