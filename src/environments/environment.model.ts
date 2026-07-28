@@ -9,4 +9,7 @@ export interface Environment {
    * devuelve una sesión sintética exitosa. Permite trabajar sin el backend arriba.
    */
   authMock: boolean;
+  /** Publishable key de Stripe (pk_test_… en dev). Es pública por diseño; la usa el Payment
+   *  Element del checkout. Vacía = el checkout cae a las tarjetas de prueba mapeadas. */
+  stripePublishableKey: string;
 }

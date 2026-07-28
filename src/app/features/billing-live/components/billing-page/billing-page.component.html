@@ -1,0 +1,230 @@
+<div class="billing-wrap">
+  <h1 class="title">Facturación</h1>
+  <p class="subtitle">Configurá tu método de cobro, creá facturas y enviálas a pagar.</p>
+
+  <div class="tabs">
+    <button [class.active]="tab() === 'methods'" (click)="tab.set('methods')">Métodos de pago</button>
+    <button [class.active]="tab() === 'invoices'" (click)="tab.set('invoices')">Facturas</button>
+    <button [class.active]="tab() === 'branding'" (click)="tab.set('branding')">Branding</button>
+  </div>
+
+  <!-- ================= MÉTODOS DE PAGO ================= -->
+  <section *ngIf="tab() === 'methods'" class="panel">
+    <h2>Configurar Stripe</h2>
+    <p class="hint">Pegá tus keys de test (pk_test_… / sk_test_…). El secret key se cifra en el backend, nunca vuelve al navegador.</p>
+
+    <label>Publishable key</label>
+    <input class="in" [ngModel]="publishableKey()" (ngModelChange)="publishableKey.set($event)" placeholder="pk_test_…" />
+    <label>Secret key</label>
+    <input class="in" type="password" [ngModel]="secretKey()" (ngModelChange)="secretKey.set($event)" placeholder="sk_test_…" />
+    <label>Webhook secret (opcional)</label>
+    <input class="in" type="password" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)" placeholder="whsec_…" />
+    <label>Statement descriptor</label>
+    <input class="in" [ngModel]="statementDescriptor()" (ngModelChange)="statementDescriptor.set($event)" maxlength="22" />
+
+    <button class="btn" (click)="saveStripe()" [disabled]="savingMethod()">
+      {{ savingMethod() ? 'Guardando…' : 'Guardar y activar' }}
+    </button>
+    <p *ngIf="methodsMsg() as m" class="msg" [class.err]="!m.ok">{{ m.text }}</p>
+
+    <h3 class="mt">Métodos configurados</h3>
+    <table class="tbl" *ngIf="configs().length; else noConfigs">
+      <tr><th>Proveedor</th><th>Modo</th><th>Estado</th><th></th></tr>
+      <tr *ngFor="let c of configs()">
+        <td>{{ c.providerCode }}</td>
+        <td>{{ c.mode }}</td>
+        <td><span class="badge" [class.on]="c.isActive">{{ c.isActive ? 'Activo' : 'Inactivo' }}</span></td>
+        <td><button class="link-btn" (click)="toggleActive(c)">{{ c.isActive ? 'Desactivar' : 'Activar' }}</button></td>
+      </tr>
+    </table>
+    <ng-template #noConfigs><p class="hint">Todavía no configuraste ningún método.</p></ng-template>
+  </section>
+
+  <!-- ================= FACTURAS ================= -->
+  <section *ngIf="tab() === 'invoices'" class="panel">
+    <!-- Datos de la empresa (emisor) — se guardan y aparecen en cada factura -->
+    <div class="issuer-box">
+      <button class="issuer-toggle" (click)="showIssuer.set(!showIssuer())">
+        <span>🏢 Datos de la empresa (emisor)</span>
+        <span class="chev">{{ showIssuer() ? '▲' : '▼' }}</span>
+      </button>
+      <p class="hint" *ngIf="!issuer().name && !showIssuer()">Sin configurar — la factura saldrá sin datos del emisor. Hacé clic para completarlos.</p>
+      <div *ngIf="showIssuer()" class="issuer-fields">
+        <div class="grid2">
+          <div><label>Nombre / Razón social</label><input class="in" [ngModel]="issuer().name" (ngModelChange)="updateIssuer({ name: $event })" placeholder="Firma Contable XYZ" /></div>
+          <div><label>NIF / RUC</label><input class="in" [ngModel]="issuer().taxId" (ngModelChange)="updateIssuer({ taxId: $event })" placeholder="123-45-6789" /></div>
+        </div>
+        <label>Dirección</label>
+        <input class="in" [ngModel]="issuer().line1" (ngModelChange)="updateIssuer({ line1: $event })" placeholder="500 Ave Ponce" />
+        <div class="grid4">
+          <div><label>Ciudad</label><input class="in" [ngModel]="issuer().city" (ngModelChange)="updateIssuer({ city: $event })" /></div>
+          <div><label>Estado</label><input class="in" [ngModel]="issuer().state" (ngModelChange)="updateIssuer({ state: $event })" /></div>
+          <div><label>ZIP</label><input class="in" [ngModel]="issuer().zip" (ngModelChange)="updateIssuer({ zip: $event })" /></div>
+          <div><label>País</label><input class="in" [ngModel]="issuer().country" (ngModelChange)="updateIssuer({ country: $event })" /></div>
+        </div>
+        <div class="grid2">
+          <div><label>Teléfono</label><input class="in" [ngModel]="issuer().phone" (ngModelChange)="updateIssuer({ phone: $event })" /></div>
+          <div><label>Email</label><input class="in" [ngModel]="issuer().email" (ngModelChange)="updateIssuer({ email: $event })" /></div>
+        </div>
+        <button class="link-btn" (click)="saveIssuer()">Guardar datos de la empresa</button>
+      </div>
+    </div>
+
+    <h2 class="mt">Nueva factura</h2>
+    <div class="grid2">
+      <div><label>Cliente</label><input class="in" [ngModel]="customerName()" (ngModelChange)="customerName.set($event)" placeholder="Nombre del cliente" /></div>
+      <div><label>NIF / RUC del cliente (opcional)</label><input class="in" [ngModel]="customerTaxId()" (ngModelChange)="customerTaxId.set($event)" placeholder="660-11-2233" /></div>
+    </div>
+
+    <label class="mt">Líneas</label>
+    <div class="line-head"><span>Descripción</span><span>Cant.</span><span>Precio</span><span>Imp. %</span><span></span></div>
+    <div class="line-row" *ngFor="let l of lines(); let i = index">
+      <input class="in" [ngModel]="l.description" (ngModelChange)="updateLine(i, { description: $event })" placeholder="Servicio" />
+      <input class="in num" type="number" min="1" [ngModel]="l.quantity" (ngModelChange)="updateLine(i, { quantity: +$event })" />
+      <input class="in num" type="number" min="0" step="0.01" [ngModel]="l.unitAmount" (ngModelChange)="updateLine(i, { unitAmount: +$event })" />
+      <input class="in num" type="number" min="0" step="0.01" [ngModel]="l.taxPercent" (ngModelChange)="updateLine(i, { taxPercent: +$event })" />
+      <button class="x" (click)="removeLine(i)" [disabled]="lines().length === 1">✕</button>
+    </div>
+    <button class="link-btn" (click)="addLine()">+ Agregar línea</button>
+
+    <button class="btn mt" (click)="createInvoice()" [disabled]="creatingInvoice()">
+      {{ creatingInvoice() ? 'Creando…' : 'Crear borrador' }}
+    </button>
+    <p *ngIf="invoicesMsg() as m" class="msg" [class.err]="!m.ok">{{ m.text }}</p>
+
+    <div class="list-head mt">
+      <h3>Facturas</h3>
+      <button class="link-btn" (click)="reloadInvoices()">↻ Refrescar lista</button>
+    </div>
+    <table class="tbl" *ngIf="invoices().length; else noInv">
+      <tr><th>Número</th><th>Estado</th><th>Total</th><th>Acciones</th></tr>
+      <tr *ngFor="let inv of invoices()">
+        <td>{{ inv.invoiceNumber ?? 'Borrador' }}</td>
+        <td>
+          <span class="badge"
+                [class.on]="inv.status === 'Paid'"
+                [class.warn]="inv.status === 'Issued' || inv.status === 'Sent' || inv.status === 'PartiallyPaid'">{{ statusLabel(inv.status) }}</span>
+        </td>
+        <td>{{ money(inv.totalCents, inv.currency) }}</td>
+        <td class="actions">
+          <!-- Ver el PDF: disponible una vez emitida -->
+          <button class="link-btn" *ngIf="inv.status !== 'Draft'" (click)="viewPdf(inv)" [disabled]="openingPdfId() === inv.id">
+            {{ openingPdfId() === inv.id ? 'Abriendo…' : 'Ver factura' }}
+          </button>
+
+          <!-- Draft: emitir -->
+          <button class="btn sm" *ngIf="inv.status === 'Draft'" (click)="issue(inv)" [disabled]="busyInvoiceId() === inv.id">
+            {{ busyInvoiceId() === inv.id ? 'Emitiendo…' : 'Emitir y enviar a pagar' }}
+          </button>
+
+          <!-- Emitida/no pagada: link de cobro online + pago manual -->
+          <ng-container *ngIf="inv.status === 'Issued' || inv.status === 'Sent' || inv.status === 'PartiallyPaid'">
+            <a *ngIf="inv.checkoutUrl as url" [href]="url" target="_blank" rel="noopener" class="link-btn">Abrir cobro</a>
+            <button *ngIf="inv.checkoutUrl as url" class="link-btn" (click)="copyLink(url)">Copiar link</button>
+            <button class="link-btn accent" (click)="openManualPay(inv)">Registrar pago manual</button>
+            <button class="link-btn" (click)="refreshInvoice(inv)">Refrescar</button>
+          </ng-container>
+
+          <!-- Pagada: recibo -->
+          <button class="link-btn" *ngIf="inv.status === 'Paid'" (click)="openReceipt(inv)">Ver recibo</button>
+          <span class="paid-tag" *ngIf="inv.status === 'Paid'">Pagada ✓</span>
+        </td>
+      </tr>
+    </table>
+    <ng-template #noInv><p class="hint">Todavía no hay facturas.</p></ng-template>
+  </section>
+
+  <!-- ================= BRANDING ================= -->
+  <section *ngIf="tab() === 'branding'" class="panel">
+    <h2>Branding de las facturas</h2>
+    <p class="hint">Personalizá el PDF de tus facturas con el color, logo, nombre y pie de tu marca. Se aplica a las próximas facturas que emitas.</p>
+
+    <div class="grid2">
+      <div>
+        <label>Color de marca</label>
+        <div class="color-row">
+          <input type="color" [ngModel]="brandColor()" (ngModelChange)="brandColor.set($event)" />
+          <input class="in" [ngModel]="brandColor()" (ngModelChange)="brandColor.set($event)" placeholder="#4f46e5" />
+        </div>
+      </div>
+      <div>
+        <label>Nombre a mostrar</label>
+        <input class="in" [ngModel]="brandDisplayName()" (ngModelChange)="brandDisplayName.set($event)" placeholder="Tu Empresa" />
+      </div>
+    </div>
+
+    <label class="mt">Logo (PNG/JPG, máx. 200 KB)</label>
+    <div class="logo-row">
+      <div class="logo-preview" [style.background]="brandLogo() ? 'transparent' : '#f2f4f7'">
+        <img *ngIf="brandLogo()" [src]="brandLogo()" alt="logo" />
+        <span *ngIf="!brandLogo()" class="hint">sin logo</span>
+      </div>
+      <div>
+        <input type="file" accept="image/*" (change)="onLogoSelected($event)" />
+        <button class="link-btn" *ngIf="brandLogo()" (click)="clearLogo()">Quitar logo</button>
+      </div>
+    </div>
+
+    <label class="mt">Pie de página (footer)</label>
+    <input class="in" [ngModel]="brandFooter()" (ngModelChange)="brandFooter.set($event)" placeholder="Gracias por su preferencia · contacto@tuempresa.com" />
+
+    <!-- Preview -->
+    <label class="mt">Vista previa</label>
+    <div class="brand-preview" [style.border-top-color]="brandColor()">
+      <div class="bp-head">
+        <img *ngIf="brandLogo()" [src]="brandLogo()" alt="logo" class="bp-logo" />
+        <span class="bp-title" [style.color]="brandColor()">{{ brandDisplayName() || 'FACTURA' }}</span>
+        <span class="bp-badge" [style.background]="brandColor()">Pagar</span>
+      </div>
+      <div class="bp-foot">{{ brandFooter() || 'Pie de la factura' }}</div>
+    </div>
+
+    <button class="btn mt" (click)="saveBranding()" [disabled]="savingBranding()">
+      {{ savingBranding() ? 'Guardando…' : 'Guardar branding' }}
+    </button>
+    <p *ngIf="brandingMsg() as m" class="msg" [class.err]="!m.ok">{{ m.text }}</p>
+  </section>
+
+  <!-- ============ Modal: pago manual ============ -->
+  <div class="modal-backdrop" *ngIf="payModalInvoice() as inv" (click)="closePayModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>Registrar pago manual</h3>
+      <p class="hint">Confirmá que cobraste {{ money(inv.totalCents, inv.currency) }} de la factura {{ inv.invoiceNumber }} por fuera del sistema.</p>
+      <label>Método</label>
+      <select class="in" [ngModel]="payMethod()" (ngModelChange)="payMethod.set($event)">
+        <option value="Cash">Efectivo</option>
+        <option value="Check">Cheque</option>
+        <option value="BankTransfer">Transferencia</option>
+        <option value="Other">Otro</option>
+      </select>
+      <div class="modal-actions">
+        <button class="link-btn" (click)="closePayModal()">Cancelar</button>
+        <button class="btn" (click)="confirmManualPay()" [disabled]="savingManualPay()">
+          {{ savingManualPay() ? 'Guardando…' : 'Marcar como pagada' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal: recibo ============ -->
+  <div class="modal-backdrop" *ngIf="receiptInvoice() as inv" (click)="closeReceipt()">
+    <div class="modal receipt" (click)="$event.stopPropagation()">
+      <div class="receipt-seal">PAGADA</div>
+      <h3>Recibo de pago</h3>
+      <div class="receipt-row" *ngIf="inv.receiptNumber"><span>N.º de recibo</span><strong>{{ inv.receiptNumber }}</strong></div>
+      <div class="receipt-row"><span>Factura</span><strong>{{ inv.invoiceNumber }}</strong></div>
+      <div class="receipt-row"><span>Monto pagado</span><strong>{{ money(inv.amountPaidCents, inv.currency) }}</strong></div>
+      <div class="receipt-row"><span>Método</span><strong>{{ inv.paymentMethod ?? '—' }}</strong></div>
+      <div class="receipt-row"><span>Fecha</span><strong>{{ inv.paidAtUtc | date: 'short' }}</strong></div>
+      <div class="receipt-row"><span>Estado</span><strong class="ok-text">{{ statusLabel(inv.status) }}</strong></div>
+      <div class="receipt-hash" *ngIf="inv.receiptHash">
+        <span>Hash de verificación (SHA-256) <button class="link-btn tiny" (click)="copyLink(inv.receiptHash!)">Copiar completo</button></span>
+        <code>{{ shortHash(inv.receiptHash) }}</code>
+      </div>
+      <div class="modal-actions">
+        <button class="link-btn" (click)="viewPdf(inv)">Ver factura (PDF)</button>
+        <button class="btn" (click)="closeReceipt()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>

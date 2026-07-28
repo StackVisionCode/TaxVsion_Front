@@ -92,6 +92,9 @@ export class LoginPageComponent {
   private handleOutcome(outcome: LoginOutcome): void {
     switch (outcome.kind) {
       case 'authenticated':
+        // Hidratar el usuario de sesión (GET /auth/me) antes de entrar al shell —
+        // corre durante la animación de salida, así el perfil ya está cargado.
+        this.auth.me().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
         void this.playExitSequence();
         break;
       case 'mfa-required':

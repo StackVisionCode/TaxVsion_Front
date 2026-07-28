@@ -1,0 +1,147 @@
+:host {
+  display: block;
+}
+
+.checkout-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f5f7;
+  padding: 24px;
+}
+
+.checkout-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(16, 24, 40, 0.08);
+  padding: 32px;
+  text-align: center;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 8px 0;
+  color: #101828;
+}
+
+.muted {
+  color: #667085;
+  font-size: 0.9rem;
+}
+
+.pay-to {
+  color: #475467;
+  margin-bottom: 4px;
+}
+
+.amount {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #101828;
+  margin: 4px 0;
+}
+
+.amount-done {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #027a48;
+  margin-top: 12px;
+}
+
+.ref {
+  margin-bottom: 20px;
+}
+
+.field-label {
+  display: block;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #344054;
+  margin: 16px 0 6px;
+}
+
+.input,
+.card-element {
+  width: 100%;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.card-element {
+  background: #fff;
+}
+
+.card-err {
+  color: #d92d20;
+  font-size: 0.8rem;
+  text-align: left;
+  margin-top: 6px;
+}
+
+.btn-primary {
+  width: 100%;
+  margin-top: 20px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 13px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-secondary {
+  margin-top: 16px;
+  background: #fff;
+  color: #4f46e5;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.test-hint {
+  margin-top: 12px;
+  font-size: 0.78rem;
+}
+
+.icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin: 0 auto 8px;
+}
+
+.icon.ok {
+  background: #d1fadf;
+  color: #027a48;
+}
+
+.icon.warn {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.powered {
+  margin-top: 24px;
+  font-size: 0.75rem;
+}

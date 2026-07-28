@@ -7,4 +7,6 @@ export const environment: Environment = {
   // TODO: en producción el tenant se resolverá por subdominio; placeholder por ahora.
   tenantId: '',
   authMock: false,
+  // TODO: publishable key de Stripe de producción (pk_live_…).
+  stripePublishableKey: '',
 };
