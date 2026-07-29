@@ -41,7 +41,7 @@ export class ReferralsPageComponent {
   readonly statusFilter = signal<StatusFilter>('All');
 
   /** Código de referido estático mostrado en la píldora de la tarjeta. */
-  readonly referralCode = 'TAXVISION-JR2026';
+  readonly referralCode = 'TAXPROOFFICE-JR2026';
 
   /** Toast transitorio: true durante 2s tras copiar el enlace de referido. */
   readonly copied = signal(false);
@@ -102,19 +102,19 @@ export class ReferralsPageComponent {
   }
 
   private get referralUrl(): string {
-    return `https://taxvision.app/join?ref=${this.referralCode}`;
+    return `https://taxprooffice.app/join?ref=${this.referralCode}`;
   }
 
   shareOnX(): void {
-    const text = encodeURIComponent(`Join TaxVision using my referral code ${this.referralCode} and we both get rewarded!`);
+    const text = encodeURIComponent(`Join TaxPro Office using my referral code ${this.referralCode} and we both get rewarded!`);
     const url = encodeURIComponent(this.referralUrl);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'noopener,noreferrer');
   }
 
   shareByEmail(): void {
-    const subject = encodeURIComponent('Join me on TaxVision');
+    const subject = encodeURIComponent('Join me on TaxPro Office');
     const body = encodeURIComponent(
-      `Use my referral code ${this.referralCode} when you sign up for TaxVision and we both get rewarded!\n\n${this.referralUrl}`,
+      `Use my referral code ${this.referralCode} when you sign up for TaxPro Office and we both get rewarded!\n\n${this.referralUrl}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }

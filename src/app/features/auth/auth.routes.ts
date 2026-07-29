@@ -39,4 +39,16 @@ export const AUTH_ROUTES: Routes = [
       ),
     title: 'Reset Password',
   },
+  {
+    // Ruta que recibe el link emailado por POST /auth/password/forgot (?token=...).
+    // Sin guestGuard a propósito: el link puede llegar con una sesión previa todavía
+    // viva en el navegador (otro dispositivo, sesión vieja) y el reset debe poder
+    // completarse igual.
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./components/reset-password-page/reset-password-page.component').then(
+        m => m.ResetPasswordPageComponent,
+      ),
+    title: 'Set New Password',
+  },
 ];

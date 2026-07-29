@@ -11,7 +11,7 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
 
 /**
- * Login conectado al backend TaxVision vía AuthService. Al enviar: se llama a
+ * Login conectado al backend TaxPro Office vía AuthService. Al enviar: se llama a
  * POST /auth/login; si hay tokens se reproduce la coreografía de salida (la tarjeta
  * se hunde, aparece el loader y se navega al dashboard/returnUrl); si el backend
  * pide MFA se enruta a /login/verify o /login/setup-mfa. En modo mock

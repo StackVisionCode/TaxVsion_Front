@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { AuthService } from '@core/auth/auth.service';
 
 /**
- * Visual port of the production navbar. No real services are wired in:
- * the user, notifications and customer search results are local sample
- * data held in signals. Search filtering is real (computed) so the UI
- * still feels interactive, but nothing ever touches a backend. The
- * notifications bell opens a local dropdown panel, not a modal service.
+ * Visual port of the production navbar. El usuario del menú viene de
+ * AuthService.currentUser() (GET /auth/me); notifications y customer search
+ * results siguen siendo datos locales de muestra. Search filtering es real
+ * (computed) así la UI se siente interactiva aunque no toque backend. La
+ * campana de notificaciones abre un panel local, no un servicio de modal.
  */
 
 interface NavbarUser {
@@ -51,6 +52,7 @@ interface NavbarCustomer {
 })
 export class NavbarComponent {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 
@@ -59,16 +61,31 @@ export class NavbarComponent {
   readonly isMobileMenuOpen = signal(false);
   readonly isNotificationsOpen = signal(false);
 
-  // Static "logged in" user placeholder
-  readonly user = signal<NavbarUser>({
-    name: 'Jordan',
-    lastName: 'Reyes',
-    fullName: 'Jordan Reyes',
-    companyName: 'Reyes Tax & Accounting',
-    email: 'jordan.reyes@taxvision.com',
-    avatarUrl: null,
-    isOwner: true,
-    role: 'Administrator',
+  // Usuario logueado real, derivado de AuthService.currentUser() (GET /auth/me).
+  readonly user = computed<NavbarUser>(() => {
+    const me = this.auth.currentUser();
+    if (!me) {
+      return {
+        name: '',
+        lastName: '',
+        fullName: '',
+        companyName: '',
+        email: '',
+        avatarUrl: null,
+        isOwner: false,
+        role: '',
+      };
+    }
+    return {
+      name: me.name,
+      lastName: me.lastName,
+      fullName: `${me.name} ${me.lastName}`.trim(),
+      companyName: me.tenant?.name ?? '',
+      email: me.email,
+      avatarUrl: null,
+      isOwner: me.actorType === 'TenantAdmin',
+      role: me.roles[0] ?? me.actorType,
+    };
   });
 
   // Static notifications feed
@@ -253,7 +270,7 @@ export class NavbarComponent {
 
   logout(): void {
     this.isUserMenuOpen.set(false);
-    this.router.navigate(['/login']);
+    this.auth.logout().subscribe(() => this.router.navigate(['/login']));
   }
 
   // ==========================================

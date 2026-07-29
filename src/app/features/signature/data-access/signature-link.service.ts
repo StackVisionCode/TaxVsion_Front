@@ -5,7 +5,7 @@ import { defaultRules } from '../ui/signature-request-panel/signature-wizard.moc
 export interface SigningLink {
   token: string;
   signer: Signer;
-  /** Ruta interna del enlace de firma (mock de firma.taxvision.app/s/<token>). */
+  /** Ruta interna del enlace de firma (mock de firma.taxprooffice.app/s/<token>). */
   url: string;
 }
 

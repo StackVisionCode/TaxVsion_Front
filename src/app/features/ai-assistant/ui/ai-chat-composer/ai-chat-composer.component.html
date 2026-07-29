@@ -11,7 +11,7 @@
   <!-- Input row -->
   <form class="flex items-center gap-2" (ngSubmit)="submit()">
     <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-      <input type="text" placeholder="Ask TaxVision AI anything..." [ngModel]="draft()" name="draft"
+      <input type="text" placeholder="Ask TaxPro Office AI anything..." [ngModel]="draft()" name="draft"
         (ngModelChange)="draft.set($event)" [disabled]="disabled"
         class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
     </div>

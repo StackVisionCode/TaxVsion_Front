@@ -29,7 +29,7 @@ export class CompanySettingsPageComponent {
   readonly structures = BUSINESS_STRUCTURES;
 
   readonly companyName = signal('Reyes Tax & Accounting');
-  readonly brand = signal('TaxVision');
+  readonly brand = signal('TaxPro Office');
   readonly ein = signal('47-2913650');
   readonly phone = signal('(555) 214-7890');
   readonly businessStructure = signal('LLC Multi Member');
