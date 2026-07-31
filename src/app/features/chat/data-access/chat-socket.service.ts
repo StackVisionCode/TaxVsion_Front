@@ -4,6 +4,7 @@ import { Subject } from 'rxjs';
 import { environment } from '@env/environment';
 import { TokenService } from '@core/auth/token.service';
 import {
+  AttachmentFlaggedDto,
   MessageDeletedDto,
   MessageDto,
   MessageEditedDto,
@@ -20,6 +21,8 @@ const EVENTS = {
   markRead: 'chat.message.mark_read',
   typingStart: 'chat.typing.start',
   typingStop: 'chat.typing.stop',
+  startDirect: 'chat.conversation.start_direct',
+  startGroup: 'chat.conversation.start_group',
 } as const;
 
 /**
@@ -43,6 +46,7 @@ export class ChatSocketService {
   readonly typingStarted$ = new Subject<TypingDto>();
   readonly typingStopped$ = new Subject<TypingDto>();
   readonly presenceChanged$ = new Subject<PresenceChangedDto>();
+  readonly attachmentFlagged$ = new Subject<AttachmentFlaggedDto>();
   readonly sessionRevoked$ = new Subject<void>();
 
   connect(): void {
@@ -71,8 +75,28 @@ export class ChatSocketService {
     return this.emitWithAck(EVENTS.sendMessage, { clientKey: newClientKey(), conversationId, body });
   }
 
+  /** Mismo evento que sendMessage, pero con attachmentFileId — body/attachmentFileId son mutuamente excluyentes en el backend. */
+  async sendAttachment(conversationId: string, attachmentFileId: string): Promise<SocketAck<{ message: MessageDto }>> {
+    return this.emitWithAck(EVENTS.sendMessage, { clientKey: newClientKey(), conversationId, attachmentFileId });
+  }
+
   async markRead(conversationId: string, lastReadMessageId: string): Promise<SocketAck<{ markedCount: number }>> {
     return this.emitWithAck(EVENTS.markRead, { clientKey: newClientKey(), conversationId, lastReadMessageId });
+  }
+
+  /** Crea (o reabre, ver `wasCreated`) un chat 1:1. Requiere permiso communication.chat.start. */
+  async startDirectConversation(
+    recipientUserId: string,
+  ): Promise<SocketAck<{ conversationId: string; wasCreated: boolean }>> {
+    return this.emitWithAck(EVENTS.startDirect, { clientKey: newClientKey(), recipientUserId });
+  }
+
+  /** Crea un grupo nuevo (nunca dedupe). Requiere permiso communication.group.create + tenant con internalGroupsEnabled. */
+  async startGroupConversation(
+    title: string,
+    memberUserIds: string[],
+  ): Promise<SocketAck<{ conversationId: string }>> {
+    return this.emitWithAck(EVENTS.startGroup, { clientKey: newClientKey(), title, memberUserIds });
   }
 
   typingStart(conversationId: string): void {
@@ -110,6 +134,9 @@ export class ChatSocketService {
     socket.on('chat.typing.stopped', (envelope: SocketEnvelope<TypingDto>) => this.typingStopped$.next(envelope.payload));
     socket.on('chat.presence.changed', (envelope: SocketEnvelope<PresenceChangedDto>) =>
       this.presenceChanged$.next(envelope.payload),
+    );
+    socket.on('chat.message.attachment_flagged', (envelope: SocketEnvelope<AttachmentFlaggedDto>) =>
+      this.attachmentFlagged$.next(envelope.payload),
     );
     // Canal propio, separado de cualquier otro evento — logout forzado inmediato (ver README Communication).
     socket.on('session.revoked', () => this.sessionRevoked$.next());

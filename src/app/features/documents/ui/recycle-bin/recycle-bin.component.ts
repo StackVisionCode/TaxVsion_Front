@@ -1,44 +1,43 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Output, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-interface DeletedItem {
-  id: string;
-  name: string;
-  kind: 'file' | 'folder';
-  deletedAt: string;
-  size: string;
-}
-
-const SEED_DELETED: DeletedItem[] = [
-  { id: 'r1', name: 'Old_W4_2023.pdf', kind: 'file', deletedAt: 'Jun 22, 2026', size: '310 KB' },
-  { id: 'r2', name: 'Drafts', kind: 'folder', deletedAt: 'Jun 18, 2026', size: '4 items' },
-  { id: 'r3', name: 'Duplicate_Receipt.jpg', kind: 'file', deletedAt: 'Jun 10, 2026', size: '1.8 MB' },
-  { id: 'r4', name: 'Notes_old.doc', kind: 'file', deletedAt: 'May 29, 2026', size: '54 KB' },
-];
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { RecycleBinItemResponse, formatBytes, formatDate } from '../../data-access/documents.model';
 
 /**
- * Papelera del módulo Documents (estilo "Aether"): summary cards + tabla con
- * acciones locales reales (Restore quita el ítem, Delete forever también).
+ * Papelera del módulo Documents (estilo "Aether"): summary card + tabla.
+ * Presentacional puro — los items vienen de DocumentsStore (GET
+ * /storage/recycle-bin) vía el contenedor `documents-page`. El backend solo
+ * soporta restaurar por archivo y vaciar TODA la papelera de una
+ * (DELETE /storage/recycle-bin/empty) — no hay purga individual, por eso acá
+ * no hay "Delete forever" por fila.
  */
 @Component({
   selector: 'app-recycle-bin',
-  imports: [CommonModule],
+  imports: [CommonModule, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './recycle-bin.component.html',
 })
 export class RecycleBinComponent {
+  @Input() items: RecycleBinItemResponse[] = [];
+  @Input() loading = false;
+  @Input() error: string | null = null;
+
   @Output() back = new EventEmitter<void>();
+  @Output() restore = new EventEmitter<string>();
+  @Output() emptyBin = new EventEmitter<void>();
 
-  readonly items = signal<DeletedItem[]>([...SEED_DELETED]);
+  readonly confirmEmptyOpen = signal(false);
 
-  readonly fileCount = computed(() => this.items().filter(i => i.kind === 'file').length);
-  readonly folderCount = computed(() => this.items().filter(i => i.kind === 'folder').length);
-
-  restore(item: DeletedItem): void {
-    this.items.update(items => items.filter(i => i.id !== item.id));
+  size(item: RecycleBinItemResponse): string {
+    return formatBytes(item.sizeBytes);
   }
 
-  deleteForever(item: DeletedItem): void {
-    this.items.update(items => items.filter(i => i.id !== item.id));
+  deletedAt(item: RecycleBinItemResponse): string {
+    return formatDate(item.softDeletedAtUtc);
+  }
+
+  confirmEmpty(): void {
+    this.confirmEmptyOpen.set(false);
+    this.emptyBin.emit();
   }
 }

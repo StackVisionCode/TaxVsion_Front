@@ -1,8 +1,16 @@
 <div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
   <!-- Conversation rail -->
   <div class="bg-white rounded-[28px] p-5 lg:col-span-1">
-    <h2 class="text-xl font-bold text-gray-900 px-1">Chat</h2>
-    <p class="mt-1 text-sm text-gray-500 px-1">Team conversations</p>
+    <div class="flex items-start justify-between gap-2 px-1">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Chat</h2>
+        <p class="mt-1 text-sm text-gray-500">Team conversations</p>
+      </div>
+      <button type="button" (click)="openNewConversation()" aria-label="New chat"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="add-outline" class="text-lg"></ion-icon>
+      </button>
+    </div>
 
     <p *ngIf="loading()" class="mt-2 px-1 text-xs text-gray-400">Loading conversations…</p>
     <p *ngIf="loadError()" class="mt-2 px-1 text-xs text-red-600">{{ loadError() }}</p>
@@ -40,12 +48,14 @@
     <!-- Thread -->
     <div class="flex-1 overflow-y-auto py-4">
       <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
-        [otherAvatarColor]="activeConversation.avatarColor"></app-chat-thread>
+        [otherAvatarColor]="activeConversation.avatarColor"
+        (attachmentClicked)="onAttachmentClicked($event)"></app-chat-thread>
     </div>
 
     <!-- Composer -->
     <div class="pt-4 border-t border-gray-100">
-      <app-chat-composer (send)="sendMessage($event)"></app-chat-composer>
+      <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
+        (attach)="onAttach($event)"></app-chat-composer>
     </div>
   </div>
 </div>
@@ -65,7 +75,8 @@
   <div class="mt-5">
     <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Shared files</span>
     <div class="mt-2 flex flex-col gap-2">
-      <div *ngFor="let file of sharedAttachments" class="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+      <button *ngFor="let file of sharedAttachments" type="button" (click)="onAttachmentClicked(file.fileId)"
+        class="flex items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50 transition-colors">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CBD9F2]">
           <ion-icon name="document-outline" class="text-base text-gray-700"></ion-icon>
         </span>
@@ -73,7 +84,7 @@
           <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
           <span class="block text-xs text-gray-400">{{ file.size }}</span>
         </span>
-      </div>
+      </button>
 
       <p *ngIf="sharedAttachments.length === 0" class="px-2 py-4 text-center text-sm text-gray-400">
         No files shared in this conversation
@@ -81,3 +92,9 @@
     </div>
   </div>
 </app-modal>
+
+<app-new-conversation-modal [isOpen]="isNewConversationOpen()" [employees]="employeeResults()"
+  [searching]="employeeSearchLoading()" [error]="employeeSearchError()" [creationError]="newConversationError()"
+  [canCreateGroups]="canCreateGroups()" [creating]="creatingConversation()" (closed)="closeNewConversation()"
+  (searchChanged)="onEmployeeSearch($event)" (directSelected)="onDirectSelected($event)"
+  (groupCreateRequested)="onGroupCreateRequested($event)"></app-new-conversation-modal>

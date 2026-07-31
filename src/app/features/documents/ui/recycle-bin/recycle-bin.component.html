@@ -8,24 +8,31 @@
     </button>
     <div>
       <h2 class="text-xl font-bold text-gray-900">Recycle bin</h2>
-      <p class="mt-0.5 text-sm text-gray-500">Deleted items are kept for 30 days</p>
+      <p class="mt-0.5 text-sm text-gray-500">Deleted files are kept until the bin is emptied</p>
     </div>
+
+    <button type="button" *ngIf="items.length > 0" (click)="confirmEmptyOpen.set(true)"
+      class="ml-auto flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
+      <ion-icon name="trash-outline" class="text-base"></ion-icon>
+      Empty recycle bin
+    </button>
   </div>
 
-  <!-- Summary cards -->
-  <div class="mt-5 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))] max-w-md">
+  <!-- Error banner -->
+  <div *ngIf="error" class="mt-4 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
+    {{ error }}
+  </div>
+
+  <!-- Summary card -->
+  <div class="mt-5 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))] max-w-xs">
     <div class="rounded-2xl bg-[#EEEBFA] p-5">
       <p class="text-sm text-gray-500">Deleted files</p>
-      <p class="mt-1 text-3xl font-bold text-gray-900">{{ fileCount() }}</p>
-    </div>
-    <div class="rounded-2xl bg-[#F2E3C9] p-5">
-      <p class="text-sm text-gray-500">Deleted folders</p>
-      <p class="mt-1 text-3xl font-bold text-gray-900">{{ folderCount() }}</p>
+      <p class="mt-1 text-3xl font-bold text-gray-900">{{ items.length }}</p>
     </div>
   </div>
 
   <!-- Items table -->
-  <div class="mt-5 overflow-x-auto" *ngIf="items().length > 0; else emptyBin">
+  <div class="mt-5 overflow-x-auto" *ngIf="items.length > 0; else emptyBinState">
     <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
       <thead>
         <tr>
@@ -36,44 +43,47 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of items(); let last = last" class="group">
+        <tr *ngFor="let item of items; let last = last" class="group">
           <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
             [class.border-gray-100]="!last">
             <span class="flex items-center gap-3">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100">
-                <ion-icon [name]="item.kind === 'folder' ? 'folder-outline' : 'document-text-outline'"
-                  class="text-base text-gray-500"></ion-icon>
+                <ion-icon name="document-text-outline" class="text-base text-gray-500"></ion-icon>
               </span>
-              <span class="font-medium text-gray-700">{{ item.name }}</span>
+              <span class="font-medium text-gray-700">{{ item.originalName }}</span>
             </span>
           </td>
           <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
-            [class.border-gray-100]="!last">{{ item.deletedAt }}</td>
+            [class.border-gray-100]="!last">{{ deletedAt(item) }}</td>
           <td class="px-4 py-3.5 text-right text-gray-500 group-hover:bg-gray-50 transition-colors"
-            [class.border-b]="!last" [class.border-gray-100]="!last">{{ item.size }}</td>
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ size(item) }}</td>
           <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
             [class.border-b]="!last" [class.border-gray-100]="!last">
-            <span class="inline-flex items-center gap-2">
-              <button type="button" (click)="restore(item)"
-                class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors">
-                Restore
-              </button>
-              <button type="button" (click)="deleteForever(item)"
-                class="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
-                Delete forever
-              </button>
-            </span>
+            <button type="button" (click)="restore.emit(item.id)"
+              class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors">
+              Restore
+            </button>
           </td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <ng-template #emptyBin>
-    <div class="px-4 py-12 text-center">
+  <!-- Loading state -->
+  <div *ngIf="loading" class="px-4 py-12 text-center">
+    <ion-icon name="reload-outline" class="text-4xl text-gray-300 animate-spin"></ion-icon>
+    <p class="mt-2 text-sm font-medium text-gray-600">Loading…</p>
+  </div>
+
+  <ng-template #emptyBinState>
+    <div *ngIf="!loading" class="px-4 py-12 text-center">
       <ion-icon name="trash-outline" class="text-4xl text-gray-300"></ion-icon>
       <p class="mt-2 text-sm font-medium text-gray-600">Recycle bin is empty</p>
-      <p class="text-xs text-gray-400 mt-1">Deleted files and folders will appear here</p>
+      <p class="text-xs text-gray-400 mt-1">Deleted files will appear here</p>
     </div>
   </ng-template>
 </div>
+
+<app-confirm-dialog [isOpen]="confirmEmptyOpen()" heading="Empty recycle bin?"
+  message="This permanently deletes every file currently in the recycle bin. This cannot be undone."
+  confirmLabel="Empty bin" (confirmed)="confirmEmpty()" (cancelled)="confirmEmptyOpen.set(false)"></app-confirm-dialog>

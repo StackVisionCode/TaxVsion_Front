@@ -1,11 +1,20 @@
-import { AfterViewChecked, Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, Input, ViewChild } from '@angular/core';
+import {
+  AfterViewChecked,
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  EventEmitter,
+  Input,
+  Output,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface ChatMessage {
   id: string;
   senderId: 'me' | 'them';
   text?: string;
-  attachment?: { name: string; size: string };
+  attachment?: { name: string; size: string; fileId: string };
   time: string;
   dateGroup: string;
 }
@@ -27,6 +36,7 @@ export class ChatThreadComponent implements AfterViewChecked {
   @Input() messages: ChatMessage[] = [];
   @Input() otherName = '';
   @Input() otherAvatarColor = 'bg-gray-900';
+  @Output() attachmentClicked = new EventEmitter<string>();
 
   @ViewChild('scrollAnchor') private scrollAnchor?: ElementRef<HTMLDivElement>;
 
