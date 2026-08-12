@@ -14,6 +14,12 @@ export const routes: Routes = [
     loadChildren: () => import('./features/signup/signup.routes').then(m => m.SIGNUP_ROUTES),
   },
   {
+    // Alta PAGO-PRIMERO pública (fuera del shell/authGuard): email OTP → plan → códigos+pago (Stripe
+    // o cubierto 100%) → email de registro. Ejercita el flujo /onboarding/* con gift/promo/referido.
+    path: 'onboarding',
+    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES),
+  },
+  {
     // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
     path: 'sign/:token',
     loadComponent: () =>
