@@ -1,13 +1,17 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { Observable, forkJoin, of } from 'rxjs';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { FileResponse, formatBytes } from '@core/cloud-storage/cloud-storage.model';
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatMessage } from '../ui/chat-thread/chat-thread.component';
+import { ChatAttachmentsService } from './chat-attachments.service';
+import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
-import { ConversationSummary, MessageDto } from './chat.model';
+import { ConversationSummary, EmployeeDirectoryEntry, MessageDto } from './chat.model';
 
 const AVATAR_PALETTE = ['bg-gray-900', 'bg-indigo-600', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-emerald-500'];
 
@@ -43,14 +47,19 @@ function formatDateGroup(iso: string): string {
  * Store de Chat de equipo (Communication, `/communication` vía Gateway). El
  * listado y el historial vienen de HTTP; crear conversación, enviar/editar/
  * borrar mensaje, typing y presencia son Socket.IO-only en el backend real
- * (ver ChatSocketService). No hay "nueva conversación" en esta UI todavía —
- * solo se conectan las conversaciones que ya existen.
+ * (ver ChatSocketService). Nueva conversación (directa o grupo, según
+ * `canCreateGroups`) y adjuntos reales (CloudStorage, `@core/cloud-storage`)
+ * ya están conectados; siguen afuera: reacciones, editar/borrar desde la UI,
+ * y video-llamadas.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
   private readonly chatService = inject(ChatService);
   private readonly socket = inject(ChatSocketService);
   private readonly auth = inject(AuthService);
+  private readonly directory = inject(ChatDirectoryService);
+  private readonly attachments = inject(ChatAttachmentsService);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
 
   private readonly _conversations = signal<ChatConversation[]>([]);
   private readonly _loading = signal(false);
@@ -66,6 +75,32 @@ export class ChatStore {
   /** userId del otro participante por conversación 1:1 — para reflejar chat.presence.changed. */
   private readonly otherParticipantByConversation = new Map<string, string>();
   private socketWired = false;
+
+  // ---------- Nueva conversación ----------
+  private readonly _employeeResults = signal<EmployeeDirectoryEntry[]>([]);
+  private readonly _employeeSearchLoading = signal(false);
+  private readonly _employeeSearchError = signal<string | null>(null);
+  private readonly _newConversationError = signal<string | null>(null);
+  private readonly _creatingConversation = signal(false);
+
+  readonly employeeResults = this._employeeResults.asReadonly();
+  readonly employeeSearchLoading = this._employeeSearchLoading.asReadonly();
+  readonly employeeSearchError = this._employeeSearchError.asReadonly();
+  readonly newConversationError = this._newConversationError.asReadonly();
+  readonly creatingConversation = this._creatingConversation.asReadonly();
+
+  /** communication.group.create solo lo tiene Tenant Admin por defecto — ver MeResponse.permissions. */
+  readonly canCreateGroups = computed(
+    () => this.auth.currentUser()?.permissions.includes('communication.group.create') ?? false,
+  );
+
+  // ---------- Adjuntos ----------
+  private readonly _uploadingAttachment = signal(false);
+  readonly uploadingAttachment = this._uploadingAttachment.asReadonly();
+
+  /** Metadata resuelta perezosamente para adjuntos ajenos/históricos (el MessageDto solo trae el fileId). */
+  private readonly fileMetaCache = new Map<string, FileResponse>();
+  private readonly pendingFileMetaLookups = new Set<string>();
 
   load(): void {
     this.socket.connect();
@@ -138,6 +173,111 @@ export class ChatStore {
     this.appendMessage(ack.value.message);
   }
 
+  async sendAttachment(file: File): Promise<void> {
+    const conversationId = this._activeConversationId();
+    if (!conversationId) {
+      return;
+    }
+    this._uploadingAttachment.set(true);
+    try {
+      const fileId = await firstValueFrom(this.attachments.uploadAttachment(conversationId, file));
+      const ack = await this.socket.sendAttachment(conversationId, fileId);
+      if (!ack.ok) {
+        console.warn('No se pudo enviar el adjunto:', ack.message);
+        return;
+      }
+      this.appendMessage(ack.value.message, { name: file.name, size: formatBytes(file.size), fileId });
+    } catch (err) {
+      console.warn('No se pudo subir el adjunto:', toApiError(err).message);
+    } finally {
+      this._uploadingAttachment.set(false);
+    }
+  }
+
+  downloadAttachment(fileId: string): void {
+    this.cloudStorage.getDownloadUrl(fileId).subscribe({
+      next: res => window.open(res.downloadUrl, '_blank'),
+      error: err => console.warn('No se pudo descargar el adjunto:', toApiError(err).message),
+    });
+  }
+
+  // ---------- Nueva conversación ----------
+
+  searchEmployees(term: string): void {
+    const trimmed = term.trim();
+    if (!trimmed) {
+      this._employeeResults.set([]);
+      this._employeeSearchError.set(null);
+      return;
+    }
+    this._employeeSearchLoading.set(true);
+    this._employeeSearchError.set(null);
+    this.directory.searchEmployees(trimmed).subscribe({
+      next: results => {
+        this._employeeResults.set(results);
+        this._employeeSearchLoading.set(false);
+      },
+      error: err => {
+        this._employeeSearchError.set(toApiError(err).message);
+        this._employeeSearchLoading.set(false);
+      },
+    });
+  }
+
+  resetNewConversationState(): void {
+    this._employeeResults.set([]);
+    this._employeeSearchError.set(null);
+    this._newConversationError.set(null);
+    this._creatingConversation.set(false);
+  }
+
+  async startDirectConversation(entry: EmployeeDirectoryEntry): Promise<boolean> {
+    this._creatingConversation.set(true);
+    this._newConversationError.set(null);
+    const ack = await this.socket.startDirectConversation(entry.userId);
+    this._creatingConversation.set(false);
+    if (!ack.ok) {
+      this._newConversationError.set(ack.message);
+      return false;
+    }
+    this.ensureOptimisticConversation(ack.value.conversationId, entry.displayName);
+    this.selectConversation(ack.value.conversationId);
+    return true;
+  }
+
+  async createGroupConversation(title: string, members: EmployeeDirectoryEntry[]): Promise<boolean> {
+    this._creatingConversation.set(true);
+    this._newConversationError.set(null);
+    const ack = await this.socket.startGroupConversation(
+      title,
+      members.map(m => m.userId),
+    );
+    this._creatingConversation.set(false);
+    if (!ack.ok) {
+      this._newConversationError.set(ack.message);
+      return false;
+    }
+    this.ensureOptimisticConversation(ack.value.conversationId, title);
+    this.selectConversation(ack.value.conversationId);
+    return true;
+  }
+
+  /** El ack de start_direct/start_group no trae title/participants — se arma la fila con lo que ya elegimos en el picker. */
+  private ensureOptimisticConversation(id: string, name: string): void {
+    if (this._conversations().some(c => c.id === id)) {
+      return;
+    }
+    const conversation: ChatConversation = {
+      id,
+      name,
+      avatarColor: avatarColorFor(id),
+      online: false,
+      unread: 0,
+      messages: [],
+    };
+    this._conversations.update(list => [conversation, ...list]);
+  }
+
   private toConversation(
     summary: ConversationSummary,
     currentUserId: string | null,
@@ -155,7 +295,7 @@ export class ChatStore {
     };
   }
 
-  private toMessage(dto: MessageDto, currentUserId: string | null): ChatMessage {
+  private toMessage(dto: MessageDto, currentUserId: string | null, knownAttachment?: ChatMessage['attachment']): ChatMessage {
     const isMine = !!currentUserId && dto.senderId === currentUserId;
     return {
       id: dto.id,
@@ -163,16 +303,45 @@ export class ChatStore {
       text: dto.isDeleted ? '(message deleted)' : dto.kind === 'Text' ? (dto.body ?? undefined) : undefined,
       attachment:
         !dto.isDeleted && dto.kind === 'Attachment' && dto.attachmentFileId
-          ? { name: 'Attachment', size: '' }
+          ? (knownAttachment ?? this.resolveAttachment(dto.attachmentFileId))
           : undefined,
       time: formatTime(dto.createdAtUtc),
       dateGroup: formatDateGroup(dto.createdAtUtc),
     };
   }
 
-  private appendMessage(dto: MessageDto): void {
+  /** MessageDto solo trae el fileId — arma un placeholder y dispara la resolución real una vez, cacheada por fileId. */
+  private resolveAttachment(fileId: string): NonNullable<ChatMessage['attachment']> {
+    const cached = this.fileMetaCache.get(fileId);
+    if (cached) {
+      return { name: cached.originalName, size: formatBytes(cached.sizeBytes), fileId };
+    }
+    if (!this.pendingFileMetaLookups.has(fileId)) {
+      this.pendingFileMetaLookups.add(fileId);
+      this.cloudStorage.getFile(fileId).subscribe({
+        next: file => {
+          this.fileMetaCache.set(fileId, file);
+          this.pendingFileMetaLookups.delete(fileId);
+          this._conversations.update(list =>
+            list.map(c => ({
+              ...c,
+              messages: c.messages.map(m =>
+                m.attachment?.fileId === fileId
+                  ? { ...m, attachment: { name: file.originalName, size: formatBytes(file.sizeBytes), fileId } }
+                  : m,
+              ),
+            })),
+          );
+        },
+        error: () => this.pendingFileMetaLookups.delete(fileId),
+      });
+    }
+    return { name: 'Attachment', size: '', fileId };
+  }
+
+  private appendMessage(dto: MessageDto, knownAttachment?: ChatMessage['attachment']): void {
     const currentUserId = this.auth.currentUser()?.id ?? null;
-    const message = this.toMessage(dto, currentUserId);
+    const message = this.toMessage(dto, currentUserId, knownAttachment);
     this._conversations.update(list =>
       list.map(c => {
         if (c.id !== dto.conversationId) {
@@ -229,6 +398,21 @@ export class ChatStore {
         list.map(c =>
           this.otherParticipantByConversation.get(c.id) === presence.userId
             ? { ...c, online: presence.status === 'Online' }
+            : c,
+        ),
+      );
+    });
+
+    this.socket.attachmentFlagged$.subscribe(flag => {
+      this._conversations.update(list =>
+        list.map(c =>
+          c.id === flag.conversationId
+            ? {
+                ...c,
+                messages: c.messages.map(m =>
+                  m.id === flag.messageId ? { ...m, text: '(attachment removed)', attachment: undefined } : m,
+                ),
+              }
             : c,
         ),
       );

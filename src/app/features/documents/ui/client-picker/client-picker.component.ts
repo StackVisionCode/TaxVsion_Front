@@ -1,27 +1,15 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Output, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DocumentsClientSummary } from '../../data-access/documents-clients.service';
 
-export interface DocumentsClient {
-  id: string;
-  name: string;
-  email: string;
-  docCount: number;
-  lastUpload: string;
-}
-
-const CLIENTS: DocumentsClient[] = [
-  { id: 'c1', name: 'Maria Gonzalez', email: 'maria.gonzalez@example.com', docCount: 24, lastUpload: '2 days ago' },
-  { id: 'c2', name: 'David Chen', email: 'david.chen@example.com', docCount: 11, lastUpload: '1 week ago' },
-  { id: 'c3', name: 'Acme Corp', email: 'billing@acmecorp.com', docCount: 42, lastUpload: 'Yesterday' },
-  { id: 'c4', name: 'Sarah Kim', email: 'sarah.kim@example.com', docCount: 8, lastUpload: '3 weeks ago' },
-  { id: 'c5', name: 'Alvarez Family Trust', email: 'contact@alvarezfamily.com', docCount: 17, lastUpload: '5 days ago' },
-  { id: 'c6', name: 'Riverside Bakery', email: 'owner@riversidebakery.com', docCount: 6, lastUpload: '1 month ago' },
-];
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * Selector de cliente del módulo Documents (estilo "Aether"): búsqueda píldora
- * y tabla con header píldora. Visual-only: clientes estáticos, filtrado local.
+ * y tabla con header píldora. Presentacional puro — la lista viene de
+ * DocumentsStore (GET /customers) vía el contenedor `documents-page`; acá solo
+ * se debounce el texto de búsqueda antes de emitirlo.
  */
 @Component({
   selector: 'app-client-picker',
@@ -30,29 +18,34 @@ const CLIENTS: DocumentsClient[] = [
   templateUrl: './client-picker.component.html',
 })
 export class ClientPickerComponent {
-  @Output() clientSelected = new EventEmitter<DocumentsClient>();
+  @Input() clients: DocumentsClientSummary[] = [];
+  @Input() loading = false;
+  @Input() error: string | null = null;
+  @Output() search = new EventEmitter<string>();
+  @Output() clientSelected = new EventEmitter<DocumentsClientSummary>();
 
   readonly searchTerm = signal('');
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
-  readonly filteredClients = computed(() => {
-    const term = this.searchTerm().trim().toLowerCase();
-    if (!term) {
-      return CLIENTS;
-    }
-    return CLIENTS.filter(
-      c => c.name.toLowerCase().includes(term) || c.email.toLowerCase().includes(term),
-    );
-  });
+  onSearchChange(value: string): void {
+    this.searchTerm.set(value);
+    clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => this.search.emit(value), SEARCH_DEBOUNCE_MS);
+  }
 
-  initials(client: DocumentsClient): string {
-    const words = client.name.trim().split(/\s+/);
+  initials(client: DocumentsClientSummary): string {
+    const words = client.displayName.trim().split(/\s+/);
     return words.length >= 2
       ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
-      : client.name.substring(0, 2).toUpperCase();
+      : client.displayName.substring(0, 2).toUpperCase();
   }
 
   avatarClass(index: number): string {
     const palette = ['bg-gray-900', 'bg-indigo-600', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-emerald-500'];
     return palette[index % palette.length];
+  }
+
+  statusChip(client: DocumentsClientSummary): string {
+    return client.status === 'Active' ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500';
   }
 }

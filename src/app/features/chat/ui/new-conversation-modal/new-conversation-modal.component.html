@@ -1,0 +1,68 @@
+<app-modal [isOpen]="isOpen" heading="New conversation" subheading="Start a chat with a teammate" size="sm"
+  (closed)="closed.emit()">
+  <!-- Mode toggle (solo si el usuario puede crear grupos) -->
+  <div *ngIf="canCreateGroups" class="mt-4 flex items-center rounded-full border border-gray-200 p-0.5 w-fit">
+    <button type="button" (click)="mode.set('direct')"
+      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="mode() === 'direct' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'">
+      Direct
+    </button>
+    <button type="button" (click)="mode.set('group')"
+      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="mode() === 'group' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'">
+      Group
+    </button>
+  </div>
+
+  <!-- Group title -->
+  <div *ngIf="mode() === 'group'" class="mt-4">
+    <input type="text" placeholder="Group name" [ngModel]="groupTitle()" (ngModelChange)="groupTitle.set($event)"
+      class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300" />
+  </div>
+
+  <!-- Search -->
+  <div class="mt-4 relative">
+    <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+      <ion-icon name="search-outline" class="absolute left-4 text-base text-gray-400 pointer-events-none"></ion-icon>
+      <input type="text" placeholder="Search teammates..." [ngModel]="searchTerm()"
+        (ngModelChange)="onSearchChange($event)"
+        class="w-full h-full bg-transparent pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+    </div>
+  </div>
+
+  <p *ngIf="creationError" class="mt-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600">
+    {{ creationError }}
+  </p>
+  <p *ngIf="error" class="mt-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600">
+    {{ error }}
+  </p>
+
+  <!-- Results -->
+  <div class="mt-3 max-h-72 overflow-y-auto flex flex-col gap-1">
+    <button *ngFor="let entry of employees" type="button" (click)="selectEmployee(entry)"
+      [disabled]="creating"
+      class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">
+        {{ initials(entry.displayName) }}
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
+        <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+      </span>
+      <ion-icon *ngIf="mode() === 'group' && isSelected(entry)" name="checkmark-circle" class="text-lg text-gray-900"></ion-icon>
+    </button>
+
+    <p *ngIf="!searching && employees.length === 0" class="px-3 py-6 text-center text-sm text-gray-400">
+      {{ searchTerm().trim() ? 'No teammates found' : 'Type a name to search' }}
+    </p>
+    <p *ngIf="searching" class="px-3 py-6 text-center text-sm text-gray-400">Searching…</p>
+  </div>
+
+  <!-- Group create action -->
+  <div *ngIf="mode() === 'group'" class="mt-4 flex justify-end">
+    <button type="button" (click)="createGroup()" [disabled]="creating || !groupTitle().trim() || selectedMembers().length === 0"
+      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+      {{ creating ? 'Creating…' : 'Create group (' + selectedMembers().length + ')' }}
+    </button>
+  </div>
+</app-modal>

@@ -88,6 +88,24 @@ export interface MessageDeletedDto {
   deletedAtUtc: string;
 }
 
+/** Fila de GET /communication/directory/employees?q=&limit=. */
+export interface EmployeeDirectoryEntry {
+  userId: string;
+  displayName: string;
+  email: string;
+  isActive: boolean;
+  actorType: string;
+}
+
+/** Payload de chat.message.attachment_flagged — CloudStorage marcó el adjunto como no disponible. */
+export interface AttachmentFlaggedDto {
+  messageId: string;
+  conversationId: string;
+  fileId: string;
+  status: 'Infected' | 'Deleted' | 'BlockedByPolicy';
+  flaggedAtUtc: string;
+}
+
 /** Sobre de ack de todos los comandos Socket.IO (send/edit/delete/markRead/...). */
 export type SocketAck<T> = { ok: true; value: T } | { ok: false; code: string; message: string };
 
