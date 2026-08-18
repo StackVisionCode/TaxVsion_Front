@@ -110,7 +110,14 @@ export class MfaVerifyPageComponent implements OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          void this.router.navigateByUrl('/dashboard');
+          // Hidratar el usuario de sesión (GET /auth/me) y recién ahí entrar al shell.
+          this.auth
+            .me()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => void this.router.navigateByUrl('/dashboard'),
+              error: () => void this.router.navigateByUrl('/dashboard'),
+            });
         },
         error: err => {
           this.submitting.set(false);

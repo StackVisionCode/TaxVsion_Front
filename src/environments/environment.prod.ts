@@ -14,4 +14,6 @@ export const environment: Environment = {
   // a propósito.
   tenantId: '',
   authMock: false,
+  // TODO: publishable key de Stripe de producción (pk_live_…).
+  stripePublishableKey: '',
 };

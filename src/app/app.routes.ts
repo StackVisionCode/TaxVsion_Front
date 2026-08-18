@@ -9,11 +9,31 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
   },
   {
+    // Alta self-service pública (fuera del shell/authGuard): plan → cuenta → MFA → pago.
+    path: 'signup',
+    loadChildren: () => import('./features/signup/signup.routes').then(m => m.SIGNUP_ROUTES),
+  },
+  {
+    // Alta PAGO-PRIMERO pública (fuera del shell/authGuard): email OTP → plan → códigos+pago (Stripe
+    // o cubierto 100%) → email de registro. Ejercita el flujo /onboarding/* con gift/promo/referido.
+    path: 'onboarding',
+    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES),
+  },
+  {
     // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
     path: 'sign/:token',
     loadComponent: () =>
       import('./features/signature/components/sign-page/sign-page.component').then(m => m.SignPageComponent),
     title: 'Sign document',
+  },
+  {
+    // Página pública de pago de una factura: el cliente llega por el link/QR del PDF, sin sesión.
+    path: 'pay/:token',
+    loadComponent: () =>
+      import('./features/invoice-checkout/components/invoice-checkout-page/invoice-checkout-page.component').then(
+        m => m.InvoiceCheckoutPageComponent
+      ),
+    title: 'Pagar factura',
   },
   {
     path: '',
@@ -23,6 +43,23 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         loadChildren: () => import('./features/dashboard/dashboard.routes').then(m => m.DASHBOARD_ROUTES),
+      },
+      {
+        // Apartado de facturación en vivo: métodos de pago + crear/emitir/cobrar facturas (backend real).
+        path: 'billing',
+        loadComponent: () =>
+          import('./features/billing-live/components/billing-page/billing-page.component').then(
+            m => m.BillingPageComponent
+          ),
+        title: 'Facturación',
+      },
+      {
+        path: 'plans',
+        loadChildren: () => import('./features/plans/plans.routes').then(m => m.PLANS_ROUTES),
+      },
+      {
+        path: 'checkout',
+        loadChildren: () => import('./features/checkout/checkout.routes').then(m => m.CHECKOUT_ROUTES),
       },
       {
         path: 'documents',
