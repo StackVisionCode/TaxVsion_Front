@@ -1,0 +1,28 @@
+name: Deploy CRM (app.taxproffice.com)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Build de la imagen (el ng build production corre DENTRO del contenedor de build).
+      - name: Build image
+        run: docker build -t taxvision-crm:latest .
+
+      # Recrea SÓLO este contenedor. --restart unless-stopped = vuelve solo tras reinicio/crash.
+      # Bind a 127.0.0.1: sólo el cloudflared local (el tunnel) lo alcanza, nada desde afuera.
+      - name: (Re)start container on :8081
+        run: |
+          docker rm -f taxvision-crm 2>/dev/null || true
+          docker run -d --name taxvision-crm --restart unless-stopped -p 127.0.0.1:8081:80 taxvision-crm:latest
+
+      # Limpia imágenes viejas colgadas para que no se llene el disco.
+      - name: Prune old images
+        run: docker image prune -f
