@@ -38,20 +38,10 @@
     </div>
 
     <!-- Pill bar chart -->
-    <div class="flex-1 min-w-[15rem] flex items-end justify-around gap-2 min-h-[13rem] pt-8">
+    <div #chartTrack class="relative flex-1 min-w-[15rem] flex items-end justify-around gap-2 min-h-[13rem] pt-8">
       <div *ngFor="let bar of bars(); let i = index" class="flex h-full flex-col items-center justify-end gap-2"
-        (mouseenter)="onBarEnter(i)" (mouseleave)="onBarLeave()">
-        <div class="relative flex h-44 w-11 items-end justify-center">
-          <!-- Tooltip -->
-          <div *ngIf="tooltipIndex() === i && bar.hours > 0"
-            class="absolute left-1/2 -translate-x-1/2 z-10 flex flex-col items-center pointer-events-none"
-            [style.bottom.%]="barHeight(bar)">
-            <span class="whitespace-nowrap rounded-full bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white shadow-md">
-              {{ tooltipLabel(bar) }}
-            </span>
-            <span class="mt-1 h-2 w-2 rounded-full bg-white ring-2 ring-gray-900"></span>
-          </div>
-
+        (mouseenter)="onBarEnter(i)">
+        <div #barBox class="relative flex h-44 w-11 items-end justify-center">
           <!-- Bar -->
           <div *ngIf="bar.style !== 'empty'; else emptyDay" class="w-full rounded-full trend-bar"
             [ngClass]="'trend-bar--' + bar.style" [style.height.%]="barHeight(bar)"></div>
@@ -61,6 +51,18 @@
         </div>
 
         <span class="text-sm text-gray-500">{{ bar.label }}</span>
+      </div>
+
+      <!-- Tooltip deslizante: un solo elemento persistente cuya posición se
+           anima (mismo patrón que el pill activo del sidebar), en vez de
+           montar/desmontar un tooltip nuevo por barra. -->
+      <div *ngIf="tooltipReady() && tooltipBar() as bar"
+        class="chart-tooltip pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center"
+        [style.left.px]="tooltipLeft()" [style.top.px]="tooltipTop()">
+        <span class="whitespace-nowrap rounded-full bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white shadow-md">
+          {{ tooltipLabel(bar) }}
+        </span>
+        <span class="mt-1 h-2 w-2 rounded-full bg-white ring-2 ring-gray-900"></span>
       </div>
     </div>
   </div>

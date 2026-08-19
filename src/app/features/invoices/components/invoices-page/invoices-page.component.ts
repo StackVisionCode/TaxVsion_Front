@@ -10,6 +10,7 @@ import {
 import { InvoiceFormPanelComponent } from '../../ui/invoice-form-panel/invoice-form-panel.component';
 import { InvoicePreviewComponent } from '../../ui/invoice-preview/invoice-preview.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 type StatusFilter = 'All' | InvoiceStatus;
 const PAGE_SIZE = 8;
@@ -157,6 +158,7 @@ const SEED_INVOICES: InvoiceItem[] = [
     InvoiceFormPanelComponent,
     InvoicePreviewComponent,
     PaginationComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoices-page.component.html',
@@ -171,6 +173,14 @@ export class InvoicesPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingInvoice = signal<InvoiceItem | null>(null);
   readonly previewInvoice = signal<InvoiceItem | null>(null);
+  readonly pendingDelete = signal<InvoiceItem | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const invoice = this.pendingDelete();
+    return invoice
+      ? `You're about to delete invoice ${invoice.invoiceNumber} for ${invoice.client}. This can't be undone.`
+      : '';
+  });
 
   readonly totalInvoicedAmount = computed(() =>
     this.invoices().reduce((sum, invoice) => sum + invoiceTotal(invoice), 0),
@@ -270,10 +280,19 @@ export class InvoicesPageComponent {
   }
 
   deleteInvoice(invoice: InvoiceItem): void {
+    this.pendingDelete.set(invoice);
+  }
+
+  confirmDelete(): void {
+    const invoice = this.pendingDelete();
+    if (!invoice) {
+      return;
+    }
     this.invoices.update(list => list.filter(item => item.id !== invoice.id));
     if (this.previewInvoice()?.id === invoice.id) {
       this.previewInvoice.set(null);
     }
+    this.pendingDelete.set(null);
   }
 
   openPreview(invoice: InvoiceItem): void {

@@ -1,6 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '@core/auth/auth.service';
 
 /**
  * Página del módulo Profile (estilo "Aether"): tarjeta de encabezado con
@@ -20,16 +21,33 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './profile-page.component.html',
 })
 export class ProfilePageComponent {
-  // Static "logged in" user identity — mirrors the navbar's Jordan Reyes.
+  private readonly auth = inject(AuthService);
+
   readonly isOwner = true;
-  readonly roleLabel = 'Administrator';
   readonly avatarColor = 'bg-indigo-600';
 
-  // Personal information fields
-  readonly firstName = signal('Jordan');
-  readonly lastName = signal('Reyes');
-  readonly email = signal('jordan.reyes@taxvision.com');
-  readonly phone = signal('(555) 214-7890');
+  // Rol real del usuario de sesión (actorType de /auth/me).
+  readonly roleLabel = computed(() => this.auth.currentUser()?.actorType ?? 'Usuario');
+
+  // Datos personales: se inicializan con el usuario real (currentUser, de /auth/me) y
+  // quedan escribibles para el form. El guardado real contra el backend es un TODO.
+  readonly firstName = signal('');
+  readonly lastName = signal('');
+  readonly email = signal('');
+  readonly phone = signal('');
+
+  constructor() {
+    effect(() => {
+      const u = this.auth.currentUser();
+      if (!u) {
+        return;
+      }
+      this.firstName.set(u.name ?? '');
+      this.lastName.set(u.lastName ?? '');
+      this.email.set(u.email ?? '');
+      this.phone.set(u.phoneNumber ?? '');
+    });
+  }
 
   readonly fullName = computed(() => `${this.firstName()} ${this.lastName()}`.trim());
 
@@ -41,6 +59,20 @@ export class ProfilePageComponent {
     }
     return (first || last || 'U').slice(0, 2).toUpperCase();
   });
+
+  readonly avatarPhotoUrl = signal<string | null>(null);
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => this.avatarPhotoUrl.set(reader.result as string);
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
 
   // Security fields (fake, no real crypto/API)
   readonly currentPassword = signal('');

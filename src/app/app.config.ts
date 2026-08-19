@@ -2,6 +2,9 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
+import { httpProviders } from '@core/http/http.providers';
+import { provideAuthInitializer } from '@core/config/auth-initializer';
+import { provideThemeInitializer } from '@core/theme/theme-initializer';
 
 // NOTA: ComponentCacheRouteReuseStrategy (src/app/core/route-reuse/) quedó
 // desactivada temporalmente — produce un "Maximum call stack size exceeded"
@@ -12,5 +15,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
+    ...httpProviders,
+    provideAuthInitializer(),
+    provideThemeInitializer(),
   ]
 };

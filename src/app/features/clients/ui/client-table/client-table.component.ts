@@ -4,34 +4,30 @@ import { RouterModule } from '@angular/router';
 
 export type ClientType = 'individual' | 'company';
 
-export type Occupation =
-  | 'Accountant'
-  | 'Engineer'
-  | 'Teacher'
-  | 'Nurse'
-  | 'Sales Representative'
-  | 'Software Developer'
-  | 'Business Owner'
-  | 'Retired';
-
-export type MaritalStatus = 'Single' | 'Married' | 'Divorced' | 'Widowed';
-
 export type BusinessStructure = 'LLC' | 'S-Corp' | 'C-Corp' | 'Partnership' | 'Sole Proprietorship';
 
+/**
+ * Todos los campos opcionales: el backend real (Customer.Api) no expone ssn/ein,
+ * dateOfBirth ni maritalStatus vía GET (solo se pueden escribir), así que estos
+ * datos solo están disponibles cuando vienen de la seed local/mock. `occupation`
+ * y `businessStructure` se tipan como `string` (no como los union types de abajo)
+ * porque el valor real del backend (occupationName / enum distinto) no calza con
+ * las opciones fijas del dropdown del formulario.
+ */
 export interface ClientIndividualDetails {
-  ssnOrItin: string;
+  ssnOrItin?: string;
   /** ISO date string (YYYY-MM-DD). */
-  dateOfBirth: string;
-  occupation: Occupation;
-  maritalStatus: MaritalStatus;
+  dateOfBirth?: string;
+  occupation?: string;
+  maritalStatus?: string;
 }
 
 export interface ClientCompanyDetails {
-  ein: string;
+  ein?: string;
   /** ISO date string (YYYY-MM-DD). */
-  formationDate: string;
-  businessStructure: BusinessStructure;
-  principalBusinessActivity: string;
+  formationDate?: string;
+  businessStructure?: string;
+  principalBusinessActivity?: string;
 }
 
 export interface ClientItem {

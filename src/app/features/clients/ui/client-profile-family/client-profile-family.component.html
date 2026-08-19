@@ -1,0 +1,276 @@
+<div class="flex flex-col gap-6">
+  <!-- Spouse -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Spouse</h2>
+        <p class="mt-1 text-sm text-gray-500">Marital information for this client</p>
+      </div>
+      <button *ngIf="!spouse()" type="button" (click)="openAddSpouse()"
+        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        Add Spouse
+      </button>
+    </div>
+
+    <div *ngIf="spouse() as s; else noSpouse" class="mt-4 rounded-2xl border border-gray-100 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#7C6AE0] text-sm font-semibold text-white">
+            {{ initials(s.name) }}
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{{ s.name }}</p>
+            <p class="text-xs text-gray-400">{{ age(s.dateOfBirth) !== null ? age(s.dateOfBirth) + ' years old' : '—' }}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" (click)="openEditSpouse()"
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="Edit spouse">
+            <ion-icon name="create-outline" class="text-sm"></ion-icon>
+          </button>
+          <button type="button" (click)="requestDeleteSpouse()"
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+            aria-label="Delete spouse">
+            <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <p class="text-xs font-medium text-gray-400">Date of birth</p>
+          <p class="mt-1 text-sm text-gray-900">{{ s.dateOfBirth || '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400">Phone</p>
+          <p class="mt-1 text-sm text-gray-900">{{ s.phone || '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400">SSN/ITIN</p>
+          <p class="mt-1 text-sm text-gray-900">{{ maskSsn(s.ssnOrItin) }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400">Email</p>
+          <p class="mt-1 text-sm text-gray-900">{{ s.email || '—' }}</p>
+        </div>
+      </div>
+
+      <p *ngIf="s.createdAt" class="mt-4 text-xs text-gray-400">Added on {{ s.createdAt }}</p>
+    </div>
+
+    <ng-template #noSpouse>
+      <div class="mt-4 px-4 py-10 text-center">
+        <ion-icon name="heart-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">No spouse on file for this client</p>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- Dependents -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Dependents</h2>
+        <p class="mt-1 text-sm text-gray-500">People this client claims as dependents</p>
+      </div>
+      <button type="button" (click)="openAddDependent()"
+        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        Add Dependent
+      </button>
+    </div>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-1">
+      <div class="rounded-2xl border border-gray-100 bg-[#EEEBFA] p-4 max-w-[220px]">
+        <p class="text-xs font-medium text-gray-500">Total dependents</p>
+        <p class="mt-1 text-xl font-bold text-gray-900">{{ dependents().length }}</p>
+      </div>
+    </div>
+
+    <div class="mt-4 flex items-center gap-2">
+      <div class="relative w-56">
+        <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
+          <input type="text" placeholder="Search dependents..." [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+            class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+      <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Relationship</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date of birth</th>
+            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">SSN/ITIN</th>
+            <th class="bg-[#FAF9F7] px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let dependent of pagedDependents(); let last = last" class="group">
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="flex items-center gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold text-white">
+                  {{ initials(dependent.name) }}
+                </span>
+                <span>
+                  <span class="block font-medium text-gray-900">{{ dependent.name }}</span>
+                  <span class="block text-xs text-gray-400">{{ age(dependent.dateOfBirth) !== null ? age(dependent.dateOfBirth) + ' yrs' : '' }}</span>
+                </span>
+              </span>
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="inline-flex items-center rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600">
+                {{ dependent.relationship }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              {{ dependent.dateOfBirth || '—' }}
+            </td>
+            <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              {{ maskSsn(dependent.ssnOrItin) }}
+            </td>
+            <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <div class="flex items-center justify-end gap-2">
+                <button type="button" (click)="openEditDependent(dependents().indexOf(dependent))"
+                  class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                  aria-label="Edit dependent">
+                  <ion-icon name="create-outline" class="text-sm"></ion-icon>
+                </button>
+                <button type="button" (click)="requestDeleteDependent(dependents().indexOf(dependent))"
+                  class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                  aria-label="Delete dependent">
+                  <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="visibleDependents().length === 0" class="px-4 py-10 text-center">
+        <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">No dependents match your search</p>
+      </div>
+    </div>
+
+    <app-pagination [currentPage]="currentPage()" [totalItems]="visibleDependents().length" [pageSize]="pageSize"
+      (pageChange)="currentPage.set($event)"></app-pagination>
+  </div>
+</div>
+
+<!-- Dependent form -->
+<app-modal [isOpen]="isDependentModalOpen()" [heading]="editingDependentIndex() !== null ? 'Edit Dependent' : 'New Dependent'"
+  subheading="Add a person this client claims as a dependent" size="md" (closed)="closeDependentModal()">
+
+  <div class="mt-5 flex flex-col gap-3">
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Full name" [ngModel]="depName()" name="depName" (ngModelChange)="depName.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div class="relative" data-dropdown="dependent-relationship">
+        <button type="button" (click)="toggleRelationshipDropdown()"
+          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+          <span>{{ depRelationship() }}</span>
+          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+        </button>
+        <div *ngIf="isRelationshipOpen()"
+          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <button *ngFor="let option of relationships" type="button" (click)="selectRelationship(option)"
+            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            {{ option }}
+            <ion-icon *ngIf="option === depRelationship()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="text-sm text-gray-400">DOB</span>
+        <input type="date" [ngModel]="depDateOfBirth()" name="depDateOfBirth" (ngModelChange)="depDateOfBirth.set($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+    </div>
+
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <span class="mr-2 text-sm text-gray-400">SSN/ITIN</span>
+      <input type="text" placeholder="000-00-0000" [ngModel]="depSsnOrItin()" name="depSsnOrItin"
+        (ngModelChange)="depSsnOrItin.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+  </div>
+
+  <div class="mt-5 flex items-center justify-end gap-2">
+    <button type="button" (click)="closeDependentModal()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Cancel
+    </button>
+    <button type="button" (click)="saveDependent()" [disabled]="!canSaveDependent()"
+      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      {{ editingDependentIndex() !== null ? 'Save changes' : 'Add dependent' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Spouse form -->
+<app-modal [isOpen]="isSpouseModalOpen()" [heading]="spouse() ? 'Edit Spouse' : 'Add Spouse'"
+  subheading="Marital and contact information" size="md" (closed)="closeSpouseModal()">
+
+  <div class="mt-5 flex flex-col gap-3">
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Full name" [ngModel]="spName()" name="spName" (ngModelChange)="spName.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">SSN/ITIN</span>
+        <input type="text" placeholder="000-00-0000" [ngModel]="spSsnOrItin()" name="spSsnOrItin"
+          (ngModelChange)="spSsnOrItin.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="text-sm text-gray-400">DOB</span>
+        <input type="date" [ngModel]="spDateOfBirth()" name="spDateOfBirth" (ngModelChange)="spDateOfBirth.set($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="text" placeholder="Phone" [ngModel]="spPhone()" name="spPhone" (ngModelChange)="spPhone.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <input type="email" placeholder="Email" [ngModel]="spEmail()" name="spEmail" (ngModelChange)="spEmail.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-5 flex items-center justify-end gap-2">
+    <button type="button" (click)="closeSpouseModal()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Cancel
+    </button>
+    <button type="button" (click)="saveSpouse()" [disabled]="!canSaveSpouse()"
+      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      {{ spouse() ? 'Save changes' : 'Add spouse' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Delete confirmations -->
+<app-confirm-dialog [isOpen]="pendingDeleteDependentIndex() !== null" heading="Remove dependent?"
+  [message]="pendingDeleteDependentMessage()" (confirmed)="confirmDeleteDependent()"
+  (cancelled)="pendingDeleteDependentIndex.set(null)"></app-confirm-dialog>
+
+<app-confirm-dialog [isOpen]="pendingDeleteSpouse()" heading="Remove spouse?"
+  message="You're about to remove spouse information from this client. This can't be undone."
+  (confirmed)="confirmDeleteSpouse()" (cancelled)="pendingDeleteSpouse.set(false)"></app-confirm-dialog>

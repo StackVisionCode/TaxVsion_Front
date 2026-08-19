@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TaskItem, TaskPriority, TaskStatus, TASK_COLUMNS } from '../task-board/task-board.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 interface TeamMember {
   name: string;
@@ -41,7 +42,7 @@ const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High', 'Urgent'];
  */
 @Component({
   selector: 'app-task-create-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-create-panel.component.html',
 })

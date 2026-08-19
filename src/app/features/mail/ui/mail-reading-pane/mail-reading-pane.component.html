@@ -20,19 +20,28 @@
         [attr.aria-label]="message.isStarred ? 'Unstar email' : 'Star email'">
         <ion-icon [name]="message.isStarred ? 'star' : 'star-outline'" class="text-base" [ngClass]="message.isStarred ? 'text-amber-400' : ''"></ion-icon>
       </button>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Reply">
+      <button type="button" (click)="openReply('reply')"
+        class="flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+        [ngClass]="replyMode() === 'reply' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-400 hover:bg-gray-50'"
+        aria-label="Reply">
         <ion-icon name="arrow-undo-outline" class="text-base"></ion-icon>
       </button>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Reply all">
+      <button type="button" (click)="openReply('reply-all')"
+        class="flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+        [ngClass]="replyMode() === 'reply-all' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-400 hover:bg-gray-50'"
+        aria-label="Reply all">
         <ion-icon name="return-up-back-outline" class="text-base"></ion-icon>
       </button>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Forward">
+      <button type="button" (click)="openReply('forward')"
+        class="flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+        [ngClass]="replyMode() === 'forward' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-400 hover:bg-gray-50'"
+        aria-label="Forward">
         <ion-icon name="arrow-redo-outline" class="text-base"></ion-icon>
       </button>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Archive">
+      <button type="button" (click)="archive()" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Archive">
         <ion-icon name="archive-outline" class="text-base"></ion-icon>
       </button>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Delete">
+      <button type="button" (click)="delete()" class="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors" aria-label="Delete">
         <ion-icon name="trash-outline" class="text-base"></ion-icon>
       </button>
     </div>
@@ -41,29 +50,111 @@
   <!-- Body -->
   <div class="flex-1 overflow-y-auto py-5">
     <p class="whitespace-pre-line text-sm leading-relaxed text-gray-700">{{ message.body }}</p>
+
+    <!-- Reply/Reply all/Forward inline: se "levanta" ahí mismo con el mismo toolbox del compose completo -->
+    <div *ngIf="replyMode()" class="reply-lift mt-6 rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4">
+      <div class="flex items-center justify-between gap-2">
+        <p class="flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <ion-icon
+            [name]="replyMode() === 'forward' ? 'arrow-redo-outline' : replyMode() === 'reply-all' ? 'return-up-back-outline' : 'arrow-undo-outline'"
+            class="text-base text-gray-500"></ion-icon>
+          {{ replyHeading() }}
+        </p>
+        <button type="button" (click)="closeReply()"
+          class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-white hover:text-gray-900 transition-colors"
+          aria-label="Discard reply">
+          <ion-icon name="close-outline" class="text-base"></ion-icon>
+        </button>
+      </div>
+
+      <!-- Forward necesita elegir destinatario; reply/reply-all ya lo tienen implícito -->
+      <div *ngIf="replyMode() === 'forward'"
+        class="mt-3 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 w-14 shrink-0 text-sm text-gray-400">To</span>
+        <input type="text" placeholder="recipient@email.com" [ngModel]="replyTo()" name="replyTo"
+          (ngModelChange)="replyTo.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      <!-- Toolbox (idéntico al del compose completo) -->
+      <div class="mt-3 flex flex-wrap items-center gap-1.5 rounded-2xl border border-gray-100 bg-white px-2 py-2">
+        <label
+          class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          title="Attach files">
+          <ion-icon name="attach-outline" class="text-lg"></ion-icon>
+          <input type="file" multiple class="hidden" (change)="onFilesSelected($event)" />
+        </label>
+
+        <span class="mx-1 h-5 w-px bg-gray-200"></span>
+
+        <button *ngFor="let tool of formatTools" type="button" (click)="toggleFormat(tool.key)"
+          class="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+          [ngClass]="isFormatActive(tool.key) ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'"
+          [title]="tool.label" [attr.aria-pressed]="isFormatActive(tool.key)">
+          <span *ngIf="tool.glyph as glyph" class="text-sm leading-none" [ngClass]="tool.glyphClass">{{ glyph }}</span>
+          <ion-icon *ngIf="!tool.glyph" [name]="tool.icon" class="text-lg"></ion-icon>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <textarea rows="5" placeholder="Write your reply..." [ngModel]="replyBody()" name="replyBody"
+        (ngModelChange)="replyBody.set($event)"
+        class="mt-3 w-full resize-none rounded-2xl border border-gray-100 bg-white p-4 text-sm leading-relaxed text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+
+      <!-- Attachment chips -->
+      <div *ngIf="replyAttachments().length > 0" class="mt-3 flex flex-wrap gap-2">
+        <span *ngFor="let file of replyAttachments(); let i = index"
+          class="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-2 text-xs text-gray-700">
+          <ion-icon name="document-outline" class="text-sm text-gray-400"></ion-icon>
+          <span class="max-w-[12rem] truncate font-medium">{{ file.name }}</span>
+          <span class="text-gray-400">{{ formatSize(file.size) }}</span>
+          <button type="button" (click)="removeAttachment(i)"
+            class="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            [attr.aria-label]="'Remove ' + file.name">
+            <ion-icon name="close-outline" class="text-sm"></ion-icon>
+          </button>
+        </span>
+      </div>
+
+      <!-- Footer -->
+      <div class="mt-3 flex items-center justify-end gap-2">
+        <button type="button" (click)="closeReply()"
+          class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
+          Discard
+        </button>
+        <button type="button" (click)="sendReply()" [disabled]="!canSendReply()"
+          class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+          <ion-icon name="send-outline" class="text-base"></ion-icon>
+          Send
+        </button>
+      </div>
+    </div>
   </div>
 
-  <!-- Quick reply pills -->
-  <div class="flex flex-col gap-2 border-t border-gray-100 pt-4">
+  <!-- Quick reply pills: se ocultan mientras se redacta una respuesta inline -->
+  <div *ngIf="!replyMode()" class="flex flex-col gap-2 border-t border-gray-100 pt-4">
     <div class="flex flex-wrap gap-2">
-      <button type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+      <button type="button" (click)="openReply('reply')"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
         <ion-icon name="arrow-undo-outline" class="mr-1.5 align-[-2px] text-sm text-gray-400"></ion-icon>
         Reply
       </button>
-      <button type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+      <button type="button" (click)="openReply('reply-all')"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
         <ion-icon name="return-up-back-outline" class="mr-1.5 align-[-2px] text-sm text-gray-400"></ion-icon>
         Reply all
       </button>
-      <button type="button" class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+      <button type="button" (click)="openReply('forward')"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
         <ion-icon name="arrow-redo-outline" class="mr-1.5 align-[-2px] text-sm text-gray-400"></ion-icon>
         Forward
       </button>
     </div>
     <div class="flex flex-wrap gap-2">
-      <button type="button" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <button type="button" (click)="quickReply('Thanks, got it!')" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
         Quick reply: "Thanks, got it!"
       </button>
-      <button type="button" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <button type="button" (click)="quickReply('I\'ll follow up shortly')" class="rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
         Quick reply: "I'll follow up shortly"
       </button>
     </div>

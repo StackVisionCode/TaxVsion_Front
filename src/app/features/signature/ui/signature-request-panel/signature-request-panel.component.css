@@ -1,0 +1,179 @@
+/* Entrada de la tarjeta del wizard (mismo idioma que modal-panel-in). */
+.wizard-card {
+  animation: wizard-card-in 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes wizard-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    /* "none" (no translateY(0)/scale(1)): un transform activo, aunque sea de
+       identidad, crea un containing block nuevo y rompe `position: fixed` de
+       los modales hijos (ej. "Add signer") — dejan de centrarse en el
+       viewport y pasan a centrarse dentro de esta tarjeta, que puede ser muy
+       alta cuando el documento tiene muchas páginas. */
+    transform: none;
+  }
+}
+
+/* Transición entre pasos: mismo step-in que register/forgot-password.
+   Se re-dispara porque cada paso se monta con *ngIf al cambiar currentStep.
+   (El paso 3 usa [hidden] para preservar el editor, así que no re-anima — a
+   cambio conserva los campos colocados, que vale más que el efecto.) */
+.step-content {
+  animation: step-in 280ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    /* Mismo motivo que wizard-card-in: "none" en vez de translateX(0) para no
+       romper el `position: fixed` del modal "Add signer" que vive dentro de
+       este contenedor (paso 3). */
+    transform: none;
+  }
+}
+
+/* Check del paso completado: pop con spring al aparecer. */
+.step-check {
+  animation: check-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ===== Coreografía de envío: el papel se crea, se firma y sale ===== */
+
+.send-overlay {
+  animation: send-overlay-in 240ms ease-out both;
+  backdrop-filter: blur(3px);
+}
+
+@keyframes send-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Al terminar, todo se desvanece suavemente antes de emitir el sent. */
+.send-overlay-out {
+  animation: send-overlay-fade 500ms ease 300ms both;
+}
+
+@keyframes send-overlay-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* El papel entra con un pop sutil y queda levemente rotado (personalidad estilo dashboard). */
+.send-paper {
+  transform: rotate(-1.5deg);
+  animation: paper-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes paper-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.85) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-1.5deg);
+  }
+}
+
+/* El papel "sale" al completarse: se eleva y encoge un punto. */
+.send-paper-lift {
+  animation: paper-lift 500ms cubic-bezier(0.4, 0, 0.2, 1) 250ms both;
+}
+
+@keyframes paper-lift {
+  to {
+    transform: translateY(-14px) scale(0.96) rotate(-1.5deg);
+  }
+}
+
+/* Las líneas del documento se van "escribiendo" (scaleX escalonado, origen izquierdo). */
+.paper-line {
+  transform-origin: left center;
+  animation: paper-line-in 360ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.send-paper > .paper-line { animation-delay: 220ms; }
+.send-paper div .paper-line:nth-child(1) { animation-delay: 340ms; }
+.send-paper div .paper-line:nth-child(2) { animation-delay: 460ms; }
+.send-paper div .paper-line:nth-child(3) { animation-delay: 580ms; }
+.send-paper div .paper-line:nth-child(4) { animation-delay: 700ms; }
+.send-paper div .paper-line:nth-child(5) { animation-delay: 820ms; }
+
+@keyframes paper-line-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Firma: el trazo se dibuja solo cuando la zona entra en fase 'signing'
+   (mecánica stroke-dashoffset, tinta gray-900 de la casa). */
+.sig-stroke {
+  stroke-dasharray: 620;
+  stroke-dashoffset: 620;
+}
+
+.paper-signing .sig-stroke {
+  animation: sig-draw 1.3s cubic-bezier(0.7, 0, 0.3, 1) 100ms forwards;
+}
+
+@keyframes sig-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Sello final: pop con spring (reusa check-pop). */
+.send-stamp {
+  animation: check-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Caption sube con un pequeño retraso (idioma del loader del login). */
+.send-caption {
+  animation: send-caption-up 500ms ease 150ms both;
+}
+
+@keyframes send-caption-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

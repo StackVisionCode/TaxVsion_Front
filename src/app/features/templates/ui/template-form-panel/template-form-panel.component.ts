@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Template, TemplateCategory, TemplateStatus } from '../template-card-grid/template-card-grid.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 const CATEGORIES: TemplateCategory[] = ['Email', 'Letter', 'Invoice Note', 'Reminder'];
 
@@ -30,7 +31,7 @@ function todayIso(): string {
  */
 @Component({
   selector: 'app-template-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './template-form-panel.component.html',
 })

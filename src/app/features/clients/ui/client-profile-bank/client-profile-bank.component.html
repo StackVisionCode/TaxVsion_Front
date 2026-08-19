@@ -1,0 +1,133 @@
+<div>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Bank statements</h3>
+      <p class="mt-1 text-sm text-gray-500">Uploaded bank statements for this client</p>
+    </div>
+    <button type="button" (click)="openAddModal()"
+      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+      Upload Statement
+    </button>
+  </div>
+
+  <div class="mt-4 flex flex-wrap items-center gap-2">
+    <div class="relative w-56">
+      <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
+        <input type="text" placeholder="Search statements..." [ngModel]="search()" name="search"
+          (ngModelChange)="setSearch($event)"
+          class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+    </div>
+
+    <button *ngIf="selectedIds().size > 0" type="button" (click)="requestBulkDelete()"
+      class="ml-auto flex items-center gap-2 rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors">
+      <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+      Delete {{ selectedIds().size }} selected
+    </button>
+  </div>
+
+  <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+    <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left">
+            <input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleSelectAllVisible()"
+              class="h-4 w-4 rounded border-gray-300" aria-label="Select all statements" />
+          </th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Description</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Created</th>
+          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Updated</th>
+          <th class="bg-[#FAF9F7] px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let statement of pagedStatements(); let last = last" class="group">
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <input type="checkbox" [checked]="selectedIds().has(statement.id)" (change)="toggleSelected(statement.id)"
+              class="h-4 w-4 rounded border-gray-300" [attr.aria-label]="'Select ' + statement.name" />
+          </td>
+          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <span class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CBD9F2]">
+                <ion-icon name="document-text-outline" class="text-base text-gray-700"></ion-icon>
+              </span>
+              <span class="font-medium text-gray-900">{{ statement.name }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ statement.description }}
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ statement.createdAt }}
+          </td>
+          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            {{ statement.updatedAt }}
+          </td>
+          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+            <div class="flex items-center justify-end gap-2">
+              <button type="button" title="Not available in this preview"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Load statement">
+                <ion-icon name="open-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" title="Not available in this preview"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Export statement">
+                <ion-icon name="download-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" (click)="requestDelete(statement.id)"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                aria-label="Delete statement">
+                <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="visibleStatements().length === 0" class="px-4 py-10 text-center">
+      <ion-icon name="wallet-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No bank statements match your search</p>
+    </div>
+  </div>
+
+  <app-pagination [currentPage]="currentPage()" [totalItems]="visibleStatements().length" [pageSize]="pageSize"
+    (pageChange)="currentPage.set($event)"></app-pagination>
+</div>
+
+<!-- Upload (mock) -->
+<app-modal [isOpen]="isAddModalOpen()" heading="Upload Statement" subheading="Add a bank statement record (no file parsing in this preview)"
+  size="md" (closed)="closeAddModal()">
+
+  <div class="mt-5 flex flex-col gap-3">
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Bank / statement name" [ngModel]="addName()" name="addName"
+        (ngModelChange)="addName.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Statement period (e.g. Jan 1 – Mar 31, 2026)" [ngModel]="addDescription()" name="addDescription"
+        (ngModelChange)="addDescription.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+  </div>
+
+  <div class="mt-5 flex items-center justify-end gap-2">
+    <button type="button" (click)="closeAddModal()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      Cancel
+    </button>
+    <button type="button" (click)="saveAdd()" [disabled]="!canSaveAdd()"
+      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      Add statement
+    </button>
+  </div>
+</app-modal>
+
+<!-- Delete confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingDeleteIds()" heading="Delete statement?" [message]="pendingDeleteMessage()"
+  (confirmed)="confirmDelete()" (cancelled)="pendingDeleteIds.set(null)"></app-confirm-dialog>

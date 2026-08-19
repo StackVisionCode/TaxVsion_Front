@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -8,31 +8,90 @@ import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documen
 import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
 import { ClientProfileCommunicationComponent } from '../../ui/client-profile-communication/client-profile-communication.component';
-import { ClientProfile, SEED_CLIENT_PROFILES } from '../../models/client-profile.model';
+import { ClientProfileCallsComponent } from '../../ui/client-profile-calls/client-profile-calls.component';
+import { ClientProfileBankComponent } from '../../ui/client-profile-bank/client-profile-bank.component';
+import { ClientProfileFamilyComponent } from '../../ui/client-profile-family/client-profile-family.component';
+import { ClientProfileRemindersComponent } from '../../ui/client-profile-reminders/client-profile-reminders.component';
+import { ClientProfileMileageComponent } from '../../ui/client-profile-mileage/client-profile-mileage.component';
+import { ClientProfilePermissionsComponent } from '../../ui/client-profile-permissions/client-profile-permissions.component';
+import { ClientProfile } from '../../models/client-profile.model';
+import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
+import { ClientItem } from '../../ui/client-table/client-table.component';
+import { ClientsStore } from '../../data-access/clients.store';
+import { customerToClientProfile } from '../../data-access/clients.model';
+import { toApiError } from '@core/models/api-error.model';
 
-export type ClientProfileTabId = 'overview' | 'info' | 'documents' | 'invoices' | 'notes' | 'communication';
+export type ClientProfileTabId =
+  | 'overview'
+  | 'info'
+  | 'documents'
+  | 'invoices'
+  | 'notes'
+  | 'communication'
+  | 'calls'
+  | 'bank'
+  | 'family'
+  | 'reminders'
+  | 'mileage'
+  | 'permissions';
 
 interface ClientProfileTab {
   id: ClientProfileTabId;
   label: string;
 }
 
-const PROFILE_TABS: ClientProfileTab[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'info', label: 'Info' },
-  { id: 'documents', label: 'Documents' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'communication', label: 'Communication' },
+/** Entrada de la fila de tabs: una píldora simple, o una píldora "grupo" que despliega varias tabs relacionadas. */
+type ClientProfileNavEntry =
+  | { kind: 'tab'; id: ClientProfileTabId; label: string }
+  | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
+
+/**
+ * Se agrupan las tabs de Finance y Activity para no alargar la fila de
+ * píldoras (12 tabs individuales no cabían sin scroll horizontal). Overview,
+ * Info y Permissions quedan sueltas por ser las más consultadas o distintas
+ * en naturaleza (administrativa) al resto.
+ */
+const PROFILE_NAV: ClientProfileNavEntry[] = [
+  { kind: 'tab', id: 'overview', label: 'Overview' },
+  { kind: 'tab', id: 'info', label: 'Info' },
+  {
+    kind: 'group',
+    label: 'Finance',
+    tabs: [
+      { id: 'invoices', label: 'Invoices' },
+      { id: 'bank', label: 'Bank' },
+      { id: 'mileage', label: 'Mileage' },
+    ],
+  },
+  {
+    kind: 'group',
+    label: 'Activity',
+    tabs: [
+      { id: 'documents', label: 'Documents' },
+      { id: 'notes', label: 'Notes' },
+      { id: 'communication', label: 'Communication' },
+      { id: 'calls', label: 'Calls' },
+      { id: 'family', label: 'Family' },
+      { id: 'reminders', label: 'Reminders' },
+    ],
+  },
+  { kind: 'tab', id: 'permissions', label: 'Permissions' },
 ];
+
+const AVATAR_PALETTE = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-emerald-500', 'bg-gray-900'];
 
 /**
  * Shell del perfil de cliente (patrón "Aether" tipo takeover, con
  * navegación por tabs estilo invoice-preview + settings-page): header con
- * botón de volver, avatar/nombre/chips de tipo y estado, botón "Edit"
- * (solo visual por ahora), y fila de tabs tipo píldora. El contenido de cada
- * tab se resuelve por *ngSwitch sobre activeTab(); Documents/Invoices/Notes/
- * Communication quedan como placeholders a la espera de otro agente.
+ * botón de volver, avatar/nombre/chips de tipo y estado, botón "Edit" (abre
+ * el mismo `app-client-form-panel` del directorio, precargado con este
+ * cliente) y fila de tabs tipo píldora. El contenido de cada tab se resuelve
+ * por *ngSwitch sobre activeTab().
+ *
+ * `client` viene de GET /customers/{id} (ClientsStore) — no de una seed
+ * local. Solo Overview/Info/Family reciben el objeto completo; el resto de
+ * tabs (documents/invoices/notes/...) siguen siendo mocks locales por
+ * clientId, sin contraparte en el backend todavía (ver ClientsStore).
  */
 @Component({
   selector: 'app-client-profile-page',
@@ -45,15 +104,26 @@ const PROFILE_TABS: ClientProfileTab[] = [
     ClientProfileInvoicesComponent,
     ClientProfileNotesComponent,
     ClientProfileCommunicationComponent,
+    ClientProfileCallsComponent,
+    ClientProfileBankComponent,
+    ClientProfileFamilyComponent,
+    ClientProfileRemindersComponent,
+    ClientProfileMileageComponent,
+    ClientProfilePermissionsComponent,
+    ClientFormPanelComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-page.component.html',
 })
 export class ClientProfilePageComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly store = inject(ClientsStore);
 
-  readonly tabs = PROFILE_TABS;
+  readonly navItems = PROFILE_NAV;
   readonly activeTab = signal<ClientProfileTabId>('overview');
+
+  /** Label del grupo (Finance/Activity) cuyo dropdown está abierto, o null si ninguno. */
+  readonly openGroupLabel = signal<string | null>(null);
 
   /**
    * Signal reactiva sobre paramMap (no un snapshot leído una sola vez): con
@@ -63,15 +133,70 @@ export class ClientProfilePageComponent {
    */
   private readonly paramMap = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
 
-  readonly client = computed<ClientProfile>(() => {
-    const id = this.paramMap().get('id');
-    return SEED_CLIENT_PROFILES.find(item => item.id === id) ?? SEED_CLIENT_PROFILES[0];
-  });
+  readonly loading = signal(false);
+  readonly loadError = signal<string | null>(null);
+  readonly client = signal<ClientProfile | null>(null);
 
-  private readonly avatarPalette = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-emerald-500', 'bg-gray-900'];
+  readonly isEditPanelOpen = signal(false);
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-dropdown="profile-tab-group"]')) {
+      this.openGroupLabel.set(null);
+    }
+  }
+
+  constructor() {
+    effect(() => {
+      const id = this.paramMap().get('id');
+      if (id) {
+        this.loadClient(id);
+      }
+    });
+  }
+
+  private loadClient(id: string): void {
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.store.getById(id).subscribe({
+      next: customer => {
+        this.client.set(customerToClientProfile(customer));
+        this.loading.set(false);
+      },
+      error: err => {
+        this.loadError.set(toApiError(err).message);
+        this.loading.set(false);
+      },
+    });
+  }
 
   selectTab(id: ClientProfileTabId): void {
     this.activeTab.set(id);
+    this.openGroupLabel.set(null);
+  }
+
+  toggleGroup(label: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openGroupLabel.set(this.openGroupLabel() === label ? null : label);
+  }
+
+  isGroupActive(group: Extract<ClientProfileNavEntry, { kind: 'group' }>): boolean {
+    return group.tabs.some(tab => tab.id === this.activeTab());
+  }
+
+  openEditPanel(): void {
+    this.isEditPanelOpen.set(true);
+  }
+
+  closeEditPanel(): void {
+    this.isEditPanelOpen.set(false);
+  }
+
+  /** El form panel ya hizo el PATCH real (y actualizó ClientsStore) — acá solo se refleja en esta página. */
+  handleClientSaved(updated: ClientItem): void {
+    this.client.update(current => (current ? { ...current, ...updated } : current));
+    this.closeEditPanel();
   }
 
   initials(client: ClientProfile): string {
@@ -82,8 +207,11 @@ export class ClientProfilePageComponent {
   }
 
   avatarClass(client: ClientProfile): string {
-    const index = SEED_CLIENT_PROFILES.findIndex(item => item.id === client.id);
-    return this.avatarPalette[Math.max(index, 0) % this.avatarPalette.length];
+    let hash = 0;
+    for (let i = 0; i < client.id.length; i++) {
+      hash = (hash * 31 + client.id.charCodeAt(i)) >>> 0;
+    }
+    return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
   }
 
   typeLabel(client: ClientProfile): string {

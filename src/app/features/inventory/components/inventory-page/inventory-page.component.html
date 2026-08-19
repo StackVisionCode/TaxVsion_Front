@@ -63,3 +63,7 @@
 <!-- Create / edit overlay -->
 <app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="categories"
   (closed)="closePanel()" (saved)="handleSaved($event)"></app-product-form-panel>
+
+<!-- Delete confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete product?" [message]="deleteMessage()"
+  (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

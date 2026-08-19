@@ -1,0 +1,123 @@
+<div class="review-grid grid gap-4 lg:grid-cols-2">
+  <!-- Cliente -->
+  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
+    <div *ngIf="client as c" class="mt-3 flex items-center gap-3">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+        {{ initials(c.displayName) }}
+      </span>
+      <div class="min-w-0">
+        <p class="flex items-center gap-2">
+          <span class="truncate text-sm font-semibold text-gray-900">{{ c.displayName }}</span>
+          <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+            [ngClass]="typeBadge(c)">{{ c.type === 'company' ? 'Company' : 'Individual' }}</span>
+        </p>
+        <p class="mt-0.5 truncate text-xs text-gray-500">{{ c.email }}</p>
+        <p class="mt-0.5 text-xs text-gray-500">{{ c.phone }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Documento -->
+  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Document</p>
+    <div *ngIf="document as d" class="mt-3 flex items-center gap-3">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" [ngClass]="circle(d.kind)">
+        <ion-icon [name]="icon(d.kind)" class="text-xl text-gray-700"></ion-icon>
+      </span>
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-gray-900">{{ d.name }}</p>
+        <p class="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+          <span class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase"
+            [ngClass]="chip(d.kind)">{{ d.kind }}</span>
+          {{ d.size }}
+        </p>
+        <p class="mt-0.5 text-xs text-gray-500">{{ d.blob ? 'Uploaded from your device' : 'Client documents' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firmantes y campos -->
+  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+    <div class="flex items-center justify-between">
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Signers &amp; fields</p>
+      <span class="rounded-full bg-gray-900 px-2.5 py-0.5 text-[10px] font-semibold text-white">
+        {{ totalFields() }} {{ totalFields() === 1 ? 'field' : 'fields' }}
+      </span>
+    </div>
+
+    <div class="mt-3 space-y-2">
+      <div *ngFor="let signer of signers" class="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+          [ngClass]="signer.color">{{ initials(signer.name) }}</span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium text-gray-900">{{ signer.name }}</p>
+          <p class="truncate text-xs" [ngClass]="fieldCountFor(signer.id) > 0 ? 'text-gray-500' : 'text-orange-500'">
+            {{ fieldCountFor(signer.id) > 0 ? fieldSummaryFor(signer.id) : 'No fields assigned' }}
+          </p>
+        </div>
+        <span class="hidden shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-flex">
+          <ion-icon [name]="channelMeta[signer.channel].icon" class="text-[10px]"></ion-icon>
+          {{ channelMeta[signer.channel].label }}
+        </span>
+        <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+          {{ fieldCountFor(signer.id) }}
+        </span>
+      </div>
+    </div>
+
+    <p *ngIf="signersWithoutFields().length > 0"
+      class="mt-3 flex items-start gap-1.5 rounded-xl bg-orange-50 px-3 py-2 text-xs leading-snug text-orange-600">
+      <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+      Some signers have no fields on the document. They will receive the request but have nothing to sign.
+    </p>
+  </div>
+
+  <!-- Detalles del envío -->
+  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Request details</p>
+
+    <div class="mt-3 space-y-3">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <span class="shrink-0 text-sm text-gray-400">Due date</span>
+        <input type="date" name="reviewDueDate" [ngModel]="dueDate" (ngModelChange)="dueDateChange.emit($event)"
+          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+      </label>
+      <p class="px-1 text-xs text-gray-400">Signers will be asked to complete by {{ dueDateLabel() }}.</p>
+
+      <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors">
+        <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Notes</span>
+        <textarea rows="3" name="reviewNotes" placeholder="Optional message for the signers"
+          [ngModel]="notes" (ngModelChange)="notesChange.emit($event)"
+          class="mt-1 w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
+      </div>
+
+      <!-- Reglas configuradas en el editor -->
+      <div *ngIf="rules as r" class="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+        <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Rules</span>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+            <ion-icon name="swap-vertical-outline" class="text-[11px]"></ion-icon>
+            {{ r.sequential ? 'Sequential signing' : 'Any order' }}
+          </span>
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+            <ion-icon name="shield-checkmark-outline" class="text-[11px]"></ion-icon>
+            {{ channelLabels() }}
+          </span>
+          <span *ngIf="r.autoReminder" class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+            <ion-icon name="notifications-outline" class="text-[11px]"></ion-icon>
+            Auto reminder
+          </span>
+          <span *ngIf="r.certificate" class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+            <ion-icon name="ribbon-outline" class="text-[11px]"></ion-icon>
+            Certificate
+          </span>
+          <span *ngIf="r.includePreparerSignature" class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+            <ion-icon name="create-outline" class="text-[11px]"></ion-icon>
+            Preparer signature
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

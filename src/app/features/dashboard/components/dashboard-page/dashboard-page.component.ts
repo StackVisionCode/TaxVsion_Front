@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
+import { AuthService } from '@core/auth/auth.service';
 import { DashboardLayoutStore, DashboardWidgetConfig } from '../../data-access/dashboard-layout.store';
 import { DashboardHeroComponent } from '../../ui/dashboard-hero/dashboard-hero.component';
 import { DashboardProBannerComponent } from '../../ui/dashboard-pro-banner/dashboard-pro-banner.component';
@@ -53,6 +54,9 @@ import { DashboardFiltersComponent } from '../../ui/dashboard-filters/dashboard-
 })
 export class DashboardPageComponent {
   readonly layout = inject(DashboardLayoutStore);
+  private readonly auth = inject(AuthService);
+
+  readonly userName = computed(() => this.auth.currentUser()?.name ?? '');
 
   onDrop(event: CdkDragDrop<DashboardWidgetConfig[]>): void {
     this.layout.move(event.previousIndex, event.currentIndex);

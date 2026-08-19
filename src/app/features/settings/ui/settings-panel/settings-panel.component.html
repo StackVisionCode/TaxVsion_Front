@@ -51,6 +51,27 @@
         <input type="text" [ngModel]="field.value" (ngModelChange)="updateText(field.key, $event)"
           class="w-full h-full bg-transparent px-4 text-sm text-gray-700 rounded-full focus:outline-none" />
       </div>
+
+      <!-- Color picker: swatches curados + selector custom. Se aplica al instante. -->
+      <div *ngIf="field.kind === 'color'" class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
+          <button *ngFor="let preset of colorPresets" type="button" (click)="updateColor(field.key, preset.hex)"
+            [attr.aria-label]="preset.label" [attr.aria-pressed]="preset.hex === field.value"
+            class="h-7 w-7 shrink-0 rounded-full ring-offset-2 transition-shadow"
+            [class.ring-2]="preset.hex === field.value" [class.ring-gray-900]="preset.hex === field.value"
+            [style.background-color]="preset.hex"></button>
+        </div>
+
+        <span class="h-6 w-px bg-gray-100"></span>
+
+        <label
+          class="relative flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white pl-1.5 pr-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
+          <span class="h-6 w-6 shrink-0 rounded-full border border-gray-100" [style.background-color]="field.value"></span>
+          <span class="text-xs font-medium uppercase text-gray-600">{{ field.value }}</span>
+          <input type="color" [ngModel]="field.value" (ngModelChange)="updateColor(field.key, $event)"
+            name="primaryColor" class="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+        </label>
+      </div>
     </div>
   </div>
 

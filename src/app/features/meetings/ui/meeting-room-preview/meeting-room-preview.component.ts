@@ -20,6 +20,7 @@ export class MeetingRoomPreviewComponent {
 
   readonly isMicOn = signal(true);
   readonly isCameraOn = signal(true);
+  readonly isSharingScreen = signal(false);
 
   toggleMic(): void {
     this.isMicOn.update(on => !on);
@@ -27,6 +28,10 @@ export class MeetingRoomPreviewComponent {
 
   toggleCamera(): void {
     this.isCameraOn.update(on => !on);
+  }
+
+  toggleShareScreen(): void {
+    this.isSharingScreen.update(on => !on);
   }
 
   leave(): void {

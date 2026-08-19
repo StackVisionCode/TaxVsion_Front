@@ -1,6 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   SignatureRequest,
   SignatureStatus,
@@ -10,7 +11,11 @@ import {
 } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
+import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { SignatureLinkService, SigningLink } from '../../data-access/signature-link.service';
+import { CHANNEL_META } from '../../ui/signature-request-panel/signature-wizard.mock';
 
 type StatusFilter = 'All' | SignatureStatus;
 const PAGE_SIZE = 8;
@@ -194,19 +199,33 @@ const SEED_REQUESTS: SignatureRequest[] = [
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
+    SignatureCreatorComponent,
     PaginationComponent,
+    ModalComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
 })
 export class SignaturePageComponent {
+  private readonly router = inject(Router);
+  private readonly linkService = inject(SignatureLinkService);
+
+  readonly channelMeta = CHANNEL_META;
   readonly requests = signal<SignatureRequest[]>(SEED_REQUESTS);
+
+  /** Enlaces de firma de la solicitud recién enviada (modal "Request sent"). */
+  readonly sentLinks = signal<SigningLink[] | null>(null);
 
   readonly statusFilters: StatusFilter[] = ['All', 'pending', 'in-progress', 'completed', 'rejected'];
   readonly activeFilter = signal<StatusFilter>('All');
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
+
+  /** Generador de firmas (adaptado del CRM legado): modal + firma propia del preparador. */
+  readonly isCreatorOpen = signal(false);
+  readonly mySignature = signal<CreatedSignature | null>(null);
+
   /** Read-only detail takeover; no edit mode in this feature, but kept as a plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
 
@@ -289,10 +308,51 @@ export class SignaturePageComponent {
     this.isPanelOpen.set(false);
   }
 
+  openCreator(): void {
+    this.isCreatorOpen.set(true);
+  }
+
+  closeCreator(): void {
+    this.isCreatorOpen.set(false);
+  }
+
+  handleSignatureCreated(signature: CreatedSignature): void {
+    this.mySignature.set(signature);
+    this.closeCreator();
+    this.showToast('Signature saved');
+  }
+
   handleSent(request: SignatureRequest): void {
-    this.requests.update(list => [...list, { ...request, status: deriveSignatureStatus(request.signers) }]);
+    const finalRequest = { ...request, status: deriveSignatureStatus(request.signers) };
+    this.requests.update(list => [...list, finalRequest]);
     this.closePanel();
+    // Modal con los enlaces seguros por firmante (propuesta UX).
+    this.sentLinks.set(this.linkService.register(finalRequest));
+  }
+
+  closeLinksModal(): void {
+    this.sentLinks.set(null);
     this.showToast('Signature request sent');
+  }
+
+  copyLink(link: SigningLink): void {
+    const url = `${window.location.origin}${link.url}`;
+    void navigator.clipboard?.writeText(url).catch(() => undefined);
+    this.showToast(`Link for ${link.signer.name.split(' ')[0]} copied`);
+  }
+
+  openLink(link: SigningLink): void {
+    this.sentLinks.set(null);
+    void this.router.navigateByUrl(link.url);
+  }
+
+  /** Acción "Open signing link" de la tabla: abre el enlace del primer firmante pendiente. */
+  handleOpenLink(request: SignatureRequest): void {
+    const links = this.linkService.register(request);
+    const target = links.find(link => link.signer.status === 'pending') ?? links[0];
+    if (target) {
+      void this.router.navigateByUrl(target.url);
+    }
   }
 
   openPreview(request: SignatureRequest): void {

@@ -8,39 +8,27 @@ import {
   Output,
   SimpleChanges,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  BusinessStructure,
-  ClientItem,
-  ClientType,
-  MaritalStatus,
-  Occupation,
-} from '../client-table/client-table.component';
-
-const OCCUPATIONS: Occupation[] = [
-  'Accountant',
-  'Engineer',
-  'Teacher',
-  'Nurse',
-  'Sales Representative',
-  'Software Developer',
-  'Business Owner',
-  'Retired',
-];
-
-const MARITAL_STATUSES: MaritalStatus[] = ['Single', 'Married', 'Divorced', 'Widowed'];
+import { BusinessStructure, ClientItem, ClientType } from '../client-table/client-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { toApiError } from '@core/models/api-error.model';
+import { ClientSaveOptions, ClientsStore } from '../../data-access/clients.store';
+import { ApiBusinessStructure, CreateCustomerRequest, UpdateCustomerRequest } from '../../data-access/clients.model';
 
 const BUSINESS_STRUCTURES: BusinessStructure[] = ['LLC', 'S-Corp', 'C-Corp', 'Partnership', 'Sole Proprietorship'];
 
-let clientSeq = 0;
-/** Genera un id local único para un nuevo cliente (sin backend). */
-function nextClientId(): string {
-  clientSeq += 1;
-  return `client-${Date.now()}-${clientSeq}`;
-}
+/** UI (dropdown, legible) -> TaxVision.Customer.Domain.Customers.BusinessStructure (backend). */
+const BUSINESS_STRUCTURE_TO_API: Record<BusinessStructure, ApiBusinessStructure> = {
+  LLC: 'Llc',
+  'S-Corp': 'SCorp',
+  'C-Corp': 'CCorp',
+  Partnership: 'Partnership',
+  'Sole Proprietorship': 'SoleProprietorship',
+};
 
 /**
  * Overlay de creación/edición del directorio de clientes (mismo patrón que
@@ -50,26 +38,31 @@ function nextClientId(): string {
  * datos precarga el formulario y actúa como edición ("Edit Client" / "Save
  * changes"); si es null arranca vacío ("New Client" / "Create client").
  * `isEditMode` es una signal propia actualizada en ngOnChanges, no un
- * computed() sobre el @Input (que no reaccionaría a sus cambios). Un toggle
- * de píldoras Individual/Company arriba del formulario condiciona qué
- * campos se muestran debajo, sin ser un wizard por pasos. Los selectores de
- * ocupación/estado civil/estructura de negocio son dropdowns propios
- * (patrón task-create-panel) que se cierran al hacer click fuera.
+ * computed() sobre el @Input (que no reaccionaría a sus cambios).
+ *
+ * `save()` llama a ClientsStore (POST/PATCH /customers real, más PUT
+ * fiscal-profile si hay SSN/ITIN/EIN y activate/deactivate si cambia el
+ * toggle "Active client"). No hay campos de Occupation/Marital status ni
+ * Address: el backend no los expone vía GET (occupation necesita un
+ * OccupationId de un catálogo que hoy no existe; marital status no existe en
+ * el dominio; address requiere el sub-recurso de direcciones, que tampoco
+ * tiene un GET para releerlo) — mostrarlos sería una promesa de guardado que
+ * el backend no puede cumplir.
  */
 @Component({
   selector: 'app-client-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-form-panel.component.html',
 })
 export class ClientFormPanelComponent implements OnChanges {
+  private readonly store = inject(ClientsStore);
+
   @Input() isOpen = false;
   @Input() client: ClientItem | null = null;
   @Output() closed = new EventEmitter<void>();
   @Output() saved = new EventEmitter<ClientItem>();
 
-  readonly occupations = OCCUPATIONS;
-  readonly maritalStatuses = MARITAL_STATUSES;
   readonly businessStructures = BUSINESS_STRUCTURES;
 
   /** Signal propia porque `client` es un @Input plano: un computed() no reaccionaría a sus cambios. */
@@ -80,7 +73,6 @@ export class ClientFormPanelComponent implements OnChanges {
   // Shared fields
   readonly email = signal('');
   readonly phone = signal('');
-  readonly address = signal('');
   readonly isActive = signal(true);
 
   // Individual fields
@@ -88,8 +80,6 @@ export class ClientFormPanelComponent implements OnChanges {
   readonly lastName = signal('');
   readonly ssnOrItin = signal('');
   readonly dateOfBirth = signal('');
-  readonly occupation = signal<Occupation>('Accountant');
-  readonly maritalStatus = signal<MaritalStatus>('Single');
 
   // Company fields
   readonly businessName = signal('');
@@ -98,12 +88,13 @@ export class ClientFormPanelComponent implements OnChanges {
   readonly businessStructure = signal<BusinessStructure>('LLC');
   readonly principalBusinessActivity = signal('');
 
-  readonly isOccupationOpen = signal(false);
-  readonly isMaritalOpen = signal(false);
   readonly isStructureOpen = signal(false);
 
+  readonly isSaving = signal(false);
+  readonly saveError = signal<string | null>(null);
+
   readonly canSave = computed(() => {
-    if (!this.email().trim()) {
+    if (!this.email().trim() || this.isSaving()) {
       return false;
     }
     return this.clientType() === 'individual'
@@ -121,12 +112,6 @@ export class ClientFormPanelComponent implements OnChanges {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="client-occupation"]')) {
-      this.isOccupationOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="client-marital"]')) {
-      this.isMaritalOpen.set(false);
-    }
     if (!target.closest('[data-dropdown="client-structure"]')) {
       this.isStructureOpen.set(false);
     }
@@ -136,32 +121,8 @@ export class ClientFormPanelComponent implements OnChanges {
     this.clientType.set(type);
   }
 
-  toggleOccupationDropdown(): void {
-    const next = !this.isOccupationOpen();
-    this.closeAllDropdowns();
-    this.isOccupationOpen.set(next);
-  }
-
-  toggleMaritalDropdown(): void {
-    const next = !this.isMaritalOpen();
-    this.closeAllDropdowns();
-    this.isMaritalOpen.set(next);
-  }
-
   toggleStructureDropdown(): void {
-    const next = !this.isStructureOpen();
-    this.closeAllDropdowns();
-    this.isStructureOpen.set(next);
-  }
-
-  selectOccupation(occupation: Occupation): void {
-    this.occupation.set(occupation);
-    this.isOccupationOpen.set(false);
-  }
-
-  selectMaritalStatus(status: MaritalStatus): void {
-    this.maritalStatus.set(status);
-    this.isMaritalOpen.set(false);
+    this.isStructureOpen.update(open => !open);
   }
 
   selectBusinessStructure(structure: BusinessStructure): void {
@@ -177,107 +138,117 @@ export class ClientFormPanelComponent implements OnChanges {
     if (!this.canSave()) {
       return;
     }
+    this.saveError.set(null);
+    this.isSaving.set(true);
+
     const type = this.clientType();
-    const result: ClientItem =
-      type === 'individual'
-        ? {
-            id: this.client?.id ?? nextClientId(),
-            type: 'individual',
-            displayName: `${this.firstName().trim()} ${this.lastName().trim()}`.trim(),
-            email: this.email().trim(),
-            phone: this.phone().trim(),
-            address: this.address().trim(),
-            isActive: this.isActive(),
-            createdAt: this.client?.createdAt ?? new Date().toISOString().slice(0, 10),
-            individual: {
-              ssnOrItin: this.ssnOrItin().trim(),
-              dateOfBirth: this.dateOfBirth(),
-              occupation: this.occupation(),
-              maritalStatus: this.maritalStatus(),
-            },
-          }
-        : {
-            id: this.client?.id ?? nextClientId(),
-            type: 'company',
-            displayName: this.businessName().trim(),
-            email: this.email().trim(),
-            phone: this.phone().trim(),
-            address: this.address().trim(),
-            isActive: this.isActive(),
-            createdAt: this.client?.createdAt ?? new Date().toISOString().slice(0, 10),
-            company: {
-              ein: this.ein().trim(),
-              formationDate: this.formationDate(),
-              businessStructure: this.businessStructure(),
-              principalBusinessActivity: this.principalBusinessActivity().trim(),
-            },
-          };
-    this.saved.emit(result);
+    const options: ClientSaveOptions = {
+      taxIdentifier: (type === 'individual' ? this.ssnOrItin() : this.ein()).trim(),
+      subjectKind: type === 'individual' ? 'Individual' : 'Business',
+      isActive: this.isActive(),
+    };
+
+    const request$ =
+      this.isEditMode() && this.client
+        ? this.store.updateClient(this.client.id, this.buildUpdateRequest(), options)
+        : this.store.createClient(this.buildCreateRequest(), options);
+
+    request$.subscribe({
+      next: item => {
+        this.isSaving.set(false);
+        this.saved.emit(item);
+      },
+      error: err => {
+        this.isSaving.set(false);
+        this.saveError.set(toApiError(err).message);
+      },
+    });
   }
 
-  private closeAllDropdowns(): void {
-    this.isOccupationOpen.set(false);
-    this.isMaritalOpen.set(false);
-    this.isStructureOpen.set(false);
+  private buildCreateRequest(): CreateCustomerRequest {
+    const shared = {
+      primaryEmail: this.email().trim(),
+      primaryPhone: this.phone().trim() || null,
+      language: 'En' as const,
+      preferredChannel: 'Email' as const,
+    };
+    if (this.clientType() === 'individual') {
+      return {
+        ...shared,
+        kind: 'Individual',
+        firstName: this.firstName().trim(),
+        lastName: this.lastName().trim(),
+        dateOfBirth: this.dateOfBirth() || null,
+      };
+    }
+    return {
+      ...shared,
+      kind: 'Business',
+      legalName: this.businessName().trim(),
+      businessStructure: BUSINESS_STRUCTURE_TO_API[this.businessStructure()],
+      formationDate: this.formationDate() || null,
+    };
+  }
+
+  private buildUpdateRequest(): UpdateCustomerRequest {
+    const shared: UpdateCustomerRequest = {
+      language: 'En',
+      preferredChannel: 'Email',
+      primaryEmail: this.email().trim(),
+      primaryPhone: this.phone().trim() || null,
+    };
+    if (this.clientType() === 'individual') {
+      return {
+        ...shared,
+        firstName: this.firstName().trim(),
+        lastName: this.lastName().trim(),
+        dateOfBirth: this.dateOfBirth() || null,
+      };
+    }
+    return {
+      ...shared,
+      legalName: this.businessName().trim(),
+      businessStructure: BUSINESS_STRUCTURE_TO_API[this.businessStructure()],
+      formationDate: this.formationDate() || null,
+    };
   }
 
   private resetForm(): void {
     const client = this.client;
+    this.saveError.set(null);
+    this.isStructureOpen.set(false);
+
     if (client) {
       this.clientType.set(client.type);
       this.email.set(client.email);
       this.phone.set(client.phone);
-      this.address.set(client.address);
       this.isActive.set(client.isActive);
 
-      if (client.type === 'individual' && client.individual) {
-        const [first, ...rest] = client.displayName.split(' ');
-        this.firstName.set(first ?? '');
-        this.lastName.set(rest.join(' '));
-        this.ssnOrItin.set(client.individual.ssnOrItin);
-        this.dateOfBirth.set(client.individual.dateOfBirth.slice(0, 10));
-        this.occupation.set(client.individual.occupation);
-        this.maritalStatus.set(client.individual.maritalStatus);
-      } else {
-        this.firstName.set('');
-        this.lastName.set('');
-        this.ssnOrItin.set('');
-        this.dateOfBirth.set('');
-        this.occupation.set('Accountant');
-        this.maritalStatus.set('Single');
-      }
+      const [first, ...rest] = client.displayName.split(' ');
+      this.firstName.set(client.type === 'individual' ? (first ?? '') : '');
+      this.lastName.set(client.type === 'individual' ? rest.join(' ') : '');
+      this.ssnOrItin.set('');
+      this.dateOfBirth.set('');
 
-      if (client.type === 'company' && client.company) {
-        this.businessName.set(client.displayName);
-        this.ein.set(client.company.ein);
-        this.formationDate.set(client.company.formationDate.slice(0, 10));
-        this.businessStructure.set(client.company.businessStructure);
-        this.principalBusinessActivity.set(client.company.principalBusinessActivity);
-      } else {
-        this.businessName.set('');
-        this.ein.set('');
-        this.formationDate.set('');
-        this.businessStructure.set('LLC');
-        this.principalBusinessActivity.set('');
-      }
+      this.businessName.set(client.type === 'company' ? client.displayName : '');
+      this.ein.set('');
+      this.formationDate.set('');
+      this.businessStructure.set('LLC');
+      this.principalBusinessActivity.set(client.company?.principalBusinessActivity ?? '');
     } else {
       this.clientType.set('individual');
       this.email.set('');
       this.phone.set('');
-      this.address.set('');
       this.isActive.set(true);
       this.firstName.set('');
       this.lastName.set('');
       this.ssnOrItin.set('');
       this.dateOfBirth.set('');
-      this.occupation.set('Accountant');
-      this.maritalStatus.set('Single');
       this.businessName.set('');
       this.ein.set('');
       this.formationDate.set('');
       this.businessStructure.set('LLC');
       this.principalBusinessActivity.set('');
     }
-    this.closeAllDropdowns();
   }
 }

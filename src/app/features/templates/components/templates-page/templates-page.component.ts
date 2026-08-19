@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { Template, TemplateCategory, TemplateCardGridComponent } from '../../ui/template-card-grid/template-card-grid.component';
 import { TemplateFormPanelComponent } from '../../ui/template-form-panel/template-form-panel.component';
 import { TemplatePreviewComponent } from '../../ui/template-preview/template-preview.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 type CategoryFilter = 'All' | TemplateCategory;
 
@@ -174,6 +175,7 @@ const SEED_TEMPLATES: Template[] = [
     TemplateCardGridComponent,
     TemplateFormPanelComponent,
     TemplatePreviewComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './templates-page.component.html',
@@ -189,6 +191,12 @@ export class TemplatesPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingTemplate = signal<Template | null>(null);
   readonly previewTemplate = signal<Template | null>(null);
+  readonly pendingDelete = signal<Template | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const template = this.pendingDelete();
+    return template ? `You're about to delete template ${template.name}. This can't be undone.` : '';
+  });
 
   readonly totalCount = computed(() => this.templates().length);
   readonly publishedCount = computed(() => this.templates().filter(t => t.status === 'published').length);
@@ -244,10 +252,19 @@ export class TemplatesPageComponent {
   }
 
   deleteTemplate(template: Template): void {
+    this.pendingDelete.set(template);
+  }
+
+  confirmDelete(): void {
+    const template = this.pendingDelete();
+    if (!template) {
+      return;
+    }
     this.templates.update(list => list.filter(item => item.id !== template.id));
     if (this.previewTemplate()?.id === template.id) {
       this.previewTemplate.set(null);
     }
+    this.pendingDelete.set(null);
   }
 
   openPreview(template: Template): void {

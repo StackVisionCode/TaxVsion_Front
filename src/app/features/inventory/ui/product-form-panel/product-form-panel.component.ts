@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Product, ProductStatus } from '../product-table/product-table.component';
+import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
 /**
  * Overlay de creación/edición del módulo Inventory (mismo patrón que
@@ -25,7 +26,7 @@ import { Product, ProductStatus } from '../product-table/product-table.component
  */
 @Component({
   selector: 'app-product-form-panel',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './product-form-panel.component.html',
 })

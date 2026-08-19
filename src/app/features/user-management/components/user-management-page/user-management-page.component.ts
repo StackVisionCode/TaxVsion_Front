@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
 const PAGE_SIZE = 8;
 
@@ -13,7 +14,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Jordan Reyes',
     initials: 'JR',
     avatarColor: 'bg-indigo-600',
-    email: 'jordan.reyes@taxvision.com',
+    email: 'jordan.reyes@taxprooffice.com',
     role: 'owner',
     status: 'active',
     lastActive: 'Just now',
@@ -23,7 +24,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'James Cooper',
     initials: 'JC',
     avatarColor: 'bg-indigo-500',
-    email: 'james.cooper@taxvision.com',
+    email: 'james.cooper@taxprooffice.com',
     role: 'admin',
     status: 'active',
     lastActive: '2 hours ago',
@@ -33,7 +34,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Elena Vargas',
     initials: 'EV',
     avatarColor: 'bg-orange-500',
-    email: 'elena.vargas@taxvision.com',
+    email: 'elena.vargas@taxprooffice.com',
     role: 'preparer',
     status: 'active',
     lastActive: '1 hour ago',
@@ -43,7 +44,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Sarah Mitchell',
     initials: 'SM',
     avatarColor: 'bg-[#7C6AE0]',
-    email: 'sarah.mitchell@taxvision.com',
+    email: 'sarah.mitchell@taxprooffice.com',
     role: 'admin',
     status: 'active',
     lastActive: '3 hours ago',
@@ -53,7 +54,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Aisha Thompson',
     initials: 'AT',
     avatarColor: 'bg-green-500',
-    email: 'aisha.thompson@taxvision.com',
+    email: 'aisha.thompson@taxprooffice.com',
     role: 'preparer',
     status: 'active',
     lastActive: 'Yesterday',
@@ -63,7 +64,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Marcus Webb',
     initials: 'MW',
     avatarColor: 'bg-indigo-500',
-    email: 'marcus.webb@taxvision.com',
+    email: 'marcus.webb@taxprooffice.com',
     role: 'preparer',
     status: 'active',
     lastActive: '5 hours ago',
@@ -73,7 +74,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Priya Natarajan',
     initials: 'PN',
     avatarColor: 'bg-orange-500',
-    email: 'priya.natarajan@taxvision.com',
+    email: 'priya.natarajan@taxprooffice.com',
     role: 'viewer',
     status: 'active',
     lastActive: '2 days ago',
@@ -83,7 +84,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'David Chen',
     initials: 'DC',
     avatarColor: 'bg-[#7C6AE0]',
-    email: 'david.chen@taxvision.com',
+    email: 'david.chen@taxprooffice.com',
     role: 'preparer',
     status: 'invited',
     lastActive: 'Invited 3 days ago',
@@ -93,7 +94,7 @@ const SEED_MEMBERS: TeamMember[] = [
     name: 'Robert Kim',
     initials: 'RK',
     avatarColor: 'bg-indigo-500',
-    email: 'robert.kim@taxvision.com',
+    email: 'robert.kim@taxprooffice.com',
     role: 'admin',
     status: 'suspended',
     lastActive: '3 weeks ago',
@@ -111,7 +112,14 @@ const SEED_MEMBERS: TeamMember[] = [
  */
 @Component({
   selector: 'app-user-management-page',
-  imports: [CommonModule, FormsModule, UserTableComponent, UserInvitePanelComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    UserTableComponent,
+    UserInvitePanelComponent,
+    PaginationComponent,
+    ConfirmDialogComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-management-page.component.html',
 })
@@ -121,6 +129,12 @@ export class UserManagementPageComponent {
 
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
+  readonly pendingDelete = signal<TeamMember | null>(null);
+
+  readonly deleteMessage = computed(() => {
+    const member = this.pendingDelete();
+    return member ? `You're about to remove ${member.name} from the team. This can't be undone.` : '';
+  });
 
   readonly toast = signal<string | null>(null);
   private toastTimer?: ReturnType<typeof setTimeout>;
@@ -190,8 +204,17 @@ export class UserManagementPageComponent {
   }
 
   removeMember(member: TeamMember): void {
+    this.pendingDelete.set(member);
+  }
+
+  confirmDelete(): void {
+    const member = this.pendingDelete();
+    if (!member) {
+      return;
+    }
     this.members.update(list => list.filter(item => item.id !== member.id));
     this.showToast(`${member.name} removed`);
+    this.pendingDelete.set(null);
   }
 
   private showToast(message: string): void {

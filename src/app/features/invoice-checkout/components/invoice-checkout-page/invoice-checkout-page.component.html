@@ -1,0 +1,61 @@
+<div class="checkout-shell">
+  <div class="checkout-card">
+    <!-- Cargando -->
+    <ng-container *ngIf="phase() === 'loading'">
+      <p class="muted">Cargando…</p>
+    </ng-container>
+
+    <!-- Link inválido / vencido -->
+    <ng-container *ngIf="phase() === 'invalid'">
+      <div class="icon warn">!</div>
+      <h1>Enlace no válido</h1>
+      <p class="muted">Este enlace de pago no existe o ya venció.</p>
+    </ng-container>
+
+    <!-- Pagado -->
+    <ng-container *ngIf="phase() === 'paid'">
+      <div class="icon ok">✓</div>
+      <h1>¡Pago recibido!</h1>
+      <p class="muted">La factura quedó pagada. Gracias.</p>
+      <p class="amount-done">{{ amountLabel() }}</p>
+    </ng-container>
+
+    <!-- Procesando (async) -->
+    <ng-container *ngIf="phase() === 'processing'">
+      <div class="icon ok">…</div>
+      <h1>Pago en proceso</h1>
+      <p class="muted">Tu pago se está confirmando. Podés cerrar esta página.</p>
+    </ng-container>
+
+    <!-- Error -->
+    <ng-container *ngIf="phase() === 'error'">
+      <div class="icon warn">!</div>
+      <h1>No se pudo cobrar</h1>
+      <p class="muted">{{ errorMessage() }}</p>
+      <button class="btn-secondary" (click)="retry()" *ngIf="stripeMethod()">Reintentar</button>
+    </ng-container>
+
+    <!-- Formulario de pago -->
+    <ng-container *ngIf="phase() === 'ready' || phase() === 'paying'">
+      <p class="pay-to" *ngIf="checkout() as c">Pagar a <strong>{{ c.tenantName }}</strong></p>
+      <p class="amount">{{ amountLabel() }}</p>
+      <p class="ref muted" *ngIf="checkout()?.purposeExternalReferenceId as ref">Factura {{ ref }}</p>
+
+      <label class="field-label">Email para el recibo (opcional)</label>
+      <input class="input" type="email" placeholder="cliente@correo.com"
+             [ngModel]="receiptEmail()" (ngModelChange)="receiptEmail.set($event)"
+             [disabled]="phase() === 'paying'" />
+
+      <label class="field-label">Tarjeta</label>
+      <div id="card-element" class="card-element"></div>
+      <p class="card-err" *ngIf="cardError()">{{ cardError() }}</p>
+
+      <button class="btn-primary" (click)="pay()" [disabled]="phase() === 'paying'">
+        {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
+      </button>
+      <p class="test-hint muted">Prueba: tarjeta 4242 4242 4242 4242, fecha futura, cualquier CVC.</p>
+    </ng-container>
+
+    <p class="powered muted">Pago seguro procesado por Stripe · TaxVision</p>
+  </div>
+</div>

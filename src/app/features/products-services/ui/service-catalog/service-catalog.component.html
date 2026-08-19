@@ -92,7 +92,7 @@
           </td>
           <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
             [class.border-b]="!last" [class.border-gray-100]="!last">
-            <button type="button"
+            <button type="button" (click)="editService.emit(service)"
               class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors ml-auto"
               aria-label="Edit service">
               <ion-icon name="create-outline" class="text-base"></ion-icon>
@@ -126,6 +126,11 @@
           {{ statusLabel(service.status) }}
         </span>
       </div>
+      <button type="button" (click)="editService.emit(service)"
+        class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-gray-200 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        <ion-icon name="create-outline" class="text-sm"></ion-icon>
+        Edit
+      </button>
     </div>
   </div>
 

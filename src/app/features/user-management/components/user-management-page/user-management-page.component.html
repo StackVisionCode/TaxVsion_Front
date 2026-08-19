@@ -61,3 +61,7 @@
 <!-- Invite / edit overlay -->
 <app-user-invite-panel [isOpen]="isPanelOpen()" [member]="editingMember()" (closed)="closePanel()"
   (saved)="handleSaved($event)"></app-user-invite-panel>
+
+<!-- Remove confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Remove member?" [message]="deleteMessage()"
+  confirmLabel="Remove" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

@@ -1,0 +1,178 @@
+<div class="min-h-screen bg-indigo-50 flex items-center justify-center p-4 sm:p-8">
+  <div class="w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl overflow-hidden grid lg:grid-cols-[1fr_1.4fr]">
+    <!-- Panel de marca -->
+    <aside class="hidden lg:flex flex-col justify-between p-10 text-white bg-gradient-to-br from-sky-400 via-blue-700 to-purple-600">
+      <div>
+        <p class="text-2xl font-bold tracking-tight">TaxVision</p>
+        <p class="mt-1 text-sm text-white/70">Crea tu espacio de trabajo</p>
+      </div>
+      <div class="space-y-4">
+        <h2 class="text-3xl font-semibold leading-tight">Empieza en minutos</h2>
+        <ul class="space-y-3 text-sm text-white/85">
+          <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20">1</span> Elige tu plan</li>
+          <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20">2</span> Configura tu cuenta</li>
+          <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20">3</span> Asegura tu acceso y entra</li>
+        </ul>
+      </div>
+      <p class="text-xs text-white/60">¿Ya tienes cuenta? <a routerLink="/login" class="underline">Inicia sesión</a></p>
+    </aside>
+
+    <!-- Contenido -->
+    <section class="p-8 sm:p-10">
+      <!-- Progreso -->
+      <div class="flex items-center gap-2 mb-8">
+        @for (label of ['Plan', 'Cuenta', 'Listo']; track $index) {
+          <div class="flex-1">
+            <div
+              class="h-1.5 rounded-full transition-colors"
+              [class.bg-indigo-600]="stepIndex() >= $index"
+              [class.bg-gray-200]="stepIndex() < $index"
+            ></div>
+            <span class="mt-2 block text-xs font-medium" [class.text-indigo-600]="stepIndex() === $index" [class.text-gray-400]="stepIndex() !== $index">{{ label }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- PASO 1: PLAN -->
+      @if (store.step() === 'plan') {
+        <h1 class="text-2xl font-bold text-gray-900">Elige tu plan</h1>
+        <p class="mt-1 text-sm text-gray-500">Podrás cambiarlo cuando quieras.</p>
+
+        <div class="mt-4 inline-flex rounded-xl bg-gray-100 p-1 text-sm">
+          <button type="button" class="px-4 py-1.5 rounded-lg font-medium" [class.bg-white]="store.billingCycle() === 'Monthly'" [class.shadow]="store.billingCycle() === 'Monthly'" (click)="store.setBillingCycle('Monthly')">Mensual</button>
+          <button type="button" class="px-4 py-1.5 rounded-lg font-medium" [class.bg-white]="store.billingCycle() === 'Yearly'" [class.shadow]="store.billingCycle() === 'Yearly'" (click)="store.setBillingCycle('Yearly')">Anual</button>
+        </div>
+
+        @if (store.loadingPlans()) {
+          <p class="mt-6 text-sm text-gray-500">Cargando planes…</p>
+        } @else if (store.plansError()) {
+          <p class="mt-6 text-sm text-red-600">{{ store.plansError() }}</p>
+        } @else {
+          <div class="mt-6 grid sm:grid-cols-2 gap-4">
+            @for (plan of store.plans(); track plan.id) {
+              <button
+                type="button"
+                (click)="selectPlan(plan)"
+                class="text-left rounded-2xl border-2 p-5 transition-all"
+                [class.border-indigo-600]="store.selectedPlan()?.id === plan.id"
+                [class.ring-2]="store.selectedPlan()?.id === plan.id"
+                [class.ring-indigo-500/20]="store.selectedPlan()?.id === plan.id"
+                [class.border-gray-200]="store.selectedPlan()?.id !== plan.id"
+              >
+                <div class="flex items-baseline justify-between">
+                  <span class="font-semibold text-gray-900">{{ plan.name }}</span>
+                  <span class="text-xs uppercase tracking-wide text-indigo-600">{{ plan.tier }}</span>
+                </div>
+                <p class="mt-1 text-2xl font-bold text-gray-900">${{ priceFor(plan) }}<span class="text-sm font-normal text-gray-400">/{{ store.billingCycle() === 'Monthly' ? 'mes' : 'año' }}</span></p>
+                <p class="mt-2 text-xs text-gray-500 line-clamp-2">{{ plan.description }}</p>
+                <ul class="mt-3 space-y-1 text-xs text-gray-600">
+                  <li>· {{ plan.maxUsers }} usuarios</li>
+                  <li>· {{ gbOf(plan.storageQuotaBytes) }} GB de almacenamiento</li>
+                  <li>· {{ plan.enabledModules.length }} módulos</li>
+                </ul>
+              </button>
+            }
+          </div>
+
+          <div class="mt-8 flex justify-end">
+            <button
+              type="button"
+              (click)="store.goToAccount()"
+              [disabled]="!store.canContinueFromPlan()"
+              class="px-6 py-3 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Continuar
+            </button>
+          </div>
+        }
+      }
+
+      <!-- PASO 2: CUENTA -->
+      @if (store.step() === 'account') {
+        <h1 class="text-2xl font-bold text-gray-900">Configura tu cuenta</h1>
+        <p class="mt-1 text-sm text-gray-500">Plan seleccionado: <span class="font-medium text-indigo-600">{{ store.selectedPlan()?.name }}</span></p>
+
+        <form [formGroup]="form" (ngSubmit)="submitAccount()" class="mt-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de la empresa</label>
+            <input type="text" formControlName="companyName" (input)="deriveSubdomain()" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" placeholder="Acme Contadores" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Subdominio</label>
+            <div class="flex items-center rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-500">
+              <input type="text" formControlName="subdomain" (input)="onSubdomainInput()" class="flex-1 px-4 py-3 text-sm outline-none" placeholder="acme" />
+              <span class="px-3 text-sm text-gray-400 bg-gray-50 self-stretch flex items-center">.taxvision.app</span>
+            </div>
+            @switch (store.subdomainState()) {
+              @case ('checking') { <p class="mt-1 text-xs text-gray-400">Verificando disponibilidad…</p> }
+              @case ('available') { <p class="mt-1 text-xs text-emerald-600">Disponible ✓</p> }
+              @case ('taken') { <p class="mt-1 text-xs text-red-600">Ese subdominio ya está en uso.</p> }
+              @case ('invalid') { <p class="mt-1 text-xs text-red-600">Usa 3–30 letras/números/guiones.</p> }
+            }
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+              <input type="text" formControlName="firstName" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
+              <input type="text" formControlName="lastName" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email del administrador</label>
+            <input type="email" formControlName="email" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" placeholder="admin@acme.com" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <input type="password" formControlName="password" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" placeholder="Mínimo 8 caracteres" />
+          </div>
+
+          <label class="flex items-start gap-2 text-sm text-gray-600">
+            <input type="checkbox" formControlName="acceptTerms" class="mt-0.5" />
+            <span>Acepto los términos y condiciones y la política de privacidad.</span>
+          </label>
+
+          @if (store.provisionError()) {
+            <p class="text-sm text-red-600">{{ store.provisionError() }}</p>
+          }
+
+          <div class="flex items-center justify-between pt-2">
+            <button type="button" (click)="store.goToPlan()" class="text-sm text-gray-500 hover:text-gray-700">← Volver</button>
+            <button
+              type="submit"
+              [disabled]="store.submitting()"
+              class="px-6 py-3 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40"
+            >
+              {{ store.submitting() ? 'Creando cuenta…' : 'Crear cuenta' }}
+            </button>
+          </div>
+        </form>
+      }
+
+      <!-- PASO 3: LISTO -->
+      @if (store.step() === 'done') {
+        <div class="text-center py-8">
+          <div class="mx-auto grid place-items-center w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 text-3xl">✓</div>
+          <h1 class="mt-6 text-2xl font-bold text-gray-900">¡Cuenta creada!</h1>
+          @if (needsMfa()) {
+            <p class="mt-2 text-sm text-gray-500 max-w-sm mx-auto">Tu espacio <span class="font-medium text-indigo-600">{{ store.selectedPlan()?.name }}</span> está listo. Ahora asegura tu acceso configurando la verificación en dos pasos.</p>
+            <button (click)="continueAfterSignup()" class="mt-8 px-6 py-3 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+              Configurar acceso →
+            </button>
+          } @else {
+            <p class="mt-2 text-sm text-gray-500 max-w-sm mx-auto">Tu espacio <span class="font-medium text-indigo-600">{{ store.selectedPlan()?.name }}</span> está listo. Podés activar la verificación en dos pasos más tarde desde ajustes.</p>
+            <button (click)="continueAfterSignup()" class="mt-8 px-6 py-3 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+              Continuar al pago →
+            </button>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>

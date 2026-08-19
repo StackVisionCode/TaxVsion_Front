@@ -1,0 +1,125 @@
+/* Entrada de la tarjeta (mismo idioma que auth-card-in del login/register). */
+.sign-card {
+  animation: sign-card-in 500ms ease-out backwards;
+}
+
+@keyframes sign-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Transición entre pasos: step-in de la casa (re-dispara al montar cada *ngIf). */
+.step-content {
+  animation: step-in 280ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Check del paso completado en el stepper: pop con spring. */
+.step-check {
+  animation: check-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Filas de la tarjeta de bienvenida entran escalonadas. */
+.welcome-meta .meta-row {
+  animation: meta-row-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.welcome-meta .meta-row:nth-child(1) { animation-delay: 60ms; }
+.welcome-meta .meta-row:nth-child(2) { animation-delay: 120ms; }
+.welcome-meta .meta-row:nth-child(3) { animation-delay: 180ms; }
+
+@keyframes meta-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Target de firma: pulsa hasta que se firma (propuesta UX, paleta indigo de la casa). */
+.sign-target {
+  animation: target-pulse 2s ease-in-out infinite;
+}
+
+.sign-target.border-emerald-300 {
+  animation: none;
+}
+
+@keyframes target-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(79, 70, 229, 0);
+  }
+}
+
+/* Check final: pop con spring (success-pop de la casa). */
+.done-check {
+  animation: done-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes done-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Overlay de procesamiento: fade suave. */
+.proc-overlay {
+  animation: proc-in 200ms ease-out both;
+  backdrop-filter: blur(2px);
+}
+
+@keyframes proc-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

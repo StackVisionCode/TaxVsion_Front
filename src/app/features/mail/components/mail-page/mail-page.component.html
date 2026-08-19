@@ -23,7 +23,8 @@
       (closed)="closeCompose()" (sent)="handleSent()"></app-mail-compose>
     <ng-template #readingView>
       <app-mail-reading-pane class="flex-1 min-h-0" [message]="selectedMessage()"
-        (starToggled)="toggleStar($event)"></app-mail-reading-pane>
+        (starToggled)="toggleStar($event)" (replied)="handleSent()" (archived)="archiveMessage($event)"
+        (deleted)="deleteMessage($event)"></app-mail-reading-pane>
     </ng-template>
   </div>
 </div>

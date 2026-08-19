@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
 
 export type SignerStatus = 'pending' | 'signed' | 'rejected';
 
@@ -11,6 +12,8 @@ export interface Signer {
   status: SignerStatus;
   /** ISO date string (YYYY-MM-DD), null while still pending/rejected. */
   signedAt: string | null;
+  /** Canal de verificación preferido (wizard); opcional en los seeds antiguos. */
+  channel?: VerificationChannel;
 }
 
 export type SignatureStatus = 'pending' | 'in-progress' | 'completed' | 'rejected';
@@ -28,6 +31,14 @@ export interface SignatureRequest {
   /** ISO date string (YYYY-MM-DD), null until the request is fully completed. */
   completedDate: string | null;
   notes: string;
+  /** Data URL (PNG) of the preparer's own signature stamp, captured via app-signature-pad. Undefined/null if not added. */
+  preparerSignatureDataUrl?: string | null;
+  /** id del cliente elegido en el wizard (mock). */
+  clientId?: string;
+  /** Campos de firma colocados sobre el documento en el editor PDF del wizard. */
+  signatureFields?: PlacedField[];
+  /** Reglas de la solicitud (orden, canales, recordatorio…) definidas en el editor. */
+  rules?: RequestRules;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. */
@@ -66,6 +77,7 @@ export class SignatureTableComponent {
   @Output() previewRequested = new EventEmitter<SignatureRequest>();
   @Output() resendRequested = new EventEmitter<SignatureRequest>();
   @Output() cancelRequested = new EventEmitter<SignatureRequest>();
+  @Output() openLinkRequested = new EventEmitter<SignatureRequest>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -164,5 +176,11 @@ export class SignatureTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.cancelRequested.emit(request);
+  }
+
+  onOpenLinkClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.openLinkRequested.emit(request);
   }
 }

@@ -1,0 +1,44 @@
+<div class="grid gap-4">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Planes</h1>
+    <p class="mt-1 text-sm text-gray-500">Catálogo de suscripción — datos reales desde el backend (GET /plans).</p>
+  </div>
+
+  @if (store.loading()) {
+    <div class="rounded-2xl bg-white p-6 text-sm text-gray-500 shadow-sm">Cargando planes…</div>
+  } @else if (store.error()) {
+    <div class="rounded-2xl bg-red-50 p-6 text-sm text-red-700 shadow-sm">{{ store.error() }}</div>
+  } @else {
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      @for (plan of store.plans(); track plan.id) {
+        <div class="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">{{ plan.name }}</h2>
+            <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">{{ plan.tier }}</span>
+          </div>
+          <p class="mt-1 text-sm text-gray-500">{{ plan.description }}</p>
+
+          <div class="mt-4 flex items-baseline gap-1">
+            <span class="text-3xl font-bold text-gray-900">${{ plan.monthlyPriceUsd }}</span>
+            <span class="text-sm text-gray-400">/ mes</span>
+          </div>
+
+          <dl class="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <dt class="text-gray-500">Usuarios</dt>
+            <dd class="text-right font-medium text-gray-900">{{ plan.maxUsers }}</dd>
+            <dt class="text-gray-500">Almacenamiento</dt>
+            <dd class="text-right font-medium text-gray-900">{{ gbOf(plan.storageQuotaBytes) }} GB</dd>
+            <dt class="text-gray-500">Módulos</dt>
+            <dd class="text-right font-medium text-gray-900">{{ plan.enabledModules.length }}</dd>
+          </dl>
+
+          <div class="mt-4 flex flex-wrap gap-1">
+            @for (mod of plan.enabledModules; track mod) {
+              <span class="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ mod }}</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

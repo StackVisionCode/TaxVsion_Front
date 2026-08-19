@@ -146,6 +146,7 @@ export class MeetingsPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingMeeting = signal<MeetingItem | null>(null);
   readonly activeRoomMeeting = signal<MeetingItem | null>(null);
+  readonly toastMessage = signal<string | null>(null);
 
   readonly todayCount = computed(() => {
     const now = new Date();
@@ -223,5 +224,11 @@ export class MeetingsPageComponent {
 
   leaveMeeting(): void {
     this.activeRoomMeeting.set(null);
+  }
+
+  viewRecording(meeting: MeetingItem): void {
+    // Sin servicio de video real conectado: confirma la intención con un toast.
+    this.toastMessage.set(`Playing recording for "${meeting.title}"...`);
+    setTimeout(() => this.toastMessage.set(null), 2500);
   }
 }

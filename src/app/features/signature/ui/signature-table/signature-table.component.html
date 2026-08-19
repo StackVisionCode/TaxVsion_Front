@@ -72,6 +72,11 @@
                 <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
                 Resend reminder
               </button>
+              <button *ngIf="canCancel(request)" type="button" (click)="onOpenLinkClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="open-outline" class="text-base"></ion-icon>
+                Open signing link
+              </button>
               <button *ngIf="canCancel(request)" type="button" (click)="onCancelClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
                 <ion-icon name="close-circle-outline" class="text-base"></ion-icon>

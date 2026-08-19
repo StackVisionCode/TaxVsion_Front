@@ -1,8 +1,9 @@
 <form class="flex items-center gap-2" (ngSubmit)="submit()">
-  <button type="button" aria-label="Attach file"
-    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-    <ion-icon name="attach-outline" class="text-lg"></ion-icon>
-  </button>
+  <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
+    class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+    <ion-icon [name]="uploading ? 'reload-outline' : 'attach-outline'" class="text-lg" [class.animate-spin]="uploading"></ion-icon>
+    <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
+  </label>
 
   <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
     <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"

@@ -20,3 +20,32 @@ header {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Dropdowns (usuario, notificaciones): entrada con fade + scale desde la
+   esquina donde cuelgan (top-right, bajo el avatar/campana) — hasta ahora
+   aparecían de golpe con *ngIf, sin ninguna animación. Rápido y calmo
+   (180ms), como corresponde a un menú que se abre, no a un modal. */
+.dropdown-panel {
+  transform-origin: top right;
+  animation: dropdown-in 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Ítems de menú: pequeño desplazamiento táctil al pasar el mouse. */
+.dropdown-menu-item {
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms;
+}
+
+.dropdown-menu-item:hover {
+  transform: translateX(2px);
+}

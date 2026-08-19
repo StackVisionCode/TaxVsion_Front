@@ -1,0 +1,106 @@
+<div class="grid gap-5 lg:grid-cols-[1fr_280px]">
+  <!-- Columna izquierda: filtros + lista -->
+  <div>
+    <!-- Filter bar -->
+    <div class="flex flex-wrap items-center gap-2">
+      <button *ngFor="let option of typeFilters" type="button" (click)="setTypeFilter(option)"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [ngClass]="typeFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        {{ filterLabel(option) }}
+      </button>
+
+      <div class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
+        <input type="text" name="clientSearch" placeholder="Search name, email or phone"
+          [ngModel]="search()" (ngModelChange)="search.set($event)"
+          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <p class="mt-3 text-xs text-gray-400">
+      {{ filtered().length }} {{ filtered().length === 1 ? 'client' : 'clients' }}
+    </p>
+
+    <!-- Client cards -->
+    <div class="client-list mt-2 flex max-h-[26rem] flex-col gap-1.5 overflow-y-auto pr-1">
+      <button *ngFor="let client of filtered()" type="button" (click)="select(client)"
+        class="client-row flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors"
+        [ngClass]="client.id === selectedId ? 'border-gray-900 bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+          [ngClass]="avatar(seedIndex(client))">{{ initials(client.displayName) }}</span>
+
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-2">
+            <span class="truncate text-sm font-medium text-gray-900">{{ client.displayName }}</span>
+            <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+              [ngClass]="typeBadge(client)">{{ client.type === 'company' ? 'Company' : 'Individual' }}</span>
+          </span>
+          <span class="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
+            <span class="truncate">{{ client.email }}</span>
+            <span class="hidden shrink-0 sm:inline">{{ client.phone }}</span>
+          </span>
+        </span>
+
+        <span class="hidden shrink-0 items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium sm:inline-flex"
+          [ngClass]="client.isActive ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500'">
+          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="client.isActive ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+          {{ client.isActive ? 'Active' : 'Inactive' }}
+        </span>
+
+        <ion-icon *ngIf="client.id === selectedId" name="checkmark-circle" class="shrink-0 text-lg text-gray-900"></ion-icon>
+      </button>
+
+      <!-- Empty state -->
+      <div *ngIf="filtered().length === 0" class="px-4 py-10 text-center">
+        <ion-icon name="people-outline" class="text-4xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm font-medium text-gray-600">No clients found</p>
+        <p class="mt-1 text-xs text-gray-400">Try another name, email or filter</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna derecha: detalle del seleccionado (sticky) -->
+  <aside class="hidden self-start lg:sticky lg:top-4 lg:block">
+    <!-- *ngFor + trackBy por id: al cambiar la selección se recrea el nodo y re-dispara la animación -->
+    <div *ngFor="let client of selectedAsList(); trackBy: trackClient"
+      class="client-detail rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+      <div class="flex flex-col items-center text-center">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
+          [ngClass]="avatar(seedIndex(client))">{{ initials(client.displayName) }}</span>
+        <p class="mt-3 text-sm font-semibold text-gray-900">{{ client.displayName }}</p>
+        <span class="mt-1.5 inline-block rounded-full border px-3 py-0.5 text-xs font-medium"
+          [ngClass]="typeBadge(client)">{{ client.type === 'company' ? 'Company' : 'Individual' }}</span>
+      </div>
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Email</dt>
+          <dd class="mt-0.5 break-all text-gray-700">{{ client.email }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Phone</dt>
+          <dd class="mt-0.5 text-gray-700">{{ client.phone }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Status</dt>
+          <dd class="mt-1">
+            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+              [ngClass]="client.isActive ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500'">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="client.isActive ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+              {{ client.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-gray-400">Client since</dt>
+          <dd class="mt-0.5 text-gray-700">{{ clientSince(client) }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div *ngIf="!selectedClient()" class="client-detail flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
+      <ion-icon name="person-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-400">Select a client to see their details</p>
+    </div>
+  </aside>
+</div>
