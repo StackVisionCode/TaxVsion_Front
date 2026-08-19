@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   CreateChallengeResponse,
   CreateOnboardingResponse,
@@ -13,12 +13,16 @@ import {
 /**
  * Llamadas HTTP del alta pago-primero (todas anónimas — el comprador no tiene sesión ni tenant).
  * Route-scoped (@Injectable sin providedIn): vive solo mientras la rama /onboarding está activa.
- * Base = gateway YARP (environment.apiUrl).
+ * Base = systemBase (api.taxproffice.com en prod): el onboarding es pre-tenant.
  */
 @Injectable()
 export class OnboardingService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  // Sistema: el onboarding es pre-tenant (aún no existe el subdominio).
+  private get base(): string {
+    return this.api.systemBase();
+  }
 
   /** Catálogo público de planes. */
   listPlans(): Observable<OnboardingPlan[]> {

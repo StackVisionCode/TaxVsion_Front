@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { SubscriptionSummary } from './checkout.model';
 
 /**
@@ -12,7 +12,10 @@ import { SubscriptionSummary } from './checkout.model';
 @Injectable()
 export class CheckoutService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantBase();
+  }
 
   getSubscription(): Observable<SubscriptionSummary> {
     return this.http.get<SubscriptionSummary>(`${this.base}/subscriptions/me`);

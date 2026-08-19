@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   CreatedTenant,
   SignupPlan,
@@ -11,12 +11,16 @@ import {
 
 /**
  * Llamadas HTTP del alta self-service. Route-scoped (@Injectable sin providedIn): vive solo
- * mientras la rama /signup está activa. Base = gateway YARP (environment.apiUrl).
+ * mientras la rama /signup está activa. Base = systemBase (api.taxproffice.com): pre-tenant.
  */
 @Injectable()
 export class SignupService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  // Sistema: signup es pre-tenant (check-availability, reserve, POST /tenants).
+  private get base(): string {
+    return this.api.systemBase();
+  }
 
   /** Catálogo público de planes. */
   list(): Observable<SignupPlan[]> {

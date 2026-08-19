@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 
 /**
  * Subset mínimo de TaxVision.Customer.Domain.Customers.CustomerSummary, replicado acá
@@ -24,7 +24,10 @@ interface PagedResult<T> {
 @Injectable({ providedIn: 'root' })
 export class DocumentsClientsService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/customers`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/customers');
+  }
 
   search(term: string): Observable<PagedResult<DocumentsClientSummary>> {
     let params = new HttpParams().set('status', 'NotArchived').set('size', 50);

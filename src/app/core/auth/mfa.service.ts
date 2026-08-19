@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   ConfirmTotpResponse,
   MfaStatusResponse,
@@ -20,7 +21,10 @@ import {
 @Injectable({ providedIn: 'root' })
 export class MfaService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantBase();
+  }
 
   setupTotp(): Observable<SetupTotpResponse> {
     if (environment.authMock) {

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { Branding, InvoiceSummary, IssuerProfile, LineDraft, PaymentConfig } from './billing-live.model';
 
 /**
@@ -11,7 +11,10 @@ import { Branding, InvoiceSummary, IssuerProfile, LineDraft, PaymentConfig } fro
 @Injectable({ providedIn: 'root' })
 export class BillingLiveService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantBase();
+  }
 
   // --- Métodos de pago (PaymentClient) ---
   listConfigs(): Observable<PaymentConfig[]> {

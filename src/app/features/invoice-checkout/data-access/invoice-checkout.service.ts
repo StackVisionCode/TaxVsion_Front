@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { InvoiceCheckout, PayResult } from './invoice-checkout.model';
 
 /**
@@ -11,7 +11,10 @@ import { InvoiceCheckout, PayResult } from './invoice-checkout.model';
 @Injectable({ providedIn: 'root' })
 export class InvoiceCheckoutService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantBase();
+  }
 
   /** Datos del checkout: monto, moneda, tenant y los métodos de pago ACTIVOS del tenant. */
   getCheckout(token: string): Observable<InvoiceCheckout> {

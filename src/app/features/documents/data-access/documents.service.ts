@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   CreateFolderRequest,
   FileResponse,
@@ -18,7 +18,10 @@ import {
 @Injectable({ providedIn: 'root' })
 export class DocumentsService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/storage`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/storage');
+  }
 
   getFolderContents(ownerId: string, parentFolderId: string | null): Observable<FolderContentsResponse> {
     let params = new HttpParams().set('ownerType', 'Customer').set('ownerId', ownerId);

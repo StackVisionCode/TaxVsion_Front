@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   CreateCustomerRequest,
   Customer,
@@ -24,7 +24,10 @@ interface SearchParams {
 @Injectable({ providedIn: 'root' })
 export class ClientsService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/customers`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/customers');
+  }
 
   search(params: SearchParams): Observable<PagedResult<CustomerSummary>> {
     let query = new HttpParams();

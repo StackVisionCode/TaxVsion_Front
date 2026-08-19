@@ -40,6 +40,15 @@ export const AUTH_ROUTES: Routes = [
     title: 'Reset Password',
   },
   {
+    path: 'find-office',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./components/find-office-page/find-office-page.component').then(
+        m => m.FindOfficePageComponent,
+      ),
+    title: 'Find your office',
+  },
+  {
     // Ruta que recibe el link emailado por POST /auth/password/forgot (?token=...).
     // Sin guestGuard a propósito: el link puede llegar con una sesión previa todavía
     // viva en el navegador (otro dispositivo, sesión vieja) y el reset debe poder

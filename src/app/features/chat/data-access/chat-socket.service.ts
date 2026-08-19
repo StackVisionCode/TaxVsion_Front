@@ -1,8 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Socket, io } from 'socket.io-client';
 import { Subject } from 'rxjs';
-import { environment } from '@env/environment';
 import { TokenService } from '@core/auth/token.service';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   AttachmentFlaggedDto,
   MessageDeletedDto,
@@ -35,6 +35,7 @@ const EVENTS = {
 @Injectable({ providedIn: 'root' })
 export class ChatSocketService {
   private readonly tokenService = inject(TokenService);
+  private readonly api = inject(ApiConfigService);
   private socket: Socket | null = null;
 
   readonly connected = signal(false);
@@ -57,7 +58,7 @@ export class ChatSocketService {
     if (!token) {
       return;
     }
-    this.socket = io(environment.apiUrl, {
+    this.socket = io(this.api.tenantBase(), {
       path: '/communication/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],

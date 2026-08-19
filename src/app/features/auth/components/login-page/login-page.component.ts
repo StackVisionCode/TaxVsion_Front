@@ -6,6 +6,7 @@ import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } 
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
 type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
@@ -31,6 +32,18 @@ export class LoginPageComponent {
   private readonly auth = inject(AuthService);
   private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly api = inject(ApiConfigService);
+
+  constructor() {
+    // En prod el tenant se resuelve por el subdominio: el slug llega por ?office=<slug>
+    // (link del correo "encuentra tu oficina" o redirect post-signup) y lo fijamos antes
+    // del login, para que la request vaya a https://<slug>.taxproffice.com. En dev es no-op
+    // (tenantBase cae al gateway local y el tenant va por tenantId en el body).
+    const office = this.route.snapshot.queryParamMap.get('office');
+    if (office) {
+      this.api.setSlug(office);
+    }
+  }
 
   form: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],

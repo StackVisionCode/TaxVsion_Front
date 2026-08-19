@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { EmployeeDirectoryEntry } from './chat.model';
 
 /**
@@ -13,7 +13,10 @@ import { EmployeeDirectoryEntry } from './chat.model';
 @Injectable({ providedIn: 'root' })
 export class ChatDirectoryService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/communication/directory`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/communication/directory');
+  }
 
   searchEmployees(term: string, limit = 10): Observable<EmployeeDirectoryEntry[]> {
     const params = new HttpParams().set('q', term).set('limit', limit);

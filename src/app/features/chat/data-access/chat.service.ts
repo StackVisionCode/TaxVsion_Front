@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { MessagesPage, PagedConversations } from './chat.model';
 
 /**
@@ -14,7 +14,10 @@ import { MessagesPage, PagedConversations } from './chat.model';
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/communication`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/communication');
+  }
 
   listConversations(params: { page?: number; size?: number; includeArchived?: boolean } = {}): Observable<PagedConversations> {
     let query = new HttpParams();

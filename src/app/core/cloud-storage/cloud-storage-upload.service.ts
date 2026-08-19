@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '@env/environment';
+import { ApiConfigService } from '@core/config/api-config.service';
 import {
   DownloadUrlResponse,
   FileResponse,
@@ -20,7 +20,10 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CloudStorageUploadService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/storage`;
+  private readonly api = inject(ApiConfigService);
+  private get base(): string {
+    return this.api.tenantUrl('/storage');
+  }
 
   initiateUpload(req: InitiateUploadRequest): Observable<InitiatedUploadResponse> {
     return this.http.post<InitiatedUploadResponse>(`${this.base}/files/uploads`, req);

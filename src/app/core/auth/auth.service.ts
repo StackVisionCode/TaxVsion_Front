@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { environment } from '@env/environment';
 import { TokenService } from './token.service';
+import { ApiConfigService } from '../config/api-config.service';
 import {
   AuthTokens,
   ForgotPasswordRequest,
@@ -31,7 +32,13 @@ export type LoginOutcome =
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly tokenService = inject(TokenService);
-  private readonly base = environment.apiUrl;
+  private readonly api = inject(ApiConfigService);
+  // Base del tenant: https://<slug>.taxproffice.com en prod, localhost:5047 en dev.
+  // Todos los endpoints de Auth cuelgan de aquí (login incluido — el backend resuelve
+  // el tenant por el Host del subdominio).
+  private get base(): string {
+    return this.api.tenantBase();
+  }
 
   private readonly _currentUser = signal<MeResponse | null>(null);
   private readonly _pendingMfa = signal<PendingMfa | null>(null);
