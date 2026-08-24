@@ -49,6 +49,29 @@ export class OnboardingPageComponent implements OnInit {
     if (status) this.store.applyReturnStatus(status);
     const ref = this.route.snapshot.queryParamMap.get('ref');
     if (ref) this.codesForm.patchValue({ referralCode: ref });
+    this.applyPreselectedPlan();
+  }
+
+  /**
+   * Plan elegido antes de entrar (modal de "Sign up"): llega como `?plan=<id>&cycle=`.
+   * El catálogo se pide igual porque el paso de plan lo muestra, pero al llegar ahí el
+   * plan ya está marcado y solo hay que confirmarlo. Un id que no exista se ignora en
+   * silencio: el usuario elige de nuevo en su paso, sin ver un error que no le aporta.
+   */
+  private applyPreselectedPlan(): void {
+    const planId = this.route.snapshot.queryParamMap.get('plan');
+    if (!planId) {
+      return;
+    }
+
+    const cycle = this.route.snapshot.queryParamMap.get('cycle');
+    if (cycle === 'Monthly' || cycle === 'Yearly') {
+      this.store.setBillingCycle(cycle);
+    }
+
+    // El store marca el plan en cuanto llega el catálogo (una sola vez: si el usuario
+    // luego cambia de opción en su paso, nada la revierte).
+    this.store.loadPlansThen(planId);
   }
 
   submitContact(): void {

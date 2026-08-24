@@ -105,7 +105,8 @@
 
         <p class="mt-8 text-center text-sm text-gray-600">
           Don't have an account?
-          <a routerLink="/register" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</a>
+          <button type="button" (click)="openPlanPicker()"
+            class="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</button>
         </p>
         <p class="mt-3 text-center text-sm text-gray-500">
           Can't find your office?
@@ -134,3 +135,7 @@
     </div>
   }
 </div>
+
+<!-- Catálogo de planes: elegir antes de arrancar el alta (los precios vienen de GET /plans) -->
+<app-plan-picker-modal [isOpen]="isPlanPickerOpen()" (closed)="closePlanPicker()"
+  (planChosen)="startSignup($event)"></app-plan-picker-modal>

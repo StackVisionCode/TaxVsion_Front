@@ -50,6 +50,18 @@ export const routes: Routes = [
     title: 'Accept invitation',
   },
   {
+    // Confirmación de cambio de email: el enlace llega al correo NUEVO
+    // ({Portal:BaseUrl}/confirm-email?token=…, ver EmailChangeRequestedConsumer) y puede
+    // abrirse en otro dispositivo o sin sesión, así que va fuera del shell/authGuard.
+    // Sin esta ruta el enlace daba 404 y el cambio quedaba a medias.
+    path: 'confirm-email',
+    loadComponent: () =>
+      import('./features/auth/components/confirm-email-page/confirm-email-page.component').then(
+        m => m.ConfirmEmailPageComponent,
+      ),
+    title: 'Confirm email',
+  },
+  {
     // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
     path: 'sign/:token',
     loadComponent: () =>

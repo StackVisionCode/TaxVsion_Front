@@ -38,10 +38,31 @@ export function toApiError(err: unknown): ApiError {
         message: body.message ?? body.detail ?? body.title ?? err.message ?? 'Error desconocido.',
       };
     }
-    return {
-      code: `Http.${err.status}`,
-      message: typeof body === 'string' && body ? body : err.message,
-    };
+    // Con `responseType: 'text'` Angular NO parsea el cuerpo, así que un error del
+    // backend llega como la cadena JSON entera. Sin esto se le mostraba al usuario el
+    // literal `{"code":"...","message":"..."}` (pasaba en el modal de términos del alta).
+    if (typeof body === 'string' && body) {
+      const parsed = parseJsonError(body);
+      return parsed ?? { code: `Http.${err.status}`, message: body };
+    }
+    return { code: `Http.${err.status}`, message: err.message };
   }
   return { code: 'Unknown', message: 'Error desconocido.' };
+}
+
+/** `{"code":"...","message":"..."}` servido como texto plano → ApiError; null si no lo es. */
+function parseJsonError(raw: string): ApiError | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as Partial<ApiError & ProblemDetails>;
+    const message = parsed.message ?? parsed.detail ?? parsed.title;
+    return parsed.code || message
+      ? { code: parsed.code ?? 'Unknown', message: message ?? 'Error desconocido.' }
+      : null;
+  } catch {
+    return null;
+  }
 }
