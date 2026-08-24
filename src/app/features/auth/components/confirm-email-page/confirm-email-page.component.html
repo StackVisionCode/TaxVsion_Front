@@ -1,0 +1,51 @@
+<app-auth-shell panelEyebrow="Almost done" panelHeading="Confirm your new email address">
+  @switch (phase()) {
+    @case ('confirming') {
+      <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+      <h1 class="mt-4 text-3xl font-bold text-gray-900">Confirming your email…</h1>
+      <p class="mt-2 flex items-center gap-2 text-sm text-gray-500">
+        <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+        This only takes a moment.
+      </p>
+    }
+
+    @case ('done') {
+      <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+        <ion-icon name="checkmark-outline" class="text-2xl text-emerald-600"></ion-icon>
+      </span>
+      <h1 class="mt-4 text-3xl font-bold text-gray-900">Email confirmed</h1>
+      <p class="mt-2 text-sm text-gray-500">
+        Your new address is now the one you'll use to sign in.
+      </p>
+      <a routerLink="/login"
+        class="mt-8 inline-flex w-full items-center justify-center py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
+        Go to sign in
+      </a>
+    }
+
+    @case ('no-token') {
+      <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+      <h1 class="mt-4 text-3xl font-bold text-gray-900">Confirmation link is incomplete</h1>
+      <p class="mt-2 text-sm text-gray-500">
+        This link is missing its confirmation code. Open it from your email exactly as you received it,
+        or request the email change again from your profile.
+      </p>
+      <a routerLink="/login"
+        class="mt-8 inline-flex w-full items-center justify-center py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
+        Go to sign in
+      </a>
+    }
+
+    @default {
+      <span class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+        <ion-icon name="alert-outline" class="text-2xl text-red-600"></ion-icon>
+      </span>
+      <h1 class="mt-4 text-3xl font-bold text-gray-900">We couldn't confirm your email</h1>
+      <p class="mt-2 text-sm text-red-600">{{ errorMessage() }}</p>
+      <a routerLink="/login"
+        class="mt-8 inline-flex w-full items-center justify-center py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
+        Go to sign in
+      </a>
+    }
+  }
+</app-auth-shell>

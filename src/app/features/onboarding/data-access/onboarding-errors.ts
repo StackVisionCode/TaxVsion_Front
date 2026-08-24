@@ -56,8 +56,15 @@ const MESSAGES: Record<string, string> = {
   // Términos.
   'Onboarding.TermsNotAccepted': 'You need to accept the terms to continue.',
   'Onboarding.TermsVersionNotCurrent': 'Our terms were just updated. Please review and accept them again.',
-  'Onboarding.TermsContentHashMissing': 'We could not verify the terms. Please reload the page.',
-  'TermsVersion.NotFound': 'We could not load the current terms. Please reload the page.',
+  // Estos dos NO se arreglan recargando: significan que la versión de términos vigente
+  // se sembró sin documento publicado (`ContentHash`/`ContentFileId` en null), así que
+  // `complete` la rechaza y `/content` responde 404. Hasta que un PlatformAdmin publique
+  // el documento (`POST /auth/onboarding/terms/publish`), NADIE puede completar el alta.
+  // Decírselo como "recarga la página" mandaba al usuario a reintentar en vano.
+  'Onboarding.TermsContentHashMissing':
+    "The Terms of Service haven't been published yet, so we can't complete your signup. This is on our side — please contact support and we'll finish setting up your office.",
+  'TermsVersion.NotFound':
+    "The Terms of Service document isn't available yet. You can still continue; contact support if you'd like a copy first.",
 };
 
 /**
