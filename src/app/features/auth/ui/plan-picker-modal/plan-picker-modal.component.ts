@@ -54,6 +54,10 @@ const MODULE_LABELS: Record<string, string> = {
   selector: 'app-plan-picker-modal',
   imports: [CommonModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  // OnboardingService es route-scoped (@Injectable sin providedIn) y solo se provee en
+  // la rama /onboarding. Este modal también se usa en /login (fuera de esa rama), así que
+  // trae su propio provider — sin esto el login crashea con NG0201 (No provider) y queda en blanco.
+  providers: [OnboardingService],
   templateUrl: './plan-picker-modal.component.html',
 })
 export class PlanPickerModalComponent implements OnChanges {
