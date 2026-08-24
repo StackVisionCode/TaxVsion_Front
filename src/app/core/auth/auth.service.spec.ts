@@ -98,4 +98,28 @@ describe('AuthService', () => {
     expect(tokenService.isAuthenticated()).toBe(false);
     expect(service.currentUser()).toBeNull();
   });
+
+  /**
+   * Regresión: el SPA se sirve en `app.taxproffice.com`, que NO es un slug de oficina,
+   * así que en producción `tenantBase()` lanza. Si el login no cayera al host de
+   * sistema, nadie podría iniciar sesión desde la portada.
+   */
+  it('sin oficina resuelta, el login va al host de sistema en vez de fallar', () => {
+    const originalProduction = environment.production;
+    const originalApiUrl = environment.apiUrl;
+    environment.production = true;
+    environment.apiUrl = '';
+    environment.authMock = false;
+
+    try {
+      service.login({ email: 'a@b.com', password: 'secret' }).subscribe({ error: () => {} });
+      const req = httpMock.expectOne(`https://${environment.systemHost}/auth/login`);
+      // `tenantId` vacío rompe la deserialización de `Guid?` en el backend: no debe viajar.
+      expect(req.request.body.tenantId).toBeUndefined();
+      req.flush({ code: 'Auth.Invalid', message: 'Invalid credentials.' }, { status: 401, statusText: 'Unauthorized' });
+    } finally {
+      environment.production = originalProduction;
+      environment.apiUrl = originalApiUrl;
+    }
+  });
 });

@@ -33,11 +33,21 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly tokenService = inject(TokenService);
   private readonly api = inject(ApiConfigService);
-  // Base del tenant: https://<slug>.taxproffice.com en prod, localhost:5047 en dev.
-  // Todos los endpoints de Auth cuelgan de aquí (login incluido — el backend resuelve
-  // el tenant por el Host del subdominio).
+  /**
+   * Base de los endpoints de Auth: la oficina resuelta (`https://<slug>.baseDomain`).
+   *
+   * Si todavía no hay oficina, cae al HOST DE SISTEMA en vez de reventar. El SPA se
+   * sirve en `app.taxproffice.com`, que a propósito no es un slug de tenant, así que
+   * sin este fallback **nadie podría iniciar sesión desde la portada**. Y no hace
+   * falta conocer la oficina para entrar: `/auth/login` resuelve igual en el host de
+   * sistema (verificado contra producción) y el tenant viaja en el JWT que devuelve.
+   */
   private get base(): string {
-    return this.api.tenantBase();
+    try {
+      return this.api.tenantBase();
+    } catch {
+      return this.api.systemBase();
+    }
   }
 
   private readonly _currentUser = signal<MeResponse | null>(null);

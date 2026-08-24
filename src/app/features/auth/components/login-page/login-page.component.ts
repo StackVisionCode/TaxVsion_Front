@@ -84,15 +84,9 @@ export class LoginPageComponent {
     }
 
     this.formError.set(null);
-
-    // Sin oficina resuelta no hay a qué host pegarle: se avisa y se ofrece buscarla por
-    // email, en vez de intentar el login y morir al componer la URL.
-    if (!this.api.slug() && environment.production) {
-      this.formError.set('Necesitamos saber cuál es tu oficina. Búscala con tu correo para continuar.');
-      void this.router.navigate(['/find-office'], { queryParams: { returnUrl: this.returnUrl() } });
-      return;
-    }
-
+    // No se desvía a /find-office por no tener oficina resuelta: el login funciona
+    // igual contra el host de sistema (ver AuthService.base) y desviar aquí impedía
+    // entrar desde la portada, que es justo donde se sirve el SPA.
     // 'verifying' = spinner en el botón mientras el backend responde.
     this.phase.set('verifying');
 
@@ -133,17 +127,25 @@ export class LoginPageComponent {
     this.formError.set(this.messageFor(err));
   }
 
+  /**
+   * Mensajes en inglés, como el resto de la pantalla. `Auth.Invalid` es el 401 que
+   * devuelve el backend tanto si el email no existe como si la contraseña es
+   * incorrecta (es deliberado, no revela cuál de los dos), así que el texto tiene que
+   * cubrir ambos casos y ofrecer una salida útil en vez de dejar al usuario atascado.
+   */
   private messageFor(err: unknown): string {
     const apiError = toApiError(err);
     switch (apiError.code) {
       case 'Auth.Invalid':
-        return 'Credenciales inválidas.';
+        return "That email and password don't match. Check them and try again.";
       case 'Auth.LockedOut':
-        return 'Cuenta bloqueada temporalmente. Intenta más tarde.';
+        return 'Your account is temporarily locked after too many attempts. Try again in a few minutes.';
+      case 'Auth.TooManyAttempts':
+        return 'Too many attempts. Please wait a moment before trying again.';
       case NETWORK_ERROR_CODE:
-        return 'No se pudo conectar con el servidor.';
+        return "We couldn't reach the server. Check your connection and try again.";
       default:
-        return apiError.message || 'No se pudo iniciar sesión.';
+        return apiError.message || "We couldn't sign you in. Please try again.";
     }
   }
 
