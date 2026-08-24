@@ -49,12 +49,37 @@ export class OnboardingStore {
   readonly canContinueFromPlan = computed(() => this.selectedPlan() !== null);
 
   loadPlans(): void {
-    if (this.plans().length > 0) return;
+    this.loadPlansThen();
+  }
+
+  /**
+   * Carga el catálogo y, si se pide, deja marcado un plan concreto en cuanto llega.
+   * `preselectId` viene del modal de "Sign up" (`/onboarding?plan=<id>`): el paso de
+   * plan se muestra igual, pero con la opción ya elegida. Un id inexistente se ignora
+   * — el usuario elige normalmente en su paso.
+   */
+  loadPlansThen(preselectId?: string): void {
+    const preselect = (plans: OnboardingPlan[]): void => {
+      if (!preselectId) {
+        return;
+      }
+      const plan = plans.find(p => p.id === preselectId);
+      if (plan) {
+        this.selectedPlan.set(plan);
+      }
+    };
+
+    if (this.plans().length > 0) {
+      preselect(this.plans());
+      return;
+    }
     this.loadingPlans.set(true);
     this.plansError.set(null);
     this.service.listPlans().subscribe({
       next: plans => {
-        this.plans.set([...plans].sort((a, b) => a.monthlyPriceUsd - b.monthlyPriceUsd));
+        const sorted = [...plans].sort((a, b) => a.monthlyPriceUsd - b.monthlyPriceUsd);
+        this.plans.set(sorted);
+        preselect(sorted);
         this.loadingPlans.set(false);
       },
       error: err => {

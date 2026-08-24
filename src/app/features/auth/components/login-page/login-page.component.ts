@@ -8,6 +8,7 @@ import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { PlanChoice, PlanPickerModalComponent } from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
 type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
 
@@ -20,7 +21,7 @@ type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
  */
 @Component({
   selector: 'app-login-page',
-  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule, PlanPickerModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.css',
@@ -63,7 +64,30 @@ export class LoginPageComponent {
 
   readonly loaderDots = Array.from({ length: 8 });
 
+  /** Catálogo de planes: se elige antes de arrancar el alta. */
+  readonly isPlanPickerOpen = signal(false);
+
   private typingTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  openPlanPicker(): void {
+    this.isPlanPickerOpen.set(true);
+  }
+
+  closePlanPicker(): void {
+    this.isPlanPickerOpen.set(false);
+  }
+
+  /**
+   * Plan elegido → wizard de alta con ese plan ya seleccionado. El id y el ciclo viajan
+   * por query params (no por estado en memoria) para que el enlace sea compartible y
+   * sobreviva a un refresco a mitad del alta.
+   */
+  startSignup(choice: PlanChoice): void {
+    this.closePlanPicker();
+    void this.router.navigate(['/onboarding'], {
+      queryParams: { plan: choice.plan.id, cycle: choice.cycle },
+    });
+  }
 
   togglePasswordVisibility(): void {
     this.showPassword.update(v => !v);
