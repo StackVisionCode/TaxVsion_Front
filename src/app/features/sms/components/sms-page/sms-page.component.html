@@ -1,62 +1,121 @@
 <div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
-  <!-- Conversation rail -->
-  <div class="bg-white rounded-[28px] p-5 lg:col-span-1">
+  <!-- Contact rail (clientes del despacho — el servicio SMS no expone hilos ni historial) -->
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-1 overflow-y-auto">
     <div class="flex items-start justify-between gap-2 px-1">
       <div>
         <h2 class="text-xl font-bold text-gray-900">SMS</h2>
         <p class="mt-1 text-sm text-gray-500">Client text messages</p>
       </div>
       <button type="button" (click)="openBroadcast()"
-        class="flex shrink-0 items-center gap-1.5 rounded-full bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-gray-700 transition-colors">
+        [disabled]="store.loading() || store.textableContacts().length === 0"
+        class="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-bold px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-bold">
         <ion-icon name="megaphone-outline" class="text-sm"></ion-icon>
         New broadcast
       </button>
     </div>
 
-    <div class="mt-4">
-      <app-sms-conversation-list [conversations]="conversations()" [selectedId]="activeConversationId()"
-        (conversationSelected)="selectConversation($event)"></app-sms-conversation-list>
+    <!-- Loading -->
+    <div *ngIf="store.loading()" class="mt-6 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      Loading contacts…
+    </div>
+
+    <!-- Error + Retry -->
+    <div *ngIf="!store.loading() && store.error() as err"
+      class="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-6 text-center">
+      <p class="text-sm text-red-600">{{ err }}</p>
+      <button type="button" (click)="retryLoad()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Retry
+      </button>
+    </div>
+
+    <!-- Empty: el tenant aún no tiene clientes -->
+    <div *ngIf="!store.loading() && !store.error() && store.contacts().length === 0"
+      class="mt-6 flex flex-col items-center gap-2 py-10 text-center">
+      <span class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+        <ion-icon name="people-outline" class="text-xl"></ion-icon>
+      </span>
+      <p class="text-sm font-medium text-gray-500">No clients yet</p>
+      <p class="max-w-[14rem] text-xs text-gray-400">Add clients with a phone number to start texting them.</p>
+    </div>
+
+    <div *ngIf="!store.loading() && !store.error() && store.contacts().length > 0" class="mt-4">
+      <app-sms-conversation-list [contacts]="store.contactItems()" [selectedId]="store.activeContactId()"
+        (contactSelected)="selectContact($event)"></app-sms-conversation-list>
     </div>
   </div>
 
   <!-- Thread card -->
   <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem]">
-    <!-- Thread header -->
-    <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-        [ngClass]="activeConversation().avatarColor">{{ initials(activeConversation().contactName) }}</span>
-      <div>
-        <h2 class="text-base font-bold text-gray-900">{{ activeConversation().contactName }}</h2>
-        <span class="text-xs text-gray-400">{{ activeConversation().phone }}</span>
+    <ng-container *ngIf="store.activeContact() as contact; else noSelection">
+      <!-- Thread header (sin botón "Call": no hay integración de telefonía) -->
+      <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+          [ngClass]="contact.avatarColor">{{ initials(contact.name) }}</span>
+        <div>
+          <h2 class="text-base font-bold text-gray-900">{{ contact.name }}</h2>
+          <span class="text-xs text-gray-400">{{ contact.phoneRaw || 'No phone on file' }}</span>
+        </div>
+
+        <!-- Aviso cuando el teléfono guardado no puede viajar como E.164 -->
+        <span *ngIf="contact.phoneRaw && !contact.phoneE164"
+          class="ml-auto flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+          <ion-icon name="warning-outline" class="text-sm"></ion-icon>
+          Phone on file is not a valid E.164 number
+        </span>
       </div>
 
-      <button type="button" (click)="callContact()"
-        class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-        <ion-icon name="call-outline" class="text-base text-gray-400"></ion-icon>
-        Call
-      </button>
-    </div>
+      <!-- Error transitorio de un envío -->
+      <div *ngIf="store.actionError() as actionErr"
+        class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p class="text-sm text-amber-800">{{ actionErr }}</p>
+        <button type="button" (click)="dismissActionError()"
+          class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
+          Dismiss
+        </button>
+      </div>
 
-    <!-- Thread -->
-    <div class="flex-1 overflow-y-auto py-4">
-      <app-sms-thread [messages]="activeConversation().messages" [contactName]="activeConversation().contactName"
-        [avatarColor]="activeConversation().avatarColor"></app-sms-thread>
-    </div>
+      <!-- Thread (solo mensajes de esta sesión: no existe endpoint de historial) -->
+      <div class="flex-1 overflow-y-auto py-4">
+        <app-sms-thread [messages]="store.activeMessages()" [contactName]="contact.name"
+          [avatarColor]="contact.avatarColor"></app-sms-thread>
+      </div>
 
-    <!-- Composer -->
-    <div class="pt-4 border-t border-gray-100">
-      <app-sms-composer (send)="sendMessage($event)"></app-sms-composer>
-    </div>
+      <!-- Composer -->
+      <div class="pt-4 border-t border-gray-100">
+        <p *ngIf="!canText()" class="mb-2 text-xs text-gray-400">
+          This client can't be texted — add a valid phone number to their profile first.
+        </p>
+        <app-sms-composer [disabled]="!canText()" [busy]="store.sending()" (send)="sendMessage($event)"></app-sms-composer>
+      </div>
+    </ng-container>
+
+    <!-- Placeholder cuando todavía no hay cliente seleccionado (carga/errores/tenant vacío) -->
+    <ng-template #noSelection>
+      <div class="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+          <ion-icon name="chatbubbles-outline" class="text-xl"></ion-icon>
+        </span>
+        <p class="text-sm font-medium text-gray-500">Select a client to start texting</p>
+      </div>
+    </ng-template>
   </div>
 </div>
 
-<!-- New broadcast overlay -->
-<app-modal [isOpen]="isBroadcastOpen()" heading="New broadcast" subheading="Send one text message to every contact"
+<!-- New broadcast overlay: envío real en lote (un item por cliente texteable) -->
+<app-modal [isOpen]="isBroadcastOpen()" heading="New broadcast"
+  [subheading]="'Send one text message to ' + store.textableContacts().length + ' clients with a phone number'"
   size="lg" (closed)="closeBroadcast()">
   <div class="mt-5">
     <textarea rows="4" placeholder="Write your broadcast message..." [ngModel]="broadcastText()" name="broadcastText"
-      (ngModelChange)="broadcastText.set($event)"
-      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+      (ngModelChange)="broadcastText.set($event)" [attr.maxlength]="bodyMaxLength"
+      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+  </div>
+
+  <div *ngIf="broadcastError() as err"
+    class="mt-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+    {{ err }}
   </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">
@@ -65,8 +124,10 @@
       Cancel
     </button>
     <button type="button" (click)="sendBroadcast()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
-      Send to all contacts
+      [disabled]="!broadcastText().trim() || store.broadcastSending()"
+      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-bold">
+      <ion-icon *ngIf="store.broadcastSending()" name="sync-outline" class="animate-spin text-base"></ion-icon>
+      {{ store.broadcastSending() ? 'Sending…' : 'Send to all contacts' }}
     </button>
   </div>
 </app-modal>

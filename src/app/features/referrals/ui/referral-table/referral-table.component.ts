@@ -8,7 +8,7 @@ export interface Referral {
   name: string;
   /** Iniciales mostradas dentro del avatar circular (ej. "MG"). */
   initials: string;
-  /** Clase Tailwind de color de fondo del avatar (ej. "bg-[#7C6AE0]"). */
+  /** Clase Tailwind de color de fondo del avatar (ej. "bg-[#1E466B]"). */
   avatarColor: string;
   email: string;
   /** Fecha ya formateada para mostrar (ej. "Jun 22, 2026"). */
@@ -20,7 +20,7 @@ export interface Referral {
 
 /**
  * Tabla de referidos (patrón "Aether", igual que service-catalog / invoice-table):
- * header en píldora `bg-[#FAF9F7]` con extremos redondeados y columnas
+ * header en píldora `bg-[#FAFAFA]` con extremos redondeados y columnas
  * Name (avatar + iniciales) / Email / Date / Status (chip outline) / Reward.
  * Componente puramente presentacional: recibe la lista ya filtrada por input.
  */
@@ -32,6 +32,9 @@ export interface Referral {
 })
 export class ReferralTableComponent {
   @Input() referrals: Referral[] = [];
+
+  /** Mensaje del estado vacío (la página lo cambia según haya filtros o no exista data del backend). */
+  @Input() emptyMessage = 'No referrals match your search';
 
   trackByReferralId(_index: number, referral: Referral): string {
     return referral.id;

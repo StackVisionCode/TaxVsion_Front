@@ -1,64 +1,68 @@
 <div class="bg-white rounded-[28px] p-6">
+  <!-- Header. Ya no hay chip "Saved": no había nada que guardar. -->
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h2 class="text-xl font-bold text-gray-900">{{ moduleTitle }}</h2>
       <p class="mt-1 text-sm text-gray-500">Settings that apply to this module</p>
     </div>
 
-    <span *ngIf="showSaved()"
-      class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
-      <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
-      Saved
+    <span *ngIf="allPending()"
+      class="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500">
+      <ion-icon name="time-outline" class="text-sm"></ion-icon>
+      Not available yet
     </span>
   </div>
 
-  <div class="mt-4 flex flex-col divide-y divide-gray-100">
+  <!-- Aviso honesto: qué se guarda y qué no. -->
+  <div *ngIf="hasPending()" class="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3">
+    <p class="text-sm leading-relaxed text-gray-600">
+      <ng-container *ngIf="allPending(); else mixedNotice">
+        These settings aren't available yet. Nothing on this panel is stored, so leaving it will not
+        change how the module behaves.
+      </ng-container>
+      <ng-template #mixedNotice>
+        Color choices apply instantly and are remembered in this browser. The fields marked below
+        aren't available yet — nothing you set there is stored.
+      </ng-template>
+    </p>
+    <p *ngIf="note()" class="mt-1.5 text-sm leading-relaxed text-gray-500">{{ note() }}</p>
+  </div>
+
+  <!-- Enlace a la pantalla que SÍ persiste estos datos contra el backend. -->
+  <a *ngIf="link() as panelLink" [routerLink]="panelLink.routerLink"
+    class="group mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50">
+    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-brand-bold">
+      <ion-icon [name]="panelLink.icon" class="text-lg"></ion-icon>
+    </span>
+    <span class="min-w-0 flex-1">
+      <span class="block text-sm font-semibold text-gray-900">{{ panelLink.label }}</span>
+      <span class="mt-0.5 block text-xs leading-snug text-gray-400">{{ panelLink.description }}</span>
+    </span>
+    <ion-icon name="arrow-forward-outline"
+      class="text-base text-gray-300 transition-colors group-hover:text-gray-500"></ion-icon>
+  </a>
+
+  <div class="mt-2 flex flex-col divide-y divide-gray-100">
     <div *ngFor="let field of fields()" class="flex flex-wrap items-center justify-between gap-3 py-4">
       <div class="min-w-0">
-        <p class="text-sm font-semibold text-gray-900">{{ field.label }}</p>
+        <p class="text-sm font-semibold" [ngClass]="field.kind === 'pending' ? 'text-gray-500' : 'text-gray-900'">
+          {{ field.label }}
+        </p>
         <p class="mt-0.5 text-xs text-gray-400">{{ field.description }}</p>
+        <p *ngIf="field.kind === 'pending' && showPendingBadge()" class="mt-1 text-xs font-medium text-gray-400">
+          Not available yet
+        </p>
       </div>
 
-      <!-- Toggle -->
-      <button *ngIf="field.kind === 'toggle'" type="button" (click)="toggleField(field.key)"
-        class="relative h-6 w-11 shrink-0 rounded-full transition-colors"
-        [ngClass]="field.value ? 'bg-gray-900' : 'bg-gray-200'"
-        [attr.aria-pressed]="field.value">
-        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-          [ngClass]="field.value ? 'translate-x-5' : 'translate-x-0.5'"></span>
-      </button>
-
-      <!-- Select dropdown -->
-      <div *ngIf="field.kind === 'select'" class="relative" [attr.data-dropdown-field]="field.key">
-        <button type="button" (click)="toggleDropdown(field.key)"
-          class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          {{ field.value }}
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
-
-        <div *ngIf="openDropdownKey() === field.key"
-          class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of field.options" type="button" (click)="selectOption(field.key, option)"
-            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            {{ option }}
-            <ion-icon *ngIf="option === field.value" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-          </button>
-        </div>
-      </div>
-
-      <!-- Text input -->
-      <div *ngIf="field.kind === 'text'" class="h-9 w-64 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <input type="text" [ngModel]="field.value" (ngModelChange)="updateText(field.key, $event)"
-          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 rounded-full focus:outline-none" />
-      </div>
-
-      <!-- Color picker: swatches curados + selector custom. Se aplica al instante. -->
+      <!-- Color picker: swatches curados + selector custom. Es el único control real de esta
+           pantalla — ThemeService lo aplica al instante y lo recuerda en este navegador. -->
       <div *ngIf="field.kind === 'color'" class="flex items-center gap-3">
         <div class="flex items-center gap-1.5">
           <button *ngFor="let preset of colorPresets" type="button" (click)="updateColor(field.key, preset.hex)"
-            [attr.aria-label]="preset.label" [attr.aria-pressed]="preset.hex === field.value"
+            [attr.aria-label]="preset.label" [attr.aria-pressed]="preset.hex === colorFor(field.key)"
             class="h-7 w-7 shrink-0 rounded-full ring-offset-2 transition-shadow"
-            [class.ring-2]="preset.hex === field.value" [class.ring-gray-900]="preset.hex === field.value"
+            [class.ring-2]="preset.hex === colorFor(field.key)"
+            [class.ring-gray-900]="preset.hex === colorFor(field.key)"
             [style.background-color]="preset.hex"></button>
         </div>
 
@@ -66,19 +70,33 @@
 
         <label
           class="relative flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white pl-1.5 pr-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
-          <span class="h-6 w-6 shrink-0 rounded-full border border-gray-100" [style.background-color]="field.value"></span>
-          <span class="text-xs font-medium uppercase text-gray-600">{{ field.value }}</span>
-          <input type="color" [ngModel]="field.value" (ngModelChange)="updateColor(field.key, $event)"
-            name="primaryColor" class="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+          <span class="h-6 w-6 shrink-0 rounded-full border border-gray-100"
+            [style.background-color]="colorFor(field.key)"></span>
+          <span class="text-xs font-medium uppercase text-gray-600">{{ colorFor(field.key) }}</span>
+          <input type="color" [ngModel]="colorFor(field.key)" (ngModelChange)="updateColor(field.key, $event)"
+            [name]="field.key" class="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
         </label>
       </div>
-    </div>
-  </div>
 
-  <div class="mt-4">
-    <button type="button" (click)="save()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
-      Save changes
-    </button>
+      <!-- Campos sin respaldo: el hueco queda a la vista pero vacío y bloqueado. -->
+      <ng-container *ngIf="field.kind === 'pending'">
+        <span *ngIf="field.control === 'toggle'" aria-disabled="true"
+          class="relative h-6 w-11 shrink-0 cursor-not-allowed rounded-full bg-gray-200 opacity-60">
+          <span class="absolute top-0.5 translate-x-0.5 h-5 w-5 rounded-full bg-white shadow"></span>
+        </span>
+
+        <span *ngIf="field.control === 'select'" aria-disabled="true"
+          class="flex cursor-not-allowed items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-400">
+          &mdash;
+          <ion-icon name="chevron-down-outline" class="text-sm text-gray-300"></ion-icon>
+        </span>
+
+        <div *ngIf="field.control === 'text'"
+          class="h-9 w-64 rounded-full border border-gray-200 bg-gray-50 flex items-center">
+          <input type="text" value="" placeholder="&mdash;" disabled
+            class="w-full h-full cursor-not-allowed bg-transparent px-4 text-sm text-gray-400 placeholder-gray-300 rounded-full focus:outline-none" />
+        </div>
+      </ng-container>
+    </div>
   </div>
 </div>

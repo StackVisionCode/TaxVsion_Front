@@ -5,22 +5,30 @@ import { ClientProfile } from '../../models/client-profile.model';
 interface OverviewStat {
   title: string;
   subtitle: string;
-  value: string;
+  /** `null` = no hay dato real detrás; la tarjeta pinta "—" en vez de una cifra inventada. */
+  value: string | null;
   bg: string;
 }
 
-interface ActivityEntry {
-  icon: string;
-  iconClass: string;
-  text: string;
-  time: string;
-}
-
 /**
- * Tab "Overview" del perfil de cliente (patrón "Aether" tipo
- * dashboard-hero): fila de stat cards pastel + tarjeta de actividad
- * reciente con timeline. Datos mayormente estáticos; solo "Client since"
- * se deriva de createdAt.
+ * Tab "Overview" del perfil de cliente.
+ *
+ * Solo se muestra lo que sale del cliente REAL (GET /customers/{id}): "Client since" se
+ * deriva de `createdAt`. El resto de las tarjetas quedan en "—" y el timeline de
+ * actividad reciente se retiró, porque ninguna de esas cifras tiene fuente:
+ *
+ *  - "Open invoices": `GET /billing/invoices` solo acepta `take` y su fila
+ *    (`InvoiceSummaryResponse`) no expone el customer, así que no hay forma de contar las
+ *    facturas de ESTE cliente (mismo bloqueo que la pestaña Invoices).
+ *  - "Documents on file": CloudStorage no ofrece un listado filtrable por cliente
+ *    (`GET /storage/files` solo acepta `skip`/`take`), así que no hay un total fiable.
+ *  - "Last activity" / "Recent activity": no existe un feed de actividad por cliente en
+ *    ningún servicio; habría que agregar varios servicios distintos, y hoy la mayoría ni
+ *    siquiera sabe a qué customer pertenece cada hecho.
+ *
+ * Antes esto pintaba literales fijos ("2" facturas abiertas, "8" documentos, "3 days
+ * ago") y un timeline inventado (Invoice #INV-2026-0141 sent, W-2 2025 uploaded…) bajo el
+ * nombre de un cliente REAL. Se retiró por completo.
  */
 @Component({
   selector: 'app-client-profile-overview',
@@ -31,53 +39,21 @@ interface ActivityEntry {
 export class ClientProfileOverviewComponent {
   @Input() client!: ClientProfile;
 
-  readonly recentActivity: ActivityEntry[] = [
-    {
-      icon: 'receipt-outline',
-      iconClass: 'bg-indigo-500',
-      text: 'Invoice #INV-2026-0141 sent',
-      time: '3 days ago',
-    },
-    {
-      icon: 'document-text-outline',
-      iconClass: 'bg-orange-500',
-      text: 'Document uploaded: W-2 2025',
-      time: '5 days ago',
-    },
-    {
-      icon: 'create-outline',
-      iconClass: 'bg-[#7C6AE0]',
-      text: 'Signature request completed',
-      time: '1 week ago',
-    },
-    {
-      icon: 'chatbubble-ellipses-outline',
-      iconClass: 'bg-green-500',
-      text: 'Note added after phone call',
-      time: '2 weeks ago',
-    },
-    {
-      icon: 'mail-outline',
-      iconClass: 'bg-gray-900',
-      text: 'Welcome email sent',
-      time: '1 month ago',
-    },
-  ];
-
   stats(): OverviewStat[] {
     return [
       {
         title: 'Client since',
         subtitle: 'Relationship length',
         value: this.clientSince(),
-        bg: 'bg-[#F2E3C9]',
+        bg: 'bg-[#E8F1FB]',
       },
-      { title: 'Open invoices', subtitle: 'Awaiting payment', value: '2', bg: 'bg-[#CBD9F2]' },
-      { title: 'Documents on file', subtitle: 'Stored in vault', value: '8', bg: 'bg-[#DCDCDC]' },
-      { title: 'Last activity', subtitle: 'Most recent touch', value: '3 days ago', bg: 'bg-[#EEEBFA]' },
+      { title: 'Open invoices', subtitle: 'Not available yet', value: null, bg: 'bg-[#CFE2F7]' },
+      { title: 'Documents on file', subtitle: 'Not available yet', value: null, bg: 'bg-[#E7EAEE]' },
+      { title: 'Last activity', subtitle: 'Not available yet', value: null, bg: 'bg-[#DDE9F5]' },
     ];
   }
 
+  /** Único dato real de esta pantalla: se deriva del `createdAt` del cliente. */
   private clientSince(): string {
     const created = new Date(`${this.client.createdAt}T00:00:00`);
     const now = new Date();

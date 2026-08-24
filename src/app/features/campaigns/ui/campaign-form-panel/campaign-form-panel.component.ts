@@ -12,23 +12,32 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CampaignChannel, CampaignItem, CampaignStatus } from '../campaign-table/campaign-table.component';
+import {
+  ApiCampaignType,
+  CAMPAIGN_TYPES,
+  CampaignFormValue,
+  CampaignItem,
+  CampaignTemplateSummary,
+  parseCustomEmails,
+} from '../../data-access/campaigns.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 
-const CHANNELS: CampaignChannel[] = ['email', 'sms', 'whatsapp', 'push'];
-const STATUSES: CampaignStatus[] = ['draft', 'scheduled', 'active', 'sent', 'paused'];
-const AUDIENCES = ['All active clients', 'New clients this month', 'Overdue accounts', 'VIP clients', 'Custom list'];
+type AudienceOption = 'active-clients' | 'custom';
 
 /**
- * Overlay de creación/edición de campañas (mismo patrón que
- * invoice-form-panel): tarjeta centrada `rounded-[28px]` sobre backdrop con
- * stopPropagation. Un único componente cubre ambos modos: si `campaign`
- * llega con datos precarga el formulario y actúa como edición ("Edit
- * Campaign" / "Save changes"); si es null arranca en blanco ("New Campaign"
- * / "Create campaign"). `isEditMode` es una signal propia actualizada en
- * ngOnChanges, no un computed() sobre el @Input (que no reaccionaría a sus
- * cambios). El textarea de contenido cambia su etiqueta/placeholder según el
- * canal elegido, sin editor de plantillas real.
+ * Overlay del ciclo de vida de campañas (mismo patrón visual que invoice-form-panel:
+ * tarjeta centrada `rounded-[28px]` vía app-modal). Dos modos sobre el backend real:
+ *
+ * - Crear (`campaign` null): name + type + plantilla publicada + audiencia (clientes
+ *   activos vía GET /customers o lista manual de correos) + fecha opcional. Emite
+ *   `submitted` con el CampaignFormValue; el store hace POST create (+ schedule si
+ *   trae fecha). No hay modo edición: el backend no expone PUT de campañas.
+ *
+ * - Lanzar (`campaign` con un Draft): muestra el resumen de la campaña y pide solo la
+ *   fecha (vacía = lanzar ya). Emite `launched` con YYYY-MM-DD o ''.
+ *
+ * El guardado real vive en la página: `saving`/`errorMessage` llegan como inputs para
+ * deshabilitar el botón y mostrar el error del backend sin cerrar el panel.
  */
 @Component({
   selector: 'app-campaign-form-panel',
@@ -38,35 +47,55 @@ const AUDIENCES = ['All active clients', 'New clients this month', 'Overdue acco
 })
 export class CampaignFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
+  /** Draft a lanzar; null = modo creación. */
   @Input() campaign: CampaignItem | null = null;
+  @Input() templates: CampaignTemplateSummary[] = [];
+  @Input() templatesLoading = false;
+  @Input() templatesError: string | null = null;
+  @Input() saving = false;
+  @Input() errorMessage: string | null = null;
   @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<CampaignItem>();
+  @Output() submitted = new EventEmitter<CampaignFormValue>();
+  @Output() launched = new EventEmitter<string>();
+  @Output() retryTemplates = new EventEmitter<void>();
 
-  readonly channels = CHANNELS;
-  readonly statuses = STATUSES;
-  readonly audiences = AUDIENCES;
+  readonly types = CAMPAIGN_TYPES;
+  readonly audiences: AudienceOption[] = ['active-clients', 'custom'];
 
   /** Signal propia porque `campaign` es un @Input plano: un computed() no reaccionaría a sus cambios. */
-  readonly isEditMode = signal(false);
+  readonly isLaunchMode = signal(false);
 
   readonly name = signal('');
-  readonly channel = signal<CampaignChannel>('email');
-  readonly content = signal('');
-  readonly audience = signal(AUDIENCES[0]);
+  readonly type = signal<ApiCampaignType>('Newsletter');
+  readonly templateId = signal('');
+  readonly audience = signal<AudienceOption>('active-clients');
+  readonly customEmails = signal('');
   readonly scheduledDate = signal('');
-  readonly status = signal<CampaignStatus>('draft');
 
-  readonly isChannelOpen = signal(false);
+  readonly isTypeOpen = signal(false);
+  readonly isTemplateOpen = signal(false);
   readonly isAudienceOpen = signal(false);
-  readonly isStatusOpen = signal(false);
 
-  readonly canSave = computed(
-    () => this.name().trim().length > 0 && this.content().trim().length > 0,
+  readonly selectedTemplate = computed(
+    () => this.templates.find(template => template.id === this.templateId()) ?? null,
   );
+
+  /** Cuántos correos válidos hay en la lista manual (feedback en vivo bajo el textarea). */
+  readonly customEmailCount = computed(() => parseCustomEmails(this.customEmails()).length);
+
+  readonly canSave = computed(() => {
+    if (this.isLaunchMode()) {
+      return true;
+    }
+    if (this.name().trim().length === 0 || this.templateId().length === 0) {
+      return false;
+    }
+    return this.audience() === 'active-clients' || this.customEmailCount() > 0;
+  });
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['campaign'] || changes['isOpen']) {
-      this.isEditMode.set(this.campaign !== null);
+      this.isLaunchMode.set(this.campaign !== null);
       this.resetForm();
     }
   }
@@ -74,100 +103,63 @@ export class CampaignFormPanelComponent implements OnChanges {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="campaign-channel"]')) {
-      this.isChannelOpen.set(false);
+    if (!target.closest('[data-dropdown="campaign-type"]')) {
+      this.isTypeOpen.set(false);
+    }
+    if (!target.closest('[data-dropdown="campaign-template"]')) {
+      this.isTemplateOpen.set(false);
     }
     if (!target.closest('[data-dropdown="campaign-audience"]')) {
       this.isAudienceOpen.set(false);
     }
-    if (!target.closest('[data-dropdown="campaign-status"]')) {
-      this.isStatusOpen.set(false);
-    }
   }
 
-  toggleChannelDropdown(): void {
-    this.isChannelOpen.update(open => !open);
+  toggleTypeDropdown(): void {
+    this.isTypeOpen.update(open => !open);
+  }
+
+  toggleTemplateDropdown(): void {
+    this.isTemplateOpen.update(open => !open);
   }
 
   toggleAudienceDropdown(): void {
     this.isAudienceOpen.update(open => !open);
   }
 
-  toggleStatusDropdown(): void {
-    this.isStatusOpen.update(open => !open);
+  selectType(type: ApiCampaignType): void {
+    this.type.set(type);
+    this.isTypeOpen.set(false);
   }
 
-  selectChannel(channel: CampaignChannel): void {
-    this.channel.set(channel);
-    this.isChannelOpen.set(false);
+  selectTemplate(template: CampaignTemplateSummary): void {
+    this.templateId.set(template.id);
+    this.isTemplateOpen.set(false);
   }
 
-  selectAudience(audience: string): void {
+  selectAudience(audience: AudienceOption): void {
     this.audience.set(audience);
     this.isAudienceOpen.set(false);
   }
 
-  selectStatus(status: CampaignStatus): void {
-    this.status.set(status);
-    this.isStatusOpen.set(false);
-  }
-
-  channelLabel(channel: CampaignChannel): string {
-    switch (channel) {
-      case 'email':
-        return 'Email';
-      case 'sms':
-        return 'SMS';
-      case 'whatsapp':
-        return 'WhatsApp';
-      case 'push':
-        return 'Push';
-    }
-  }
-
-  channelIcon(channel: CampaignChannel): string {
-    switch (channel) {
-      case 'email':
-        return 'mail-outline';
-      case 'sms':
-        return 'chatbox-outline';
-      case 'whatsapp':
-        return 'logo-whatsapp';
-      case 'push':
+  typeIcon(type: ApiCampaignType): string {
+    switch (type) {
+      case 'Newsletter':
+        return 'newspaper-outline';
+      case 'Notification':
         return 'notifications-outline';
+      case 'Marketing':
+        return 'megaphone-outline';
+      case 'Custom':
+        return 'options-outline';
     }
   }
 
-  statusLabel(status: CampaignStatus): string {
-    switch (status) {
-      case 'draft':
-        return 'Draft';
-      case 'scheduled':
-        return 'Scheduled';
-      case 'active':
-        return 'Active';
-      case 'sent':
-        return 'Sent';
-      case 'paused':
-        return 'Paused';
-    }
+  audienceLabel(audience: AudienceOption): string {
+    return audience === 'active-clients' ? 'All active clients' : 'Custom list';
   }
 
-  contentLabel(): string {
-    return this.channel() === 'email' ? 'Subject + preview text' : 'Message';
-  }
-
-  contentPlaceholder(): string {
-    switch (this.channel()) {
-      case 'email':
-        return 'e.g. "Tax season is here! Book your appointment before April 15th..."';
-      case 'sms':
-        return 'e.g. "Reminder: your tax deadline is in 5 days. Reply STOP to opt out."';
-      case 'whatsapp':
-        return 'e.g. "Hi! Just a friendly reminder that your documents are due soon."';
-      case 'push':
-        return 'e.g. "Your refund status has been updated. Tap to view details."';
-    }
+  templateLabel(template: CampaignTemplateSummary): string {
+    return template.subject ? `${template.templateKey} — ${template.subject}` : template.templateKey;
   }
 
   close(): void {
@@ -175,44 +167,32 @@ export class CampaignFormPanelComponent implements OnChanges {
   }
 
   save(): void {
-    if (!this.canSave()) {
+    if (!this.canSave() || this.saving) {
       return;
     }
-    const result: CampaignItem = {
-      id: this.campaign?.id ?? `campaign-${Date.now()}`,
+    if (this.isLaunchMode()) {
+      this.launched.emit(this.scheduledDate());
+      return;
+    }
+    this.submitted.emit({
       name: this.name().trim(),
-      channel: this.channel(),
+      type: this.type(),
+      templateId: this.templateId(),
       audience: this.audience(),
-      content: this.content().trim(),
-      status: this.status(),
-      scheduledDate: this.scheduledDate() || null,
-      recipients: this.campaign?.recipients ?? 0,
-      delivered: this.campaign?.delivered ?? 0,
-      opened: this.campaign?.opened ?? 0,
-      clicked: this.campaign?.clicked ?? 0,
-    };
-    this.saved.emit(result);
+      customEmails: this.customEmails(),
+      scheduledDate: this.scheduledDate(),
+    });
   }
 
   private resetForm(): void {
-    const campaign = this.campaign;
-    if (campaign) {
-      this.name.set(campaign.name);
-      this.channel.set(campaign.channel);
-      this.content.set(campaign.content);
-      this.audience.set(campaign.audience);
-      this.scheduledDate.set(campaign.scheduledDate ?? '');
-      this.status.set(campaign.status);
-    } else {
-      this.name.set('');
-      this.channel.set('email');
-      this.content.set('');
-      this.audience.set(AUDIENCES[0]);
-      this.scheduledDate.set('');
-      this.status.set('draft');
-    }
-    this.isChannelOpen.set(false);
+    this.name.set('');
+    this.type.set('Newsletter');
+    this.templateId.set('');
+    this.audience.set('active-clients');
+    this.customEmails.set('');
+    this.scheduledDate.set('');
+    this.isTypeOpen.set(false);
+    this.isTemplateOpen.set(false);
     this.isAudienceOpen.set(false);
-    this.isStatusOpen.set(false);
   }
 }

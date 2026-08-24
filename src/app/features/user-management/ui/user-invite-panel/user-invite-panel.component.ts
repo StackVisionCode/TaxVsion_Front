@@ -8,46 +8,29 @@ import {
   Output,
   SimpleChanges,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MemberRole, ROLE_OPTIONS, RoleOption, TeamMember } from '../user-table/user-table.component';
+import { toApiError } from '@core/models/api-error.model';
+import { TeamMember } from '../user-table/user-table.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { UserManagementStore } from '../../data-access/user-management.store';
+import { RoleSummary, UserActorType } from '../../data-access/user-management.model';
 
-const AVATAR_PALETTE = ['bg-indigo-500', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-green-500'];
-
-/** Turns "sofia.martinez@taxprooffice.com" into "Sofia Martinez" for freshly-invited members. */
-function deriveNameFromEmail(email: string): string {
-  const localPart = email.split('@')[0] ?? '';
-  const words = localPart.split(/[._\-+0-9]+/).filter(Boolean);
-  if (words.length === 0) {
-    return 'New member';
-  }
-  return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-}
-
-function deriveInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length >= 2) {
-    return `${words[0].charAt(0)}${words[words.length - 1].charAt(0)}`.toUpperCase();
-  }
-  return (words[0] ?? 'NM').slice(0, 2).toUpperCase();
-}
-
-function pickAvatarColor(seed: string): string {
-  const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
+/** Actor types invitables desde este módulo (staff). CustomerPortal se invita desde Clients, no acá. */
+type StaffActorType = Extract<UserActorType, 'TenantEmployee' | 'TenantAdmin'>;
 
 /**
- * Overlay de invitación/edición del módulo User Management (mismo patrón
- * que task-create-panel): tarjeta centrada `rounded-[28px]` sobre backdrop
- * con stopPropagation. Un único componente cubre ambos modos: si `member`
- * llega con datos precarga el formulario y actúa como edición de rol
- * ("Edit Member" / "Save changes"); si es null arranca vacío ("Invite
- * Member" / "Send invite"). Las invitaciones nuevas quedan con status
- * 'invited'; las ediciones conservan el status existente.
+ * Overlay de invitación/edición del módulo User Management (mismo patrón que
+ * client-form-panel: el panel hace la llamada real vía el store y emite `saved`
+ * al terminar). Un único componente cubre ambos modos: si `member` llega con
+ * datos precarga el formulario y actúa como edición de roles ("Edit Member" →
+ * PUT /auth/users/{id}/roles); si es null arranca vacío ("Invite Member" →
+ * POST /auth/invitations). El picker de roles sale de GET /auth/roles y las
+ * descripciones se completan con GET /auth/permissions; el pie muestra los
+ * asientos/invitaciones del plan (GET /auth/tenants/limits).
  */
 @Component({
   selector: 'app-user-invite-panel',
@@ -56,26 +39,75 @@ function pickAvatarColor(seed: string): string {
   templateUrl: './user-invite-panel.component.html',
 })
 export class UserInvitePanelComponent implements OnChanges {
+  private readonly store = inject(UserManagementStore);
+
   @Input() isOpen = false;
   @Input() member: TeamMember | null = null;
   @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<TeamMember>();
+  /** Emite el email del miembro invitado/editado tras un guardado exitoso. */
+  @Output() saved = new EventEmitter<string>();
 
-  readonly roleOptions: RoleOption[] = ROLE_OPTIONS;
+  readonly roleOptions = this.store.roles;
+  readonly limits = this.store.limits;
 
   readonly email = signal('');
-  readonly role = signal<MemberRole>('preparer');
+  readonly actorType = signal<StaffActorType>('TenantEmployee');
+  readonly selectedRoleIds = signal<string[]>([]);
 
   readonly isRoleOpen = signal(false);
+  readonly isSaving = signal(false);
+  readonly saveError = signal<string | null>(null);
 
   /** Signal propia porque `member` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
 
-  readonly canSave = computed(() => /\S+@\S+\.\S+/.test(this.email().trim()));
+  readonly canSave = computed(() => {
+    if (this.isSaving()) {
+      return false;
+    }
+    if (this.isEditMode()) {
+      // PUT roles reemplaza el set completo: exigimos al menos un rol para no dejar al usuario sin ninguno.
+      return this.selectedRoleIds().length > 0;
+    }
+    return /\S+@\S+\.\S+/.test(this.email().trim());
+  });
 
-  readonly selectedRole = computed<RoleOption>(
-    () => this.roleOptions.find(option => option.id === this.role()) ?? this.roleOptions[2],
-  );
+  readonly selectedRolesLabel = computed(() => {
+    const selected = this.selectedRoleIds();
+    if (selected.length === 0) {
+      return this.isEditMode() ? 'Select roles' : 'Assign roles (optional)';
+    }
+    return this.roleOptions()
+      .filter(role => selected.includes(role.id))
+      .map(role => role.name)
+      .join(', ');
+  });
+
+  /** code -> module, para describir roles sin description a partir de sus permisos. */
+  private readonly moduleByCode = computed(() => {
+    const map = new Map<string, string>();
+    for (const permission of this.store.permissions()) {
+      map.set(permission.code, permission.module);
+    }
+    return map;
+  });
+
+  /** "Active seats 3/5 · 1 pending invite" — solo informativo, el backend es quien rechaza sin cupo. */
+  readonly seatsHint = computed(() => {
+    const limits = this.limits();
+    if (!limits || this.isEditMode()) {
+      return null;
+    }
+    const seats =
+      limits.maxUsers !== null ? `${limits.activeUsers}/${limits.maxUsers} seats in use` : `${limits.activeUsers} active members`;
+    const invites = `${limits.pendingInvitations} pending invite${limits.pendingInvitations === 1 ? '' : 's'}`;
+    return `${seats} · ${invites}`;
+  });
+
+  readonly seatsExhausted = computed(() => {
+    const limits = this.limits();
+    return !this.isEditMode() && limits !== null && limits.availableSeats === 0;
+  });
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['member'] || changes['isOpen']) {
@@ -96,9 +128,32 @@ export class UserInvitePanelComponent implements OnChanges {
     this.isRoleOpen.update(open => !open);
   }
 
-  selectRole(role: MemberRole): void {
-    this.role.set(role);
-    this.isRoleOpen.set(false);
+  toggleRole(roleId: string): void {
+    this.selectedRoleIds.update(selected =>
+      selected.includes(roleId) ? selected.filter(id => id !== roleId) : [...selected, roleId],
+    );
+  }
+
+  isRoleSelected(roleId: string): boolean {
+    return this.selectedRoleIds().includes(roleId);
+  }
+
+  setActorType(actorType: StaffActorType): void {
+    this.actorType.set(actorType);
+  }
+
+  /** Descripción del rol: la propia, o los módulos que cubren sus permisos, o el conteo de permisos. */
+  roleDescription(role: RoleSummary): string {
+    if (role.description?.trim()) {
+      return role.description;
+    }
+    const moduleByCode = this.moduleByCode();
+    const modules = [...new Set(role.permissionCodes.map(code => moduleByCode.get(code)).filter(Boolean))] as string[];
+    if (modules.length > 0) {
+      const shown = modules.slice(0, 3).join(', ');
+      return modules.length > 3 ? `${shown} +${modules.length - 3} more` : shown;
+    }
+    return `${role.permissionCodes.length} permission${role.permissionCodes.length === 1 ? '' : 's'}`;
   }
 
   close(): void {
@@ -109,31 +164,60 @@ export class UserInvitePanelComponent implements OnChanges {
     if (!this.canSave()) {
       return;
     }
-    const existing = this.member;
+    this.saveError.set(null);
+    this.isSaving.set(true);
+
+    const member = this.member;
+    if (this.isEditMode() && member) {
+      const roleIds = this.selectedRoleIds();
+      const roleNames = this.roleOptions()
+        .filter(role => roleIds.includes(role.id))
+        .map(role => role.name);
+      this.store.assignRoles(member.id, roleIds, roleNames).subscribe({
+        next: () => {
+          this.isSaving.set(false);
+          this.saved.emit(member.email);
+        },
+        error: err => {
+          this.isSaving.set(false);
+          this.saveError.set(toApiError(err).message);
+        },
+      });
+      return;
+    }
+
     const email = this.email().trim();
-    const name = existing?.name ?? deriveNameFromEmail(email);
-    const result: TeamMember = {
-      id: existing?.id ?? `member-${Date.now()}`,
-      name,
-      initials: existing?.initials ?? deriveInitials(name),
-      avatarColor: existing?.avatarColor ?? pickAvatarColor(email),
-      email,
-      role: this.role(),
-      status: existing?.status ?? 'invited',
-      lastActive: existing?.lastActive ?? 'Invited just now',
-    };
-    this.saved.emit(result);
+    this.store.invite(email, this.actorType(), this.selectedRoleIds()).subscribe({
+      next: () => {
+        this.isSaving.set(false);
+        this.saved.emit(email);
+      },
+      error: err => {
+        this.isSaving.set(false);
+        this.saveError.set(toApiError(err).message);
+      },
+    });
   }
 
   private resetForm(): void {
     const member = this.member;
     if (member) {
       this.email.set(member.email);
-      this.role.set(member.role);
+      this.actorType.set(member.actorType === 'TenantAdmin' ? 'TenantAdmin' : 'TenantEmployee');
+      // El backend devuelve nombres de rol en el listado de users: se mapean a ids contra GET /auth/roles.
+      const names = member.roleNames.map(name => name.toLowerCase());
+      this.selectedRoleIds.set(
+        this.roleOptions()
+          .filter(role => names.includes(role.name.toLowerCase()))
+          .map(role => role.id),
+      );
     } else {
       this.email.set('');
-      this.role.set('preparer');
+      this.actorType.set('TenantEmployee');
+      this.selectedRoleIds.set([]);
     }
     this.isRoleOpen.set(false);
+    this.isSaving.set(false);
+    this.saveError.set(null);
   }
 }

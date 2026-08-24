@@ -6,12 +6,12 @@
     <div class="mt-5 inline-flex items-center rounded-full border border-gray-200 p-1">
       <button type="button" (click)="setClientType('individual')"
         class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="clientType() === 'individual' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        [ngClass]="clientType() === 'individual' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
         Individual
       </button>
       <button type="button" (click)="setClientType('company')"
         class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="clientType() === 'company' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        [ngClass]="clientType() === 'company' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
         Company
       </button>
     </div>
@@ -90,7 +90,7 @@
 
         <textarea rows="2" placeholder="Principal business activity" [ngModel]="principalBusinessActivity()"
           name="principalBusinessActivity" (ngModelChange)="principalBusinessActivity.set($event)"
-          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
       </ng-container>
 
       <!-- Shared fields -->
@@ -112,7 +112,7 @@
         <span class="text-sm font-medium text-gray-700">Active client</span>
         <button type="button" (click)="isActive.set(!isActive())"
           class="relative h-6 w-11 rounded-full transition-colors"
-          [ngClass]="isActive() ? 'bg-gray-900' : 'bg-gray-200'" role="switch" [attr.aria-checked]="isActive()">
+          [ngClass]="isActive() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="isActive()">
           <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
             [ngClass]="isActive() ? 'translate-x-5' : 'translate-x-0.5'"></span>
         </button>
@@ -127,7 +127,7 @@
       Cancel
     </button>
     <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
       {{ isSaving() ? 'Saving…' : (isEditMode() ? 'Save changes' : 'Create client') }}
     </button>
   </div>

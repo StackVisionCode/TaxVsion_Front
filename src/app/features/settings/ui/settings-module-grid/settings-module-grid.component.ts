@@ -13,16 +13,20 @@ export interface SettingsModule {
 }
 
 export const SETTINGS_MODULES: SettingsModule[] = [
-  { id: 'overview', title: 'Overview', description: 'Firm name, logo and general preferences', icon: 'grid-outline', circleClass: 'bg-[#DCDCDC] text-gray-700' },
-  { id: 'accounts', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-[#CBD9F2] text-indigo-600' },
-  { id: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-[#F2E3C9] text-orange-500' },
-  { id: 'invoices', title: 'Invoices', description: 'Currency, taxes and payment reminders', icon: 'receipt-outline', circleClass: 'bg-[#EEEBFA] text-[#7C6AE0]' },
-  { id: 'mail', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-[#CBD9F2] text-indigo-600' },
-  { id: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-[#F2E3C9] text-orange-500' },
-  { id: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-[#DCDCDC] text-gray-700' },
-  { id: 'ai', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-[#EEEBFA] text-[#7C6AE0]' },
-  { id: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-[#CBD9F2] text-indigo-600', routerLink: '/storage' },
-  { id: 'templates', title: 'Templates', description: 'Reusable email, letter and reminder content', icon: 'copy-outline', circleClass: 'bg-[#F2E3C9] text-orange-500', routerLink: '/templates' },
+  { id: 'overview', title: 'Overview', description: 'App colors and general preferences', icon: 'grid-outline', circleClass: 'bg-[#E7EAEE] text-gray-700' },
+  // El nombre de la firma, EIN, dirección, logo y paleta del tenant sí tienen backend
+  // (Billing /billing/issuer-profile + /tenants/{id}/...), pero se editan en su propia
+  // pantalla: se enlaza en vez de duplicar el formulario acá.
+  { id: 'company', title: 'Company', description: 'Legal name, EIN, address, logo and brand colors', icon: 'business-outline', circleClass: 'bg-[#DDE9F5] text-[#1E466B]', routerLink: '/company/settings' },
+  { id: 'accounts', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-[#CFE2F7] text-indigo-600' },
+  { id: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-[#E8F1FB] text-orange-500' },
+  { id: 'invoices', title: 'Invoices', description: 'Currency, taxes and payment reminders', icon: 'receipt-outline', circleClass: 'bg-[#DDE9F5] text-[#1E466B]' },
+  { id: 'mail', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-[#CFE2F7] text-indigo-600' },
+  { id: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-[#E8F1FB] text-orange-500' },
+  { id: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-[#E7EAEE] text-gray-700' },
+  { id: 'ai', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-[#DDE9F5] text-[#1E466B]' },
+  { id: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-[#CFE2F7] text-indigo-600', routerLink: '/storage' },
+  { id: 'templates', title: 'Templates', description: 'Reusable email, letter and reminder content', icon: 'copy-outline', circleClass: 'bg-[#E8F1FB] text-orange-500', routerLink: '/templates' },
 ];
 
 /**

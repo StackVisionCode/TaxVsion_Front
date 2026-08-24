@@ -17,25 +17,63 @@ module.exports = {
         // cuando el usuario elige un color en Settings > Overview — ningún
         // componente necesita tocarse, siguen usando `bg-indigo-600`,
         // `text-orange-500`, etc. tal cual.
+        //
+        // Los fallbacks son la PALETA DE MARCA (ver `brand` más abajo): la rampa
+        // se generó con el mismo algoritmo que usa ThemeService (ancla 600 para
+        // primary = Bold Blue #1e466b, ancla 500 para secondary = Light Blue
+        // #67baf4), así que sin JS o con "restablecer" se ve idéntico.
         indigo: {
-          50: 'rgb(var(--color-indigo-50-rgb, 238 242 255) / <alpha-value>)',
-          100: 'rgb(var(--color-indigo-100-rgb, 224 231 255) / <alpha-value>)',
-          200: 'rgb(var(--color-indigo-200-rgb, 199 210 254) / <alpha-value>)',
-          300: 'rgb(var(--color-indigo-300-rgb, 165 180 252) / <alpha-value>)',
-          400: 'rgb(var(--color-indigo-400-rgb, 129 140 248) / <alpha-value>)',
-          500: 'rgb(var(--color-indigo-500-rgb, 99 102 241) / <alpha-value>)',
-          600: 'rgb(var(--color-indigo-600-rgb, 79 70 229) / <alpha-value>)',
-          700: 'rgb(var(--color-indigo-700-rgb, 67 56 202) / <alpha-value>)',
+          50: 'rgb(var(--color-indigo-50-rgb, 245 247 250) / <alpha-value>)',
+          100: 'rgb(var(--color-indigo-100-rgb, 214 226 237) / <alpha-value>)',
+          200: 'rgb(var(--color-indigo-200-rgb, 176 201 223) / <alpha-value>)',
+          300: 'rgb(var(--color-indigo-300-rgb, 136 174 210) / <alpha-value>)',
+          400: 'rgb(var(--color-indigo-400-rgb, 90 146 197) / <alpha-value>)',
+          500: 'rgb(var(--color-indigo-500-rgb, 54 114 169) / <alpha-value>)',
+          600: 'rgb(var(--color-indigo-600-rgb, 30 70 107) / <alpha-value>)',
+          700: 'rgb(var(--color-indigo-700-rgb, 19 44 67) / <alpha-value>)',
         },
         orange: {
-          50: 'rgb(var(--color-orange-50-rgb, 255 247 237) / <alpha-value>)',
-          100: 'rgb(var(--color-orange-100-rgb, 255 237 213) / <alpha-value>)',
-          200: 'rgb(var(--color-orange-200-rgb, 254 215 170) / <alpha-value>)',
-          300: 'rgb(var(--color-orange-300-rgb, 253 186 116) / <alpha-value>)',
-          400: 'rgb(var(--color-orange-400-rgb, 251 146 60) / <alpha-value>)',
-          500: 'rgb(var(--color-orange-500-rgb, 249 115 22) / <alpha-value>)',
-          600: 'rgb(var(--color-orange-600-rgb, 234 88 12) / <alpha-value>)',
-          700: 'rgb(var(--color-orange-700-rgb, 194 65 12) / <alpha-value>)',
+          50: 'rgb(var(--color-orange-50-rgb, 243 248 252) / <alpha-value>)',
+          100: 'rgb(var(--color-orange-100-rgb, 227 239 248) / <alpha-value>)',
+          200: 'rgb(var(--color-orange-200-rgb, 204 228 245) / <alpha-value>)',
+          300: 'rgb(var(--color-orange-300-rgb, 178 216 242) / <alpha-value>)',
+          400: 'rgb(var(--color-orange-400-rgb, 147 203 242) / <alpha-value>)',
+          500: 'rgb(var(--color-orange-500-rgb, 103 186 244) / <alpha-value>)',
+          600: 'rgb(var(--color-orange-600-rgb, 55 164 241) / <alpha-value>)',
+          700: 'rgb(var(--color-orange-700-rgb, 17 147 238) / <alpha-value>)',
+        },
+
+        /**
+         * Paleta de marca. Fuente única de los 4 colores del brandbook, para no
+         * volver a esparcir hex sueltos por las plantillas:
+         *   bold   #1e466b  azul de marca (acciones, encabezados)
+         *   light  #67baf4  acento claro (fondos suaves, estados)
+         *   white  #fafafa  fondo de la aplicación
+         *   black  #0d0d0d  texto principal
+         * Los tonos intermedios (surface/border) salen de la misma familia para
+         * que las tarjetas y separadores no necesiten grises ajenos a la marca.
+         */
+        /**
+         * `gray-900` es el color de TEXTO principal en toda la app (~560 usos), así que
+         * se reapunta al Jet Black del brandbook en vez de tocar cada plantilla. El resto
+         * de la escala `gray` se deja intacta: son neutros de UI (bordes, texto
+         * secundario) que siguen funcionando con la paleta nueva.
+         */
+        gray: {
+          900: '#0d0d0d',
+        },
+
+        brand: {
+          black: '#0d0d0d',
+          white: '#fafafa',
+          bold: '#1e466b',
+          light: '#67baf4',
+          // Superficies: del más claro (fondo de tarjeta) al más saturado.
+          surface: '#f1f6fb',
+          'surface-strong': '#e2edf7',
+          border: '#d7e3ef',
+          // Azul muy oscuro para textos sobre fondos claros que necesitan más peso que `bold`.
+          ink: '#132c43',
         },
       },
     },

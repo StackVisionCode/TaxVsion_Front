@@ -1,0 +1,265 @@
+<app-auth-shell [wide]="currentStep() === 1"
+  panelEyebrow="Join TaxPro Office"
+  panelHeading="Pick a plan, pay once, and your firm is ready in minutes">
+
+  <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+  <h1 class="mt-4 text-3xl font-bold text-gray-900">Create your account</h1>
+  <p class="mt-2 text-sm text-gray-500">Step {{ currentStep() }} of {{ totalSteps }} — {{ stepTitle() }}</p>
+
+  <!-- Step progress bars -->
+  <div class="mt-4 flex gap-2">
+    @for (title of stepTitles; track $index) {
+      <span class="h-1.5 flex-1 rounded-full transition-colors"
+        [class.bg-indigo-600]="$index < currentStep()" [class.bg-gray-200]="$index >= currentStep()"></span>
+    }
+  </div>
+
+  <!-- ── Paso 1: plan ─────────────────────────────────────────────────────── -->
+  @if (currentStep() === 1) {
+    <div class="step-content mt-6">
+      @if (plansLoading()) {
+        <div class="flex items-center gap-3 py-10 text-sm text-gray-500">
+          <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+          Loading plans...
+        </div>
+      } @else if (plansError()) {
+        <div class="py-8">
+          <p class="text-sm font-medium text-red-600">{{ plansError() }}</p>
+          <button type="button" (click)="retryLoadPlans()"
+            class="mt-4 px-5 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            Try again
+          </button>
+        </div>
+      } @else if (!plans().length) {
+        <p class="py-10 text-sm text-gray-500">There are no plans available right now. Please check back later.</p>
+      } @else {
+        <app-plan-picker [plans]="plans()" [selectedPlanId]="selectedPlanId()"
+          (planSelected)="selectPlan($event)"></app-plan-picker>
+
+        <p class="mt-4 text-xs text-gray-400">
+          Billed as a one-time charge to get started. You can manage your subscription from your office afterwards.
+        </p>
+      }
+    </div>
+  }
+
+  <!-- ── Paso 2: email + OTP ──────────────────────────────────────────────── -->
+  @if (currentStep() === 2) {
+    <div class="step-content mt-6 space-y-4">
+      @if (emailPhase() === 'email') {
+        <form [formGroup]="emailForm" (ngSubmit)="sendCode()">
+          <div class="space-y-1.5">
+            <label for="email" class="block text-sm font-medium text-gray-800">Your email</label>
+            <input type="email" id="email" formControlName="email" placeholder="you@company.com" autocomplete="email"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+            <p class="text-xs text-gray-400">We'll send you a 6-digit code to confirm it's you.</p>
+          </div>
+        </form>
+      } @else if (emailPhase() === 'verified') {
+        <div class="rounded-xl bg-emerald-50 px-4 py-3 flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+              <ion-icon name="checkmark-outline" class="text-base text-emerald-600"></ion-icon>
+            </span>
+            <div class="min-w-0">
+              <p class="text-xs text-emerald-700">Email verified</p>
+              <p class="truncate text-sm font-medium text-gray-800">{{ verifiedEmail() }}</p>
+            </div>
+          </div>
+          <button type="button" (click)="resetEmailChallenge()"
+            class="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            Change
+          </button>
+        </div>
+      } @else {
+        <div class="rounded-xl bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-gray-500">Verifying</p>
+            <p class="truncate text-sm font-medium text-gray-800">{{ emailForm.value.email }}</p>
+          </div>
+          <button type="button" (click)="resetEmailChallenge()"
+            class="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            Change
+          </button>
+        </div>
+
+        <form [formGroup]="codeForm" (ngSubmit)="verifyCode()">
+          <div class="space-y-1.5">
+            <label for="code" class="block text-sm font-medium text-gray-800">Verification code</label>
+            <input type="text" id="code" formControlName="code" inputmode="numeric" autocomplete="one-time-code"
+              maxlength="6" placeholder="000000"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+            <p class="text-xs text-gray-400">The code expires in 10 minutes.</p>
+          </div>
+        </form>
+
+        <div class="flex items-center gap-2 text-sm">
+          @if (canResend()) {
+            <button type="button" (click)="resendCode()" [disabled]="submitting()"
+              class="font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-60">
+              Resend code
+            </button>
+          } @else if (cooldownSeconds() > 0) {
+            <span class="text-gray-400">Resend available in {{ cooldownSeconds() }}s</span>
+          } @else {
+            <span class="text-gray-400">You've reached the resend limit.</span>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Paso 3: datos del comprador ──────────────────────────────────────── -->
+  @if (currentStep() === 3) {
+    <form [formGroup]="detailsForm" class="step-content mt-6 space-y-4" (ngSubmit)="submitDetails()">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label for="firstName" class="block text-sm font-medium text-gray-800">First name</label>
+          <input type="text" id="firstName" formControlName="firstName" placeholder="Jordan"
+            class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+        </div>
+        <div class="space-y-1.5">
+          <label for="lastName" class="block text-sm font-medium text-gray-800">Last name</label>
+          <input type="text" id="lastName" formControlName="lastName" placeholder="Reyes"
+            class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+        </div>
+      </div>
+
+      <div class="space-y-1.5">
+        <label for="phone" class="block text-sm font-medium text-gray-800">
+          Phone number <span class="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input type="tel" id="phone" formControlName="phone" placeholder="+1 809 555 1234"
+          class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+      </div>
+
+      <div class="rounded-xl bg-gray-50 px-4 py-3">
+        <p class="text-xs text-gray-500">Verified email</p>
+        <p class="truncate text-sm font-medium text-gray-800">{{ verifiedEmail() }}</p>
+      </div>
+    </form>
+  }
+
+  <!-- ── Paso 4: pago ─────────────────────────────────────────────────────── -->
+  @if (currentStep() === 4) {
+    <div class="step-content mt-6 space-y-4">
+      @if (selectedPlan(); as plan) {
+        <div class="rounded-2xl border border-gray-200 p-5">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{{ plan.tier }}</p>
+              <h3 class="mt-1 text-lg font-bold text-gray-900">{{ plan.name }}</h3>
+            </div>
+            <p class="text-2xl font-bold text-gray-900">{{ plan.monthlyPriceUsd | currency: 'USD' }}</p>
+          </div>
+
+          <dl class="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
+            <div class="flex justify-between gap-4">
+              <dt class="text-gray-500">Account</dt>
+              <dd class="truncate font-medium text-gray-800">{{ verifiedEmail() }}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-gray-500">Users included</dt>
+              <dd class="font-medium text-gray-800">{{ plan.maxUsers }}</dd>
+            </div>
+          </dl>
+        </div>
+      }
+
+      <div class="flex items-start gap-2.5 rounded-xl bg-indigo-50/60 px-4 py-3">
+        <ion-icon name="lock-closed-outline" class="mt-0.5 text-base text-indigo-600"></ion-icon>
+        <p class="text-xs text-gray-600">
+          You'll be redirected to Stripe to complete the payment securely. We never see or store your card details.
+        </p>
+      </div>
+
+      <button type="button" (click)="startOver()" class="text-sm font-medium text-gray-500 hover:text-gray-700">
+        Need to change something? Start over
+      </button>
+    </div>
+  }
+
+  @if (formError()) {
+    <p class="mt-4 text-sm font-medium text-red-600">{{ formError() }}</p>
+  }
+
+  <!-- ── Navegación ───────────────────────────────────────────────────────── -->
+  <div class="mt-6 flex items-center gap-3">
+    @if (currentStep() > 1 && currentStep() < 4) {
+      <button type="button" (click)="goBack()"
+        class="flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+        <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+        Back
+      </button>
+    }
+
+    @switch (currentStep()) {
+      @case (1) {
+        <button type="button" (click)="confirmPlan()" [disabled]="plansLoading() || !plans().length"
+          class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+          Continue
+          <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+        </button>
+      }
+      @case (2) {
+        @if (emailPhase() === 'email') {
+          <button type="button" (click)="sendCode()" [disabled]="submitting()"
+            class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+            @if (submitting()) {
+              <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              <span>Sending code...</span>
+            } @else {
+              <span>Send code</span>
+            }
+          </button>
+        } @else if (emailPhase() === 'verified') {
+          <button type="button" (click)="continueAfterVerification()"
+            class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+            Continue
+            <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+          </button>
+        } @else {
+          <button type="button" (click)="verifyCode()" [disabled]="submitting()"
+            class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+            @if (submitting()) {
+              <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              <span>Verifying...</span>
+            } @else {
+              <span>Verify email</span>
+            }
+          </button>
+        }
+      }
+      @case (3) {
+        <button type="button" (click)="submitDetails()" [disabled]="submitting()"
+          class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+          @if (submitting()) {
+            <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            <span>Saving...</span>
+          } @else {
+            <span>Continue to payment</span>
+            <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+          }
+        </button>
+      }
+      @case (4) {
+        <button type="button" (click)="payWithStripe()" [disabled]="submitting()"
+          class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+          @if (submitting()) {
+            <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            <span>Redirecting to Stripe...</span>
+          } @else {
+            <span>Continue to secure payment</span>
+            <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+          }
+        </button>
+      }
+    }
+  </div>
+
+  <p class="mt-8 text-center text-sm text-gray-600">
+    Already have an account?
+    <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign in</a>
+  </p>
+</app-auth-shell>

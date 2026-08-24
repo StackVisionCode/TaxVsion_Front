@@ -2,9 +2,11 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, O
 import { CommonModule } from '@angular/common';
 import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
 
-export type SignerStatus = 'pending' | 'signed' | 'rejected';
+export type SignerStatus = 'pending' | 'signed' | 'rejected' | 'expired';
 
 export interface Signer {
+  /** id real del firmante en el backend (resend por firmante); ausente en los datos demo del sign-page. */
+  id?: string;
   name: string;
   initials: string;
   email: string;
@@ -16,7 +18,20 @@ export interface Signer {
   channel?: VerificationChannel;
 }
 
-export type SignatureStatus = 'pending' | 'in-progress' | 'completed' | 'rejected';
+/**
+ * Estado de UI de una solicitud. Espejo del SignatureRequestStatus real del
+ * backend (draft/ready/in-progress/completed/rejected/canceled/expired);
+ * 'pending' se conserva solo por el flujo demo del sign-page.
+ */
+export type SignatureStatus =
+  | 'draft'
+  | 'ready'
+  | 'pending'
+  | 'in-progress'
+  | 'completed'
+  | 'rejected'
+  | 'canceled'
+  | 'expired';
 
 export interface SignatureRequest {
   id: string;
@@ -24,13 +39,21 @@ export interface SignatureRequest {
   client: string;
   signers: Signer[];
   status: SignatureStatus;
-  /** ISO date string (YYYY-MM-DD). */
-  sentDate: string;
-  /** ISO date string (YYYY-MM-DD). */
+  /** ISO date string (YYYY-MM-DD); null mientras la solicitud sigue en Draft/Ready. */
+  sentDate: string | null;
+  /** ISO date string (YYYY-MM-DD) — fecha de expiración de la solicitud. */
   dueDate: string;
   /** ISO date string (YYYY-MM-DD), null until the request is fully completed. */
   completedDate: string | null;
   notes: string;
+  /** Categoría legal (SignatureCategory del backend). */
+  category?: string;
+  /** fileId del PDF original en CloudStorage. */
+  originalFileId?: string;
+  /** fileId del PDF sellado (solo cuando completed). */
+  sealedFileId?: string | null;
+  /** fileId del certificado de finalización (solo cuando completed + generateCertificate). */
+  certificateFileId?: string | null;
   /** Data URL (PNG) of the preparer's own signature stamp, captured via app-signature-pad. Undefined/null if not added. */
   preparerSignatureDataUrl?: string | null;
   /** id del cliente elegido en el wizard (mock). */
@@ -41,7 +64,7 @@ export interface SignatureRequest {
   rules?: RequestRules;
 }
 
-/** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. */
+/** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
 export function deriveSignatureStatus(signers: Signer[]): SignatureStatus {
   if (signers.length === 0) {
     return 'pending';
@@ -58,9 +81,14 @@ export function deriveSignatureStatus(signers: Signer[]): SignatureStatus {
   return 'pending';
 }
 
+/** Estados desde los que el staff todavía puede cancelar/extender (no terminales). */
+export function isActionableStatus(status: SignatureStatus): boolean {
+  return status === 'draft' || status === 'ready' || status === 'pending' || status === 'in-progress';
+}
+
 /**
  * Tabla de solicitudes de firma (patrón "Aether", igual que campaign-table /
- * service-catalog): header en píldora `bg-[#FAF9F7]` con extremos
+ * service-catalog): header en píldora `bg-[#FAFAFA]` con extremos
  * redondeados, columnas Document name / Client / Signers (avatares
  * superpuestos) / Status (chip outline) / Sent date / Completed date y un
  * menú fantasma "..." por fila con View / Resend reminder / Cancel request.
@@ -77,7 +105,9 @@ export class SignatureTableComponent {
   @Output() previewRequested = new EventEmitter<SignatureRequest>();
   @Output() resendRequested = new EventEmitter<SignatureRequest>();
   @Output() cancelRequested = new EventEmitter<SignatureRequest>();
-  @Output() openLinkRequested = new EventEmitter<SignatureRequest>();
+  @Output() extendRequested = new EventEmitter<SignatureRequest>();
+  @Output() downloadSealedRequested = new EventEmitter<SignatureRequest>();
+  @Output() downloadCertificateRequested = new EventEmitter<SignatureRequest>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -110,6 +140,10 @@ export class SignatureTableComponent {
 
   statusLabel(status: SignatureStatus): string {
     switch (status) {
+      case 'draft':
+        return 'Draft';
+      case 'ready':
+        return 'Ready';
       case 'pending':
         return 'Pending';
       case 'in-progress':
@@ -118,11 +152,19 @@ export class SignatureTableComponent {
         return 'Completed';
       case 'rejected':
         return 'Rejected';
+      case 'canceled':
+        return 'Canceled';
+      case 'expired':
+        return 'Expired';
     }
   }
 
   statusChip(status: SignatureStatus): string {
     switch (status) {
+      case 'draft':
+        return 'border-gray-300 text-gray-500';
+      case 'ready':
+        return 'border-[#CFE2F7] text-blue-600';
       case 'completed':
         return 'border-emerald-200 text-emerald-600';
       case 'pending':
@@ -131,11 +173,19 @@ export class SignatureTableComponent {
         return 'border-indigo-200 text-indigo-500';
       case 'rejected':
         return 'border-red-200 text-red-500';
+      case 'canceled':
+        return 'border-gray-300 text-gray-500';
+      case 'expired':
+        return 'border-amber-200 text-amber-600';
     }
   }
 
   statusDot(status: SignatureStatus): string {
     switch (status) {
+      case 'draft':
+        return 'bg-gray-400';
+      case 'ready':
+        return 'bg-blue-500';
       case 'completed':
         return 'bg-emerald-500';
       case 'pending':
@@ -144,11 +194,32 @@ export class SignatureTableComponent {
         return 'bg-indigo-500';
       case 'rejected':
         return 'bg-red-500';
+      case 'canceled':
+        return 'bg-gray-400';
+      case 'expired':
+        return 'bg-amber-500';
     }
   }
 
   canCancel(request: SignatureRequest): boolean {
-    return request.status === 'pending' || request.status === 'in-progress';
+    return isActionableStatus(request.status);
+  }
+
+  canExtend(request: SignatureRequest): boolean {
+    return isActionableStatus(request.status);
+  }
+
+  /** Solo tiene sentido reenviar cuando la solicitud está en curso y queda alguien pendiente. */
+  canResend(request: SignatureRequest): boolean {
+    return request.status === 'in-progress' && request.signers.some(s => s.status === 'pending');
+  }
+
+  hasSealed(request: SignatureRequest): boolean {
+    return request.status === 'completed' && !!request.sealedFileId;
+  }
+
+  hasCertificate(request: SignatureRequest): boolean {
+    return request.status === 'completed' && !!request.certificateFileId;
   }
 
   toggleMenu(request: SignatureRequest, event: MouseEvent): void {
@@ -178,9 +249,21 @@ export class SignatureTableComponent {
     this.cancelRequested.emit(request);
   }
 
-  onOpenLinkClick(request: SignatureRequest, event: MouseEvent): void {
+  onExtendClick(request: SignatureRequest, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.openLinkRequested.emit(request);
+    this.extendRequested.emit(request);
+  }
+
+  onDownloadSealedClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.downloadSealedRequested.emit(request);
+  }
+
+  onDownloadCertificateClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.downloadCertificateRequested.emit(request);
   }
 }

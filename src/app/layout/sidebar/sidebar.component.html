@@ -48,7 +48,7 @@
         <!-- Sliding active indicator: glides between items on route/expand changes -->
         <div
           *ngIf="indicatorReady()"
-          class="sidebar-active-indicator absolute rounded-full bg-gray-900 shadow-sm pointer-events-none"
+          class="sidebar-active-indicator absolute rounded-full bg-brand-bold shadow-sm pointer-events-none"
           [style.top.px]="indicatorTop()"
           [style.left.px]="indicatorLeft()"
           [style.width.px]="indicatorWidth()"
@@ -114,7 +114,7 @@
           (click)="handleMenuClick($event, item)"
           class="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
           [ngClass]="{
-            'bg-gray-900 text-white': item.isActive,
+            'bg-brand-bold text-white': item.isActive,
             'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
           }"
         >

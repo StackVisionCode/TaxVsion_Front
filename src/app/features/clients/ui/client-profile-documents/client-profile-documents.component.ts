@@ -1,77 +1,42 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-
-type FileKind = 'pdf' | 'xlsx' | 'img' | 'doc';
-
-interface ClientDocument {
-  id: string;
-  name: string;
-  date: string;
-  size: string;
-  kind: FileKind;
-}
-
-const MOCK_DOCUMENTS: ClientDocument[] = [
-  { id: 'doc-1', name: '2025_Individual_Tax_Return.pdf', date: 'Jun 28, 2026', size: '2.4 MB', kind: 'pdf' },
-  { id: 'doc-2', name: 'W2_Employer_Copy.pdf', date: 'May 30, 2026', size: '480 KB', kind: 'pdf' },
-  { id: 'doc-3', name: 'Mileage_Log_Q1.xlsx', date: 'Apr 5, 2026', size: '102 KB', kind: 'xlsx' },
-  { id: 'doc-4', name: 'Home_Office_Photo.jpg', date: 'Jun 20, 2026', size: '3.1 MB', kind: 'img' },
-  { id: 'doc-5', name: 'Engagement_Letter_signed.pdf', date: 'Jun 30, 2026', size: '1.1 MB', kind: 'pdf' },
-  { id: 'doc-6', name: 'Client_Intake_Form.doc', date: 'Jan 15, 2026', size: '96 KB', kind: 'doc' },
-  { id: 'doc-7', name: 'Bank_Statements_2025.xlsx', date: 'Mar 22, 2026', size: '540 KB', kind: 'xlsx' },
-  { id: 'doc-8', name: 'Prior_Year_Return_2024.pdf', date: 'Feb 3, 2026', size: '2.2 MB', kind: 'pdf' },
-];
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 
 /**
- * Pestaña "Documents" del perfil de cliente (estilo "Aether"): lista plana
- * (sin carpetas) de archivos con círculo de ícono por tipo, búsqueda local
- * por nombre y un botón fantasma de descarga (inerte, solo visual). Los
- * datos son mock estáticos independientes del `clientId` recibido.
+ * Pestaña "Documents" del perfil de cliente — VACÍA A PROPÓSITO, no es un olvido.
+ *
+ * ⚠️ **CloudStorage no ofrece un listado de archivos filtrable por cliente.** Matiz
+ * importante, porque el dato de propiedad SÍ existe: el archivo guarda
+ * `OwnerType`/`OwnerId` y `OwnerType` incluye `Customer`. Lo que falta es poder
+ * consultarlo:
+ *
+ *  - `GET /storage/files` solo acepta `skip`/`take` (1..100). Es una lista PLANA de TODO
+ *    el tenant ordenada por `CreatedAtUtc DESC`, sin filtro por cliente ni por carpeta.
+ *    Un empleado sí ve ahí los archivos con `OwnerType == Customer`, pero para juntar los
+ *    de UN cliente habría que paginar el corpus entero del tenant hasta el archivo más
+ *    viejo. Eso no escala y, peor, es ENGAÑOSO: cualquier total o paginación que se
+ *    pintara sería el de una muestra parcial presentada como "sus documentos".
+ *  - El listado por carpeta sí acepta `ownerType`/`ownerId`, pero exige un `folderId`
+ *    concreto y no existe ninguna convención de "carpeta de este cliente" que el front
+ *    pueda resolver, así que no cubre "todos los documentos del cliente".
+ *  - `OwnerType`/`OwnerId` se toman del body de la subida y nadie valida que el `OwnerId`
+ *    sea un Customer real, así que hoy tampoco serían una fuente fiable.
+ *  - Los share links (`RecipientCustomerId`) significan "compartido CON este cliente", una
+ *    semántica distinta de "documentos DE este cliente"; usarlos como si fueran lo mismo
+ *    sería inventar una relación que no existe.
+ *
+ * Antes esta pestaña pintaba un mock estático (2025_Individual_Tax_Return.pdf,
+ * W2_Employer_Copy.pdf, tamaños y fechas…) bajo el nombre de un cliente REAL traído de
+ * GET /customers/{id}. Se retiró por completo.
+ *
+ * Para completarla el backend necesita: un filtro por propietario en el listado plano
+ * (`GET /storage/files?ownerType=Customer&ownerId=...`, o
+ * `GET /storage/customers/{customerId}/files`) y validar que ese `OwnerId` es un Customer.
  */
 @Component({
   selector: 'app-client-profile-documents',
-  imports: [CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-documents.component.html',
 })
 export class ClientProfileDocumentsComponent {
+  /** Se conserva el binding del padre para el día en que CloudStorage vincule archivo→cliente. */
   @Input() clientId = '';
-
-  readonly documents = signal<ClientDocument[]>([...MOCK_DOCUMENTS]);
-  readonly searchTerm = signal('');
-
-  readonly visibleDocuments = computed(() => {
-    const term = this.searchTerm().trim().toLowerCase();
-    if (!term) {
-      return this.documents();
-    }
-    return this.documents().filter(doc => doc.name.toLowerCase().includes(term));
-  });
-
-  kindIcon(kind: FileKind): string {
-    switch (kind) {
-      case 'pdf':
-        return 'document-text-outline';
-      case 'xlsx':
-        return 'stats-chart-outline';
-      case 'img':
-        return 'image-outline';
-      case 'doc':
-        return 'document-outline';
-    }
-  }
-
-  kindCircle(kind: FileKind): string {
-    switch (kind) {
-      case 'pdf':
-        return 'bg-[#F2E3C9]';
-      case 'xlsx':
-        return 'bg-[#CBD9F2]';
-      case 'img':
-        return 'bg-[#DCDCDC]';
-      case 'doc':
-        return 'bg-[#EEEBFA]';
-    }
-  }
 }

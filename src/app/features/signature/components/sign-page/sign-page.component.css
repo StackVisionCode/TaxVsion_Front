@@ -70,13 +70,22 @@
   }
 }
 
-/* Target de firma: pulsa hasta que se firma (propuesta UX, paleta indigo de la casa). */
-.sign-target {
+/* Vista previa de la firma tecleada: pulsa hasta que el nombre coincide con el del
+   firmante (el backend exige coincidencia exacta), y se apaga al quedar en verde. */
+.signature-preview {
   animation: target-pulse 2s ease-in-out infinite;
 }
 
-.sign-target.border-emerald-300 {
+.signature-preview.border-emerald-300 {
   animation: none;
+}
+
+/* Stacks cursivos del sistema — mismos que el signature-pad compartido, sin fuentes
+   por CDN (el proyecto no carga assets externos). */
+.signature-script {
+  font-family: 'Brush Script MT', 'Segoe Script', 'Apple Chancery', cursive;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 @keyframes target-pulse {

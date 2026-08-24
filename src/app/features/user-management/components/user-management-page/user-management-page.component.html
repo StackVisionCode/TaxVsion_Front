@@ -1,17 +1,21 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
   <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
       <p class="text-sm text-gray-600">Total members</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCount() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
       <p class="text-sm text-gray-600">Active</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeCount() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
       <p class="text-sm text-gray-600">Pending invites</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ pendingInvitesCount() }}</p>
+    </div>
+    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+      <p class="text-sm text-gray-600">Seats left{{ limits()?.planCode ? ' · ' + limits()?.planCode : '' }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ seatsLeft() }}</p>
     </div>
   </div>
 
@@ -23,14 +27,35 @@
         <p class="mt-1 text-sm text-gray-500">Manage staff access and roles for your firm</p>
       </div>
       <span *ngIf="toast()"
-        class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-100">
-        <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
+        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
+        [ngClass]="toastKind() === 'success'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+          : 'bg-red-50 text-red-700 border-red-100'">
+        <ion-icon [name]="toastKind() === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
+          class="text-sm"></ion-icon>
         {{ toast() }}
       </span>
     </div>
 
     <!-- Filter bar -->
     <div class="mt-4 flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="setTab('members')"
+          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'members'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Members ({{ membersTotal() }})
+        </button>
+        <button type="button" (click)="setTab('invitations')"
+          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'invitations'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Invitations ({{ invitationsTotal() }})
+        </button>
+      </div>
+
       <div class="relative w-full sm:w-64">
         <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
           <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
@@ -41,19 +66,32 @@
       </div>
 
       <button type="button" (click)="openInvitePanel()"
-        class="ml-auto flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        class="ml-auto flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="person-add-outline" class="text-base"></ion-icon>
         Invite member
       </button>
     </div>
 
-    <!-- Table -->
-    <div class="mt-5">
-      <app-user-table [members]="pagedMembers()" (editRole)="openEditPanel($event)"
-        (resendInvite)="resendInvite($event)" (toggleSuspend)="toggleSuspend($event)"
-        (remove)="removeMember($event)"></app-user-table>
-      <app-pagination [currentPage]="currentPage()" [totalItems]="filteredMembers().length" [pageSize]="pageSize"
-        (pageChange)="currentPage.set($event)"></app-pagination>
+    <!-- Members tab: GET /auth/users paginado en servidor -->
+    <div *ngIf="tab() === 'members'" class="mt-5">
+      <p *ngIf="membersLoading()" class="mb-3 text-sm text-gray-400">Loading members…</p>
+      <p *ngIf="membersError()" class="mb-3 text-sm text-red-600">{{ membersError() }}</p>
+      <app-user-table [members]="members()" [currentUserId]="currentUserId()"
+        emptyMessage="No team members match your search" (editRoles)="openEditPanel($event)"
+        (toggleSuspend)="toggleSuspend($event)"></app-user-table>
+      <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
+        (pageChange)="onMembersPageChange($event)"></app-pagination>
+    </div>
+
+    <!-- Invitations tab: GET /auth/invitations?status=Pending -->
+    <div *ngIf="tab() === 'invitations'" class="mt-5">
+      <p *ngIf="invitationsLoading()" class="mb-3 text-sm text-gray-400">Loading invitations…</p>
+      <p *ngIf="invitationsError()" class="mb-3 text-sm text-red-600">{{ invitationsError() }}</p>
+      <app-user-table [members]="visibleInvitations()" [currentUserId]="currentUserId()"
+        emptyMessage="No pending invitations" (resendInvite)="resendInvite($event)"
+        (cancelInvite)="cancelInvite($event)"></app-user-table>
+      <app-pagination [currentPage]="invitationsPage()" [totalItems]="invitationsTotal()" [pageSize]="pageSize"
+        (pageChange)="onInvitationsPageChange($event)"></app-pagination>
     </div>
   </div>
 </div>
@@ -62,6 +100,7 @@
 <app-user-invite-panel [isOpen]="isPanelOpen()" [member]="editingMember()" (closed)="closePanel()"
   (saved)="handleSaved($event)"></app-user-invite-panel>
 
-<!-- Remove confirmation -->
-<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Remove member?" [message]="deleteMessage()"
-  confirmLabel="Remove" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>
+<!-- Cancel invitation confirmation -->
+<app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel invitation?" [message]="cancelMessage()"
+  confirmLabel="Cancel invite" (confirmed)="confirmCancelInvite()"
+  (cancelled)="pendingCancel.set(null)"></app-confirm-dialog>

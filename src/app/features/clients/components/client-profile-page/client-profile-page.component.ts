@@ -78,7 +78,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   { kind: 'tab', id: 'permissions', label: 'Permissions' },
 ];
 
-const AVATAR_PALETTE = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-emerald-500', 'bg-gray-900'];
+const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 /**
  * Shell del perfil de cliente (patrón "Aether" tipo takeover, con
@@ -89,9 +89,21 @@ const AVATAR_PALETTE = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-em
  * por *ngSwitch sobre activeTab().
  *
  * `client` viene de GET /customers/{id} (ClientsStore) — no de una seed
- * local. Solo Overview/Info/Family reciben el objeto completo; el resto de
- * tabs (documents/invoices/notes/...) siguen siendo mocks locales por
- * clientId, sin contraparte en el backend todavía (ver ClientsStore).
+ * local. Solo Overview/Info/Family reciben el objeto completo; el resto
+ * recibe el `clientId`.
+ *
+ * Estado de los datos por tab (auditoría ago-2026, ver el comentario de clase
+ * de cada componente para el detalle del contrato):
+ *  - REALES y filtradas por este cliente: Info, Family (del propio Customer),
+ *    Notes (`/notes?targetType=Customer&targetId=`) y Communication
+ *    (`/correspondence/customers/{id}/threads`).
+ *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
+ *    tiene categoría `Customer`); lo declara en pantalla.
+ *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
+ *    (parcial), Invoices, Documents, Bank, Mileage, Calls y Permissions. Cada
+ *    una muestra un estado vacío que explica qué falta. NO son un olvido:
+ *    antes pintaban mocks estáticos bajo el nombre de un cliente real, que es
+ *    justo lo que había que quitar antes de producción.
  */
 @Component({
   selector: 'app-client-profile-page',
@@ -219,7 +231,7 @@ export class ClientProfilePageComponent {
   }
 
   typeBadgeClass(client: ClientProfile): string {
-    return client.type === 'individual' ? 'border-[#CBD9F2] text-indigo-600' : 'border-[#F2E3C9] text-orange-600';
+    return client.type === 'individual' ? 'border-[#CFE2F7] text-indigo-600' : 'border-[#E8F1FB] text-orange-600';
   }
 
   statusChip(client: ClientProfile): string {

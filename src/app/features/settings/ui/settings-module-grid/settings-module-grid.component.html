@@ -19,7 +19,7 @@
       <ng-template #localModule>
         <button type="button" (click)="moduleSelected.emit(module.id)"
           class="rounded-2xl border p-4 text-left transition-colors"
-          [ngClass]="module.id === selectedId ? 'border-gray-900' : 'border-gray-100 hover:bg-gray-50'">
+          [ngClass]="module.id === selectedId ? 'border-brand-bold' : 'border-gray-100 hover:bg-gray-50'">
           <span class="flex h-10 w-10 items-center justify-center rounded-full" [ngClass]="module.circleClass">
             <ion-icon [name]="module.icon" class="text-lg"></ion-icon>
           </span>

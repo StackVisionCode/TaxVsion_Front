@@ -1,0 +1,47 @@
+<app-auth-shell panelEyebrow="No charge was made"
+  panelHeading="Your plan is still waiting whenever you're ready">
+
+  <div class="text-center">
+    <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+      <ion-icon name="card-outline" class="text-3xl text-amber-600"></ion-icon>
+    </span>
+
+    <h1 class="mt-6 text-3xl font-bold text-gray-900">Payment cancelled</h1>
+    <p class="mt-3 text-sm text-gray-500">
+      You weren't charged. You can pick up where you left off or start over.
+    </p>
+  </div>
+
+  @if (retryError()) {
+    <p class="mt-6 text-center text-sm font-medium text-red-600">{{ retryError() }}</p>
+  }
+
+  <div class="mt-8 space-y-3">
+    @if (canRetry()) {
+      <button type="button" (click)="retryPayment()" [disabled]="submitting()"
+        class="flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+        @if (submitting()) {
+          <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+          <span>Redirecting to Stripe...</span>
+        } @else {
+          <span>Retry payment</span>
+        }
+      </button>
+
+      <button type="button" (click)="startOver()"
+        class="flex w-full items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+        Start over
+      </button>
+    } @else {
+      <button type="button" (click)="startOver()"
+        class="flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+        Start over
+      </button>
+    }
+  </div>
+
+  <p class="mt-8 text-center text-sm text-gray-600">
+    Already have an account?
+    <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Sign in</a>
+  </p>
+</app-auth-shell>

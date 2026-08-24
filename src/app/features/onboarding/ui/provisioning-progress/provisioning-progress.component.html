@@ -1,0 +1,31 @@
+<ol class="space-y-3">
+  @for (step of steps(); track step.label) {
+    <li class="flex items-center gap-3">
+      @switch (step.state) {
+        @case ('done') {
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+            <ion-icon name="checkmark-outline" class="text-base text-emerald-600"></ion-icon>
+          </span>
+          <span class="text-sm font-medium text-gray-800">{{ step.label }}</span>
+        }
+        @case ('current') {
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+            [class.bg-indigo-100]="!isStalled()" [class.bg-amber-100]="isStalled()">
+            @if (isStalled()) {
+              <ion-icon name="hourglass-outline" class="text-base text-amber-600"></ion-icon>
+            } @else {
+              <span class="w-3.5 h-3.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"></span>
+            }
+          </span>
+          <span class="text-sm font-semibold text-gray-900">{{ step.label }}</span>
+        }
+        @default {
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100">
+            <span class="h-1.5 w-1.5 rounded-full bg-gray-300"></span>
+          </span>
+          <span class="text-sm text-gray-400">{{ step.label }}</span>
+        }
+      }
+    </li>
+  }
+</ol>

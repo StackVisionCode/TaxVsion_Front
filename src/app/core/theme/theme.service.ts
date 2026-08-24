@@ -5,25 +5,38 @@ const SHADE_STEPS = [50, 100, 200, 300, 400, 500, 600, 700] as const;
 type ShadeStep = (typeof SHADE_STEPS)[number];
 
 /**
- * Offset de luminosidad (HSL) según la distancia (en pasos de shade) al
- * "shade ancla" — el que se pinta EXACTAMENTE con el color que el usuario
- * eligió. Se indexa por distancia y no por shade absoluto para poder
- * reusarse con anclas distintas (primary ancla en 600, secondary en 500,
- * que son los shades que más se repiten hoy como indigo-600/orange-500 en
- * la app). No busca replicar la curva exacta de Tailwind, solo generar una
- * rampa coherente (clara -> oscura) a partir de un solo hex.
+ * Offset de luminosidad para los shades MÁS OSCUROS que el ancla (distancia > 0).
+ * Un offset fijo funciona bien acá porque solo hay uno o dos pasos.
  */
-const DISTANCE_LIGHTNESS_OFFSET: Record<number, number> = {
-  '-6': 42,
-  '-5': 35,
-  '-4': 27,
-  '-3': 18,
-  '-2': 9,
-  '-1': 4,
-  '0': 0,
-  '1': -10,
-  '2': -18,
+const DARKER_LIGHTNESS_OFFSET: Record<number, number> = {
+  1: -10,
+  2: -18,
 };
+
+/**
+ * Los shades MÁS CLAROS que el ancla no pueden usar un offset fijo: con un color
+ * base oscuro (p. ej. el Bold Blue de marca, #1e466b, luminosidad ~27%) sumarle
+ * 42 puntos deja el shade 50 en ~69% — un azul medio donde la app espera un fondo
+ * casi blanco (`bg-indigo-50` se usa como fondo de página en el login y en ~150
+ * sitios más). En vez de eso se interpola la luminosidad HACIA EL BLANCO según la
+ * distancia al ancla, de modo que el shade más claro siempre acaba casi blanco sea
+ * cual sea el color elegido.
+ */
+const LIGHTEST_LIGHTNESS = 98;
+
+/**
+ * Exponente de la curva de interpolación (1 = lineal). Por debajo de 1 los shades
+ * intermedios se aclaran antes, que es como se comportan las escalas de Tailwind:
+ * el salto grande está cerca del extremo claro, no repartido por igual.
+ */
+const LIGHTNESS_CURVE = 0.8;
+
+/**
+ * Cuánta saturación se le quita al shade más claro. Sin esto un 50 casi blanco
+ * conserva toda la saturación del base y se ve como un pastel chillón en vez de
+ * un fondo neutro.
+ */
+const MAX_SATURATION_DROP = 0.35;
 
 interface ColorChannel {
   cssPrefix: 'indigo' | 'orange';
@@ -38,13 +51,15 @@ interface ColorChannel {
 const PRIMARY: ColorChannel = {
   cssPrefix: 'indigo',
   storageKey: 'tvf.theme.primaryColor',
-  defaultHex: '#4f46e5',
+  /** Bold Blue del brandbook. Los fallbacks de tailwind.config.js son esta misma rampa. */
+  defaultHex: '#1e466b',
   anchorShade: 600,
 };
 const SECONDARY: ColorChannel = {
   cssPrefix: 'orange',
   storageKey: 'tvf.theme.secondaryColor',
-  defaultHex: '#f97316',
+  /** Light Blue del brandbook. */
+  defaultHex: '#67baf4',
   anchorShade: 500,
 };
 
@@ -55,6 +70,9 @@ export interface ThemePreset {
 
 /** Paleta curada compartida por los swatches de primary/secondary en Settings > Overview. */
 export const THEME_PRESETS: ThemePreset[] = [
+  // Los dos primeros son los colores del brandbook (defaults de PRIMARY/SECONDARY).
+  { label: 'Bold Blue', hex: '#1e466b' },
+  { label: 'Light Blue', hex: '#67baf4' },
   { label: 'Indigo', hex: '#4f46e5' },
   { label: 'Violet', hex: '#7c3aed' },
   { label: 'Blue', hex: '#2563eb' },
@@ -113,9 +131,7 @@ export class ThemeService {
     const hsl = hexToHsl(normalized);
     const anchorIndex = SHADE_STEPS.indexOf(channel.anchorShade);
     SHADE_STEPS.forEach((shade, index) => {
-      const offset = DISTANCE_LIGHTNESS_OFFSET[index - anchorIndex] ?? 0;
-      const l = clamp(hsl.l + offset, 4, 97);
-      const shadeHex = hslToHex({ h: hsl.h, s: hsl.s, l });
+      const shadeHex = shadeFor(hsl, index - anchorIndex, anchorIndex);
       // Triplete RGB sin comas: es el formato que espera rgb(var(...) / <alpha-value>) en tailwind.config.js.
       applyCssVar(`--color-${channel.cssPrefix}-${shade}-rgb`, hexToRgbTriplet(shadeHex));
     });
@@ -124,6 +140,33 @@ export class ThemeService {
       write(channel.storageKey, normalized);
     }
   }
+}
+
+/**
+ * Color de un shade a partir del HSL base y su distancia al ancla (negativa = más
+ * claro). Los oscuros bajan luminosidad con un offset fijo; los claros interpolan
+ * hacia el blanco y pierden saturación, para que el extremo sea un fondo neutro
+ * aunque el color elegido sea muy oscuro o muy saturado.
+ */
+function shadeFor(base: Hsl, distance: number, anchorIndex: number): string {
+  if (distance === 0) {
+    return hslToHex(base);
+  }
+
+  if (distance > 0) {
+    const offset = DARKER_LIGHTNESS_OFFSET[distance] ?? 0;
+    return hslToHex({ ...base, l: clamp(base.l + offset, 4, 97) });
+  }
+
+  // `anchorIndex` es cuántos pasos claros existen por encima del ancla: normaliza
+  // la distancia para que el shade más claro siempre llegue al extremo.
+  const steps = Math.max(anchorIndex, 1);
+  const progress = Math.pow(Math.min(-distance / steps, 1), LIGHTNESS_CURVE);
+  return hslToHex({
+    h: base.h,
+    s: base.s * (1 - MAX_SATURATION_DROP * progress),
+    l: clamp(base.l + (LIGHTEST_LIGHTNESS - base.l) * progress, 4, 97),
+  });
 }
 
 function applyCssVar(name: string, value: string): void {

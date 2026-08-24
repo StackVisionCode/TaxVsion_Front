@@ -5,25 +5,30 @@
       <p class="mt-1 text-sm text-gray-500">{{ visibleReminders().length }} total items</p>
     </div>
     <button type="button" (click)="openCreate()"
-      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
       <ion-icon name="add-outline" class="text-base"></ion-icon>
       New Reminder
     </button>
   </div>
 
-  <!-- Filters -->
-  <div class="mt-4 flex flex-wrap items-center gap-2">
-    <button *ngFor="let option of kindFilters" type="button" (click)="setKindFilter(option.value)"
-      class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-      [ngClass]="kindFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      {{ option.label }}
-    </button>
+  <!--
+    Aviso obligatorio: el servicio Reminder no tiene vínculo con Customer (no existe la
+    categoría `Customer` ni un listado por target), así que esta lista son TUS recordatorios,
+    no los de este cliente. No se simula ningún filtro.
+  -->
+  <div class="mt-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+    <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base text-blue-500"></ion-icon>
+    <p class="text-sm text-blue-800">
+      The reminders service can't link a reminder to a client yet, so this list shows
+      <span class="font-semibold">your own reminders</span> — it is not filtered by this client.
+    </p>
   </div>
 
-  <div class="mt-2 flex flex-wrap items-center gap-2">
+  <!-- Filtros de estado (los estados reales del backend) -->
+  <div class="mt-4 flex flex-wrap items-center gap-2">
     <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
       class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-      [ngClass]="statusFilter() === option.value ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      [ngClass]="statusFilter() === option.value ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
       {{ option.label }}
     </button>
   </div>
@@ -37,119 +42,183 @@
     </div>
     <label class="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer">
       <span class="text-xs text-gray-400">From</span>
-      <input type="date" [ngModel]="fromDate()" name="fromDate" (ngModelChange)="fromDate.set($event)"
+      <input type="date" [ngModel]="fromDate()" name="fromDate" (ngModelChange)="setFromDate($event)"
         class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
     </label>
     <label class="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer">
       <span class="text-xs text-gray-400">To</span>
-      <input type="date" [ngModel]="toDate()" name="toDate" (ngModelChange)="toDate.set($event)"
+      <input type="date" [ngModel]="toDate()" name="toDate" (ngModelChange)="setToDate($event)"
         class="bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
     </label>
   </div>
 
-  <!-- Table -->
-  <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
-    <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
-      <thead>
-        <tr>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Title</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date &amp; time</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
-          <th class="bg-[#FAF9F7] px-4 py-3"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let reminder of pagedReminders(); let last = last" class="group">
-          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-            <span class="inline-flex items-center gap-2 text-gray-700">
-              <ion-icon [name]="kindIcon(reminder.kind)" class="text-base"></ion-icon>
-              {{ kindLabel(reminder.kind) }}
-            </span>
-          </td>
-          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-            <span class="block font-medium text-gray-900">{{ reminder.title }}</span>
-            <span *ngIf="reminder.description" class="block text-xs text-gray-400">{{ reminder.description }}</span>
-          </td>
-          <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-            {{ formatDateTime(reminder.datetime) }}
-          </td>
-          <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(reminder.status)">
-              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(reminder.status)"></span>
-              {{ statusLabel(reminder.status) }}
-            </span>
-          </td>
-          <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-            <div *ngIf="reminder.status === 'scheduled'" class="flex items-center justify-end gap-2">
-              <button type="button" (click)="openEdit(reminder)"
-                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                aria-label="Edit reminder">
-                <ion-icon name="create-outline" class="text-sm"></ion-icon>
-              </button>
-              <button type="button" (click)="requestCancel(reminder)"
-                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                aria-label="Cancel reminder">
-                <ion-icon name="close-outline" class="text-sm"></ion-icon>
-              </button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div *ngIf="visibleReminders().length === 0" class="px-4 py-10 text-center">
-      <ion-icon name="alarm-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No reminders match your filters</p>
-    </div>
+  <!-- Error transitorio de una acción (snooze, dismiss, cancelar…) -->
+  <div *ngIf="store.actionError() as actionErr"
+    class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    <p class="text-sm text-amber-800">{{ actionErr }}</p>
+    <button type="button" (click)="dismissActionError()"
+      class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
+      Dismiss
+    </button>
   </div>
 
-  <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReminders().length" [pageSize]="pageSize"
-    (pageChange)="currentPage.set($event)"></app-pagination>
-</div>
+  <!-- Estados de carga / error del listado -->
+  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    Loading reminders…
+  </div>
 
-<!-- Reminder form -->
-<app-modal [isOpen]="isModalOpen()" [heading]="editingReminderId() !== null ? 'Edit Reminder' : 'New Reminder'"
-  subheading="Schedule a follow-up for this client" size="md" (closed)="closeModal()">
+  <div *ngIf="!store.loading() && store.error() as err"
+    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+    <p class="text-sm text-red-600">{{ err }}</p>
+    <button type="button" (click)="retry()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Retry
+    </button>
+  </div>
 
-  <div class="mt-5 flex flex-col gap-3">
-    <div class="relative" data-dropdown="reminder-kind">
-      <button type="button" (click)="toggleKindDropdown()"
-        class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-        <span>{{ kindLabel(formKind()) }}</span>
-        <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-      </button>
-      <div *ngIf="isKindDropdownOpen()"
-        class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-        <button *ngFor="let option of kindOptions" type="button" (click)="selectKind(option.value)"
-          class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-          {{ option.label }}
-          <ion-icon *ngIf="option.value === formKind()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-        </button>
+  <!-- Tabla -->
+  <ng-container *ngIf="!store.loading() && !store.error()">
+    <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+      <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Type</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Title</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Date &amp; time</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+            <th class="bg-[#FAFAFA] px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let reminder of pagedReminders(); let last = last" class="group"
+            [class.opacity-50]="store.isBusy(reminder.id)">
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="inline-flex items-center gap-2 text-gray-700">
+                <ion-icon [name]="categoryIcon(reminder.category)" class="text-base"></ion-icon>
+                {{ reminder.category }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="block font-medium text-gray-900">{{ reminder.title }}</span>
+              <span *ngIf="reminder.body" class="block text-xs text-gray-400">{{ reminder.body }}</span>
+              <span *ngIf="reminder.cancellationReason" class="block text-xs text-gray-400">
+                Cancelled: {{ reminder.cancellationReason }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-gray-500 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              {{ reminder.fireAtLabel }}
+              <span *ngIf="reminder.snoozeCount > 0" class="block text-xs text-gray-400">
+                Snoozed {{ reminder.snoozeCount }}×
+              </span>
+            </td>
+            <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+                [ngClass]="reminder.statusChip">
+                <span class="h-1.5 w-1.5 rounded-full" [ngClass]="reminder.statusDot"></span>
+                {{ reminder.statusLabel }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
+              <div class="flex items-center justify-end gap-2">
+                <!-- Editar: título/cuerpo siempre que no sea terminal; fecha/hora solo si aún se puede reprogramar -->
+                <button *ngIf="reminder.canEditSubject" type="button" (click)="openEdit(reminder)"
+                  [disabled]="store.isBusy(reminder.id)"
+                  class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+                  aria-label="Edit reminder">
+                  <ion-icon name="create-outline" class="text-sm"></ion-icon>
+                </button>
+
+                <!-- Snooze: SOLO sobre un recordatorio ya disparado (el aggregate exige Status == Fired) -->
+                <div *ngIf="reminder.canSnooze" class="relative" data-dropdown="reminder-snooze">
+                  <button type="button" (click)="toggleSnoozeMenu(reminder)" [disabled]="store.isBusy(reminder.id)"
+                    class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+                    aria-label="Snooze reminder">
+                    <ion-icon name="time-outline" class="text-sm"></ion-icon>
+                  </button>
+                  <div *ngIf="openSnoozeId() === reminder.id"
+                    class="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+                    <button *ngFor="let option of snoozeOptions" type="button" (click)="snooze(reminder, option.minutes)"
+                      class="flex w-full items-center px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Dismiss: Fired o Snoozed -->
+                <button *ngIf="reminder.canDismiss" type="button" (click)="dismiss(reminder)"
+                  [disabled]="store.isBusy(reminder.id)"
+                  class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 transition-colors"
+                  aria-label="Dismiss reminder">
+                  <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
+                </button>
+
+                <!-- Cancelar: no borra, transiciona a Cancelled -->
+                <button *ngIf="reminder.canCancel" type="button" (click)="requestCancel(reminder)"
+                  [disabled]="store.isBusy(reminder.id)"
+                  class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors"
+                  aria-label="Cancel reminder">
+                  <ion-icon name="close-outline" class="text-sm"></ion-icon>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="visibleReminders().length === 0" class="px-4 py-10 text-center">
+        <ion-icon name="alarm-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">
+          {{ store.reminders().length === 0 ? 'You have no reminders yet' : 'No reminders match your filters' }}
+        </p>
       </div>
     </div>
 
+    <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReminders().length" [pageSize]="pageSize"
+      (pageChange)="currentPage.set($event)"></app-pagination>
+  </ng-container>
+</div>
+
+<!-- Alta / edición -->
+<app-modal [isOpen]="isModalOpen()" [heading]="editingId() !== null ? 'Edit Reminder' : 'New Reminder'"
+  subheading="Schedule a follow-up" size="md" (closed)="closeModal()">
+
+  <div class="mt-5 flex flex-col gap-3">
     <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-      <input type="text" placeholder="Title" [ngModel]="formTitle()" name="formTitle" (ngModelChange)="formTitle.set($event)"
+      <input type="text" placeholder="Title" maxlength="200" [ngModel]="formTitle()" name="formTitle"
+        (ngModelChange)="formTitle.set($event)"
         class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
     </div>
 
-    <textarea rows="2" placeholder="Description (optional)" [ngModel]="formDescription()" name="formDescription"
-      (ngModelChange)="formDescription.set($event)"
-      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+    <textarea rows="2" placeholder="Description (optional)" maxlength="2000" [ngModel]="formBody()" name="formBody"
+      (ngModelChange)="formBody.set($event)"
+      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
 
     <div class="grid grid-cols-2 gap-3">
-      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors"
+        [class.opacity-50]="!canEditSchedule()">
         <span class="text-sm text-gray-400">Date</span>
         <input type="date" [ngModel]="formDate()" name="formDate" (ngModelChange)="formDate.set($event)"
+          [disabled]="!canEditSchedule()"
           class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
       </label>
-      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors"
+        [class.opacity-50]="!canEditSchedule()">
         <span class="text-sm text-gray-400">Time</span>
         <input type="time" [ngModel]="formTime()" name="formTime" (ngModelChange)="formTime.set($event)"
+          [disabled]="!canEditSchedule()"
           class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
       </label>
     </div>
+
+    <p *ngIf="!canEditSchedule()" class="text-xs text-gray-400">
+      This reminder already fired, so its date and time can no longer be moved — snooze it instead.
+    </p>
+    <p *ngIf="editingId() === null" class="text-xs text-gray-400">
+      Created as a general reminder: the reminders service has no client category yet, and the time must be in the future.
+    </p>
+
+    <p *ngIf="modalError() as modalErr" class="text-sm text-red-600">{{ modalErr }}</p>
   </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">
@@ -158,12 +227,12 @@
       Cancel
     </button>
     <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ editingReminderId() !== null ? 'Save changes' : 'Create reminder' }}
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ editingId() !== null ? 'Save changes' : 'Create reminder' }}
     </button>
   </div>
 </app-modal>
 
-<!-- Cancel confirmation -->
+<!-- Cancelación (DELETE = transición a Cancelled, la fila queda en el historial) -->
 <app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel reminder?" [message]="pendingCancelMessage()"
   confirmLabel="Cancel reminder" (confirmed)="confirmCancel()" (cancelled)="pendingCancel.set(null)"></app-confirm-dialog>

@@ -2,95 +2,160 @@ import {
   AfterViewInit,
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
   ElementRef,
+  OnInit,
   QueryList,
   ViewChild,
   ViewChildren,
   computed,
+  inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import {
+  DashboardInvoicesStore,
+  MonthlyRevenueBucket,
+  formatCents,
+} from '../../data-access/dashboard-invoices.store';
+import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
 
-interface RevenueBar {
+interface SummaryItem {
   label: string;
-  amount: number;
-  /** Purple palette style class suffix for the pill bar. */
-  style: 'light' | 'lighter' | 'vivid' | 'medium';
-}
-
-interface RevenueSummaryItem {
-  label: string;
-  amount: string;
+  value: string;
   dot: string;
 }
 
 /**
- * "Monthly Revenue" widget (Aether reference): wide card with tall pill bars
- * for the last 6 months, a black pill tooltip that SLIDES with the hover (a
- * single persistent element, position measured via getBoundingClientRect —
- * same pattern as the sidebar's active pill — instead of mounting/unmounting
- * a tooltip per bar, which made it jump) and a paid/pending/overdue summary
- * row. Static data.
+ * Widget "Revenue Collected".
+ *
+ * Antes era un gráfico de 6 meses con importes inventados ($22,600 … $31,300),
+ * un total de "$159,650", un "+19.9%" fijo y un resumen Paid/Pending/Overdue
+ * también literal.
+ *
+ * Ahora todo sale de `GET /billing/invoices` a través del
+ * {@link DashboardInvoicesStore} (compartido con el hero, una sola petición):
+ *  - Cada barra es la suma de `amountPaidCents` de las facturas cuya
+ *    `paidAtUtc` cae en ese mes — dinero realmente cobrado, no facturado.
+ *  - El total es la suma de esos 6 meses.
+ *  - El delta se calcula contra el mes anterior y se OCULTA si ese mes fue 0
+ *    (no hay base para un porcentaje).
+ *
+ * Se cayó la categoría "Overdue": `InvoiceSummary` no trae vencimiento y el
+ * enum del backend (Draft/Issued/Sent/PartiallyPaid/Paid/Voided) no tiene
+ * estado vencido. En su lugar el resumen muestra Collected / Outstanding /
+ * Drafts, que sí se derivan del contrato real.
+ *
+ * El tooltip deslizante se conserva tal cual (es UI, no dato): un único
+ * elemento cuya posición se mide con getBoundingClientRect.
  */
 @Component({
   selector: 'app-dashboard-invoices-chart',
-  imports: [CommonModule],
+  imports: [CommonModule, DashboardWidgetStateComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-invoices-chart.component.html',
   styleUrl: './dashboard-invoices-chart.component.css',
 })
-export class DashboardInvoicesChartComponent implements AfterViewInit {
+export class DashboardInvoicesChartComponent implements OnInit, AfterViewInit {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly store = inject(DashboardInvoicesStore);
+
   @ViewChild('chartTrack') private chartTrackRef?: ElementRef<HTMLElement>;
   @ViewChildren('barBox') private barBoxes?: QueryList<ElementRef<HTMLElement>>;
 
-  readonly bars: RevenueBar[] = [
-    { label: 'Jan', amount: 22600, style: 'light' },
-    { label: 'Feb', amount: 24900, style: 'lighter' },
-    { label: 'Mar', amount: 25100, style: 'medium' },
-    { label: 'Apr', amount: 27500, style: 'light' },
-    { label: 'May', amount: 28250, style: 'lighter' },
-    { label: 'Jun', amount: 31300, style: 'vivid' },
-  ];
+  readonly loading = this.store.loading;
+  readonly error = this.store.error;
+  readonly isEmpty = this.store.isEmpty;
 
-  readonly totalLabel = '$159,650';
-  readonly growthLabel = '+19.9%';
+  readonly bars = this.store.monthlyRevenue;
 
-  readonly summary: RevenueSummaryItem[] = [
-    { label: 'Paid', amount: '$134,750', dot: 'bg-emerald-600' },
-    { label: 'Pending', amount: '$17,700', dot: 'bg-orange-500' },
-    { label: 'Overdue', amount: '$7,200', dot: 'bg-red-500' },
-  ];
-
-  /** Index of the bar with the visible tooltip; "sticky" — stays on the last
-   *  hovered bar instead of resetting when the mouse leaves. Defaults to the
-   *  highest month until the first hover. */
-  readonly hoveredIndex = signal<number | null>(null);
-
-  private readonly maxAmount = Math.max(...this.bars.map(b => b.amount), 1);
-
-  private readonly highestIndex = this.bars.reduce(
-    (best, bar, index) => (bar.amount > this.bars[best].amount ? index : best),
-    0,
+  readonly totalLabel = computed(() =>
+    formatCents(this.store.chartTotalCents(), this.store.currency()),
   );
 
-  readonly tooltipIndex = computed<number>(() => this.hoveredIndex() ?? this.highestIndex);
-  readonly tooltipBar = computed<RevenueBar>(() => this.bars[this.tooltipIndex()]);
+  /** Delta real mes contra mes; null cuando no se puede calcular. */
+  readonly growthPercent = this.store.monthOverMonthPercent;
 
-  /** Posición del tooltip deslizante, en px relativos a #chartTrack (no %: inmune a gaps/padding). */
+  readonly growthLabel = computed(() => {
+    const percent = this.growthPercent();
+    return percent === null ? '' : `${percent > 0 ? '+' : ''}${percent}%`;
+  });
+
+  readonly summary = computed<SummaryItem[]>(() => {
+    const currency = this.store.currency();
+    return [
+      {
+        // Explícito: el titular es de 6 meses, esta cifra es de siempre.
+        label: 'All-time collected',
+        value: formatCents(this.store.collectedAllTimeCents(), currency),
+        dot: 'bg-emerald-600',
+      },
+      {
+        label: 'Outstanding',
+        value: formatCents(this.store.outstandingCents(), currency),
+        dot: 'bg-orange-500',
+      },
+      {
+        label: 'Drafts',
+        value: this.store.draftCount().toLocaleString('en-US'),
+        dot: 'bg-gray-300',
+      },
+    ];
+  });
+
+  /** Índice de la barra con el tooltip visible; "sticky" en la última con hover. */
+  readonly hoveredIndex = signal<number | null>(null);
+
+  private readonly maxCents = computed(() =>
+    Math.max(...this.bars().map(b => b.paidCents), 1),
+  );
+
+  /** Por defecto, el mes con más ingresos de los 6 (el último índice si todos son 0). */
+  private readonly highestIndex = computed(() =>
+    this.bars().reduce(
+      (best, bar, index, all) => (bar.paidCents > all[best].paidCents ? index : best),
+      0,
+    ),
+  );
+
+  readonly tooltipIndex = computed<number>(() => this.hoveredIndex() ?? this.highestIndex());
+  readonly tooltipBar = computed<MonthlyRevenueBucket | null>(
+    () => this.bars()[this.tooltipIndex()] ?? null,
+  );
+
+  /** Posición del tooltip deslizante, en px relativos a #chartTrack. */
   readonly tooltipLeft = signal(0);
   readonly tooltipTop = signal(0);
   readonly tooltipReady = signal(false);
 
+  ngOnInit(): void {
+    this.store.load();
+  }
+
   ngAfterViewInit(): void {
     this.syncTooltipPosition();
+    // Las barras se montan recién cuando llega la respuesta del backend:
+    // re-medir en cuanto el *ngFor las cree.
+    this.barBoxes?.changes.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      setTimeout(() => this.syncTooltipPosition());
+    });
   }
 
-  barHeight(bar: RevenueBar): number {
-    return Math.round((bar.amount / this.maxAmount) * 100);
+  barHeight(bar: MonthlyRevenueBucket): number {
+    return Math.round((bar.paidCents / this.maxCents()) * 100);
   }
 
-  tooltipLabel(bar: RevenueBar): string {
-    return `$${bar.amount.toLocaleString('en-US')}`;
+  /** Mes en curso resaltado; meses sin cobros con el tope apagado. */
+  barStyleClass(bar: MonthlyRevenueBucket, index: number): string {
+    if (bar.paidCents <= 0) {
+      return 'revenue-bar--empty';
+    }
+    return index === this.bars().length - 1 ? 'revenue-bar--vivid' : 'revenue-bar--light';
+  }
+
+  tooltipLabel(bar: MonthlyRevenueBucket): string {
+    return formatCents(bar.paidCents, this.store.currency());
   }
 
   onBarEnter(index: number): void {

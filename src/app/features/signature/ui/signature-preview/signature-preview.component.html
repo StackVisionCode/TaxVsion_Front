@@ -17,11 +17,18 @@
       </div>
     </div>
 
-    <button *ngIf="req.status === 'completed'" type="button"
-      class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
-      <ion-icon name="download-outline" class="text-base"></ion-icon>
-      Download signed document
-    </button>
+    <div class="flex flex-wrap items-center gap-2">
+      <button *ngIf="hasSealed(req)" type="button" (click)="downloadSealed.emit(req)"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="download-outline" class="text-base"></ion-icon>
+        Download signed document
+      </button>
+      <button *ngIf="hasCertificate(req)" type="button" (click)="downloadCertificate.emit(req)"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+        <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
+        Certificate
+      </button>
+    </div>
   </div>
 
   <!-- Client + dates -->
@@ -41,7 +48,7 @@
       </p>
     </div>
     <div class="rounded-2xl border border-gray-100 p-4">
-      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Due date</p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Expires</p>
       <p class="mt-1 flex items-center gap-2 text-base font-semibold text-gray-900">
         <ion-icon name="time-outline" class="text-base text-gray-400"></ion-icon>
         {{ formatDate(req.dueDate) }}
@@ -57,7 +64,7 @@
   </div>
 
   <!-- Notes -->
-  <div *ngIf="req.notes" class="mt-6 rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4">
+  <div *ngIf="req.notes" class="mt-6 rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Notes</p>
     <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-700">{{ req.notes }}</p>
   </div>
@@ -88,8 +95,13 @@
           <span *ngIf="signer.status === 'signed'" class="text-xs text-gray-400">
             Signed {{ formatDate(signer.signedAt) }}
           </span>
+          <button *ngIf="canResendSigner(req, signer)" type="button" (click)="onResendSigner(req, signer)"
+            class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+            <ion-icon name="paper-plane-outline" class="text-xs"></ion-icon>
+            Resend
+          </button>
           <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="statusChip(signer.status === 'signed' ? 'completed' : signer.status === 'rejected' ? 'rejected' : 'pending')">
+            [ngClass]="signerChip(signer.status)">
             <ion-icon [name]="signerStatusIcon(signer.status)" class="text-sm" [ngClass]="signerStatusColor(signer.status)"></ion-icon>
             {{ signerStatusLabel(signer.status) }}
           </span>

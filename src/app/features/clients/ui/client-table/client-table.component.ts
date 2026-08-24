@@ -47,7 +47,7 @@ export interface ClientItem {
 
 /**
  * Tabla del directorio de clientes (patrón "Aether", igual que
- * invoice-table/service-catalog): header en píldora `bg-[#FAF9F7]` con
+ * invoice-table/service-catalog): header en píldora `bg-[#FAFAFA]` con
  * extremos redondeados. Columnas: Name (avatar + iniciales) / Email /
  * SSN-ITIN o EIN según el tipo / Type (badge) / Occupation o Business
  * structure / Status (chip outline) / Created / menú fantasma "..." por fila
@@ -68,7 +68,7 @@ export class ClientTableComponent {
 
   readonly openMenuId = signal<string | null>(null);
 
-  private readonly avatarPalette = ['bg-indigo-500', 'bg-orange-500', 'bg-[#7C6AE0]', 'bg-emerald-500', 'bg-gray-900'];
+  private readonly avatarPalette = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
@@ -106,7 +106,7 @@ export class ClientTableComponent {
   }
 
   typeBadgeClass(client: ClientItem): string {
-    return client.type === 'individual' ? 'border-[#CBD9F2] text-indigo-600' : 'border-[#F2E3C9] text-orange-600';
+    return client.type === 'individual' ? 'border-[#CFE2F7] text-indigo-600' : 'border-[#E8F1FB] text-orange-600';
   }
 
   secondaryDetail(client: ClientItem): string {

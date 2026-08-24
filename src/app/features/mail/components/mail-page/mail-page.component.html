@@ -1,36 +1,205 @@
-<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
-  <!-- Folders rail -->
-  <div class="bg-white rounded-[28px] p-5 lg:col-span-2">
-    <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
-    <p class="mt-1 text-sm text-gray-500 px-1">Your inbox</p>
-
-    <div class="mt-4">
-      <app-mail-folder-list [folders]="folders()" [activeFolderId]="activeFolderId()"
-        (folderSelected)="selectFolder($event)" (composeClicked)="openCompose()"></app-mail-folder-list>
-    </div>
-  </div>
-
-  <!-- Message list -->
-  <div class="bg-white rounded-[28px] p-5 lg:col-span-4 flex flex-col min-h-0">
-    <app-mail-list class="flex-1 min-h-0" [messages]="messages()" [activeFolderId]="activeFolderId()"
-      [selectedId]="selectedMessageId()" (messageSelected)="selectMessage($event)"
-      (starToggled)="toggleStar($event)"></app-mail-list>
-  </div>
-
-  <!-- Reading pane / compose editor -->
-  <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col">
-    <app-mail-compose *ngIf="isComposeOpen(); else readingView" class="flex-1 min-h-0"
-      (closed)="closeCompose()" (sent)="handleSent()"></app-mail-compose>
-    <ng-template #readingView>
-      <app-mail-reading-pane class="flex-1 min-h-0" [message]="selectedMessage()"
-        (starToggled)="toggleStar($event)" (replied)="handleSent()" (archived)="archiveMessage($event)"
-        (deleted)="deleteMessage($event)"></app-mail-reading-pane>
-    </ng-template>
+<!-- 1) Bootstrap: cuentas de buzón (/connectors) + clientes (/customers) -->
+<div *ngIf="store.bootLoading()" class="flex-1 min-h-0 pt-3 pb-1 flex items-center justify-center">
+  <div class="flex items-center gap-2 text-sm text-gray-400">
+    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    Loading your mailbox…
   </div>
 </div>
 
-<!-- Sent toast -->
-<div *ngIf="showSentToast()" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
+<!-- 2) El bootstrap falló: nada de bandeja inventada, sólo el error real + reintento -->
+<div *ngIf="!store.bootLoading() && store.bootError() as bootErr" class="flex-1 min-h-0 pt-3 pb-1 flex items-center justify-center">
+  <div class="w-full max-w-md rounded-[28px] bg-white p-8 text-center">
+    <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
+      <ion-icon name="alert-circle-outline" class="text-2xl text-red-500"></ion-icon>
+    </span>
+    <h2 class="mt-4 text-xl font-bold text-gray-900">Mail is unavailable</h2>
+    <p class="mt-2 text-sm text-red-600">{{ bootErr }}</p>
+    <button type="button" (click)="retryBoot()"
+      class="mt-5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Retry
+    </button>
+  </div>
+</div>
+
+<!-- 3) Sin buzón conectado no existe bandeja: se ofrece el flujo real de conexión OAuth -->
+<div *ngIf="!store.bootLoading() && !store.bootError() && !store.hasMailbox()"
+  class="flex-1 min-h-0 pt-3 pb-1 flex items-start justify-center overflow-y-auto">
+  <div class="w-full max-w-xl rounded-[28px] bg-white p-8">
+    <!-- Resultado del callback OAuth (el backend vuelve a la raíz del portal con query params) -->
+    <div *ngIf="connectResult() as result"
+      class="mb-5 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+      [ngClass]="result.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'">
+      <p class="text-sm" [ngClass]="result.ok ? 'text-emerald-800' : 'text-amber-800'">{{ result.text }}</p>
+      <button type="button" (click)="dismissConnectResult()" class="shrink-0 text-sm font-medium"
+        [ngClass]="result.ok ? 'text-emerald-800 hover:text-emerald-950' : 'text-amber-800 hover:text-amber-950'">
+        Dismiss
+      </button>
+    </div>
+
+    <div class="text-center">
+      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#DDE9F5]">
+        <ion-icon name="mail-outline" class="text-2xl text-[#1E466B]"></ion-icon>
+      </span>
+      <h2 class="mt-4 text-xl font-bold text-gray-900">Connect a mailbox</h2>
+      <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+        Mail reads and sends through your own Gmail or Microsoft 365 account. You'll be redirected to the
+        provider to grant access; nothing is stored until you approve it.
+      </p>
+    </div>
+
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+      <button type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        <ion-icon [name]="store.connectBusy() === 'Gmail' ? 'sync-outline' : 'logo-google'" class="text-base"
+          [ngClass]="store.connectBusy() === 'Gmail' ? 'animate-spin' : ''"></ion-icon>
+        {{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Connect Gmail' }}
+      </button>
+      <button type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+        <ion-icon [name]="store.connectBusy() === 'Graph' ? 'sync-outline' : 'logo-microsoft'" class="text-base"
+          [ngClass]="store.connectBusy() === 'Graph' ? 'animate-spin' : ''"></ion-icon>
+        {{ store.connectBusy() === 'Graph' ? 'Redirecting…' : 'Connect Microsoft 365' }}
+      </button>
+    </div>
+
+    <p *ngIf="store.connectError() as connectErr"
+      class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm text-red-600">
+      {{ connectErr }}
+    </p>
+
+    <!-- Cuentas existentes que todavía no sirven: Error admite reauth, el resto es informativo -->
+    <div *ngIf="store.accounts().length > 0" class="mt-6 border-t border-gray-100 pt-5">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Mailboxes on this tenant</p>
+      <div class="mt-3 flex flex-col gap-2">
+        <div *ngFor="let account of store.accounts()"
+          class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-gray-900">{{ account.emailAddress }}</p>
+            <p class="truncate text-xs text-gray-400">{{ account.providerCode }} · {{ account.status }}</p>
+          </div>
+          <button *ngIf="account.status === 'Error'" type="button" (click)="reauthAccount(account.id)"
+            [disabled]="!!store.reauthBusyId()"
+            class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            {{ store.reauthBusyId() === account.id ? 'Retrying…' : 'Reauthorize' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center">
+      <button type="button" (click)="reloadAccounts()"
+        class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+        Already connected? Refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 4) Bandeja real: 3 paneles (rail | listado | lectura/compose) -->
+<div *ngIf="!store.bootLoading() && !store.bootError() && store.hasMailbox()"
+  class="flex-1 min-h-0 pt-3 pb-1 flex flex-col gap-3">
+
+  <!-- Resultado del callback OAuth al volver de conectar/reautorizar un buzón -->
+  <div *ngIf="connectResult() as result"
+    class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+    [ngClass]="result.ok ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'">
+    <p class="text-sm" [ngClass]="result.ok ? 'text-emerald-800' : 'text-amber-800'">{{ result.text }}</p>
+    <button type="button" (click)="dismissConnectResult()" class="shrink-0 text-sm font-medium"
+      [ngClass]="result.ok ? 'text-emerald-800 hover:text-emerald-950' : 'text-amber-800 hover:text-amber-950'">
+      Dismiss
+    </button>
+  </div>
+
+  <!-- Cuentas caídas: el watch/OAuth se rompió y el backend expone reauth -->
+  <div *ngFor="let account of store.errorAccounts()"
+    class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    <p class="text-sm text-amber-800">
+      <span class="font-semibold">{{ account.emailAddress }}</span> stopped syncing. Reauthorize it to keep
+      receiving mail.
+    </p>
+    <button type="button" (click)="reauthAccount(account.id)" [disabled]="!!store.reauthBusyId()"
+      class="shrink-0 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+      {{ store.reauthBusyId() === account.id ? 'Retrying…' : 'Reauthorize' }}
+    </button>
+  </div>
+
+  <div *ngIf="store.connectError() as connectErr"
+    class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+    {{ connectErr }}
+  </div>
+
+  <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
+    <!-- Folders rail -->
+    <div class="bg-white rounded-[28px] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto">
+      <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
+      <p class="mt-1 truncate text-sm text-gray-500 px-1">{{ store.activeAccount()?.emailAddress || 'Your inbox' }}</p>
+
+      <div class="mt-4">
+        <app-mail-folder-list [folders]="folders()" [activeFolderId]="store.activeFolderId()"
+          [composeDisabled]="!canCompose()" (folderSelected)="selectFolder($event)"
+          (composeClicked)="openCompose()"></app-mail-folder-list>
+      </div>
+
+      <!-- Cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un customer -->
+      <div class="mt-5">
+        <label for="mailCustomer" class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Client
+        </label>
+        <select id="mailCustomer" *ngIf="store.customers().length > 0" [ngModel]="store.selectedCustomerId()"
+          name="mailCustomer" (ngModelChange)="selectCustomer($event)"
+          class="mt-2 h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          <option *ngFor="let customer of store.customers()" [value]="customer.id">{{ customer.displayName }}</option>
+        </select>
+        <p *ngIf="store.customers().length === 0" class="mt-2 px-1 text-xs text-gray-400">
+          No clients yet. Mail threads belong to a client.
+        </p>
+      </div>
+
+      <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->
+      <div *ngIf="store.usableAccounts().length > 1" class="mt-4">
+        <label for="mailAccount" class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Mailbox
+        </label>
+        <select id="mailAccount" [ngModel]="store.activeAccountId()" name="mailAccount"
+          (ngModelChange)="selectAccount($event)"
+          class="mt-2 h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          <option *ngFor="let account of store.usableAccounts()" [value]="account.id">{{ account.emailAddress }}</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Message list -->
+    <div class="bg-white rounded-[28px] p-5 lg:col-span-4 flex flex-col min-h-0">
+      <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
+        [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
+        (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
+        (loadMoreRequested)="loadMoreList()"></app-mail-list>
+    </div>
+
+    <!-- Reading pane / compose editor -->
+    <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col">
+      <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
+        [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
+        [customerName]="selectedCustomerName()" (closed)="closeCompose()" (discarded)="discardCompose()"
+        (sendRequested)="sendCompose($event)"></app-mail-compose>
+      <ng-template #readingView>
+        <app-mail-reading-pane class="flex-1 min-h-0" [thread]="store.selectedThread()"
+          [messages]="store.messages()" [bodies]="store.bodies()" [attachments]="store.attachments()"
+          [expandedId]="store.expandedMessageId()" [reply]="store.reply()" [loading]="store.messagesLoading()"
+          [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
+          [canReply]="!!store.activeAccountId()" (messageToggled)="toggleMessage($event)"
+          (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
+          (attachmentDownloadRequested)="downloadAttachment($event)" (replyStarted)="startReply($event)"
+          (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
+          (loadMoreRequested)="loadMoreMessages()" (retryRequested)="retryMessages()"></app-mail-reading-pane>
+      </ng-template>
+    </div>
+  </div>
+</div>
+
+<!-- Toast de envío (reply o compose) -->
+<div *ngIf="store.sentToast()"
+  class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
   <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
   Message sent
 </div>

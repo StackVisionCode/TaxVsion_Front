@@ -32,7 +32,14 @@ export class CheckoutPageComponent implements OnInit, OnDestroy {
   private elements: StripeElements | null = null;
   private paymentElement: StripePaymentElement | null = null;
 
-  // Fallback cuando no hay publishable key: tarjetas de prueba mapeadas a su referencia de Stripe.
+  /**
+   * Producción sin publishable key configurada: no hay forma de cobrar. Se muestra un
+   * aviso y se corta, en vez de caer al selector de tarjetas de prueba — ese fallback
+   * postea `pm_card_visa` al backend REAL y en producción sería un cobro fantasma.
+   */
+  readonly misconfigured = environment.production && !this.stripeEnabled;
+
+  // Fallback cuando no hay publishable key (solo dev): tarjetas de prueba mapeadas a su referencia de Stripe.
   readonly testCards: TestCard[] = [
     { label: 'Visa · pago exitoso', brand: 'Visa', number: '4242 4242 4242 4242', reference: 'pm_card_visa' },
     { label: 'Tarjeta rechazada', brand: 'Visa', number: '4000 0000 0000 0002', reference: 'pm_card_chargeDeclined' },
@@ -110,6 +117,11 @@ export class CheckoutPageComponent implements OnInit, OnDestroy {
   }
 
   payWithTestCard(): void {
+    // Cinturón además del @if del template: una referencia de tarjeta de prueba
+    // nunca debe salir hacia el backend de producción.
+    if (environment.production) {
+      return;
+    }
     this.store.pay(this.selectedCard().reference);
   }
 

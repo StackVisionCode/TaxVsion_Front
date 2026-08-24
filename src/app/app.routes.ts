@@ -3,7 +3,20 @@ import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  {
+    // El callback OAuth de Connectors (conectar buzón Gmail/Microsoft) NO vuelve a una ruta
+    // propia: el backend redirige a la raíz del portal con `?connectors_connected=true&accountId=…`
+    // o `?connectors_error=…`. Sin esto el usuario aterrizaría en el login/dashboard sin señal
+    // de si su buzón quedó conectado, así que se desvía a la bandeja conservando los params.
+    path: '',
+    pathMatch: 'full',
+    redirectTo: ({ queryParams }) =>
+      queryParams['connectors_connected'] ||
+      queryParams['connectors_error'] ||
+      queryParams['connectors_admin_consent']
+        ? '/email'
+        : '/login',
+  },
   {
     path: '',
     loadChildren: () => import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
@@ -18,6 +31,23 @@ export const routes: Routes = [
     // o cubierto 100%) → email de registro. Ejercita el flujo /onboarding/* con gift/promo/referido.
     path: 'onboarding',
     loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES),
+  },
+  {
+    // Link emailado post-pago ({RegistrationUrlBase}/register?token=...) y, sin token, el wizard
+    // de compra nuevo. Fuera del shell/authGuard: el comprador todavía no tiene cuenta.
+    path: 'register',
+    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.REGISTER_ROUTES),
+  },
+  {
+    // Canje de invitación de equipo: el invitado llega del correo que emite Notification
+    // ({tenantPortalUrl}/accept-invitation?token=…) y todavía no tiene cuenta, así que va
+    // fuera del shell/authGuard. Sin esta ruta el enlace daba 404.
+    path: 'accept-invitation',
+    loadComponent: () =>
+      import('./features/auth/components/accept-invitation-page/accept-invitation-page.component').then(
+        m => m.AcceptInvitationPageComponent,
+      ),
+    title: 'Accept invitation',
   },
   {
     // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
@@ -99,8 +129,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/meetings/meetings.routes').then(m => m.MEETINGS_ROUTES),
       },
       {
+        // La facturación real vive en /billing (features/billing-live); la vieja página mock
+        // de invoices se retiró — se conserva la URL por links guardados.
         path: 'invoices',
-        loadChildren: () => import('./features/invoices/invoices.routes').then(m => m.INVOICES_ROUTES),
+        redirectTo: 'billing',
       },
       {
         path: 'campaigns',

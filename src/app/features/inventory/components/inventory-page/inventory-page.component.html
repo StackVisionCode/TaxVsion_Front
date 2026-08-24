@@ -1,19 +1,19 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
   <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
       <p class="text-sm text-gray-600">Total products</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalProducts() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
       <p class="text-sm text-gray-600">Total stock value</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatCurrency(totalStockValue()) }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+    <div class="rounded-[24px] bg-[#E7EAEE] p-5">
       <p class="text-sm text-gray-600">Low stock</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ lowStockCount() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
       <p class="text-sm text-gray-600">Categories</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ categoriesCount() }}</p>
     </div>
@@ -27,17 +27,17 @@
         <p class="mt-1 text-sm text-gray-500">Track products, pricing and stock levels</p>
       </div>
       <button type="button" (click)="openCreatePanel()"
-        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="add-outline" class="text-base"></ion-icon>
         Add product
       </button>
     </div>
 
-    <!-- Filter bar -->
+    <!-- Filter bar (categorías reales del backend; búsqueda client-side) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <button *ngFor="let option of categoryFilters" type="button" (click)="setCategory(option)"
+      <button *ngFor="let option of categoryFilters()" type="button" (click)="setCategory(option)"
         class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="activeCategory() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        [ngClass]="activeCategory() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
         {{ option }}
       </button>
 
@@ -50,8 +50,33 @@
       </div>
     </div>
 
+    <!-- Error transitorio de una acción (ajuste rechazado, borrado fallido…) -->
+    <div *ngIf="store.actionError() as actionErr"
+      class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <p class="text-sm text-amber-800">{{ actionErr }}</p>
+      <button type="button" (click)="dismissActionError()"
+        class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
+        Dismiss
+      </button>
+    </div>
+
+    <!-- Estados de carga / error -->
+    <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      Loading inventory…
+    </div>
+
+    <div *ngIf="!store.loading() && store.error() as err"
+      class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+      <p class="text-sm text-red-600">{{ err }}</p>
+      <button type="button" (click)="retryLoad()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Retry
+      </button>
+    </div>
+
     <!-- Table -->
-    <div class="mt-5">
+    <div *ngIf="!store.loading() && !store.error()" class="mt-5">
       <app-product-table [products]="pagedProducts()" (editRequested)="openEditPanel($event)"
         (adjustRequested)="adjustStock($event)" (deleteRequested)="deleteProduct($event)"></app-product-table>
       <app-pagination [currentPage]="currentPage()" [totalItems]="visibleProducts().length" [pageSize]="pageSize"
@@ -61,8 +86,9 @@
 </div>
 
 <!-- Create / edit overlay -->
-<app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="categories"
-  (closed)="closePanel()" (saved)="handleSaved($event)"></app-product-form-panel>
+<app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="store.categories()"
+  [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
+  (categoryCreated)="handleCategoryCreated($event)"></app-product-form-panel>
 
 <!-- Delete confirmation -->
 <app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete product?" [message]="deleteMessage()"

@@ -18,12 +18,12 @@
         (cdkDropListDropped)="dropSigner($event)">
         <div *ngFor="let s of signers(); let i = index" cdkDrag [cdkDragDisabled]="!rules().sequential"
           class="relative flex items-center gap-2 rounded-full border px-2 py-1.5 cursor-pointer bg-white transition-colors"
-          [ngClass]="s.id === activeSignerId() ? 'border-gray-900 bg-gray-50' : 'border-gray-100 hover:bg-gray-50'"
+          [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-gray-50' : 'border-gray-100 hover:bg-gray-50'"
           (click)="setActiveSigner(s.id)">
 
           <!-- Badge de orden (solo secuencial) -->
           <span *ngIf="rules().sequential"
-            class="absolute -left-1.5 -top-1.5 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-gray-900 text-[9px] font-bold text-white">
+            class="absolute -left-1.5 -top-1.5 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-brand-bold text-[9px] font-bold text-white">
             {{ i + 1 }}
           </span>
 
@@ -45,7 +45,7 @@
 
           <!-- Badge: nº de campos de este firmante -->
           <span *ngIf="fieldCountBySigner()[s.id]; else noFields"
-            class="field-count-badge shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+            class="field-count-badge shrink-0 rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">
             {{ fieldCountBySigner()[s.id] }}
           </span>
           <ng-template #noFields>
@@ -82,7 +82,7 @@
       </div>
 
       <!-- Hint mientras no hay campos -->
-      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-[#FAF9F7] px-2.5 py-2 text-[11px] leading-snug text-gray-500">
+      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] leading-snug text-gray-500">
         <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
         Place at least one field on the document to continue.
       </p>
@@ -95,7 +95,7 @@
   <!-- Centro: toolbar del documento + superficie con scroll interno -->
   <div class="flex min-w-0 flex-1 flex-col lg:h-full">
     <!-- Toolbar -->
-    <div class="flex shrink-0 items-center justify-between gap-3 rounded-t-2xl bg-gray-900 px-4 py-2.5 text-xs text-white">
+    <div class="flex shrink-0 items-center justify-between gap-3 rounded-t-2xl bg-brand-bold px-4 py-2.5 text-xs text-white">
       <span class="flex min-w-0 items-center gap-2">
         <ion-icon [name]="document ? docIcon(document.kind) : 'document-text-outline'" class="shrink-0 text-sm"></ion-icon>
         <span class="truncate font-medium">{{ document?.name ?? 'Document' }}</span>
@@ -124,7 +124,7 @@
     </div>
 
     <!-- Superficie del documento (scroll interno) -->
-    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-[#FAF9F7] p-6">
+    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-[#FAFAFA] p-6">
       <!-- Skeleton mientras renderiza -->
       <div *ngIf="loading()" class="mx-auto w-fit">
         <div class="h-[560px] w-[440px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
@@ -152,7 +152,7 @@
               </div>
 
               <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(f.id)"
-                class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white shadow"
+                class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold text-white shadow"
                 aria-label="Delete field">
                 <ion-icon name="close" class="text-[11px]"></ion-icon>
               </button>
@@ -181,12 +181,12 @@
       <div class="mt-1.5 inline-flex items-center rounded-full border border-gray-200 p-0.5">
         <button type="button" (click)="setSequential(true)"
           class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="rules().sequential ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+          [ngClass]="rules().sequential ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
           Sequential
         </button>
         <button type="button" (click)="setSequential(false)"
           class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="!rules().sequential ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+          [ngClass]="!rules().sequential ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
           Any order
         </button>
       </div>
@@ -196,7 +196,7 @@
       <div class="mt-1.5 flex flex-wrap gap-1.5">
         <button *ngFor="let ch of allChannels" type="button" (click)="toggleChannel(ch)"
           class="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="rules().channels.includes(ch) ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
+          [ngClass]="rules().channels.includes(ch) ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-[11px]"></ion-icon>
           {{ channelMeta[ch].label }}
         </button>
@@ -207,7 +207,7 @@
       <div class="mt-3 space-y-2.5">
         <button type="button" (click)="toggleRule('autoReminder')" class="flex w-full items-center gap-2 text-left">
           <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
-            [ngClass]="rules().autoReminder ? 'bg-gray-900' : 'bg-gray-200'">
+            [ngClass]="rules().autoReminder ? 'bg-brand-bold' : 'bg-gray-200'">
             <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
               [ngClass]="rules().autoReminder ? 'left-[18px]' : 'left-0.5'"></span>
           </span>
@@ -219,7 +219,7 @@
 
         <button type="button" (click)="toggleRule('certificate')" class="flex w-full items-center gap-2 text-left">
           <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
-            [ngClass]="rules().certificate ? 'bg-gray-900' : 'bg-gray-200'">
+            [ngClass]="rules().certificate ? 'bg-brand-bold' : 'bg-gray-200'">
             <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
               [ngClass]="rules().certificate ? 'left-[18px]' : 'left-0.5'"></span>
           </span>
@@ -231,7 +231,7 @@
 
         <button type="button" (click)="toggleRule('includePreparerSignature')" class="flex w-full items-center gap-2 text-left">
           <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
-            [ngClass]="rules().includePreparerSignature ? 'bg-gray-900' : 'bg-gray-200'">
+            [ngClass]="rules().includePreparerSignature ? 'bg-brand-bold' : 'bg-gray-200'">
             <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
               [ngClass]="rules().includePreparerSignature ? 'left-[18px]' : 'left-0.5'"></span>
           </span>
@@ -249,7 +249,7 @@
 
       <div class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
         <!-- Documento -->
-        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-[#FAF9F7] p-2.5">
+        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-[#FAFAFA] p-2.5">
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" [ngClass]="docCircle(d.kind)">
             <ion-icon [name]="docIcon(d.kind)" class="text-sm text-gray-700"></ion-icon>
           </span>
@@ -276,7 +276,7 @@
         <div>
           <p class="flex items-center justify-between text-[11px] font-medium text-gray-600">
             Fields
-            <span class="rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-semibold text-white">{{ fields().length }}</span>
+            <span class="rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">{{ fields().length }}</span>
           </p>
           <div *ngIf="fields().length > 0; else noFieldsSummary" class="mt-1.5 space-y-1">
             <ng-container *ngFor="let t of fieldTypes">
@@ -295,7 +295,7 @@
         </div>
 
         <!-- Readiness -->
-        <div class="space-y-1.5 rounded-xl bg-[#FAF9F7] p-2.5">
+        <div class="space-y-1.5 rounded-xl bg-[#FAFAFA] p-2.5">
           <p class="flex items-center gap-1.5 text-[11px]"
             [ngClass]="pages().length > 0 && !loadError() ? 'text-emerald-600' : 'text-orange-500'">
             <ion-icon [name]="pages().length > 0 && !loadError() ? 'checkmark-circle' : 'alert-circle-outline'" class="text-sm"></ion-icon>
@@ -354,7 +354,7 @@
       <div class="flex flex-wrap gap-1.5">
         <button *ngFor="let ch of allChannels" type="button" (click)="draftChannel.set(ch)"
           class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
-          [ngClass]="draftChannel() === ch ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
+          [ngClass]="draftChannel() === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>
           {{ channelMeta[ch].label }}
         </button>
@@ -370,7 +370,7 @@
       Cancel
     </button>
     <button type="button" (click)="confirmAddSigner()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
       Add signer
     </button>
   </div>

@@ -60,8 +60,19 @@
               }
             }
           </button>
+        } @else if (misconfigured) {
+          <!--
+            Producción sin publishable key: NUNCA ofrecer las tarjetas de prueba (mandarían
+            `pm_card_visa` al backend real). Se corta el flujo con un mensaje explícito.
+          -->
+          <div class="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+            <p class="text-sm font-semibold text-red-700">Pagos no disponibles</p>
+            <p class="mt-1 text-sm text-red-600">
+              No podemos procesar pagos en este momento. Escribinos y activamos tu plan manualmente.
+            </p>
+          </div>
         } @else {
-          <!-- Fallback sin publishable key: tarjetas de prueba -->
+          <!-- Fallback sin publishable key (solo fuera de producción): tarjetas de prueba -->
           <p class="mt-1 text-xs text-amber-600">Modo prueba (sin Stripe Element): configurá la publishable key para el formulario real.</p>
           <div class="mt-4 space-y-2">
             @for (card of testCards; track card.reference) {

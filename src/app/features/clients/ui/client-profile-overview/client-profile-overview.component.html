@@ -1,5 +1,5 @@
 <div class="flex flex-col gap-6">
-  <!-- Stat cards -->
+  <!-- Stat cards: solo "Client since" tiene fuente real (createdAt); el resto va en "—" -->
   <div class="bg-white rounded-[28px] p-6">
     <h2 class="text-xl font-bold text-gray-900">Summary</h2>
     <p class="mt-1 text-sm text-gray-500">Key numbers for this client</p>
@@ -11,24 +11,30 @@
           <h3 class="text-base font-bold text-gray-900">{{ stat.title }}</h3>
           <p class="mt-1 text-xs text-gray-500">{{ stat.subtitle }}</p>
         </div>
-        <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stat.value }}</div>
+        <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stat.value ?? '—' }}</div>
       </div>
+    </div>
+
+    <div class="mt-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+      <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base text-blue-500"></ion-icon>
+      <p class="text-sm text-blue-800">
+        Invoice, document and activity totals <span class="font-semibold">aren't available yet</span> — those
+        services can't report figures for a single client, so they're left blank instead of estimated.
+      </p>
     </div>
   </div>
 
-  <!-- Recent activity -->
+  <!-- Actividad reciente: no hay feed de actividad por cliente en ningún servicio -->
   <div class="bg-white rounded-[28px] p-6">
     <h2 class="text-xl font-bold text-gray-900">Recent activity</h2>
     <p class="mt-1 text-sm text-gray-500">Latest touchpoints for this client</p>
 
-    <div class="mt-4 flex flex-col divide-y divide-gray-100">
-      <div *ngFor="let entry of recentActivity" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white" [ngClass]="entry.iconClass">
-          <ion-icon [name]="entry.icon" class="text-lg"></ion-icon>
-        </span>
-        <p class="min-w-0 flex-1 text-sm font-medium text-gray-900">{{ entry.text }}</p>
-        <span class="shrink-0 text-xs text-gray-400">{{ entry.time }}</span>
-      </div>
+    <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-12 text-center">
+      <ion-icon name="pulse-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No activity feed for this client yet</p>
+      <p class="mt-1 text-xs text-gray-400">
+        Notes and Communication are the tabs already showing real, client-linked history.
+      </p>
     </div>
   </div>
 </div>

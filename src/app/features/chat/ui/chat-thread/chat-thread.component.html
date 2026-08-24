@@ -31,7 +31,7 @@
 
       <!-- My message -->
       <div *ngIf="message.senderId === 'me'" class="max-w-lg text-right">
-        <div *ngIf="message.text" class="rounded-2xl rounded-br-md bg-gray-900 px-4 py-3">
+        <div *ngIf="message.text" class="rounded-2xl rounded-br-md bg-brand-bold px-4 py-3">
           <p class="text-sm leading-relaxed text-white whitespace-pre-line">{{ message.text }}</p>
         </div>
         <button *ngIf="message.attachment" type="button"

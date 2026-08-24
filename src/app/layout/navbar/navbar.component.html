@@ -50,7 +50,7 @@
 
               <!-- Customer avatar -->
               <div
-                class="flex-shrink-0 w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                class="flex-shrink-0 w-8 h-8 bg-brand-bold rounded-full flex items-center justify-center text-white text-xs font-medium">
                 {{ getCustomerInitials(customer) }}
               </div>
 
@@ -106,7 +106,7 @@
               <h3 class="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 Notifications
                 <span *ngIf="notificationCount() > 0"
-                  class="rounded-full bg-gray-900 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  class="rounded-full bg-brand-bold px-2 py-0.5 text-[11px] font-semibold text-white">
                   {{ notificationCount() }} new
                 </span>
               </h3>
@@ -156,7 +156,7 @@
                     <p class="text-sm font-medium text-gray-900 truncate pr-2">{{ notification.title }}</p>
                     <div class="flex items-center gap-1">
                       <!-- Unread indicator -->
-                      <div *ngIf="!notification.isRead" class="w-2 h-2 bg-gray-900 rounded-full flex-shrink-0"></div>
+                      <div *ngIf="!notification.isRead" class="w-2 h-2 bg-brand-bold rounded-full flex-shrink-0"></div>
                     </div>
                   </div>
                   <p class="text-xs text-gray-600 mt-1 line-clamp-2">{{ notification.message }}</p>
@@ -225,7 +225,7 @@
           class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
           <!-- User Info Header: fondo con degradado sutil de marca -->
-          <div class="border-b border-gray-100 bg-gradient-to-br from-indigo-50 via-white to-[#F3F0FC] px-4 py-4">
+          <div class="border-b border-gray-100 bg-gradient-to-br from-indigo-50 via-white to-[#E8F1FB] px-4 py-4">
             <div class="flex items-start gap-3">
               <!-- TaxUser Avatar (larger, con anillo blanco para que "flote" sobre el degradado) -->
               <div
@@ -254,7 +254,7 @@
                 <!-- Role Badge -->
                 <div class="mt-2">
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-900 text-white shadow-sm">
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-bold text-white shadow-sm">
                     <ion-icon [name]="user().isOwner ? 'shield-checkmark-outline' : 'person-outline'"
                       class="text-xs mr-1"></ion-icon>
                     {{ getUserRole() }}
@@ -276,15 +276,15 @@
 
             <a routerLink="/company/users"
               class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
-              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEEBFA]">
-                <ion-icon name="people-outline" class="text-base text-[#7C6AE0]"></ion-icon>
+              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5]">
+                <ion-icon name="people-outline" class="text-base text-[#1E466B]"></ion-icon>
               </span>
               <span>User Management</span>
             </a>
 
             <a routerLink="/company/settings"
               class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
-              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F2E3C9]">
+              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F1FB]">
                 <ion-icon name="business-outline" class="text-base text-orange-600"></ion-icon>
               </span>
               <span>Company Settings</span>
@@ -312,7 +312,7 @@
 <div *ngIf="isMobileMenuOpen()" class="fixed inset-0 z-50 flex md:hidden" (click)="closeMobileMenu($event)">
   <div class="fixed inset-0 bg-black/20 backdrop-blur-sm" aria-hidden="true"></div>
   <div
-    class="fixed bottom-0 left-0 top-0 w-full max-w-xs overflow-y-auto bg-[#FBFAF9] p-6 shadow-xl border-r border-gray-200">
+    class="fixed bottom-0 left-0 top-0 w-full max-w-xs overflow-y-auto bg-[#FAFAFA] p-6 shadow-xl border-r border-gray-200">
     <!-- Mobile menu content -->
     <div class="flex flex-col gap-6 relative">
       <!-- Mobile user header -->
@@ -337,7 +337,7 @@
           </p>
 
           <!-- Role Badge -->
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-gray-900 text-white">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-brand-bold text-white">
             {{ getUserRole() }}
           </span>
         </div>

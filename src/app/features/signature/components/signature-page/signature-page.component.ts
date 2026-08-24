@@ -1,195 +1,50 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import {
-  SignatureRequest,
-  SignatureStatus,
-  SignatureTableComponent,
-  Signer,
-  deriveSignatureStatus,
-} from '../../ui/signature-table/signature-table.component';
+import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { SignatureLinkService, SigningLink } from '../../data-access/signature-link.service';
-import { CHANNEL_META } from '../../ui/signature-request-panel/signature-wizard.mock';
+import { toApiError } from '@core/models/api-error.model';
+import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
+import {
+  TOKEN_EXPIRATION_MAX_HOURS,
+  TOKEN_EXPIRATION_MIN_HOURS,
+} from '../../data-access/signature.model';
 
-type StatusFilter = 'All' | SignatureStatus;
-const PAGE_SIZE = 8;
-
-/** Builds a YYYY-MM-DD date string relative to today so the mock signature requests always look alive. */
-function dateInDays(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function signer(name: string, email: string, color: string, status: Signer['status'], signedAtDays: number | null): Signer {
-  const initials = name
-    .split(' ')
-    .map(part => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return { name, initials, email, color, status, signedAt: signedAtDays === null ? null : dateInDays(signedAtDays) };
-}
-
-const SEED_REQUESTS: SignatureRequest[] = [
-  {
-    id: 'signature-1',
-    documentName: 'Engagement Letter',
-    client: 'Maria Gonzalez',
-    signers: [signer('Maria Gonzalez', 'maria.gonzalez@email.com', 'bg-indigo-500', 'signed', -18)],
-    status: 'completed',
-    sentDate: dateInDays(-20),
-    dueDate: dateInDays(-13),
-    completedDate: dateInDays(-18),
-    notes: 'Standard engagement letter for the 2025 filing season.',
-  },
-  {
-    id: 'signature-2',
-    documentName: 'Form 8879 E-file Authorization',
-    client: 'David Chen',
-    signers: [signer('David Chen', 'david.chen@email.com', 'bg-orange-500', 'pending', null)],
-    status: 'pending',
-    sentDate: dateInDays(-2),
-    dueDate: dateInDays(5),
-    completedDate: null,
-    notes: '',
-  },
-  {
-    id: 'signature-3',
-    documentName: '2025 Tax Return Signature Page',
-    client: 'Sarah & Mark Johnson',
-    signers: [
-      signer('Sarah Johnson', 'sarah.johnson@email.com', 'bg-[#7C6AE0]', 'signed', -1),
-      signer('Mark Johnson', 'mark.johnson@email.com', 'bg-emerald-500', 'pending', null),
-    ],
-    status: 'in-progress',
-    sentDate: dateInDays(-5),
-    dueDate: dateInDays(2),
-    completedDate: null,
-    notes: 'Joint return, both spouses must sign before we can e-file.',
-  },
-  {
-    id: 'signature-4',
-    documentName: 'POA Form 2848',
-    client: 'Robert Kim',
-    signers: [signer('Robert Kim', 'robert.kim@email.com', 'bg-gray-900', 'rejected', -4)],
-    status: 'rejected',
-    sentDate: dateInDays(-10),
-    dueDate: dateInDays(-3),
-    completedDate: null,
-    notes: 'Client wants to review with their attorney before granting power of attorney.',
-  },
-  {
-    id: 'signature-5',
-    documentName: 'W-9 Request',
-    client: 'Lisa Martinez',
-    signers: [signer('Lisa Martinez', 'lisa.martinez@email.com', 'bg-indigo-500', 'signed', -28)],
-    status: 'completed',
-    sentDate: dateInDays(-30),
-    dueDate: dateInDays(-23),
-    completedDate: dateInDays(-28),
-    notes: '',
-  },
-  {
-    id: 'signature-6',
-    documentName: 'Amendment Authorization',
-    client: 'James Wilson',
-    signers: [signer('James Wilson', 'james.wilson@email.com', 'bg-orange-500', 'pending', null)],
-    status: 'pending',
-    sentDate: dateInDays(-1),
-    dueDate: dateInDays(6),
-    completedDate: null,
-    notes: 'Amending 2023 return to correct dependent information.',
-  },
-  {
-    id: 'signature-7',
-    documentName: 'Engagement Letter',
-    client: 'Patricia Brown',
-    signers: [signer('Patricia Brown', 'patricia.brown@email.com', 'bg-[#7C6AE0]', 'signed', -38)],
-    status: 'completed',
-    sentDate: dateInDays(-40),
-    dueDate: dateInDays(-33),
-    completedDate: dateInDays(-38),
-    notes: '',
-  },
-  {
-    id: 'signature-8',
-    documentName: 'Form 8879 E-file Authorization',
-    client: 'Michael & Jennifer Davis',
-    signers: [
-      signer('Michael Davis', 'michael.davis@email.com', 'bg-emerald-500', 'signed', -13),
-      signer('Jennifer Davis', 'jennifer.davis@email.com', 'bg-gray-900', 'signed', -12),
-    ],
-    status: 'completed',
-    sentDate: dateInDays(-15),
-    dueDate: dateInDays(-8),
-    completedDate: dateInDays(-12),
-    notes: '',
-  },
-  {
-    id: 'signature-9',
-    documentName: '2025 Tax Return Signature Page',
-    client: 'Thomas Anderson',
-    signers: [signer('Thomas Anderson', 'thomas.anderson@email.com', 'bg-indigo-500', 'pending', null)],
-    status: 'pending',
-    sentDate: dateInDays(-3),
-    dueDate: dateInDays(4),
-    completedDate: null,
-    notes: '',
-  },
-  {
-    id: 'signature-10',
-    documentName: 'POA Form 2848',
-    client: 'Nancy White',
-    signers: [signer('Nancy White', 'nancy.white@email.com', 'bg-orange-500', 'signed', -22)],
-    status: 'completed',
-    sentDate: dateInDays(-25),
-    dueDate: dateInDays(-18),
-    completedDate: dateInDays(-22),
-    notes: '',
-  },
-  {
-    id: 'signature-11',
-    documentName: 'W-9 Request',
-    client: 'Christopher Lee',
-    signers: [signer('Christopher Lee', 'christopher.lee@email.com', 'bg-[#7C6AE0]', 'rejected', -7)],
-    status: 'rejected',
-    sentDate: dateInDays(-12),
-    dueDate: dateInDays(-5),
-    completedDate: null,
-    notes: 'Client declined, requested a phone call instead.',
-  },
-  {
-    id: 'signature-12',
-    documentName: 'Amendment Authorization',
-    client: 'Amanda & Brian Taylor',
-    signers: [
-      signer('Amanda Taylor', 'amanda.taylor@email.com', 'bg-emerald-500', 'signed', -2),
-      signer('Brian Taylor', 'brian.taylor@email.com', 'bg-gray-900', 'pending', null),
-    ],
-    status: 'in-progress',
-    sentDate: dateInDays(-6),
-    dueDate: dateInDays(1),
-    completedDate: null,
-    notes: '',
-  },
+const STATUS_FILTERS: SignatureStatusFilter[] = [
+  'All',
+  'Draft',
+  'Ready',
+  'InProgress',
+  'Completed',
+  'Rejected',
+  'Canceled',
+  'Expired',
 ];
 
+const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
+  All: 'All',
+  Draft: 'Draft',
+  Ready: 'Ready',
+  InProgress: 'In Progress',
+  Completed: 'Completed',
+  Rejected: 'Rejected',
+  Canceled: 'Canceled',
+  Expired: 'Expired',
+};
+
 /**
- * Página del módulo Signature (estilo "Aether"): stats pastel + tabs de
- * estado/búsqueda + tabla de solicitudes de firma + panel de creación (solo
- * creación, una solicitud no se edita una vez enviada) + vista previa de
- * solo lectura (takeover, mismo patrón *ngIf/else que campaigns-page).
- * Reemplaza al sistema completo de firma del CRM original (editor de
- * colocación de PDF, certificados y auditoría, flujo de firma orientado al
- * cliente) por un dashboard interno simplificado: todo el estado vive en
- * signals dentro de esta página, sin servicios ni backend.
+ * Página del módulo Signature conectada al backend real (TaxVision.Signature.Api
+ * vía /signature): stats (listado + analytics summary) + filtro de estado y
+ * paginación server-side + tabla de solicitudes hidratada con el detalle
+ * (firmantes reales) + wizard de creación (takeover) + vista previa de solo
+ * lectura. Acciones por fila según estado: cancelar (con motivo), extender la
+ * expiración, reenviar invitaciones y descargar sealed/certificate vía
+ * CloudStorage download-url. La búsqueda es client-side sobre la página cargada
+ * (el endpoint de listado no expone `term`).
  */
 @Component({
   selector: 'app-signature-page',
@@ -207,17 +62,9 @@ const SEED_REQUESTS: SignatureRequest[] = [
   templateUrl: './signature-page.component.html',
 })
 export class SignaturePageComponent {
-  private readonly router = inject(Router);
-  private readonly linkService = inject(SignatureLinkService);
+  readonly store = inject(SignatureStore);
 
-  readonly channelMeta = CHANNEL_META;
-  readonly requests = signal<SignatureRequest[]>(SEED_REQUESTS);
-
-  /** Enlaces de firma de la solicitud recién enviada (modal "Request sent"). */
-  readonly sentLinks = signal<SigningLink[] | null>(null);
-
-  readonly statusFilters: StatusFilter[] = ['All', 'pending', 'in-progress', 'completed', 'rejected'];
-  readonly activeFilter = signal<StatusFilter>('All');
+  readonly statusFilters = STATUS_FILTERS;
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
@@ -226,74 +73,72 @@ export class SignaturePageComponent {
   readonly isCreatorOpen = signal(false);
   readonly mySignature = signal<CreatedSignature | null>(null);
 
-  /** Read-only detail takeover; no edit mode in this feature, but kept as a plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
+  /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
 
   readonly toastMessage = signal<string | null>(null);
 
-  readonly totalRequests = computed(() => this.requests().length);
+  // ---------- Modales de acción ----------
+  readonly cancelTarget = signal<SignatureRequest | null>(null);
+  readonly cancelReason = signal('');
+  readonly extendTarget = signal<SignatureRequest | null>(null);
+  readonly extendHours = signal(72);
+  readonly actionBusy = signal(false);
+  readonly actionError = signal('');
 
-  readonly pendingSignatures = computed(() =>
-    this.requests().reduce((sum, request) => sum + request.signers.filter(item => item.status === 'pending').length, 0),
-  );
+  readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
+  readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
 
-  readonly completedThisMonth = computed(() => {
-    const now = new Date();
-    return this.requests().filter(request => {
-      if (request.status !== 'completed' || !request.completedDate) {
-        return false;
-      }
-      const completed = new Date(`${request.completedDate}T00:00:00`);
-      return completed.getFullYear() === now.getFullYear() && completed.getMonth() === now.getMonth();
-    }).length;
-  });
+  constructor() {
+    this.store.refresh();
+    this.store.loadStats();
+  }
 
-  readonly avgTimeToSign = '1.8 days';
-
+  /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
   readonly visibleRequests = computed<SignatureRequest[]>(() => {
     const query = this.search().trim().toLowerCase();
-    const filter = this.activeFilter();
-    return this.requests()
-      .filter(request => filter === 'All' || request.status === filter)
+    if (!query) {
+      return this.store.requests();
+    }
+    return this.store
+      .requests()
       .filter(
         request =>
-          !query ||
           request.documentName.toLowerCase().includes(query) ||
-          request.client.toLowerCase().includes(query),
+          request.client.toLowerCase().includes(query) ||
+          request.signers.some(s => s.name.toLowerCase().includes(query) || s.email.toLowerCase().includes(query)),
       );
   });
 
-  filterLabel(filter: StatusFilter): string {
-    switch (filter) {
-      case 'All':
-        return 'All';
-      case 'pending':
-        return 'Pending';
-      case 'in-progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-    }
-  }
-
-  readonly currentPage = signal(1);
-  readonly pageSize = PAGE_SIZE;
-
-  readonly pagedRequests = computed<SignatureRequest[]>(() => {
-    const start = (this.currentPage() - 1) * PAGE_SIZE;
-    return this.visibleRequests().slice(start, start + PAGE_SIZE);
+  readonly completionRateLabel = computed(() => {
+    const stats = this.store.stats();
+    return stats ? `${Math.round(stats.completionRate * 100)}%` : '—';
   });
 
-  setFilter(filter: StatusFilter): void {
-    this.activeFilter.set(filter);
-    this.currentPage.set(1);
+  statValue(value: number | undefined): string {
+    return value === undefined ? '—' : this.formatNumber(value);
+  }
+
+  filterLabel(filter: SignatureStatusFilter): string {
+    return STATUS_FILTER_LABEL[filter];
+  }
+
+  setFilter(filter: SignatureStatusFilter): void {
+    this.search.set('');
+    this.store.setStatusFilter(filter);
   }
 
   onSearchChange(value: string): void {
     this.search.set(value);
-    this.currentPage.set(1);
+  }
+
+  onPageChange(page: number): void {
+    this.store.setPage(page);
+  }
+
+  retryLoad(): void {
+    this.store.refresh();
+    this.store.loadStats();
   }
 
   formatNumber(value: number): string {
@@ -322,37 +167,10 @@ export class SignaturePageComponent {
     this.showToast('Signature saved');
   }
 
-  handleSent(request: SignatureRequest): void {
-    const finalRequest = { ...request, status: deriveSignatureStatus(request.signers) };
-    this.requests.update(list => [...list, finalRequest]);
+  /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */
+  handleSent(): void {
     this.closePanel();
-    // Modal con los enlaces seguros por firmante (propuesta UX).
-    this.sentLinks.set(this.linkService.register(finalRequest));
-  }
-
-  closeLinksModal(): void {
-    this.sentLinks.set(null);
-    this.showToast('Signature request sent');
-  }
-
-  copyLink(link: SigningLink): void {
-    const url = `${window.location.origin}${link.url}`;
-    void navigator.clipboard?.writeText(url).catch(() => undefined);
-    this.showToast(`Link for ${link.signer.name.split(' ')[0]} copied`);
-  }
-
-  openLink(link: SigningLink): void {
-    this.sentLinks.set(null);
-    void this.router.navigateByUrl(link.url);
-  }
-
-  /** Acción "Open signing link" de la tabla: abre el enlace del primer firmante pendiente. */
-  handleOpenLink(request: SignatureRequest): void {
-    const links = this.linkService.register(request);
-    const target = links.find(link => link.signer.status === 'pending') ?? links[0];
-    if (target) {
-      void this.router.navigateByUrl(target.url);
-    }
+    this.showToast('Signature request sent — signers were notified by email');
   }
 
   openPreview(request: SignatureRequest): void {
@@ -363,18 +181,124 @@ export class SignaturePageComponent {
     this.previewRequest.set(null);
   }
 
+  // ---------- Reenvíos ----------
+
+  /** Acción de la fila: reenvía la invitación a todos los firmantes pendientes. */
   resendReminder(request: SignatureRequest): void {
-    this.showToast(`Reminder resent for "${request.documentName}"`);
+    this.store.resendAllPending(request).subscribe({
+      next: () => this.showToast(`Reminder resent for "${request.documentName}"`),
+      error: err => this.showToast(toApiError(err).message),
+    });
   }
 
-  cancelRequest(request: SignatureRequest): void {
-    this.requests.update(list =>
-      list.map(item => (item.id === request.id ? { ...item, status: 'rejected' as const } : item)),
-    );
-    if (this.previewRequest()?.id === request.id) {
-      this.previewRequest.set(null);
+  resendToSigner(event: { request: SignatureRequest; signer: Signer }): void {
+    if (!event.signer.id) {
+      return;
     }
-    this.showToast(`Signature request "${request.documentName}" cancelled`);
+    this.store.resendSigner(event.request.id, event.signer.id).subscribe({
+      next: () => this.showToast(`Invitation resent to ${event.signer.name}`),
+      error: err => this.showToast(toApiError(err).message),
+    });
+  }
+
+  // ---------- Cancelar (con motivo) ----------
+
+  openCancelModal(request: SignatureRequest): void {
+    this.cancelReason.set('');
+    this.actionError.set('');
+    this.cancelTarget.set(request);
+  }
+
+  closeCancelModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.cancelTarget.set(null);
+  }
+
+  confirmCancel(): void {
+    const target = this.cancelTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store.cancel(target.id, this.cancelReason().trim() || null).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.cancelTarget.set(null);
+        if (this.previewRequest()?.id === target.id) {
+          this.previewRequest.set(null);
+        }
+        this.showToast(`Signature request "${target.documentName}" canceled`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Extender expiración ----------
+
+  openExtendModal(request: SignatureRequest): void {
+    this.extendHours.set(72);
+    this.actionError.set('');
+    this.extendTarget.set(request);
+  }
+
+  closeExtendModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.extendTarget.set(null);
+  }
+
+  confirmExtend(): void {
+    const target = this.extendTarget();
+    const hours = Math.round(Number(this.extendHours()));
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    if (!Number.isFinite(hours) || hours < TOKEN_EXPIRATION_MIN_HOURS || hours > TOKEN_EXPIRATION_MAX_HOURS) {
+      this.actionError.set(`Hours must be between ${TOKEN_EXPIRATION_MIN_HOURS} and ${TOKEN_EXPIRATION_MAX_HOURS}.`);
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store.extendExpiration(target.id, hours).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.extendTarget.set(null);
+        this.showToast(`Expiration extended by ${hours}h for "${target.documentName}"`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Descargas (CloudStorage download-url) ----------
+
+  downloadSealed(request: SignatureRequest): void {
+    this.openDownload(request.sealedFileId ?? null, 'Signed document');
+  }
+
+  downloadCertificate(request: SignatureRequest): void {
+    this.openDownload(request.certificateFileId ?? null, 'Certificate');
+  }
+
+  private openDownload(fileId: string | null, label: string): void {
+    if (!fileId) {
+      return;
+    }
+    this.store.getDownloadUrl(fileId).subscribe({
+      next: url => {
+        window.open(url, '_blank', 'noopener');
+      },
+      error: err => this.showToast(`${label}: ${toApiError(err).message}`),
+    });
   }
 
   private showToast(message: string): void {

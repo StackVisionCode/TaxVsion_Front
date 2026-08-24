@@ -3,53 +3,74 @@
   <h2 class="text-xl font-bold text-gray-900">New Clients</h2>
   <p class="mt-1 text-sm text-gray-500">Monthly growth</p>
 
-  <!-- Headline number + delta chip -->
-  <div class="mt-4 flex items-center gap-3">
-    <div class="text-4xl font-bold text-gray-900">{{ currentMonthCount }}</div>
-    <span class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-600">
-      {{ monthlyDelta }}
-    </span>
-  </div>
+  <!-- Cargando / sin permiso customers.view / todavía sin clientes -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || isEmpty()" [loading]="loading()" [error]="error()"
+    errorTitle="Clients aren't available" icon="people-outline" title="No clients yet"
+    message="Add your first client and monthly growth will show up here."
+    minHeight="15rem"></app-dashboard-widget-state>
 
-  <!-- Mini pill-bar chart (last 6 months) -->
-  <div #chartTrack class="relative mt-6 flex items-end justify-between gap-2 h-24">
-    <div *ngFor="let month of months; let i = index" class="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
-      (mouseenter)="onBarEnter(i)">
-      <div #barBox class="w-6 rounded-full min-h-[1.5rem]" [style.height.%]="barHeight(month)"
-        [style.background-color]="month.color"></div>
-      <span class="text-xs text-gray-400">{{ month.label }}</span>
+  <ng-container *ngIf="!loading() && !error() && !isEmpty()">
+    <!-- Altas del mes en curso + delta real contra el mes anterior -->
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <div class="text-4xl font-bold text-gray-900">{{ currentMonthCount() }}</div>
+      <!-- El chip solo aparece si el mes anterior tuvo altas: sin base no hay porcentaje -->
+      <span *ngIf="deltaPercent() !== null" class="rounded-full border px-3 py-1 text-xs font-medium"
+        [ngClass]="deltaPercent()! >= 0 ? 'border-emerald-200 text-emerald-600' : 'border-red-200 text-red-500'">
+        {{ deltaLabel() }}
+      </span>
+      <span class="ml-auto text-xs text-gray-400">{{ totalCount() }} total</span>
     </div>
 
-    <!-- Tooltip deslizante: un solo elemento persistente cuya posición se
-         anima (mismo patrón que el pill activo del sidebar); se queda
-         "sticky" en el último mes con hover, no vuelve al mes por defecto. -->
-    <div *ngIf="tooltipReady()"
-      class="chart-tooltip pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center"
-      [style.left.px]="tooltipLeft()" [style.top.px]="tooltipTop()">
-      <span class="whitespace-nowrap rounded-full bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white shadow-md">
-        {{ tooltipLabel(tooltipMonth()) }}
-      </span>
-      <span class="mt-1 h-2 w-2 rounded-full bg-white ring-2 ring-gray-900"></span>
-    </div>
-  </div>
+    <!-- Desglose mensual: solo cuando se pudo traer la lista completa del tenant -->
+    <ng-container *ngIf="hasFullHistory(); else partialHistory">
+      <div #chartTrack class="relative mt-6 flex items-end justify-between gap-2 h-24">
+        <div *ngFor="let month of months(); let i = index"
+          class="flex h-full flex-1 flex-col items-center justify-end gap-1.5" (mouseenter)="onBarEnter(i)">
+          <div #barBox class="w-6 rounded-full min-h-[1.5rem]" [style.height.%]="barHeight(month)"
+            [style.background-color]="barColor(i)"></div>
+          <span class="text-xs text-gray-400">{{ month.label }}</span>
+        </div>
 
-  <!-- Recent additions -->
-  <p class="mt-6 text-xs font-semibold uppercase tracking-wide text-gray-400">Recent additions</p>
-  <div class="mt-2 flex flex-col">
-    <div *ngFor="let client of recentClients; let last = last" class="flex items-center gap-3 py-2.5"
-      [class.border-b]="!last" [class.border-gray-100]="!last">
-      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-        [ngClass]="client.avatarBg">
-        {{ client.initials }}
-      </span>
-      <div class="min-w-0 flex-1 flex items-center gap-2">
-        <p class="truncate text-sm font-medium text-gray-900">{{ client.name }}</p>
-        <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
-          [ngClass]="typeChipClass(client.type)">
-          {{ client.type }}
-        </span>
+        <!-- Tooltip deslizante: un solo elemento persistente cuya posición se
+             anima (mismo patrón que el pill activo del sidebar). -->
+        <div *ngIf="tooltipReady() && tooltipMonth() as month"
+          class="chart-tooltip pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center"
+          [style.left.px]="tooltipLeft()" [style.top.px]="tooltipTop()">
+          <span
+            class="whitespace-nowrap rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white shadow-md">
+            {{ tooltipLabel(month) }}
+          </span>
+          <span class="mt-1 h-2 w-2 rounded-full bg-white ring-2 ring-gray-900"></span>
+        </div>
       </div>
-      <span class="shrink-0 text-sm font-bold text-gray-900">{{ client.revenue }}</span>
+    </ng-container>
+
+    <!-- Demasiados clientes para agrupar por mes en el front: se dice, no se estima -->
+    <ng-template #partialHistory>
+      <p class="mt-6 rounded-2xl border border-gray-100 px-4 py-3 text-xs text-gray-500">
+        The monthly breakdown isn't available for client lists this large — the clients endpoint doesn't group by
+        date yet.
+      </p>
+    </ng-template>
+
+    <!-- Recent additions: clientes reales, con su tipo y su fecha de alta -->
+    <p class="mt-6 text-xs font-semibold uppercase tracking-wide text-gray-400">Recent additions</p>
+    <div class="mt-2 flex flex-col">
+      <div *ngFor="let client of recentClients(); let i = index; let last = last; trackBy: trackByClientId"
+        class="flex items-center gap-3 py-2.5" [class.border-b]="!last" [class.border-gray-100]="!last">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+          [ngClass]="avatarBg(i)">
+          {{ initialsOf(client.displayName) }}
+        </span>
+        <div class="min-w-0 flex-1 flex items-center gap-2">
+          <p class="truncate text-sm font-medium text-gray-900">{{ client.displayName }}</p>
+          <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+            [ngClass]="typeChipClass(client.kind)">
+            {{ client.kind }}
+          </span>
+        </div>
+        <span class="shrink-0 text-xs text-gray-400">{{ createdLabel(client) }}</span>
+      </div>
     </div>
-  </div>
+  </ng-container>
 </div>

@@ -1,35 +1,62 @@
 <app-modal [isOpen]="isOpen" [heading]="isEditMode() ? 'Edit Member' : 'Invite Member'"
-  [subheading]="isEditMode() ? 'Update this teammate\'s email or role' : 'Send an invite to join your firm'" size="md"
+  [subheading]="isEditMode() ? 'Update this teammate\'s roles' : 'Send an invite to join your firm'" size="md"
   (closed)="close()">
 
     <div class="mt-5 flex flex-col gap-3">
-      <!-- Email -->
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <!-- Email (solo lectura en edición: el backend no permite cambiar el email de un usuario) -->
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors"
+        [class.opacity-60]="isEditMode()">
         <input type="email" placeholder="teammate@taxprooffice.com" [ngModel]="email()" name="email"
-          (ngModelChange)="email.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          (ngModelChange)="email.set($event)" [disabled]="isEditMode()"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed" />
       </div>
 
-      <!-- Role dropdown -->
+      <!-- Access level (actor type de la invitación) — solo al invitar -->
+      <div *ngIf="!isEditMode()" class="flex items-center gap-2">
+        <button type="button" (click)="setActorType('TenantEmployee')"
+          class="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="actorType() === 'TenantEmployee'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Employee
+        </button>
+        <button type="button" (click)="setActorType('TenantAdmin')"
+          class="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="actorType() === 'TenantAdmin'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Admin
+        </button>
+      </div>
+
+      <!-- Roles dropdown (multi-select sobre GET /auth/roles) -->
       <div class="relative" data-dropdown="member-role">
         <button type="button" (click)="toggleRoleDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          <span>{{ selectedRole().label }}</span>
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+          <span class="truncate text-left">{{ selectedRolesLabel() }}</span>
+          <ion-icon name="chevron-down-outline" class="ml-2 shrink-0 text-sm text-gray-500"></ion-icon>
         </button>
         <div *ngIf="isRoleOpen()"
-          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of roleOptions" type="button" (click)="selectRole(option.id)"
+          class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <button *ngFor="let option of roleOptions()" type="button" (click)="toggleRole(option.id)"
             class="flex w-full flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors">
             <span class="flex w-full items-center justify-between text-sm font-medium text-gray-900">
-              {{ option.label }}
-              <ion-icon *ngIf="option.id === role()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+              {{ option.name }}
+              <ion-icon *ngIf="isRoleSelected(option.id)" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
             </span>
-            <span class="text-xs text-gray-500">{{ option.description }}</span>
+            <span class="text-xs text-gray-500">{{ roleDescription(option) }}</span>
           </button>
+          <p *ngIf="roleOptions().length === 0" class="px-4 py-3 text-sm text-gray-400">No roles available</p>
         </div>
       </div>
+
+      <!-- Límites del plan (GET /auth/tenants/limits) -->
+      <p *ngIf="seatsHint()" class="px-1 text-xs" [ngClass]="seatsExhausted() ? 'text-amber-600' : 'text-gray-400'">
+        {{ seatsHint() }}<span *ngIf="seatsExhausted()"> — no seats left, the invite may be rejected</span>
+      </p>
     </div>
+
+  <p *ngIf="saveError()" class="mt-3 text-sm text-red-600">{{ saveError() }}</p>
 
   <div class="mt-5 flex items-center justify-end gap-2">
     <button type="button" (click)="close()"
@@ -37,8 +64,8 @@
       Cancel
     </button>
     <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ isEditMode() ? 'Save changes' : 'Send invite' }}
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ isSaving() ? (isEditMode() ? 'Saving…' : 'Sending…') : (isEditMode() ? 'Save changes' : 'Send invite') }}
     </button>
   </div>
 </app-modal>

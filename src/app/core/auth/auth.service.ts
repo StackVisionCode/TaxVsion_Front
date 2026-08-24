@@ -59,9 +59,18 @@ export class AuthService {
         return of<LoginOutcome>({ kind: 'authenticated' });
       });
     }
-    return this.http
-      .post<LoginResponse>(`${this.base}/auth/login`, req)
-      .pipe(map(res => this.handleLoginResponse(res)));
+    // `TenantId` es `Guid?` en el backend: mandar "" (el valor de environment.tenantId
+    // en producción, donde el tenant se resuelve por Host) rompe la deserialización y
+    // devuelve 400. Se omite el campo salvo que traiga un valor real.
+    const { tenantId, ...rest } = req;
+    const body = tenantId ? { ...rest, tenantId } : rest;
+    // `defer` para que un fallo al componer la URL (tenantBase() lanza si no hay oficina
+    // resuelta) viaje por el canal de error del Observable. Sin esto la excepción es
+    // síncrona, escapa al `subscribe({ error })` del componente y el botón de login se
+    // queda girando para siempre sin decir nada.
+    return defer(() => this.http.post<LoginResponse>(`${this.base}/auth/login`, body)).pipe(
+      map(res => this.handleLoginResponse(res)),
+    );
   }
 
   verifyMfa(req: VerifyMfaRequest): Observable<void> {
@@ -71,7 +80,7 @@ export class AuthService {
         return of(void 0);
       });
     }
-    return this.http.post<AuthTokens>(`${this.base}/auth/mfa/verify`, req).pipe(
+    return defer(() => this.http.post<AuthTokens>(`${this.base}/auth/mfa/verify`, req)).pipe(
       tap(tokens => {
         this.tokenService.setSession(tokens);
         this._pendingMfa.set(null);
@@ -135,7 +144,7 @@ export class AuthService {
     if (environment.authMock) {
       return defer(() => of(void 0));
     }
-    return this.http.post<void>(`${this.base}/auth/password/forgot`, req);
+    return defer(() => this.http.post<void>(`${this.base}/auth/password/forgot`, req));
   }
 
   /** `token` sale del query param `?token=` del link emailado (`/reset-password?token=...`), no de un código tipeado. */
@@ -144,7 +153,7 @@ export class AuthService {
     if (environment.authMock) {
       return defer(() => of(void 0));
     }
-    return this.http.post<void>(`${this.base}/auth/password/reset`, req);
+    return defer(() => this.http.post<void>(`${this.base}/auth/password/reset`, req));
   }
 
   /** Limpia todo el estado de sesión en el cliente (sin llamar al backend). */
@@ -154,6 +163,11 @@ export class AuthService {
     this._pendingMfa.set(null);
     this._mustEnrollMfa.set(false);
     this.refreshInFlight = null;
+    // El slug recordado es parte de la sesión: sin esto, el siguiente usuario de este
+    // navegador seguiría apuntando a la oficina anterior y su login fallaría con
+    // "credenciales inválidas" sin explicación. Si el host identifica una oficina,
+    // clearSlug() la conserva.
+    this.api.clearSlug();
   }
 
   /** El componente de enrolamiento llama a esto tras confirmar el TOTP. */

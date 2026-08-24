@@ -2,7 +2,7 @@
   <div *ngFor="let notification of notifications; trackBy: trackByNotificationId"
     (click)="onRowClick(notification)"
     class="group relative flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50"
-    [ngClass]="notification.isRead ? 'bg-white' : 'bg-[#FAF9F7]'">
+    [ngClass]="notification.isRead ? 'bg-white' : 'bg-[#FAFAFA]'">
 
     <!-- Icon circle -->
     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -24,8 +24,8 @@
     <!-- Relative time -->
     <span class="shrink-0 text-xs text-gray-400">{{ notification.time }}</span>
 
-    <!-- Ghost "..." menu -->
-    <div class="relative shrink-0 text-left" data-dropdown="notification-menu">
+    <!-- Ghost "..." menu — solo para no leídas (la única acción HTTP del backend es mark-as-read) -->
+    <div *ngIf="!notification.isRead" class="relative shrink-0 text-left" data-dropdown="notification-menu">
       <button type="button" (click)="toggleMenu(notification, $event)"
         class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
         aria-label="Notification options">
@@ -33,20 +33,10 @@
       </button>
       <div *ngIf="openMenuId() === notification.id"
         class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-        <button *ngIf="!notification.isRead" type="button" (click)="onMarkReadClick(notification, $event)"
+        <button type="button" (click)="onMarkReadClick(notification, $event)"
           class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50">
           <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
           Mark as read
-        </button>
-        <button *ngIf="notification.isRead" type="button" (click)="onMarkUnreadClick(notification, $event)"
-          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50">
-          <ion-icon name="mail-unread-outline" class="text-base"></ion-icon>
-          Mark as unread
-        </button>
-        <button type="button" (click)="onDeleteClick(notification, $event)"
-          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 transition-colors hover:bg-gray-50">
-          <ion-icon name="trash-outline" class="text-base"></ion-icon>
-          Delete
         </button>
       </div>
     </div>

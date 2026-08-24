@@ -126,13 +126,13 @@ export class FileBrowserComponent {
   kindCircle(kind: FileKind): string {
     switch (kind) {
       case 'pdf':
-        return 'bg-[#F2E3C9]';
+        return 'bg-[#E8F1FB]';
       case 'xlsx':
-        return 'bg-[#CBD9F2]';
+        return 'bg-[#CFE2F7]';
       case 'img':
-        return 'bg-[#DCDCDC]';
+        return 'bg-[#E7EAEE]';
       case 'doc':
-        return 'bg-[#EEEBFA]';
+        return 'bg-[#DDE9F5]';
     }
   }
 

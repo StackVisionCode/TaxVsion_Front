@@ -6,7 +6,7 @@
 
 /* Afordancia sutil en modo edición: outline dashed lavanda + cursor grab. */
 .edit-mode .widget-cell {
-  outline: 2px dashed #d6cef4;
+  outline: 2px dashed #D7E3EF;
   outline-offset: 4px;
   border-radius: 28px;
   cursor: grab;

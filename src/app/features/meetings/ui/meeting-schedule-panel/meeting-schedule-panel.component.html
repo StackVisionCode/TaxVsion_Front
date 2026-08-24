@@ -1,18 +1,67 @@
-<app-modal [isOpen]="isOpen" [heading]="isEditMode() ? 'Edit Meeting' : 'Schedule Meeting'"
-  [subheading]="isEditMode() ? 'Update the details of this meeting' : 'Set up a new meeting on your calendar'" size="md"
-  (closed)="close()">
+<app-modal [isOpen]="isOpen"
+  [heading]="creationOutcome ? 'Meeting scheduled' : (isEditMode() ? 'Manage Meeting' : 'Schedule Meeting')"
+  [subheading]="creationOutcome ? 'Share these links with your invitees' : (isEditMode() ? 'Reschedule or manage invitations' : 'Set up a new meeting on your calendar')"
+  size="md" (closed)="close()">
 
+  <!-- ================= Paso de links (post-creación) ================= -->
+  <div *ngIf="creationOutcome as outcome; else formView" class="mt-4 flex flex-col gap-3">
+    <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+      <p class="text-sm font-semibold text-emerald-700">Meeting code</p>
+      <div class="mt-1 flex items-center gap-2">
+        <span class="font-mono text-lg font-bold tracking-widest text-gray-900">{{ outcome.shortCode }}</span>
+        <button type="button" (click)="copyToClipboard('code', outcome.shortCode)"
+          class="flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors">
+          <ion-icon [name]="copiedKey() === 'code' ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+          {{ copiedKey() === 'code' ? 'Copied' : 'Copy' }}
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="outcome.invitations.length > 0" class="flex flex-col gap-2">
+      <p class="text-xs font-medium text-amber-600">
+        These invitation links are shown only once — copy them now if you need to share them manually
+        (invitees also get them by email).
+      </p>
+      <div *ngFor="let invitation of outcome.invitations"
+        class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium text-gray-900">{{ invitation.inviteeEmail || 'Guest link' }}</p>
+          <p class="truncate text-xs text-gray-400">{{ invitation.joinUrl }}</p>
+        </div>
+        <button type="button" (click)="copyToClipboard(invitation.id, invitation.joinUrl)"
+          class="shrink-0 flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+          <ion-icon [name]="copiedKey() === invitation.id ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+          {{ copiedKey() === invitation.id ? 'Copied' : 'Copy link' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-2 flex items-center justify-end">
+      <button type="button" (click)="close()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Done
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= Formulario (crear / gestionar) ================= -->
+  <ng-template #formView>
     <div class="mt-4 flex flex-col gap-3">
-      <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+
+      <!-- Título: editable solo al crear — el backend no tiene endpoint de edición -->
+      <div *ngIf="!isEditMode(); else titleReadonly"
+        class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
         <input type="text" placeholder="Meeting title" [ngModel]="title()" (ngModelChange)="title.set($event)"
           class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
       </div>
+      <ng-template #titleReadonly>
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{{ title() }}</p>
+          <p class="mt-0.5 text-xs text-gray-400">Only the date can be changed after scheduling.</p>
+        </div>
+      </ng-template>
 
-      <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-        <input type="text" placeholder="Client" [ngModel]="client()" (ngModelChange)="client.set($event)"
-          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-      </div>
-
+      <!-- Fecha/hora -->
       <div class="flex gap-3">
         <div class="h-10 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
           <input type="date" [ngModel]="date()" (ngModelChange)="date.set($event)"
@@ -23,59 +72,161 @@
             class="w-full h-full bg-transparent px-4 text-sm text-gray-700 rounded-full focus:outline-none" />
         </div>
       </div>
+      <p class="-mt-1 text-xs text-gray-400">
+        {{ isEditMode() ? 'Clear both fields to convert it into an instant meeting.' : 'Leave both empty to create an instant meeting.' }}
+      </p>
 
-      <!-- Duration dropdown -->
-      <div class="relative" data-dropdown="meeting-duration">
-        <button type="button" (click)="toggleDurationDropdown()"
-          class="flex h-10 w-full items-center justify-between gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          {{ duration() }} minutes
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
+      <!-- Descripción: el listado no la devuelve, solo tiene sentido al crear -->
+      <textarea *ngIf="!isEditMode()" rows="3" placeholder="Description (optional)" [ngModel]="description()"
+        (ngModelChange)="description.set($event)"
+        class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors resize-none"></textarea>
 
-        <div *ngIf="isDurationOpen()"
-          class="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of durations" type="button" (click)="selectDuration(option)"
-            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            {{ option }} minutes
-            <ion-icon *ngIf="option === duration()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-          </button>
-        </div>
-      </div>
-
-      <!-- Participants -->
-      <div>
+      <!-- Picker de invitados: directorio (employees/customers) + externos por email -->
+      <div class="relative" data-dropdown="meeting-invitee">
         <div class="h-10 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="Add participant, press Enter" [ngModel]="participantDraft()"
-            (ngModelChange)="participantDraft.set($event)" (keydown.enter)="addParticipant()"
+          <input type="text" placeholder="Invite by name or email" [ngModel]="inviteeSearch()"
+            (ngModelChange)="onInviteeSearchChange($event)" (keydown.enter)="addExternal()"
             class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
         </div>
 
-        <div *ngIf="participants().length > 0" class="mt-2 flex flex-wrap gap-2">
-          <span *ngFor="let participant of participants(); let i = index"
-            class="flex items-center gap-2 rounded-full border border-gray-200 pl-1 pr-3 py-1 text-xs font-medium text-gray-700">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-              [ngClass]="participant.color">{{ participant.initials }}</span>
-            {{ participant.name }}
-            <button type="button" (click)="removeParticipant(i)" class="text-gray-400 hover:text-gray-700"
-              aria-label="Remove participant">
-              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+        <div *ngIf="isInviteeOpen()"
+          class="absolute left-0 right-0 top-full z-20 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg">
+          <ng-container *ngIf="inviteeResults().employees.length > 0">
+            <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Team</p>
+            <button *ngFor="let entry of inviteeResults().employees" type="button" (click)="addEmployee(entry)"
+              class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                [ngClass]="colorFor(entry.userId)">{{ initialsFor(entry.displayName) }}</span>
+              <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
+              <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
             </button>
-          </span>
+          </ng-container>
+
+          <ng-container *ngIf="inviteeResults().customers.length > 0">
+            <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
+            <button *ngFor="let entry of inviteeResults().customers" type="button" (click)="addCustomer(entry)"
+              class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                [ngClass]="colorFor(entry.customerId)">{{ initialsFor(entry.displayName) }}</span>
+              <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
+              <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
+            </button>
+          </ng-container>
+
+          <button *ngIf="externalCandidate() as email" type="button" (click)="addExternal()"
+            class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+            <ion-icon name="mail-outline" class="text-base text-gray-400"></ion-icon>
+            Invite <span class="font-medium">{{ email }}</span> as external guest
+          </button>
+
+          <p *ngIf="inviteeResults().employees.length === 0 && inviteeResults().customers.length === 0 && !externalCandidate()"
+            class="px-4 py-3 text-sm text-gray-400">
+            No matches — type a full email to invite an external guest.
+          </p>
         </div>
       </div>
 
-      <textarea rows="3" placeholder="Notes (optional)" [ngModel]="notes()" (ngModelChange)="notes.set($event)"
-        class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors resize-none"></textarea>
+      <!-- Chips de invitados elegidos -->
+      <div *ngIf="invitees().length > 0" class="flex flex-wrap gap-2">
+        <span *ngFor="let invitee of invitees(); let i = index"
+          class="flex items-center gap-2 rounded-full border border-gray-200 pl-1 pr-3 py-1 text-xs font-medium text-gray-700">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+            [ngClass]="colorFor(invitee.userId || invitee.email || invitee.name)">{{ initialsFor(invitee.name) }}</span>
+          {{ invitee.name }}
+          <span class="text-[10px] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
+          <button type="button" (click)="removeInvitee(i)" class="text-gray-400 hover:text-gray-700"
+            aria-label="Remove invitee">
+            <ion-icon name="close-outline" class="text-sm"></ion-icon>
+          </button>
+        </span>
+      </div>
+
+      <!-- Modo gestionar: enviar nuevas invitaciones + lista existente -->
+      <ng-container *ngIf="isEditMode()">
+        <button *ngIf="invitees().length > 0" type="button" (click)="sendInvitations()" [disabled]="invitationsBusy()"
+          class="self-start rounded-full border border-brand-bold px-4 py-2 text-xs font-semibold text-gray-900 hover:bg-brand-bold hover:text-white disabled:opacity-50 transition-colors">
+          {{ invitationsBusy() ? 'Sending…' : 'Send invitations' }}
+        </button>
+
+        <!-- Links recién emitidos: única oportunidad de copiarlos -->
+        <div *ngIf="newInvitationLinks().length > 0" class="flex flex-col gap-2">
+          <p class="text-xs font-medium text-amber-600">New invitation links — shown only once:</p>
+          <div *ngFor="let invitation of newInvitationLinks()"
+            class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-2.5">
+            <div class="min-w-0">
+              <p class="truncate text-xs font-medium text-gray-900">{{ invitation.inviteeEmail || 'Guest link' }}</p>
+              <p class="truncate text-[11px] text-gray-400">{{ invitation.joinUrl }}</p>
+            </div>
+            <button type="button" (click)="copyToClipboard(invitation.id, invitation.joinUrl)"
+              class="shrink-0 flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+              <ion-icon [name]="copiedKey() === invitation.id ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+              {{ copiedKey() === invitation.id ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Invitaciones existentes -->
+        <div class="rounded-2xl border border-gray-100 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Invitations</p>
+
+          <div *ngIf="invitationsLoading()" class="mt-3 flex items-center gap-2 text-sm text-gray-400">
+            <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+            Loading invitations…
+          </div>
+
+          <div *ngIf="!invitationsLoading() && invitationsError() as err"
+            class="mt-3 flex items-center justify-between gap-3 rounded-xl bg-red-50 px-3 py-2">
+            <p class="text-xs text-red-600">{{ err }}</p>
+            <button type="button" (click)="loadInvitations()"
+              class="shrink-0 text-xs font-semibold text-red-600 hover:text-red-800 transition-colors">Retry</button>
+          </div>
+
+          <p *ngIf="!invitationsLoading() && !invitationsError() && invitations().length === 0"
+            class="mt-3 text-sm text-gray-400">No invitations sent yet.</p>
+
+          <div *ngIf="!invitationsLoading() && invitations().length > 0" class="mt-2 flex flex-col">
+            <div *ngFor="let invitation of invitations()"
+              class="flex items-center justify-between gap-3 border-b border-gray-50 py-2.5 last:border-b-0">
+              <div class="min-w-0">
+                <p class="truncate text-sm text-gray-700">{{ invitationLabel(invitation) }}</p>
+                <p class="text-[11px] text-gray-400">{{ invitation.inviteeKind }}</p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <span class="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                  [ngClass]="{
+                    'border-emerald-200 text-emerald-600': invitationState(invitation) === 'active',
+                    'border-indigo-200 text-indigo-600': invitationState(invitation) === 'used',
+                    'border-red-200 text-red-500': invitationState(invitation) === 'revoked',
+                    'border-gray-200 text-gray-400': invitationState(invitation) === 'expired'
+                  }">
+                  {{ invitationState(invitation) | titlecase }}
+                </span>
+                <button *ngIf="invitationState(invitation) === 'active'" type="button"
+                  (click)="revokeInvitation(invitation)" [disabled]="invitationsBusy()"
+                  class="text-xs font-medium text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">
+                  Revoke
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
     </div>
 
-  <div class="mt-5 flex items-center justify-end gap-2">
-    <button type="button" (click)="close()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-      Cancel
-    </button>
-    <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ isEditMode() ? 'Save changes' : 'Schedule meeting' }}
-    </button>
-  </div>
+    <!-- Error de crear/re-agendar -->
+    <div *ngIf="errorMessage" class="mt-3 rounded-xl bg-red-50 px-4 py-2.5">
+      <p class="text-sm text-red-600">{{ errorMessage }}</p>
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" (click)="close()" [disabled]="busy"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="save()" [disabled]="!canSave() || busy"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        {{ busy ? 'Saving…' : (isEditMode() ? 'Save new date' : 'Schedule meeting') }}
+      </button>
+    </div>
+  </ng-template>
 </app-modal>

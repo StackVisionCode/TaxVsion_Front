@@ -2,12 +2,12 @@
   <table class="w-full min-w-[820px] border-separate border-spacing-0 text-sm">
     <thead>
       <tr>
-        <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Product</th>
-        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
-        <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Price</th>
-        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Stock</th>
-        <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
-        <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+        <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Product</th>
+        <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
+        <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Price</th>
+        <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Stock</th>
+        <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3"></th>
       </tr>
     </thead>
     <tbody>
@@ -25,7 +25,7 @@
         </td>
         <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
           [class.border-b]="!last" [class.border-gray-100]="!last">
-          {{ formatCurrency(product.price) }}
+          {{ formatCurrency(product.price, product.currency) }}
         </td>
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">

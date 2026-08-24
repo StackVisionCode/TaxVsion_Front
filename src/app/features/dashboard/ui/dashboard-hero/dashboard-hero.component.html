@@ -5,20 +5,24 @@
 
   <!-- Stat cards: auto-fit para adaptarse al ancho del slot (span 1 o 2) -->
   <div class="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div *ngFor="let stat of stats" class="relative rounded-[24px] p-6 h-56 sm:h-60 flex flex-col justify-between"
+    <div *ngFor="let stat of stats()" class="relative rounded-[24px] p-6 h-56 sm:h-60 flex flex-col justify-between"
       [ngClass]="stat.bg">
       <div>
         <h3 class="text-lg font-bold text-gray-900">{{ stat.title }}</h3>
         <p class="mt-1 text-sm text-gray-500">{{ stat.subtitle }}</p>
       </div>
 
-      <div class="text-3xl sm:text-4xl font-bold text-gray-900">{{ stat.value }}</div>
+      <div>
+        <div class="text-3xl sm:text-4xl font-bold text-gray-900">{{ stat.value }}</div>
+        <!-- Solo aparece cuando NO hay cifra real: dice por qué, sin rellenar con un número -->
+        <p *ngIf="stat.note" class="mt-1 line-clamp-2 pr-14 text-xs text-gray-500">{{ stat.note }}</p>
+      </div>
 
-      <!-- Black circular arrow button with notch effect -->
-      <button type="button"
-        class="absolute -bottom-1 -right-1 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900 text-white ring-8 ring-white hover:bg-gray-700 transition-colors">
+      <!-- Flecha: enlace real a la página que respalda la cifra -->
+      <a [routerLink]="stat.link" [attr.aria-label]="stat.linkLabel"
+        class="absolute -bottom-1 -right-1 flex h-12 w-12 items-center justify-center rounded-full bg-brand-bold text-white ring-8 ring-white hover:bg-brand-ink transition-colors">
         <ion-icon name="arrow-forward-outline" class="text-lg -rotate-45"></ion-icon>
-      </button>
+      </a>
     </div>
   </div>
 </div>

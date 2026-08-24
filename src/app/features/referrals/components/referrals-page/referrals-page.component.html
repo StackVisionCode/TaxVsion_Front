@@ -1,8 +1,9 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Balance hero + stat cards -->
+  <!-- Balance hero + stat cards. Growth no expone GETs de atribuciones/earnings del
+       tenant todavía, así que los valores se muestran como "—" (sin datos inventados). -->
   <div class="grid gap-4 grid-cols-1 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
     <!-- Prominent balance hero -->
-    <div class="relative overflow-hidden rounded-[28px] bg-gray-900 p-6 text-white">
+    <div class="relative overflow-hidden rounded-[28px] bg-brand-bold p-6 text-white">
       <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/5"></div>
       <div class="absolute -right-2 top-24 h-24 w-24 rounded-full bg-white/5"></div>
       <div class="relative z-10 flex h-full flex-col justify-between">
@@ -13,28 +14,28 @@
           <span class="text-sm font-medium">Total earned</span>
         </div>
         <div class="mt-6">
-          <p class="text-4xl font-bold tracking-tight">{{ formatCurrency(totalEarned()) }}</p>
-          <p class="mt-2 text-sm text-white/60">Rewards from friends who joined TaxPro Office</p>
+          <p class="text-4xl font-bold tracking-tight">—</p>
+          <p class="mt-2 text-sm text-white/60">Reward tracking isn't available yet — share your link to get started</p>
         </div>
       </div>
     </div>
 
     <!-- Pastel stat cards -->
-    <div class="rounded-[24px] bg-[#F2E3C9] p-5 flex flex-col justify-between">
+    <div class="rounded-[24px] bg-[#E8F1FB] p-5 flex flex-col justify-between">
       <p class="text-sm text-gray-600">Total referrals</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalReferrals() }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
     </div>
-    <div class="rounded-[24px] bg-[#CBD9F2] p-5 flex flex-col justify-between">
+    <div class="rounded-[24px] bg-[#CFE2F7] p-5 flex flex-col justify-between">
       <p class="text-sm text-gray-600">Pending</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ pendingCount() }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
     </div>
-    <div class="rounded-[24px] bg-[#EEEBFA] p-5 flex flex-col justify-between">
+    <div class="rounded-[24px] bg-[#DDE9F5] p-5 flex flex-col justify-between">
       <p class="text-sm text-gray-600">Completed</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ completedCount() }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
     </div>
   </div>
 
-  <!-- Your referral code -->
+  <!-- Your referral code (real: POST /growth/referrals/codes vía ReferralsStore) -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
@@ -42,13 +43,33 @@
         <p class="mt-1 text-sm text-gray-500">Share it and earn a reward for every friend who signs up</p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
+      <!-- Cargando: skeleton en lugar de la píldora -->
+      <div *ngIf="codeLoading()" class="flex items-center gap-3">
+        <span class="inline-flex h-9 w-48 animate-pulse items-center rounded-full bg-gray-100"></span>
+        <span class="inline-flex h-9 w-28 animate-pulse rounded-full bg-gray-100"></span>
+      </div>
+
+      <!-- Error: mensaje + reintento -->
+      <div *ngIf="!codeLoading() && codeError()" class="flex flex-wrap items-center gap-3">
+        <span class="inline-flex max-w-md items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">
+          <ion-icon name="alert-circle-outline" class="shrink-0 text-base"></ion-icon>
+          {{ codeError() }}
+        </span>
+        <button type="button" (click)="retryLoadCode()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+          Retry
+        </button>
+      </div>
+
+      <!-- Código real + acciones -->
+      <div *ngIf="!codeLoading() && !codeError() && referralCode()" class="flex flex-wrap items-center gap-3">
         <span class="inline-flex items-center rounded-full border border-gray-200 px-5 py-2 font-mono text-sm font-semibold tracking-wider text-gray-900">
-          {{ referralCode }}
+          {{ referralCode() }}
         </span>
 
         <button type="button" (click)="copyLink()"
-          class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
           <ion-icon [name]="copied() ? 'checkmark-outline' : 'link-outline'" class="text-base"></ion-icon>
           {{ copied() ? 'Copied!' : 'Copy link' }}
         </button>
@@ -78,7 +99,7 @@
     <div class="mt-4 flex flex-wrap items-center gap-2">
       <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
         class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="statusFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        [ngClass]="statusFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
         {{ filterLabel(option) }}
       </button>
 
@@ -93,7 +114,7 @@
 
     <!-- Table -->
     <div class="mt-5">
-      <app-referral-table [referrals]="pagedReferrals()"></app-referral-table>
+      <app-referral-table [referrals]="pagedReferrals()" [emptyMessage]="emptyMessage()"></app-referral-table>
       <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReferrals().length" [pageSize]="pageSize"
         (pageChange)="currentPage.set($event)"></app-pagination>
     </div>

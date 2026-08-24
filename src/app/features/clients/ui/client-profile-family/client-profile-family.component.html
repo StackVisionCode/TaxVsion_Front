@@ -7,7 +7,7 @@
         <p class="mt-1 text-sm text-gray-500">Marital information for this client</p>
       </div>
       <button *ngIf="!spouse()" type="button" (click)="openAddSpouse()"
-        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="add-outline" class="text-base"></ion-icon>
         Add Spouse
       </button>
@@ -16,7 +16,7 @@
     <div *ngIf="spouse() as s; else noSpouse" class="mt-4 rounded-2xl border border-gray-100 p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#7C6AE0] text-sm font-semibold text-white">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1E466B] text-sm font-semibold text-white">
             {{ initials(s.name) }}
           </span>
           <div>
@@ -76,14 +76,14 @@
         <p class="mt-1 text-sm text-gray-500">People this client claims as dependents</p>
       </div>
       <button type="button" (click)="openAddDependent()"
-        class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="add-outline" class="text-base"></ion-icon>
         Add Dependent
       </button>
     </div>
 
     <div class="mt-4 grid gap-3 sm:grid-cols-1">
-      <div class="rounded-2xl border border-gray-100 bg-[#EEEBFA] p-4 max-w-[220px]">
+      <div class="rounded-2xl border border-gray-100 bg-[#DDE9F5] p-4 max-w-[220px]">
         <p class="text-xs font-medium text-gray-500">Total dependents</p>
         <p class="mt-1 text-xl font-bold text-gray-900">{{ dependents().length }}</p>
       </div>
@@ -104,11 +104,11 @@
       <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
-            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
-            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Relationship</th>
-            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Date of birth</th>
-            <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">SSN/ITIN</th>
-            <th class="bg-[#FAF9F7] px-4 py-3"></th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Relationship</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Date of birth</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">SSN/ITIN</th>
+            <th class="bg-[#FAFAFA] px-4 py-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -212,7 +212,7 @@
       Cancel
     </button>
     <button type="button" (click)="saveDependent()" [disabled]="!canSaveDependent()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
       {{ editingDependentIndex() !== null ? 'Save changes' : 'Add dependent' }}
     </button>
   </div>
@@ -260,7 +260,7 @@
       Cancel
     </button>
     <button type="button" (click)="saveSpouse()" [disabled]="!canSaveSpouse()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
       {{ spouse() ? 'Save changes' : 'Add spouse' }}
     </button>
   </div>

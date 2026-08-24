@@ -35,7 +35,7 @@ export interface ChatMessage {
 export class ChatThreadComponent implements AfterViewChecked {
   @Input() messages: ChatMessage[] = [];
   @Input() otherName = '';
-  @Input() otherAvatarColor = 'bg-gray-900';
+  @Input() otherAvatarColor = 'bg-brand-bold';
   @Output() attachmentClicked = new EventEmitter<string>();
 
   @ViewChild('scrollAnchor') private scrollAnchor?: ElementRef<HTMLDivElement>;

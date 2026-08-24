@@ -30,12 +30,11 @@ import {
   FIELD_TYPE_CIRCLE,
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
-  WIZARD_CLIENTS,
   defaultRules,
   initialsOf,
   kindCircle,
   kindIcon,
-} from '../signature-request-panel/signature-wizard.mock';
+} from '../signature-request-panel/signature-wizard.presenter';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 
@@ -51,9 +50,9 @@ const ZOOM_STEP = 0.2;
 const SIGNER_PALETTE = [
   { bg: 'bg-indigo-500', border: 'border-indigo-500', text: 'text-indigo-600' },
   { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-orange-600' },
-  { bg: 'bg-[#7C6AE0]', border: 'border-[#7C6AE0]', text: 'text-[#7C6AE0]' },
+  { bg: 'bg-[#1E466B]', border: 'border-[#1E466B]', text: 'text-[#1E466B]' },
   { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-600' },
-  { bg: 'bg-gray-900', border: 'border-gray-900', text: 'text-gray-900' },
+  { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-gray-900' },
 ];
 
 const DEFAULT_SIZE: Record<FieldType, { w: number; h: number }> = {
@@ -85,6 +84,23 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Campo colocado en coordenadas NORMALIZADAS [0..1] respecto a la página, origen
+ * arriba-izquierda — exactamente la convención de FieldPosition del backend
+ * (POST /signature/requests/{id}/fields). Independiente del zoom/DPI del editor.
+ */
+export interface NormalizedPlacedField {
+  localId: string;
+  signerLocalId: string;
+  type: FieldType;
+  /** 1-based. */
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
  * Paso 3 del wizard: editor de colocación de campos sobre el PDF (adaptado del
  * `PdfSignatureEditorComponent` + `generador-firmas` del CRM). Renderiza el PDF
  * con pdf.js (bytes subidos, PDF de muestra para docs mock, o páginas en blanco),
@@ -102,6 +118,8 @@ function clamp(value: number, min: number, max: number): number {
 export class SignaturePdfEditorComponent implements OnChanges {
   @Input() client: WizardClient | null = null;
   @Input() document: WizardDocument | null = null;
+  /** Clientes reales del tenant (GET /customers) para el select del modal "Add signer". */
+  @Input() registeredClients: WizardClient[] = [];
   @Output() fieldCountChange = new EventEmitter<number>();
 
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
@@ -130,7 +148,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
   readonly rules = signal<RequestRules>(defaultRules());
   readonly allChannels = ALL_CHANNELS;
   readonly channelMeta = CHANNEL_META;
-  readonly registeredClients = WIZARD_CLIENTS;
 
   /** Modal "Add signer": cliente registrado o datos manuales + canal. */
   readonly isAddSignerOpen = signal(false);
@@ -456,6 +473,48 @@ export class SignaturePdfEditorComponent implements OnChanges {
   getPageMetrics(page: number): PageMetrics | null {
     const found = this.pages().find(p => p.page === page);
     return found ? { scale: found.scale, height: found.height } : null;
+  }
+
+  /**
+   * Campos en coordenadas normalizadas [0..1] (origen arriba-izquierda), la
+   * convención que exige FieldPosition en el backend. Se divide por el tamaño en
+   * px de la página renderizada actual, así el resultado es independiente del zoom.
+   */
+  buildNormalizedFields(): NormalizedPlacedField[] {
+    const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
+    const round = (value: number): number => Math.round(value * 10000) / 10000;
+    const out: NormalizedPlacedField[] = [];
+    for (const field of this.fields()) {
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page || page.width <= 0 || page.height <= 0) {
+        continue;
+      }
+      const x = round(clamp01(field.x / page.width));
+      const y = round(clamp01(field.y / page.height));
+      let width = round(clamp01(field.width / page.width));
+      let height = round(clamp01(field.height / page.height));
+      // El backend rechaza x+width > 1 (overflow): tras el redondeo se recorta.
+      if (x + width > 1) {
+        width = round(1 - x);
+      }
+      if (y + height > 1) {
+        height = round(1 - y);
+      }
+      if (width <= 0 || height <= 0) {
+        continue;
+      }
+      out.push({
+        localId: field.id,
+        signerLocalId: field.signerId,
+        type: field.type,
+        page: field.page,
+        x,
+        y,
+        width,
+        height,
+      });
+    }
+    return out;
   }
 
   /** Payload por firmante con las cajas ya en puntos PDF (lo que iría al backend). */

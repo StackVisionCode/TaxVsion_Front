@@ -2,33 +2,36 @@
   <h2 class="text-xl font-bold text-gray-900">Signed Documents</h2>
   <p class="mt-1 text-sm text-gray-500">Latest e-signature activity</p>
 
-  <div class="mt-4 flex flex-col">
-    <div *ngFor="let doc of documents; let last = last" class="flex items-center gap-3 py-3"
-      [class.border-b]="!last" [class.border-gray-100]="!last">
+  <!-- Cargando / error o falta de permiso en Signature / sin solicitudes -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || documents().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Signature requests aren't available" icon="create-outline"
+    title="No signature requests yet" message="Documents you send for signature will be listed here."
+    minHeight="13rem"></app-dashboard-widget-state>
+
+  <!-- Solicitudes reales de firma -->
+  <div *ngIf="!loading() && !error() && documents().length > 0" class="mt-4 flex flex-col">
+    <a *ngFor="let doc of documents(); let i = index; let last = last; trackBy: trackByDocumentId" routerLink="/signature"
+      class="flex items-center gap-3 py-3" [class.border-b]="!last" [class.border-gray-100]="!last">
       <!-- File icon in pastel circle -->
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="doc.iconBg">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="iconBg(i)">
         <ion-icon name="document-text-outline" class="text-lg text-gray-700"></ion-icon>
       </span>
 
-      <!-- File name + signers + date -->
+      <!-- Title + signers + date. El listado devuelve `signerCount`, no los
+           firmantes: se muestra el número real en lugar de avatares inventados. -->
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium text-gray-900">{{ doc.fileName }}</p>
-        <div class="mt-1.5 flex items-center gap-2">
-          <div class="flex -space-x-2">
-            <span *ngFor="let signer of doc.signers"
-              class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
-              [ngClass]="signer.bg">
-              {{ signer.initials }}
-            </span>
-          </div>
-          <span class="text-xs text-gray-400">{{ doc.date }}</span>
-        </div>
+        <p class="truncate text-sm font-medium text-gray-900">{{ doc.title }}</p>
+        <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
+          <span class="shrink-0">{{ signersLabel(doc) }}</span>
+          <span class="h-1 w-1 shrink-0 rounded-full bg-gray-300"></span>
+          <span class="truncate">{{ dateLabel(doc) }}</span>
+        </p>
       </div>
 
       <!-- Status chip -->
       <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" [ngClass]="statusChipClass(doc.status)">
-        {{ doc.status }}
+        {{ statusLabel(doc.status) }}
       </span>
-    </div>
+    </a>
   </div>
 </div>

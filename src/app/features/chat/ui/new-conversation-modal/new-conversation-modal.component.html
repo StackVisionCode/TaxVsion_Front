@@ -4,12 +4,12 @@
   <div *ngIf="canCreateGroups" class="mt-4 flex items-center rounded-full border border-gray-200 p-0.5 w-fit">
     <button type="button" (click)="mode.set('direct')"
       class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="mode() === 'direct' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'">
+      [ngClass]="mode() === 'direct' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:text-gray-900'">
       Direct
     </button>
     <button type="button" (click)="mode.set('group')"
       class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="mode() === 'group' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'">
+      [ngClass]="mode() === 'group' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:text-gray-900'">
       Group
     </button>
   </div>
@@ -42,7 +42,7 @@
     <button *ngFor="let entry of employees" type="button" (click)="selectEmployee(entry)"
       [disabled]="creating"
       class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-xs font-bold text-white">
         {{ initials(entry.displayName) }}
       </span>
       <span class="min-w-0 flex-1">
@@ -61,7 +61,7 @@
   <!-- Group create action -->
   <div *ngIf="mode() === 'group'" class="mt-4 flex justify-end">
     <button type="button" (click)="createGroup()" [disabled]="creating || !groupTitle().trim() || selectedMembers().length === 0"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-40 disabled:pointer-events-none">
       {{ creating ? 'Creating…' : 'Create group (' + selectedMembers().length + ')' }}
     </button>
   </div>

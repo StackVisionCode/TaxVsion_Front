@@ -1,35 +1,191 @@
 <div>
-  <h3 class="text-lg font-bold text-gray-900">Notes</h3>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Notes</h3>
+      <p class="mt-1 text-sm text-gray-500">Notes linked to this client</p>
+    </div>
+  </div>
 
+  <!-- Composer: texto + visibilidad + color (los tres campos que acepta POST /notes) -->
   <div class="mt-4 flex flex-wrap items-center gap-2">
     <div class="h-10 flex-1 min-w-[200px] bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
       <input type="text" placeholder="Write a note about this client..." [ngModel]="draftText()"
-        (ngModelChange)="draftText.set($event)" (keydown.enter)="addNote()"
+        (ngModelChange)="draftText.set($event)" (keydown.enter)="addNote()" [disabled]="saving()"
         class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
     </div>
-    <button type="button" (click)="addNote()"
-      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
-      <ion-icon name="add-outline" class="text-base"></ion-icon>
+
+    <select [ngModel]="draftVisibility()" (ngModelChange)="draftVisibility.set($event)"
+      class="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"
+      aria-label="Note visibility">
+      <option *ngFor="let option of visibilityOptions" [value]="option.value">{{ option.label }}</option>
+    </select>
+
+    <select [ngModel]="draftColor()" (ngModelChange)="draftColor.set($event)"
+      class="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"
+      aria-label="Note color">
+      <option *ngFor="let option of colorOptions" [value]="option.value">{{ option.label }}</option>
+    </select>
+
+    <button type="button" (click)="addNote()" [disabled]="saving() || !draftText().trim()"
+      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-base" [class.animate-spin]="saving()"></ion-icon>
       Add note
     </button>
   </div>
 
-  <div class="mt-5 flex flex-col gap-3">
-    <div *ngFor="let note of notes()" class="rounded-2xl border border-gray-100 p-4">
-      <div class="flex items-center gap-3">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-          [ngClass]="note.avatarColor">{{ initials(note.author) }}</span>
-        <div class="min-w-0">
-          <p class="text-sm font-semibold text-gray-900">{{ note.author }}</p>
-          <p class="text-xs text-gray-400">{{ note.timestamp }}</p>
+  <p *ngIf="composerError() as composerErr" class="mt-2 text-sm text-red-600">{{ composerErr }}</p>
+
+  <!-- Error transitorio de una acción (pin, color, archivar…) -->
+  <div *ngIf="store.actionError() as actionErr"
+    class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    <p class="text-sm text-amber-800">{{ actionErr }}</p>
+    <button type="button" (click)="dismissActionError()"
+      class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
+      Dismiss
+    </button>
+  </div>
+
+  <!-- Estados de carga / error del listado -->
+  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    Loading notes…
+  </div>
+
+  <div *ngIf="!store.loading() && store.error() as err"
+    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+    <p class="text-sm text-red-600">{{ err }}</p>
+    <button type="button" (click)="retry()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Retry
+    </button>
+  </div>
+
+  <div *ngIf="!store.loading() && !store.error()" class="mt-5 flex flex-col gap-3">
+    <div *ngFor="let note of store.notes()" class="rounded-2xl border p-4 transition-opacity" [ngClass]="note.cardClass"
+      [class.opacity-50]="store.isBusy(note.id)">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-3">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+            [ngClass]="note.avatarColor">{{ initials(note.authorName) }}</span>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">{{ note.authorName }}</p>
+            <p class="text-xs text-gray-400">
+              {{ note.timestamp }}<span *ngIf="note.edited"> · edited</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <span *ngIf="note.isPinned"
+            class="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+            <ion-icon name="bookmark" class="text-xs"></ion-icon>
+            Pinned
+          </span>
+          <span *ngIf="note.isArchived"
+            class="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+            Archived
+          </span>
+
+          <!-- Visibilidad: editable solo por el autor (el backend rechaza el resto) -->
+          <select *ngIf="note.canEdit" [ngModel]="note.visibility" (ngModelChange)="changeVisibility(note, $event)"
+            [disabled]="store.isBusy(note.id)"
+            class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-500 focus:outline-none focus:border-gray-300 transition-colors"
+            aria-label="Change visibility">
+            <option *ngFor="let option of visibilityOptions" [value]="option.value">{{ option.label }}</option>
+          </select>
+          <span *ngIf="!note.canEdit"
+            class="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+            {{ note.visibilityLabel }}
+          </span>
+
+          <!-- Acciones de autor: pin, color, editar -->
+          <ng-container *ngIf="note.canEdit">
+            <button type="button" (click)="togglePin(note)" [disabled]="store.isBusy(note.id)"
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+              [attr.aria-label]="note.isPinned ? 'Unpin note' : 'Pin note'">
+              <ion-icon [name]="note.isPinned ? 'bookmark' : 'bookmark-outline'" class="text-sm"></ion-icon>
+            </button>
+
+            <div class="relative" data-dropdown="note-color">
+              <button type="button" (click)="toggleColorMenu(note)" [disabled]="store.isBusy(note.id)"
+                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+                aria-label="Change note color">
+                <ion-icon name="color-palette-outline" class="text-sm"></ion-icon>
+              </button>
+              <div *ngIf="openColorMenuId() === note.id"
+                class="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+                <button *ngFor="let option of colorOptions" type="button" (click)="pickColor(note, option.value)"
+                  class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <span class="h-2.5 w-2.5 rounded-full" [ngClass]="option.dotClass"></span>
+                  {{ option.label }}
+                  <ion-icon *ngIf="option.value === note.colorKind" name="checkmark-outline"
+                    class="ml-auto text-sm text-gray-900"></ion-icon>
+                </button>
+              </div>
+            </div>
+
+            <button type="button" (click)="startEdit(note)" [disabled]="store.isBusy(note.id)"
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+              aria-label="Edit note">
+              <ion-icon name="create-outline" class="text-sm"></ion-icon>
+            </button>
+          </ng-container>
+
+          <!-- Ciclo de vida: autor o notes.view_all -->
+          <ng-container *ngIf="note.canManage">
+            <button type="button" (click)="toggleArchive(note)" [disabled]="store.isBusy(note.id)"
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+              [attr.aria-label]="note.isArchived ? 'Restore note' : 'Archive note'">
+              <ion-icon [name]="note.isArchived ? 'arrow-undo-outline' : 'archive-outline'" class="text-sm"></ion-icon>
+            </button>
+            <button type="button" (click)="requestDelete(note)" [disabled]="store.isBusy(note.id)"
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors"
+              aria-label="Delete note">
+              <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+            </button>
+          </ng-container>
         </div>
       </div>
-      <p class="mt-3 text-sm leading-relaxed text-gray-700 whitespace-pre-line">{{ note.text }}</p>
+
+      <!-- Cuerpo: lectura o edición en línea (PUT /notes/{id}/content) -->
+      <ng-container *ngIf="editingId() === note.id; else noteBody">
+        <textarea rows="3" [ngModel]="editText()" (ngModelChange)="editText.set($event)" [disabled]="editSaving()"
+          class="mt-3 w-full resize-none rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+        <p *ngIf="editError() as editErr" class="mt-2 text-sm text-red-600">{{ editErr }}</p>
+        <div class="mt-2 flex items-center justify-end gap-2">
+          <button type="button" (click)="cancelEdit()"
+            class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+            Cancel
+          </button>
+          <button type="button" (click)="saveEdit()" [disabled]="editSaving() || !editText().trim()"
+            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+            Save changes
+          </button>
+        </div>
+      </ng-container>
+      <ng-template #noteBody>
+        <div class="mt-3 text-sm leading-relaxed text-gray-700 break-words" [innerHTML]="note.html"></div>
+      </ng-template>
+
+      <!-- Adjuntos: solo lectura (subirlos exige el flujo de CloudStorage, fuera de esta pestaña) -->
+      <div *ngIf="note.attachments.length > 0" class="mt-3 flex flex-wrap items-center gap-2">
+        <span *ngFor="let attachment of note.attachments"
+          class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-500">
+          <ion-icon name="attach-outline" class="text-sm"></ion-icon>
+          {{ attachment.displayName }}
+          <span class="text-gray-400">{{ attachmentSize(attachment.sizeBytes) }}</span>
+        </span>
+      </div>
     </div>
 
-    <div *ngIf="notes().length === 0" class="px-4 py-10 text-center">
+    <div *ngIf="store.notes().length === 0" class="px-4 py-10 text-center">
       <ion-icon name="chatbubble-ellipses-outline" class="text-3xl text-gray-300"></ion-icon>
       <p class="mt-2 text-sm text-gray-500">No notes yet for this client</p>
     </div>
   </div>
 </div>
+
+<!-- Borrado (lógico: la nota pasa a Deleted y deja de listarse) -->
+<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete note?"
+  message="The note will be removed from this client's timeline. This can't be undone."
+  confirmLabel="Delete note" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

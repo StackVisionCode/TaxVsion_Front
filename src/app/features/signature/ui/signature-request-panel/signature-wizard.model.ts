@@ -69,4 +69,8 @@ export interface WizardDocument {
   date: string;
   /** Bytes reales cuando se sube un PDF; null para documentos mock (renderizan el PDF de muestra). */
   blob: Blob | null;
+  /** fileId de CloudStorage tras el preflight + upload (requisito para crear la solicitud real). */
+  fileId?: string | null;
+  /** Páginas reportadas por el preflight de /signature/documents/validate. */
+  pageCount?: number | null;
 }

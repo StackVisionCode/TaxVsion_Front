@@ -3,57 +3,53 @@
   <div class="flex items-start justify-between">
     <div>
       <h2 class="text-xl font-bold text-gray-900">Video Calls</h2>
-      <p class="mt-1 text-sm text-gray-500">Client meetings and check-ins</p>
+      <p class="mt-1 text-sm text-gray-500">Live and upcoming meetings</p>
     </div>
 
-    <!-- Today counter chip -->
-    <span *ngIf="todayCount() > 0"
+    <!-- Today counter chip: conteo real sobre las reuniones agendadas -->
+    <span *ngIf="!loading() && !error() && todayCount() > 0"
       class="shrink-0 rounded-full border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-600">
       {{ todayCount() }} today
     </span>
   </div>
 
-  <!-- Call list -->
-  <div class="mt-4 flex flex-col gap-1">
-    <div *ngFor="let call of calls(); trackBy: trackByCallId"
+  <!-- Cargando / error de Communication / nada agendado -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || calls().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Meetings aren't available" icon="videocam-outline" title="No meetings scheduled"
+    message="Schedule a meeting and it will show up here." minHeight="13rem"></app-dashboard-widget-state>
+
+  <!-- Call list (reuniones reales del tenant) -->
+  <div *ngIf="!loading() && !error() && calls().length > 0" class="mt-4 flex flex-col gap-1">
+    <div *ngFor="let call of calls(); let i = index; trackBy: trackByCallId"
       class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 transition-colors">
 
       <!-- Avatar -->
       <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-        [ngClass]="call.avatarBg">
-        {{ call.initials }}
+        [ngClass]="avatarBg(i)">
+        {{ initialsOf(call.title) }}
       </span>
 
-      <!-- Name + status line -->
+      <!-- Title + status line -->
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium text-gray-900">{{ call.name }}</p>
+        <p class="truncate text-sm font-medium text-gray-900">{{ call.title }}</p>
 
         <div class="mt-0.5 flex items-center gap-1.5 text-xs">
-          <ng-container [ngSwitch]="call.status">
-            <!-- Ongoing -->
-            <ng-container *ngSwitchCase="'ongoing'">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-              <span class="font-medium text-emerald-600">{{ call.detail }}</span>
-            </ng-container>
-
-            <!-- Upcoming -->
-            <span *ngSwitchCase="'upcoming'" class="text-gray-500">{{ call.detail }}</span>
-
-            <!-- Completed -->
-            <span *ngSwitchCase="'completed'" class="text-gray-500">{{ call.detail }}</span>
-
-            <!-- Missed -->
-            <span *ngSwitchCase="'missed'" class="font-medium text-red-500">{{ call.detail }}</span>
+          <!-- "Live now" solo cuando el backend dice apiStatus === 'Live' -->
+          <ng-container *ngIf="call.status === 'live'; else scheduled">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span class="font-medium text-emerald-600">{{ detailFor(call) }}</span>
           </ng-container>
+          <ng-template #scheduled>
+            <span class="text-gray-500">{{ detailFor(call) }}</span>
+          </ng-template>
         </div>
       </div>
 
-      <!-- Ghost call button: widget de resumen de solo lectura, sin backend real de video que iniciar aquí (eso vive en Meetings) -->
-      <button type="button" title="Not available in this preview"
+      <!-- Unirse a la sala es Socket.IO y MeetingItem no expone joinUrl: se enlaza a Meetings -->
+      <a routerLink="/meetings" [attr.aria-label]="'Open ' + call.title + ' in Meetings'"
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
         <ion-icon name="videocam-outline" class="text-base"></ion-icon>
-        <span class="sr-only">Start video call with {{ call.name }}</span>
-      </button>
+      </a>
     </div>
   </div>
 </div>

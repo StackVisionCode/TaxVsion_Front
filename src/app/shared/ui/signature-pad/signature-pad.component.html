@@ -3,19 +3,19 @@
   <div class="inline-flex items-center rounded-full border border-gray-200 p-1">
     <button type="button" (click)="setMethod('draw')"
       class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="method() === 'draw' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="method() === 'draw' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
       <ion-icon name="pencil-outline" class="text-sm"></ion-icon>
       Draw
     </button>
     <button type="button" (click)="setMethod('type')"
       class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="method() === 'type' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="method() === 'type' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
       <ion-icon name="text-outline" class="text-sm"></ion-icon>
       Type
     </button>
     <button type="button" (click)="setMethod('upload')"
       class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="method() === 'upload' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="method() === 'upload' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
       <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
       Upload
     </button>
@@ -23,7 +23,7 @@
 
   <!-- Draw -->
   <div *ngIf="method() === 'draw'" class="mt-4">
-    <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7]">
+    <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAFAFA]">
       <canvas #canvas class="h-40 w-full touch-none" style="touch-action: none;" (pointerdown)="onPointerDown($event)"
         (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp()" (pointerleave)="onPointerUp()"></canvas>
       <p *ngIf="!hasDrawing()" class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-gray-400">
@@ -44,12 +44,12 @@
       <button *ngFor="let font of fontOptions" type="button" (click)="selectFont(font.id)"
         class="rounded-full border px-4 py-1.5 text-sm transition-colors"
         [style.font-family]="font.fontFamily" [style.font-style]="'italic'"
-        [ngClass]="font.id === selectedFontId() ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+        [ngClass]="font.id === selectedFontId() ? 'border-brand-bold bg-gray-50 text-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
         {{ font.label }}
       </button>
     </div>
 
-    <div class="flex h-32 items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] px-4">
+    <div class="flex h-32 items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAFAFA] px-4">
       <p *ngIf="typedText().trim(); else typePlaceholder" class="text-4xl text-gray-900"
         [style.font-family]="selectedFontFamily()" [style.font-style]="'italic'">
         {{ typedText() }}
@@ -62,7 +62,7 @@
 
   <!-- Upload -->
   <div *ngIf="method() === 'upload'" class="mt-4">
-    <div *ngIf="!uploadedDataUrl()" class="rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] p-6 text-center">
+    <div *ngIf="!uploadedDataUrl()" class="rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAFAFA] p-6 text-center">
       <ion-icon name="image-outline" class="text-3xl text-gray-300"></ion-icon>
       <p class="mt-2 text-sm text-gray-500">Upload an image of your signature</p>
       <label
@@ -74,7 +74,7 @@
       <p *ngIf="uploadError()" class="mt-2 text-xs text-red-500">{{ uploadError() }}</p>
     </div>
 
-    <div *ngIf="uploadedDataUrl()" class="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAF9F7] p-6">
+    <div *ngIf="uploadedDataUrl()" class="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-gray-200 bg-[#FAFAFA] p-6">
       <img [src]="uploadedDataUrl()" alt="Uploaded signature preview" class="h-24 max-w-full object-contain" />
       <label
         class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">

@@ -1,41 +1,43 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-export type MemberRole = 'owner' | 'admin' | 'preparer' | 'viewer';
 export type MemberStatus = 'active' | 'invited' | 'suspended';
 
+/**
+ * Fila de la tabla del equipo. Cubre dos orígenes reales:
+ * - `kind: 'user'`      → GET /auth/users (UserSummaryResponse); `roleNames` son los roles del tenant.
+ * - `kind: 'invitation'`→ GET /auth/invitations?status=Pending (InvitationResponse); status siempre 'invited'.
+ * `activity` es el texto ya formateado de la última columna ("Joined …" / "Invited … · expires …") —
+ * el backend no expone "last active".
+ */
 export interface TeamMember {
   id: string;
+  kind: 'user' | 'invitation';
   name: string;
   initials: string;
   avatarColor: string;
   email: string;
-  role: MemberRole;
+  roleNames: string[];
+  actorType: string;
   status: MemberStatus;
-  lastActive: string;
+  activity: string;
 }
 
-export interface RoleOption {
-  id: MemberRole;
-  label: string;
-  description: string;
-}
-
-/** Shared role catalog: used by the table badges and the invite/edit panel's dropdown. */
-export const ROLE_OPTIONS: RoleOption[] = [
-  { id: 'owner', label: 'Owner', description: 'Full control over billing, staff and firm-wide settings.' },
-  { id: 'admin', label: 'Admin', description: 'Manage staff, clients and workflows across the firm.' },
-  { id: 'preparer', label: 'Preparer', description: 'Prepare and file returns for assigned clients.' },
-  { id: 'viewer', label: 'Viewer', description: 'Read-only access to clients, documents and reports.' },
+const ROLE_CHIP_PALETTE = [
+  'border-indigo-200 bg-indigo-50 text-indigo-700',
+  'border-[#1E466B]/30 bg-[#DDE9F5] text-[#1E466B]',
+  'border-orange-200 bg-orange-50 text-orange-700',
+  'border-emerald-200 bg-emerald-50 text-emerald-700',
 ];
 
 /**
  * Tabla de miembros del equipo (patrón "pill header" de service-catalog):
- * cabecera con fondo suave y filas redondeadas. Cada fila (salvo la del
- * Owner, que no se puede editar ni eliminar) tiene un menú "..." con
- * Edit role / Resend invite (solo si está invitado) / Suspend-Reactivate /
- * Remove. El menú abierto se rastrea con una signal y se cierra al hacer
- * click fuera de la fila correspondiente.
+ * cabecera con fondo suave y filas redondeadas. Cada fila tiene un menú "..."
+ * cuyo contenido depende del origen: usuarios → Edit roles / Suspend-Reactivate
+ * (PATCH deactivate/reactivate); invitaciones → Resend / Cancel invite. La fila
+ * del usuario logueado (`currentUserId`) no muestra menú — nadie se suspende ni
+ * se recorta roles a sí mismo desde acá. El menú abierto se rastrea con una
+ * signal y se cierra al hacer click fuera de la fila correspondiente.
  */
 @Component({
   selector: 'app-user-table',
@@ -45,12 +47,13 @@ export const ROLE_OPTIONS: RoleOption[] = [
 })
 export class UserTableComponent {
   @Input() members: TeamMember[] = [];
-  @Output() editRole = new EventEmitter<TeamMember>();
+  @Input() currentUserId: string | null = null;
+  @Input() emptyMessage = 'No team members found';
+  @Output() editRoles = new EventEmitter<TeamMember>();
   @Output() resendInvite = new EventEmitter<TeamMember>();
   @Output() toggleSuspend = new EventEmitter<TeamMember>();
-  @Output() remove = new EventEmitter<TeamMember>();
+  @Output() cancelInvite = new EventEmitter<TeamMember>();
 
-  readonly roles = ROLE_OPTIONS;
   readonly openMenuId = signal<string | null>(null);
 
   @HostListener('document:click', ['$event'])
@@ -73,22 +76,10 @@ export class UserTableComponent {
     this.openMenuId.set(null);
   }
 
-  roleLabel(role: MemberRole): string {
-    return this.roles.find(option => option.id === role)?.label ?? role;
-  }
-
-  roleChip(role: MemberRole): string {
-    switch (role) {
-      case 'owner':
-        return 'border-indigo-200 bg-indigo-50 text-indigo-700';
-      case 'admin':
-        return 'border-[#7C6AE0]/30 bg-[#EEEBFA] text-[#7C6AE0]';
-      case 'preparer':
-        return 'border-orange-200 bg-orange-50 text-orange-700';
-      case 'viewer':
-      default:
-        return 'border-gray-200 bg-gray-50 text-gray-600';
-    }
+  /** Chip determinístico por nombre de rol (los roles del tenant son dinámicos, no un enum fijo). */
+  roleChip(roleName: string): string {
+    const hash = roleName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ROLE_CHIP_PALETTE[hash % ROLE_CHIP_PALETTE.length];
   }
 
   statusLabel(status: MemberStatus): string {
