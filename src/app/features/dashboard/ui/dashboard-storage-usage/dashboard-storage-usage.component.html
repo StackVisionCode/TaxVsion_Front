@@ -1,2 +1,17 @@
-<app-used-storage-card [groups]="groups" [totalBytes]="totalBytes" [uploadBytes]="uploadBytes"
-  [downloadBytes]="downloadBytes"></app-used-storage-card>
+<!-- Cargando la cuota: placeholder con la misma altura para que el dashboard no salte -->
+<div *ngIf="store.usageLoading()"
+  class="flex min-h-[260px] items-center justify-center gap-2 rounded-[28px] bg-white text-sm text-gray-400">
+  <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+  Loading storage…
+</div>
+
+<!-- `/storage/usage` exige el permiso cloudstorage settings.manage: sin él no hay cuota que mostrar -->
+<div *ngIf="!store.usageLoading() && store.usageError() as err"
+  class="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-[28px] bg-white px-6 text-center">
+  <p class="text-sm text-gray-500">Storage usage isn't available</p>
+  <p class="text-xs text-gray-400">{{ err }}</p>
+</div>
+
+<app-used-storage-card *ngIf="!store.usageLoading() && !store.usageError()" [groups]="store.groups()"
+  [totalBytes]="store.totalBytes()" [uploadBytes]="store.usage()?.usedBytes ?? 0"
+  [downloadBytes]="0"></app-used-storage-card>

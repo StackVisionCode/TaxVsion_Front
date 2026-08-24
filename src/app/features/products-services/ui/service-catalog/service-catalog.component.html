@@ -7,7 +7,7 @@
     </div>
 
     <button type="button" (click)="addService.emit()"
-      class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
       <ion-icon name="add-outline" class="text-base"></ion-icon>
       Add service
     </button>
@@ -25,9 +25,9 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <button *ngFor="let filter of filters" type="button" (click)="setFilter(filter)"
+      <button *ngFor="let filter of filters()" type="button" (click)="setFilter(filter)"
         class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="activeFilter() === filter ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+        [ngClass]="activeFilter() === filter ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
         {{ filter }}
       </button>
     </div>
@@ -35,13 +35,13 @@
     <div class="ml-auto flex items-center rounded-full border border-gray-200 p-0.5">
       <button type="button" (click)="viewMode.set('table')"
         class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-        [ngClass]="viewMode() === 'table' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+        [ngClass]="viewMode() === 'table' ? 'bg-brand-bold text-white' : 'text-gray-400 hover:text-gray-700'"
         aria-label="Table view">
         <ion-icon name="list-outline" class="text-base"></ion-icon>
       </button>
       <button type="button" (click)="viewMode.set('grid')"
         class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-        [ngClass]="viewMode() === 'grid' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'"
+        [ngClass]="viewMode() === 'grid' ? 'bg-brand-bold text-white' : 'text-gray-400 hover:text-gray-700'"
         aria-label="Grid view">
         <ion-icon name="grid-outline" class="text-base"></ion-icon>
       </button>
@@ -53,11 +53,11 @@
     <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
       <thead>
         <tr>
-          <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Service</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Price</th>
-          <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
-          <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+          <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Service</th>
+          <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
+          <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Price</th>
+          <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+          <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3"></th>
         </tr>
       </thead>
       <tbody>
@@ -67,7 +67,7 @@
             <span class="flex items-center gap-3">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
                 [ngClass]="categoryCircle(service.category)">
-                <ion-icon [name]="categoryIcon(service.category)" class="text-base text-gray-700"></ion-icon>
+                <ion-icon [name]="categoryIcon(service.kind)" class="text-base text-gray-700"></ion-icon>
               </span>
               <span>
                 <span class="block font-medium text-gray-900">{{ service.name }}</span>
@@ -102,18 +102,27 @@
       </tbody>
     </table>
 
+    <!-- Empty states: catálogo vacío (tenant nuevo) vs búsqueda sin resultados -->
     <div *ngIf="filteredServices().length === 0" class="px-4 py-10 text-center">
-      <ion-icon name="search-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No services match your search</p>
+      <ion-icon [name]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">
+        {{ isCatalogEmpty() ? 'No services yet — add your first one to get started' : 'No services match your search' }}
+      </p>
     </div>
   </div>
 
   <!-- Grid view -->
+  <div *ngIf="viewMode() === 'grid' && filteredServices().length === 0" class="mt-4 px-4 py-10 text-center">
+    <ion-icon [name]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">
+      {{ isCatalogEmpty() ? 'No services yet — add your first one to get started' : 'No services match your search' }}
+    </p>
+  </div>
   <div *ngIf="viewMode() === 'grid'" class="mt-4 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
     <div *ngFor="let service of pagedServices()" class="rounded-2xl border border-gray-100 p-4">
       <div class="flex items-center gap-3">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="categoryCircle(service.category)">
-          <ion-icon [name]="categoryIcon(service.category)" class="text-lg text-gray-700"></ion-icon>
+          <ion-icon [name]="categoryIcon(service.kind)" class="text-lg text-gray-700"></ion-icon>
         </span>
         <span class="min-w-0">
           <span class="block text-sm font-semibold text-gray-900 truncate">{{ service.name }}</span>

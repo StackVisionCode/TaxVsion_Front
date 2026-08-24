@@ -1,8 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { WizardClient } from '../signature-request-panel/signature-wizard.model';
-import { WIZARD_CLIENTS, avatarColor, clientTypeBadge, initialsOf } from '../signature-request-panel/signature-wizard.mock';
+import { avatarColor, clientTypeBadge, initialsOf } from '../signature-request-panel/signature-wizard.presenter';
+import { SignatureStore } from '../../data-access/signature.store';
 
 type TypeFilter = 'all' | 'individual' | 'company';
 
@@ -10,6 +11,8 @@ type TypeFilter = 'all' | 'individual' | 'company';
  * Paso 1 del wizard: buscar, filtrar por tipo y elegir el cliente. Dos columnas
  * en lg: lista de tarjetas a la izquierda, panel sticky con el detalle del
  * seleccionado a la derecha (patrón preview de la feature documents).
+ * Los clientes vienen de Customer.Api (GET /customers vía SignatureStore, lote
+ * NotArchived); búsqueda y filtro de tipo son client-side sobre ese lote.
  */
 @Component({
   selector: 'app-signature-wizard-client-step',
@@ -22,15 +25,21 @@ export class SignatureWizardClientStepComponent {
   @Input() selectedId: string | null = null;
   @Output() clientSelected = new EventEmitter<WizardClient>();
 
-  readonly clients = WIZARD_CLIENTS;
+  readonly store = inject(SignatureStore);
+
   readonly typeFilters: TypeFilter[] = ['all', 'individual', 'company'];
   readonly typeFilter = signal<TypeFilter>('all');
   readonly search = signal('');
 
+  constructor() {
+    this.store.loadCustomers();
+  }
+
   readonly filtered = computed<WizardClient[]>(() => {
     const filter = this.typeFilter();
     const query = this.search().trim().toLowerCase();
-    return this.clients
+    return this.store
+      .customers()
       .filter(client => filter === 'all' || client.type === filter)
       .filter(
         client =>
@@ -41,9 +50,13 @@ export class SignatureWizardClientStepComponent {
       );
   });
 
+  retryLoad(): void {
+    this.store.loadCustomers(true);
+  }
+
   /** Detalle del cliente actualmente seleccionado (para el panel derecho). */
   selectedClient(): WizardClient | null {
-    return this.clients.find(client => client.id === this.selectedId) ?? null;
+    return this.store.customers().find(client => client.id === this.selectedId) ?? null;
   }
 
   /** Lista 0-o-1 para *ngFor+trackBy: al cambiar el id se recrea el nodo y re-anima el panel. */
@@ -83,9 +96,9 @@ export class SignatureWizardClientStepComponent {
     return clientTypeBadge(client.type);
   }
 
-  /** Índice del cliente en el seed (color de avatar estable, no depende del filtro). */
+  /** Índice del cliente en el lote cargado (color de avatar estable, no depende del filtro). */
   seedIndex(client: WizardClient): number {
-    return this.clients.indexOf(client);
+    return this.store.customers().indexOf(client);
   }
 
   clientSince(client: WizardClient): string {

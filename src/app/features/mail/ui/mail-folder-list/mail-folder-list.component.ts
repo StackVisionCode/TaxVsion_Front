@@ -19,17 +19,24 @@ export interface MailFolder {
   id: string;
   label: string;
   icon: string;
-  unreadCount: number;
+  /**
+   * Correspondence NO expone estado leído/no leído (no hay `isRead` en ningún DTO), así que
+   * el badge dejó de ser "no leídos" y ahora muestra cuántos elementos hay cargados en esa
+   * carpeta: hilos activos, hilos archivados o el totalCount real de drafts.
+   */
+  count: number;
 }
 
 /**
  * Rail de carpetas del módulo Mail (estilo "Aether"): botón negro "Compose"
- * arriba, seguido de filas píldora por carpeta (Inbox, Sent, Drafts, Starred,
- * Archive, Trash). La carpeta activa se resalta con un pill negro que se
- * DESLIZA entre carpetas al cambiar de selección (mismo patrón que el
- * indicador del sidebar): un div posicionado en absoluto que se mide contra
- * el botón activo y transiciona su posición/tamaño. Es puramente
- * presentacional — el conteo y la selección viven en el padre (mail-page).
+ * arriba, seguido de filas píldora por carpeta. Las carpetas ya no son las del
+ * mock (Inbox/Sent/Starred/Trash): el backend solo respalda Conversations,
+ * Archived y Drafts — el padre arma la lista contra `MailFolderId` del store.
+ * La carpeta activa se resalta con un pill negro que se DESLIZA entre carpetas
+ * al cambiar de selección (mismo patrón que el indicador del sidebar): un div
+ * posicionado en absoluto que se mide contra el botón activo y transiciona su
+ * posición/tamaño. Es puramente presentacional — el conteo y la selección viven
+ * en el padre (mail-page).
  */
 @Component({
   selector: 'app-mail-folder-list',
@@ -40,7 +47,9 @@ export interface MailFolder {
 })
 export class MailFolderListComponent implements OnChanges, AfterViewInit {
   @Input() folders: MailFolder[] = [];
-  @Input() activeFolderId = 'inbox';
+  @Input() activeFolderId = 'conversations';
+  /** Sin cliente seleccionado o sin cuenta activa no hay a quién/desde dónde escribir. */
+  @Input() composeDisabled = false;
   @Output() folderSelected = new EventEmitter<string>();
   @Output() composeClicked = new EventEmitter<void>();
 
@@ -56,9 +65,9 @@ export class MailFolderListComponent implements OnChanges, AfterViewInit {
 
   ngAfterViewInit(): void {
     setTimeout(() => this.syncIndicator());
-    // Los <ion-icon> cargan del CDN y pueden reajustar el layout después de la
-    // primera medición; re-medir una vez más apenas se asiente evita que el
-    // pill arranque desalineado hasta la primera interacción.
+    // Los <ion-icon> resuelven su SVG de forma asíncrona y pueden reajustar el
+    // layout después de la primera medición; re-medir una vez más apenas se
+    // asiente evita que el pill arranque desalineado hasta la primera interacción.
     setTimeout(() => this.syncIndicator(), 300);
     this.folderButtons?.changes.subscribe(() => this.syncIndicator());
   }
@@ -79,15 +88,18 @@ export class MailFolderListComponent implements OnChanges, AfterViewInit {
 
   /**
    * El padre recalcula `folders` como un `computed()` que crea objetos nuevos
-   * en cada actualización (ej. al marcar un correo como leído), aunque el id
-   * no cambie. Sin trackBy, Angular destruiría y recrearía TODOS los botones
-   * en cada selección de mensaje — se veía como si la página recargara.
+   * en cada actualización (ej. al cargar más hilos), aunque el id no cambie.
+   * Sin trackBy, Angular destruiría y recrearía TODOS los botones en cada
+   * refresco — se veía como si la página recargara.
    */
   trackByFolderId(_index: number, folder: MailFolder): string {
     return folder.id;
   }
 
   compose(): void {
+    if (this.composeDisabled) {
+      return;
+    }
     this.composeClicked.emit();
   }
 

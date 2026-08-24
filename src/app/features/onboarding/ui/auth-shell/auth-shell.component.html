@@ -1,0 +1,32 @@
+<div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
+  <!-- Ambient background glow (mismo que el login) -->
+  <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-brand-light/30 rounded-full blur-3xl"></div>
+
+  <div class="auth-card relative w-full bg-white rounded-[2rem] shadow-2xl shadow-brand-light/40 overflow-hidden flex flex-col lg:flex-row"
+    [class.max-w-5xl]="!wide" [class.max-w-6xl]="wide">
+    <!-- Left side - Gradient brand panel -->
+    <div class="hidden lg:flex relative m-3 rounded-[1.75rem] overflow-hidden"
+      [class.lg:w-1/2]="!wide" [class.lg:w-2/5]="wide">
+      <div class="absolute inset-0 bg-gradient-to-br from-brand-light via-brand-bold to-brand-black"></div>
+      <div class="absolute -top-10 -left-10 w-72 h-72 bg-brand-light/50 blur-3xl"></div>
+      <div class="absolute bottom-0 right-0 w-72 h-72 bg-brand-bold/60 blur-3xl"></div>
+
+      <div class="relative z-10 flex flex-col justify-between w-full p-10">
+        <span class="text-white text-4xl font-bold leading-none">*</span>
+
+        <div class="text-white space-y-2">
+          <p class="text-sm font-medium text-white/80">{{ panelEyebrow }}</p>
+          <h2 class="text-3xl font-bold leading-snug">{{ panelHeading }}</h2>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side - projected content -->
+    <div class="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
+      <div class="w-full mx-auto" [class.max-w-sm]="!wide" [class.max-w-3xl]="wide">
+        <ng-content></ng-content>
+      </div>
+    </div>
+  </div>
+</div>

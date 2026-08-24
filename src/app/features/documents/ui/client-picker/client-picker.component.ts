@@ -41,7 +41,7 @@ export class ClientPickerComponent {
   }
 
   avatarClass(index: number): string {
-    const palette = ['bg-gray-900', 'bg-indigo-600', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-emerald-500'];
+    const palette = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
     return palette[index % palette.length];
   }
 

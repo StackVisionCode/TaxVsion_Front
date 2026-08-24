@@ -1,11 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  date: Date;
-}
+import { CalendarEvent } from '../../data-access/calendar.model';
+import { DashboardCalendarService } from '../../data-access/calendar.service';
 
 interface CalendarDay {
   date: Date;
@@ -15,36 +11,15 @@ interface CalendarDay {
   hasEvents: boolean;
 }
 
-/** Date at a fixed day of the *current* real month. */
-function onDayOfMonth(dayOfMonth: number, hour = 10): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), dayOfMonth, hour, 0, 0, 0);
-}
-
-/** Date relative to today, so "Today" always has activity on first load. */
-function inDays(days: number, hour = 10): Date {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  date.setHours(hour, 0, 0, 0);
-  return date;
-}
-
-/** Static, realistic-looking mix of appointments and task deadlines. */
-const MOCK_EVENTS: CalendarEvent[] = [
-  { id: 'evt-1', title: 'Client Consultation — Maria Gonzalez', date: inDays(0, 9) },
-  { id: 'evt-2', title: 'Team Meeting — Weekly Sync', date: inDays(0, 11) },
-  { id: 'evt-3', title: 'Submit W-2 Corrections', date: inDays(0, 17) },
-  { id: 'evt-4', title: 'Tax Review — Johnson LLC', date: onDayOfMonth(3, 14) },
-  { id: 'evt-5', title: 'Phone Call — David Chen', date: onDayOfMonth(8, 11) },
-  { id: 'evt-6', title: 'On-Site Visit — Riverside Bakery', date: onDayOfMonth(15, 13) },
-  { id: 'evt-7', title: 'File Extension Request', date: onDayOfMonth(21, 12) },
-  { id: 'evt-8', title: 'Follow-up — Estate Planning Docs', date: onDayOfMonth(26, 15) },
-];
-
 /**
- * Widget "Calendar" (referencia "Aether"): mini calendario mensual con
- * navegación real prev/next, hoy como píldora negra, punto púrpura en días
- * con eventos y chips de resumen (Today / Upcoming). Datos estáticos.
+ * Widget "Calendar" (referencia "Aether"): mini calendario mensual con navegación
+ * real prev/next, hoy como píldora negra, punto púrpura en días con citas y chips
+ * de resumen (Today / Upcoming).
+ *
+ * Conectado a Calendar.Api: cada cambio de mes pide el rango visible completo (las
+ * 6 semanas de la grilla, no solo el mes) para que los días de relleno también
+ * muestren su punto. Sin permiso `calendar.read` la llamada falla y el widget se
+ * queda vacío en silencio: es un accesorio del dashboard, no debe romperlo.
  */
 @Component({
   selector: 'app-dashboard-mini-calendar',
@@ -52,10 +27,13 @@ const MOCK_EVENTS: CalendarEvent[] = [
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-mini-calendar.component.html',
 })
-export class DashboardMiniCalendarComponent {
+export class DashboardMiniCalendarComponent implements OnInit {
+  private readonly service = inject(DashboardCalendarService);
+
   readonly weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-  private readonly events = signal<CalendarEvent[]>(MOCK_EVENTS);
+  private readonly events = signal<CalendarEvent[]>([]);
+  readonly loading = signal(false);
 
   readonly currentDate = signal(new Date());
 
@@ -76,19 +54,47 @@ export class DashboardMiniCalendarComponent {
     () => this.events().filter(event => event.date.getTime() > Date.now()).length,
   );
 
+  ngOnInit(): void {
+    this.loadMonth();
+  }
+
   prevMonth(): void {
     const current = this.currentDate();
     this.currentDate.set(new Date(current.getFullYear(), current.getMonth() - 1, 1));
+    this.loadMonth();
   }
 
   nextMonth(): void {
     const current = this.currentDate();
     this.currentDate.set(new Date(current.getFullYear(), current.getMonth() + 1, 1));
+    this.loadMonth();
+  }
+
+  /** Trae el rango visible completo (las 6 semanas de la grilla), no solo el mes. */
+  private loadMonth(): void {
+    const days = this.calendarDays();
+    const from = new Date(days[0].date);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(days[days.length - 1].date);
+    to.setHours(23, 59, 59, 999);
+
+    this.loading.set(true);
+    this.service.range(from, to).subscribe({
+      next: events => {
+        this.events.set(events);
+        this.loading.set(false);
+      },
+      error: () => {
+        // Accesorio del dashboard: sin permiso calendar.read se queda vacío, sin romper nada.
+        this.events.set([]);
+        this.loading.set(false);
+      },
+    });
   }
 
   dayClass(day: CalendarDay): string {
     if (day.isToday) {
-      return 'bg-gray-900 font-semibold text-white';
+      return 'bg-brand-bold font-semibold text-white';
     }
     if (!day.isCurrentMonth) {
       return 'text-gray-300';

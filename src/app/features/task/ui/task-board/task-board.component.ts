@@ -6,39 +6,11 @@ import {
   moveItemInArray,
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
-
-export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type TaskStatus = 'not-started' | 'in-progress' | 'blocked' | 'completed';
-
-export interface TaskItem {
-  id: string;
-  title: string;
-  description: string;
-  client: string;
-  dueDate: string; // ISO date (YYYY-MM-DD)
-  priority: TaskPriority;
-  status: TaskStatus;
-  assigneeName: string;
-  assigneeInitials: string;
-  assigneeColor: string;
-}
-
-export interface StatusColumn {
-  id: TaskStatus;
-  label: string;
-  dotClass: string;
-}
-
-export const TASK_COLUMNS: StatusColumn[] = [
-  { id: 'not-started', label: 'Not Started', dotClass: 'bg-gray-400' },
-  { id: 'in-progress', label: 'In Progress', dotClass: 'bg-[#7C6AE0]' },
-  { id: 'blocked', label: 'Blocked', dotClass: 'bg-red-500' },
-  { id: 'completed', label: 'Completed', dotClass: 'bg-emerald-500' },
-];
+import { ApiTaskPriority, TASK_COLUMNS, TaskItem, TaskStatus } from '../../data-access/task.model';
 
 /**
  * Tablero Kanban del módulo Task (estilo "Aether"): 4 columnas fijas (Not
- * Started / In Progress / Blocked / Completed) con drag-and-drop (CDK). Cada
+ * Started / In Progress / Waiting on Client / Completed) con drag-and-drop (CDK). Cada
  * tarjeta se puede arrastrar a otra columna para cambiar su estado, con
  * animación de recolocación suave; los 4 puntos de la tarjeta siguen sirviendo
  * como atajo para mover por click.
@@ -140,10 +112,13 @@ export class TaskBoardComponent implements OnChanges {
   }
 
   isOverdue(task: TaskItem): boolean {
-    return task.status !== 'completed' && new Date(task.dueDate).getTime() < Date.now();
+    return !!task.dueDate && task.status !== 'completed' && new Date(task.dueDate).getTime() < Date.now();
   }
 
   formatDue(dueDate: string): string {
+    if (!dueDate) {
+      return 'No due date';
+    }
     const due = new Date(`${dueDate}T00:00:00`);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -156,13 +131,13 @@ export class TaskBoardComponent implements OnChanges {
     return `In ${diffDays} days`;
   }
 
-  priorityChipClass(priority: TaskPriority): string {
+  priorityChipClass(priority: ApiTaskPriority): string {
     switch (priority) {
       case 'Urgent':
         return 'border-red-200 text-red-500';
       case 'High':
         return 'border-orange-200 text-orange-500';
-      case 'Medium':
+      case 'Normal':
         return 'border-amber-200 text-amber-600';
       case 'Low':
         return 'border-emerald-200 text-emerald-600';

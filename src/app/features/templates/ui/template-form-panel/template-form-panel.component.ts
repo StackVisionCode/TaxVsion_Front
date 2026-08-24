@@ -12,22 +12,23 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Template, TemplateCategory, TemplateStatus } from '../template-card-grid/template-card-grid.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { Template, TemplateFormValue } from '../../data-access/templates.model';
 
-const CATEGORIES: TemplateCategory[] = ['Email', 'Letter', 'Invoice Note', 'Reminder'];
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+/** Sugerencias de categoría; en el backend el campo es texto libre, no un enum. */
+const CATEGORY_SUGGESTIONS = ['Email', 'Letter', 'Invoice Note', 'Reminder'];
 
 /**
- * Overlay de creación/edición de plantillas (mismo patrón que
- * task-create-panel): tarjeta centrada `rounded-[28px]` sobre backdrop con
- * stopPropagation. Un único componente cubre ambos modos: si `template`
- * llega con datos precarga el formulario y actúa como edición ("Edit
- * template" / "Save changes"); si es null arranca vacío ("New template" /
- * "Create template").
+ * Overlay de creación/edición de plantillas. Un único componente cubre ambos modos.
+ *
+ * Ajustes impuestos por el contrato real:
+ *  - La identidad es `templateKey` (único por scope) e INMUTABLE: en edición se muestra
+ *    deshabilitado, porque el backend no tiene endpoint para renombrar.
+ *  - Guardar el cuerpo siempre crea una VERSIÓN nueva (no hay update in-place), y
+ *    publicar es un paso explícito: por eso el checkbox "Publish this version".
+ *  - Metadata (subject/description/category) solo se envía al CREAR: el controller no
+ *    expone actualización de metadata, únicamente versiones del cuerpo.
+ * Solo emite un TemplateFormValue: las llamadas las orquesta TemplatesStore.
  */
 @Component({
   selector: 'app-template-form-panel',
@@ -38,26 +39,45 @@ function todayIso(): string {
 export class TemplateFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() template: Template | null = null;
+  /** Cuerpo ya descargado de CloudStorage (null mientras carga). */
+  @Input() body: string | null = null;
+  @Input() bodyLoading = false;
+  @Input() saving = false;
+  @Input() errorMessage: string | null = null;
   @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<Template>();
+  @Output() saved = new EventEmitter<TemplateFormValue>();
 
-  readonly categories = CATEGORIES;
+  readonly categorySuggestions = CATEGORY_SUGGESTIONS;
 
-  readonly name = signal('');
-  readonly category = signal<TemplateCategory>('Email');
-  readonly status = signal<TemplateStatus>('draft');
-  readonly body = signal('');
+  readonly templateKey = signal('');
+  readonly subject = signal('');
+  readonly description = signal('');
+  readonly category = signal('');
+  readonly bodyDraft = signal('');
+  readonly publish = signal(true);
 
   readonly isCategoryOpen = signal(false);
 
-  /** Signal propia porque `template` es un @Input plano: un computed() no reaccionaría a sus cambios (se congelaría). */
+  /** Signal propia porque `template` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
-  readonly canSave = computed(() => this.name().trim().length > 0 && this.body().trim().length > 0);
+
+  readonly canSave = computed(
+    () =>
+      this.templateKey().trim().length > 0 &&
+      this.subject().trim().length > 0 &&
+      this.bodyDraft().trim().length > 0 &&
+      !this.saving,
+  );
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['template'] || changes['isOpen']) {
       this.isEditMode.set(this.template !== null);
       this.resetForm();
+    }
+    // El cuerpo llega asincrónico (detalle + descarga de CloudStorage): al llegar
+    // se precarga, salvo que el usuario ya haya empezado a escribir.
+    if (changes['body'] && this.body !== null && !this.bodyDraft()) {
+      this.bodyDraft.set(this.body);
     }
   }
 
@@ -73,13 +93,13 @@ export class TemplateFormPanelComponent implements OnChanges {
     this.isCategoryOpen.set(!this.isCategoryOpen());
   }
 
-  selectCategory(category: TemplateCategory): void {
+  selectCategory(category: string): void {
     this.category.set(category);
     this.isCategoryOpen.set(false);
   }
 
-  setStatus(status: TemplateStatus): void {
-    this.status.set(status);
+  togglePublish(): void {
+    this.publish.set(!this.publish());
   }
 
   close(): void {
@@ -90,30 +110,32 @@ export class TemplateFormPanelComponent implements OnChanges {
     if (!this.canSave()) {
       return;
     }
-    const result: Template = {
-      id: this.template?.id ?? `template-${Date.now()}`,
-      name: this.name().trim(),
-      category: this.category(),
-      status: this.status(),
-      body: this.body().trim(),
-      updatedAt: todayIso(),
-    };
-    this.saved.emit(result);
+    this.saved.emit({
+      templateKey: this.templateKey().trim(),
+      subject: this.subject().trim(),
+      description: this.description().trim(),
+      category: this.category().trim(),
+      body: this.bodyDraft(),
+      publish: this.publish(),
+    });
   }
 
   private resetForm(): void {
     const template = this.template;
     if (template) {
-      this.name.set(template.name);
+      this.templateKey.set(template.templateKey);
+      this.subject.set(template.subject);
+      this.description.set(template.description);
       this.category.set(template.category);
-      this.status.set(template.status);
-      this.body.set(template.body);
+      this.bodyDraft.set(this.body ?? '');
     } else {
-      this.name.set('');
-      this.category.set('Email');
-      this.status.set('draft');
-      this.body.set('');
+      this.templateKey.set('');
+      this.subject.set('');
+      this.description.set('');
+      this.category.set('');
+      this.bodyDraft.set('');
     }
+    this.publish.set(true);
     this.isCategoryOpen.set(false);
   }
 }

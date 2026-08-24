@@ -1,22 +1,22 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
-    <!-- Stats row -->
+    <!-- Stats row (analytics del backend; "—" mientras carga o si analytics falla) -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+      <div class="rounded-[24px] bg-[#E8F1FB] p-5">
         <p class="text-sm text-gray-600">Total requests</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalRequests()) }}</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.totalRequests) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#CBD9F2] p-5">
-        <p class="text-sm text-gray-600">Pending signatures</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(pendingSignatures()) }}</p>
+      <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+        <p class="text-sm text-gray-600">In progress</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.inProgress) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+      <div class="rounded-[24px] bg-[#E7EAEE] p-5">
         <p class="text-sm text-gray-600">Completed this month</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(completedThisMonth()) }}</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.completedThisMonth) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#EEEBFA] p-5">
-        <p class="text-sm text-gray-600">Avg time to sign</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ avgTimeToSign }}</p>
+      <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+        <p class="text-sm text-gray-600">Completion rate</p>
+        <p class="mt-2 text-3xl font-bold text-gray-900">{{ completionRateLabel() }}</p>
       </div>
     </div>
 
@@ -29,7 +29,7 @@
 
           <!-- Firma propia generada (generador de firmas) -->
           <div *ngIf="mySignature() as sig"
-            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-[#FAF9F7] px-3 py-2">
+            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-3 py-2">
             <img [src]="sig.dataUrl" alt="My signature" class="h-8 max-w-[140px] object-contain" />
             <span class="text-xs font-medium text-gray-600">{{ sig.displayName }}</span>
             <button type="button" (click)="openCreator()"
@@ -43,18 +43,18 @@
             My signature
           </button>
           <button type="button" (click)="openCreatePanel()"
-            class="flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
             New Signature Request
           </button>
         </div>
       </div>
 
-      <!-- Filter bar -->
+      <!-- Filter bar (filtro de estado server-side) -->
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
           class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="activeFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          [ngClass]="store.statusFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
           {{ filterLabel(option) }}
         </button>
 
@@ -67,13 +67,29 @@
         </div>
       </div>
 
-      <!-- Table -->
-      <div class="mt-5">
-        <app-signature-table [requests]="pagedRequests()" (previewRequested)="openPreview($event)"
-          (resendRequested)="resendReminder($event)" (cancelRequested)="cancelRequest($event)"
-          (openLinkRequested)="handleOpenLink($event)"></app-signature-table>
-        <app-pagination [currentPage]="currentPage()" [totalItems]="visibleRequests().length" [pageSize]="pageSize"
-          (pageChange)="currentPage.set($event)"></app-pagination>
+      <!-- Estados de carga / error del listado -->
+      <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        Loading signature requests…
+      </div>
+
+      <div *ngIf="!store.loading() && store.error() as err"
+        class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+        <p class="text-sm text-red-600">{{ err }}</p>
+        <button type="button" (click)="retryLoad()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          Retry
+        </button>
+      </div>
+
+      <!-- Table + paginación server-side -->
+      <div *ngIf="!store.loading() && !store.error()" class="mt-5">
+        <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
+          (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
+          (extendRequested)="openExtendModal($event)" (downloadSealedRequested)="downloadSealed($event)"
+          (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
+        <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
+          (pageChange)="onPageChange($event)"></app-pagination>
       </div>
     </div>
   </ng-container>
@@ -81,9 +97,11 @@
   <!-- Takeover: wizard de creación o vista previa (in-page, dentro del shell) -->
   <ng-template #takeoverView>
     <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" (closed)="closePanel()"
-      (sent)="handleSent($event)"></app-signature-request-panel>
+      (sent)="handleSent()"></app-signature-request-panel>
     <ng-template #previewOnly>
-      <app-signature-preview [request]="previewRequest()" (back)="closePreview()"></app-signature-preview>
+      <app-signature-preview [request]="previewRequest()" (back)="closePreview()"
+        (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
+        (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>
   </ng-template>
 </div>
@@ -92,48 +110,59 @@
 <app-signature-creator [isOpen]="isCreatorOpen()" (closed)="closeCreator()"
   (created)="handleSignatureCreated($event)"></app-signature-creator>
 
-<!-- Enlaces seguros de la solicitud recién enviada -->
-<app-modal [isOpen]="sentLinks() !== null" heading="Request sent"
-  subheading="Each signer gets a secure link through their channel" size="md" (closed)="closeLinksModal()">
-  <div class="mt-4 flex flex-col gap-2.5">
-    <div *ngFor="let link of sentLinks()" class="rounded-2xl border border-gray-100 p-3">
-      <div class="flex items-center gap-2.5">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-          [ngClass]="link.signer.color">{{ link.signer.initials }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-medium text-gray-900">{{ link.signer.name }}</span>
-          <span class="flex items-center gap-1 text-xs text-gray-400" *ngIf="link.signer.channel as ch">
-            <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>
-            via {{ channelMeta[ch].label }}
-          </span>
-        </span>
-      </div>
-      <div class="mt-2 flex items-center gap-1.5">
-        <code class="min-w-0 flex-1 truncate rounded-full bg-[#FAF9F7] px-3 py-1.5 font-mono text-xs text-gray-500">
-          firma.taxprooffice.app{{ link.url }}
-        </code>
-        <button type="button" (click)="copyLink(link)"
-          class="shrink-0 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors">
-          Copy
-        </button>
-        <button type="button" (click)="openLink(link)"
-          class="shrink-0 rounded-full bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 transition-colors">
-          Open
-        </button>
-      </div>
-    </div>
+<!-- Cancelar solicitud (con motivo opcional) -->
+<app-modal [isOpen]="cancelTarget() !== null" heading="Cancel signature request"
+  subheading="Signers will no longer be able to sign this document" size="md" (closed)="closeCancelModal()">
+  <div *ngIf="cancelTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      You are about to cancel <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
+    </p>
+    <textarea rows="3" placeholder="Reason (optional)" [ngModel]="cancelReason()"
+      (ngModelChange)="cancelReason.set($event)" name="cancelReason"
+      class="w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none"></textarea>
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
   </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button type="button" (click)="closeCancelModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Keep request
+    </button>
+    <button type="button" (click)="confirmCancel()" [disabled]="actionBusy()"
+      class="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Canceling…' : 'Cancel request' }}
+    </button>
+  </div>
+</app-modal>
 
-  <div class="mt-5 flex justify-end">
-    <button type="button" (click)="closeLinksModal()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
-      Done
+<!-- Extender expiración de los enlaces -->
+<app-modal [isOpen]="extendTarget() !== null" heading="Extend expiration"
+  subheading="Give signers more time before their links expire" size="md" (closed)="closeExtendModal()">
+  <div *ngIf="extendTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      Extend <span class="font-semibold text-gray-900">{{ target.documentName }}</span> by:
+    </p>
+    <div class="flex items-center gap-3">
+      <input type="number" [min]="minExtendHours" [max]="maxExtendHours" [ngModel]="extendHours()"
+        (ngModelChange)="extendHours.set($event)" name="extendHours"
+        class="w-28 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+      <span class="text-sm text-gray-500">hours ({{ minExtendHours }}–{{ maxExtendHours }})</span>
+    </div>
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button type="button" (click)="closeExtendModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmExtend()" [disabled]="actionBusy()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Extending…' : 'Extend' }}
     </button>
   </div>
 </app-modal>
 
 <!-- Transient toast -->
 <div *ngIf="toastMessage()"
-  class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+  class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-medium text-white shadow-lg">
   {{ toastMessage() }}
 </div>

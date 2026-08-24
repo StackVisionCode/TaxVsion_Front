@@ -1,103 +1,160 @@
-<app-modal [isOpen]="isOpen" [heading]="isEditMode() ? 'Edit Campaign' : 'New Campaign'"
-  [subheading]="isEditMode() ? 'Update the details of this campaign' : 'Reach your clients across email, SMS, WhatsApp or push'"
+<app-modal [isOpen]="isOpen" [heading]="isLaunchMode() ? 'Launch Campaign' : 'New Campaign'"
+  [subheading]="isLaunchMode() ? 'Schedule this draft or send it right away' : 'Email your clients using one of your published templates'"
   size="lg" (closed)="close()">
 
-    <div class="mt-5 flex flex-col gap-3">
-      <!-- Name -->
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <span class="mr-2 text-sm text-gray-400">Name</span>
-        <input type="text" placeholder="Campaign name" [ngModel]="name()" name="name"
-          (ngModelChange)="name.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
-
-      <!-- Channel dropdown -->
-      <div class="relative" data-dropdown="campaign-channel">
-        <button type="button" (click)="toggleChannelDropdown()"
-          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          <span class="flex items-center gap-2">
-            <ion-icon [name]="channelIcon(channel())" class="text-sm text-gray-500"></ion-icon>
-            {{ channelLabel(channel()) }}
-          </span>
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
-        <div *ngIf="isChannelOpen()"
-          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of channels" type="button" (click)="selectChannel(option)"
-            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <span class="flex items-center gap-2">
-              <ion-icon [name]="channelIcon(option)" class="text-sm text-gray-500"></ion-icon>
-              {{ channelLabel(option) }}
-            </span>
-            <ion-icon *ngIf="option === channel()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-          </button>
-        </div>
-      </div>
-
-      <!-- Content -->
-      <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors">
-        <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">{{ contentLabel() }}</span>
-        <textarea rows="4" [placeholder]="contentPlaceholder()" [ngModel]="content()" name="content"
-          (ngModelChange)="content.set($event)"
-          class="mt-1 w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
-      </div>
-
-      <!-- Audience dropdown -->
-      <div class="relative" data-dropdown="campaign-audience">
-        <button type="button" (click)="toggleAudienceDropdown()"
-          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          <span>{{ audience() }}</span>
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
-        <div *ngIf="isAudienceOpen()"
-          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of audiences" type="button" (click)="selectAudience(option)"
-            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            {{ option }}
-            <ion-icon *ngIf="option === audience()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-          </button>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Scheduled date -->
-        <label
-          class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
-          <span class="text-sm text-gray-400">Schedule</span>
-          <input type="date" [ngModel]="scheduledDate()" name="scheduledDate"
-            (ngModelChange)="scheduledDate.set($event)"
-            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
-        </label>
-
-        <!-- Status dropdown -->
-        <div class="relative" data-dropdown="campaign-status">
-          <button type="button" (click)="toggleStatusDropdown()"
-            class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-            <span>{{ statusLabel(status()) }}</span>
-            <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-          </button>
-          <div *ngIf="isStatusOpen()"
-            class="absolute right-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-            <button *ngFor="let option of statuses" type="button" (click)="selectStatus(option)"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              {{ statusLabel(option) }}
-              <ion-icon *ngIf="option === status()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <p class="text-xs text-gray-400">Leave the schedule empty to keep this campaign as a draft.</p>
+  <!-- ===== Modo lanzar: resumen del Draft + fecha ===== -->
+  <div *ngIf="isLaunchMode() && campaign as camp" class="mt-5 flex flex-col gap-3">
+    <div class="rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Campaign</p>
+      <p class="mt-1 text-base font-semibold text-gray-900">{{ camp.name }}</p>
+      <p class="mt-1 text-sm text-gray-500">
+        {{ camp.type }} · {{ camp.templateName || 'Template' }} · {{ camp.recipients }} recipient{{ camp.recipients === 1 ? '' : 's' }}
+      </p>
     </div>
+
+    <label
+      class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+      <span class="text-sm text-gray-400">Send on</span>
+      <input type="date" [ngModel]="scheduledDate()" name="scheduledDate"
+        (ngModelChange)="scheduledDate.set($event)"
+        class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+    </label>
+
+    <p class="text-xs text-gray-400">Leave the date empty to launch immediately. Once launched, the campaign can only be cancelled.</p>
+  </div>
+
+  <!-- ===== Modo crear ===== -->
+  <div *ngIf="!isLaunchMode()" class="mt-5 flex flex-col gap-3">
+    <!-- Name -->
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+      <span class="mr-2 text-sm text-gray-400">Name</span>
+      <input type="text" placeholder="Campaign name" [ngModel]="name()" name="name"
+        (ngModelChange)="name.set($event)"
+        class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <!-- Type dropdown -->
+    <div class="relative" data-dropdown="campaign-type">
+      <button type="button" (click)="toggleTypeDropdown()"
+        class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+        <span class="flex items-center gap-2">
+          <ion-icon [name]="typeIcon(type())" class="text-sm text-gray-500"></ion-icon>
+          {{ type() }}
+        </span>
+        <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+      </button>
+      <div *ngIf="isTypeOpen()"
+        class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+        <button *ngFor="let option of types" type="button" (click)="selectType(option)"
+          class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <span class="flex items-center gap-2">
+            <ion-icon [name]="typeIcon(option)" class="text-sm text-gray-500"></ion-icon>
+            {{ option }}
+          </span>
+          <ion-icon *ngIf="option === type()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Template dropdown (solo plantillas Active con versión publicada) -->
+    <div class="relative" data-dropdown="campaign-template">
+      <button type="button" (click)="toggleTemplateDropdown()" [disabled]="templatesLoading || templates.length === 0"
+        class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+        [ngClass]="selectedTemplate() ? 'text-gray-900' : 'text-gray-400'">
+        <span class="flex min-w-0 items-center gap-2">
+          <ion-icon name="document-text-outline" class="shrink-0 text-sm text-gray-500"></ion-icon>
+          <span class="truncate">
+            {{ selectedTemplate() ? templateLabel(selectedTemplate()!) : (templatesLoading ? 'Loading templates…' : 'Choose a template') }}
+          </span>
+        </span>
+        <ion-icon name="chevron-down-outline" class="shrink-0 text-sm text-gray-500"></ion-icon>
+      </button>
+      <div *ngIf="isTemplateOpen()"
+        class="absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg">
+        <button *ngFor="let option of templates" type="button" (click)="selectTemplate(option)"
+          class="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <span class="truncate">{{ templateLabel(option) }}</span>
+          <ion-icon *ngIf="option.id === templateId()" name="checkmark-outline" class="shrink-0 text-sm text-gray-900"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sin plantillas utilizables / error del catálogo -->
+    <p *ngIf="!templatesLoading && !templatesError && templates.length === 0" class="px-1 text-xs text-gray-500">
+      No published email templates yet — a campaign needs an active template with a published version.
+    </p>
+    <div *ngIf="templatesError" class="flex flex-wrap items-center gap-2 px-1">
+      <span class="inline-flex items-center gap-1.5 text-xs text-red-600">
+        <ion-icon name="alert-circle-outline" class="text-sm"></ion-icon>
+        Couldn't load templates: {{ templatesError }}
+      </span>
+      <button type="button" (click)="retryTemplates.emit()"
+        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        Retry
+      </button>
+    </div>
+
+    <!-- Audience dropdown -->
+    <div class="relative" data-dropdown="campaign-audience">
+      <button type="button" (click)="toggleAudienceDropdown()"
+        class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
+        <span class="flex items-center gap-2">
+          <ion-icon name="people-outline" class="text-sm text-gray-500"></ion-icon>
+          {{ audienceLabel(audience()) }}
+        </span>
+        <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+      </button>
+      <div *ngIf="isAudienceOpen()"
+        class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+        <button *ngFor="let option of audiences" type="button" (click)="selectAudience(option)"
+          class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          {{ audienceLabel(option) }}
+          <ion-icon *ngIf="option === audience()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Custom recipients -->
+    <div *ngIf="audience() === 'custom'"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors">
+      <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Recipients</span>
+      <textarea rows="3" placeholder="jane@example.com, john@example.com — separate emails with commas or new lines"
+        [ngModel]="customEmails()" name="customEmails" (ngModelChange)="customEmails.set($event)"
+        class="mt-1 w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
+      <p class="text-xs text-gray-400">{{ customEmailCount() }} valid email{{ customEmailCount() === 1 ? '' : 's' }}</p>
+    </div>
+
+    <!-- Scheduled date -->
+    <label
+      class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+      <span class="text-sm text-gray-400">Schedule</span>
+      <input type="date" [ngModel]="scheduledDate()" name="createScheduledDate"
+        (ngModelChange)="scheduledDate.set($event)"
+        class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+    </label>
+
+    <p class="text-xs text-gray-400">Leave the schedule empty to keep this campaign as a draft — you can launch it later.</p>
+  </div>
+
+  <!-- Error del backend al guardar/lanzar (no cierra el panel) -->
+  <div *ngIf="errorMessage"
+    class="mt-4 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+    <ion-icon name="alert-circle-outline" class="mt-0.5 shrink-0 text-base"></ion-icon>
+    {{ errorMessage }}
+  </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">
     <button type="button" (click)="close()"
       class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
       Cancel
     </button>
-    <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ isEditMode() ? 'Save changes' : 'Create campaign' }}
+    <button type="button" (click)="save()" [disabled]="!canSave() || saving"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      <span *ngIf="!saving">{{ isLaunchMode() ? (scheduledDate() ? 'Schedule campaign' : 'Launch now') : 'Create campaign' }}</span>
+      <span *ngIf="saving" class="flex items-center gap-2">
+        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        {{ isLaunchMode() ? 'Launching…' : 'Saving…' }}
+      </span>
     </button>
   </div>
 </app-modal>

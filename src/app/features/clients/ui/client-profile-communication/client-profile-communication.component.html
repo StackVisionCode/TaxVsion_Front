@@ -1,28 +1,81 @@
 <div>
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <h3 class="text-lg font-bold text-gray-900">Communication log</h3>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Communication log</h3>
+      <p class="mt-1 text-sm text-gray-500">Email threads exchanged with this client</p>
+    </div>
 
+    <!-- Estado REAL del hilo (EmailThreadStatus), no un filtro por canal inventado -->
     <div class="flex items-center gap-1 rounded-full border border-gray-200 p-1">
-      <button *ngFor="let filter of filters" type="button" (click)="setFilter(filter.value)"
+      <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
         class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="activeFilter() === filter.value ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
-        {{ filter.label }}
+        [ngClass]="statusFilter() === option.value ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+        {{ option.label }}
       </button>
     </div>
   </div>
 
-  <div class="mt-4 flex flex-col gap-3">
-    <div *ngFor="let entry of visibleEntries()" class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" [ngClass]="channelCircle(entry.channel)">
-        <ion-icon [name]="channelIcon(entry.channel)" class="text-base"></ion-icon>
+  <!--
+    Aviso de alcance: el listado es real (GET /correspondence/customers/{id}/threads),
+    pero cubre SOLO email. Llamadas y SMS no tienen servicio detrás — ver el comentario
+    de client-communication.model.ts.
+  -->
+  <div class="mt-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+    <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base text-blue-500"></ion-icon>
+    <p class="text-sm text-blue-800">
+      This log covers <span class="font-semibold">email only</span>. Calls and SMS aren't tracked by any
+      service yet, so they can't be shown here.
+    </p>
+  </div>
+
+  <!-- Carga -->
+  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    Loading conversations…
+  </div>
+
+  <!-- Error del listado (incluye el 403 sin permiso de Correspondence) -->
+  <div *ngIf="!store.loading() && store.error() as err"
+    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+    <p class="text-sm text-red-600">{{ err }}</p>
+    <button type="button" (click)="retry()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Retry
+    </button>
+  </div>
+
+  <!-- Hilos -->
+  <div *ngIf="!store.loading() && !store.error()" class="mt-4 flex flex-col gap-3">
+    <div *ngFor="let thread of visibleThreads()" class="flex items-start gap-3 rounded-2xl border border-gray-100 p-4">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+        <ion-icon name="mail-outline" class="text-base"></ion-icon>
       </span>
-      <p class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{{ entry.summary }}</p>
-      <p class="shrink-0 text-xs text-gray-400">{{ entry.timestamp }}</p>
+
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{{ thread.subject }}</p>
+          <span class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="thread.statusChip">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="thread.statusDot"></span>
+            {{ thread.statusLabel }}
+          </span>
+        </div>
+        <p class="mt-1 text-xs text-gray-500">
+          {{ thread.messageCountLabel }} · started {{ thread.firstMessageLabel }}
+        </p>
+      </div>
+
+      <p class="shrink-0 text-xs text-gray-400">{{ thread.lastMessageLabel }}</p>
     </div>
 
-    <div *ngIf="visibleEntries().length === 0" class="px-4 py-10 text-center">
-      <ion-icon name="time-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No activity for this filter</p>
+    <div *ngIf="visibleThreads().length === 0" class="rounded-2xl border border-gray-100 px-4 py-10 text-center">
+      <ion-icon name="mail-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">
+        {{ store.total() === 0 ? 'No email conversations recorded for this client yet' : 'No conversations match this filter' }}
+      </p>
+      <p *ngIf="store.total() === 0" class="mt-1 text-xs text-gray-400">
+        Threads appear here once a connected mailbox exchanges email with this client.
+      </p>
     </div>
   </div>
 </div>

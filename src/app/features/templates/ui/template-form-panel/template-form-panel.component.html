@@ -1,26 +1,52 @@
 <app-modal [isOpen]="isOpen" [heading]="isEditMode() ? 'Edit template' : 'New template'"
-  [subheading]="isEditMode() ? 'Update the details of this template' : 'Add a reusable template to your library'"
+  [subheading]="isEditMode() ? 'Saving creates a new version of this template' : 'Add a reusable template to your library'"
   size="lg" (closed)="close()">
 
     <div class="mt-5 flex flex-col gap-3">
-      <!-- Name -->
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <input type="text" placeholder="Template name" [ngModel]="name()" name="name"
-          (ngModelChange)="name.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      <!-- Template key: identidad de la plantilla, inmutable en el backend -->
+      <div class="flex h-11 items-center rounded-full border border-gray-200 px-4 focus-within:border-gray-300 transition-colors"
+        [ngClass]="isEditMode() ? 'bg-[#FAFAFA]' : 'bg-white'">
+        <span class="mr-2 shrink-0 text-sm text-gray-400">Key</span>
+        <input type="text" placeholder="e.g. welcome-new-client" [ngModel]="templateKey()" name="templateKey"
+          (ngModelChange)="templateKey.set($event)" [disabled]="isEditMode()"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none disabled:text-gray-400" />
+        <span *ngIf="isEditMode()" class="ml-2 shrink-0 text-xs text-gray-400">Can't be changed</span>
+      </div>
+
+      <!--
+        El asunto se guarda DENTRO de la versión (`subjectTemplate`), no en la metadata:
+        `AddVersion` no toca el `subject` del template, así que al editar hay que decir que
+        el cambio aplica a esta versión y no al rótulo que se ve en la biblioteca.
+      -->
+      <div class="flex flex-col gap-1">
+        <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <span class="mr-2 shrink-0 text-sm text-gray-400">Subject</span>
+          <input type="text" placeholder="Email subject line" [ngModel]="subject()" name="subject"
+            (ngModelChange)="subject.set($event)"
+            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        </div>
+        <p *ngIf="isEditMode()" class="px-4 text-xs text-gray-400">
+          Applies to the new version. The subject shown in the library keeps its original value.
+        </p>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
-        <!-- Category dropdown -->
+        <!-- Categoría: texto libre en el backend; el dropdown solo sugiere valores comunes -->
         <div class="relative" data-dropdown="template-category">
-          <button type="button" (click)="toggleCategoryDropdown()"
-            class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-            <span>{{ category() }}</span>
-            <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-          </button>
+          <div
+            class="flex h-11 w-full items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors"
+            [ngClass]="{ 'bg-[#FAFAFA]': isEditMode() }">
+            <input type="text" placeholder="Category" [ngModel]="category()" name="category"
+              (ngModelChange)="category.set($event)" [disabled]="isEditMode()"
+              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none disabled:text-gray-400" />
+            <button *ngIf="!isEditMode()" type="button" (click)="toggleCategoryDropdown()"
+              class="shrink-0 text-gray-500 hover:text-gray-700 transition-colors" aria-label="Category suggestions">
+              <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
           <div *ngIf="isCategoryOpen()"
             class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-            <button *ngFor="let option of categories" type="button" (click)="selectCategory(option)"
+            <button *ngFor="let option of categorySuggestions" type="button" (click)="selectCategory(option)"
               class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
               {{ option }}
               <ion-icon *ngIf="option === category()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
@@ -28,31 +54,43 @@
           </div>
         </div>
 
-        <!-- Status toggle -->
-        <div class="flex items-center rounded-full border border-gray-200 p-1">
-          <button type="button" (click)="setStatus('draft')"
-            class="flex h-9 flex-1 items-center justify-center rounded-full text-sm font-medium transition-colors"
-            [ngClass]="status() === 'draft' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
-            Draft
-          </button>
-          <button type="button" (click)="setStatus('published')"
-            class="flex h-9 flex-1 items-center justify-center rounded-full text-sm font-medium transition-colors"
-            [ngClass]="status() === 'published' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
-            Published
-          </button>
-        </div>
+        <!-- Publicar la versión que se está guardando (paso explícito en el backend) -->
+        <button type="button" (click)="togglePublish()"
+          class="flex h-11 w-full items-center justify-between rounded-full border px-4 text-sm font-medium transition-colors"
+          [ngClass]="publish() ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'">
+          <span class="flex items-center gap-2">
+            <ion-icon [name]="publish() ? 'checkmark-circle' : 'ellipse-outline'" class="text-base"></ion-icon>
+            Publish this version
+          </span>
+        </button>
+      </div>
+
+      <!-- Descripción: solo se envía al crear (el backend no expone update de metadata) -->
+      <div *ngIf="!isEditMode()"
+        class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 shrink-0 text-sm text-gray-400">Notes</span>
+        <input type="text" placeholder="Internal description (optional)" [ngModel]="description()" name="description"
+          (ngModelChange)="description.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
       </div>
 
       <!-- Body -->
       <div>
-        <textarea rows="8" placeholder="Write the template content..." [ngModel]="body()" name="body"
-          (ngModelChange)="body.set($event)"
-          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAF9F7] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+        <div *ngIf="bodyLoading" class="flex items-center gap-2 px-2 pb-2 text-xs text-gray-400">
+          <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon>
+          Loading current content…
+        </div>
+        <textarea rows="8" placeholder="Write the template HTML..." [ngModel]="bodyDraft()" name="body"
+          (ngModelChange)="bodyDraft.set($event)"
+          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 font-mono text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
         <p class="mt-2 text-xs text-gray-400">
           Use <span class="font-medium text-gray-500">{{ '{{client_name}}' }}</span>,
           <span class="font-medium text-gray-500">{{ '{{date}}' }}</span> as placeholders.
+          Saving stores a new version in storage.
         </p>
       </div>
+
+      <p *ngIf="errorMessage" class="px-2 text-sm text-red-600">{{ errorMessage }}</p>
     </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">
@@ -61,8 +99,8 @@
       Cancel
     </button>
     <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ isEditMode() ? 'Save changes' : 'Create template' }}
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ saving ? 'Saving…' : isEditMode() ? 'Save new version' : 'Create template' }}
     </button>
   </div>
 </app-modal>

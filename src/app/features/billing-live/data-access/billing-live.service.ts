@@ -1,8 +1,15 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { Branding, InvoiceSummary, IssuerProfile, LineDraft, PaymentConfig } from './billing-live.model';
+import {
+  BillingCustomerSummary,
+  Branding,
+  InvoiceSummary,
+  IssuerProfile,
+  LineDraft,
+  PaymentConfig,
+} from './billing-live.model';
 
 /**
  * Apartado de facturación en vivo (autenticado, sesión del tenant): métodos de pago (PaymentClient)
@@ -14,6 +21,17 @@ export class BillingLiveService {
   private readonly api = inject(ApiConfigService);
   private get base(): string {
     return this.api.tenantBase();
+  }
+
+  /**
+   * GET /customers — clientes no archivados para el picker de la factura. Billing guarda el
+   * `customerId` que se le manda, así que tiene que ser uno real del CRM.
+   */
+  listCustomers(size = 200): Observable<BillingCustomerSummary[]> {
+    const params = new HttpParams().set('status', 'NotArchived').set('size', size);
+    return this.http
+      .get<{ items: BillingCustomerSummary[] }>(`${this.base}/customers`, { params })
+      .pipe(map(result => result.items));
   }
 
   // --- Métodos de pago (PaymentClient) ---
@@ -101,18 +119,20 @@ export class BillingLiveService {
   /** Arma el body real (centavos / basis points) desde el form en dólares/%. Incluye el emisor
    * (empresa del tenant) si está configurado, para que aparezca en la factura. */
   createInvoice(
-    customerName: string,
+    customer: BillingCustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: LineDraft[]
   ): Observable<{ invoiceId: string }> {
     // El emisor NO se manda: Billing estampa el perfil de empresa del tenant automáticamente.
+    // `customerId` DEBE ser el id real del cliente (GET /customers): antes se generaba un
+    // UUID al vuelo y cada factura quedaba huérfana, sin forma de rastrearla desde el cliente.
     const body = {
       customer: {
-        customerId: crypto.randomUUID(),
-        name: customerName,
-        email: null,
-        phone: null,
+        customerId: customer.id,
+        name: customer.displayName,
+        email: customer.primaryEmail || null,
+        phone: customer.primaryPhone,
         taxId: customerTaxId || null,
         billing: null,
       },

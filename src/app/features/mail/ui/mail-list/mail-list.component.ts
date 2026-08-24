@@ -17,30 +17,36 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-export interface MailMessage {
+/**
+ * Fila del listado central, ya aplanada por mail-page desde `ThreadSummary`
+ * (carpetas Conversations/Archived) o `DraftListItem` (carpeta Drafts).
+ * No hay campos `isRead`/`isStarred`: Correspondence no expone ninguno de los dos.
+ */
+export interface MailListRow {
+  /** threadId o draftId, según la carpeta activa. */
   id: string;
-  folderId: string;
-  senderName: string;
-  senderInitials: string;
-  senderEmail: string;
+  initials: string;
   avatarColor: string;
-  subject: string;
-  preview: string;
-  body: string;
+  /** Asunto real del hilo/draft. */
+  title: string;
+  /** Segunda línea: conteo de mensajes del hilo o tipo de draft. */
+  subtitle: string;
+  /** Fecha formateada (última actividad del hilo / última edición del draft). */
   time: string;
-  isRead: boolean;
-  isStarred: boolean;
+  /** Chip opcional: "Archived", o el estado del draft cuando no es `Draft`. */
+  badge: string | null;
 }
 
 /**
- * Lista de mensajes del módulo Mail (estilo "Aether"): buscador píldora +
- * filas de email (avatar con iniciales, asunto en negrita si no leído,
- * preview truncado, hora relativa, punto negro de no leído y estrella
- * toggleable). Filtra por la carpeta activa (@Input) y por el término de
- * búsqueda (interno). El mensaje seleccionado se resalta con un pill negro
- * que se DESLIZA entre filas al cambiar de selección (mismo patrón que el
- * indicador del sidebar y del rail de carpetas). La carpeta "starred" es
- * virtual: muestra mensajes con estrella sin importar su carpeta real.
+ * Listado central del módulo Mail (estilo "Aether"): buscador píldora + filas
+ * con avatar de iniciales, asunto, meta y fecha. La fila seleccionada se
+ * resalta con un pill negro que se DESLIZA entre filas (mismo patrón que el
+ * indicador del sidebar y del rail de carpetas).
+ *
+ * Sigue siendo dumb: recibe filas ya armadas más los estados de carga del store
+ * y emite selección / retry / paginación. La búsqueda es CLIENT-SIDE sobre lo
+ * ya cargado porque ni `GET /correspondence/customers/{id}/threads` ni
+ * `GET /correspondence/drafts` aceptan un parámetro de término.
  */
 @Component({
   selector: 'app-mail-list',
@@ -50,59 +56,53 @@ export interface MailMessage {
   styleUrl: './mail-list.component.css',
 })
 export class MailListComponent implements OnChanges, AfterViewInit {
-  /** Inputs respaldados por signals para que el filtrado sea un computed (se
-      recalcula solo cuando cambian los datos, no en cada pasada de CD). */
-  private readonly messagesSig = signal<MailMessage[]>([]);
-  private readonly activeFolderSig = signal('inbox');
+  /** Input respaldado por signal para que el filtrado sea un computed. */
+  private readonly rowsSig = signal<MailListRow[]>([]);
 
-  @Input() set messages(value: MailMessage[]) {
-    this.messagesSig.set(value ?? []);
-  }
-
-  @Input() set activeFolderId(value: string) {
-    this.activeFolderSig.set(value);
+  @Input() set rows(value: MailListRow[]) {
+    this.rowsSig.set(value ?? []);
   }
 
   @Input() selectedId: string | null = null;
-  @Output() messageSelected = new EventEmitter<string>();
-  @Output() starToggled = new EventEmitter<string>();
+  @Input() loading = false;
+  @Input() loadingMore = false;
+  @Input() error: string | null = null;
+  @Input() hasMore = false;
+  /** Texto del estado vacío honesto según el contexto (sin cliente, carpeta vacía…). */
+  @Input() emptyText = 'Nothing here yet';
+
+  @Output() rowSelected = new EventEmitter<string>();
+  @Output() retryRequested = new EventEmitter<void>();
+  @Output() loadMoreRequested = new EventEmitter<void>();
 
   readonly search = signal('');
 
   @ViewChild('listScroll') private scrollRef?: ElementRef<HTMLElement>;
-  @ViewChildren('messageButton') private messageButtons?: QueryList<ElementRef<HTMLElement>>;
+  @ViewChildren('rowButton') private rowButtons?: QueryList<ElementRef<HTMLElement>>;
 
-  /** Posición/tamaño del pill deslizante que resalta el mensaje seleccionado. */
+  /** Posición/tamaño del pill deslizante que resalta la fila seleccionada. */
   readonly indicatorTop = signal(0);
   readonly indicatorLeft = signal(0);
   readonly indicatorWidth = signal(0);
   readonly indicatorHeight = signal(0);
   readonly indicatorReady = signal(false);
 
-  readonly filteredMessages = computed<MailMessage[]>(() => {
+  readonly filteredRows = computed<MailListRow[]>(() => {
     const term = this.search().trim().toLowerCase();
-    const folder = this.activeFolderSig();
-    return this.messagesSig().filter(message => {
-      const inFolder = folder === 'starred' ? message.isStarred : message.folderId === folder;
-      if (!inFolder) {
-        return false;
-      }
-      if (!term) {
-        return true;
-      }
-      return (
-        message.subject.toLowerCase().includes(term) ||
-        message.preview.toLowerCase().includes(term) ||
-        message.senderName.toLowerCase().includes(term)
-      );
-    });
+    const rows = this.rowsSig();
+    if (!term) {
+      return rows;
+    }
+    return rows.filter(
+      row => row.title.toLowerCase().includes(term) || row.subtitle.toLowerCase().includes(term),
+    );
   });
 
   ngAfterViewInit(): void {
     setTimeout(() => this.syncIndicator());
     setTimeout(() => this.syncIndicator(), 300);
-    // La lista cambia con la carpeta/búsqueda: re-medir cuando cambian los botones.
-    this.messageButtons?.changes.subscribe(() => setTimeout(() => this.syncIndicator()));
+    // La lista cambia con la carpeta/búsqueda/paginación: re-medir cuando cambian los botones.
+    this.rowButtons?.changes.subscribe(() => setTimeout(() => this.syncIndicator()));
   }
 
   ngOnChanges(): void {
@@ -120,27 +120,22 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   }
 
   select(id: string): void {
-    this.messageSelected.emit(id);
+    this.rowSelected.emit(id);
   }
 
-  trackByMessageId(_index: number, message: MailMessage): string {
-    return message.id;
-  }
-
-  toggleStar(id: string, event: Event): void {
-    event.stopPropagation();
-    this.starToggled.emit(id);
+  trackByRowId(_index: number, row: MailListRow): string {
+    return row.id;
   }
 
   private syncIndicator(): void {
     const container = this.scrollRef?.nativeElement;
-    const buttons = this.messageButtons?.toArray();
+    const buttons = this.rowButtons?.toArray();
     if (!container || !buttons?.length || this.selectedId === null) {
       this.indicatorReady.set(false);
       return;
     }
 
-    const activeIndex = this.filteredMessages().findIndex(message => message.id === this.selectedId);
+    const activeIndex = this.filteredRows().findIndex(row => row.id === this.selectedId);
     const activeButton = activeIndex >= 0 ? buttons[activeIndex]?.nativeElement : undefined;
     if (!activeButton) {
       this.indicatorReady.set(false);

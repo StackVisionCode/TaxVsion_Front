@@ -1,26 +1,45 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
   <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-[#F2E3C9] p-5">
+    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
       <p class="text-sm text-gray-600">Total services</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCount() }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.total() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CBD9F2] p-5">
+    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
       <p class="text-sm text-gray-600">Active</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeCount() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#DCDCDC] p-5">
+    <div class="rounded-[24px] bg-[#E7EAEE] p-5">
       <p class="text-sm text-gray-600">Avg. price</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">${{ avgPrice() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#EEEBFA] p-5">
+    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
       <p class="text-sm text-gray-600">Categories</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ categories.length }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.categories().length }}</p>
+    </div>
+  </div>
+
+  <!-- Estado de carga / error del catálogo -->
+  <div *ngIf="store.loading()" class="bg-white rounded-[28px] p-6">
+    <div class="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      Loading catalog…
+    </div>
+  </div>
+
+  <div *ngIf="!store.loading() && store.error() as err" class="bg-white rounded-[28px] p-6">
+    <div class="flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+      <p class="text-sm text-red-600">{{ err }}</p>
+      <button type="button" (click)="store.refresh()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Retry
+      </button>
     </div>
   </div>
 
   <!-- Catalog -->
-  <app-service-catalog [services]="services()" (addService)="openAddPanel()"
+  <app-service-catalog *ngIf="!store.loading() && !store.error()" [services]="store.entries()"
+    [categories]="store.categoryNames()" (addService)="openAddPanel()"
     (editService)="openEditPanel($event)"></app-service-catalog>
 </div>
 
@@ -40,10 +59,59 @@
         class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
     </div>
 
-    <select [ngModel]="newCategory()" (ngModelChange)="newCategory.set($event)"
+    <!-- Kind: inmutable tras crear (el backend no tiene endpoint para cambiarlo) -->
+    <div *ngIf="!editingService()" class="flex items-center gap-2">
+      <button type="button" (click)="newKind.set('Service')"
+        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="newKind() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Service
+      </button>
+      <button type="button" (click)="newKind.set('Product')"
+        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="newKind() === 'Product' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        Product
+      </button>
+    </div>
+
+    <!-- Categoría real del tenant (el backend exige un CategoryId válido) -->
+    <select [ngModel]="newCategoryId()" (ngModelChange)="newCategoryId.set($event)"
       class="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300">
-      <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+      <option value="" disabled>Select category</option>
+      <option *ngFor="let category of store.categories()" [value]="category.id">{{ category.name }}</option>
     </select>
+
+    <!-- Alta inline: sin categorías no se puede crear el primer ítem del tenant -->
+    <div class="flex items-center gap-2">
+      <div class="h-10 flex-1 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+        <input type="text" placeholder="New category name" [ngModel]="newCategoryName()"
+          (ngModelChange)="newCategoryName.set($event)"
+          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+      <button type="button" (click)="addCategory()" [disabled]="!newCategoryName().trim() || creatingCategory()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">
+        {{ creatingCategory() ? 'Adding…' : 'Add category' }}
+      </button>
+    </div>
+
+    <!-- Toggle Active (solo edición: los ítems nuevos nacen activos en el backend) -->
+    <div *ngIf="editingService()"
+      class="flex items-center justify-between rounded-2xl border border-gray-100 bg-[#FAFAFA] px-4 py-3">
+      <div>
+        <p class="text-sm font-medium text-gray-900">{{ newActive() ? 'Active' : 'Inactive' }}</p>
+        <p class="text-xs text-gray-500">Inactive entries stay hidden from billing</p>
+      </div>
+      <button type="button" (click)="newActive.set(!newActive())" role="switch" [attr.aria-checked]="newActive()"
+        class="relative flex h-6 w-11 items-center rounded-full transition-colors"
+        [ngClass]="newActive() ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle active status">
+        <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
+          [ngClass]="newActive() ? 'translate-x-5' : 'translate-x-0.5'"></span>
+      </button>
+    </div>
+
+    <!-- Error del backend al guardar (el modal queda abierto para corregir) -->
+    <p *ngIf="saveError() as err" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+      {{ err }}
+    </p>
   </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">
@@ -52,8 +120,8 @@
       Cancel
     </button>
     <button type="button" (click)="confirmAdd()" [disabled]="!canAdd()"
-      class="rounded-full bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50 disabled:hover:bg-gray-900 transition-colors">
-      {{ editingService() ? 'Save changes' : 'Add service' }}
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ saving() ? 'Saving…' : editingService() ? 'Save changes' : 'Add service' }}
     </button>
   </div>
 </app-modal>

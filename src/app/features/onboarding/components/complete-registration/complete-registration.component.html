@@ -1,0 +1,254 @@
+<app-auth-shell panelEyebrow="Almost there"
+  panelHeading="Set your password and choose your office address">
+
+  @switch (phase()) {
+
+    <!-- ── Cargando el preview del token ────────────────────────────────── -->
+    @case ('loading') {
+      <div class="flex items-center gap-3 py-16 text-sm text-gray-500">
+        <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+        Checking your registration link...
+      </div>
+    }
+
+    <!-- ── Token inválido / usado / vencido ─────────────────────────────── -->
+    @case ('token-error') {
+      <div class="step-content text-center">
+        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+          <ion-icon name="link-outline" class="text-3xl text-amber-600"></ion-icon>
+        </span>
+
+        @if (tokenError()?.code === 'Onboarding.TokenUsed') {
+          <h1 class="mt-6 text-3xl font-bold text-gray-900">Your account is already set up</h1>
+          <p class="mt-3 text-sm text-gray-500">
+            This registration was already completed. Sign in with the email and password you created.
+          </p>
+          <a routerLink="/login"
+            class="mt-8 flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+            Go to sign in
+          </a>
+        } @else if (tokenError()?.code === 'Onboarding.TokenExpired') {
+          <h1 class="mt-6 text-3xl font-bold text-gray-900">This link has expired</h1>
+          <p class="mt-3 text-sm text-gray-500">
+            Registration links are valid for 72 hours. Your payment is safe — please contact our support team and
+            we'll send you a new link.
+          </p>
+          <p class="mt-2 text-xs text-gray-400">You will not be charged again.</p>
+        } @else {
+          <h1 class="mt-6 text-3xl font-bold text-gray-900">This link isn't valid</h1>
+          <p class="mt-3 text-sm text-gray-500">
+            Double-check that you opened the most recent email we sent you, or contact support if the problem
+            continues.
+          </p>
+        }
+
+        <p class="mt-8 text-center text-sm text-gray-600">
+          Need help?
+          <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Back to sign in</a>
+        </p>
+      </div>
+    }
+
+    <!-- ── Formulario final ─────────────────────────────────────────────── -->
+    @case ('form') {
+      <div class="step-content">
+        <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+        @if (preview(); as buyer) {
+          <h1 class="mt-4 text-3xl font-bold text-gray-900">Welcome, {{ buyer.firstName }}</h1>
+          <p class="mt-2 text-sm text-gray-500">
+            Your payment is confirmed. Finish setting up
+            @if (buyer.planName) {
+              your <span class="font-medium text-gray-700">{{ buyer.planName }}</span> office
+            } @else {
+              your office
+            }
+            for <span class="font-medium text-gray-700">{{ buyer.maskedEmail }}</span>.
+          </p>
+        }
+
+        <form [formGroup]="form" class="mt-6 space-y-4" (ngSubmit)="onSubmit()">
+          <div class="space-y-1.5">
+            <label for="officeName" class="block text-sm font-medium text-gray-800">Office name</label>
+            <input type="text" id="officeName" formControlName="officeName" placeholder="E.g.: Reyes Tax Consulting"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="subdomain" class="block text-sm font-medium text-gray-800">Your office address</label>
+            <div class="relative">
+              <input type="text" id="subdomain" formControlName="subdomain" placeholder="reyestax" autocomplete="off"
+                spellcheck="false"
+                class="block w-full px-4 py-3 pr-11 border rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors"
+                [class.border-gray-200]="subdomainState() !== 'unavailable'"
+                [class.focus:border-indigo-500]="subdomainState() !== 'unavailable'"
+                [class.border-red-300]="subdomainState() === 'unavailable'" />
+              <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                @switch (subdomainState()) {
+                  @case ('checking') {
+                    <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+                  }
+                  @case ('available') {
+                    <ion-icon name="checkmark-circle-outline" class="text-lg text-emerald-600"></ion-icon>
+                  }
+                  @case ('unavailable') {
+                    <ion-icon name="close-circle-outline" class="text-lg text-red-500"></ion-icon>
+                  }
+                }
+              </span>
+            </div>
+
+            @if (subdomainMessage()) {
+              <p class="text-xs font-medium text-red-600">{{ subdomainMessage() }}</p>
+            } @else {
+              <p class="text-xs text-gray-400">
+                Your team will sign in at
+                <span class="font-medium text-gray-600">{{ form.value.subdomain || 'youroffice' }}.{{ baseDomain }}</span>
+              </p>
+            }
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="password" class="block text-sm font-medium text-gray-800">Password</label>
+            <div class="relative">
+              <input [type]="showPassword() ? 'text' : 'password'" id="password" formControlName="password"
+                autocomplete="new-password" [placeholder]="'Minimum ' + minPasswordLength + ' characters'"
+                class="block w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+              <button type="button" (click)="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600"
+                [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+                <ion-icon [name]="showPassword() ? 'eye-off' : 'eye'" class="text-lg"></ion-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="confirmPassword" class="block text-sm font-medium text-gray-800">Confirm password</label>
+            <input [type]="showPassword() ? 'text' : 'password'" id="confirmPassword"
+              formControlName="confirmPassword" autocomplete="new-password" placeholder="Repeat the password"
+              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
+          </div>
+
+          <label class="flex items-start gap-3 cursor-pointer pt-1">
+            <input type="checkbox" formControlName="acceptTerms"
+              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            <span class="text-sm text-gray-600">
+              I agree to the
+              <a href="#" (click)="openTerms($event)" class="font-medium text-indigo-600 hover:text-indigo-500">
+                Terms of Service
+              </a>
+              @if (terms(); as current) {
+                <span class="text-gray-400">(version {{ current.version }})</span>
+              }
+            </span>
+          </label>
+
+          @if (formError()) {
+            <p class="text-sm font-medium text-red-600">{{ formError() }}</p>
+          }
+
+          <button type="submit" [disabled]="submitting()"
+            class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
+            @if (submitting()) {
+              <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              <span>Creating your office...</span>
+            } @else {
+              <span>Create my office</span>
+            }
+          </button>
+        </form>
+      </div>
+    }
+
+    <!-- ── Provisioning en curso ────────────────────────────────────────── -->
+    @case ('provisioning') {
+      <div class="step-content">
+        <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+        <h1 class="mt-4 text-3xl font-bold text-gray-900">Setting up your office</h1>
+        <p class="mt-2 text-sm text-gray-500">This usually takes less than a minute. Please keep this tab open.</p>
+
+        <div class="mt-8">
+          <app-provisioning-progress [currentStep]="status()?.currentStep ?? null" />
+        </div>
+      </div>
+    }
+
+    <!-- ── Listo ────────────────────────────────────────────────────────── -->
+    @case ('completed') {
+      <div class="success-content text-center">
+        <span class="success-check mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+          <ion-icon name="checkmark-outline" class="text-3xl text-emerald-600"></ion-icon>
+        </span>
+
+        <h1 class="mt-6 text-3xl font-bold text-gray-900">Your office is ready</h1>
+        <p class="mt-3 text-sm text-gray-500">
+          Sign in with the email and password you just created.
+        </p>
+
+        @if (status()?.redirectUrl; as redirectUrl) {
+          <p class="mt-4 truncate text-sm font-medium text-gray-700">{{ redirectUrl }}</p>
+          <a [href]="redirectUrl"
+            class="mt-8 flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+            Go to your office
+            <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+          </a>
+        } @else {
+          <a routerLink="/login"
+            class="mt-8 flex w-full items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+            Go to sign in
+          </a>
+        }
+      </div>
+    }
+
+    <!-- ── Estado terminal no exitoso ───────────────────────────────────── -->
+    @case ('stalled') {
+      <div class="step-content">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
+          <ion-icon name="time-outline" class="text-3xl text-indigo-600"></ion-icon>
+        </span>
+
+        <h1 class="mt-6 text-3xl font-bold text-gray-900">Hang tight</h1>
+        <p class="mt-3 text-sm text-gray-500">{{ stalledMessage() }}</p>
+
+        <div class="mt-8">
+          <app-provisioning-progress [currentStep]="status()?.currentStep ?? null" [stalled]="true" />
+        </div>
+
+        @if (status()?.failureCode; as failureCode) {
+          <p class="mt-6 text-xs text-gray-400">Reference for support: {{ failureCode }}</p>
+        }
+
+        <p class="mt-8 text-sm text-gray-600">
+          <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Back to sign in</a>
+        </p>
+      </div>
+    }
+
+    <!-- ── Se pasó el tiempo de espera en el navegador ──────────────────── -->
+    @case ('timed-out') {
+      <div class="step-content">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
+          <ion-icon name="mail-outline" class="text-3xl text-indigo-600"></ion-icon>
+        </span>
+
+        <h1 class="mt-6 text-3xl font-bold text-gray-900">We're still working on it</h1>
+        <p class="mt-3 text-sm text-gray-500">
+          Your office is taking a little longer than usual to set up. We'll email you as soon as it's ready — you can
+          close this tab.
+        </p>
+
+        <div class="mt-8">
+          <app-provisioning-progress [currentStep]="status()?.currentStep ?? null" [stalled]="true" />
+        </div>
+
+        <p class="mt-8 text-sm text-gray-600">
+          <a routerLink="/login" class="font-semibold text-indigo-600 hover:text-indigo-500">Back to sign in</a>
+        </p>
+      </div>
+    }
+  }
+</app-auth-shell>
+
+<app-terms-modal [isOpen]="termsModalOpen()" [termsVersionId]="terms()?.termsVersionId ?? null"
+  (closed)="termsModalOpen.set(false)" />

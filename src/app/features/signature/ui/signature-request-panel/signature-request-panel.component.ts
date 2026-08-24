@@ -6,17 +6,29 @@ import {
   Output,
   ViewChild,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Signer, SignatureRequest } from '../signature-table/signature-table.component';
 import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
 import { SignatureWizardDocumentStepComponent } from '../signature-wizard-document-step/signature-wizard-document-step.component';
 import { SignatureWizardReviewStepComponent } from '../signature-wizard-review-step/signature-wizard-review-step.component';
-import { SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
+import { NormalizedPlacedField, SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
 import { EditorSigner, PlacedField, RequestRules, WizardClient, WizardDocument } from './signature-wizard.model';
-import { initialsOf } from './signature-wizard.mock';
+import {
+  SignatureCategory,
+  TOKEN_EXPIRATION_DEFAULT_HOURS,
+  TOKEN_EXPIRATION_MAX_HOURS,
+  TOKEN_EXPIRATION_MIN_HOURS,
+  fieldTypeToKind,
+} from '../../data-access/signature.model';
+import {
+  SignatureStore,
+  WizardRequestDraft,
+  WizardSendState,
+  emptySendState,
+} from '../../data-access/signature.store';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -24,15 +36,15 @@ type WizardStep = 1 | 2 | 3 | 4;
 type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
 
 /**
- * Wizard de "New Signature Request" (adaptado del flujo del CRM: cliente →
- * documento → editor de campos sobre el PDF → review → enviar). Es un takeover
- * in-page (mismo patrón que la vista previa): el padre lo monta con *ngIf
- * reemplazando la lista, dentro del shell (sidebar + navbar siguen visibles).
+ * Wizard de "New Signature Request" contra el backend real: cliente (Customer.Api)
+ * → documento (preflight /signature/documents/validate + upload a CloudStorage) →
+ * editor de campos sobre el PDF → review → envío multi-paso (create → signers →
+ * fields → send). Es un takeover in-page (mismo patrón que la vista previa).
  * Cada paso es un sub-componente; el editor (paso 3) queda montado (oculto en
  * los demás pasos) para preservar los campos al navegar, y al pasar 3→4 se
- * snapshotean firmantes/campos para el resumen. Sin backend: `send()` arma el
- * `SignatureRequest` y lo emite (el POST /signature/requests real queda como
- * punto de integración futuro).
+ * snapshotean firmantes/campos (también normalizados 0..1) para el resumen y el POST.
+ * Si el envío falla a mitad, la solicitud queda en Draft en el backend y el
+ * progreso (`sendState`) se conserva para que Retry no duplique nada.
  */
 @Component({
   selector: 'app-signature-request-panel',
@@ -50,13 +62,18 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
 })
 export class SignatureRequestPanelComponent {
   @Output() closed = new EventEmitter<void>();
-  @Output() sent = new EventEmitter<SignatureRequest>();
+  /** El backend ya mandó los emails (POST send → 202): el padre solo refresca y cierra. */
+  @Output() sent = new EventEmitter<void>();
 
   @ViewChild('editor') private editor?: SignaturePdfEditorComponent;
+
+  readonly store = inject(SignatureStore);
 
   readonly currentStep = signal<WizardStep>(1);
   readonly selectedClient = signal<WizardClient | null>(null);
   readonly selectedDocument = signal<WizardDocument | null>(null);
+  readonly title = signal('');
+  readonly category = signal<SignatureCategory>('Fiscal');
   readonly dueDate = signal('');
   readonly notes = signal('');
   readonly fieldCount = signal(0);
@@ -64,7 +81,12 @@ export class SignatureRequestPanelComponent {
   /** Snapshots tomados al pasar 3→4 (el editor sigue montado para que Back preserve). */
   readonly signersSnapshot = signal<EditorSigner[]>([]);
   readonly fieldsSnapshot = signal<PlacedField[]>([]);
+  readonly normalizedFieldsSnapshot = signal<NormalizedPlacedField[]>([]);
   readonly rulesSnapshot = signal<RequestRules | null>(null);
+
+  /** Progreso del envío multi-paso; sobrevive a fallos parciales para reintentar sin duplicar. */
+  private sendState: WizardSendState = emptySendState();
+  readonly sendError = signal('');
 
   /** Coreografía de envío (overlay a pantalla completa). */
   readonly sendPhase = signal<SendPhase>('idle');
@@ -72,9 +94,9 @@ export class SignatureRequestPanelComponent {
   readonly sendCaption = computed(() => {
     switch (this.sendPhase()) {
       case 'paper':
-        return 'Creating document…';
+        return 'Creating request…';
       case 'signing':
-        return 'Signing…';
+        return 'Sending to signers…';
       case 'done':
         return 'Request sent';
       default:
@@ -88,7 +110,7 @@ export class SignatureRequestPanelComponent {
   readonly stepTitles = ['Client', 'Document', 'Fields', 'Review'];
   readonly stepSubtitles = [
     'Choose who this request is for',
-    'Pick or upload the document to sign',
+    'Upload the PDF to sign',
     'Place the signature fields',
     'Review everything and send',
   ];
@@ -100,7 +122,8 @@ export class SignatureRequestPanelComponent {
       case 1:
         return this.selectedClient() !== null;
       case 2:
-        return this.selectedDocument() !== null;
+        // El documento debe haber pasado el preflight Y estar ya en CloudStorage.
+        return !!this.selectedDocument()?.fileId;
       case 3:
         return this.fieldCount() > 0;
       default:
@@ -108,12 +131,19 @@ export class SignatureRequestPanelComponent {
     }
   });
 
-  readonly canSend = computed(
-    () =>
+  readonly canSend = computed(() => {
+    const doc = this.selectedDocument();
+    const titleLength = this.title().trim().length;
+    return (
       this.selectedClient() !== null &&
-      this.selectedDocument() !== null &&
-      this.fieldsSnapshot().length > 0,
-  );
+      !!doc?.fileId &&
+      titleLength >= 3 &&
+      titleLength <= 300 &&
+      this.normalizedFieldsSnapshot().length > 0 &&
+      // Regla del dominio: al menos un campo Signature o Initials para poder enviar.
+      this.normalizedFieldsSnapshot().some(f => f.type === 'signature' || f.type === 'initials')
+    );
+  });
 
   onClientSelected(client: WizardClient): void {
     this.selectedClient.set(client);
@@ -121,16 +151,24 @@ export class SignatureRequestPanelComponent {
 
   onDocumentSelected(doc: WizardDocument): void {
     this.selectedDocument.set(doc);
+    if (!this.title().trim()) {
+      this.title.set(doc.name.replace(/\.pdf$/i, ''));
+    }
+  }
+
+  onDocumentCleared(): void {
+    this.selectedDocument.set(null);
   }
 
   next(): void {
     if (!this.canProceed()) {
       return;
     }
-    // Al salir del editor se congela el estado para el resumen del paso 4.
+    // Al salir del editor se congela el estado para el resumen del paso 4 y el POST.
     if (this.currentStep() === 3) {
       this.signersSnapshot.set(this.editor?.getSigners() ?? []);
       this.fieldsSnapshot.set(this.editor?.getFields() ?? []);
+      this.normalizedFieldsSnapshot.set(this.editor?.buildNormalizedFields() ?? []);
       this.rulesSnapshot.set(this.editor?.getRules() ?? null);
     }
     this.currentStep.update(step => Math.min(4, step + 1) as WizardStep);
@@ -160,56 +198,77 @@ export class SignatureRequestPanelComponent {
   }
 
   send(): void {
-    const client = this.selectedClient();
-    const doc = this.selectedDocument();
-    if (!this.canSend() || !client || !doc || this.isSending()) {
+    if (!this.canSend() || this.isSending()) {
       return;
     }
-
-    const signers: Signer[] = this.signersSnapshot().map(signer => ({
-      name: signer.name,
-      initials: initialsOf(signer.name),
-      email: signer.email,
-      color: signer.color,
-      status: 'pending' as const,
-      signedAt: null,
-      channel: signer.channel,
-    }));
-
-    const pdfPayload = this.editor?.buildPdfPayload() ?? [];
-
-    const today = new Date().toISOString().slice(0, 10);
-    const request: SignatureRequest = {
-      id: `signature-${Date.now()}`,
-      documentName: doc.name,
-      client: client.displayName,
-      clientId: client.id,
-      signers,
-      status: 'pending',
-      sentDate: today,
-      dueDate: this.dueDate() || today,
-      completedDate: null,
-      notes: this.notes().trim(),
-      signatureFields: this.fieldsSnapshot(),
-      rules: this.rulesSnapshot() ?? undefined,
-    };
-
-    // Punto de integración futuro con el backend: POST /signature/requests.
-    console.debug('[signature] POST /signature/requests', { request, pdfPayload });
-
-    void this.playSendSequence(request);
+    void this.runSend();
   }
 
-  /** Coreografía de envío: el papel se crea (líneas), se firma (trazo) y sale. */
-  private async playSendSequence(request: SignatureRequest): Promise<void> {
+  private async runSend(): Promise<void> {
+    const draft = this.buildDraft();
+    if (!draft) {
+      return;
+    }
+    this.sendError.set('');
     this.sendPhase.set('paper');
-    await this.delay(1000);
-    this.sendPhase.set('signing');
-    await this.delay(1500);
-    this.sendPhase.set('done');
-    await this.delay(800);
-    this.sendPhase.set('idle');
-    this.sent.emit(request);
+    try {
+      this.sendState = await this.store.sendWizard(draft, this.sendState, phase => {
+        this.sendPhase.set(phase === 'creating' ? 'paper' : 'signing');
+      });
+      this.sendPhase.set('done');
+      await this.delay(800);
+      this.sendPhase.set('idle');
+      this.sent.emit();
+    } catch (err) {
+      this.sendPhase.set('idle');
+      this.sendError.set(err instanceof Error ? err.message : 'The request could not be sent. Please retry.');
+    }
+  }
+
+  private buildDraft(): WizardRequestDraft | null {
+    const client = this.selectedClient();
+    const doc = this.selectedDocument();
+    if (!client || !doc?.fileId) {
+      return null;
+    }
+    const rules = this.rulesSnapshot();
+    return {
+      title: this.title().trim(),
+      description: this.notes().trim() || null,
+      category: this.category(),
+      originalFileId: doc.fileId,
+      tokenExpirationHours: this.tokenExpirationHours(),
+      requiresSequentialSigning: rules?.sequential ?? true,
+      requiresConsent: true,
+      generateCertificate: rules?.certificate ?? true,
+      signers: this.signersSnapshot().map(signer => ({
+        localId: signer.id,
+        fullName: signer.name,
+        email: signer.email,
+      })),
+      fields: this.normalizedFieldsSnapshot().map(field => ({
+        localId: field.localId,
+        signerLocalId: field.signerLocalId,
+        kind: fieldTypeToKind(field.type),
+        page: field.page,
+        x: field.x,
+        y: field.y,
+        width: field.width,
+        height: field.height,
+        isRequired: true,
+      })),
+    };
+  }
+
+  /** Due date → horas de expiración del token (rango 1..720 del dominio; sin fecha = 7 días). */
+  private tokenExpirationHours(): number {
+    const due = this.dueDate();
+    if (!due) {
+      return TOKEN_EXPIRATION_DEFAULT_HOURS;
+    }
+    const endOfDay = new Date(`${due}T23:59:59`);
+    const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
+    return Math.min(Math.max(hours, TOKEN_EXPIRATION_MIN_HOURS), TOKEN_EXPIRATION_MAX_HOURS);
   }
 
   private delay(ms: number): Promise<void> {

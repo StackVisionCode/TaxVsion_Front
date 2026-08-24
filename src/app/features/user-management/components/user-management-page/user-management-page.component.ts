@@ -1,114 +1,27 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { toApiError } from '@core/models/api-error.model';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { UserManagementStore } from '../../data-access/user-management.store';
 
-const PAGE_SIZE = 8;
-
-const SEED_MEMBERS: TeamMember[] = [
-  {
-    id: 'member-1',
-    name: 'Jordan Reyes',
-    initials: 'JR',
-    avatarColor: 'bg-indigo-600',
-    email: 'jordan.reyes@taxprooffice.com',
-    role: 'owner',
-    status: 'active',
-    lastActive: 'Just now',
-  },
-  {
-    id: 'member-2',
-    name: 'James Cooper',
-    initials: 'JC',
-    avatarColor: 'bg-indigo-500',
-    email: 'james.cooper@taxprooffice.com',
-    role: 'admin',
-    status: 'active',
-    lastActive: '2 hours ago',
-  },
-  {
-    id: 'member-3',
-    name: 'Elena Vargas',
-    initials: 'EV',
-    avatarColor: 'bg-orange-500',
-    email: 'elena.vargas@taxprooffice.com',
-    role: 'preparer',
-    status: 'active',
-    lastActive: '1 hour ago',
-  },
-  {
-    id: 'member-4',
-    name: 'Sarah Mitchell',
-    initials: 'SM',
-    avatarColor: 'bg-[#7C6AE0]',
-    email: 'sarah.mitchell@taxprooffice.com',
-    role: 'admin',
-    status: 'active',
-    lastActive: '3 hours ago',
-  },
-  {
-    id: 'member-5',
-    name: 'Aisha Thompson',
-    initials: 'AT',
-    avatarColor: 'bg-green-500',
-    email: 'aisha.thompson@taxprooffice.com',
-    role: 'preparer',
-    status: 'active',
-    lastActive: 'Yesterday',
-  },
-  {
-    id: 'member-6',
-    name: 'Marcus Webb',
-    initials: 'MW',
-    avatarColor: 'bg-indigo-500',
-    email: 'marcus.webb@taxprooffice.com',
-    role: 'preparer',
-    status: 'active',
-    lastActive: '5 hours ago',
-  },
-  {
-    id: 'member-7',
-    name: 'Priya Natarajan',
-    initials: 'PN',
-    avatarColor: 'bg-orange-500',
-    email: 'priya.natarajan@taxprooffice.com',
-    role: 'viewer',
-    status: 'active',
-    lastActive: '2 days ago',
-  },
-  {
-    id: 'member-8',
-    name: 'David Chen',
-    initials: 'DC',
-    avatarColor: 'bg-[#7C6AE0]',
-    email: 'david.chen@taxprooffice.com',
-    role: 'preparer',
-    status: 'invited',
-    lastActive: 'Invited 3 days ago',
-  },
-  {
-    id: 'member-9',
-    name: 'Robert Kim',
-    initials: 'RK',
-    avatarColor: 'bg-indigo-500',
-    email: 'robert.kim@taxprooffice.com',
-    role: 'admin',
-    status: 'suspended',
-    lastActive: '3 weeks ago',
-  },
-];
+type TeamTab = 'members' | 'invitations';
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * Página del módulo User Management (estilo "Aether"): directorio del
  * equipo/staff de la firma con roles e invitaciones, distinto de Profile
  * (que es la página del usuario logueado). Stats pastel arriba + barra de
- * búsqueda/"Invite member" + tabla de miembros + panel de invitación/
- * edición. Todo el estado vive en signals dentro de esta página, sin
- * servicios ni backend; el único miembro 'owner' no puede editarse ni
- * eliminarse (la tabla oculta su menú de acciones).
+ * búsqueda/"Invite member" + tabla con dos pestañas + panel de invitación/
+ * edición. Los datos vienen de UserManagementStore (Auth.Api vía `/auth/*`):
+ * Members = GET /auth/users con paginación y búsqueda del servidor;
+ * Invitations = GET /auth/invitations?status=Pending. Suspend/Reactivate son
+ * PATCH deactivate/reactivate (no hay delete de usuarios en el backend, así
+ * que no existe "Remove member"); cancelar una invitación sí pide confirmación.
+ * La fila del usuario logueado no muestra menú de acciones.
  */
 @Component({
   selector: 'app-user-management-page',
@@ -124,46 +37,91 @@ const SEED_MEMBERS: TeamMember[] = [
   templateUrl: './user-management-page.component.html',
 })
 export class UserManagementPageComponent {
-  readonly members = signal<TeamMember[]>(SEED_MEMBERS);
+  private readonly store = inject(UserManagementStore);
+
+  readonly members = this.store.members;
+  readonly membersTotal = this.store.membersTotal;
+  readonly membersPage = this.store.membersPage;
+  readonly membersLoading = this.store.membersLoading;
+  readonly membersError = this.store.membersError;
+
+  readonly invitationsTotal = this.store.invitationsTotal;
+  readonly invitationsPage = this.store.invitationsPage;
+  readonly invitationsLoading = this.store.invitationsLoading;
+  readonly invitationsError = this.store.invitationsError;
+
+  readonly limits = this.store.limits;
+  readonly currentUserId = this.store.currentUserId;
+  readonly pageSize = this.store.pageSize;
+
+  readonly tab = signal<TeamTab>('members');
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
-  readonly pendingDelete = signal<TeamMember | null>(null);
+  readonly pendingCancel = signal<TeamMember | null>(null);
 
-  readonly deleteMessage = computed(() => {
-    const member = this.pendingDelete();
-    return member ? `You're about to remove ${member.name} from the team. This can't be undone.` : '';
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
+
+  readonly cancelMessage = computed(() => {
+    const invitation = this.pendingCancel();
+    return invitation
+      ? `You're about to cancel the invitation for ${invitation.email}. They won't be able to join with the link they received.`
+      : '';
   });
 
   readonly toast = signal<string | null>(null);
+  readonly toastKind = signal<'success' | 'error'>('success');
   private toastTimer?: ReturnType<typeof setTimeout>;
 
-  readonly totalCount = computed(() => this.members().length);
-  readonly activeCount = computed(() => this.members().filter(member => member.status === 'active').length);
-  readonly pendingInvitesCount = computed(() => this.members().filter(member => member.status === 'invited').length);
-
-  readonly filteredMembers = computed<TeamMember[]>(() => {
-    const query = this.search().trim().toLowerCase();
-    if (!query) {
-      return this.members();
+  // Stats: total desde el listado paginado; activos/pendientes/asientos desde GET /auth/tenants/limits.
+  readonly totalCount = this.store.membersTotal;
+  readonly activeCount = computed(() => this.limits()?.activeUsers ?? '—');
+  readonly pendingInvitesCount = computed(() => this.limits()?.pendingInvitations ?? this.invitationsTotal());
+  readonly seatsLeft = computed(() => {
+    const limits = this.limits();
+    if (!limits) {
+      return '—';
     }
-    return this.members().filter(
-      member => member.name.toLowerCase().includes(query) || member.email.toLowerCase().includes(query),
+    // maxUsers null = plan sin tope de asientos.
+    return limits.maxUsers === null ? '∞' : (limits.availableSeats ?? '—');
+  });
+
+  /** El search de invitaciones filtra en cliente sobre la página cargada (el endpoint no busca por texto). */
+  readonly visibleInvitations = computed<TeamMember[]>(() => {
+    const query = this.search().trim().toLowerCase();
+    const invitations = this.store.invitations();
+    if (!query) {
+      return invitations;
+    }
+    return invitations.filter(
+      invitation => invitation.name.toLowerCase().includes(query) || invitation.email.toLowerCase().includes(query),
     );
   });
 
-  readonly currentPage = signal(1);
-  readonly pageSize = PAGE_SIZE;
+  constructor() {
+    this.store.loadMembers(1);
+    this.store.loadInvitations(1);
+    this.store.loadCatalogs();
+  }
 
-  readonly pagedMembers = computed<TeamMember[]>(() => {
-    const start = (this.currentPage() - 1) * PAGE_SIZE;
-    return this.filteredMembers().slice(start, start + PAGE_SIZE);
-  });
+  setTab(tab: TeamTab): void {
+    this.tab.set(tab);
+  }
 
   onSearchChange(value: string): void {
     this.search.set(value);
-    this.currentPage.set(1);
+    // Members se buscan en el servidor (query `search` de GET /auth/users), con debounce.
+    clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => this.store.setSearch(value), SEARCH_DEBOUNCE_MS);
+  }
+
+  onMembersPageChange(page: number): void {
+    this.store.loadMembers(page);
+  }
+
+  onInvitationsPageChange(page: number): void {
+    this.store.loadInvitations(page);
   }
 
   openInvitePanel(): void {
@@ -181,44 +139,50 @@ export class UserManagementPageComponent {
     this.editingMember.set(null);
   }
 
-  handleSaved(member: TeamMember): void {
-    this.members.update(list => {
-      const exists = list.some(item => item.id === member.id);
-      return exists ? list.map(item => (item.id === member.id ? member : item)) : [...list, member];
-    });
-    this.showToast(this.editingMember() ? 'Member updated' : `Invite sent to ${member.email}`);
+  /** El panel ya hizo el POST/PUT real y actualizó el store — acá solo toast + cierre. */
+  handleSaved(email: string): void {
+    this.showToast(this.editingMember() ? 'Member roles updated' : `Invite sent to ${email}`);
+    if (!this.editingMember()) {
+      this.tab.set('invitations');
+    }
     this.closePanel();
   }
 
   resendInvite(member: TeamMember): void {
-    this.showToast(`Invite resent to ${member.email}`);
+    this.store.resendInvitation(member.id).subscribe({
+      next: () => this.showToast(`Invite resent to ${member.email}`),
+      error: err => this.showToast(toApiError(err).message, 'error'),
+    });
   }
 
+  /** Suspend/Reactivate = PATCH /auth/users/{id}/deactivate|reactivate. */
   toggleSuspend(member: TeamMember): void {
-    this.members.update(list =>
-      list.map(item =>
-        item.id === member.id ? { ...item, status: item.status === 'suspended' ? 'active' : 'suspended' } : item,
-      ),
-    );
-    this.showToast(member.status === 'suspended' ? `${member.name} reactivated` : `${member.name} suspended`);
+    const reactivating = member.status === 'suspended';
+    this.store.setUserActive(member.id, reactivating).subscribe({
+      next: () => this.showToast(reactivating ? `${member.name} reactivated` : `${member.name} suspended`),
+      error: err => this.showToast(toApiError(err).message, 'error'),
+    });
   }
 
-  removeMember(member: TeamMember): void {
-    this.pendingDelete.set(member);
+  cancelInvite(member: TeamMember): void {
+    this.pendingCancel.set(member);
   }
 
-  confirmDelete(): void {
-    const member = this.pendingDelete();
-    if (!member) {
+  confirmCancelInvite(): void {
+    const invitation = this.pendingCancel();
+    if (!invitation) {
       return;
     }
-    this.members.update(list => list.filter(item => item.id !== member.id));
-    this.showToast(`${member.name} removed`);
-    this.pendingDelete.set(null);
+    this.store.cancelInvitation(invitation.id).subscribe({
+      next: () => this.showToast(`Invitation for ${invitation.email} cancelled`),
+      error: err => this.showToast(toApiError(err).message, 'error'),
+    });
+    this.pendingCancel.set(null);
   }
 
-  private showToast(message: string): void {
+  private showToast(message: string, kind: 'success' | 'error' = 'success'): void {
     this.toast.set(message);
+    this.toastKind.set(kind);
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.toast.set(null), 2500);
   }

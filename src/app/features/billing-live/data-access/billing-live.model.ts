@@ -60,3 +60,15 @@ export interface IssuerProfile {
   phone: string;
   email: string;
 }
+
+/**
+ * Subset mínimo de GET /customers para el picker de cliente de la factura (réplica del
+ * shape, patrón task/sms — sin imports cross-feature). Billing exige un `customerId`
+ * real: sin él la factura queda huérfana y no se puede rastrear desde el cliente.
+ */
+export interface BillingCustomerSummary {
+  id: string;
+  displayName: string;
+  primaryEmail: string;
+  primaryPhone: string | null;
+}

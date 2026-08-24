@@ -1,26 +1,17 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-export type TemplateCategory = 'Email' | 'Letter' | 'Invoice Note' | 'Reminder';
-export type TemplateStatus = 'published' | 'draft';
-
-export interface Template {
-  id: string;
-  name: string;
-  category: TemplateCategory;
-  status: TemplateStatus;
-  body: string;
-  /** ISO date string (YYYY-MM-DD). */
-  updatedAt: string;
-}
+import { Template, TemplateUiStatus } from '../../data-access/templates.model';
 
 /**
  * Grid de tarjetas de plantillas (patrón "Aether"; tarjetas en vez de tabla
  * porque cada plantilla se hojea/previsualiza como un documento): icono
  * circular pastel por categoría, nombre, chip de categoría, chip de estado
- * (Published/Draft) y fecha de última edición. Menú fantasma "..." con
- * Edit/Duplicate/Delete; el click en el resto de la tarjeta dispara la
- * vista previa de solo lectura en la página contenedora.
+ * y fecha. Menú fantasma "..." con Edit/Publish/Archive; el click en el resto
+ * de la tarjeta dispara la vista previa de solo lectura.
+ *
+ * Contra el backend real la categoría es TEXTO LIBRE (no un enum cerrado), así
+ * que icono/color se derivan por palabra clave con un fallback neutro. Las
+ * plantillas System son de plataforma: se muestran de solo lectura.
  */
 @Component({
   selector: 'app-template-card-grid',
@@ -30,10 +21,11 @@ export interface Template {
 })
 export class TemplateCardGridComponent {
   @Input() templates: Template[] = [];
+  @Input() emptyMessage = 'No templates match your search';
   @Output() previewRequested = new EventEmitter<Template>();
   @Output() editRequested = new EventEmitter<Template>();
-  @Output() duplicateRequested = new EventEmitter<Template>();
-  @Output() deleteRequested = new EventEmitter<Template>();
+  @Output() publishRequested = new EventEmitter<Template>();
+  @Output() archiveRequested = new EventEmitter<Template>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -49,54 +41,59 @@ export class TemplateCardGridComponent {
     return template.id;
   }
 
-  categoryIcon(category: TemplateCategory): string {
-    switch (category) {
-      case 'Email':
-        return 'mail-outline';
-      case 'Letter':
-        return 'document-text-outline';
-      case 'Invoice Note':
-        return 'receipt-outline';
-      case 'Reminder':
-        return 'alarm-outline';
-    }
+  categoryIcon(category: string): string {
+    const key = category.toLowerCase();
+    if (key.includes('mail')) return 'mail-outline';
+    if (key.includes('letter')) return 'document-text-outline';
+    if (key.includes('invoice') || key.includes('billing')) return 'receipt-outline';
+    if (key.includes('remind') || key.includes('alert')) return 'alarm-outline';
+    return 'documents-outline';
   }
 
-  categoryCircle(category: TemplateCategory): string {
-    switch (category) {
-      case 'Email':
-        return 'bg-[#CBD9F2]';
-      case 'Letter':
-        return 'bg-[#F2E3C9]';
-      case 'Invoice Note':
-        return 'bg-[#EEEBFA]';
-      case 'Reminder':
-        return 'bg-[#DCDCDC]';
-    }
+  categoryCircle(category: string): string {
+    const key = category.toLowerCase();
+    if (key.includes('mail')) return 'bg-[#CFE2F7]';
+    if (key.includes('letter')) return 'bg-[#E8F1FB]';
+    if (key.includes('invoice') || key.includes('billing')) return 'bg-[#DDE9F5]';
+    if (key.includes('remind') || key.includes('alert')) return 'bg-[#E7EAEE]';
+    return 'bg-[#E2EDF7]';
   }
 
-  categoryChip(category: TemplateCategory): string {
-    switch (category) {
-      case 'Email':
-        return 'border-indigo-200 text-indigo-600';
-      case 'Letter':
-        return 'border-orange-200 text-orange-500';
-      case 'Invoice Note':
-        return 'border-[#D6CEF4] text-[#7C6AE0]';
-      case 'Reminder':
+  categoryChip(category: string): string {
+    const key = category.toLowerCase();
+    if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
+    if (key.includes('letter')) return 'border-orange-200 text-orange-500';
+    if (key.includes('invoice') || key.includes('billing')) return 'border-[#D7E3EF] text-[#1E466B]';
+    if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
+    return 'border-gray-200 text-gray-500';
+  }
+
+  statusChip(status: TemplateUiStatus): string {
+    switch (status) {
+      case 'published':
+        return 'border-emerald-200 text-emerald-600';
+      case 'archived':
+        return 'border-gray-200 text-gray-400';
+      case 'draft':
         return 'border-gray-300 text-gray-500';
     }
   }
 
-  statusChip(status: TemplateStatus): string {
-    return status === 'published' ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500';
-  }
-
-  statusLabel(status: TemplateStatus): string {
-    return status === 'published' ? 'Published' : 'Draft';
+  statusLabel(status: TemplateUiStatus): string {
+    switch (status) {
+      case 'published':
+        return 'Published';
+      case 'archived':
+        return 'Archived';
+      case 'draft':
+        return 'Draft';
+    }
   }
 
   formatDate(iso: string): string {
+    if (!iso) {
+      return '—';
+    }
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -123,15 +120,15 @@ export class TemplateCardGridComponent {
     this.editRequested.emit(template);
   }
 
-  onDuplicateClick(template: Template, event: MouseEvent): void {
+  onPublishClick(template: Template, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.duplicateRequested.emit(template);
+    this.publishRequested.emit(template);
   }
 
-  onDeleteClick(template: Template, event: MouseEvent): void {
+  onArchiveClick(template: Template, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.deleteRequested.emit(template);
+    this.archiveRequested.emit(template);
   }
 }

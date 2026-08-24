@@ -1,0 +1,19 @@
+<app-modal [isOpen]="open()" [heading]="heading" size="2xl" (closed)="closed.emit()">
+  @if (loading()) {
+    <div class="flex items-center gap-3 py-10 text-sm text-gray-500">
+      <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+      Loading the current terms...
+    </div>
+  } @else if (loadError()) {
+    <p class="py-10 text-sm font-medium text-red-600">{{ loadError() }}</p>
+  } @else if (content()) {
+    <div class="terms-content max-w-none text-sm leading-relaxed text-gray-700" [innerHTML]="content()"></div>
+  }
+
+  <div class="mt-8 flex justify-end">
+    <button type="button" (click)="closed.emit()"
+      class="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
+      Close
+    </button>
+  </div>
+</app-modal>

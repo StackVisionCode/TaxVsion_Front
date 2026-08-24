@@ -72,7 +72,18 @@
 
     <h2 class="mt">Nueva factura</h2>
     <div class="grid2">
-      <div><label>Cliente</label><input class="in" [ngModel]="customerName()" (ngModelChange)="customerName.set($event)" placeholder="Nombre del cliente" /></div>
+      <div>
+        <label>Cliente</label>
+        <!-- Cliente real del CRM: Billing guarda este id y sin él la factura queda huérfana -->
+        <select class="in" [ngModel]="selectedCustomerId()" (ngModelChange)="selectedCustomerId.set($event)"
+          [disabled]="customersLoading()">
+          <option value="">{{ customersLoading() ? 'Cargando clientes…' : 'Selecciona un cliente' }}</option>
+          <option *ngFor="let c of customers()" [value]="c.id">{{ c.displayName }}</option>
+        </select>
+        <p *ngIf="customersError() as e" class="msg err">
+          {{ e }} <button class="link-btn" (click)="reloadCustomers()">Reintentar</button>
+        </p>
+      </div>
       <div><label>NIF / RUC del cliente (opcional)</label><input class="in" [ngModel]="customerTaxId()" (ngModelChange)="customerTaxId.set($event)" placeholder="660-11-2233" /></div>
     </div>
 

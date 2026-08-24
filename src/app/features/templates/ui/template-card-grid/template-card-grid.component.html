@@ -7,7 +7,8 @@
         <ion-icon [name]="categoryIcon(template.category)" class="text-lg text-gray-700"></ion-icon>
       </span>
 
-      <div class="relative" data-dropdown="template-menu" (click)="onMenuClick($event)">
+      <!-- Las plantillas System son de plataforma: sin acciones para el tenant -->
+      <div *ngIf="template.isEditable" class="relative" data-dropdown="template-menu" (click)="onMenuClick($event)">
         <button type="button" (click)="toggleMenu(template, $event)"
           class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
           aria-label="Template options">
@@ -20,21 +21,28 @@
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             Edit
           </button>
-          <button type="button" (click)="onDuplicateClick(template, $event)"
+          <!-- Publicar solo tiene sentido si aún no está activa -->
+          <button *ngIf="template.status !== 'published'" type="button" (click)="onPublishClick(template, $event)"
             class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <ion-icon name="copy-outline" class="text-base"></ion-icon>
-            Duplicate
+            <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+            Publish
           </button>
-          <button type="button" (click)="onDeleteClick(template, $event)"
+          <button *ngIf="template.status !== 'archived'" type="button" (click)="onArchiveClick(template, $event)"
             class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
-            <ion-icon name="trash-outline" class="text-base"></ion-icon>
-            Delete
+            <ion-icon name="archive-outline" class="text-base"></ion-icon>
+            Archive
           </button>
         </div>
       </div>
+
+      <span *ngIf="!template.isEditable"
+        class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[10px] font-medium text-gray-400">
+        System
+      </span>
     </div>
 
     <p class="mt-3 text-sm font-semibold text-gray-900 truncate">{{ template.name }}</p>
+    <p class="mt-0.5 text-xs text-gray-500 truncate">{{ template.subject }}</p>
 
     <div class="mt-2 flex flex-wrap items-center gap-1.5">
       <span class="inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium"
@@ -43,7 +51,8 @@
       </span>
       <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
         [ngClass]="statusChip(template.status)">
-        <span class="h-1.5 w-1.5 rounded-full" [ngClass]="template.status === 'published' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+        <span class="h-1.5 w-1.5 rounded-full"
+          [ngClass]="template.status === 'published' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
         {{ statusLabel(template.status) }}
       </span>
     </div>
@@ -54,5 +63,5 @@
 
 <div *ngIf="templates.length === 0" class="px-4 py-10 text-center">
   <ion-icon name="search-outline" class="text-3xl text-gray-300"></ion-icon>
-  <p class="mt-2 text-sm text-gray-500">No templates match your search</p>
+  <p class="mt-2 text-sm text-gray-500">{{ emptyMessage }}</p>
 </div>

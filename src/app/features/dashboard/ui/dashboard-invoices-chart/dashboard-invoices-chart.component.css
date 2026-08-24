@@ -12,17 +12,23 @@
 }
 
 .revenue-bar--light {
-  background-color: #a99beb;
+  background-color: #67BAF4;
 }
 
 .revenue-bar--lighter {
-  background-color: #d6cef4;
+  background-color: #D7E3EF;
 }
 
 .revenue-bar--vivid {
-  background-color: #7c6ae0;
+  background-color: #1E466B;
 }
 
 .revenue-bar--medium {
   background-color: #9d8de8;
+}
+
+/* Mes sin cobros: se pinta un tope apagado en lugar de una barra con altura,
+   para que un mes en cero no parezca un mes con ingresos pequeños. */
+.revenue-bar--empty {
+  background-color: #EEF3F8;
 }

@@ -58,7 +58,7 @@ export class ChatPageComponent {
       this.conversations().find(conv => conv.id === this.store.activeConversationId()) ?? {
         id: '',
         name: '',
-        avatarColor: 'bg-gray-900',
+        avatarColor: 'bg-brand-bold',
         online: false,
         unread: 0,
         messages: [] as ChatMessage[],

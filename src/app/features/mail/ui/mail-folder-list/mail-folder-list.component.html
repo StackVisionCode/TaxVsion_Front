@@ -1,6 +1,6 @@
 <div class="flex flex-col gap-4">
-  <button type="button" (click)="compose()"
-    class="flex w-full items-center justify-center gap-2 rounded-full bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 transition-colors">
+  <button type="button" (click)="compose()" [disabled]="composeDisabled"
+    class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-bold px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 disabled:hover:bg-brand-bold transition-colors">
     <ion-icon name="create-outline" class="text-base"></ion-icon>
     Compose
   </button>
@@ -8,7 +8,7 @@
   <nav #folderNav class="relative flex flex-col gap-1">
     <!-- Pill deslizante del ítem activo -->
     <div *ngIf="indicatorReady()"
-      class="folder-active-indicator absolute rounded-2xl bg-gray-900 pointer-events-none"
+      class="folder-active-indicator absolute rounded-2xl bg-brand-bold pointer-events-none"
       [style.top.px]="indicatorTop()" [style.left.px]="indicatorLeft()" [style.width.px]="indicatorWidth()"
       [style.height.px]="indicatorHeight()"></div>
 
@@ -17,9 +17,9 @@
       [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-600 hover:bg-gray-50'">
       <ion-icon [name]="folder.icon" class="text-base" [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-400'"></ion-icon>
       <span class="flex-1 truncate">{{ folder.label }}</span>
-      <span *ngIf="folder.unreadCount > 0"
+      <span *ngIf="folder.count > 0"
         class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
-        [ngClass]="folder.id === activeFolderId ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'">{{ folder.unreadCount }}</span>
+        [ngClass]="folder.id === activeFolderId ? 'bg-white text-gray-900' : 'bg-brand-bold text-white'">{{ folder.count }}</span>
     </button>
   </nav>
 </div>

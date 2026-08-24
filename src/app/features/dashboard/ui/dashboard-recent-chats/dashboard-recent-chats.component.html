@@ -3,32 +3,34 @@
   <div class="flex items-start justify-between">
     <div>
       <h2 class="text-xl font-bold text-gray-900">Recent Chats</h2>
-      <p class="mt-1 text-sm text-gray-500">Latest client conversations</p>
+      <p class="mt-1 text-sm text-gray-500">Latest conversations</p>
     </div>
 
-    <!-- Unread counter pill -->
-    <span *ngIf="unreadTotal() > 0"
-      class="shrink-0 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white">
+    <!-- Unread counter pill: conteo real del backend -->
+    <span *ngIf="!loading() && !error() && unreadTotal() > 0"
+      class="shrink-0 rounded-full bg-brand-bold px-3 py-1 text-xs font-medium text-white">
       {{ unreadTotal() }} unread
     </span>
   </div>
 
-  <!-- Chat list -->
-  <div class="mt-4 flex flex-col gap-1">
-    <button *ngFor="let chat of chats(); trackBy: trackByChatId" type="button" (click)="markAsRead(chat)"
+  <!-- Cargando / error de Communication / sin conversaciones -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || chats().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Chats aren't available" icon="chatbubbles-outline" title="No conversations yet"
+    message="Start a chat with a teammate and it will appear here." minHeight="13rem"></app-dashboard-widget-state>
+
+  <!-- Chat list: nombre, tipo y no leídos reales. El endpoint de listado no
+       trae preview del último mensaje ni presencia, así que no se muestran. -->
+  <div *ngIf="!loading() && !error() && chats().length > 0" class="mt-4 flex flex-col gap-1">
+    <a *ngFor="let chat of chats(); trackBy: trackByChatId" routerLink="/chat"
       class="flex w-full items-center gap-3 px-3 py-3 rounded-2xl text-left hover:bg-gray-50 transition-colors">
 
-      <!-- Avatar with online dot -->
-      <div class="relative shrink-0">
-        <span class="flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold text-white"
-          [ngClass]="chat.avatarBg">
-          {{ chat.initials }}
-        </span>
-        <span *ngIf="chat.isOnline"
-          class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
-      </div>
+      <!-- Avatar -->
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+        [ngClass]="chat.avatarBg">
+        {{ chat.initials }}
+      </span>
 
-      <!-- Name + last message -->
+      <!-- Name + conversation metadata -->
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">
           <p class="truncate text-sm text-gray-900" [ngClass]="chat.unreadCount > 0 ? 'font-semibold' : 'font-medium'">
@@ -36,11 +38,14 @@
           </p>
           <span class="shrink-0 text-xs text-gray-400">{{ chat.time }}</span>
         </div>
-        <p class="mt-0.5 truncate text-sm text-gray-500">{{ chat.lastMessage }}</p>
+        <p class="mt-0.5 truncate text-sm text-gray-500">{{ chat.subtitle }}</p>
       </div>
 
       <!-- Unread indicator -->
-      <span *ngIf="chat.unreadCount > 0" class="h-2 w-2 shrink-0 rounded-full bg-gray-900"></span>
-    </button>
+      <span *ngIf="chat.unreadCount > 0"
+        class="shrink-0 rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">
+        {{ chat.unreadCount }}
+      </span>
+    </a>
   </div>
 </div>

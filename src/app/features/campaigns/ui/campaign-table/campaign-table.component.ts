@@ -1,36 +1,18 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-export type CampaignChannel = 'email' | 'sms' | 'whatsapp' | 'push';
-export type CampaignStatus = 'draft' | 'scheduled' | 'active' | 'sent' | 'paused';
-
-export interface CampaignItem {
-  id: string;
-  name: string;
-  channel: CampaignChannel;
-  audience: string;
-  content: string;
-  status: CampaignStatus;
-  /** ISO date string (YYYY-MM-DD), null when no schedule was set. */
-  scheduledDate: string | null;
-  recipients: number;
-  delivered: number;
-  opened: number;
-  clicked: number;
-}
-
-/** Deriva la tasa de apertura de una campaña como porcentaje sobre los entregados; 0 si todavía no se entregó nada. */
-export function openRate(campaign: CampaignItem): number {
-  return campaign.delivered > 0 ? (campaign.opened / campaign.delivered) * 100 : 0;
-}
+import { ApiCampaignType, CampaignItem, CampaignStatus, openRate } from '../../data-access/campaigns.model';
 
 /**
  * Tabla de campañas (patrón "Aether", igual que service-catalog/invoice-table):
- * header en píldora `bg-[#FAF9F7]` con extremos redondeados, columnas
- * Campaign name / Channel (chip con icono) / Audience / Status (chip outline) /
- * Sent date / Recipients / Open rate y un menú fantasma "..." por fila con
- * Edit/Duplicate/Pause-Resume/Delete. El click en la fila (fuera del menú)
- * abre la vista previa de solo lectura.
+ * header en píldora `bg-[#FAFAFA]` con extremos redondeados, columnas
+ * Campaign name / Type (chip con icono) / Template / Status (chip outline) /
+ * Scheduled / Recipients / Open rate y un menú fantasma "..." por fila.
+ * El click en la fila (fuera del menú) abre la vista previa de solo lectura.
+ *
+ * Acciones cableadas al backend real (EmailCampaignsController): Launch (solo Draft,
+ * POST {id}/schedule) y Cancel (POST {id}/cancel, inválido en Completed/Cancelled).
+ * Edit/Duplicate/Pause del mock se retiraron: el backend no expone PUT, DELETE ni
+ * pause/resume, y el GET no devuelve destinatarios para duplicar con fidelidad.
  */
 @Component({
   selector: 'app-campaign-table',
@@ -40,11 +22,10 @@ export function openRate(campaign: CampaignItem): number {
 })
 export class CampaignTableComponent {
   @Input() campaigns: CampaignItem[] = [];
+  @Input() emptyMessage = 'No campaigns match your search';
   @Output() previewRequested = new EventEmitter<CampaignItem>();
-  @Output() editRequested = new EventEmitter<CampaignItem>();
-  @Output() duplicateRequested = new EventEmitter<CampaignItem>();
-  @Output() pauseResumeRequested = new EventEmitter<CampaignItem>();
-  @Output() deleteRequested = new EventEmitter<CampaignItem>();
+  @Output() launchRequested = new EventEmitter<CampaignItem>();
+  @Output() cancelRequested = new EventEmitter<CampaignItem>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -71,42 +52,33 @@ export class CampaignTableComponent {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  channelLabel(channel: CampaignChannel): string {
-    switch (channel) {
-      case 'email':
-        return 'Email';
-      case 'sms':
-        return 'SMS';
-      case 'whatsapp':
-        return 'WhatsApp';
-      case 'push':
-        return 'Push';
-    }
+  typeLabel(type: ApiCampaignType): string {
+    return type;
   }
 
-  channelIcon(channel: CampaignChannel): string {
-    switch (channel) {
-      case 'email':
-        return 'mail-outline';
-      case 'sms':
-        return 'chatbox-outline';
-      case 'whatsapp':
-        return 'logo-whatsapp';
-      case 'push':
+  typeIcon(type: ApiCampaignType): string {
+    switch (type) {
+      case 'Newsletter':
+        return 'newspaper-outline';
+      case 'Notification':
         return 'notifications-outline';
+      case 'Marketing':
+        return 'megaphone-outline';
+      case 'Custom':
+        return 'options-outline';
     }
   }
 
-  channelChip(channel: CampaignChannel): string {
-    switch (channel) {
-      case 'email':
+  typeChip(type: ApiCampaignType): string {
+    switch (type) {
+      case 'Newsletter':
         return 'border-indigo-200 text-indigo-500';
-      case 'sms':
+      case 'Notification':
         return 'border-orange-200 text-orange-500';
-      case 'whatsapp':
+      case 'Marketing':
         return 'border-emerald-200 text-emerald-600';
-      case 'push':
-        return 'border-[#A99BEB] text-[#7C6AE0]';
+      case 'Custom':
+        return 'border-[#67BAF4] text-[#1E466B]';
     }
   }
 
@@ -117,11 +89,15 @@ export class CampaignTableComponent {
       case 'scheduled':
         return 'Scheduled';
       case 'active':
-        return 'Active';
+        return 'Sending';
       case 'sent':
         return 'Sent';
       case 'paused':
         return 'Paused';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'failed':
+        return 'Failed';
     }
   }
 
@@ -134,7 +110,10 @@ export class CampaignTableComponent {
         return 'border-orange-200 text-orange-500';
       case 'draft':
         return 'border-gray-300 text-gray-500';
+      case 'cancelled':
+        return 'border-gray-300 text-gray-400';
       case 'paused':
+      case 'failed':
         return 'border-red-200 text-red-500';
     }
   }
@@ -148,17 +127,22 @@ export class CampaignTableComponent {
         return 'bg-orange-500';
       case 'draft':
         return 'bg-gray-400';
+      case 'cancelled':
+        return 'bg-gray-300';
       case 'paused':
+      case 'failed':
         return 'bg-red-500';
     }
   }
 
-  canPause(campaign: CampaignItem): boolean {
-    return campaign.status === 'active' || campaign.status === 'scheduled' || campaign.status === 'paused';
+  /** Solo un Draft se puede lanzar (POST {id}/schedule exige estado Draft). */
+  canLaunch(campaign: CampaignItem): boolean {
+    return campaign.apiStatus === 'Draft';
   }
 
-  pauseResumeLabel(campaign: CampaignItem): string {
-    return campaign.status === 'paused' ? 'Resume' : 'Pause';
+  /** El backend rechaza cancelar Completed/Cancelled; el resto de estados sí. */
+  canCancel(campaign: CampaignItem): boolean {
+    return campaign.apiStatus !== 'Completed' && campaign.apiStatus !== 'Cancelled';
   }
 
   toggleMenu(campaign: CampaignItem, event: MouseEvent): void {
@@ -170,27 +154,21 @@ export class CampaignTableComponent {
     this.previewRequested.emit(campaign);
   }
 
-  onEditClick(campaign: CampaignItem, event: MouseEvent): void {
+  onViewClick(campaign: CampaignItem, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.editRequested.emit(campaign);
+    this.previewRequested.emit(campaign);
   }
 
-  onDuplicateClick(campaign: CampaignItem, event: MouseEvent): void {
+  onLaunchClick(campaign: CampaignItem, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.duplicateRequested.emit(campaign);
+    this.launchRequested.emit(campaign);
   }
 
-  onPauseResumeClick(campaign: CampaignItem, event: MouseEvent): void {
+  onCancelClick(campaign: CampaignItem, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.pauseResumeRequested.emit(campaign);
-  }
-
-  onDeleteClick(campaign: CampaignItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.deleteRequested.emit(campaign);
+    this.cancelRequested.emit(campaign);
   }
 }

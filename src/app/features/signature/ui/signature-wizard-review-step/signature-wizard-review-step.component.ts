@@ -19,15 +19,21 @@ import {
   kindChip,
   kindCircle,
   kindIcon,
-} from '../signature-request-panel/signature-wizard.mock';
+} from '../signature-request-panel/signature-wizard.presenter';
+import {
+  SIGNATURE_CATEGORIES,
+  SIGNATURE_CATEGORY_LABEL,
+  SignatureCategory,
+} from '../../data-access/signature.model';
 
 const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
 
 /**
  * Paso 4 del wizard: resumen de todo lo elegido (cliente, documento, firmantes
- * con su desglose de campos) + fecha límite y notas, antes de enviar.
- * Presentacional puro: recibe snapshots por @Input y emite cambios de
- * dueDate/notes por @Output (two-way con el panel).
+ * con su desglose de campos) + los datos reales de POST /signature/requests:
+ * título, categoría legal (SignatureCategory), fecha límite (→ tokenExpirationHours)
+ * y descripción. Presentacional puro: recibe snapshots por @Input y emite cambios
+ * por @Output (two-way con el panel).
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
@@ -42,13 +48,19 @@ export class SignatureWizardReviewStepComponent {
   @Input() signers: EditorSigner[] = [];
   @Input() fields: PlacedField[] = [];
   @Input() rules: RequestRules | null = null;
+  @Input() title = '';
+  @Input() category: SignatureCategory = 'Fiscal';
   @Input() dueDate = '';
   @Input() notes = '';
+  @Output() titleChange = new EventEmitter<string>();
+  @Output() categoryChange = new EventEmitter<SignatureCategory>();
   @Output() dueDateChange = new EventEmitter<string>();
   @Output() notesChange = new EventEmitter<string>();
 
   readonly fieldIcon = FIELD_TYPE_ICON;
   readonly channelMeta = CHANNEL_META;
+  readonly categories = SIGNATURE_CATEGORIES;
+  readonly categoryLabel = SIGNATURE_CATEGORY_LABEL;
 
   /** Etiquetas de los canales habilitados, para la tarjeta de reglas. */
   channelLabels(): string {
@@ -100,9 +112,18 @@ export class SignatureWizardReviewStepComponent {
     return this.signers.filter(signer => this.fieldCountFor(signer.id) === 0);
   }
 
+  /** El backend exige al menos un campo Signature o Initials para poder enviar. */
+  hasSignatureField(): boolean {
+    return this.fields.some(field => field.type === 'signature' || field.type === 'initials');
+  }
+
+  titleTooShort(): boolean {
+    return this.title.trim().length > 0 && this.title.trim().length < 3;
+  }
+
   dueDateLabel(): string {
     if (!this.dueDate) {
-      return 'Today';
+      return 'in 7 days (default)';
     }
     return new Date(`${this.dueDate}T00:00:00`).toLocaleDateString('en-US', {
       month: 'short',

@@ -15,3 +15,47 @@
 .reply-lift {
   animation: reply-lift-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
 }
+
+/* El cuerpo real del correo llega como HTML del proveedor (Gmail/Graph) y entra
+   por [innerHTML]: no lleva el atributo de scoping de Angular, así que las
+   clases Tailwind no lo alcanzan y el preflight deja p/ul/table sin estilo.
+   `::ng-deep` acotado al host es la única forma de darle tipografía y, sobre
+   todo, de EVITAR QUE DESBORDE el panel (tablas y imágenes de newsletters
+   vienen con anchos fijos enormes). Angular ya sanea el markup al bindear
+   innerHTML: se quitan <script>, handlers y estilos peligrosos. */
+:host ::ng-deep .mail-html-body {
+  overflow-x: auto;
+  word-break: break-word;
+}
+
+:host ::ng-deep .mail-html-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+:host ::ng-deep .mail-html-body table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+:host ::ng-deep .mail-html-body p {
+  margin-bottom: 0.75rem;
+}
+
+:host ::ng-deep .mail-html-body ul,
+:host ::ng-deep .mail-html-body ol {
+  margin: 0 0 0.75rem 1.25rem;
+  list-style: revert;
+}
+
+:host ::ng-deep .mail-html-body a {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+:host ::ng-deep .mail-html-body blockquote {
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid #e5e7eb;
+  color: #6b7280;
+}

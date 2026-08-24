@@ -1,39 +1,61 @@
 <div class="bg-white rounded-[28px] p-6 h-full">
   <!-- Header -->
   <h2 class="text-xl font-bold text-gray-900">Notes</h2>
-  <p class="mt-1 text-sm text-gray-500">Quick thoughts</p>
+  <p class="mt-1 text-sm text-gray-500">Your latest notes</p>
 
-  <!-- Quick-add row -->
-  <div class="mt-4 flex items-center gap-2">
+  <!-- Quick-add row: solo con permiso notes.manage; guarda de verdad en Notes.Api -->
+  <div *ngIf="canCreate()" class="mt-4 flex items-center gap-2">
     <input type="text" placeholder="Write a note..." [ngModel]="draft()" (ngModelChange)="draft.set($event)"
-      (keyup.enter)="addNote()"
-      class="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none" />
-    <button type="button" (click)="addNote()"
-      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors">
-      <ion-icon name="add-outline" class="text-xl"></ion-icon>
+      (keyup.enter)="addNote()" [disabled]="saving()"
+      class="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none disabled:opacity-60" />
+    <button type="button" (click)="addNote()" [disabled]="saving() || !draft().trim()" aria-label="Add note"
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-xl"
+        [class.animate-spin]="saving()"></ion-icon>
     </button>
   </div>
 
-  <!-- Notes list -->
-  <div class="mt-4 flex flex-col gap-3">
-    <div *ngFor="let note of notes(); let i = index" class="group rounded-2xl border border-gray-100 p-4">
+  <!-- Fallo al guardar o borrar: se avisa en vez de simular que funcionó -->
+  <div *ngIf="actionError()"
+    class="mt-3 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">
+    <ion-icon name="alert-circle-outline" class="mt-0.5 shrink-0 text-base"></ion-icon>
+    <span class="min-w-0 flex-1">{{ actionError() }}</span>
+    <button type="button" (click)="dismissActionError()" class="shrink-0 text-red-600 hover:text-red-800"
+      aria-label="Dismiss">
+      <ion-icon name="close-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Cargando / sin permiso notes.read / todavía sin notas -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || notes().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Notes aren't available" icon="document-text-outline" title="No notes yet"
+    message="Notes you write here or on a client profile will be listed."
+    minHeight="10rem"></app-dashboard-widget-state>
+
+  <!-- Notas reales del usuario -->
+  <div *ngIf="!loading() && !error() && notes().length > 0" class="mt-4 flex flex-col gap-3">
+    <div *ngFor="let note of notes(); let i = index; trackBy: trackByNoteId"
+      class="group rounded-2xl border border-gray-100 p-4">
       <div class="flex items-start gap-3">
         <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" [style.background-color]="dotColor(i)"></span>
 
         <div class="min-w-0 flex-1">
-          <p class="text-sm leading-relaxed text-gray-700">{{ note.text }}</p>
-          <p class="mt-1 text-xs text-gray-400">{{ relativeTime(note.createdAt) }}</p>
+          <p class="text-sm leading-relaxed text-gray-700">{{ previewOf(note) }}</p>
+          <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+            <span>{{ relativeTime(note.createdAtUtc) }}</span>
+            <!-- Las notas atadas a un cliente/tarea se marcan para no confundirlas con las rápidas -->
+            <span *ngIf="!isQuickNote(note)" class="rounded-full border border-gray-200 px-2 py-0.5 text-[10px]">
+              {{ targetLabel(note) }}
+            </span>
+          </p>
         </div>
 
-        <button type="button" (click)="removeNote(note.id)"
+        <!-- Borrar solo las notas rápidas: una nota de cliente se gestiona en su perfil -->
+        <button *ngIf="isQuickNote(note)" type="button" (click)="removeNote(note)" aria-label="Delete note"
           class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-600">
           <ion-icon name="close-outline" class="text-base"></ion-icon>
         </button>
       </div>
     </div>
-
-    <p *ngIf="notes().length === 0" class="py-6 text-center text-sm text-gray-400">
-      No notes yet. Write one above.
-    </p>
   </div>
 </div>

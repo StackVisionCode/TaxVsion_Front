@@ -1,6 +1,11 @@
 /** Cuerpo de POST /auth/login. `tenantId` es obligatorio (lo aporta environment). */
 export interface LoginRequest {
-  tenantId: string;
+  /**
+   * Opcional: en producción el tenant lo resuelve el backend por el Host del
+   * subdominio y este campo NO se manda. Es `Guid?` en el contrato, así que una
+   * cadena vacía haría fallar la deserialización con 400 — ver `AuthService.login`.
+   */
+  tenantId?: string | null;
   email: string;
   password: string;
   deviceName?: string | null;

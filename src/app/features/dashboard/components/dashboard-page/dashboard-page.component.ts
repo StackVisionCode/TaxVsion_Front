@@ -23,9 +23,15 @@ import { DashboardFiltersComponent } from '../../ui/dashboard-filters/dashboard-
 /**
  * Página del dashboard al estilo de la referencia "Aether". Los widgets se
  * renderizan desde el DashboardLayoutStore (orden reordenable): el botón
- * "Edit layout" de la barra de filtros activa el modo edición y cada widget
- * se puede arrastrar (CDK drag & drop) con animaciones de recolocación
- * suaves. Todo visual, datos estáticos; el orden persiste en localStorage.
+ * "Edit layout" de la barra superior activa el modo edición y cada widget se
+ * puede arrastrar (CDK drag & drop). El orden persiste en localStorage.
+ *
+ * Los datos NO son estáticos: cada widget carga lo suyo desde su servicio o
+ * store real (clientes, facturas, tareas, firmas, chats, reuniones, notas,
+ * notificaciones, storage, calendario). Los dos widgets que hoy no tienen
+ * backend que los respalde — Productivity Trends y Performance Analytics —
+ * conservan su marco pero muestran un estado vacío honesto en lugar de
+ * cifras inventadas.
  */
 @Component({
   selector: 'app-dashboard-page',

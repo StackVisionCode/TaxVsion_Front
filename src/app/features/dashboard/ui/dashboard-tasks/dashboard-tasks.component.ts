@@ -1,133 +1,136 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AuthService } from '@core/auth/auth.service';
+import { TaskStore } from '../../../task/data-access/task.store';
+import { ApiTaskPriority, TaskItem } from '../../../task/data-access/task.model';
+import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
 
 type TaskFilter = 'All' | 'My Tasks' | 'Overdue';
-type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
-interface DashboardTask {
-  id: string;
-  title: string;
-  client: string | null;
-  dueDate: string; // ISO datetime string
-  priority: TaskPriority;
-  assignee: string;
-  completed: boolean;
-}
-
-/** Builds an ISO date relative to today so the mock list always looks alive. */
-function isoInDays(days: number, hour = 17): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
-}
-
-const INITIAL_TASKS: DashboardTask[] = [
-  {
-    id: 'task-1',
-    title: 'Prepare Q2 tax filing',
-    client: 'Johnson & Co LLC',
-    dueDate: isoInDays(2),
-    priority: 'High',
-    assignee: 'You',
-    completed: false,
-  },
-  {
-    id: 'task-2',
-    title: 'Follow up on missing W-2 documents',
-    client: 'Maria Alvarez',
-    dueDate: isoInDays(1),
-    priority: 'Medium',
-    assignee: 'James Cooper',
-    completed: false,
-  },
-  {
-    id: 'task-3',
-    title: 'Review depreciation schedule',
-    client: 'Sunrise Bakery Inc.',
-    dueDate: isoInDays(-2),
-    priority: 'Urgent',
-    assignee: 'You',
-    completed: false,
-  },
-  {
-    id: 'task-4',
-    title: 'Send engagement letter',
-    client: 'Robert Kim',
-    dueDate: isoInDays(5),
-    priority: 'Low',
-    assignee: 'Elena Vargas',
-    completed: false,
-  },
-  {
-    id: 'task-5',
-    title: 'Client onboarding call',
-    client: 'Delgado Family Trust',
-    dueDate: isoInDays(0),
-    priority: 'High',
-    assignee: 'Sarah Mitchell',
-    completed: false,
-  },
-  {
-    id: 'task-6',
-    title: 'File extension request',
-    client: 'Nguyen Enterprises',
-    dueDate: isoInDays(-1),
-    priority: 'Urgent',
-    assignee: 'You',
-    completed: false,
-  },
-];
+/** Cuántas tareas caben en el widget sin convertirlo en el tablero completo. */
+const MAX_TASKS = 6;
 
 /**
- * Widget "Tasks" (referencia "Aether"): lista plana de tareas con checkbox
- * redondo, chips de prioridad en contorno y tabs píldora (All / My Tasks /
- * Overdue) con filtrado local real. Datos estáticos, sin backend ni modal.
+ * Widget "Tasks".
+ *
+ * Antes era una lista de 6 tareas inventadas ("Prepare Q2 tax filing" para
+ * "Johnson & Co LLC"…) con fechas generadas al vuelo para que "pareciera
+ * viva", y el checkbox solo cambiaba un booleano local.
+ *
+ * Ahora se alimenta del {@link TaskStore} real (`GET /tasks/board`, el mismo
+ * que usa la página de Task): `init()` es idempotente, así que entrar al
+ * dashboard y luego a Task no duplica peticiones. El checkbox llama a
+ * `moveTask`, que es una transición de estado de verdad contra el backend
+ * (optimista, con rollback si falla) — ya no es un adorno.
+ *
+ * Los filtros siguen siendo locales, pero ahora filtran datos reales:
+ * "My Tasks" compara contra el id del usuario logueado y "Overdue" contra el
+ * `dueDate` real de cada tarea.
  */
 @Component({
   selector: 'app-dashboard-tasks',
-  imports: [CommonModule],
+  imports: [CommonModule, DashboardWidgetStateComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-tasks.component.html',
 })
-export class DashboardTasksComponent {
-  readonly filters: TaskFilter[] = ['All', 'My Tasks', 'Overdue'];
+export class DashboardTasksComponent implements OnInit {
+  private readonly store = inject(TaskStore);
+  private readonly auth = inject(AuthService);
 
-  readonly tasks = signal<DashboardTask[]>(INITIAL_TASKS);
+  readonly filters: TaskFilter[] = ['All', 'My Tasks', 'Overdue'];
   readonly filter = signal<TaskFilter>('All');
 
-  readonly visibleTasks = computed<DashboardTask[]>(() => {
-    const tasks = this.tasks();
+  readonly loading = this.store.loading;
+  readonly error = this.store.error;
+  /** Error de una acción concreta (mover una tarea), separado del error de carga. */
+  readonly actionError = this.store.actionError;
+
+  /** Tareas del filtro activo: primero las que vencen antes, luego sin fecha. */
+  readonly visibleTasks = computed<TaskItem[]>(() => {
+    const currentUserId = this.auth.currentUser()?.id ?? null;
+    const tasks = this.store.tasks();
+
+    const filtered = (() => {
+      switch (this.filter()) {
+        case 'My Tasks':
+          return tasks.filter(task => !!currentUserId && task.assigneeUserId === currentUserId);
+        case 'Overdue':
+          return tasks.filter(task => this.isOverdue(task));
+        default:
+          return tasks;
+      }
+    })();
+
+    return [...filtered]
+      .sort((a, b) => {
+        // Sin fecha van al final; entre las que tienen fecha, la más próxima primero.
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate.localeCompare(b.dueDate);
+      })
+      .slice(0, MAX_TASKS);
+  });
+
+  /** El estado vacío depende del filtro: "sin tareas" no es lo mismo que "nada vencido". */
+  readonly emptyTitle = computed(() => {
     switch (this.filter()) {
       case 'My Tasks':
-        return tasks.filter(task => task.assignee === 'You');
+        return 'Nothing assigned to you';
       case 'Overdue':
-        return tasks.filter(task => !task.completed && this.isOverdue(task));
+        return "Nothing's overdue";
       default:
-        return tasks;
+        return 'No tasks yet';
     }
   });
+
+  ngOnInit(): void {
+    this.store.init();
+  }
 
   setFilter(filter: TaskFilter): void {
     this.filter.set(filter);
   }
 
-  toggleTask(taskId: string): void {
-    this.tasks.update(list =>
-      list.map(task => (task.id === taskId ? { ...task, completed: !task.completed } : task)),
-    );
+  dismissActionError(): void {
+    this.store.clearActionError();
   }
 
-  isOverdue(task: DashboardTask): boolean {
-    return new Date(task.dueDate).getTime() < Date.now();
+  trackByTaskId(_index: number, task: TaskItem): string {
+    return task.id;
   }
 
+  isCompleted(task: TaskItem): boolean {
+    return task.status === 'completed';
+  }
+
+  /**
+   * Transición real contra el backend: completar, o reabrir a "not started"
+   * (la única transición de vuelta que acepta `moveTask` desde Completed).
+   */
+  toggleTask(task: TaskItem): void {
+    this.store.moveTask(task.id, this.isCompleted(task) ? 'not-started' : 'completed');
+  }
+
+  isOverdue(task: TaskItem): boolean {
+    if (!task.dueDate || this.isCompleted(task)) {
+      return false;
+    }
+    return task.dueDate < this.todayIso();
+  }
+
+  /** "Today" / "Tomorrow" / "3 days ago"… a partir del `dueDate` YYYY-MM-DD real. */
   formatDue(dueDate: string): string {
-    const due = new Date(dueDate);
+    if (!dueDate) {
+      return 'No due date';
+    }
+    const due = new Date(`${dueDate}T00:00:00`);
+    if (Number.isNaN(due.getTime())) {
+      return 'No due date';
+    }
     const today = new Date();
-    due.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
 
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Tomorrow';
@@ -136,16 +139,24 @@ export class DashboardTasksComponent {
     return `In ${diffDays} days`;
   }
 
-  priorityChipClass(priority: TaskPriority): string {
+  /** El backend usa Normal donde el diseño decía Medium; se respeta el enum real. */
+  priorityChipClass(priority: ApiTaskPriority): string {
     switch (priority) {
       case 'Urgent':
         return 'border-red-200 text-red-500';
       case 'High':
         return 'border-orange-200 text-orange-500';
-      case 'Medium':
+      case 'Normal':
         return 'border-amber-200 text-amber-600';
       case 'Low':
         return 'border-gray-200 text-gray-500';
     }
+  }
+
+  private todayIso(): string {
+    const today = new Date();
+    const month = `${today.getMonth() + 1}`.padStart(2, '0');
+    const day = `${today.getDate()}`.padStart(2, '0');
+    return `${today.getFullYear()}-${month}-${day}`;
   }
 }

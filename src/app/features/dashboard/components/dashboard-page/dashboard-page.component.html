@@ -1,5 +1,6 @@
 <div class="min-h-full pt-3 pb-1">
-  <!-- Filtros del dashboard (incluye el botón Edit layout) -->
+  <!-- Barra de herramientas: modo edición del layout (los filtros que no
+       consultaban nada se retiraron; ver dashboard-filters.component.ts) -->
   <app-dashboard-filters class="block mb-6"></app-dashboard-filters>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" [class.edit-mode]="layout.editMode()" cdkDropList
@@ -9,7 +10,7 @@
       [cdkDragDisabled]="!layout.editMode()">
       <!-- Placeholder mientras se arrastra: hueco suave del mismo tamaño -->
       <div *cdkDragPlaceholder
-        class="h-full min-h-32 rounded-[28px] border-2 border-dashed border-[#D6CEF4] bg-white/50"></div>
+        class="h-full min-h-32 rounded-[28px] border-2 border-dashed border-[#D7E3EF] bg-white/50"></div>
 
       <!-- Handle visual en modo edición -->
       <span *ngIf="layout.editMode()"

@@ -1,20 +1,25 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-interface ContactOption {
+interface SupportChannelStep {
   icon: string;
   circleClass: string;
   title: string;
   description: string;
-  chipLabel: string;
-  chipClass: string;
-  actionLabel: string;
 }
 
 /**
- * Fila de opciones de contacto del módulo Support (estilo "Aether"): tres
- * tarjetas internas (chat en vivo, email, teléfono) con círculos de icono en
- * pasteles y chips outline de disponibilidad. Visual-only: sin acciones reales.
+ * Cabecera del módulo Support: explica cómo se contacta realmente al equipo.
+ *
+ * NO HAY DATOS DE CONTACTO PORQUE NO EXISTEN: la versión anterior mostraba un
+ * teléfono inventado (+1 (800) 555-0142), un email en un dominio que no es el del
+ * producto (support@taxvsion.com), chips de disponibilidad ("Online now",
+ * "Replies in ~4h") y enlaces `href="#"` que no hacían nada. Ni el backend ni la
+ * configuración del front definen una línea telefónica ni un buzón de soporte.
+ *
+ * Lo que SÍ es real es el flujo de tickets contra Communication
+ * (`/communication/support`: abrir, listar y reabrir), así que este bloque solo
+ * describe ese flujo — cada paso corresponde a un endpoint que existe.
  */
 @Component({
   selector: 'app-support-contact-options',
@@ -23,33 +28,30 @@ interface ContactOption {
   templateUrl: './support-contact-options.component.html',
 })
 export class SupportContactOptionsComponent {
-  readonly options: ContactOption[] = [
+  readonly steps: SupportChannelStep[] = [
     {
-      icon: 'chatbubbles-outline',
-      circleClass: 'bg-[#D6CEF4] text-[#7C6AE0]',
-      title: 'Live chat',
-      description: 'Chat with a support agent in real time about anything in your workspace.',
-      chipLabel: 'Online now',
-      chipClass: 'border-green-200 text-green-600',
-      actionLabel: 'Start a chat',
+      // POST /communication/support (formulario "Submit a ticket" más abajo).
+      icon: 'create-outline',
+      circleClass: 'bg-[#D7E3EF] text-[#1E466B]',
+      title: 'Open a ticket',
+      description:
+        'Describe the issue in the form below. The ticket is created in your workspace and routed to our team.',
     },
     {
-      icon: 'mail-outline',
-      circleClass: 'bg-[#CBD9F2] text-indigo-600',
-      title: 'Email us',
-      description: 'Send the details to support@taxvsion.com and we will get back to you.',
-      chipLabel: 'Replies in ~4h',
-      chipClass: 'border-indigo-200 text-indigo-600',
-      actionLabel: 'Write an email',
+      // GET /communication/support (lista "My tickets" al pie de la página).
+      icon: 'list-outline',
+      circleClass: 'bg-[#CFE2F7] text-indigo-600',
+      title: 'Follow it up here',
+      description:
+        'Every ticket you open is listed at the bottom of this page with its current status.',
     },
     {
-      icon: 'call-outline',
-      circleClass: 'bg-[#F2E3C9] text-orange-500',
-      title: 'Call us',
-      description: 'Talk to our team directly at +1 (800) 555-0142 for urgent issues.',
-      chipLabel: 'Mon–Fri, 9am–6pm ET',
-      chipClass: 'border-orange-200 text-orange-600',
-      actionLabel: 'View phone hours',
+      // POST /communication/support/:id/reopen (solo desde Resolved/Closed).
+      icon: 'refresh-outline',
+      circleClass: 'bg-[#E8F1FB] text-orange-500',
+      title: 'Reopen if needed',
+      description:
+        'If a resolved or closed ticket still needs attention, you can reopen it from that list.',
     },
   ];
 }

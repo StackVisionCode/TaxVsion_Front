@@ -3,6 +3,26 @@
 
   <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
     <app-support-faq></app-support-faq>
-    <app-support-ticket-form></app-support-ticket-form>
+    <app-support-ticket-form
+      [submitting]="store.submitting()"
+      [submittedTicketId]="store.lastTicketId()"
+      [errorMessage]="store.submitError()"
+      (submitTicket)="store.submitTicket($event)"
+      (dismissConfirmation)="store.dismissConfirmation()">
+    </app-support-ticket-form>
   </div>
+
+  <app-support-ticket-list
+    [tickets]="store.tickets()"
+    [loading]="store.loading()"
+    [error]="store.error()"
+    [page]="store.page()"
+    [totalPages]="store.totalPages()"
+    [totalCount]="store.totalCount()"
+    [reopeningId]="store.reopeningId()"
+    [reopenError]="store.reopenError()"
+    (reopenTicket)="store.reopenTicket($event)"
+    (pageChange)="store.loadTickets($event)"
+    (retry)="store.loadTickets()">
+  </app-support-ticket-list>
 </div>

@@ -3,30 +3,38 @@
   <h2 class="text-xl font-bold text-gray-900">Recent Activity</h2>
   <p class="mt-1 text-sm text-gray-500">Latest events across your workspace</p>
 
-  <!-- Timeline -->
-  <div class="mt-4 flex flex-col">
-    <div *ngFor="let event of events; let last = last; trackBy: trackByEventId"
+  <!-- Cargando / error del feed / todavía sin eventos -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || events().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Activity isn't available" icon="pulse-outline" title="No activity yet"
+    message="Events from documents, signatures and clients will show up here."
+    minHeight="14rem"></app-dashboard-widget-state>
+
+  <!-- Timeline real: primeras filas del feed de notificaciones del tenant -->
+  <div *ngIf="!loading() && !error() && events().length > 0" class="mt-4 flex flex-col">
+    <div *ngFor="let event of events(); let last = last; trackBy: trackByEventId"
       class="relative flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 transition-colors">
 
       <!-- Connector line to the next icon circle -->
       <span *ngIf="!last" class="absolute left-[29px] top-12 -bottom-3 w-px bg-gray-100"></span>
 
       <!-- Icon circle -->
-      <span class="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-        [ngClass]="event.iconBg">
-        <ion-icon [name]="event.icon" class="text-lg"></ion-icon>
+      <span class="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        [ngClass]="iconBgFor(event.type)">
+        <ion-icon [name]="iconFor(event.type)" class="text-lg"></ion-icon>
       </span>
 
       <!-- Event info -->
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium text-gray-900">{{ event.title }}</p>
-        <p class="mt-0.5 text-xs text-gray-400">{{ event.time }}</p>
+        <p class="mt-0.5 truncate text-xs text-gray-400">
+          <span *ngIf="event.message">{{ event.message }} · </span>{{ event.time }}
+        </p>
       </div>
 
-      <!-- Priority chip -->
-      <span *ngIf="event.isUrgent"
+      <!-- Chip de alerta: solo para los eventos que el backend marca como alerta/alta prioridad -->
+      <span *ngIf="event.type === 'system_alert' || event.type === 'payment_failed'"
         class="shrink-0 rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-600">
-        Urgent
+        Alert
       </span>
     </div>
   </div>

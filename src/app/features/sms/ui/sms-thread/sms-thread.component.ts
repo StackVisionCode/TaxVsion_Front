@@ -1,21 +1,15 @@
 import { AfterViewChecked, Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, Input, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-export interface SmsMessage {
-  id: string;
-  direction: 'outbound' | 'inbound';
-  text: string;
-  time: string;
-  status: 'sent' | 'delivered' | 'failed' | 'pending';
-}
+import { SmsThreadMessage, SmsUiStatus } from '../../data-access/sms.model';
 
 /**
- * Hilo de mensajes del módulo SMS (estilo "Aether"): burbujas negras
- * alineadas a la derecha para los mensajes salientes (enviados desde el
- * despacho) y burbujas blancas con borde y avatar para los entrantes del
- * contacto. Cada burbuja saliente muestra debajo un chip de estado de
- * entrega (Sent/Delivered/Pending/Failed) siguiendo las convenciones de
- * apps de SMS. Auto-scroll al fondo cuando llegan mensajes nuevos.
+ * Hilo de mensajes del módulo SMS (estilo "Aether"). Con el backend real solo
+ * existen burbujas salientes (no hay endpoint de lectura de entrantes); el chip de
+ * estado refleja el resultado del envío tal como lo devolvió POST /sms/messages:
+ * Accepted→Sent, Pending, Delivered, Failed/Undeliverable→Failed y Suppressed→
+ * "Opted out" (el destinatario respondió STOP y el backend no envía). El chip no se
+ * auto-actualiza después: los DLR llegan por webhook server-side y no hay endpoint
+ * para consultarlos. Auto-scroll al fondo cuando llegan mensajes nuevos.
  */
 @Component({
   selector: 'app-sms-thread',
@@ -24,9 +18,9 @@ export interface SmsMessage {
   templateUrl: './sms-thread.component.html',
 })
 export class SmsThreadComponent implements AfterViewChecked {
-  @Input() messages: SmsMessage[] = [];
+  @Input() messages: SmsThreadMessage[] = [];
   @Input() contactName = '';
-  @Input() avatarColor = 'bg-gray-900';
+  @Input() avatarColor = 'bg-brand-bold';
 
   @ViewChild('scrollAnchor') private scrollAnchor?: ElementRef<HTMLDivElement>;
 
@@ -44,7 +38,7 @@ export class SmsThreadComponent implements AfterViewChecked {
       .toUpperCase();
   }
 
-  statusIcon(status: SmsMessage['status']): string {
+  statusIcon(status: SmsUiStatus): string {
     switch (status) {
       case 'delivered':
         return 'checkmark-done-outline';
@@ -52,12 +46,14 @@ export class SmsThreadComponent implements AfterViewChecked {
         return 'time-outline';
       case 'failed':
         return 'alert-circle-outline';
+      case 'suppressed':
+        return 'hand-left-outline';
       default:
         return 'checkmark-outline';
     }
   }
 
-  statusLabel(status: SmsMessage['status']): string {
+  statusLabel(status: SmsUiStatus): string {
     switch (status) {
       case 'delivered':
         return 'Delivered';
@@ -65,12 +61,14 @@ export class SmsThreadComponent implements AfterViewChecked {
         return 'Pending';
       case 'failed':
         return 'Failed';
+      case 'suppressed':
+        return 'Opted out';
       default:
         return 'Sent';
     }
   }
 
-  statusColor(status: SmsMessage['status']): string {
+  statusColor(status: SmsUiStatus): string {
     switch (status) {
       case 'delivered':
         return 'text-emerald-500';
@@ -78,8 +76,15 @@ export class SmsThreadComponent implements AfterViewChecked {
         return 'text-amber-500';
       case 'failed':
         return 'text-red-500';
+      case 'suppressed':
+        return 'text-amber-600';
       default:
         return 'text-gray-400';
     }
+  }
+
+  /** Tooltip de la burbuja: expone el código canónico del backend cuando falló. */
+  statusTitle(message: SmsThreadMessage): string {
+    return message.errorCode ? `Error code: ${message.errorCode}` : '';
   }
 }

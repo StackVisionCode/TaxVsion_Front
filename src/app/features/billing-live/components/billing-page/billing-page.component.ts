@@ -1,9 +1,16 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { switchMap } from 'rxjs';
 import { BillingLiveService } from '../../data-access/billing-live.service';
-import { Branding, InvoiceSummary, IssuerProfile, LineDraft, PaymentConfig } from '../../data-access/billing-live.model';
+import {
+  BillingCustomerSummary,
+  Branding,
+  InvoiceSummary,
+  IssuerProfile,
+  LineDraft,
+  PaymentConfig,
+} from '../../data-access/billing-live.model';
 
 const EMPTY_ISSUER: IssuerProfile = {
   name: '',
@@ -55,7 +62,17 @@ export class BillingPageComponent implements OnInit {
 
   // --- Facturas ---
   readonly invoices = signal<InvoiceSummary[]>([]);
-  readonly customerName = signal('');
+  /**
+   * Cliente de la factura: Billing guarda el `customerId` que se le manda, así que tiene que
+   * ser uno real del CRM (antes se generaba un UUID al vuelo y la factura quedaba huérfana).
+   */
+  readonly customers = signal<BillingCustomerSummary[]>([]);
+  readonly customersLoading = signal(false);
+  readonly customersError = signal<string | null>(null);
+  readonly selectedCustomerId = signal('');
+  readonly selectedCustomer = computed<BillingCustomerSummary | null>(
+    () => this.customers().find(customer => customer.id === this.selectedCustomerId()) ?? null,
+  );
   readonly customerTaxId = signal('');
   readonly currency = signal('USD');
   readonly lines = signal<LineDraft[]>([{ description: '', quantity: 1, unitAmount: 0, taxPercent: 11.5 }]);
@@ -75,6 +92,7 @@ export class BillingPageComponent implements OnInit {
     this.reloadConfigs();
     this.reloadInvoices();
     this.reloadBranding();
+    this.reloadCustomers();
     this.service.getIssuerProfile().subscribe({
       next: p =>
         this.issuer.set({
@@ -237,8 +255,25 @@ export class BillingPageComponent implements OnInit {
     this.lines.update(l => l.map((line, idx) => (idx === i ? { ...line, ...patch } : line)));
   }
 
+  /** Clientes reales del CRM para el selector de la factura. */
+  reloadCustomers(): void {
+    this.customersLoading.set(true);
+    this.customersError.set(null);
+    this.service.listCustomers().subscribe({
+      next: items => {
+        this.customers.set(items);
+        this.customersLoading.set(false);
+      },
+      error: () => {
+        this.customersError.set('No se pudieron cargar los clientes.');
+        this.customersLoading.set(false);
+      },
+    });
+  }
+
   createInvoice(): void {
-    if (!this.customerName() || this.lines().some(l => !l.description || l.unitAmount <= 0)) {
+    const customer = this.selectedCustomer();
+    if (!customer || this.lines().some(l => !l.description || l.unitAmount <= 0)) {
       this.invoicesMsg.set({ ok: false, text: 'Cliente y líneas (descripción + monto) son requeridos.' });
       return;
     }
@@ -246,12 +281,13 @@ export class BillingPageComponent implements OnInit {
     this.invoicesMsg.set(null);
     // El emisor lo estampa Billing desde el perfil guardado — no se manda acá.
     this.service
-      .createInvoice(this.customerName(), this.customerTaxId(), this.currency(), this.lines())
+      .createInvoice(customer, this.customerTaxId(), this.currency(), this.lines())
       .subscribe({
       next: () => {
         this.creatingInvoice.set(false);
         this.invoicesMsg.set({ ok: true, text: 'Borrador de factura creado.' });
-        this.customerName.set('');
+        this.selectedCustomerId.set('');
+        this.customerTaxId.set('');
         this.lines.set([{ description: '', quantity: 1, unitAmount: 0, taxPercent: 11.5 }]);
         this.reloadInvoices();
       },

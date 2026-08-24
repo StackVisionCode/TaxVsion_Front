@@ -5,7 +5,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <button *ngFor="let option of typeFilters" type="button" (click)="setTypeFilter(option)"
         class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="typeFilter() === option ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+        [ngClass]="typeFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
         {{ filterLabel(option) }}
       </button>
 
@@ -21,11 +21,29 @@
       {{ filtered().length }} {{ filtered().length === 1 ? 'client' : 'clients' }}
     </p>
 
+    <!-- Loading -->
+    <div *ngIf="store.customersLoading()" class="mt-2 flex flex-col gap-1.5">
+      <div *ngFor="let i of [1, 2, 3, 4]" class="h-14 animate-pulse rounded-2xl bg-gray-100"></div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="!store.customersLoading() && store.customersError()"
+      class="mt-2 flex flex-col items-center rounded-2xl border border-red-100 bg-red-50/50 px-4 py-8 text-center">
+      <ion-icon name="cloud-offline-outline" class="text-3xl text-red-300"></ion-icon>
+      <p class="mt-2 text-sm font-medium text-red-600">Could not load your clients</p>
+      <p class="mt-1 text-xs text-red-400">{{ store.customersError() }}</p>
+      <button type="button" (click)="retryLoad()"
+        class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+        Retry
+      </button>
+    </div>
+
     <!-- Client cards -->
-    <div class="client-list mt-2 flex max-h-[26rem] flex-col gap-1.5 overflow-y-auto pr-1">
+    <div *ngIf="!store.customersLoading() && !store.customersError()"
+      class="client-list mt-2 flex max-h-[26rem] flex-col gap-1.5 overflow-y-auto pr-1">
       <button *ngFor="let client of filtered()" type="button" (click)="select(client)"
         class="client-row flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors"
-        [ngClass]="client.id === selectedId ? 'border-gray-900 bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
+        [ngClass]="client.id === selectedId ? 'border-brand-bold bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
           [ngClass]="avatar(seedIndex(client))">{{ initials(client.displayName) }}</span>
 
@@ -63,7 +81,7 @@
   <aside class="hidden self-start lg:sticky lg:top-4 lg:block">
     <!-- *ngFor + trackBy por id: al cambiar la selección se recrea el nodo y re-dispara la animación -->
     <div *ngFor="let client of selectedAsList(); trackBy: trackClient"
-      class="client-detail rounded-2xl border border-gray-100 bg-[#FAF9F7] p-5">
+      class="client-detail rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
       <div class="flex flex-col items-center text-center">
         <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
           [ngClass]="avatar(seedIndex(client))">{{ initials(client.displayName) }}</span>

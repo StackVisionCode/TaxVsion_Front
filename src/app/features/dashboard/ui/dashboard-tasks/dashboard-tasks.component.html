@@ -7,19 +7,35 @@
   <div class="mt-4 flex items-center gap-2">
     <button *ngFor="let option of filters" type="button" (click)="setFilter(option)"
       class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-      [ngClass]="filter() === option ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="filter() === option ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
       {{ option }}
     </button>
   </div>
 
-  <!-- Task list -->
-  <div class="mt-3 flex flex-col">
-    <div *ngFor="let task of visibleTasks(); let last = last" class="flex items-center gap-3 py-3.5"
-      [class.border-b]="!last" [class.border-gray-100]="!last">
-      <!-- Round checkbox -->
-      <button type="button" (click)="toggleTask(task.id)"
+  <!-- Fallo al mover una tarea: se avisa en vez de dejar la fila revertida en silencio -->
+  <div *ngIf="actionError()"
+    class="mt-3 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">
+    <ion-icon name="alert-circle-outline" class="mt-0.5 shrink-0 text-base"></ion-icon>
+    <span class="min-w-0 flex-1">{{ actionError() }}</span>
+    <button type="button" (click)="dismissActionError()" class="shrink-0 text-red-600 hover:text-red-800"
+      aria-label="Dismiss">
+      <ion-icon name="close-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Cargando / error del tablero / sin tareas para el filtro activo -->
+  <app-dashboard-widget-state *ngIf="loading() || error() || visibleTasks().length === 0" [loading]="loading()"
+    [error]="error()" errorTitle="Tasks aren't available" icon="checkmark-done-outline" [title]="emptyTitle()"
+    message="Tasks you create in the Task board show up here." minHeight="12rem"></app-dashboard-widget-state>
+
+  <!-- Task list (datos reales del tablero) -->
+  <div *ngIf="!loading() && !error() && visibleTasks().length > 0" class="mt-3 flex flex-col">
+    <div *ngFor="let task of visibleTasks(); let last = last; trackBy: trackByTaskId"
+      class="flex items-center gap-3 py-3.5" [class.border-b]="!last" [class.border-gray-100]="!last">
+      <!-- Round checkbox: dispara una transición real de estado en el backend -->
+      <button type="button" (click)="toggleTask(task)"
         class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
-        [ngClass]="task.completed
+        [ngClass]="isCompleted(task)
           ? 'border-emerald-500 bg-emerald-500 text-white'
           : 'border-gray-300 bg-white text-transparent hover:border-gray-400'">
         <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
@@ -28,14 +44,13 @@
       <!-- Title + meta -->
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium"
-          [ngClass]="task.completed ? 'text-gray-400 line-through' : 'text-gray-900'">
+          [ngClass]="isCompleted(task) ? 'text-gray-400 line-through' : 'text-gray-900'">
           {{ task.title }}
         </p>
         <p class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
           <span *ngIf="task.client" class="truncate">{{ task.client }}</span>
           <span *ngIf="task.client" class="h-1 w-1 shrink-0 rounded-full bg-gray-300"></span>
-          <span class="shrink-0" [class.text-red-500]="isOverdue(task) && !task.completed"
-            [class.font-medium]="isOverdue(task) && !task.completed">
+          <span class="shrink-0" [class.text-red-500]="isOverdue(task)" [class.font-medium]="isOverdue(task)">
             {{ formatDue(task.dueDate) }}
           </span>
         </p>
@@ -47,10 +62,5 @@
         {{ task.priority }}
       </span>
     </div>
-
-    <!-- Empty state -->
-    <p *ngIf="visibleTasks().length === 0" class="py-8 text-center text-sm text-gray-500">
-      Nothing here — you're all caught up.
-    </p>
   </div>
 </div>

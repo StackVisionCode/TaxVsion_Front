@@ -8,8 +8,32 @@
   <!-- Fila superior: donut de uso + tarjetas de categorías -->
   <div class="grid gap-6 lg:grid-cols-12">
     <div class="lg:col-span-5">
-      <app-used-storage-card [groups]="groups()" [totalBytes]="totalBytes" [uploadBytes]="uploadBytes"
-        [downloadBytes]="downloadBytes"></app-used-storage-card>
+      <!-- Skeleton mientras carga GET /storage/usage -->
+      <div *ngIf="store.usageLoading()" class="h-full min-h-[20rem] animate-pulse rounded-[28px] bg-white p-6">
+        <div class="h-5 w-36 rounded-full bg-gray-100"></div>
+        <div class="mt-3 h-3 w-44 rounded-full bg-gray-100"></div>
+        <div class="mt-6 flex items-center gap-6">
+          <div class="h-44 w-44 shrink-0 rounded-full bg-gray-100"></div>
+          <div class="h-32 flex-1 rounded-2xl bg-gray-100"></div>
+        </div>
+        <div class="mt-6 h-20 rounded-2xl bg-gray-100"></div>
+      </div>
+
+      <!-- Error de uso (p. ej. sin permiso settings.manage) -->
+      <div *ngIf="!store.usageLoading() && store.usageError()"
+        class="flex h-full min-h-[20rem] flex-col items-center justify-center rounded-[28px] bg-white p-6 text-center">
+        <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm font-medium text-gray-700">Storage usage unavailable</p>
+        <p class="mt-1 max-w-xs text-xs text-gray-400">{{ store.usageError() }}</p>
+        <button type="button" (click)="store.loadUsage()"
+          class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
+          Retry
+        </button>
+      </div>
+
+      <app-used-storage-card *ngIf="!store.usageLoading() && !store.usageError()" [groups]="store.groups()"
+        [totalBytes]="store.totalBytes()" [uploadBytes]="store.usage()?.usedBytes ?? 0"
+        [downloadBytes]="0"></app-used-storage-card>
     </div>
 
     <!-- Categories -->
@@ -17,17 +41,34 @@
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold text-gray-900">Categories</h2>
         <button type="button" (click)="toggleCategories()"
-          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[#7C6AE0] hover:bg-[#EEEBFA] transition-colors">
+          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[#1E466B] hover:bg-[#DDE9F5] transition-colors">
           {{ showAllCategories() ? 'Show less' : 'View All' }}
           <span
-            class="flex h-6 w-6 items-center justify-center rounded-full border border-[#D6CEF4] transition-transform"
+            class="flex h-6 w-6 items-center justify-center rounded-full border border-[#D7E3EF] transition-transform"
             [class.rotate-90]="showAllCategories()">
             <ion-icon name="chevron-forward-outline" class="text-xs"></ion-icon>
           </span>
         </button>
       </div>
 
-      <div class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+      <!-- Skeleton mientras se listan los archivos para el desglose -->
+      <div *ngIf="store.groupsLoading()" class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+        <div *ngFor="let placeholder of skeletonCards" class="h-44 animate-pulse rounded-[24px] bg-white"></div>
+      </div>
+
+      <!-- Error del desglose por categoría -->
+      <div *ngIf="!store.groupsLoading() && store.groupsError()"
+        class="mt-5 flex flex-col items-center justify-center rounded-[24px] bg-white p-8 text-center">
+        <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">{{ store.groupsError() }}</p>
+        <button type="button" (click)="store.loadGroups()"
+          class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
+          Retry
+        </button>
+      </div>
+
+      <div *ngIf="!store.groupsLoading() && !store.groupsError()"
+        class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
         <div *ngFor="let group of visibleGroups()" class="category-card-wrap relative cursor-pointer"
           (click)="selectCategory(group.name)">
           <!-- Círculo del icono flotando fuera de la tarjeta (la esquina se recorta vía .category-card) -->
@@ -51,14 +92,14 @@
     </div>
   </div>
 
-  <!-- All Files -->
+  <!-- Shared with me -->
   <div class="flex-1">
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-xl font-bold text-gray-900">All Files</h2>
+          <h2 class="text-xl font-bold text-gray-900">Shared with me</h2>
           <p class="mt-1 text-sm text-gray-500">
-            {{ selectedCategory() ? filteredFiles().length + ' file(s) in ' + selectedCategory() : 'Every file across all categories' }}
+            {{ selectedCategory() ? filteredShares().length + ' file(s) in ' + selectedCategory() : 'Files and folders your teammates shared with you' }}
           </p>
         </div>
         <button *ngIf="selectedCategory()" type="button" (click)="clearCategoryFilter()"
@@ -68,84 +109,121 @@
         </button>
       </div>
 
-      <div class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[560px] border-separate border-spacing-0 text-sm">
+      <!-- Skeleton de filas mientras carga shared-with-me -->
+      <div *ngIf="store.sharesLoading()" class="mt-4 animate-pulse space-y-3">
+        <div class="h-11 rounded-2xl bg-[#FAFAFA]"></div>
+        <div *ngFor="let placeholder of skeletonRows" class="flex items-center gap-3 px-4 py-2">
+          <div class="h-9 w-9 rounded-xl bg-gray-100"></div>
+          <div class="h-3 flex-1 rounded-full bg-gray-100"></div>
+          <div class="h-3 w-24 rounded-full bg-gray-100"></div>
+        </div>
+      </div>
+
+      <!-- Error de shared-with-me -->
+      <div *ngIf="!store.sharesLoading() && store.sharesError()" class="px-4 py-10 text-center">
+        <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">{{ store.sharesError() }}</p>
+        <button type="button" (click)="store.loadShares()"
+          class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
+          Retry
+        </button>
+      </div>
+
+      <div *ngIf="!store.sharesLoading() && !store.sharesError()" class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th class="rounded-l-2xl bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
-              <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
-              <th class="bg-[#FAF9F7] px-4 py-3 text-left font-semibold text-gray-900">Shared with</th>
-              <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Date</th>
-              <th class="bg-[#FAF9F7] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
-              <th class="rounded-r-2xl bg-[#FAF9F7] px-4 py-3"></th>
+              <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
+              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Shared by</th>
+              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Permission</th>
+              <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Date</th>
+              <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
+              <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let file of pagedFiles(); let last = last" class="group">
+            <tr *ngFor="let item of pagedShares(); let last = last" class="group">
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="flex items-center gap-3">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FAF9F7]">
-                    <ion-icon [name]="file.icon" class="text-base text-gray-600"></ion-icon>
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FAFAFA]">
+                    <ion-icon [name]="item.icon" class="text-base text-gray-600"></ion-icon>
                   </span>
-                  <span class="min-w-0 truncate font-medium text-gray-900">{{ file.name }}</span>
+                  <span class="min-w-0 truncate font-medium text-gray-900">{{ item.name }}</span>
                 </span>
               </td>
 
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
-                  [style.background-color]="categoryColor(file.category) + '1A'"
-                  [style.color]="categoryColor(file.category)">
-                  {{ file.category }}
+                  [style.background-color]="categoryColor(item.category) + '1A'"
+                  [style.color]="categoryColor(item.category)">
+                  {{ item.category }}
                 </span>
               </td>
 
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
-                <span *ngIf="file.sharedWith.length > 0; else onlyYou" class="flex -space-x-2">
-                  <span *ngFor="let initials of file.sharedWith"
-                    class="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
-                    [ngClass]="contactColor(initials)">
-                    {{ initials }}
+                <span class="flex items-center gap-2">
+                  <span
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
+                    [ngClass]="item.sharedByColor">
+                    {{ item.sharedByInitials }}
                   </span>
+                  <span class="truncate text-sm text-gray-700">{{ item.sharedByName }}</span>
                 </span>
-                <ng-template #onlyYou>
-                  <span class="rounded-full bg-gray-900 px-2.5 py-0.5 text-[10px] font-semibold text-white">Only you</span>
-                </ng-template>
+              </td>
+
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span class="inline-block rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-600">
+                  {{ permissionLabel(item.permission) }}
+                </span>
+                <span *ngIf="item.status !== 'Active'"
+                  class="ml-1.5 inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">
+                  {{ item.status }}
+                </span>
               </td>
 
               <td class="px-4 py-3.5 text-right text-xs text-gray-400 group-hover:bg-gray-50 transition-colors"
-                [class.border-b]="!last" [class.border-gray-100]="!last">{{ file.date }}</td>
+                [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatDate(item.sharedAtUtc) }}</td>
 
               <td class="px-4 py-3.5 text-right text-xs font-medium text-gray-500 group-hover:bg-gray-50 transition-colors"
-                [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatBytes(file.sizeBytes) }}</td>
+                [class.border-b]="!last" [class.border-gray-100]="!last">
+                {{ item.sizeBytes !== null ? formatBytes(item.sizeBytes) : '—' }}
+              </td>
 
               <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
                 [class.border-b]="!last" [class.border-gray-100]="!last">
-                <button type="button" (click)="shareFile(file)"
-                  class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-900 hover:border-gray-900 hover:text-white transition-colors">
-                  Share
+                <button *ngIf="item.canDownload" type="button" (click)="download(item)"
+                  [disabled]="store.downloadingId() === item.shareLinkId"
+                  class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors disabled:opacity-50">
+                  {{ store.downloadingId() === item.shareLinkId ? 'Opening…' : 'Download' }}
                 </button>
+                <span *ngIf="!item.canDownload" class="text-xs text-gray-300">—</span>
               </td>
             </tr>
           </tbody>
         </table>
 
-        <div *ngIf="pagedFiles().length === 0" class="px-4 py-10 text-center">
+        <div *ngIf="pagedShares().length === 0" class="px-4 py-10 text-center">
           <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">No files in this category</p>
+          <p class="mt-2 text-sm text-gray-500">
+            {{ selectedCategory() ? 'No shared files in this category' : 'No files have been shared with you yet' }}
+          </p>
         </div>
       </div>
 
-      <app-pagination [currentPage]="currentPage()" [totalItems]="filteredFiles().length" [pageSize]="pageSize"
+      <app-pagination *ngIf="!store.sharesLoading() && !store.sharesError()" [currentPage]="currentPage()"
+        [totalItems]="filteredShares().length" [pageSize]="pageSize"
         (pageChange)="currentPage.set($event)"></app-pagination>
     </div>
   </div>
 
-  <!-- Toast transitorio -->
-  <div *ngIf="toast()"
-    class="fixed bottom-6 right-6 z-50 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
-    {{ toast() }}
+  <!-- Toast transitorio de error de descarga -->
+  <div *ngIf="store.downloadError()"
+    class="fixed bottom-6 right-6 z-50 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+    {{ store.downloadError() }}
   </div>
 </div>

@@ -52,7 +52,7 @@
         <!-- Single tab -->
         <button *ngIf="item.kind === 'tab'" type="button" (click)="selectTab(item.id)"
           class="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="item.id === activeTab() ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
+          [ngClass]="item.id === activeTab() ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
           {{ item.label }}
         </button>
 
@@ -60,7 +60,7 @@
         <div *ngIf="item.kind === 'group'" class="relative shrink-0" data-dropdown="profile-tab-group">
           <button type="button" (click)="toggleGroup(item.label, $event)"
             class="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-            [ngClass]="isGroupActive(item) ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
+            [ngClass]="isGroupActive(item) ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
             {{ item.label }}
             <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
           </button>

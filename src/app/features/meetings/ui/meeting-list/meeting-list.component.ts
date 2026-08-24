@@ -1,34 +1,18 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-export type MeetingStatus = 'upcoming' | 'live' | 'ended' | 'cancelled';
-
-export interface MeetingParticipant {
-  name: string;
-  initials: string;
-  color: string;
-}
-
-export interface MeetingItem {
-  id: string;
-  title: string;
-  client: string;
-  /** ISO datetime string. */
-  scheduledAt: string;
-  durationMinutes: number;
-  status: MeetingStatus;
-  participants: MeetingParticipant[];
-  hasRecording: boolean;
-  notes: string;
-}
+import { MeetingItem, MeetingUiStatus } from '../../data-access/meeting.model';
+import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
 
 /**
- * Lista de reuniones (patrón "Aether"): cada fila es una tarjeta con título,
- * cliente, fecha/hora formateada, duración, chip de estado y avatares
- * superpuestos de los participantes (+N si hay más de 4). Acciones: unirse
- * (upcoming/live), ver grabación (ended con grabación disponible) y un menú
- * fantasma con Editar/Cancelar. El clic en la fila (fuera de los botones)
- * también abre el modo edición.
+ * Lista de reuniones contra el backend real (Communication). Cada fila es una
+ * tarjeta con título, código de sala (copiable — es lo que usa el guest en
+ * /by-code), fecha/hora, duración real (solo meetings terminadas) y chip de
+ * estado. Acciones según contrato del backend:
+ *  - Start/End: solo si el usuario es host (endpoints host-only).
+ *  - Transcript: meetings terminadas con transcriptFileId.
+ *  - Menú Manage/Cancel: solo host y solo Scheduled (reschedule/cancel
+ *    rechazan cualquier otro estado).
+ * "Join" a la sala no existe por REST (es Socket.IO + WebRTC) — no se ofrece.
  */
 @Component({
   selector: 'app-meeting-list',
@@ -38,10 +22,14 @@ export interface MeetingItem {
 })
 export class MeetingListComponent {
   @Input() meetings: MeetingItem[] = [];
-  @Output() edit = new EventEmitter<MeetingItem>();
-  @Output() cancel = new EventEmitter<MeetingItem>();
-  @Output() join = new EventEmitter<MeetingItem>();
-  @Output() viewRecording = new EventEmitter<MeetingItem>();
+  /** Id del meeting con una acción en curso: deshabilita sus botones. */
+  @Input() busyId: string | null = null;
+  @Output() manage = new EventEmitter<MeetingItem>();
+  @Output() cancelMeeting = new EventEmitter<MeetingItem>();
+  @Output() startMeeting = new EventEmitter<MeetingItem>();
+  @Output() endMeeting = new EventEmitter<MeetingItem>();
+  @Output() viewTranscript = new EventEmitter<MeetingItem>();
+  @Output() copyCode = new EventEmitter<MeetingItem>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -57,16 +45,20 @@ export class MeetingListComponent {
     return meeting.id;
   }
 
-  visibleParticipants(meeting: MeetingItem): MeetingParticipant[] {
-    return meeting.participants.slice(0, 4);
+  /** Solo el host de un meeting Scheduled puede gestionarlo (reschedule/cancel/invitar). */
+  canManage(meeting: MeetingItem): boolean {
+    return meeting.isHost && meeting.status === 'upcoming';
   }
 
-  extraParticipantsCount(meeting: MeetingItem): number {
-    return Math.max(0, meeting.participants.length - 4);
+  isBusy(meeting: MeetingItem): boolean {
+    return this.busyId === meeting.id;
   }
 
-  formatDateTime(iso: string): string {
-    const date = new Date(iso);
+  formatDateTime(iso: string | null): string {
+    if (!iso) {
+      return 'Not scheduled';
+    }
+    const date = parseUtcDate(iso);
     const datePart = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timePart = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     return `${datePart} · ${timePart}`;
@@ -81,7 +73,7 @@ export class MeetingListComponent {
     return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
   }
 
-  statusLabel(status: MeetingStatus): string {
+  statusLabel(status: MeetingUiStatus): string {
     switch (status) {
       case 'upcoming':
         return 'Upcoming';
@@ -100,28 +92,40 @@ export class MeetingListComponent {
   }
 
   onRowClick(meeting: MeetingItem): void {
-    this.edit.emit(meeting);
+    if (this.canManage(meeting)) {
+      this.manage.emit(meeting);
+    }
   }
 
-  onEditClick(meeting: MeetingItem, event: MouseEvent): void {
+  onManageClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.edit.emit(meeting);
+    this.manage.emit(meeting);
   }
 
   onCancelClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
-    this.cancel.emit(meeting);
+    this.cancelMeeting.emit(meeting);
   }
 
-  onJoinClick(meeting: MeetingItem, event: MouseEvent): void {
+  onStartClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
-    this.join.emit(meeting);
+    this.startMeeting.emit(meeting);
   }
 
-  onViewRecordingClick(meeting: MeetingItem, event: MouseEvent): void {
+  onEndClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
-    this.viewRecording.emit(meeting);
+    this.endMeeting.emit(meeting);
+  }
+
+  onTranscriptClick(meeting: MeetingItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.viewTranscript.emit(meeting);
+  }
+
+  onCopyCodeClick(meeting: MeetingItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.copyCode.emit(meeting);
   }
 }

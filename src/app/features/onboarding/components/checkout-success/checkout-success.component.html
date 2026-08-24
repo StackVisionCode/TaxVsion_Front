@@ -1,0 +1,39 @@
+<app-auth-shell panelEyebrow="Payment received"
+  panelHeading="One last step and your firm is live">
+
+  <div class="success-content text-center">
+    <span class="success-check mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+      <ion-icon name="checkmark-outline" class="text-3xl text-emerald-600"></ion-icon>
+    </span>
+
+    <h1 class="mt-6 text-3xl font-bold text-gray-900">Payment received</h1>
+    <p class="mt-3 text-sm text-gray-500">
+      We emailed you a secure link to finish setting up your account. It's valid for
+      <span class="font-medium text-gray-700">72 hours</span>.
+    </p>
+
+    <div class="mt-8 space-y-3 text-left">
+      <div class="flex items-start gap-3 rounded-xl bg-gray-50 px-4 py-3">
+        <ion-icon name="mail-outline" class="mt-0.5 text-base text-indigo-600"></ion-icon>
+        <p class="text-sm text-gray-600">
+          Check your inbox for <span class="font-medium text-gray-800">"Complete your account"</span>. If it isn't
+          there in a few minutes, look in your spam folder.
+        </p>
+      </div>
+
+      <div class="flex items-start gap-3 rounded-xl bg-gray-50 px-4 py-3">
+        <ion-icon name="receipt-outline" class="mt-0.5 text-base text-indigo-600"></ion-icon>
+        <p class="text-sm text-gray-600">
+          Your receipt arrives in a separate email with a download link.
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-6 text-sm text-gray-500">You can safely close this tab.</p>
+
+    <a routerLink="/login"
+      class="mt-8 flex w-full items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+      Go to sign in
+    </a>
+  </div>
+</app-auth-shell>

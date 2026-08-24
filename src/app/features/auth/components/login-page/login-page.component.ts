@@ -84,6 +84,15 @@ export class LoginPageComponent {
     }
 
     this.formError.set(null);
+
+    // Sin oficina resuelta no hay a qué host pegarle: se avisa y se ofrece buscarla por
+    // email, en vez de intentar el login y morir al componer la URL.
+    if (!this.api.slug() && environment.production) {
+      this.formError.set('Necesitamos saber cuál es tu oficina. Búscala con tu correo para continuar.');
+      void this.router.navigate(['/find-office'], { queryParams: { returnUrl: this.returnUrl() } });
+      return;
+    }
+
     // 'verifying' = spinner en el botón mientras el backend responde.
     this.phase.set('verifying');
 

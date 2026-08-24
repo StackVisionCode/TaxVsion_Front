@@ -23,13 +23,12 @@ export const AUTH_ROUTES: Routes = [
       import('./components/mfa-setup-page/mfa-setup-page.component').then(m => m.MfaSetupPageComponent),
     title: 'Set up two-step verification',
   },
-  {
-    path: 'register',
-    canActivate: [guestGuard],
-    loadComponent: () =>
-      import('./components/register-page/register-page.component').then(m => m.RegisterPageComponent),
-    title: 'Create Account',
-  },
+  // OJO: aquí NO va ninguna ruta 'register'. AUTH_ROUTES se monta en `path: ''`
+  // (app.routes.ts) ANTES del `path: 'register'` real, así que un hijo 'register'
+  // eclipsaba al alta de verdad — el comprador que venía del email post-pago
+  // ({RegistrationUrlBase}/register?token=…) aterrizaba en un formulario simulado
+  // que anunciaba "Account created!" sin crear tenant ni cuenta.
+  // El alta real vive en features/onboarding (REGISTER_ROUTES → RegisterEntryComponent).
   {
     path: 'forgot-password',
     canActivate: [guestGuard],

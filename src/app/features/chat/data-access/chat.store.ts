@@ -12,8 +12,9 @@ import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { ConversationSummary, EmployeeDirectoryEntry, MessageDto } from './chat.model';
+import { parseUtcDate } from '../../../shared/utils/utc-date.util';
 
-const AVATAR_PALETTE = ['bg-gray-900', 'bg-indigo-600', 'bg-[#7C6AE0]', 'bg-orange-500', 'bg-emerald-500'];
+const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 function avatarColorFor(id: string): string {
   let hash = 0;
@@ -24,11 +25,11 @@ function avatarColorFor(id: string): string {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return parseUtcDate(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatDateGroup(iso: string): string {
-  const date = new Date(iso);
+  const date = parseUtcDate(iso);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);

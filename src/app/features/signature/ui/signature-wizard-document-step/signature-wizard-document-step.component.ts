@@ -1,25 +1,24 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { toApiError } from '@core/models/api-error.model';
 import { WizardDocKind, WizardDocument } from '../signature-request-panel/signature-wizard.model';
-import {
-  WIZARD_DOCUMENTS,
-  formatBytes,
-  kindChip,
-  kindCircle,
-  kindFromName,
-  kindIcon,
-} from '../signature-request-panel/signature-wizard.mock';
-
-type DocTab = 'existing' | 'upload';
-type KindFilter = 'all' | 'pdf' | 'doc';
+import { formatBytes, kindChip, kindCircle, kindIcon } from '../signature-request-panel/signature-wizard.presenter';
+import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
+import { SignatureStore } from '../../data-access/signature.store';
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** Fase del pipeline preflight → CloudStorage del documento elegido. */
+type UploadPhase = 'idle' | 'validating' | 'uploading' | 'ready' | 'rejected' | 'failed';
+
 /**
- * Paso 2 del wizard: elegir un documento existente (mock) o subir uno
- * (click o drag & drop). Dos columnas en lg: lista/dropzone a la izquierda,
- * panel sticky con el detalle del documento seleccionado a la derecha.
+ * Paso 2 del wizard: subir el PDF a firmar (click o drag & drop). Al elegir un
+ * archivo corre el preflight real (POST /signature/documents/validate: MIME,
+ * tamaño, integridad, firmas previas) y, si es aceptable, lo sube a CloudStorage
+ * (initiate → MinIO → complete) y conserva el fileId — requisito de
+ * POST /signature/requests. El backend solo acepta PDF, así que el picker
+ * también. Dos columnas en lg: dropzone a la izquierda, detalle sticky a la derecha.
  */
 @Component({
   selector: 'app-signature-wizard-document-step',
@@ -31,30 +30,25 @@ const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export class SignatureWizardDocumentStepComponent {
   @Input() selectedId: string | null = null;
   @Output() documentSelected = new EventEmitter<WizardDocument>();
+  @Output() documentCleared = new EventEmitter<void>();
 
-  readonly documents = WIZARD_DOCUMENTS;
-  readonly tab = signal<DocTab>('existing');
-  readonly kindFilters: KindFilter[] = ['all', 'pdf', 'doc'];
-  readonly kindFilter = signal<KindFilter>('all');
-  readonly search = signal('');
-  readonly uploaded = signal<WizardDocument | null>(null);
+  private readonly store = inject(SignatureStore);
+
+  readonly phase = signal<UploadPhase>('idle');
+  readonly issues = signal<DocumentValidationIssue[]>([]);
   readonly uploadError = signal('');
+  readonly uploaded = signal<WizardDocument | null>(null);
+  readonly validation = signal<ValidateDocumentResponse | null>(null);
   readonly isDragging = signal(false);
 
-  readonly filtered = computed<WizardDocument[]>(() => {
-    const filter = this.kindFilter();
-    const query = this.search().trim().toLowerCase();
-    return this.documents
-      .filter(doc => filter === 'all' || doc.kind === filter)
-      .filter(doc => !query || doc.name.toLowerCase().includes(query));
-  });
+  /** Token anti-carrera: si el usuario re-elige archivo a mitad del pipeline, el viejo se descarta. */
+  private pipelineToken = 0;
 
-  /** Documento seleccionado (de la lista o el subido) para el panel derecho. */
+  readonly isBusy = (): boolean => this.phase() === 'validating' || this.phase() === 'uploading';
+
+  /** Documento subido, para el panel derecho. */
   selectedDocument(): WizardDocument | null {
-    if (this.uploaded()?.id === this.selectedId) {
-      return this.uploaded();
-    }
-    return this.documents.find(doc => doc.id === this.selectedId) ?? null;
+    return this.uploaded();
   }
 
   /** Lista 0-o-1 para *ngFor+trackBy: re-anima el panel al cambiar la selección. */
@@ -67,25 +61,6 @@ export class SignatureWizardDocumentStepComponent {
     return doc.id;
   }
 
-  setTab(tab: DocTab): void {
-    this.tab.set(tab);
-  }
-
-  setKindFilter(filter: KindFilter): void {
-    this.kindFilter.set(filter);
-  }
-
-  filterLabel(filter: KindFilter): string {
-    switch (filter) {
-      case 'all':
-        return 'All';
-      case 'pdf':
-        return 'PDF';
-      case 'doc':
-        return 'Word';
-    }
-  }
-
   icon(kind: WizardDocKind): string {
     return kindIcon(kind);
   }
@@ -96,10 +71,6 @@ export class SignatureWizardDocumentStepComponent {
 
   chip(kind: WizardDocKind): string {
     return kindChip(kind);
-  }
-
-  select(doc: WizardDocument): void {
-    this.documentSelected.emit(doc);
   }
 
   onFileSelected(event: Event): void {
@@ -130,31 +101,89 @@ export class SignatureWizardDocumentStepComponent {
   }
 
   removeUpload(): void {
+    this.pipelineToken++;
     this.uploaded.set(null);
+    this.validation.set(null);
+    this.issues.set([]);
     this.uploadError.set('');
+    this.phase.set('idle');
+    this.documentCleared.emit();
   }
 
-  /** Validación compartida entre input y drag & drop. */
+  /** Validación local + preflight backend + subida a CloudStorage. */
   private acceptFile(file: File): void {
+    if (this.isBusy()) {
+      return;
+    }
     if (file.size > MAX_UPLOAD_BYTES) {
-      this.uploadError.set('El archivo debe pesar menos de 25MB.');
+      this.uploadError.set('The file must be smaller than 25MB.');
       return;
     }
-    const kind = kindFromName(file.name);
-    if (kind !== 'pdf' && kind !== 'doc') {
-      this.uploadError.set('Solo se permiten PDF, DOC o DOCX.');
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      this.uploadError.set('Only PDF documents can be sent for signature.');
       return;
     }
+
+    const token = ++this.pipelineToken;
     this.uploadError.set('');
-    const doc: WizardDocument = {
-      id: `upload-${file.name}-${file.size}`,
-      name: file.name,
-      kind,
-      size: formatBytes(file.size),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      blob: file,
-    };
-    this.uploaded.set(doc);
-    this.select(doc);
+    this.issues.set([]);
+    this.validation.set(null);
+    this.uploaded.set(null);
+    this.documentCleared.emit();
+    this.phase.set('validating');
+
+    this.store.validateDocument(file).subscribe({
+      next: result => {
+        if (token !== this.pipelineToken) {
+          return;
+        }
+        this.validation.set(result);
+        if (!result.isAcceptable) {
+          this.issues.set(result.issues);
+          this.phase.set('rejected');
+          return;
+        }
+        this.uploadToStorage(file, result, token);
+      },
+      error: err => {
+        if (token !== this.pipelineToken) {
+          return;
+        }
+        this.uploadError.set(toApiError(err).message);
+        this.phase.set('failed');
+      },
+    });
+  }
+
+  private uploadToStorage(file: File, validation: ValidateDocumentResponse, token: number): void {
+    this.phase.set('uploading');
+    this.store.uploadOriginalDocument(file, validation.validationRecordId).subscribe({
+      next: fileId => {
+        if (token !== this.pipelineToken) {
+          return;
+        }
+        const doc: WizardDocument = {
+          id: fileId,
+          name: file.name,
+          kind: 'pdf',
+          size: formatBytes(file.size),
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          blob: file,
+          fileId,
+          pageCount: validation.pageCount,
+        };
+        this.uploaded.set(doc);
+        this.phase.set('ready');
+        this.documentSelected.emit(doc);
+      },
+      error: err => {
+        if (token !== this.pipelineToken) {
+          return;
+        }
+        this.uploadError.set(toApiError(err).message);
+        this.phase.set('failed');
+      },
+    });
   }
 }

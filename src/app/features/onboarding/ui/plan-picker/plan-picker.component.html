@@ -1,0 +1,49 @@
+<!-- Tres columnas en pantallas anchas: con el catálogo actual (3 planes) entran en
+     una sola fila y la tarjeta no crece más allá del viewport. -->
+<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+  @for (plan of plans; track plan.id) {
+    <button type="button" (click)="planSelected.emit(plan.id)"
+      class="group relative flex flex-col text-left rounded-2xl border p-4 transition-all"
+      [class.border-indigo-600]="selectedPlanId === plan.id"
+      [class.ring-2]="selectedPlanId === plan.id"
+      [class.ring-indigo-500/20]="selectedPlanId === plan.id"
+      [class.bg-indigo-50/40]="selectedPlanId === plan.id"
+      [class.border-gray-200]="selectedPlanId !== plan.id"
+      [class.hover:border-indigo-300]="selectedPlanId !== plan.id">
+      @if (selectedPlanId === plan.id) {
+        <span class="absolute top-4 right-4 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600">
+          <ion-icon name="checkmark-outline" class="text-sm text-white"></ion-icon>
+        </span>
+      }
+
+      <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{{ plan.tier }}</p>
+      <h3 class="mt-1 text-lg font-bold text-gray-900">{{ plan.name }}</h3>
+
+      <p class="mt-3 flex items-baseline gap-1">
+        <span class="text-2xl font-bold text-gray-900">{{ formatPrice(plan.monthlyPriceUsd) }}</span>
+        <span class="text-sm text-gray-500">/ month</span>
+      </p>
+
+      @if (plan.description) {
+        <p class="mt-2 text-xs leading-relaxed text-gray-500">{{ plan.description }}</p>
+      }
+
+      <ul class="mt-4 space-y-1.5 text-sm text-gray-600">
+        <li class="flex items-center gap-2">
+          <ion-icon name="people-outline" class="text-base text-gray-400"></ion-icon>
+          Up to {{ plan.maxUsers }} users
+        </li>
+        <li class="flex items-center gap-2">
+          <ion-icon name="cloud-outline" class="text-base text-gray-400"></ion-icon>
+          {{ formatStorage(plan.storageQuotaBytes) }} of storage
+        </li>
+        @if (plan.enabledModules.length) {
+          <li class="flex items-center gap-2">
+            <ion-icon name="grid-outline" class="text-base text-gray-400"></ion-icon>
+            {{ plan.enabledModules.length }} modules included
+          </li>
+        }
+      </ul>
+    </button>
+  }
+</div>

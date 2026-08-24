@@ -21,7 +21,9 @@ export type NotificationType =
   | 'document_uploaded'
   | 'session_expiring'
   | 'subscription_expiring'
-  | 'system_alert';
+  | 'system_alert'
+  /** Fallback para kinds del backend sin categoría visual específica. */
+  | 'general';
 
 export interface AppNotification {
   id: string;
@@ -30,16 +32,20 @@ export interface AppNotification {
   message: string;
   /** Etiqueta de tiempo relativo ya formateada (p. ej. "20m ago"). */
   time: string;
+  /** Epoch ms de createdAtUtc (para stats Today / This week). */
+  createdAt: number;
   isRead: boolean;
 }
 
 /**
  * Lista de notificaciones (estilo "Aether"): cada fila muestra un círculo de
  * icono coloreado según el tipo, título en negrita si no está leída, mensaje
- * gris truncado, tiempo relativo, un punto índigo de no leída y un menú
- * fantasma "..." por fila con Mark as read/unread + Delete. El click en la
- * fila (fuera del menú) marca la notificación como leída. Todo el estado es
- * de solo presentación: las mutaciones se emiten al padre vía @Output.
+ * gris truncado, tiempo relativo, un punto índigo de no leída y, solo en las
+ * no leídas, un menú fantasma "..." con "Mark as read". El click en la fila
+ * (fuera del menú) también marca como leída. Delete y Mark-as-unread se
+ * eliminaron: el backend de Communication no expone esos endpoints por HTTP
+ * (dismiss es Socket.IO-only y mark-unread no existe). Todo el estado es de
+ * solo presentación: las mutaciones se emiten al padre vía @Output.
  */
 @Component({
   selector: 'app-notification-list',
@@ -50,8 +56,6 @@ export interface AppNotification {
 export class NotificationListComponent {
   @Input() notifications: AppNotification[] = [];
   @Output() markRead = new EventEmitter<string>();
-  @Output() markUnread = new EventEmitter<string>();
-  @Output() delete = new EventEmitter<string>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -92,6 +96,8 @@ export class NotificationListComponent {
         return 'warning-outline';
       case 'system_alert':
         return 'alert-outline';
+      case 'general':
+        return 'notifications-outline';
     }
   }
 
@@ -101,27 +107,35 @@ export class NotificationListComponent {
       case 'customer_created':
       case 'customer_updated':
       case 'customer_assigned':
-        return 'bg-[#CBD9F2]';
+        return 'bg-[#CFE2F7]';
       case 'payment_received':
       case 'invoice_generated':
         return 'bg-emerald-500';
       case 'document_signed':
       case 'document_uploaded':
-        return 'bg-[#7C6AE0]';
+        return 'bg-[#1E466B]';
       case 'session_expiring':
       case 'subscription_expiring':
         return 'bg-orange-500';
       case 'payment_failed':
       case 'system_alert':
         return 'bg-red-500';
+      case 'general':
+        return 'bg-[#E7EAEE]';
     }
   }
 
-  /** El texto del icono va oscuro sobre el pastel azul y blanco sobre los sólidos. */
+  /** El texto del icono va oscuro sobre los pasteles y blanco sobre los sólidos. */
   iconTextFor(type: NotificationType): string {
-    return type === 'customer_created' || type === 'customer_updated' || type === 'customer_assigned'
-      ? 'text-gray-700'
-      : 'text-white';
+    switch (type) {
+      case 'customer_created':
+      case 'customer_updated':
+      case 'customer_assigned':
+      case 'general':
+        return 'text-gray-700';
+      default:
+        return 'text-white';
+    }
   }
 
   toggleMenu(notification: AppNotification, event: MouseEvent): void {
@@ -139,17 +153,5 @@ export class NotificationListComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.markRead.emit(notification.id);
-  }
-
-  onMarkUnreadClick(notification: AppNotification, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.markUnread.emit(notification.id);
-  }
-
-  onDeleteClick(notification: AppNotification, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.delete.emit(notification.id);
   }
 }
