@@ -32,7 +32,7 @@ export const officeGuard: CanActivateFn = () => {
   }
 
   return inject(TenantResolutionService)
-    .officeExists(slug)
+    .officeExists()
     .pipe(
       tap(exists => exists && writeOfficeOk(slug)),
       map(exists => {

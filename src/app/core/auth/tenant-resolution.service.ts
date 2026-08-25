@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, map, of, throwError } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 
 /**
@@ -26,19 +26,17 @@ export class TenantResolutionService {
   }
 
   /**
-   * ¿Existe una oficina viva en este slug? Sirve para no mostrar el login en subdominios que no
-   * son ninguna oficina (tecleados al azar). Se llama SAME-ORIGIN (el propio host del tenant),
-   * no a api.*: el CORS del backend no incluye los subdominios de tenant, y este endpoint está
-   * exento de la resolución por Host, así que responde también en un subdominio inexistente.
-   * Solo hay oficina viva cuando available=false + reason "TenantDomain.SlugTaken"; libre,
-   * reservado a medio registro o formato inválido => no hay oficina.
+   * ¿El subdominio actual resuelve a una oficina viva? Se llama SAME-ORIGIN (el propio host del
+   * tenant) a by-host, que usa el MISMO resolver por Host que el login: 200 si el subdominio es
+   * una oficina real y activa, 404 si no (host desconocido/apex). Same-origin a propósito: el CORS
+   * de prod no incluye los subdominios de tenant, así que un GET a api.* se bloquearía. Un error
+   * distinto de 404 se propaga: el guard lo trata como fail-open (mejor mostrar el login que
+   * bloquear a un usuario legítimo por un fallo transitorio).
    */
-  officeExists(slug: string): Observable<boolean> {
-    return this.http
-      .get<{ available: boolean; reason: string | null }>(
-        this.api.tenantUrl('/auth/subdomains/check-availability'),
-        { params: { slug } },
-      )
-      .pipe(map(r => r.available === false && r.reason === 'TenantDomain.SlugTaken'));
+  officeExists(): Observable<boolean> {
+    return this.http.get(this.api.tenantUrl('/auth/tenant-resolution/by-host')).pipe(
+      map(() => true),
+      catchError((err: HttpErrorResponse) => (err.status === 404 ? of(false) : throwError(() => err))),
+    );
   }
 }
