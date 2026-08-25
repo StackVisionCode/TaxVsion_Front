@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 
 /**
@@ -23,5 +23,22 @@ export class TenantResolutionService {
    */
   findOfficeByEmail(email: string): Observable<void> {
     return this.http.post<void>(this.api.systemUrl('/auth/tenant-resolution/by-email'), { email });
+  }
+
+  /**
+   * ¿Existe una oficina viva en este slug? Sirve para no mostrar el login en subdominios que no
+   * son ninguna oficina (tecleados al azar). Se llama SAME-ORIGIN (el propio host del tenant),
+   * no a api.*: el CORS del backend no incluye los subdominios de tenant, y este endpoint está
+   * exento de la resolución por Host, así que responde también en un subdominio inexistente.
+   * Solo hay oficina viva cuando available=false + reason "TenantDomain.SlugTaken"; libre,
+   * reservado a medio registro o formato inválido => no hay oficina.
+   */
+  officeExists(slug: string): Observable<boolean> {
+    return this.http
+      .get<{ available: boolean; reason: string | null }>(
+        this.api.tenantUrl('/auth/subdomains/check-availability'),
+        { params: { slug } },
+      )
+      .pipe(map(r => r.available === false && r.reason === 'TenantDomain.SlugTaken'));
   }
 }

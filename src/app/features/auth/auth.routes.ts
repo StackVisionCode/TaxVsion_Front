@@ -1,10 +1,11 @@
 import { Routes } from '@angular/router';
 import { guestGuard, mfaSetupGuard, mfaVerifyGuard } from '@core/auth/auth.guard';
+import { officeGuard } from '@core/auth/office.guard';
 
 export const AUTH_ROUTES: Routes = [
   {
     path: 'login',
-    canActivate: [guestGuard],
+    canActivate: [guestGuard, officeGuard],
     loadComponent: () =>
       import('./components/login-page/login-page.component').then(m => m.LoginPageComponent),
     title: 'Sign In',
@@ -31,7 +32,7 @@ export const AUTH_ROUTES: Routes = [
   // El alta real vive en features/onboarding (REGISTER_ROUTES → RegisterEntryComponent).
   {
     path: 'forgot-password',
-    canActivate: [guestGuard],
+    canActivate: [guestGuard, officeGuard],
     loadComponent: () =>
       import('./components/forgot-password-page/forgot-password-page.component').then(
         m => m.ForgotPasswordPageComponent,
