@@ -69,6 +69,16 @@ export const routes: Routes = [
     title: 'Sign document',
   },
   {
+    // Alias de la anterior. El backend NO compone `/sign/<token>`: `SigningTokenService`
+    // usa `Signature:PublicBaseUrl` + `/<token>`, y esa opción vale hoy
+    // `…/signature/public`, así que el enlace emailado es `/signature/public/<token>`.
+    // Aceptar ambas formas evita que el enlace muera si esa configuración cambia (o no).
+    path: 'signature/public/:token',
+    loadComponent: () =>
+      import('./features/signature/components/sign-page/sign-page.component').then(m => m.SignPageComponent),
+    title: 'Sign document',
+  },
+  {
     // Página pública de pago de una factura: el cliente llega por el link/QR del PDF, sin sesión.
     path: 'pay/:token',
     loadComponent: () =>
@@ -198,5 +208,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/templates/templates.routes').then(m => m.TEMPLATES_ROUTES),
       },
     ],
+  },
+  {
+    // Comodín: SIEMPRE al final. Sin él, cualquier URL desconocida (un enlace de correo
+    // cortado al copiarlo, una ruta vieja) dejaba la pantalla en blanco sin explicación.
+    path: '**',
+    loadComponent: () =>
+      import('./shared/ui/not-found-page/not-found-page.component').then(m => m.NotFoundPageComponent),
+    title: 'Page not found',
   },
 ];
