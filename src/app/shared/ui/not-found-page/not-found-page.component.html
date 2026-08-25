@@ -1,0 +1,38 @@
+<div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
+  <!-- Mismo fondo ambiental que el login, para que no parezca otra aplicación -->
+  <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-brand-light/30 rounded-full blur-3xl"></div>
+
+  <div class="relative w-full max-w-lg rounded-[2rem] bg-white p-8 sm:p-12 shadow-2xl shadow-brand-light/40 text-center">
+    <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+
+    <p class="mt-6 text-6xl font-bold tracking-tight text-brand-bold">404</p>
+    <h1 class="mt-3 text-2xl font-bold text-gray-900">We couldn't find that page</h1>
+    <p class="mt-2 text-sm text-gray-500">
+      The link may be broken or outdated. If you got here from an email, try opening the link again
+      exactly as you received it.
+    </p>
+
+    <!-- La URL intentada: ayuda a detectar de un vistazo un enlace cortado al copiarlo -->
+    <p class="mt-4 truncate rounded-full bg-[#FAFAFA] px-4 py-2 font-mono text-xs text-gray-400"
+      [title]="attemptedUrl">
+      {{ attemptedUrl }}
+    </p>
+
+    <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+      <a [routerLink]="homeLink()"
+        class="w-full sm:w-auto rounded-xl bg-brand-bold px-6 py-3 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        {{ homeLabel() }}
+      </a>
+      <button type="button" (click)="goBack()"
+        class="w-full sm:w-auto rounded-xl border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        Go back
+      </button>
+    </div>
+
+    <p *ngIf="!isLoggedIn()" class="mt-6 text-sm text-gray-500">
+      Can't find your office?
+      <a routerLink="/find-office" class="font-semibold text-indigo-600 hover:text-indigo-500">Find it by email</a>
+    </p>
+  </div>
+</div>

@@ -166,6 +166,13 @@ export class LoginPageComponent {
         return 'Your account is temporarily locked after too many attempts. Try again in a few minutes.';
       case 'Auth.TooManyAttempts':
         return 'Too many attempts. Please wait a moment before trying again.';
+      // El backend no logró resolver la oficina por el Host y tampoco recibió un
+      // TenantId: el subdominio no está registrado como dominio activo del tenant
+      // (o el middleware de resolución no está activo). El usuario no puede hacer
+      // nada al respecto, así que no se le pide "reintentar".
+      case 'Auth.TenantIdRequired':
+      case 'Tenant.NotFound':
+        return "This office isn't set up for sign-in yet. Please contact support so they can finish configuring it.";
       case NETWORK_ERROR_CODE:
         return "We couldn't reach the server. Check your connection and try again.";
       default:
