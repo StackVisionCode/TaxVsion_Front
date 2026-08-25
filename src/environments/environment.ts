@@ -16,4 +16,7 @@ export const environment: Environment = {
   authMock: false,
   // Publishable key de test de Stripe (pk_test_…). Pegar la tuya para habilitar el Payment Element.
   stripePublishableKey: 'pk_test_51TtSTdLvROnZXfgSkw87Y3DrHxOdy6xrF6u3qJCuak1GlegLkg1odx4EzjsmeIYvOHmzSLJDnBXyvDX4DiUmnWmE003Uid8pfg',
+  // Vacío en dev: el alta se queda dentro de la app (/onboarding) en vez de saltar
+  // al sitio público. Poner la URL del landing si se quiere probar ese salto.
+  landingUrl: '',
 };
