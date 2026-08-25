@@ -78,12 +78,24 @@ export class LoginPageComponent {
   }
 
   /**
-   * Plan elegido → wizard de alta con ese plan ya seleccionado. El id y el ciclo viajan
-   * por query params (no por estado en memoria) para que el enlace sea compartible y
-   * sobreviva a un refresco a mitad del alta.
+   * Plan elegido → alta con ese plan ya seleccionado. El id y el ciclo viajan por query
+   * params (no por estado en memoria) para que el enlace sea compartible y sobreviva a
+   * un refresco a mitad del alta.
+   *
+   * El alta vive en el SITIO PÚBLICO (`{landingUrl}/register`), no en esta app, así que
+   * se sale con `window.location` en vez del Router: son dominios distintos y el Router
+   * solo enruta dentro del SPA. Sin `landingUrl` configurado (dev) se usa la ruta
+   * interna, para no obligar a saltar a un sitio externo mientras se desarrolla.
    */
   startSignup(choice: PlanChoice): void {
     this.closePlanPicker();
+    const params = new URLSearchParams({ plan: choice.plan.id, cycle: choice.cycle });
+
+    const landing = environment.landingUrl?.trim().replace(/\/$/, '');
+    if (landing) {
+      window.location.assign(`${landing}/register?${params}`);
+      return;
+    }
     void this.router.navigate(['/onboarding'], {
       queryParams: { plan: choice.plan.id, cycle: choice.cycle },
     });

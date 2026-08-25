@@ -26,4 +26,11 @@ export interface Environment {
   /** Publishable key de Stripe (pk_test_… en dev). Es pública por diseño; la usa el Payment
    *  Element del checkout. Vacía = el checkout cae a las tarjetas de prueba mapeadas. */
   stripePublishableKey: string;
+  /**
+   * Sitio público de marketing (https://www.taxproffice.com), que es donde vive el alta.
+   * Al elegir plan se sale de la app hacia `{landingUrl}/register?plan=&cycle=`.
+   * Vacío = no hay landing: el alta se hace dentro de la app (`/onboarding`), que es lo
+   * cómodo en desarrollo para no saltar a un sitio externo.
+   */
+  landingUrl: string;
 }
