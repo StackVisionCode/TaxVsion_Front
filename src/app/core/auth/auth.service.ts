@@ -185,6 +185,15 @@ export class AuthService {
     this._mustEnrollMfa.set(false);
   }
 
+  /**
+   * Marca que el usuario debe enrolar MFA. Lo usa el canje del login central (from-ticket) cuando
+   * la política exige segundo factor pero aún no hay método: así el authGuard lo desvía al setup,
+   * igual que el desenlace `mfa-setup-required` del login directo.
+   */
+  requireMfaEnrollment(): void {
+    this._mustEnrollMfa.set(true);
+  }
+
   private handleLoginResponse(res: LoginResponse): LoginOutcome {
     if (res.mfaRequired && res.loginTicket) {
       const methods = (res.mfaMethods ?? []) as MfaMethodType[];
