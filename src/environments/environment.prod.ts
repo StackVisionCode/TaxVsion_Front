@@ -16,4 +16,6 @@ export const environment: Environment = {
   authMock: false,
   // TODO: publishable key de Stripe de producción (pk_live_…).
   stripePublishableKey: '',
+  // El alta vive en el sitio público, no en la app.
+  landingUrl: 'https://www.taxproffice.com',
 };
