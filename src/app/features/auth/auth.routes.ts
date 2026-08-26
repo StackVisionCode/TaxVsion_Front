@@ -49,6 +49,14 @@ export const AUTH_ROUTES: Routes = [
     title: 'Find your office',
   },
   {
+    // Subdominio no registrado (lo bloquea el TenantHostGuard del Gateway): mensaje plano,
+    // ya no se redirige a find-office. Sin guard: debe verse siempre.
+    path: 'office-unavailable',
+    loadComponent: () =>
+      import('@core/auth/office-unavailable.component').then(m => m.OfficeUnavailableComponent),
+    title: 'Office unavailable',
+  },
+  {
     // Ruta que recibe el link emailado por POST /auth/password/forgot (?token=...).
     // Sin guestGuard a propósito: el link puede llegar con una sesión previa todavía
     // viva en el navegador (otro dispositivo, sesión vieja) y el reset debe poder

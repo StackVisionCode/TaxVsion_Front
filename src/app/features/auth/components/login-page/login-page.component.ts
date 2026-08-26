@@ -6,7 +6,7 @@ import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } 
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
-import { ApiConfigService } from '@core/config/api-config.service';
+import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { PlanChoice, PlanPickerModalComponent } from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
@@ -34,6 +34,13 @@ export class LoginPageComponent {
   private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(ApiConfigService);
+
+  /**
+   * Estamos en el subdominio de una oficina (manfer.taxproffice.com) y no en el apex/app.
+   * Sign-up y "encuentra tu oficina" son acciones de sistema (viven en app.<baseDomain>): en una
+   * oficina concreta no tienen sentido y se ocultan. Se mira el HOST, no el slug guardado.
+   */
+  readonly isOfficeSubdomain = tenantSlugFromHost() !== null;
 
   constructor() {
     // En prod el tenant se resuelve por el subdominio: el slug llega por ?office=<slug>
