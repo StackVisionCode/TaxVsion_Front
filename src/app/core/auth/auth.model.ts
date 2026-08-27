@@ -33,6 +33,8 @@ export interface LoginResponse {
   takeoverRequired?: boolean;
   takeoverTicket?: string | null;
   takeoverTicketExpiresInSeconds?: number | null;
+  /** Actor del usuario — para rechazar temprano un login en la superficie equivocada (cliente en el CRM). */
+  actorType?: string | null;
 }
 
 /** MfaVerifyResponse: tokens tras el 2.º factor, o vale de takeover de sesión única. */

@@ -169,6 +169,12 @@ export class LoginPageComponent {
         this.phase.set('idle');
         this.takeover.prompt(outcome.ticket);
         break;
+      case 'wrong-portal':
+        // Un cliente intentó entrar al CRM. Aviso neutral (sin revelar cliente/staff) y sin tocar su
+        // sesión. No se redirige a propósito: el destino delataría el tipo de cuenta.
+        this.phase.set('idle');
+        this.formError.set("You can't sign in here.");
+        break;
     }
   }
 

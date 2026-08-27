@@ -31,9 +31,10 @@ export class AppShellComponent implements OnInit {
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,
     // así que el chat reusa esta misma conexión cuando se abre.
     this.socket.connect();
-    this.socket.sessionRevoked$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.socket.disconnect();
-      this.sessionRevocation.handleRevoked();
+    this.socket.sessionRevoked$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(revokedSid => {
+      if (this.sessionRevocation.handleRevoked(revokedSid)) {
+        this.socket.disconnect();
+      }
     });
   }
 
