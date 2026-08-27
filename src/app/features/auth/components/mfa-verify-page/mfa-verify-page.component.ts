@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
+import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
 /**
@@ -23,6 +24,7 @@ export class MfaVerifyPageComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly takeover = inject(SessionTakeoverService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly pending = this.auth.pendingMfa;
@@ -109,7 +111,13 @@ export class MfaVerifyPageComponent implements OnDestroy {
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: outcome => {
+          if (outcome.kind === 'takeover-required') {
+            // Sesión única: el 2.º factor pasó pero ya hay sesión activa → interstitial.
+            this.submitting.set(false);
+            this.takeover.prompt(outcome.ticket);
+            return;
+          }
           // Hidratar el usuario de sesión (GET /auth/me) y recién ahí entrar al shell.
           this.auth
             .me()

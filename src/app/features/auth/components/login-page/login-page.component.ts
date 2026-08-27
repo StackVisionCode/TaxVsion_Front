@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
+import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -31,6 +32,7 @@ export class LoginPageComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
+  private readonly takeover = inject(SessionTakeoverService);
   private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(ApiConfigService);
@@ -161,6 +163,11 @@ export class LoginPageComponent {
         break;
       case 'mfa-setup-required':
         void this.router.navigate(['/login/setup-mfa']);
+        break;
+      case 'takeover-required':
+        // Sesión única: ya hay sesión activa. El interstitial (modal root) toma el control.
+        this.phase.set('idle');
+        this.takeover.prompt(outcome.ticket);
         break;
     }
   }

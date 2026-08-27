@@ -10,8 +10,10 @@ import {
   LoginRequest,
   LoginResponse,
   MeResponse,
+  MfaVerifyResponse,
   RefreshRequest,
   ResetPasswordRequest,
+  TakeoverSessionRequest,
   TermsAcceptanceResponse,
   TermsAcceptanceStatusResponse,
   TermsVersionResponse,
@@ -22,7 +24,10 @@ import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 export type LoginOutcome =
   | { kind: 'authenticated' }
   | { kind: 'mfa-required'; methods: MfaMethodType[] }
-  | { kind: 'mfa-setup-required' };
+  | { kind: 'mfa-setup-required' }
+  // Sesión única: ya hay una sesión activa. El componente muestra el interstitial y, si el usuario
+  // confirma, llama a takeover(ticket) para cerrar la anterior y completar el ingreso.
+  | { kind: 'takeover-required'; ticket: string };
 
 /**
  * Servicio de autenticación transversal. Orquesta el login (incluido MFA),
@@ -86,19 +91,40 @@ export class AuthService {
     );
   }
 
-  verifyMfa(req: VerifyMfaRequest): Observable<void> {
+  verifyMfa(req: VerifyMfaRequest): Observable<LoginOutcome> {
     if (environment.authMock) {
       return defer(() => {
         this.applyMockSession();
-        return of(void 0);
+        return of<LoginOutcome>({ kind: 'authenticated' });
       });
     }
-    return defer(() => this.http.post<AuthTokens>(`${this.base}/auth/mfa/verify`, req)).pipe(
-      tap(tokens => {
-        this.tokenService.setSession(tokens);
-        this._pendingMfa.set(null);
+    return defer(() => this.http.post<MfaVerifyResponse>(`${this.base}/auth/mfa/verify`, req)).pipe(
+      map(res => {
+        // Sesión única: el 2.º factor pasó, pero ya hay sesión activa → confirmar takeover, sin tokens.
+        if (res.takeoverRequired && res.takeoverTicket) {
+          return { kind: 'takeover-required', ticket: res.takeoverTicket } satisfies LoginOutcome;
+        }
+        if (res.tokens) {
+          this.tokenService.setSession(res.tokens);
+          this._pendingMfa.set(null);
+          return { kind: 'authenticated' } satisfies LoginOutcome;
+        }
+        throw new Error('Respuesta de verificación MFA inesperada del servidor.');
       }),
-      map(() => void 0),
+    );
+  }
+
+  /** Sesión única: confirma el takeover. Canjea el vale, cierra la sesión anterior y establece la nueva. */
+  takeover(ticket: string): Observable<LoginOutcome> {
+    if (environment.authMock) {
+      return defer(() => {
+        this.applyMockSession();
+        return of<LoginOutcome>({ kind: 'authenticated' });
+      });
+    }
+    const body: TakeoverSessionRequest = { ticket };
+    return defer(() => this.http.post<LoginResponse>(`${this.base}/auth/session/takeover`, body)).pipe(
+      map(res => this.handleLoginResponse(res)),
     );
   }
 
@@ -229,6 +255,11 @@ export class AuthService {
   }
 
   private handleLoginResponse(res: LoginResponse): LoginOutcome {
+    // Sesión única: ya hay una sesión activa. Sin tokens todavía — el componente muestra el
+    // interstitial y confirma con takeover(ticket).
+    if (res.takeoverRequired && res.takeoverTicket) {
+      return { kind: 'takeover-required', ticket: res.takeoverTicket };
+    }
     if (res.mfaRequired && res.loginTicket) {
       const methods = (res.mfaMethods ?? []) as MfaMethodType[];
       this._pendingMfa.set({

@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '@env/environment';
 import { CentralLoginService } from '@core/auth/central-login.service';
 import { AuthService } from '@core/auth/auth.service';
+import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 
 /**
  * Aterrizaje del login central en el subdominio de la oficina: canjea el vale (?ticket=) por
@@ -22,6 +23,7 @@ export class AuthContinuePageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly centralLogin = inject(CentralLoginService);
   private readonly auth = inject(AuthService);
+  private readonly takeover = inject(SessionTakeoverService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly failed = signal(false);
@@ -38,6 +40,11 @@ export class AuthContinuePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: session => {
+          // Sesión única: ya hay una sesión activa en la oficina → interstitial, sin tokens todavía.
+          if (session.takeoverRequired && session.takeoverTicket) {
+            this.takeover.prompt(session.takeoverTicket);
+            return;
+          }
           // Política de MFA sin método aún: marcar el enrolamiento y dejar que el authGuard desvíe
           // al setup. Si no, hidratar el perfil (GET /auth/me) y entrar al destino.
           if (session.mfaSetupRequired) {

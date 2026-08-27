@@ -42,9 +42,15 @@ export class CentralLoginService {
 
   /** Paso 3 (ya en el subdominio): canjea el vale por tokens de sesión y los persiste. */
   exchangeTicket(ticket: string): Observable<HandoffSession> {
-    return this.http
-      .post<HandoffSession>(`${this.api.tenantBase()}/auth/session/from-ticket`, { ticket })
-      .pipe(tap(session => this.tokenService.setSession(toTokens(session))));
+    return this.http.post<HandoffSession>(`${this.api.tenantBase()}/auth/session/from-ticket`, { ticket }).pipe(
+      tap(session => {
+        // Sesión única: si el canje pide takeover no hay tokens todavía — no se persiste nada; el
+        // componente muestra el interstitial y confirma con el vale.
+        if (session.accessToken && session.refreshToken) {
+          this.tokenService.setSession(toTokens(session));
+        }
+      }),
+    );
   }
 
   /**
@@ -77,8 +83,8 @@ export class CentralLoginService {
 /** El canje trae el flag de setup además de los tokens; TokenService solo necesita los tokens. */
 function toTokens(session: HandoffSession): AuthTokens {
   return {
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
+    accessToken: session.accessToken!,
+    refreshToken: session.refreshToken!,
     expiresInSeconds: session.expiresInSeconds,
   };
 }

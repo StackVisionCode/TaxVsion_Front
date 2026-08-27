@@ -38,10 +38,14 @@ export interface HandoffTicketView {
  * (política sin método), para que el frontend fuerce el setup igual que el login directo.
  */
 export interface HandoffSession {
-  accessToken: string;
-  refreshToken: string;
+  accessToken: string | null;
+  refreshToken: string | null;
   expiresInSeconds: number;
   mfaSetupRequired: boolean;
+  /** Sesión única: ya hay una sesión activa en la oficina. Sin tokens — el front confirma con el vale. */
+  takeoverRequired?: boolean;
+  takeoverTicket?: string | null;
+  takeoverTicketExpiresInSeconds?: number | null;
 }
 
 /** Desenlace del discover ya interpretado por el servicio (el componente solo enruta). */
