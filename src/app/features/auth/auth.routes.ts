@@ -32,6 +32,14 @@ export const AUTH_ROUTES: Routes = [
     title: 'Sign In',
   },
   {
+    // Gate de Términos del staff: el authGuard desvía aquí cuando el tenant no aceptó la versión
+    // vigente del ToS (se publicó una nueva post-onboarding). Sin guard propio, pero requiere sesión.
+    path: 'terms',
+    loadComponent: () =>
+      import('./components/terms-page/terms-page.component').then(m => m.TermsPageComponent),
+    title: 'Terms & Privacy',
+  },
+  {
     // Aterrizaje del login central en el subdominio: canjea ?ticket= por la sesión. Sin guard: es
     // donde nace la sesión y debe correr siempre.
     path: 'auth/continue',

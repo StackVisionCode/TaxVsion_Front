@@ -58,6 +58,32 @@ export interface Tenant {
   subDomain: string;
 }
 
+/** GET /auth/tenant/terms/status. */
+export interface TermsAcceptanceStatusResponse {
+  accepted: boolean;
+  currentVersion: string;
+  acceptedVersion: string | null;
+  acceptedAtUtc: string | null;
+}
+
+/** POST /auth/tenant/terms/accept. */
+export interface TermsAcceptanceResponse {
+  termsVersion: string;
+  acceptedAtUtc: string;
+}
+
+/** GET /auth/onboarding/terms/current — versión vigente de un documento legal (ToS/Privacy). */
+export interface TermsVersionResponse {
+  termsVersionId: string;
+  kind: string;
+  version: string;
+  contentUri: string | null;
+  contentHash: string | null;
+  locale: string;
+  effectiveFromUtc: string;
+  effectiveUntilUtc: string | null;
+}
+
 export interface Plan {
   code: string;
   maxUsers: number;

@@ -12,8 +12,12 @@ const CLIENT_PORTAL_ACTOR = 'CustomerPortal';
  * Sin sesión → /login con returnUrl. Con enrolamiento MFA pendiente → /login/setup-mfa.
  *
  * SEGURIDAD: el CRM es SOLO para el staff. Un actor `CustomerPortal` que llegue aquí (por el login
- * central del staff, un link mal armado, o navegación manual) NO debe entrar — se cierra su sesión
- * y se le manda al portal. Espejo inverso del clientPortalGuard del portal del cliente.
+ * central, un link mal armado, o navegación manual) NO debe entrar — se cierra su sesión y se le
+ * manda al portal. Espejo inverso del clientPortalGuard del portal del cliente.
+ *
+ * El actorType se lee del **JWT firmado** (claim de confianza), NO de /auth/me: /me puede estar
+ * bloqueado por el gate de Términos (409) y no debe decidir el acceso — de lo contrario un cliente
+ * cuyo /me diera 409 se colaba al CRM por el fallo del guard.
  */
 export const authGuard: CanActivateChildFn = (_route, state) => {
   const tokenService = inject(TokenService);
@@ -24,20 +28,46 @@ export const authGuard: CanActivateChildFn = (_route, state) => {
     return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
   }
 
-  // Con el perfil ya hidratado se decide en el acto; si no, se resuelve /me para conocer el actor
-  // ANTES de dejar entrar (el actorType autoritativo viene de /auth/me, nunca del JWT decodificado).
-  const current = auth.currentUser();
-  if (current) {
-    return current.actorType === CLIENT_PORTAL_ACTOR ? rejectClientPortal(auth) : mfaGate(auth, router);
+  if (actorTypeFromToken(tokenService.getAccessToken()) === CLIENT_PORTAL_ACTOR) {
+    return rejectClientPortal(auth);
   }
-  return auth.me().pipe(
-    map(user => (user.actorType === CLIENT_PORTAL_ACTOR ? rejectClientPortal(auth) : mfaGate(auth, router))),
-    // Fail-CLOSED: si no se pudo verificar el actor (red, 401, o 409 de Términos con /me bloqueado),
-    // NO se deja entrar al shell del staff — se vuelve al login. Dejar pasar aquí era una fuga: un
-    // cliente cuyo /me diera 409 (Términos) terminaba dentro del CRM.
-    catchError(() => of(router.createUrlTree(['/login']))),
+
+  // Staff: gate de Términos. Se publicó una versión nueva del ToS post-onboarding → hay que
+  // aceptarla. Cacheado por sesión (no re-chequea en cada navegación). El endpoint terms/status
+  // está exento del bloqueo del middleware.
+  if (auth.termsAccepted()) {
+    return mfaGate(auth, router);
+  }
+  return auth.termsStatus().pipe(
+    map(status => {
+      if (!status.accepted) {
+        return router.createUrlTree(['/terms']);
+      }
+      auth.markTermsAccepted();
+      return mfaGate(auth, router);
+    }),
+    // Fail-open SOLO para el gate de Términos (es UX): si el status falla (red), no se bloquea al
+    // staff — el backend igual rechaza los datos con 409. El chequeo de actor (seguridad) ya pasó.
+    catchError(() => of(mfaGate(auth, router))),
   );
 };
+
+/** Lee el claim `actor_type` del JWT sin verificar la firma (la valida el backend en cada request). */
+function actorTypeFromToken(token: string | null): string | null {
+  if (!token) {
+    return null;
+  }
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.actor_type === 'string' ? payload.actor_type : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Enrolamiento MFA pendiente → setup; si no, pasa. */
 function mfaGate(auth: AuthService, router: Router): boolean | UrlTree {

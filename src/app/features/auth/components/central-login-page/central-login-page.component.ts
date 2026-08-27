@@ -124,7 +124,7 @@ export class CentralLoginPageComponent {
       this.mfaCode.set('');
       return;
     }
-    this.requestHandoff(office.tenantId, null);
+    this.requestHandoff(office.tenantId, null, office.isClientPortal);
   }
 
   /** Envía el código MFA de la oficina seleccionada. */
@@ -134,7 +134,7 @@ export class CentralLoginPageComponent {
       this.formError.set('Enter your verification code.');
       return;
     }
-    this.requestHandoff(office.tenantId, code);
+    this.requestHandoff(office.tenantId, code, office.isClientPortal);
   }
 
   cancelMfa(): void {
@@ -154,7 +154,7 @@ export class CentralLoginPageComponent {
 
   private handleDiscover(outcome: DiscoverOutcome): void {
     if (outcome.kind === 'direct') {
-      this.redirectToOffice(outcome.subdomain, outcome.ticket);
+      this.redirectToOffice(outcome.subdomain, outcome.ticket, outcome.isClientPortal);
       return;
     }
     // Varias oficinas o MFA pendiente: mostrar el selector.
@@ -164,22 +164,26 @@ export class CentralLoginPageComponent {
     this.step.set('select');
   }
 
-  private requestHandoff(chosenTenantId: string, mfaCode: string | null): void {
+  private requestHandoff(chosenTenantId: string, mfaCode: string | null, isClientPortal: boolean): void {
     this.formError.set(null);
     this.isBusy.set(true);
     this.centralLogin
       .handoff(this.sessionRef, chosenTenantId, mfaCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: view => this.redirectToOffice(view.subdomain, view.ticket),
+        next: view => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),
         error: err => this.fail(err),
       });
   }
 
-  /** Salta al subdominio de la oficina a canjear el vale (cruza de origen en prod). */
-  private redirectToOffice(subdomain: string, ticket: string): void {
+  /**
+   * Salta al subdominio de la oficina a canjear el vale (cruza de origen en prod). El destino lo
+   * decide el ACTOR, no la página de entrada: un cliente (CustomerPortal) va al portal aunque haya
+   * entrado por el login del staff; el staff va al CRM. Así un cliente nunca aterriza en el CRM.
+   */
+  private redirectToOffice(subdomain: string, ticket: string, isClientPortal: boolean): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    window.location.assign(this.centralLogin.continueUrl(subdomain, ticket, returnUrl, this.portal));
+    window.location.assign(this.centralLogin.continueUrl(subdomain, ticket, returnUrl, isClientPortal));
   }
 
   private fail(err: unknown): void {
