@@ -10,6 +10,8 @@ export interface DiscoverOffice {
   subdomain: string;
   tenantName: string;
   mfaRequired: boolean;
+  /** El usuario en esta oficina es un cliente (CustomerPortal) → destino portal, no CRM. */
+  isClientPortal: boolean;
 }
 
 /**
@@ -21,6 +23,8 @@ export interface DiscoverLoginResponse {
   ticket: string | null;
   discoverySessionRef: string | null;
   offices: DiscoverOffice[] | null;
+  /** Solo en el desenlace directo: el usuario es un cliente (CustomerPortal). */
+  isClientPortal: boolean | null;
 }
 
 /** Respuesta de POST /auth/session/handoff: subdominio destino + vale de un solo uso. */
@@ -42,5 +46,5 @@ export interface HandoffSession {
 
 /** Desenlace del discover ya interpretado por el servicio (el componente solo enruta). */
 export type DiscoverOutcome =
-  | { kind: 'direct'; subdomain: string; ticket: string }
+  | { kind: 'direct'; subdomain: string; ticket: string; isClientPortal: boolean }
   | { kind: 'select'; sessionRef: string; offices: DiscoverOffice[] };

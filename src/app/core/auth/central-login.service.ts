@@ -85,7 +85,7 @@ function toTokens(session: HandoffSession): AuthTokens {
 
 function interpret(res: DiscoverLoginResponse): DiscoverOutcome {
   if (res.subdomain && res.ticket) {
-    return { kind: 'direct', subdomain: res.subdomain, ticket: res.ticket };
+    return { kind: 'direct', subdomain: res.subdomain, ticket: res.ticket, isClientPortal: res.isClientPortal === true };
   }
   if (res.discoverySessionRef && res.offices) {
     return { kind: 'select', sessionRef: res.discoverySessionRef, offices: res.offices };

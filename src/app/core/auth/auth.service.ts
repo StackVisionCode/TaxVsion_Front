@@ -12,6 +12,9 @@ import {
   MeResponse,
   RefreshRequest,
   ResetPasswordRequest,
+  TermsAcceptanceResponse,
+  TermsAcceptanceStatusResponse,
+  TermsVersionResponse,
 } from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 
@@ -183,6 +186,37 @@ export class AuthService {
   /** El componente de enrolamiento llama a esto tras confirmar el TOTP. */
   completeMfaEnrollment(): void {
     this._mustEnrollMfa.set(false);
+  }
+
+  // ---------- Términos (ToS/AUP) ----------
+
+  /** Cacheado por sesión: una vez aceptado, el authGuard no re-chequea en cada navegación. */
+  private readonly _termsAccepted = signal(false);
+  readonly termsAccepted = this._termsAccepted.asReadonly();
+
+  termsStatus(): Observable<TermsAcceptanceStatusResponse> {
+    return this.http.get<TermsAcceptanceStatusResponse>(`${this.base}/auth/tenant/terms/status`);
+  }
+
+  acceptTerms(): Observable<TermsAcceptanceResponse> {
+    return this.http
+      .post<TermsAcceptanceResponse>(`${this.base}/auth/tenant/terms/accept`, {})
+      .pipe(tap(() => this._termsAccepted.set(true)));
+  }
+
+  markTermsAccepted(): void {
+    this._termsAccepted.set(true);
+  }
+
+  /** Documento legal vigente (recurso de plataforma, anónimo, en el host de sistema). */
+  currentTermsVersion(kind: 'TermsOfService' | 'PrivacyPolicy', locale = 'en-US'): Observable<TermsVersionResponse> {
+    const params = new URLSearchParams({ kind, locale });
+    return this.http.get<TermsVersionResponse>(`${this.api.systemBase()}/auth/onboarding/terms/current?${params}`);
+  }
+
+  /** URL pública del documento legal renderizado (HTML), para abrirlo en una pestaña. */
+  termsContentUrl(termsVersionId: string): string {
+    return `${this.api.systemBase()}/auth/onboarding/terms/${termsVersionId}/content`;
   }
 
   /**
