@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TaxProffice">
+  <defs>
+    <linearGradient id="tpBg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="tpGloss" x1="256" y1="0" x2="256" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#tpBg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#tpGloss)"/>
+  <g fill="#ffffff">
+    <!-- T -->
+    <rect x="94" y="158" width="150" height="46" rx="12"/>
+    <rect x="146" y="158" width="46" height="196" rx="14"/>
+    <!-- P -->
+    <rect x="294" y="158" width="46" height="196" rx="14"/>
+    <path d="M340 158 H362 C400 158 420 182 420 206 C420 230 400 254 362 254 H340 Z"/>
+  </g>
+</svg>
