@@ -48,7 +48,8 @@ export class ChatSocketService {
   readonly typingStopped$ = new Subject<TypingDto>();
   readonly presenceChanged$ = new Subject<PresenceChangedDto>();
   readonly attachmentFlagged$ = new Subject<AttachmentFlaggedDto>();
-  readonly sessionRevoked$ = new Subject<void>();
+  /** Emite el sessionId (sid) de la sesión revocada; el consumidor lo compara con el suyo. */
+  readonly sessionRevoked$ = new Subject<string | null>();
 
   connect(): void {
     if (this.socket) {
@@ -139,8 +140,12 @@ export class ChatSocketService {
     socket.on('chat.message.attachment_flagged', (envelope: SocketEnvelope<AttachmentFlaggedDto>) =>
       this.attachmentFlagged$.next(envelope.payload),
     );
-    // Canal propio, separado de cualquier otro evento — logout forzado inmediato (ver README Communication).
-    socket.on('session.revoked', () => this.sessionRevoked$.next());
+    // Canal propio, separado de cualquier otro evento — logout forzado (ver README Communication). Se
+    // emite el sid revocado: el evento va a la sala del usuario (todos sus sockets), así que el
+    // consumidor debe ignorar los que no sean de ESTA sesión.
+    socket.on('session.revoked', (envelope: SocketEnvelope<{ sessionId: string | null }>) =>
+      this.sessionRevoked$.next(envelope?.payload?.sessionId ?? null),
+    );
   }
 }
 

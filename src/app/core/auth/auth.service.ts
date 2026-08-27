@@ -27,7 +27,10 @@ export type LoginOutcome =
   | { kind: 'mfa-setup-required' }
   // Sesión única: ya hay una sesión activa. El componente muestra el interstitial y, si el usuario
   // confirma, llama a takeover(ticket) para cerrar la anterior y completar el ingreso.
-  | { kind: 'takeover-required'; ticket: string };
+  | { kind: 'takeover-required'; ticket: string }
+  // Superficie equivocada: un cliente (CustomerPortal) intentó entrar al CRM de staff. Se rechaza
+  // sin tocar su sesión; el componente muestra un aviso neutral.
+  | { kind: 'wrong-portal' };
 
 /**
  * Servicio de autenticación transversal. Orquesta el login (incluido MFA),
@@ -255,6 +258,11 @@ export class AuthService {
   }
 
   private handleLoginResponse(res: LoginResponse): LoginOutcome {
+    // Superficie equivocada: el CRM es solo para staff. Un cliente se rechaza ANTES de tocar la
+    // sesión — sin takeover (no se le revoca la del portal) y sin persistir tokens.
+    if (res.actorType === 'CustomerPortal') {
+      return { kind: 'wrong-portal' };
+    }
     // Sesión única: ya hay una sesión activa. Sin tokens todavía — el componente muestra el
     // interstitial y confirma con takeover(ticket).
     if (res.takeoverRequired && res.takeoverTicket) {
