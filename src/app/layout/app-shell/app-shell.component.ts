@@ -1,7 +1,10 @@
-import { Component, ElementRef, ViewChild, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
+import { SessionRevocationService } from '@core/auth/session-revocation.service';
 
 /**
  * Shell de la app autenticada: navbar arriba, sidebar a la izquierda,
@@ -14,10 +17,25 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',
 })
-export class AppShellComponent {
+export class AppShellComponent implements OnInit {
+  private readonly socket = inject(ChatSocketService);
+  private readonly sessionRevocation = inject(SessionRevocationService);
+  private readonly destroyRef = inject(DestroyRef);
+
   protected readonly isSidebarExpanded = signal(true);
 
   @ViewChild('routeContent') private routeContentRef?: ElementRef<HTMLElement>;
+
+  ngOnInit(): void {
+    // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
+    // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,
+    // así que el chat reusa esta misma conexión cuando se abre.
+    this.socket.connect();
+    this.socket.sessionRevoked$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.socket.disconnect();
+      this.sessionRevocation.handleRevoked();
+    });
+  }
 
   onSidebarStateChange(expanded: boolean): void {
     this.isSidebarExpanded.set(expanded);
