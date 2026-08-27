@@ -32,8 +32,10 @@ export const authGuard: CanActivateChildFn = (_route, state) => {
   }
   return auth.me().pipe(
     map(user => (user.actorType === CLIENT_PORTAL_ACTOR ? rejectClientPortal(auth) : mfaGate(auth, router))),
-    // Si /me falla (red), no se bloquea por esto: el backend igual rechaza cada endpoint de staff.
-    catchError(() => of(mfaGate(auth, router))),
+    // Fail-CLOSED: si no se pudo verificar el actor (red, 401, o 409 de Términos con /me bloqueado),
+    // NO se deja entrar al shell del staff — se vuelve al login. Dejar pasar aquí era una fuga: un
+    // cliente cuyo /me diera 409 (Términos) terminaba dentro del CRM.
+    catchError(() => of(router.createUrlTree(['/login']))),
   );
 };
 
