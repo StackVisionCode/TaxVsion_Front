@@ -19,6 +19,7 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 
 /**
  * Visual port of the production sidebar. Role/permission-based menu
@@ -44,7 +45,12 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChildren('itemButton') private itemButtons?: QueryList<ElementRef<HTMLElement>>;
 
   private readonly router = inject(Router);
+  private readonly branding = inject(TenantBrandingService);
   private readonly destroy$ = new Subject<void>();
+
+  /** Logo del tenant (o null → cae al asterisco de marca). */
+  readonly logoUrl = this.branding.logoUrl;
+  protected readonly showLogoFallback = signal(false);
   private bodyTooltipEl: HTMLDivElement | null = null;
 
   readonly isExpanded = signal(false);
@@ -148,8 +154,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
         pointerEvents: 'none',
         whiteSpace: 'nowrap',
         zIndex: String(2147483647),
-        boxShadow:
-          '0 10px 15px -3px rgba(17,24,39,0.25), 0 4px 6px -4px rgba(17,24,39,0.2)',
+        boxShadow: '0 10px 15px -3px rgba(17,24,39,0.25), 0 4px 6px -4px rgba(17,24,39,0.2)',
         transition: 'opacity 150ms ease, transform 150ms ease',
       } as CSSStyleDeclaration);
       document.body.appendChild(this.bodyTooltipEl);

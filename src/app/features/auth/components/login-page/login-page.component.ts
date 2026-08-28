@@ -1,15 +1,32 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
-import { PlanChoice, PlanPickerModalComponent } from '../../ui/plan-picker-modal/plan-picker-modal.component';
+import {
+  PlanChoice,
+  PlanPickerModalComponent,
+} from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
 type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
 
@@ -36,6 +53,7 @@ export class LoginPageComponent {
   private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(ApiConfigService);
+  private readonly branding = inject(TenantBrandingService);
 
   /**
    * Estamos en el subdominio de una oficina (manfer.taxproffice.com) y no en el apex/app.
@@ -43,6 +61,10 @@ export class LoginPageComponent {
    * oficina concreta no tienen sentido y se ocultan. Se mira el HOST, no el slug guardado.
    */
   readonly isOfficeSubdomain = tenantSlugFromHost() !== null;
+
+  /** Logo del tenant (o null → cae al asterisco de marca). Se llena tras el fetch pre-login. */
+  readonly logoUrl = this.branding.logoUrl;
+  readonly showLogoFallback = signal(false);
 
   constructor() {
     // En prod el tenant se resuelve por el subdominio: el slug llega por ?office=<slug>
@@ -53,6 +75,10 @@ export class LoginPageComponent {
     if (office) {
       this.api.setSlug(office);
     }
+
+    // Marca pre-login: en el subdominio de una oficina, pinta el tema/logo/favicon de ESA oficina
+    // antes de autenticar (endpoint anónimo). Sin slug (app.*) no hace nada → marca del sistema.
+    this.branding.applyForSurface('Crm');
   }
 
   form: FormGroup = this.fb.group({
@@ -111,7 +137,7 @@ export class LoginPageComponent {
   }
 
   togglePasswordVisibility(): void {
-    this.showPassword.update(v => !v);
+    this.showPassword.update((v) => !v);
   }
 
   onTyping(): void {
@@ -145,8 +171,8 @@ export class LoginPageComponent {
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: outcome => this.handleOutcome(outcome),
-        error: err => this.handleError(err),
+        next: (outcome) => this.handleOutcome(outcome),
+        error: (err) => this.handleError(err),
       });
   }
 
@@ -155,7 +181,10 @@ export class LoginPageComponent {
       case 'authenticated':
         // Hidratar el usuario de sesión (GET /auth/me) antes de entrar al shell —
         // corre durante la animación de salida, así el perfil ya está cargado.
-        this.auth.me().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
+        this.auth
+          .me()
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({ error: () => {} });
         void this.playExitSequence();
         break;
       case 'mfa-required':
@@ -232,6 +261,6 @@ export class LoginPageComponent {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

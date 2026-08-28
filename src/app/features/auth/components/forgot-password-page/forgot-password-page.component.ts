@@ -18,9 +18,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * código): el flujo real de reset vive en /reset-password (ver
  * ResetPasswordPageComponent), no en esta página.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-forgot-password-page',
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './forgot-password-page.component.html',
   styleUrl: './forgot-password-page.component.css',

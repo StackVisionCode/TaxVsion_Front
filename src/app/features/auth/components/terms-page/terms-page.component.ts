@@ -13,9 +13,11 @@ import { TokenService } from '@core/auth/token.service';
  * PRIMERA versión; cuando se publica una nueva, el authGuard desvía aquí para que el staff la acepte.
  * Es por-tenant: una aceptación desbloquea a toda la oficina.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-terms-page',
-  imports: [CommonModule],
+  imports: [BrandLogoComponent, CommonModule],
   templateUrl: './terms-page.component.html',
 })
 export class TermsPageComponent implements OnInit {

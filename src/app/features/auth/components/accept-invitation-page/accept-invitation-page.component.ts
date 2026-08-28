@@ -22,9 +22,11 @@ type Phase = 'form' | 'submitting' | 'done';
  * está vencido o ya se usó, se descubre al enviar (400 `Auth.InvalidInvitation`) y se
  * muestra ahí. Por eso tampoco se promete nada sobre la invitación en la cabecera.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-accept-invitation-page',
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
+  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './accept-invitation-page.component.html',
 })

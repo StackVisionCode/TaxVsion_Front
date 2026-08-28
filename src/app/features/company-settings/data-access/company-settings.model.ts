@@ -1,15 +1,14 @@
 /**
  * Modelos del módulo Company Settings, espejo de los DTOs reales del backend:
  * - Billing → IssuerProfileController (`/billing/issuer-profile`): datos legales de la empresa.
- * - Tenant → TenantBrandingController (`/tenants/{tenantId}/logo` y `/tenants/{tenantId}/branding/colors`).
+ * - Tenant → TenantBrandsController (`/tenants/{tenantId}/brands/Crm`): identidad visual (TenantBrands):
+ *   colores (primary/accent) + assets (logo/favicon). Modelo NUEVO por superficie.
  * Todo JSON camelCase.
  */
 
 /**
  * Espejo de IssuerProfileResponse / UpsertIssuerProfileRequest (GET/PUT /billing/issuer-profile).
- * Es el ÚNICO almacén backend de los datos legales de la empresa (nombre, EIN, dirección, contacto);
- * Billing los estampa en cada factura. `name` es requerido por el backend; el resto es opcional.
- * Si el tenant nunca guardó el perfil, el GET devuelve `name: ""` con country "US" (no 404).
+ * Único almacén backend de los datos legales de la empresa; Billing los estampa en cada factura.
  */
 export interface CompanyProfile {
   name: string;
@@ -25,53 +24,74 @@ export interface CompanyProfile {
   website: string | null;
 }
 
+// --- TenantBrands (modelo nuevo) ---
+
 /**
- * Espejo de TenantLogoResponse (GET /tenants/{tenantId}/logo).
- * El backend responde 404 tanto si no hay logo como si el archivo subido sigue en escaneo
- * antivirus (el PUT es asíncrono: 202 + confirmación posterior vía FileAvailable).
+ * Superficie de marca configurable desde company-settings. El backend define más (Mobile/Email) pero
+ * el TenantAdmin solo edita CRM (lo que ve el staff) y Portal (lo que ven los clientes) — cada una con
+ * su propio logo/favicon/colores.
  */
-export interface TenantLogo {
-  fileId: string;
-  contentType: string;
-  sizeBytes: number;
-  width: number | null;
-  height: number | null;
-  updatedAtUtc: string;
-  /** URL de descarga temporal firmada por CloudStorage. */
-  downloadUrl: string;
-  downloadUrlExpiresAtUtc: string;
+export type BrandSurface = 'Crm' | 'Portal';
+
+/** Las dos superficies con etiqueta para el selector de la UI. */
+export const BRAND_SURFACES: { value: BrandSurface; label: string }[] = [
+  { value: 'Crm', label: 'Staff CRM' },
+  { value: 'Portal', label: 'Client portal' },
+];
+
+/** Espejo de BrandColorDto (dentro de BrandResponse). */
+export interface BrandColorDto {
+  token: string; // "Primary" | "Accent"
+  value: string; // #RRGGBB
+  isCustomized: boolean;
 }
 
-/** Espejo de UploadTenantLogoResponse (202 del PUT logo). `status` llega como "processing". */
-export interface UploadLogoResponse {
+/** Espejo de BrandAssetDto. `status`: "Pending" | "Confirmed". */
+export interface BrandAssetDto {
+  key: string; // "Logo" | "Favicon"
+  fileId: string;
+  status: string;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  isCustomized: boolean;
+}
+
+/** Espejo de BrandResponse (GET /tenants/{tenantId}/brands/Crm) — marca efectiva de la superficie. */
+export interface BrandResponse {
+  surface: string;
+  colors: BrandColorDto[];
+  assets: BrandAssetDto[];
+}
+
+/** Vista de la paleta para la UI (solo los 2 colores tematizables). */
+export interface BrandColors {
+  primaryColor: string;
+  accentColor: string;
+  /** true = el tenant personalizó al menos uno (primary o accent). */
+  isCustomized: boolean;
+}
+
+/** Body de PUT /tenants/{tenantId}/brands/Crm/colors. null = volver al default para ese token. */
+export interface UpdateBrandColorsRequest {
+  primary: string | null;
+  accent: string | null;
+}
+
+/** Vista de un asset (logo/favicon) para la UI: URL pública construida desde el fileId (solo si Confirmed). */
+export interface BrandAssetView {
+  fileId: string;
+  status: string;
+  /** URL pública servible (null si el asset sigue en escaneo). */
+  url: string | null;
+}
+
+/** Espejo de UploadTenantBrandAssetResponse (202 del PUT asset). `status` = "processing". */
+export interface UploadAssetResponse {
   fileId: string;
   status: string;
 }
 
-/**
- * Espejo de TenantBrandingColorsResponse (GET /tenants/{tenantId}/branding/colors).
- * Siempre trae la paleta completa (custom o default de la empresa) — nunca campos vacíos.
- */
-export interface BrandingColors {
-  primaryColor: string;
-  accentColor: string;
-  backgroundColor: string;
-  textColor: string;
-  /** false = el tenant está usando la paleta default de la plataforma. */
-  isCustomized: boolean;
-}
-
-/**
- * Body de PUT /tenants/{tenantId}/branding/colors. Formato #RRGGBB (7 caracteres).
- * Un campo en null = volver al default de la empresa para ese campo.
- */
-export interface UpdateBrandingColorsRequest {
-  primaryColor: string | null;
-  accentColor: string | null;
-  backgroundColor: string | null;
-  textColor: string | null;
-}
-
-/** Límites duros del backend para el logo (Tenant.MaxLogoSizeBytes + whitelist del controller). */
-export const LOGO_MAX_SIZE_BYTES = 500 * 1024;
-export const LOGO_ALLOWED_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'];
+/** Límites duros del backend para los assets (TenantBrand.MaxAssetSizeBytes + whitelist del controller). */
+export const ASSET_MAX_SIZE_BYTES = 500 * 1024;
+export const ASSET_ALLOWED_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'];
