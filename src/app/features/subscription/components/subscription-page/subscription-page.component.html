@@ -1,0 +1,547 @@
+<div class="p-6 lg:p-8">
+  <header class="sub-head">
+    <h1 class="text-2xl font-bold text-gray-900">Subscription</h1>
+    <p class="mt-1 text-sm text-gray-500">Plan limits, seats, add-ons and the activity log for your firm</p>
+  </header>
+
+  <!-- Pestañas -->
+  <nav class="sub-head mt-6 flex flex-wrap items-center gap-2">
+    <button *ngFor="let tab of tabs" type="button" (click)="selectTab(tab.id)"
+      class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200"
+      [class.bg-brand-bold]="activeTab() === tab.id" [class.text-white]="activeTab() === tab.id"
+      [class.text-gray-600]="activeTab() !== tab.id" [class.hover:bg-gray-100]="activeTab() !== tab.id">
+      <ion-icon [name]="tab.icon" class="text-base"></ion-icon>
+      {{ tab.label }}
+    </button>
+  </nav>
+
+  <!-- ============ Plan & limits ============ -->
+  <section *ngIf="activeTab() === 'plan'" class="mt-6">
+    <div *ngIf="store.summaryLoading()" class="sub-card rounded-[28px] bg-white p-8 text-center text-sm text-gray-500">
+      Loading plan…
+    </div>
+
+    <div *ngIf="store.summaryError() as error"
+      class="sub-card rounded-[28px] border border-red-100 bg-red-50 p-6 text-sm text-red-700">
+      <p>{{ error }}</p>
+      <button type="button" (click)="reload('plan')"
+        class="mt-3 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+        Retry
+      </button>
+    </div>
+
+    <ng-container *ngIf="store.summary() as summary">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="sub-card rounded-[28px] bg-white p-6">
+          <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Plan</p>
+          <p class="mt-2 text-lg font-bold text-gray-900">{{ summary.planCode }}</p>
+        </div>
+        <div class="sub-card rounded-[28px] bg-white p-6">
+          <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Status</p>
+          <p class="mt-2 text-lg font-bold text-gray-900">{{ summary.subscriptionStatus }}</p>
+        </div>
+        <div class="sub-card rounded-[28px] bg-white p-6">
+          <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Seats</p>
+          <p class="mt-2 text-lg font-bold text-gray-900">{{ summary.seatCount }}</p>
+        </div>
+        <div class="sub-card rounded-[28px] bg-white p-6">
+          <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Available seats</p>
+          <p class="mt-2 text-lg font-bold text-gray-900">{{ summary.availableSeatCount }}</p>
+        </div>
+      </div>
+
+      <div class="sub-card mt-6 rounded-[28px] bg-white p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-gray-900">Limits and modules</h2>
+          <p class="text-xs text-gray-400">
+            Revision {{ summary.revisionNumber }} · computed {{ date(summary.computedAtUtc) | date: 'medium' }}
+          </p>
+        </div>
+
+        <div *ngIf="store.entitlementRows().length > 0; else noEntries" class="mt-4 overflow-x-auto">
+          <table class="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
+                <th class="pb-2 font-medium">Key</th>
+                <th class="pb-2 font-medium">Value</th>
+                <th class="pb-2 font-medium">Status</th>
+                <th class="pb-2 font-medium">Source</th>
+                <th class="pb-2 font-medium">Expires</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of store.entitlementRows()" class="sub-row border-b border-gray-50 last:border-0">
+                <td class="py-3 pr-4 font-medium text-gray-900">
+                  {{ humanize(row.key) }}
+                  <span class="block text-xs font-normal text-gray-400">{{ row.key }}</span>
+                </td>
+                <td class="py-3 pr-4 text-gray-700">{{ formatValue(row) }}</td>
+                <td class="py-3 pr-4">
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700': tone(row.status) === 'active',
+                      'bg-amber-50 text-amber-700': tone(row.status) === 'warning',
+                      'bg-gray-100 text-gray-500': tone(row.status) === 'ended' || tone(row.status) === 'neutral'
+                    }">
+                    {{ row.status }}
+                  </span>
+                </td>
+                <td class="py-3 pr-4 text-gray-500">{{ row.source }}</td>
+                <td class="py-3 text-gray-500">
+                  {{ date(row.expiresAtUtc) ? (date(row.expiresAtUtc) | date: 'mediumDate') : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #noEntries>
+          <p class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+            This plan has no limit entries.
+          </p>
+        </ng-template>
+      </div>
+    </ng-container>
+  </section>
+
+  <!-- ============ Seats ============ -->
+  <section *ngIf="activeTab() === 'seats'" class="mt-6">
+    <div class="sub-card rounded-[28px] bg-white p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold text-gray-900">Seats ({{ store.seatsTotal() }})</h2>
+        <button type="button" (click)="openPurchaseSeats()"
+          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+          Purchase seats
+        </button>
+      </div>
+
+      <p *ngIf="store.seatsActionError() as error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ error }}
+      </p>
+
+      <div *ngIf="store.seatsLoading()" class="mt-6 text-center text-sm text-gray-500">Loading seats…</div>
+
+      <div *ngIf="store.seatsError() as error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p>{{ error }}</p>
+        <button type="button" (click)="reload('seats')"
+          class="mt-3 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+          Retry
+        </button>
+      </div>
+
+      <ng-container *ngIf="!store.seatsLoading() && !store.seatsError()">
+        <div *ngIf="store.seats().length > 0; else noSeats" class="mt-4 overflow-x-auto">
+          <table class="w-full min-w-[720px] text-left text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
+                <th class="pb-2 font-medium">Type</th>
+                <th class="pb-2 font-medium">Status</th>
+                <th class="pb-2 font-medium">Assigned to</th>
+                <th class="pb-2 font-medium">Renews</th>
+                <th class="pb-2 font-medium">Cycle</th>
+                <th class="pb-2 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let seat of store.seats()" class="sub-row border-b border-gray-50 last:border-0">
+                <td class="py-3 pr-4 font-medium text-gray-900">{{ seat.type }}</td>
+                <td class="py-3 pr-4">
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+                    [ngClass]="{
+                      'bg-emerald-50 text-emerald-700': tone(seat.status) === 'active',
+                      'bg-amber-50 text-amber-700': tone(seat.status) === 'warning',
+                      'bg-gray-100 text-gray-500': tone(seat.status) === 'ended' || tone(seat.status) === 'neutral'
+                    }">
+                    {{ seat.status }}
+                  </span>
+                </td>
+                <td class="py-3 pr-4 text-gray-700">{{ userLabel(seat.currentUserId) }}</td>
+                <td class="py-3 pr-4 text-gray-500">
+                  {{ date(seat.nextRenewalAtUtc) ? (date(seat.nextRenewalAtUtc) | date: 'mediumDate') : '—' }}
+                  <span *ngIf="!seat.autoRenew" class="ml-1 text-xs text-amber-600">(manual)</span>
+                </td>
+                <td class="py-3 pr-4 text-gray-500">{{ seat.billingCycle }}</td>
+                <td class="py-3 text-right">
+                  <div class="flex items-center justify-end gap-1">
+                    <button type="button" (click)="openAssign(seat)" [disabled]="store.seatsBusy()"
+                      class="rounded-full px-3 py-1 text-xs font-medium text-brand-bold hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
+                      {{ seat.currentUserId ? 'Reassign' : 'Assign' }}
+                    </button>
+                    <button *ngIf="seat.currentUserId" type="button" (click)="openRelease(seat)" [disabled]="store.seatsBusy()"
+                      class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
+                      Release
+                    </button>
+                    <button type="button" (click)="store.renewSeat(seat.id)" [disabled]="store.seatsBusy()"
+                      class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
+                      Renew
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #noSeats>
+          <p class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+            No seats yet. Purchase one to assign it to a teammate.
+          </p>
+        </ng-template>
+
+        <app-pagination [currentPage]="store.seatsPage()" [totalItems]="store.seatsTotal()" [pageSize]="store.pageSize"
+          (pageChange)="store.loadSeats($event)" class="mt-2 block"></app-pagination>
+      </ng-container>
+    </div>
+  </section>
+
+  <!-- ============ Add-ons ============ -->
+  <section *ngIf="activeTab() === 'addons'" class="mt-6">
+    <div class="sub-card rounded-[28px] bg-white p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold text-gray-900">Your add-ons ({{ store.tenantAddOns().length }})</h2>
+        <button type="button" (click)="openPurchaseAddOn()" [disabled]="store.addOnCatalog().length === 0"
+          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors duration-200">
+          Add an add-on
+        </button>
+      </div>
+
+      <p *ngIf="store.addOnsActionError() as error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ error }}
+      </p>
+
+      <div *ngIf="store.addOnsLoading()" class="mt-6 text-center text-sm text-gray-500">Loading add-ons…</div>
+
+      <div *ngIf="store.addOnsError() as error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p>{{ error }}</p>
+        <button type="button" (click)="reload('addons')"
+          class="mt-3 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+          Retry
+        </button>
+      </div>
+
+      <ng-container *ngIf="!store.addOnsLoading() && !store.addOnsError()">
+        <div *ngIf="store.tenantAddOns().length > 0; else noAddOns" class="mt-4 flex flex-col divide-y divide-gray-100">
+          <div *ngFor="let addOn of store.tenantAddOns()" class="sub-row flex flex-wrap items-center gap-4 py-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-gray-900">{{ addOnName(addOn.addOnCode) }}</p>
+              <p class="text-xs text-gray-400">
+                {{ addOnDescription(addOn.addOnCode) || addOn.addOnCode }}
+              </p>
+            </div>
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+              [ngClass]="{
+                'bg-emerald-50 text-emerald-700': tone(addOn.status) === 'active',
+                'bg-amber-50 text-amber-700': tone(addOn.status) === 'warning',
+                'bg-gray-100 text-gray-500': tone(addOn.status) === 'ended' || tone(addOn.status) === 'neutral'
+              }">
+              {{ addOn.status }}
+            </span>
+            <span class="text-xs text-gray-500">Qty {{ addOn.quantity }}</span>
+            <span class="text-xs text-gray-500">
+              Ends {{ date(addOn.currentPeriodEndUtc) | date: 'mediumDate' }}
+            </span>
+            <div class="flex items-center gap-1">
+              <button type="button" (click)="store.renewAddOn(addOn.id)" [disabled]="store.addOnsBusy()"
+                class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
+                Renew
+              </button>
+              <button type="button" (click)="openCancelAddOn(addOn)" [disabled]="store.addOnsBusy()"
+                class="rounded-full px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors duration-200">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+        <ng-template #noAddOns>
+          <p class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+            No add-ons contracted.
+          </p>
+        </ng-template>
+      </ng-container>
+    </div>
+  </section>
+
+  <!-- ============ Activity log ============ -->
+  <section *ngIf="activeTab() === 'audit'" class="mt-6">
+    <div class="sub-card rounded-[28px] bg-white p-6">
+      <h2 class="text-sm font-semibold text-gray-900">Activity log</h2>
+
+      <div class="mt-4 flex flex-wrap items-end gap-3">
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-gray-500">Aggregate type</label>
+          <input type="text" [ngModel]="auditType()" (ngModelChange)="auditType.set($event)" placeholder="e.g. Seat"
+            class="w-44 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors duration-200" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-gray-500">From</label>
+          <input type="date" [ngModel]="auditFrom()" (ngModelChange)="auditFrom.set($event)"
+            class="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors duration-200" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-gray-500">To</label>
+          <input type="date" [ngModel]="auditTo()" (ngModelChange)="auditTo.set($event)"
+            class="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors duration-200" />
+        </div>
+        <button type="button" (click)="applyAuditFilters()"
+          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+          Apply
+        </button>
+        <button type="button" (click)="clearAuditFilters()"
+          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors duration-200">
+          Clear
+        </button>
+      </div>
+
+      <div *ngIf="store.auditLoading()" class="mt-6 text-center text-sm text-gray-500">Loading activity…</div>
+
+      <div *ngIf="store.auditError() as error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p>{{ error }}</p>
+        <button type="button" (click)="reload('audit')"
+          class="mt-3 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
+          Retry
+        </button>
+      </div>
+
+      <ng-container *ngIf="!store.auditLoading() && !store.auditError()">
+        <div *ngIf="store.auditEntries().length > 0; else noAudit" class="mt-4 flex flex-col divide-y divide-gray-100">
+          <button *ngFor="let entry of store.auditEntries()" type="button" (click)="auditDetail.set(entry)"
+            class="sub-row flex items-center gap-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E7EAEE] text-gray-600">
+              <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-gray-900">
+                {{ entry.action }} · {{ entry.aggregateType }}
+              </p>
+              <p class="truncate text-xs text-gray-400">{{ entry.actorType }} · {{ entry.reason || 'No reason given' }}</p>
+            </div>
+            <span class="shrink-0 text-xs text-gray-500">{{ date(entry.occurredAtUtc) | date: 'short' }}</span>
+          </button>
+        </div>
+        <ng-template #noAudit>
+          <p class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+            No activity recorded for these filters.
+          </p>
+        </ng-template>
+
+        <app-pagination [currentPage]="store.auditPage()" [totalItems]="store.auditTotal()" [pageSize]="store.pageSize"
+          (pageChange)="changeAuditPage($event)" class="mt-2 block"></app-pagination>
+      </ng-container>
+    </div>
+  </section>
+</div>
+
+<!-- ============ Modales ============ -->
+
+<app-modal [isOpen]="isPurchaseSeatsOpen()" heading="Purchase seats" size="md" (closed)="isPurchaseSeatsOpen.set(false)">
+  <div class="sub-form space-y-4">
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Seat type</label>
+      <select [ngModel]="seatType()" (ngModelChange)="seatType.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option *ngFor="let type of seatTypes" [value]="type">{{ type }}</option>
+      </select>
+    </div>
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Quantity</label>
+      <input type="number" min="1" [ngModel]="seatQuantity()" (ngModelChange)="seatQuantity.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" [ngModel]="seatAutoRenew()" (ngModelChange)="seatAutoRenew.set($event)" class="rounded" />
+      Renew automatically
+    </label>
+
+    <p *ngIf="store.seatsActionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="isPurchaseSeatsOpen.set(false)" [disabled]="store.seatsBusy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmPurchaseSeats()" [disabled]="!canPurchaseSeats() || store.seatsBusy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.seatsBusy() ? 'Purchasing…' : 'Purchase' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="assignTarget() !== null" [heading]="isReassign() ? 'Reassign seat' : 'Assign seat'" size="md"
+  (closed)="assignTarget.set(null)">
+  <div class="sub-form space-y-4">
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Teammate</label>
+      <select [ngModel]="assignUserId()" (ngModelChange)="assignUserId.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option value="">Select a teammate…</option>
+        <option *ngFor="let user of tenantUsers()" [value]="user.id">
+          {{ user.name }} {{ user.lastName }} — {{ user.email }}
+        </option>
+      </select>
+      <p *ngIf="!usersLoading() && tenantUsers().length === 0" class="text-xs text-amber-700">
+        The teammate list couldn't be loaded, so there's nobody to pick here.
+      </p>
+    </div>
+
+    <div *ngIf="isReassign()" class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Reason <span class="text-gray-400">(optional)</span></label>
+      <input type="text" [ngModel]="assignReason()" (ngModelChange)="assignReason.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+
+    <p *ngIf="store.seatsActionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="assignTarget.set(null)" [disabled]="store.seatsBusy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmAssign()" [disabled]="!assignUserId() || store.seatsBusy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.seatsBusy() ? 'Saving…' : (isReassign() ? 'Reassign' : 'Assign') }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="releaseTarget() !== null" heading="Release seat" size="md" (closed)="releaseTarget.set(null)">
+  <div class="sub-form space-y-4">
+    <p class="text-sm text-gray-600">
+      This frees the seat from {{ userLabel(releaseTarget()?.currentUserId ?? null) }}. It stays on your plan and can be
+      assigned again.
+    </p>
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Reason <span class="text-gray-400">(optional)</span></label>
+      <input type="text" [ngModel]="releaseReason()" (ngModelChange)="releaseReason.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+
+    <p *ngIf="store.seatsActionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="releaseTarget.set(null)" [disabled]="store.seatsBusy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmRelease()" [disabled]="store.seatsBusy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.seatsBusy() ? 'Releasing…' : 'Release' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="isPurchaseAddOnOpen()" heading="Add an add-on" size="md" (closed)="isPurchaseAddOnOpen.set(false)">
+  <div class="sub-form space-y-4">
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Add-on</label>
+      <select [ngModel]="addOnCode()" (ngModelChange)="addOnCode.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option *ngFor="let definition of store.addOnCatalog()" [value]="definition.code">
+          {{ definition.name }} ({{ definition.category }})
+        </option>
+      </select>
+      <p *ngIf="addOnDescription(addOnCode()) as description" class="text-xs text-gray-500">{{ description }}</p>
+    </div>
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Quantity</label>
+      <input type="number" min="1" [ngModel]="addOnQuantity()" (ngModelChange)="addOnQuantity.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" [ngModel]="addOnAutoRenew()" (ngModelChange)="addOnAutoRenew.set($event)" class="rounded" />
+      Renew automatically
+    </label>
+
+    <p *ngIf="store.addOnsActionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="isPurchaseAddOnOpen.set(false)" [disabled]="store.addOnsBusy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmPurchaseAddOn()" [disabled]="!canPurchaseAddOn() || store.addOnsBusy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.addOnsBusy() ? 'Adding…' : 'Add' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="cancelTarget() !== null" heading="Cancel add-on" size="md" (closed)="cancelTarget.set(null)">
+  <div class="sub-form space-y-4">
+    <p class="text-sm text-gray-600">
+      Canceling {{ addOnName(cancelTarget()?.addOnCode ?? '') }}. The backend requires a reason for the audit trail.
+    </p>
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Reason</label>
+      <input type="text" [ngModel]="cancelReason()" (ngModelChange)="cancelReason.set($event)"
+        placeholder="Why is it being canceled?"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+
+    <p *ngIf="store.addOnsActionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="cancelTarget.set(null)" [disabled]="store.addOnsBusy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Keep it
+      </button>
+      <button type="button" (click)="confirmCancelAddOn()" [disabled]="!cancelReason().trim() || store.addOnsBusy()"
+        class="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+        {{ store.addOnsBusy() ? 'Canceling…' : 'Cancel add-on' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="auditDetail() !== null" heading="Activity detail" size="lg" (closed)="auditDetail.set(null)">
+  <div *ngIf="auditDetail() as entry" class="sub-form space-y-4">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-400">Action</p>
+        <p class="text-sm font-semibold text-gray-900">{{ entry.action }}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-400">Aggregate</p>
+        <p class="text-sm text-gray-700">{{ entry.aggregateType }}</p>
+        <p class="font-mono text-xs text-gray-400">{{ entry.aggregateId }}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-400">Actor</p>
+        <p class="text-sm text-gray-700">{{ entry.actorType }}</p>
+        <p class="font-mono text-xs text-gray-400">{{ entry.actorUserId }}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-400">When</p>
+        <p class="text-sm text-gray-700">{{ date(entry.occurredAtUtc) | date: 'medium' }}</p>
+      </div>
+    </div>
+
+    <div *ngIf="entry.reason">
+      <p class="text-xs uppercase tracking-wide text-gray-400">Reason</p>
+      <p class="text-sm text-gray-700">{{ entry.reason }}</p>
+    </div>
+
+    <div *ngIf="entry.beforePayload">
+      <p class="text-xs uppercase tracking-wide text-gray-400">Before</p>
+      <pre class="mt-1 max-h-52 overflow-auto rounded-xl bg-gray-50 p-3 text-xs text-gray-700">{{ prettyJson(entry.beforePayload) }}</pre>
+    </div>
+
+    <div *ngIf="entry.afterPayload">
+      <p class="text-xs uppercase tracking-wide text-gray-400">After</p>
+      <pre class="mt-1 max-h-52 overflow-auto rounded-xl bg-gray-50 p-3 text-xs text-gray-700">{{ prettyJson(entry.afterPayload) }}</pre>
+    </div>
+
+    <p *ngIf="entry.correlationId" class="font-mono text-xs text-gray-400">Correlation: {{ entry.correlationId }}</p>
+  </div>
+</app-modal>
