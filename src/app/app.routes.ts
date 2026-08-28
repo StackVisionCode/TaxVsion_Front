@@ -69,10 +69,34 @@ export const routes: Routes = [
     title: 'Sign document',
   },
   {
-    // Alias de la anterior. El backend NO compone `/sign/<token>`: `SigningTokenService`
-    // usa `Signature:PublicBaseUrl` + `/<token>`, y esa opción vale hoy
-    // `…/signature/public`, así que el enlace emailado es `/signature/public/<token>`.
-    // Aceptar ambas formas evita que el enlace muera si esa configuración cambia (o no).
+    // Verificación pública de la cadena de audit de una firma. Fuera del authGuard por
+    // el mismo motivo que /sign/:token: la autoriza el token del firmante, no una
+    // sesión. Es de SOLO LECTURA (GET /signature/public/{token}/verify-audit): muestra
+    // el veredicto de integridad y las filas encadenadas, sin mutar nada.
+    path: 'verify/:token',
+    loadComponent: () =>
+      import('./features/signature/components/verify-audit-page/verify-audit-page.component').then(
+        m => m.VerifyAuditPageComponent,
+      ),
+    title: 'Verify audit trail',
+  },
+  {
+    // Alias con el mismo prefijo que el enlace emailado (`/signature/public/<token>`):
+    // pegarle `/verify-audit` a mano es lo natural para quien copia la ruta de la API.
+    // Va ANTES de `signature/public/:token` porque es la más específica de las dos.
+    path: 'signature/public/:token/verify-audit',
+    loadComponent: () =>
+      import('./features/signature/components/verify-audit-page/verify-audit-page.component').then(
+        m => m.VerifyAuditPageComponent,
+      ),
+    title: 'Verify audit trail',
+  },
+  {
+    // Alias de la página de firma. El backend NO compone `/sign/<token>`:
+    // `SigningTokenService` usa `Signature:PublicBaseUrl` + `/<token>`, y esa opción
+    // vale hoy `…/signature/public`, así que el enlace emailado es
+    // `/signature/public/<token>`. Aceptar ambas formas evita que el enlace muera si
+    // esa configuración cambia (o no).
     path: 'signature/public/:token',
     loadComponent: () =>
       import('./features/signature/components/sign-page/sign-page.component').then(m => m.SignPageComponent),

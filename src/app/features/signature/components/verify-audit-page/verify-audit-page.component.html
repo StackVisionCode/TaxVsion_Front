@@ -1,0 +1,228 @@
+<div class="relative flex min-h-screen justify-center overflow-hidden bg-brand-surface px-4 py-8 sm:py-12">
+  <!-- Fondo ambiental: mismo lenguaje que /sign/:token, con los azules de marca. -->
+  <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-brand-light/25 blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-40 -right-24 h-96 w-96 rounded-full bg-brand-bold/10 blur-3xl"></div>
+
+  <div class="relative w-full max-w-3xl">
+    <!-- Marca -->
+    <div class="verify-brand mb-5 flex items-center justify-center gap-2">
+      <span class="text-2xl font-bold leading-none text-brand-bold">*</span>
+      <span class="text-sm font-bold text-gray-900">TaxPro Office</span>
+      <span class="inline-flex items-center gap-1 rounded-full border border-brand-border bg-white px-2 py-0.5 text-[10px] font-medium text-brand-bold">
+        <ion-icon name="shield-checkmark-outline" class="text-[10px]"></ion-icon>
+        Public verification
+      </span>
+    </div>
+
+    <!-- ---------------------------- CARGANDO ---------------------------- -->
+    <div *ngIf="loading()" class="verify-card rounded-[28px] bg-white p-10 text-center shadow-xl shadow-brand-bold/5">
+      <span class="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-brand-surface-strong border-t-brand-bold"></span>
+      <p class="mt-4 text-sm text-gray-500">Recomputing the audit chain…</p>
+    </div>
+
+    <!-- ------------------------------ ERROR ------------------------------ -->
+    <ng-container *ngIf="!loading() && error()">
+      <!-- Enlace muerto: token con formato inválido, expirado o revocado. Sin Retry. -->
+      <div *ngIf="deadLink() as dead" class="verify-card rounded-[28px] bg-white p-8 text-center shadow-xl shadow-brand-bold/5 sm:p-10">
+        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+          <ion-icon name="link-outline" class="text-3xl"></ion-icon>
+        </span>
+        <h1 class="mt-4 text-xl font-bold text-gray-900">{{ dead.title }}</h1>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">{{ dead.detail }}</p>
+        <p class="mt-3 text-sm text-gray-500">
+          Without a valid link we cannot look up the audit trail — the token is what authorizes this check.
+        </p>
+        <p class="mx-auto mt-5 max-w-xs rounded-full bg-brand-surface px-4 py-2 text-[11px] text-gray-400">
+          Reference code: <span class="font-mono">{{ error()?.code }}</span>
+        </p>
+      </div>
+
+      <!-- Error recuperable (red, 5xx): sí tiene sentido reintentar. -->
+      <div *ngIf="!deadLink()" class="verify-card rounded-[28px] bg-white p-8 text-center shadow-xl shadow-brand-bold/5 sm:p-10">
+        <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+          <ion-icon name="cloud-offline-outline" class="text-3xl"></ion-icon>
+        </span>
+        <h1 class="mt-4 text-xl font-bold text-gray-900">We couldn't verify the audit trail</h1>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">{{ error()?.message }}</p>
+        <button type="button" (click)="load()"
+          class="mt-6 rounded-full bg-brand-bold px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+          Retry
+        </button>
+        <p class="mt-4 text-[11px] text-gray-400">
+          Reference code: <span class="font-mono">{{ error()?.code }}</span>
+        </p>
+      </div>
+    </ng-container>
+
+    <!-- ----------------------------- RESULTADO ----------------------------- -->
+    <ng-container *ngIf="!loading() && !error() && result()">
+      <!-- Veredicto: viene entero del backend (`isIntact`), no se recalcula en el cliente. -->
+      <div class="verify-card overflow-hidden rounded-[28px] bg-white shadow-xl shadow-brand-bold/5">
+        <div class="px-6 py-7 text-center sm:px-10">
+          <span class="verify-seal mx-auto flex h-20 w-20 items-center justify-center rounded-full"
+            [ngClass]="isIntact() ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'">
+            <ion-icon [name]="isIntact() ? 'shield-checkmark-outline' : 'warning-outline'" class="text-4xl"></ion-icon>
+          </span>
+
+          <h1 class="mt-4 text-2xl font-bold text-gray-900">
+            {{ isIntact() ? 'Audit trail verified' : 'Audit trail integrity failed' }}
+          </h1>
+
+          <p *ngIf="isIntact() && !isEmptyChain()" class="mx-auto mt-2 max-w-lg text-sm text-gray-500">
+            Every entry below was recomputed on the server and matches its stored signature. Nothing in this
+            record has been added, removed or edited since it was written.
+          </p>
+          <p *ngIf="isIntact() && isEmptyChain()" class="mx-auto mt-2 max-w-lg text-sm text-gray-500">
+            There is nothing recorded for this request yet, so there was nothing to check.
+          </p>
+          <p *ngIf="isIntact() === false" class="mx-auto mt-2 max-w-lg text-sm text-gray-500">
+            The chain no longer matches its signatures. Do not rely on this record — contact the office that
+            sent you the document.
+          </p>
+
+          <!-- Cifras del veredicto -->
+          <div class="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div class="verify-stat rounded-2xl bg-brand-surface px-4 py-3">
+              <p class="text-[11px] uppercase tracking-wide text-gray-400">Entries</p>
+              <p class="text-lg font-bold text-gray-900">{{ eventCount() }}</p>
+            </div>
+            <div class="verify-stat rounded-2xl bg-brand-surface px-4 py-3">
+              <p class="text-[11px] uppercase tracking-wide text-gray-400">Last sequence</p>
+              <p class="text-lg font-bold text-gray-900">#{{ lastSequence() }}</p>
+            </div>
+            <div class="verify-stat col-span-2 rounded-2xl bg-brand-surface px-4 py-3 sm:col-span-1">
+              <p class="text-[11px] uppercase tracking-wide text-gray-400">Verdict</p>
+              <p class="text-lg font-bold" [ngClass]="isIntact() ? 'text-emerald-600' : 'text-red-600'">
+                {{ isIntact() ? 'Intact' : 'Broken' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Defecto: solo existe cuando la verificación falló -->
+          <div *ngIf="defect() as flaw"
+            class="verify-defect mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-left">
+            <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+              <ion-icon name="alert-circle-outline" class="text-sm"></ion-icon>
+              First broken entry · #{{ flaw.sequence }}
+            </p>
+            <p class="mt-1 text-sm leading-snug text-red-700">{{ flaw.reason }}</p>
+          </div>
+
+          <!-- Identificador de la solicitud: es el único dato del documento que expone el endpoint -->
+          <p class="mt-5 inline-flex max-w-full items-center gap-2 rounded-full bg-brand-surface px-4 py-2 text-[11px] text-gray-500">
+            <ion-icon name="document-text-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
+            <span class="truncate font-mono">{{ requestId() }}</span>
+          </p>
+        </div>
+
+        <!-- Nota de alcance: qué NO puede saberse desde este enlace -->
+        <p class="flex items-start gap-2 border-t border-brand-border bg-brand-surface/60 px-6 py-4 text-[11px] leading-snug text-gray-500 sm:px-10">
+          <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
+          <span>
+            The signature is recomputed with a key that only the office's server holds, so this page reports the
+            server's verdict and shows you the material behind it. The document title, the signer list and the
+            sealed PDF are not part of this response and can't be shown here.
+          </span>
+        </p>
+      </div>
+
+      <!-- ------------------------------ CADENA ------------------------------ -->
+      <div *ngIf="!isEmptyChain()" class="verify-card mt-4 rounded-[28px] bg-white p-5 shadow-xl shadow-brand-bold/5 sm:p-7">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-gray-900">Chain of record</h2>
+            <p class="text-[11px] text-gray-400">
+              Each entry seals the one before it
+              <span *ngIf="!countMatchesRows()"> · showing {{ rows().length }} of {{ eventCount() }}</span>
+            </p>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" (click)="expandAll()"
+              class="rounded-full border border-brand-border px-3 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-brand-surface">
+              Expand all
+            </button>
+            <button type="button" (click)="collapseAll()"
+              class="rounded-full border border-brand-border px-3 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-brand-surface">
+              Collapse all
+            </button>
+            <button type="button" (click)="load()"
+              class="rounded-full bg-brand-bold px-4 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink">
+              Re-check
+            </button>
+          </div>
+        </div>
+
+        <ol class="verify-chain space-y-2">
+          <li *ngFor="let row of rows()" class="verify-row rounded-2xl border transition-colors"
+            [ngClass]="row.isDefect ? 'border-red-200 bg-red-50/60' : 'border-brand-border bg-white hover:bg-brand-surface/50'">
+            <button type="button" (click)="toggle(row.sequence)"
+              class="flex w-full items-start gap-3 px-4 py-3 text-left">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                [ngClass]="row.isDefect
+                  ? 'bg-red-100 text-red-600'
+                  : (row.isFailure ? 'bg-orange-50 text-orange-500' : 'bg-brand-surface-strong text-brand-bold')">
+                <ion-icon [name]="row.icon" class="text-base"></ion-icon>
+              </span>
+
+              <span class="min-w-0 flex-1">
+                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span class="rounded-full bg-brand-surface px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                    #{{ row.sequence }}
+                  </span>
+                  <span class="text-sm font-semibold text-gray-900">{{ row.label }}</span>
+                </span>
+                <span class="mt-0.5 block text-[11px] text-gray-400">
+                  {{ row.dateLabel }} · {{ row.timeLabel }} · <span class="font-mono">{{ row.chainHashShort }}</span>
+                </span>
+              </span>
+
+              <ion-icon name="chevron-down-outline"
+                class="mt-1 shrink-0 text-sm text-gray-400 transition-transform duration-200"
+                [ngClass]="isExpanded(row.sequence) ? 'rotate-180' : ''"></ion-icon>
+            </button>
+
+            <!-- Detalle: el material verificable de la fila -->
+            <div *ngIf="isExpanded(row.sequence)" class="verify-detail border-t border-dashed border-brand-border px-4 py-3">
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Chain hash (HMAC-SHA256)</p>
+              <div class="mt-1 flex items-start gap-2">
+                <code class="min-w-0 flex-1 break-all rounded-xl bg-brand-surface px-3 py-2 font-mono text-[11px] text-gray-600">
+                  {{ row.chainHash }}
+                </code>
+                <button type="button" (click)="copyHash(row)"
+                  class="shrink-0 rounded-full border border-brand-border px-3 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-brand-surface">
+                  {{ copiedSequence() === row.sequence ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+
+              <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Recorded data</p>
+              <pre class="mt-1 max-h-64 overflow-auto rounded-xl bg-brand-surface px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-600">{{ row.payload }}</pre>
+
+              <p *ngIf="row.isDefect" class="mt-3 flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] leading-snug text-red-600">
+                <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-xs"></ion-icon>
+                This is where the check stopped: {{ defect()?.reason }}
+              </p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Cadena vacía: verdadero, pero sobre cero evidencia -->
+      <div *ngIf="isEmptyChain()" class="verify-card mt-4 rounded-[28px] bg-white p-8 text-center shadow-xl shadow-brand-bold/5">
+        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface text-gray-400">
+          <ion-icon name="file-tray-outline" class="text-2xl"></ion-icon>
+        </span>
+        <h2 class="mt-3 text-base font-bold text-gray-900">No entries recorded yet</h2>
+        <p class="mx-auto mt-1.5 max-w-md text-sm text-gray-500">
+          The trail is written as things happen, and entries can take a few seconds to land. Check again in a
+          moment.
+        </p>
+        <button type="button" (click)="load()"
+          class="mt-5 rounded-full bg-brand-bold px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+          Check again
+        </button>
+      </div>
+    </ng-container>
+
+    <p class="mt-6 text-center text-[11px] text-gray-400">Secured by TaxPro Office</p>
+  </div>
+</div>

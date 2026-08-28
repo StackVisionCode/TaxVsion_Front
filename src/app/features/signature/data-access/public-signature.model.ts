@@ -225,6 +225,63 @@ export const FIELD_KIND_LABEL: Record<PublicSignatureFieldKind, string> = {
   Checkbox: 'Checkbox',
 };
 
+/**
+ * Traducción de cada fila de la cadena a lenguaje del firmante. El backend solo manda
+ * el nombre del enum (`kind`); no hay descripción legible en el contrato, así que el
+ * texto vive aquí. La lista es CERRADA en el dominio (`SignatureAuditEventKind`), y el
+ * `Record` obliga a cubrir cualquier valor nuevo si algún día se amplía.
+ */
+export const AUDIT_EVENT_KIND_LABEL: Record<SignatureAuditEventKind, string> = {
+  RequestCreated: 'Request created',
+  RequestSent: 'Request sent to signers',
+  SignerViewed: 'Signer opened the link',
+  ConsentAccepted: 'Electronic signature consent accepted',
+  PinVerified: 'Practitioner PIN verified',
+  PinFailed: 'Practitioner PIN attempt failed',
+  ChallengeIssued: 'Verification code sent',
+  ChallengeVerified: 'Verification code confirmed',
+  ChallengeFailed: 'Verification code attempt failed',
+  DocumentSigned: 'Document signed',
+  SignerRejected: 'Signer declined the document',
+  RequestCanceled: 'Request cancelled by the office',
+  RequestExpired: 'Request expired',
+  RequestCompleted: 'All signers completed',
+  RequestSealed: 'Final document sealed',
+  PreparerSigned: 'Preparer signed',
+};
+
+/**
+ * Cómo se pinta cada tipo de fila. Solo afecta al icono y al color: el veredicto de
+ * integridad NO depende del tipo de evento, viene entero en `isIntact`.
+ */
+export const AUDIT_EVENT_KIND_ICON: Record<SignatureAuditEventKind, string> = {
+  RequestCreated: 'document-text-outline',
+  RequestSent: 'paper-plane-outline',
+  SignerViewed: 'eye-outline',
+  ConsentAccepted: 'shield-checkmark-outline',
+  PinVerified: 'lock-open-outline',
+  PinFailed: 'lock-closed-outline',
+  ChallengeIssued: 'send-outline',
+  ChallengeVerified: 'checkmark-circle-outline',
+  ChallengeFailed: 'close-circle-outline',
+  DocumentSigned: 'create-outline',
+  SignerRejected: 'close-circle-outline',
+  RequestCanceled: 'ban-outline',
+  RequestExpired: 'time-outline',
+  RequestCompleted: 'checkmark-done-outline',
+  RequestSealed: 'ribbon-outline',
+  PreparerSigned: 'person-outline',
+};
+
+/** Filas que reportan un intento fallido: se resaltan en rojo, no rompen la cadena. */
+export const AUDIT_FAILURE_KINDS: ReadonlySet<SignatureAuditEventKind> = new Set<SignatureAuditEventKind>([
+  'PinFailed',
+  'ChallengeFailed',
+  'SignerRejected',
+  'RequestCanceled',
+  'RequestExpired',
+]);
+
 // ---------- Errores del contrato público ----------
 
 /**
