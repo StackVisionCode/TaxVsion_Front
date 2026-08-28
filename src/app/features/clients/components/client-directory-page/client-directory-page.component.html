@@ -26,11 +26,19 @@
         <h2 class="text-xl font-bold text-gray-900">Clients</h2>
         <p class="mt-1 text-sm text-gray-500">Manage your individual and company clients</p>
       </div>
-      <button type="button" (click)="openCreatePanel()"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        <ion-icon name="add-outline" class="text-base"></ion-icon>
-        New Client
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Entrada al wizard de importación masiva (ruta hija '/clients/import'). -->
+        <a routerLink="/clients/import"
+          class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-brand-bold hover:bg-gray-100 transition-colors">
+          <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+          Import clients
+        </a>
+        <button type="button" (click)="openCreatePanel()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          New Client
+        </button>
+      </div>
     </div>
 
     <p *ngIf="loading()" class="mt-3 text-sm text-gray-400">Loading clients…</p>

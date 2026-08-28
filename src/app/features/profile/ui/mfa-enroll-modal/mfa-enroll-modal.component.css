@@ -1,0 +1,23 @@
+/* El cuerpo del alta se recrea al pasar de "cargando" a "listo": el @if lo
+   remonta y vuelve a disparar la entrada (mismo idioma que signature-wizard). */
+.enroll-body {
+  animation: enroll-body-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes enroll-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accesibilidad: sin movimiento para quien lo pide en el sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .enroll-body {
+    animation: none;
+  }
+}

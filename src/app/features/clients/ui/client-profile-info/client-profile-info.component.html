@@ -23,13 +23,24 @@
           <p class="truncate text-sm font-medium text-gray-900">{{ c.phone }}</p>
         </div>
       </div>
-      <div class="flex items-center gap-4 py-4">
+      <div *ngIf="c.addresses.length === 0" class="flex items-center gap-4 py-4">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-[#1E466B]">
           <ion-icon name="location-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
           <p class="text-xs text-gray-400">Address</p>
-          <p class="text-sm font-medium text-gray-900">{{ c.address }}</p>
+          <p class="text-sm font-medium text-gray-400">No address on file</p>
+        </div>
+      </div>
+      <div *ngFor="let addr of c.addresses" class="flex items-center gap-4 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-[#1E466B]">
+          <ion-icon name="location-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400">{{ addr.kind }}{{ addr.isPrimary ? ' · Primary' : '' }}</p>
+          <p class="text-sm font-medium text-gray-900">
+            {{ addr.line1 }}{{ addr.line2 ? ', ' + addr.line2 : '' }}, {{ addr.city }}{{ addr.region ? ', ' + addr.region : '' }} {{ addr.postalCode }}
+          </p>
         </div>
       </div>
     </div>
@@ -43,7 +54,16 @@
     <div class="mt-4 grid grid-cols-2 gap-4">
       <div class="rounded-2xl border border-gray-100 p-4">
         <p class="text-xs text-gray-400">SSN / ITIN</p>
-        <p class="mt-1 text-sm font-semibold text-gray-900">{{ maskTail(c.individual?.ssnOrItin) }}</p>
+        <p class="mt-1 text-sm font-semibold text-gray-900" *ngIf="!revealedTaxId; else revealedIndividual">
+          {{ c.fiscalProfile?.taxIdentifierLast4 ? '•••-••-' + c.fiscalProfile!.taxIdentifierLast4 : '—' }}
+        </p>
+        <ng-template #revealedIndividual>
+          <p class="mt-1 text-sm font-semibold text-gray-900">{{ revealedTaxId }}</p>
+        </ng-template>
+        <button *ngIf="c.fiscalProfile && !revealedTaxId" type="button" (click)="revealTaxId.emit(c.id)" [disabled]="revealingTaxId"
+          class="mt-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50">
+          {{ revealingTaxId ? 'Revealing…' : 'Reveal' }}
+        </button>
       </div>
       <div class="rounded-2xl border border-gray-100 p-4">
         <p class="text-xs text-gray-400">Date of birth</p>
@@ -69,7 +89,16 @@
       <div class="mt-4 grid grid-cols-2 gap-4">
         <div class="rounded-2xl border border-gray-100 p-4">
           <p class="text-xs text-gray-400">EIN</p>
-          <p class="mt-1 text-sm font-semibold text-gray-900">{{ maskTail(c.company?.ein) }}</p>
+          <p class="mt-1 text-sm font-semibold text-gray-900" *ngIf="!revealedTaxId; else revealedBusiness">
+            {{ c.fiscalProfile?.taxIdentifierLast4 ? '••-•••' + c.fiscalProfile!.taxIdentifierLast4 : '—' }}
+          </p>
+          <ng-template #revealedBusiness>
+            <p class="mt-1 text-sm font-semibold text-gray-900">{{ revealedTaxId }}</p>
+          </ng-template>
+          <button *ngIf="c.fiscalProfile && !revealedTaxId" type="button" (click)="revealTaxId.emit(c.id)" [disabled]="revealingTaxId"
+            class="mt-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50">
+            {{ revealingTaxId ? 'Revealing…' : 'Reveal' }}
+          </button>
         </div>
         <div class="rounded-2xl border border-gray-100 p-4">
           <p class="text-xs text-gray-400">Formation date</p>
@@ -123,7 +152,7 @@
       </span>
       <div class="min-w-0 flex-1">
         <p class="text-sm font-semibold text-gray-900">{{ spouse.name }}</p>
-        <p class="text-xs text-gray-400">{{ maskTail(spouse.ssnOrItin) }}</p>
+        <p class="text-xs text-gray-400">{{ spouse.email || spouse.phone || '—' }}</p>
       </div>
       <span class="shrink-0 text-xs text-gray-500">{{ formatDate(spouse.dateOfBirth) }}</span>
     </div>

@@ -1,0 +1,95 @@
+/*
+ * Animaciones de entrada de la pestaña Family, con el patrón del resto del
+ * repo: keyframes propios (no @angular/animations), 260ms y escalonado por
+ * nth-child para que las tarjetas entren en cascada en vez de a la vez.
+ */
+
+@keyframes family-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes family-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.family-card {
+  animation: family-rise 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.family-tab > .family-card:nth-of-type(1) {
+  animation-delay: 40ms;
+}
+
+.family-tab > .family-card:nth-of-type(2) {
+  animation-delay: 80ms;
+}
+
+.family-tab > .family-card:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+
+/* Filas de la lista: entran escalonadas al paginar o al buscar. */
+.family-row {
+  animation: family-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.family-row:nth-child(1) {
+  animation-delay: 30ms;
+}
+
+.family-row:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.family-row:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.family-row:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.family-row:nth-child(5) {
+  animation-delay: 150ms;
+}
+
+.family-row:nth-child(6) {
+  animation-delay: 180ms;
+}
+
+.family-form {
+  animation: family-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.family-dropdown {
+  animation: family-slide 160ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * Los keyframes usan `both`, así que hay que anular la animación ENTERA:
+ * acortarla dejaría el contenido congelado en el `from` (opacity: 0) y la
+ * pestaña se vería vacía para quien pide menos movimiento.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .family-card,
+  .family-row,
+  .family-form,
+  .family-dropdown {
+    animation: none;
+    animation-delay: 0ms;
+  }
+}

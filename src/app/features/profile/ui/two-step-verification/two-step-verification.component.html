@@ -1,0 +1,226 @@
+<div class="bg-white rounded-[28px] p-6">
+  <!-- Encabezado: estado real + feedback puntual -->
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Two-step verification</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        Ask for a code from your authenticator app when signing in
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      @if (toast(); as t) {
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
+          [ngClass]="t.kind === 'success'
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+            : 'bg-red-50 text-red-700 border-red-100'">
+          <ion-icon [name]="t.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
+            class="text-sm"></ion-icon>
+          {{ t.message }}
+        </span>
+      }
+      @if (store.loaded()) {
+        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+          [ngClass]="store.enabled() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
+          <ion-icon [name]="store.enabled() ? 'shield-checkmark-outline' : 'shield-outline'"
+            class="text-sm"></ion-icon>
+          {{ store.enabled() ? 'On' : 'Off' }}
+        </span>
+      }
+    </div>
+  </div>
+
+  <!-- Carga inicial -->
+  @if (store.loading() && !store.loaded()) {
+    <div class="mt-5 flex items-center gap-3 text-sm text-gray-400">
+      <span class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></span>
+      Loading two-step verification…
+    </div>
+  }
+
+  <!-- Error de carga: sin datos que mostrar todavía -->
+  @if (!store.loaded() && !store.loading() && store.error(); as err) {
+    <div class="mt-5 flex flex-wrap items-center gap-3">
+      <p class="text-sm text-red-600">{{ err }}</p>
+      <button type="button" (click)="store.load()"
+        class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        <ion-icon name="refresh-outline" class="text-xs"></ion-icon>
+        Retry
+      </button>
+    </div>
+  }
+
+  @if (store.loaded()) {
+    <!-- Error al refrescar: se conserva lo último conocido y se ofrece reintentar -->
+    @if (store.error(); as err) {
+      <div class="mt-5 flex flex-wrap items-center gap-3 rounded-[20px] border border-red-100 bg-red-50 px-4 py-3">
+        <p class="text-sm text-red-700">{{ err }}</p>
+        <button type="button" (click)="store.load()"
+          class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors">
+          <ion-icon name="refresh-outline" class="text-xs"></ion-icon>
+          Retry
+        </button>
+      </div>
+    }
+
+    @if (store.enabled()) {
+      <div class="mfa-block mt-5 flex flex-col gap-3">
+        <!-- Métodos activos -->
+        <div class="mfa-list flex flex-col gap-2">
+          @for (method of store.methods(); track method.id) {
+            <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-gray-100 bg-white px-4 py-3">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                <ion-icon [name]="methodIcon(method)" class="text-lg"></ion-icon>
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-sm font-semibold text-gray-900">{{ methodLabel(method) }}</span>
+                  @if (method.isPreferred) {
+                    <span class="inline-flex items-center rounded-full bg-brand-bold px-2 py-0.5 text-[11px] font-medium text-white">
+                      Preferred
+                    </span>
+                  }
+                </div>
+                <p class="mt-0.5 truncate text-xs text-gray-500">
+                  @if (method.maskedDestination) {
+                    <span>{{ method.maskedDestination }} · </span>
+                  }
+                  @if (method.lastUsedAtUtc) {
+                    <span>Last used {{ method.lastUsedAtUtc | date: 'MMM d, y, h:mm a' }}</span>
+                  } @else {
+                    <span>Not used yet</span>
+                  }
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Códigos de recuperación -->
+        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-gray-100 bg-white px-4 py-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+            <ion-icon name="key-outline" class="text-lg"></ion-icon>
+          </span>
+          <div class="min-w-0 flex-1">
+            <span class="text-sm font-semibold text-gray-900">Recovery codes</span>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ store.recoveryCodesRemaining() }} unused
+              {{ store.recoveryCodesRemaining() === 1 ? 'code' : 'codes' }} left. Regenerating
+              invalidates the previous ones.
+            </p>
+          </div>
+          <button type="button" (click)="openRegenerate()"
+            class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            Regenerate
+          </button>
+        </div>
+
+        <!-- Desactivar: acción destructiva, en rojo y con confirmación por contraseña -->
+        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-red-100 bg-red-50/50 px-4 py-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500">
+            <ion-icon name="shield-outline" class="text-lg"></ion-icon>
+          </span>
+          <div class="min-w-0 flex-1">
+            <span class="text-sm font-semibold text-gray-900">Turn off two-step verification</span>
+            <p class="mt-0.5 text-xs text-gray-500">
+              Your account will be protected by your password alone.
+            </p>
+          </div>
+          <button type="button" (click)="openDisable()"
+            class="shrink-0 rounded-full border border-red-200 bg-white px-4 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+            Turn off
+          </button>
+        </div>
+      </div>
+
+      <!-- Dispositivos de confianza -->
+      <div class="mfa-block mt-6 border-t border-gray-100 pt-5">
+        <h3 class="text-sm font-semibold text-gray-900">Trusted devices</h3>
+        <p class="mt-1 text-xs text-gray-500">
+          Devices that skip the code until the trust expires. Remove any you don't recognize.
+        </p>
+
+        @if (store.trustedDevices().length === 0) {
+          <p class="mt-4 text-sm text-gray-400">No trusted devices.</p>
+        } @else {
+          <div class="mfa-list mt-4 divide-y divide-gray-100">
+            @for (device of store.trustedDevices(); track device.id) {
+              <div class="mfa-row flex flex-wrap items-center gap-3 py-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                  <ion-icon [name]="deviceIcon(device)" class="text-lg"></ion-icon>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-sm font-semibold text-gray-900">{{ deviceLabel(device) }}</span>
+                  <p class="mt-0.5 truncate text-xs text-gray-500">
+                    Trusted {{ device.createdAtUtc | date: 'MMM d, y' }} ·
+                    Expires {{ device.expiresAtUtc | date: 'MMM d, y' }}
+                  </p>
+                </div>
+                <button type="button" (click)="askRevoke(device)" [disabled]="revokingId() === device.id"
+                  class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+                  {{ revokingId() === device.id ? 'Removing…' : 'Remove' }}
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <!-- MFA apagado: invitación a activarlo (único método que el backend permite dar de alta: TOTP) -->
+      <div class="mfa-block mt-5 flex flex-wrap items-center gap-4 rounded-[20px] border border-indigo-100 bg-indigo-50 p-5">
+        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600">
+          <ion-icon name="shield-checkmark-outline" class="text-2xl"></ion-icon>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-gray-900">Two-step verification is off</p>
+          <p class="mt-0.5 text-xs text-gray-600">
+            Add a second step with an authenticator app so a stolen password isn't enough to get in.
+          </p>
+        </div>
+        <button type="button" (click)="openEnroll()"
+          class="shrink-0 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          Turn on
+        </button>
+      </div>
+    }
+  }
+</div>
+
+<!-- Alta TOTP -->
+<app-mfa-enroll-modal [isOpen]="enrollOpen()" (closed)="closeEnroll()" (enrolled)="onEnrolled()">
+</app-mfa-enroll-modal>
+
+<!-- Desactivar: contraseña obligatoria (el backend la exige) -->
+<app-mfa-password-modal [isOpen]="disableOpen()" heading="Turn off two-step verification?"
+  message="This removes the second step from your account and clears your trusted devices. Enter your password to confirm."
+  confirmLabel="Turn off" busyLabel="Turning off…" [destructive]="true" [busy]="disableBusy()"
+  [error]="disableError()" (confirmed)="confirmDisable($event)" (cancelled)="cancelDisable()">
+</app-mfa-password-modal>
+
+<!-- Regenerar códigos: contraseña obligatoria (el backend la exige) -->
+<app-mfa-password-modal [isOpen]="regenerateOpen()" heading="Regenerate recovery codes?"
+  message="Your current recovery codes stop working immediately and a new set is shown once. Enter your password to confirm."
+  confirmLabel="Regenerate" busyLabel="Regenerating…" [busy]="regenerateBusy()"
+  [error]="regenerateError()" (confirmed)="confirmRegenerate($event)" (cancelled)="cancelRegenerate()">
+</app-mfa-password-modal>
+
+<!-- Códigos nuevos: se muestran una sola vez -->
+<app-modal [isOpen]="!!newCodes()" heading="Save your new recovery codes"
+  subheading="You won't be able to see these codes again" size="lg" (closed)="closeCodes()">
+  @if (newCodes(); as codes) {
+    <div class="mt-5">
+      <app-recovery-codes-panel [codes]="codes"></app-recovery-codes-panel>
+    </div>
+    <div class="mt-6 flex items-center justify-end">
+      <button type="button" (click)="closeCodes()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        I've saved them
+      </button>
+    </div>
+  }
+</app-modal>
+
+<!-- Revocar dispositivo de confianza -->
+<app-confirm-dialog [isOpen]="!!pendingRevoke()" heading="Remove trusted device?"
+  [message]="revokeMessage()" confirmLabel="Remove" (confirmed)="confirmRevoke()"
+  (cancelled)="cancelRevoke()"></app-confirm-dialog>

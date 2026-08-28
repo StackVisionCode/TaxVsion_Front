@@ -1,0 +1,79 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Cabecera -->
+  <div class="page-head bg-white rounded-[28px] p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <a routerLink="/clients"
+          class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-brand-bold">
+          <ion-icon name="chevron-back-outline" class="text-base"></ion-icon>
+          Clients
+        </a>
+        <h2 class="mt-2 text-xl font-bold text-gray-900">Import clients</h2>
+        <p class="mt-1 max-w-2xl text-sm text-gray-500">
+          Move your whole book of business over in one go. Upload a CSV or XLSX file, we process it in the
+          background, and you get a row-by-row report of what came in and what needs fixing.
+        </p>
+      </div>
+
+      <!-- Pestañas -->
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="setTab('wizard')"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'wizard' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          New import
+        </button>
+        <button type="button" (click)="setTab('history')"
+          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'history' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          History
+        </button>
+      </div>
+    </div>
+
+    <!-- Stepper: el paso activo se deriva del estado real del intento -->
+    <ol *ngIf="tab() === 'wizard'" class="mt-6 flex flex-wrap items-center gap-3">
+      <li *ngFor="let item of steps; let i = index" class="flex items-center gap-3">
+        <span class="flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors"
+          [ngClass]="i === currentStepIndex()
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : (i < currentStepIndex() ? 'border-brand-border bg-brand-surface text-brand-bold' : 'border-gray-200 text-gray-400')">
+          <span class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
+            [ngClass]="i === currentStepIndex() ? 'bg-white/20' : 'bg-transparent'">
+            <ion-icon *ngIf="i < currentStepIndex(); else stepNumber" name="checkmark-outline"
+              class="text-xs"></ion-icon>
+            <ng-template #stepNumber>{{ i + 1 }}</ng-template>
+          </span>
+          {{ item.label }}
+        </span>
+        <span *ngIf="i < steps.length - 1" class="h-px w-6 bg-gray-200"></span>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Wizard -->
+  <div *ngIf="tab() === 'wizard'" class="page-body bg-white rounded-[28px] p-6">
+    <app-client-import-upload-step *ngIf="step() === 'upload'" [busy]="store.starting()"
+      [errorMessage]="store.startError()" [templateBusy]="store.templateDownloading()"
+      [templateError]="store.templateError()" [runningAttempt]="store.runningAttempt()"
+      (startRequested)="handleStart($event)" (templateRequested)="handleTemplate()"
+      (trackRunningRequested)="openAttempt($event)"></app-client-import-upload-step>
+
+    <app-client-import-progress-step *ngIf="step() === 'progress' && store.attempt() as running" [attempt]="running"
+      [canceling]="store.canceling()" [cancelError]="store.cancelError()" [pollError]="store.pollError()"
+      (cancelRequested)="handleCancel()" (retryPollRequested)="handleRetryPoll()"></app-client-import-progress-step>
+
+    <app-client-import-result-step *ngIf="step() === 'result' && store.attempt() as finished" [attempt]="finished"
+      [rows]="store.rows()" [rowsLoading]="store.rowsLoading()" [rowsError]="store.rowsError()"
+      [csvDownloading]="store.csvDownloading()" (reloadRowsRequested)="handleReloadRows()"
+      (downloadCsvRequested)="handleDownloadCsv()"
+      (startAnotherRequested)="handleStartAnother()"></app-client-import-result-step>
+  </div>
+
+  <!-- Historial -->
+  <div *ngIf="tab() === 'history'" class="page-body bg-white rounded-[28px] p-6">
+    <app-client-import-history [attempts]="store.history()" [loading]="store.historyLoading()"
+      [error]="store.historyError()" [page]="store.historyPage()" [hasMore]="store.historyHasMore()"
+      (retryRequested)="handleHistoryRetry()" (pageChange)="handleHistoryPage($event)"
+      (attemptSelected)="openAttempt($event)"></app-client-import-history>
+  </div>
+</div>
