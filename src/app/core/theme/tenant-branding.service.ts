@@ -67,7 +67,7 @@ export class TenantBrandingService {
     this.http
       .get<PublicBrandingResponse>(url)
       .pipe(
-        tap((branding) => this.apply(branding)),
+        tap((branding) => this.apply(branding, this.api.tenantBase())),
         // Fallback total: cualquier fallo deja el look actual intacto.
         catchError(() => of(null)),
       )
@@ -80,11 +80,13 @@ export class TenantBrandingService {
    * la rama por slug del login de oficina.
    */
   applyForSystem(surface: 'Crm' | 'Portal' = 'Crm'): void {
-    const url = this.api.tenantUrl(`/tenants/branding/system?surface=${surface}`);
+    // Marca del SISTEMA: host de sistema (app.*), SIN slug. Debe ir por systemUrl/systemBase —
+    // tenantUrl/tenantBase exigen slug y revientan en app.taxproffice.com (bug de arranque directo).
+    const url = this.api.systemUrl(`/tenants/branding/system?surface=${surface}`);
     this.http
       .get<PublicBrandingResponse>(url)
       .pipe(
-        tap((branding) => this.apply(branding)),
+        tap((branding) => this.apply(branding, this.api.systemBase())),
         catchError(() => of(null)),
       )
       .subscribe();
@@ -122,11 +124,11 @@ export class TenantBrandingService {
     }
   }
 
-  private apply(branding: PublicBrandingResponse): void {
+  private apply(branding: PublicBrandingResponse, base: string): void {
     this.theme.applyBranding({ primary: branding.primary, accent: branding.accent });
 
-    // Las URLs vienen relativas al endpoint del tenant; se absolutizan contra la misma base.
-    const base = this.api.tenantBase();
+    // Las URLs de assets vienen RELATIVAS; se absolutizan contra la base del mismo origen que sirvió
+    // el branding: tenantBase() para la marca de oficina, systemBase() para la del sistema (app.*).
     this._logoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);
     if (branding.faviconUrl) {
       this.setFavicon(bust(`${base}${branding.faviconUrl}`));
