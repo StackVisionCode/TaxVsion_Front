@@ -138,6 +138,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/checkout/checkout.routes').then(m => m.CHECKOUT_ROUTES),
       },
       {
+        path: 'subscription',
+        loadChildren: () =>
+          import('./features/subscription/subscription.routes').then(m => m.SUBSCRIPTION_ROUTES),
+      },
+      {
         path: 'documents',
         loadChildren: () => import('./features/documents/documents.routes').then(m => m.DOCUMENTS_ROUTES),
       },
