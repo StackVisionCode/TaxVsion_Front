@@ -8,13 +8,24 @@
       class="flex items-center px-4 pt-5 pb-4"
       [ngClass]="{ 'justify-between': isExpanded(), 'justify-center': !isExpanded() }"
     >
-      <div class="flex items-center gap-2 select-none">
-        <span class="text-indigo-600 text-2xl font-bold leading-none">*</span>
-        <span
-          *ngIf="isExpanded()"
-          class="text-gray-900 text-sm font-bold tracking-widest"
-          >TAXPRO OFFICE</span
-        >
+      <div class="flex items-center gap-2 select-none min-w-0 overflow-hidden">
+        <!-- Expandido: logo grande del tenant (o del sistema por cascada); si no viene ninguno, el
+             nombre de marca. Colapsado (w-16): solo el asterisco, que es lo único que cabe. -->
+        <ng-container *ngIf="isExpanded(); else collapsedMark">
+          <img
+            *ngIf="logoUrl() && !showLogoFallback(); else expandedFallback"
+            [src]="logoUrl()"
+            alt="Logo"
+            class="h-10 max-w-[180px] object-contain"
+            (error)="showLogoFallback.set(true)"
+          />
+          <ng-template #expandedFallback>
+            <span class="text-gray-900 text-sm font-bold tracking-widest">TAXPROFFICE</span>
+          </ng-template>
+        </ng-container>
+        <ng-template #collapsedMark>
+          <span class="text-indigo-600 text-2xl font-bold leading-none">*</span>
+        </ng-template>
       </div>
 
       <!-- Collapse toggle (inline with brand when expanded) -->
@@ -55,10 +66,7 @@
           [style.height.px]="indicatorHeight()"
         ></div>
 
-        <div
-          *ngFor="let item of menuItems(); trackBy: trackByIndex"
-          class="relative"
-        >
+        <div *ngFor="let item of menuItems(); trackBy: trackByIndex" class="relative">
           <ng-container *ngIf="canShowItem(item)">
             <button
               #itemButton
@@ -78,7 +86,10 @@
               <ion-icon
                 [name]="item.icon"
                 class="text-lg shrink-0 pointer-events-none"
-                [ngClass]="[item.isActive ? 'text-white' : 'text-gray-500', item.isActive ? 'icon-pop' : '']"
+                [ngClass]="[
+                  item.isActive ? 'text-white' : 'text-gray-500',
+                  item.isActive ? 'icon-pop' : '',
+                ]"
               ></ion-icon>
 
               <span

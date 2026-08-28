@@ -17,9 +17,11 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
  * entra al dashboard. El QR se genera en el cliente desde otpAuthUri; si falla,
  * queda la clave manual como respaldo.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-mfa-setup-page',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-setup-page.component.html',
   styleUrl: './mfa-setup-page.component.css',

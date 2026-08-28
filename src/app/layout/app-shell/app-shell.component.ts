@@ -1,10 +1,20 @@
-import { Component, DestroyRef, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnInit,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { AuthService } from '@core/auth/auth.service';
 
 /**
  * Shell de la app autenticada: navbar arriba, sidebar a la izquierda,
@@ -20,6 +30,8 @@ import { SessionRevocationService } from '@core/auth/session-revocation.service'
 export class AppShellComponent implements OnInit {
   private readonly socket = inject(ChatSocketService);
   private readonly sessionRevocation = inject(SessionRevocationService);
+  private readonly branding = inject(TenantBrandingService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly isSidebarExpanded = signal(true);
@@ -27,15 +39,24 @@ export class AppShellComponent implements OnInit {
   @ViewChild('routeContent') private routeContentRef?: ElementRef<HTMLElement>;
 
   ngOnInit(): void {
+    // Marca del tenant ya autenticado: pinta tema/logo/favicon por su tenantId (endpoint
+    // autenticado, funciona en dev sin subdominio). Aditivo y con fallback total.
+    const tenantId = this.auth.currentUser()?.tenant.id;
+    if (tenantId) {
+      this.branding.applyForTenant(tenantId, 'Crm');
+    }
+
     // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,
     // así que el chat reusa esta misma conexión cuando se abre.
     this.socket.connect();
-    this.socket.sessionRevoked$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(revokedSid => {
-      if (this.sessionRevocation.handleRevoked(revokedSid)) {
-        this.socket.disconnect();
-      }
-    });
+    this.socket.sessionRevoked$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((revokedSid) => {
+        if (this.sessionRevocation.handleRevoked(revokedSid)) {
+          this.socket.disconnect();
+        }
+      });
   }
 
   onSidebarStateChange(expanded: boolean): void {

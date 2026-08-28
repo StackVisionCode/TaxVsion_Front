@@ -1,22 +1,31 @@
 <div class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden">
   <!-- Ambient background glow -->
   <div class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"></div>
-  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-brand-light/30 rounded-full blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-indigo-300/30 rounded-full blur-3xl"></div>
 
   <div class="auth-card relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-brand-light/40 overflow-hidden flex flex-col lg:flex-row"
     [class.login-sink]="isSunk()">
     <!-- Left side - Gradient brand panel -->
     <div class="hidden lg:flex lg:w-1/2 relative m-3 rounded-[1.75rem] overflow-hidden"
       [class.fluid-active]="isTyping()">
-      <!-- Gradiente de marca: Light Blue → Bold Blue → Jet Black (los 3 tonos del brandbook) -->
-      <div class="absolute inset-0 bg-gradient-to-br from-brand-light via-brand-bold to-brand-black"></div>
+      <!-- Gradiente de marca (canal primary = indigo, tematizable por tenant vía variables CSS) -->
+      <div class="absolute inset-0 bg-gradient-to-br from-indigo-400 via-indigo-600 to-indigo-700"></div>
       <!-- Fluid blobs: se agitan como líquido mientras se escribe en el formulario -->
-      <div class="fluid-blob fluid-blob-1 absolute -top-10 -left-10 w-72 h-72 bg-brand-light/50 blur-3xl"></div>
-      <div class="fluid-blob fluid-blob-2 absolute bottom-0 right-0 w-72 h-72 bg-brand-bold/60 blur-3xl"></div>
-      <div class="fluid-blob fluid-blob-3 absolute top-1/3 left-1/4 w-56 h-56 bg-brand-light/40 blur-3xl"></div>
+      <div class="fluid-blob fluid-blob-1 absolute -top-10 -left-10 w-72 h-72 bg-indigo-300/50 blur-3xl"></div>
+      <div class="fluid-blob fluid-blob-2 absolute bottom-0 right-0 w-72 h-72 bg-indigo-600/60 blur-3xl"></div>
+      <div class="fluid-blob fluid-blob-3 absolute top-1/3 left-1/4 w-56 h-56 bg-indigo-300/40 blur-3xl"></div>
 
       <div class="relative z-10 flex flex-col justify-between w-full p-10">
-        <span class="text-white text-4xl font-bold leading-none">*</span>
+        <img
+          *ngIf="logoUrl() && !showLogoFallback(); else heroBrandMark"
+          [src]="logoUrl()"
+          alt="Logo"
+          class="h-20 max-w-[300px] object-contain"
+          (error)="showLogoFallback.set(true)"
+        />
+        <ng-template #heroBrandMark>
+          <span class="text-white text-4xl font-bold leading-none">*</span>
+        </ng-template>
 
         <div class="text-white space-y-2">
           <p class="text-sm font-medium text-white/80">You can easily</p>
@@ -30,7 +39,17 @@
     <!-- Right side - Login form -->
     <div class="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
       <div class="w-full max-w-sm mx-auto">
-        <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+        <!-- Logo del tenant: solo en mobile (lg:hidden) — en desktop lo muestra el hero. -->
+        <img
+          *ngIf="logoUrl() && !showLogoFallback(); else loginBrandMark"
+          [src]="logoUrl()"
+          alt="Logo"
+          class="h-9 max-w-[160px] object-contain lg:hidden"
+          (error)="showLogoFallback.set(true)"
+        />
+        <ng-template #loginBrandMark>
+          <span class="text-indigo-600 text-3xl font-bold leading-none lg:hidden">*</span>
+        </ng-template>
 
         <h1 class="mt-4 text-3xl font-bold text-gray-900">Welcome back</h1>
         <p class="mt-2 text-sm text-gray-500">

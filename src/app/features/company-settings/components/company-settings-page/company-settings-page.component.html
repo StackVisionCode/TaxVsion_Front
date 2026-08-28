@@ -118,48 +118,111 @@
     </div>
   </div>
 
+  <!-- Selector de superficie: CRM (staff) vs Portal del cliente. Cada una tiene su propia marca. -->
+  <div class="bg-white rounded-[28px] p-6">
+    <h3 class="text-xl font-bold text-gray-900">Brand identity</h3>
+    <p class="mt-1 text-sm text-gray-500">
+      Configure the logo, favicon and colors for each surface. The
+      <span class="font-medium text-gray-700">Staff CRM</span> is what your team sees; the
+      <span class="font-medium text-gray-700">Client portal</span> is what your clients see.
+    </p>
+    <div class="mt-4 inline-flex rounded-full border border-gray-200 bg-gray-50 p-1">
+      <button *ngFor="let s of surfaces" type="button" (click)="selectSurface(s.value)"
+        [disabled]="store.colorsLoading()"
+        [class.bg-brand-bold]="store.surface() === s.value"
+        [class.text-white]="store.surface() === s.value"
+        [class.text-gray-600]="store.surface() !== s.value"
+        class="rounded-full px-4 py-1.5 text-sm font-semibold transition-colors hover:text-gray-900 disabled:pointer-events-none">
+        {{ s.label }}
+      </button>
+    </div>
+  </div>
+
   <!-- Company logo -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex items-center gap-2">
       <h3 class="text-xl font-bold text-gray-900">Company logo</h3>
-      <ion-icon *ngIf="store.logoLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
+      <ion-icon *ngIf="store.colorsLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
     </div>
-    <p class="mt-1 text-sm text-gray-500">Shown on invoices and the client portal · PNG, JPEG or SVG · max {{ logoMaxSizeKb }} KB</p>
+    <p class="mt-1 text-sm text-gray-500">Shown on invoices and the client portal · PNG, JPEG or SVG · max {{ assetMaxSizeKb }} KB</p>
 
     <div class="mt-4 flex flex-wrap items-center gap-4">
-      <ng-container *ngIf="store.logo() as logo; else noLogo">
+      <ng-container *ngIf="store.logo()?.url as url; else noLogo">
         <span class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
-          <img [src]="logo.downloadUrl" alt="Company logo" class="max-h-full max-w-full object-contain" />
+          <img [src]="url" alt="Company logo" class="max-h-full max-w-full object-contain" />
         </span>
       </ng-container>
       <ng-template #noLogo>
         <span class="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-gray-300">
-          <ion-icon *ngIf="!store.logoProcessing()" name="image-outline" class="text-3xl"></ion-icon>
-          <ion-icon *ngIf="store.logoProcessing()" name="sync-outline" class="animate-spin text-2xl text-gray-400"></ion-icon>
+          <ion-icon *ngIf="store.assetProcessing() !== 'logo'" name="image-outline" class="text-3xl"></ion-icon>
+          <ion-icon *ngIf="store.assetProcessing() === 'logo'" name="sync-outline" class="animate-spin text-2xl text-gray-400"></ion-icon>
         </span>
       </ng-template>
 
       <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center gap-3">
-          <button type="button" (click)="logoInput.click()" [disabled]="store.logoBusy()"
+          <button type="button" (click)="logoInput.click()" [disabled]="store.assetBusy() === 'logo'"
             class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
-            {{ store.logoBusy() ? 'Uploading…' : store.logo() ? 'Replace logo' : 'Upload logo' }}
+            {{ store.assetBusy() === 'logo' ? 'Uploading…' : store.logo() ? 'Replace logo' : 'Upload logo' }}
           </button>
-          <button *ngIf="store.logo()" type="button" (click)="removeLogo()" [disabled]="store.logoBusy()"
+          <button *ngIf="store.logo()" type="button" (click)="removeAsset('logo')" [disabled]="store.assetBusy() === 'logo'"
             class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
             Remove
           </button>
           <input #logoInput type="file" class="hidden" accept="image/png,image/jpeg,image/svg+xml"
-            (change)="onLogoSelected($event)" />
+            (change)="onAssetSelected($event, 'logo')" />
         </div>
 
-        <p *ngIf="store.logoProcessing()" class="flex items-center gap-1.5 text-xs text-gray-500">
+        <p *ngIf="store.assetProcessing() === 'logo'" class="flex items-center gap-1.5 text-xs text-gray-500">
           <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
           Scanning uploaded file — the logo will appear here in a few seconds.
         </p>
-        <p *ngIf="logoFileError() || store.logoError()" class="flex items-center gap-1.5 text-sm text-red-500">
+      </div>
+    </div>
+  </div>
+
+  <!-- Favicon -->
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="flex items-center gap-2">
+      <h3 class="text-xl font-bold text-gray-900">Favicon</h3>
+      <ion-icon *ngIf="store.colorsLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
+    </div>
+    <p class="mt-1 text-sm text-gray-500">Browser tab icon · PNG or SVG (square, small) · max {{ assetMaxSizeKb }} KB</p>
+
+    <div class="mt-4 flex flex-wrap items-center gap-4">
+      <ng-container *ngIf="store.favicon()?.url as url; else noFavicon">
+        <span class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+          <img [src]="url" alt="Favicon" class="max-h-full max-w-full object-contain" />
+        </span>
+      </ng-container>
+      <ng-template #noFavicon>
+        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-300">
+          <ion-icon *ngIf="store.assetProcessing() !== 'favicon'" name="globe-outline" class="text-2xl"></ion-icon>
+          <ion-icon *ngIf="store.assetProcessing() === 'favicon'" name="sync-outline" class="animate-spin text-xl text-gray-400"></ion-icon>
+        </span>
+      </ng-template>
+
+      <div class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" (click)="faviconInput.click()" [disabled]="store.assetBusy() === 'favicon'"
+            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
+            {{ store.assetBusy() === 'favicon' ? 'Uploading…' : store.favicon() ? 'Replace favicon' : 'Upload favicon' }}
+          </button>
+          <button *ngIf="store.favicon()" type="button" (click)="removeAsset('favicon')" [disabled]="store.assetBusy() === 'favicon'"
+            class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
+            Remove
+          </button>
+          <input #faviconInput type="file" class="hidden" accept="image/png,image/svg+xml"
+            (change)="onAssetSelected($event, 'favicon')" />
+        </div>
+
+        <p *ngIf="store.assetProcessing() === 'favicon'" class="flex items-center gap-1.5 text-xs text-gray-500">
+          <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
+          Scanning uploaded file — the favicon will appear here in a few seconds.
+        </p>
+        <p *ngIf="assetFileError() || store.assetError()" class="flex items-center gap-1.5 text-sm text-red-500">
           <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
-          {{ logoFileError() || store.logoError() }}
+          {{ assetFileError() || store.assetError() }}
         </p>
       </div>
     </div>
@@ -176,13 +239,16 @@
         {{ colors.isCustomized ? 'Custom palette' : 'Default palette' }}
       </span>
     </div>
-    <p class="mt-1 text-sm text-gray-500">Used across your client portal and branded documents</p>
+    <p class="mt-1 text-sm text-gray-500">
+      Primary and accent color of the {{ store.surface() === 'Crm' ? 'Staff CRM' : 'Client portal' }}
+      <span *ngIf="store.surface() === 'Crm'">· applied instantly across the app</span>
+    </p>
 
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
         <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Primary</span>
         <span class="font-mono text-xs uppercase text-gray-500">{{ primaryColor() }}</span>
-        <input type="color" [ngModel]="primaryColor()" (ngModelChange)="primaryColor.set($event)"
+        <input type="color" [ngModel]="primaryColor()" (ngModelChange)="onPrimaryChange($event)"
           [disabled]="store.colorsLoading()" aria-label="Primary color"
           class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
       </div>
@@ -190,24 +256,8 @@
       <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
         <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Accent</span>
         <span class="font-mono text-xs uppercase text-gray-500">{{ accentColor() }}</span>
-        <input type="color" [ngModel]="accentColor()" (ngModelChange)="accentColor.set($event)"
+        <input type="color" [ngModel]="accentColor()" (ngModelChange)="onAccentChange($event)"
           [disabled]="store.colorsLoading()" aria-label="Accent color"
-          class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
-        <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Background</span>
-        <span class="font-mono text-xs uppercase text-gray-500">{{ backgroundColor() }}</span>
-        <input type="color" [ngModel]="backgroundColor()" (ngModelChange)="backgroundColor.set($event)"
-          [disabled]="store.colorsLoading()" aria-label="Background color"
-          class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
-        <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Text</span>
-        <span class="font-mono text-xs uppercase text-gray-500">{{ textColor() }}</span>
-        <input type="color" [ngModel]="textColor()" (ngModelChange)="textColor.set($event)"
-          [disabled]="store.colorsLoading()" aria-label="Text color"
           class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
       </div>
     </div>

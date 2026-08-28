@@ -54,13 +54,24 @@ module.exports = {
          * que las tarjetas y separadores no necesiten grises ajenos a la marca.
          */
         /**
-         * `gray-900` es el color de TEXTO principal en toda la app (~560 usos), así que
-         * se reapunta al Jet Black del brandbook en vez de tocar cada plantilla. El resto
-         * de la escala `gray` se deja intacta: son neutros de UI (bordes, texto
-         * secundario) que siguen funcionando con la paleta nueva.
+         * Neutros tematizables (palanca, igual que indigo/orange): ThemeService.applyNeutrals()
+         * tiñe estos grises con el HUE del primary del tenant conservando la LUMINOSIDAD de cada
+         * shade → el contraste texto/fondo se preserva por construcción. Fallbacks = el gris de
+         * hoy (default de Tailwind 50-800 + Jet Black #0d0d0d en 900, ~560 usos de texto); sin
+         * ThemeService o sin marca se ve idéntico. Triplete "R G B" para preservar los
+         * modificadores de opacidad (text-gray-500/70, etc.).
          */
         gray: {
-          900: '#0d0d0d',
+          50: 'rgb(var(--color-gray-50-rgb, 249 250 251) / <alpha-value>)',
+          100: 'rgb(var(--color-gray-100-rgb, 243 244 246) / <alpha-value>)',
+          200: 'rgb(var(--color-gray-200-rgb, 229 231 235) / <alpha-value>)',
+          300: 'rgb(var(--color-gray-300-rgb, 209 213 219) / <alpha-value>)',
+          400: 'rgb(var(--color-gray-400-rgb, 156 163 175) / <alpha-value>)',
+          500: 'rgb(var(--color-gray-500-rgb, 107 114 128) / <alpha-value>)',
+          600: 'rgb(var(--color-gray-600-rgb, 75 85 99) / <alpha-value>)',
+          700: 'rgb(var(--color-gray-700-rgb, 55 65 81) / <alpha-value>)',
+          800: 'rgb(var(--color-gray-800-rgb, 31 41 55) / <alpha-value>)',
+          900: 'rgb(var(--color-gray-900-rgb, 13 13 13) / <alpha-value>)',
         },
 
         brand: {

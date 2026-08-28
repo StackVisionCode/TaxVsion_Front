@@ -1,13 +1,30 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { environment } from '@env/environment';
 import { CentralLoginService } from '@core/auth/central-login.service';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { DiscoverOffice, DiscoverOutcome } from '@core/auth/central-login.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
-import { PlanChoice, PlanPickerModalComponent } from '../../ui/plan-picker-modal/plan-picker-modal.component';
+import {
+  PlanChoice,
+  PlanPickerModalComponent,
+} from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
 type Step = 'credentials' | 'select';
 
@@ -29,6 +46,7 @@ export class CentralLoginPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly centralLogin = inject(CentralLoginService);
+  private readonly branding = inject(TenantBrandingService);
   private readonly destroyRef = inject(DestroyRef);
 
   /**
@@ -37,6 +55,16 @@ export class CentralLoginPageComponent {
    * se auto-registran, llegan por invitación).
    */
   readonly portal = this.route.snapshot.data['portal'] === true;
+
+  /** Logo del sistema (o null → cae al asterisco). Se llena tras el fetch de la marca del sistema. */
+  readonly logoUrl = this.branding.logoUrl;
+  readonly showLogoFallback = signal(false);
+
+  constructor() {
+    // El login central es agnóstico de oficina: aplica la marca del SISTEMA (plataforma) —
+    // logo/colores/favicon — según la superficie (portal o CRM). Aditivo, con fallback total.
+    this.branding.applyForSystem(this.portal ? 'Portal' : 'Crm');
+  }
 
   form: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -93,7 +121,7 @@ export class CentralLoginPageComponent {
   }
 
   togglePasswordVisibility(): void {
-    this.showPassword.update(v => !v);
+    this.showPassword.update((v) => !v);
   }
 
   submitCredentials(): void {
@@ -110,8 +138,8 @@ export class CentralLoginPageComponent {
       .discover(email, password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: outcome => this.handleDiscover(outcome),
-        error: err => this.fail(err),
+        next: (outcome) => this.handleDiscover(outcome),
+        error: (err) => this.fail(err),
       });
   }
 
@@ -164,15 +192,19 @@ export class CentralLoginPageComponent {
     this.step.set('select');
   }
 
-  private requestHandoff(chosenTenantId: string, mfaCode: string | null, isClientPortal: boolean): void {
+  private requestHandoff(
+    chosenTenantId: string,
+    mfaCode: string | null,
+    isClientPortal: boolean,
+  ): void {
     this.formError.set(null);
     this.isBusy.set(true);
     this.centralLogin
       .handoff(this.sessionRef, chosenTenantId, mfaCode)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: view => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),
-        error: err => this.fail(err),
+        next: (view) => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),
+        error: (err) => this.fail(err),
       });
   }
 
@@ -183,7 +215,9 @@ export class CentralLoginPageComponent {
    */
   private redirectToOffice(subdomain: string, ticket: string, isClientPortal: boolean): void {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    window.location.assign(this.centralLogin.continueUrl(subdomain, ticket, returnUrl, isClientPortal));
+    window.location.assign(
+      this.centralLogin.continueUrl(subdomain, ticket, returnUrl, isClientPortal),
+    );
   }
 
   private fail(err: unknown): void {
