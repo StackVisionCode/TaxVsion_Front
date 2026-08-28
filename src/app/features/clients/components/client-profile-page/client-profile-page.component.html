@@ -83,7 +83,8 @@
   <ng-container [ngSwitch]="activeTab()">
     <app-client-profile-overview *ngSwitchCase="'overview'" [client]="c"></app-client-profile-overview>
 
-    <app-client-profile-info *ngSwitchCase="'info'" [client]="c"></app-client-profile-info>
+    <app-client-profile-info *ngSwitchCase="'info'" [client]="c" [revealedTaxId]="revealedTaxId()"
+      [revealingTaxId]="revealingTaxId()" (revealTaxId)="handleRevealTaxId($event)"></app-client-profile-info>
 
     <div *ngSwitchCase="'documents'" class="bg-white rounded-[28px] p-6">
       <app-client-profile-documents [clientId]="c.id"></app-client-profile-documents>
@@ -107,7 +108,10 @@
       <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
     </div>
 
-    <app-client-profile-family *ngSwitchCase="'family'" [client]="c"></app-client-profile-family>
+    <app-client-profile-family *ngSwitchCase="'family'" [client]="familyClient()" [saving]="savingRelation()"
+      [saveError]="relationError()" [sessionOnly]="relationsAreSessionOnly()"
+      (saveRelation)="handleSaveRelation($event)"
+      (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
 
     <div *ngSwitchCase="'reminders'" class="bg-white rounded-[28px] p-6">
       <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
@@ -119,6 +123,6 @@
   </ng-container>
 
   <!-- Edit client -->
-  <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="c" (closed)="closeEditPanel()"
+  <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="editClientItem()" (closed)="closeEditPanel()"
     (saved)="handleClientSaved($event)"></app-client-form-panel>
 </div>

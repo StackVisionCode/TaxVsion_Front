@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, effect, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -18,7 +18,8 @@ import { ClientProfile } from '../../models/client-profile.model';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { ClientItem } from '../../ui/client-table/client-table.component';
 import { ClientsStore } from '../../data-access/clients.store';
-import { customerToClientProfile } from '../../data-access/clients.model';
+import { RelationResponse, customerToClientProfile } from '../../data-access/clients.model';
+import { SaveRelationPayload } from '../../ui/client-profile-family/client-profile-family.component';
 import { toApiError } from '@core/models/api-error.model';
 
 export type ClientProfileTabId =
@@ -151,6 +152,78 @@ export class ClientProfilePageComponent {
 
   readonly isEditPanelOpen = signal(false);
 
+  /**
+   * `ClientFormPanelComponent` (compartido con el directorio) espera un
+   * `ClientItem` — que trae `address: string`, campo que `ClientProfile` ya
+   * no tiene (reemplazado por `addresses[]` real). Se adapta acá en vez de
+   * tocar el form panel, que además lo usa el directorio con datos que sí
+   * traen ese campo tal cual.
+   */
+  readonly editClientItem = computed(() => {
+    const c = this.client();
+    if (!c) {
+      return null;
+    }
+    const primary = c.addresses.find(a => a.isPrimary) ?? c.addresses[0];
+    return {
+      id: c.id,
+      type: c.type,
+      displayName: c.displayName,
+      email: c.email,
+      phone: c.phone,
+      address: primary ? `${primary.line1}, ${primary.city}` : '',
+      isActive: c.isActive,
+      createdAt: c.createdAt,
+      individual: c.individual,
+      company: c.company,
+    };
+  });
+
+  readonly revealedTaxId = signal<string | null>(null);
+  readonly revealingTaxId = signal(false);
+
+  readonly savingRelation = signal(false);
+  readonly relationError = signal<string | null>(null);
+
+  /**
+   * Relaciones creadas/editadas en ESTA sesión.
+   *
+   * El backend expone `POST/PATCH/DELETE /customers/{id}/relations` pero
+   * **ningún GET**, y `GET /customers/{id}` devuelve `CustomerResponse` (solo
+   * escalares, sin `relations`). Sin esto el usuario guardaba un dependiente y
+   * lo veía desaparecer en el acto — `loadClient()` vuelve a pedir el detalle,
+   * que llega sin relaciones — sin saber si se había guardado o no.
+   *
+   * Se mantienen en memoria para que el trabajo de la sesión siga a la vista.
+   * La pestaña avisa explícitamente de que al recargar la página la lista se
+   * vacía aunque los datos SÍ quedaron guardados en el servidor.
+   */
+  readonly sessionRelations = signal<RelationResponse[]>([]);
+
+  /**
+   * `client` + lo guardado en la sesión, que es lo que ve la pestaña Family.
+   * Si el backend algún día devuelve `relations` en el detalle, lo del
+   * servidor manda y esto se vuelve un no-op sin tocar nada más.
+   */
+  readonly familyClient = computed<ClientProfile | null>(() => {
+    const client = this.client();
+    if (!client) {
+      return null;
+    }
+    const session = this.sessionRelations();
+    if (session.length === 0) {
+      return client;
+    }
+    const fromServer = new Set(client.relations.map(relation => relation.id));
+    return {
+      ...client,
+      relations: [...client.relations, ...session.filter(relation => !fromServer.has(relation.id))],
+    };
+  });
+
+  /** true = la lista de la pestaña Family solo existe en memoria (no hay GET de relaciones). */
+  readonly relationsAreSessionOnly = computed(() => (this.client()?.relations.length ?? 0) === 0);
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
@@ -163,6 +236,8 @@ export class ClientProfilePageComponent {
     effect(() => {
       const id = this.paramMap().get('id');
       if (id) {
+        // Otro cliente ⇒ lo acumulado en memoria no le pertenece.
+        this.sessionRelations.set([]);
         this.loadClient(id);
       }
     });
@@ -171,6 +246,8 @@ export class ClientProfilePageComponent {
   private loadClient(id: string): void {
     this.loading.set(true);
     this.loadError.set(null);
+    this.revealedTaxId.set(null);
+    this.relationError.set(null);
     this.store.getById(id).subscribe({
       next: customer => {
         this.client.set(customerToClientProfile(customer));
@@ -179,6 +256,73 @@ export class ClientProfilePageComponent {
       error: err => {
         this.loadError.set(toApiError(err).message);
         this.loading.set(false);
+      },
+    });
+  }
+
+  /**
+   * Alta/edición de una relación (dependiente o cónyuge).
+   *
+   * La respuesta del POST/PATCH **es** la fuente de verdad de lo que quedó
+   * guardado: no hay GET de relaciones al que volver a preguntar, así que se
+   * guarda en `sessionRelations` en vez de descartarla. Igual se recarga el
+   * cliente porque el alta puede tocar campos escalares del detalle.
+   */
+  handleSaveRelation(payload: SaveRelationPayload): void {
+    const client = this.client();
+    if (!client || this.savingRelation()) {
+      return;
+    }
+    this.savingRelation.set(true);
+    this.relationError.set(null);
+    const call = payload.id
+      ? this.store.updateRelation(client.id, payload.id, payload.req)
+      : this.store.addRelation(client.id, payload.req);
+    call.subscribe({
+      next: saved => {
+        this.savingRelation.set(false);
+        this.sessionRelations.update(list => [...list.filter(relation => relation.id !== saved.id), saved]);
+        this.loadClient(client.id);
+      },
+      error: err => {
+        this.savingRelation.set(false);
+        this.relationError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  handleDeleteRelation(relationId: string): void {
+    const client = this.client();
+    if (!client || this.savingRelation()) {
+      return;
+    }
+    this.savingRelation.set(true);
+    this.relationError.set(null);
+    this.store.deleteRelation(client.id, relationId).subscribe({
+      next: () => {
+        this.savingRelation.set(false);
+        this.sessionRelations.update(list => list.filter(relation => relation.id !== relationId));
+        this.loadClient(client.id);
+      },
+      error: err => {
+        this.savingRelation.set(false);
+        this.relationError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  handleRevealTaxId(customerId: string): void {
+    if (this.revealingTaxId()) {
+      return;
+    }
+    this.revealingTaxId.set(true);
+    this.store.revealTaxIdentifier(customerId).subscribe({
+      next: response => {
+        this.revealedTaxId.set(response.taxIdentifier);
+        this.revealingTaxId.set(false);
+      },
+      error: () => {
+        this.revealingTaxId.set(false);
       },
     });
   }
@@ -205,9 +349,27 @@ export class ClientProfilePageComponent {
     this.isEditPanelOpen.set(false);
   }
 
-  /** El form panel ya hizo el PATCH real (y actualizó ClientsStore) — acá solo se refleja en esta página. */
+  /**
+   * El form panel ya hizo el PATCH real (y actualizó ClientsStore) — acá solo
+   * se refleja en esta página. No se spreadea `updated` completo: `ClientItem`
+   * (fila de listado) trae `address: string`, un campo que `ClientProfile` ya
+   * no tiene (reemplazado por `addresses[]` real) — solo se copian los campos
+   * que sí se solapan, las colecciones reales de este cliente se conservan.
+   */
   handleClientSaved(updated: ClientItem): void {
-    this.client.update(current => (current ? { ...current, ...updated } : current));
+    this.client.update(current =>
+      current
+        ? {
+            ...current,
+            displayName: updated.displayName,
+            email: updated.email,
+            phone: updated.phone,
+            isActive: updated.isActive,
+            individual: updated.individual,
+            company: updated.company,
+          }
+        : current,
+    );
     this.closeEditPanel();
   }
 

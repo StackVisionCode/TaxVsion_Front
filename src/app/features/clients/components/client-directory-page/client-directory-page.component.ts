@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { ClientItem, ClientTableComponent, ClientType } from '../../ui/client-table/client-table.component';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
@@ -25,6 +26,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   imports: [
     CommonModule,
     FormsModule,
+    RouterModule,
     ClientTableComponent,
     ClientFormPanelComponent,
     PaginationComponent,

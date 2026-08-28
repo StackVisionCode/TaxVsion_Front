@@ -1,0 +1,127 @@
+<div class="import-history">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-base font-bold text-gray-900">Previous imports</h3>
+      <p class="mt-1 text-sm text-gray-500">Every client import run for this office, newest first.</p>
+    </div>
+    <button type="button" (click)="pageChange.emit(page)" [disabled]="loading"
+      class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60">
+      <ion-icon name="refresh-outline" class="text-base" [class.animate-spin]="loading"></ion-icon>
+      Refresh
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    Loading import history…
+  </div>
+
+  <div *ngIf="!loading && error as err"
+    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
+    <p class="text-sm text-red-600">{{ err }}</p>
+    <button type="button" (click)="retryRequested.emit()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+      Retry
+    </button>
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <!-- Empty state -->
+    <div *ngIf="attempts.length === 0"
+      class="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-6 py-12 text-center">
+      <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white">
+        <ion-icon name="time-outline" class="text-2xl text-brand-bold"></ion-icon>
+      </span>
+      <p class="mt-2 text-sm font-semibold text-gray-900">
+        {{ page > 1 ? 'Nothing on this page' : 'No imports yet' }}
+      </p>
+      <p class="max-w-sm text-sm text-gray-500">
+        {{ page > 1
+          ? 'Go back a page to see the imports that are already there.'
+          : 'Once you upload a client list, every run shows up here with its result.' }}
+      </p>
+    </div>
+
+    <div *ngIf="attempts.length > 0" class="mt-5 overflow-x-auto">
+      <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">File</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Duplicates</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Rows</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Created / Updated</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Failed</th>
+            <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Started</th>
+            <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let attempt of attempts; trackBy: trackByAttemptId; let last = last" class="history-row group">
+            <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              <span class="flex items-center gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-surface-strong">
+                  <ion-icon name="document-text-outline" class="text-base text-brand-bold"></ion-icon>
+                </span>
+                <span>
+                  <span class="block font-medium text-gray-900">{{ attempt.sourceFileName }}</span>
+                  <span class="block text-xs text-gray-500">{{ attempt.sourceKind }}</span>
+                </span>
+              </span>
+            </td>
+            <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+                [ngClass]="statusChipClass(attempt.status)">{{ statusLabel(attempt) }}</span>
+            </td>
+            <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              {{ attempt.strategy }}
+            </td>
+            <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              {{ rowsLabel(attempt) }}
+            </td>
+            <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              {{ attempt.successCount }} / {{ attempt.updatedCount }}
+            </td>
+            <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              <span [ngClass]="attempt.failedCount > 0 ? 'font-semibold text-red-600' : 'text-gray-600'">
+                {{ attempt.failedCount }}
+              </span>
+            </td>
+            <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+              [class.border-gray-100]="!last">
+              {{ formatDateTime(attempt.startedAtUtc ?? attempt.createdAtUtc) }}
+            </td>
+            <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+              [class.border-b]="!last" [class.border-gray-100]="!last">
+              <button type="button" (click)="attemptSelected.emit(attempt)"
+                class="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-semibold text-brand-bold transition-colors hover:bg-brand-surface">
+                {{ actionLabel(attempt) }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- El backend no devuelve total: sólo Prev/Next sobre el tamaño de página -->
+    <div *ngIf="attempts.length > 0 || page > 1" class="mt-4 flex items-center justify-between gap-3">
+      <p class="text-sm text-gray-500">Page {{ page }}</p>
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="pageChange.emit(page - 1)" [disabled]="page <= 1"
+          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
+          Previous
+        </button>
+        <button type="button" (click)="pageChange.emit(page + 1)" [disabled]="!hasMore"
+          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
+          Next
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</div>

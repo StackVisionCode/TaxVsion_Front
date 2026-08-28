@@ -1,0 +1,58 @@
+/* Entrada del paso completo + escalonado por bloque (mismo idioma que signature-wizard:
+   keyframes propios en el CSS del componente, el proyecto no usa @angular/animations). */
+.import-step .import-block {
+  animation: import-block-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.import-step .import-block:nth-child(1) { animation-delay: 0ms; }
+.import-step .import-block:nth-child(2) { animation-delay: 60ms; }
+.import-step .import-block:nth-child(3) { animation-delay: 120ms; }
+.import-step .import-block:nth-child(4) { animation-delay: 180ms; }
+.import-step .import-block:nth-child(n + 5) { animation-delay: 220ms; }
+
+@keyframes import-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Tarjetas de estrategia: entran escalonadas dentro de su bloque. */
+.strategy-card {
+  animation: strategy-card-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.strategy-card:nth-child(1) { animation-delay: 120ms; }
+.strategy-card:nth-child(2) { animation-delay: 160ms; }
+.strategy-card:nth-child(3) { animation-delay: 200ms; }
+
+@keyframes strategy-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accesibilidad: quien pidió menos movimiento en el sistema ve el paso ya montado.
+   `both` deja el estado inicial aplicado, así que hay que anular la animación entera
+   (no basta con acortar la duración) para que no quede el contenido invisible. */
+@media (prefers-reduced-motion: reduce) {
+  .import-step .import-block,
+  .strategy-card {
+    animation: none;
+  }
+
+  /* `animate-spin` es una utilidad global de Tailwind: se anula con !important porque el
+     orden entre la hoja de Tailwind y los estilos del componente no está garantizado. */
+  .import-step .animate-spin {
+    animation: none !important;
+  }
+}

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpBackend, HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, defer } from 'rxjs';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
 import {
@@ -88,9 +88,14 @@ export class PublicSignatureService {
    * append-only + los eventos con su `chainHash`. Es la ÚNICA fuente real de acuse
    * para el firmante (hash y timestamp del sellado). La cadena se alimenta por
    * mensajería asíncrona: justo tras firmar puede faltar la fila `DocumentSigned`.
+   *
+   * `defer` porque componer la URL puede LANZAR (`tenantBase()` revienta en prod si no
+   * hay oficina resuelta). Sin él la excepción escapa de forma SÍNCRONA al llamador en
+   * vez de viajar por el canal de error del Observable, y una pantalla que solo maneja
+   * el `error` de la suscripción se quedaría colgada en "cargando".
    */
   verifyAudit(token: string): Observable<AuditChainVerificationResponse> {
-    return this.http.get<AuditChainVerificationResponse>(this.url(token, '/verify-audit'));
+    return defer(() => this.http.get<AuditChainVerificationResponse>(this.url(token, '/verify-audit')));
   }
 
   // ---------- Mutaciones (todas responden 204 No Content) ----------

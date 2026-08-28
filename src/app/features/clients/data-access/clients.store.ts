@@ -4,11 +4,19 @@ import { toApiError } from '@core/models/api-error.model';
 import { ClientItem } from '../ui/client-table/client-table.component';
 import { ClientsService } from './clients.service';
 import {
+  AddAddressRequest,
+  AddContactPointRequest,
+  AddRelationRequest,
+  AddressResponse,
+  ContactPointResponse,
   CreateCustomerRequest,
   Customer,
+  CustomerDetailResponse,
   CustomerStatus,
   CustomerStatusAction,
   FiscalSubjectKind,
+  RelationResponse,
+  RevealedTaxIdentifierResponse,
   UpdateCustomerRequest,
   customerToClientItem,
   summaryToClientItem,
@@ -75,8 +83,50 @@ export class ClientsStore {
       });
   }
 
-  getById(id: string): Observable<Customer> {
+  getById(id: string): Observable<CustomerDetailResponse> {
     return this.service.getById(id);
+  }
+
+  // ---------- Sub-recursos del detalle (direcciones / contactos / relaciones / fiscal) ----------
+
+  revealTaxIdentifier(id: string): Observable<RevealedTaxIdentifierResponse> {
+    return this.service.revealTaxIdentifier(id);
+  }
+
+  addAddress(customerId: string, req: AddAddressRequest): Observable<AddressResponse> {
+    return this.service.addAddress(customerId, req);
+  }
+
+  updateAddress(customerId: string, addressId: string, req: AddAddressRequest): Observable<AddressResponse> {
+    return this.service.updateAddress(customerId, addressId, req);
+  }
+
+  deleteAddress(customerId: string, addressId: string): Observable<void> {
+    return this.service.deleteAddress(customerId, addressId);
+  }
+
+  addContactPoint(customerId: string, req: AddContactPointRequest): Observable<ContactPointResponse> {
+    return this.service.addContactPoint(customerId, req);
+  }
+
+  updateContactPoint(customerId: string, contactPointId: string, req: AddContactPointRequest): Observable<ContactPointResponse> {
+    return this.service.updateContactPoint(customerId, contactPointId, req);
+  }
+
+  deleteContactPoint(customerId: string, contactPointId: string): Observable<void> {
+    return this.service.deleteContactPoint(customerId, contactPointId);
+  }
+
+  addRelation(customerId: string, req: AddRelationRequest): Observable<RelationResponse> {
+    return this.service.addRelation(customerId, req);
+  }
+
+  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<RelationResponse> {
+    return this.service.updateRelation(customerId, relationId, req);
+  }
+
+  deleteRelation(customerId: string, relationId: string): Observable<void> {
+    return this.service.deleteRelation(customerId, relationId);
   }
 
   createClient(req: CreateCustomerRequest, options: ClientSaveOptions): Observable<ClientItem> {

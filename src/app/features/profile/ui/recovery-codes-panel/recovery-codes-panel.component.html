@@ -1,0 +1,34 @@
+<div class="codes-panel">
+  <div class="flex items-start gap-3 rounded-[20px] border border-orange-100 bg-orange-50 p-4">
+    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100">
+      <ion-icon name="warning-outline" class="text-lg text-orange-600"></ion-icon>
+    </span>
+    <p class="text-sm leading-relaxed text-orange-800">
+      Save these codes now — this is the only time they are shown. Each one can be used once to sign
+      in if you lose your authenticator device.
+    </p>
+  </div>
+
+  <ul class="codes-grid mt-4 grid grid-cols-2 gap-2 rounded-[20px] bg-gray-50 p-4 font-mono text-sm text-gray-900">
+    @for (code of codes; track code) {
+      <li class="code-chip select-all py-1 text-center tracking-wider">{{ code }}</li>
+    }
+  </ul>
+
+  <div class="mt-4 flex flex-wrap items-center gap-2">
+    <button type="button" (click)="copyCodes()"
+      class="inline-flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      <ion-icon [name]="copied() ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+      {{ copied() ? 'Copied' : 'Copy codes' }}
+    </button>
+    <button type="button" (click)="downloadCodes()"
+      class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">
+      <ion-icon name="download-outline" class="text-sm"></ion-icon>
+      Download (.txt)
+    </button>
+  </div>
+
+  @if (copyError()) {
+    <p class="mt-2 text-xs text-red-600">{{ copyError() }}</p>
+  }
+</div>

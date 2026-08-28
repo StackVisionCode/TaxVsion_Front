@@ -3,12 +3,20 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
+  AddAddressRequest,
+  AddContactPointRequest,
+  AddRelationRequest,
+  AddressResponse,
+  ContactPointResponse,
   CreateCustomerRequest,
   Customer,
+  CustomerDetailResponse,
   CustomerStatusAction,
   CustomerStatusFilter,
   CustomerSummary,
   PagedResult,
+  RelationResponse,
+  RevealedTaxIdentifierResponse,
   SetCustomerFiscalProfileRequest,
   UpdateCustomerRequest,
 } from './clients.model';
@@ -46,8 +54,9 @@ export class ClientsService {
     return this.http.get<PagedResult<CustomerSummary>>(this.base, { params: query });
   }
 
-  getById(id: string): Observable<Customer> {
-    return this.http.get<Customer>(`${this.base}/${id}`);
+  /** Detalle completo: escalares + addresses/contactPoints/relations/fiscalProfile (enmascarado). */
+  getById(id: string): Observable<CustomerDetailResponse> {
+    return this.http.get<CustomerDetailResponse>(`${this.base}/${id}`);
   }
 
   create(req: CreateCustomerRequest): Observable<Customer> {
@@ -66,5 +75,52 @@ export class ClientsService {
   /** PUT /customers/{id}/fiscal-profile — SSN/ITIN/EIN. Requiere rol TenantAdmin; un TenantEmployee recibe 403. */
   setFiscalProfile(id: string, req: SetCustomerFiscalProfileRequest): Observable<unknown> {
     return this.http.put(`${this.base}/${id}/fiscal-profile`, req);
+  }
+
+  /** Reveal auditado del identificador fiscal completo — permiso `customers.fiscalprofile.reveal`, rate-limit propio. */
+  revealTaxIdentifier(id: string): Observable<RevealedTaxIdentifierResponse> {
+    return this.http.get<RevealedTaxIdentifierResponse>(`${this.base}/${id}/fiscal-profile/tax-identifier`);
+  }
+
+  // ---------- Direcciones ----------
+
+  addAddress(customerId: string, req: AddAddressRequest): Observable<AddressResponse> {
+    return this.http.post<AddressResponse>(`${this.base}/${customerId}/addresses`, req);
+  }
+
+  updateAddress(customerId: string, addressId: string, req: AddAddressRequest): Observable<AddressResponse> {
+    return this.http.patch<AddressResponse>(`${this.base}/${customerId}/addresses/${addressId}`, req);
+  }
+
+  deleteAddress(customerId: string, addressId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${customerId}/addresses/${addressId}`);
+  }
+
+  // ---------- Contactos ----------
+
+  addContactPoint(customerId: string, req: AddContactPointRequest): Observable<ContactPointResponse> {
+    return this.http.post<ContactPointResponse>(`${this.base}/${customerId}/contact-points`, req);
+  }
+
+  updateContactPoint(customerId: string, contactPointId: string, req: AddContactPointRequest): Observable<ContactPointResponse> {
+    return this.http.patch<ContactPointResponse>(`${this.base}/${customerId}/contact-points/${contactPointId}`, req);
+  }
+
+  deleteContactPoint(customerId: string, contactPointId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${customerId}/contact-points/${contactPointId}`);
+  }
+
+  // ---------- Relaciones (cónyuge, dependientes, etc.) ----------
+
+  addRelation(customerId: string, req: AddRelationRequest): Observable<RelationResponse> {
+    return this.http.post<RelationResponse>(`${this.base}/${customerId}/relations`, req);
+  }
+
+  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<RelationResponse> {
+    return this.http.patch<RelationResponse>(`${this.base}/${customerId}/relations/${relationId}`, req);
+  }
+
+  deleteRelation(customerId: string, relationId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${customerId}/relations/${relationId}`);
   }
 }

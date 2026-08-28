@@ -1,0 +1,62 @@
+/* Bloques del resultado: entrada escalonada con keyframes propios (el proyecto no usa
+   @angular/animations). */
+.import-result .result-block {
+  animation: result-block-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.import-result .result-block:nth-child(1) { animation-delay: 0ms; }
+.import-result .result-block:nth-child(2) { animation-delay: 60ms; }
+.import-result .result-block:nth-child(3) { animation-delay: 120ms; }
+.import-result .result-block:nth-child(n + 4) { animation-delay: 180ms; }
+
+@keyframes result-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Filas del informe: escalonado corto para que la tabla se lea de arriba abajo. */
+.report-row {
+  animation: report-row-in 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.report-row:nth-child(1) { animation-delay: 0ms; }
+.report-row:nth-child(2) { animation-delay: 30ms; }
+.report-row:nth-child(3) { animation-delay: 60ms; }
+.report-row:nth-child(4) { animation-delay: 90ms; }
+.report-row:nth-child(5) { animation-delay: 120ms; }
+.report-row:nth-child(6) { animation-delay: 150ms; }
+.report-row:nth-child(7) { animation-delay: 180ms; }
+.report-row:nth-child(n + 8) { animation-delay: 210ms; }
+
+@keyframes report-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accesibilidad: con `prefers-reduced-motion: reduce` no hay entrada ni spinners girando.
+   Como los keyframes usan `both`, hay que anular la animación completa o el contenido se
+   quedaría en su estado inicial (invisible). */
+@media (prefers-reduced-motion: reduce) {
+  .import-result .result-block,
+  .report-row {
+    animation: none;
+  }
+
+  /* `animate-spin` es una utilidad global de Tailwind: se anula con !important porque el
+     orden entre la hoja de Tailwind y los estilos del componente no está garantizado. */
+  .import-result .animate-spin {
+    animation: none !important;
+  }
+}
