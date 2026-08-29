@@ -67,6 +67,11 @@
                 <ion-icon name="eye-outline" class="text-base"></ion-icon>
                 View
               </button>
+              <button *ngIf="canSendRow(request)" type="button" (click)="onSendClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
+                <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+                Send to signers
+              </button>
               <button *ngIf="canResend(request)" type="button" (click)="onResendClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>

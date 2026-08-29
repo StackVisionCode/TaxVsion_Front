@@ -125,6 +125,14 @@ export interface PublicSignerView {
   isPinVerified: boolean;
   /** Bloqueo temporal tras 5 intentos fallidos (30 min). */
   pinLockedUntilUtc: string | null;
+  /**
+   * OTP que el firmante debe completar antes de firmar (SMS/Email/WhatsApp). `null` = sin
+   * OTP. Independiente del PIN. El backend rechaza la firma con `Signature.Request.VerificationRequired`
+   * si no está completo.
+   */
+  requiredVerificationMethod: SignerVerificationMethod | null;
+  /** true si el firmante ya completó `requiredVerificationMethod`. */
+  isVerificationCompleted: boolean;
   fields: PublicSignerFieldView[];
 }
 
@@ -296,6 +304,9 @@ const DEAD_LINK_CODES = new Set([
   'Signature.Token.Revoked',
   'Signature.Request.NotFound',
   'Signature.Signer.NotFound',
+  // El Gateway/Signature host-guard rechaza abrir la firma bajo el subdominio de otra oficina
+  // (403 { error: "tenant_host_mismatch" }). Es terminal: no hay reintento útil bajo este host.
+  'tenant_host_mismatch',
 ]);
 
 export function isDeadLinkCode(code: string): boolean {
@@ -321,6 +332,11 @@ export function describeDeadLink(code: string): { title: string; detail: string 
       return {
         title: 'We could not find this document',
         detail: 'The request may have been removed. Please contact the office that sent it to you.',
+      };
+    case 'tenant_host_mismatch':
+      return {
+        title: 'This link opened at the wrong address',
+        detail: 'This signature request belongs to a different office. Please open the link exactly as it appears in the email we sent you.',
       };
     default:
       return {

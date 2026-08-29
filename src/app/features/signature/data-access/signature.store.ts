@@ -8,6 +8,8 @@ import {
   ApiSignatureRequestStatus,
   SignatureCategory,
   SignatureFieldKind,
+  SignerLanguage,
+  SignerVerificationMethod,
   PreparerSessionState,
   SetPreparerBody,
   SignatureRequestDetail,
@@ -35,6 +37,12 @@ export interface WizardSignerDraft {
   localId: string;
   fullName: string;
   email: string;
+  /** Idioma de los correos al firmante ('Es' | 'En'). */
+  language: SignerLanguage;
+  /** Teléfono para OTP por SMS/WhatsApp; null si no aplica. */
+  phone: string | null;
+  /** OTP requerido antes de firmar (derivado del canal); undefined = sin OTP. */
+  verificationMethod?: SignerVerificationMethod;
 }
 
 /** Campo ya en coordenadas normalizadas [0..1], origen arriba-izquierda (convención FieldPosition del backend). */
@@ -344,6 +352,36 @@ export class SignatureStore {
     );
   }
 
+  /**
+   * Igual que {@link instantiateTemplate} pero reusando un PDF ya existente de la oficina
+   * (su `originalFileId` de CloudStorage): no valida ni vuelve a subir. El Create promueve
+   * Draft→Ready leyendo la proyección local, porque el archivo ya está `Available`.
+   */
+  instantiateTemplateWithFileId(
+    templateId: string,
+    originalFileId: string,
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+  ): Observable<SignatureRequestDetail> {
+    return this.service
+      .instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride })
+      .pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * Envía una solicitud Ready (Ready → InProgress): dispara las invitaciones a los
+   * firmantes. Lo usa el detalle para las solicitudes creadas desde plantilla, que quedan
+   * en Ready sin enviarse. El wizard normal ya envía al final de {@link sendWizard}.
+   */
+  sendRequest(requestId: string): Observable<void> {
+    return this.service.send(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
+  getRequestUi(requestId: string): Observable<SignatureRequest> {
+    return this.service.getById(requestId).pipe(map(detailToUiRequest));
+  }
+
   resendSigner(requestId: string, signerId: string): Observable<void> {
     return this.service.resendSignerInvitation(requestId, signerId);
   }
@@ -441,7 +479,13 @@ export class SignatureStore {
           continue;
         }
         const created = await firstValueFrom(
-          this.service.addSigner(requestId, { email: signer.email, fullName: signer.fullName }),
+          this.service.addSigner(requestId, {
+            email: signer.email,
+            fullName: signer.fullName,
+            language: signer.language,
+            phoneNumber: signer.phone,
+            verificationMethod: signer.verificationMethod,
+          }),
         );
         state.signerIdByLocal[signer.localId] = created.id;
       }

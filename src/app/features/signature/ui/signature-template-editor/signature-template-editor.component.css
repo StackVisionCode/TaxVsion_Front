@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+/* ===== Coreografía de publicación: el molde se arma, se sella y sale =====
+   Mismo idioma visual que la coreografía de envío del wizard de firmas. */
+
+.publish-overlay {
+  animation: publish-overlay-in 240ms ease-out both;
+  backdrop-filter: blur(3px);
+}
+
+@keyframes publish-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Al terminar, todo se desvanece suavemente antes de volver al listado. */
+.publish-overlay-out {
+  animation: publish-overlay-fade 500ms ease 320ms both;
+}
+
+@keyframes publish-overlay-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* El papel entra con un pop sutil y queda levemente rotado. */
+.publish-paper {
+  transform: rotate(-1.5deg);
+  animation: publish-paper-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes publish-paper-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.85) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-1.5deg);
+  }
+}
+
+/* El molde "sale" al publicarse: se eleva y encoge un punto. */
+.publish-paper-lift {
+  animation: publish-paper-lift 520ms cubic-bezier(0.4, 0, 0.2, 1) 260ms both;
+}
+
+@keyframes publish-paper-lift {
+  to {
+    transform: translateY(-14px) scale(0.96) rotate(-1.5deg);
+  }
+}
+
+/* Las líneas del molde se van "escribiendo" (scaleX escalonado, origen izquierdo). */
+.paper-line {
+  transform-origin: left center;
+  animation: paper-line-in 360ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.publish-paper > .paper-line {
+  animation-delay: 200ms;
+}
+.publish-paper div .paper-line:nth-child(1) {
+  animation-delay: 320ms;
+}
+.publish-paper div .paper-line:nth-child(2) {
+  animation-delay: 420ms;
+}
+.publish-paper div .paper-line:nth-child(3) {
+  animation-delay: 520ms;
+}
+.publish-paper div .paper-line:nth-child(4) {
+  animation-delay: 620ms;
+}
+.publish-paper div .paper-line:nth-child(5) {
+  animation-delay: 720ms;
+}
+
+@keyframes paper-line-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Los campos del layout aparecen con un pop escalonado (spring), como quien coloca el molde. */
+.field-chip {
+  animation: field-chip-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.field-chip-1 {
+  animation-delay: 860ms;
+}
+.field-chip-2 {
+  animation-delay: 1000ms;
+}
+
+@keyframes field-chip-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.12);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Sello final: pop con spring. */
+.publish-stamp {
+  animation: publish-stamp-pop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes publish-stamp-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15) rotate(4deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* Caption sube con un pequeño retraso. */
+.publish-caption {
+  animation: publish-caption-up 500ms ease 150ms both;
+}
+
+@keyframes publish-caption-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .publish-overlay,
+  .publish-overlay-out,
+  .publish-paper,
+  .publish-paper-lift,
+  .paper-line,
+  .field-chip,
+  .publish-stamp,
+  .publish-caption {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

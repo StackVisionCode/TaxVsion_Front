@@ -20,10 +20,18 @@ import { SignatureRequest, SignatureStatus, Signer, SignerStatus } from '../sign
 })
 export class SignaturePreviewComponent {
   @Input() request: SignatureRequest | null = null;
+  /** true mientras el envío (Ready → InProgress) está en vuelo. */
+  @Input() sending = false;
   @Output() back = new EventEmitter<void>();
+  @Output() send = new EventEmitter<SignatureRequest>();
   @Output() downloadSealed = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificate = new EventEmitter<SignatureRequest>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
+
+  /** Solo una solicitud Ready (archivo ya Available, aún sin enviar) se puede enviar. */
+  canSend(request: SignatureRequest): boolean {
+    return request.status === 'ready';
+  }
 
   formatDate(iso: string | null): string {
     if (!iso) {

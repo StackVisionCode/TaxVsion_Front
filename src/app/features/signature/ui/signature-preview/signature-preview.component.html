@@ -18,6 +18,11 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
+      <button *ngIf="canSend(req)" type="button" (click)="send.emit(req)" [disabled]="sending"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-60">
+        <ion-icon [name]="sending ? 'hourglass-outline' : 'paper-plane-outline'" class="text-base"></ion-icon>
+        {{ sending ? 'Sending…' : 'Send to signers' }}
+      </button>
       <button *ngIf="hasSealed(req)" type="button" (click)="downloadSealed.emit(req)"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="download-outline" class="text-base"></ion-icon>

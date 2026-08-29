@@ -18,8 +18,15 @@ import {
   SignatureTemplateStatus,
   SignerResponse,
   SetPreparerBody,
+  AddTemplateSlotBody,
+  CreateTemplateBody,
   InstantiateTemplateBody,
+  PlaceTemplateFieldBody,
+  TemplateFieldCreatedResponse,
   TemplateListResult,
+  TemplateSlotCreatedResponse,
+  UpdateTemplateDefaultsBody,
+  UpdateTemplateMetadataBody,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -216,6 +223,63 @@ export class SignatureService {
    */
   instantiateTemplate(templateId: string, body: InstantiateTemplateBody): Observable<SignatureRequestDetail> {
     return this.http.post<SignatureRequestDetail>(`${this.base}/templates/${templateId}/instantiate`, body);
+  }
+
+  // ---------- Autoría de plantillas (staff con permiso template.create/update) ----------
+
+  /** POST /signature/templates — nace en Draft. Devuelve el molde completo. */
+  createTemplate(body: CreateTemplateBody): Observable<SignatureTemplateDetail> {
+    return this.http.post<SignatureTemplateDetail>(`${this.base}/templates`, body);
+  }
+
+  /** PUT /signature/templates/{id}/metadata → 204. */
+  updateTemplateMetadata(templateId: string, body: UpdateTemplateMetadataBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/metadata`, body);
+  }
+
+  /** PUT /signature/templates/{id}/defaults → 204. */
+  updateTemplateDefaults(templateId: string, body: UpdateTemplateDefaultsBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/defaults`, body);
+  }
+
+  /** POST /signature/templates/{id}/slots → 201 con el `order` asignado. */
+  addTemplateSlot(templateId: string, body: AddTemplateSlotBody): Observable<TemplateSlotCreatedResponse> {
+    return this.http.post<TemplateSlotCreatedResponse>(`${this.base}/templates/${templateId}/slots`, body);
+  }
+
+  /** PUT /signature/templates/{id}/slots/{slotOrder} → 204. Edita rol/idioma/OTP en sitio (solo Draft). */
+  updateTemplateSlot(templateId: string, slotOrder: number, body: AddTemplateSlotBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/slots/${slotOrder}`, body);
+  }
+
+  /** DELETE /signature/templates/{id}/slots/{slotOrder} → 204. Borra también sus campos. */
+  removeTemplateSlot(templateId: string, slotOrder: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/templates/${templateId}/slots/${slotOrder}`);
+  }
+
+  /** POST /signature/templates/{id}/revert-to-draft → 204. Published → Draft para poder editar. */
+  revertTemplateToDraft(templateId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/templates/${templateId}/revert-to-draft`, {});
+  }
+
+  /** POST /signature/templates/{id}/fields → 201. Coordenadas normalizadas [0..1]. */
+  placeTemplateField(templateId: string, body: PlaceTemplateFieldBody): Observable<TemplateFieldCreatedResponse> {
+    return this.http.post<TemplateFieldCreatedResponse>(`${this.base}/templates/${templateId}/fields`, body);
+  }
+
+  /** DELETE /signature/templates/{id}/fields/{fieldId} → 204. */
+  removeTemplateField(templateId: string, fieldId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/templates/${templateId}/fields/${fieldId}`);
+  }
+
+  /** POST /signature/templates/{id}/publish → 204. Exige ≥1 slot y ≥1 campo Signature/Initials. */
+  publishTemplate(templateId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/templates/${templateId}/publish`, {});
+  }
+
+  /** POST /signature/templates/{id}/archive → 204. */
+  archiveTemplate(templateId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/templates/${templateId}/archive`, {});
   }
 
   resendSignerInvitation(requestId: string, signerId: string): Observable<void> {
