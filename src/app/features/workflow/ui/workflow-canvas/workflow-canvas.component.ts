@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Connector, OpenEnd, PositionedNode, WorkflowLayout } from '../../utils/workflow-layout.util';
+import { PreviewEdgeStatus, PreviewStepView } from '../../data-access/workflow-preview.service';
 import { WorkflowNodeComponent } from '../workflow-node/workflow-node.component';
 
 /** Dónde insertar el paso nuevo: de qué carta y por qué salida. */
@@ -83,6 +84,18 @@ export class WorkflowCanvasComponent implements OnDestroy {
   @Input({ required: true }) layout!: WorkflowLayout;
   @Input() selectedId: string | null = null;
   @Input() selectedConnectionId: string | null = null;
+  /** Overlay de la simulación; null = no hay corrida en pantalla. */
+  @Input() stepPreview: ReadonlyMap<string, PreviewStepView> | null = null;
+  @Input() edgePreview: ReadonlyMap<string, PreviewEdgeStatus> | null = null;
+
+  previewFor(node: PositionedNode): PreviewStepView | null {
+    return this.stepPreview?.get(node.step.id) ?? null;
+  }
+
+  edgeRunClass(connectorId: string): string {
+    const status = this.edgePreview?.get(connectorId);
+    return status ? `wf-edge--run-${status}` : '';
+  }
 
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();

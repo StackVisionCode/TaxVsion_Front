@@ -81,6 +81,11 @@
           (ngModelChange)="setValue(field.key, $event)" [name]="field.key" [placeholder]="field.placeholder || ''"
           class="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors"></textarea>
 
+        <input *ngIf="field.control === 'number'" type="number" [min]="field.min ?? null"
+          [ngModel]="textValue(field.key)" (ngModelChange)="setNumber(field.key, $event)" [name]="field.key"
+          [placeholder]="field.placeholder || ''"
+          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
+
         <select *ngIf="field.control === 'select'" [ngModel]="textValue(field.key)"
           (ngModelChange)="setValue(field.key, $event)" [name]="field.key"
           class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors">

@@ -1,15 +1,19 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { WorkflowCanvasComponent, InsertRequest } from '../../ui/workflow-canvas/workflow-canvas.component';
 import { WorkflowStepPaletteComponent } from '../../ui/workflow-step-palette/workflow-step-palette.component';
+import { WorkflowCollaboratorAvatarsComponent } from '../../ui/workflow-collaborator-avatars/workflow-collaborator-avatars.component';
+import { WorkflowShareModalComponent } from '../workflow-share-modal/workflow-share-modal.component';
 import {
   StepConfigPatch,
   WorkflowStepConfigComponent,
 } from '../../ui/workflow-step-config/workflow-step-config.component';
 import { WorkflowStore } from '../../data-access/workflow.store';
+import { WorkflowPreviewService } from '../../data-access/workflow-preview.service';
+import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
 import { WorkflowStepTypeId } from '../../data-access/workflow.model';
 import { layoutWorkflow } from '../../utils/workflow-layout.util';
 
@@ -37,6 +41,9 @@ type WorkflowTab = 'builder' | 'debugger';
     WorkflowCanvasComponent,
     WorkflowStepPaletteComponent,
     WorkflowStepConfigComponent,
+    WorkflowCollaboratorAvatarsComponent,
+    WorkflowShareModalComponent,
+    WorkflowPreviewHudComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './workflow-page.component.html',
@@ -44,9 +51,32 @@ type WorkflowTab = 'builder' | 'debugger';
 })
 export class WorkflowPageComponent {
   readonly store = inject(WorkflowStore);
+  readonly preview = inject(WorkflowPreviewService);
+
+  constructor() {
+    /**
+     * Editar durante la simulación la ABORTA (no se bloquea la edición, que
+     * exigiría tocar cada punto de interacción). Cualquier mutación del doc —
+     * incluidos undo/redo y el primer frame de un drag — invalida los ids del
+     * plan, así que se limpia el overlay en vez de dejar uno que miente.
+     * Seleccionar no muta el doc: inspeccionar durante la corrida funciona.
+     */
+    effect(() => {
+      this.store.doc();
+      if (untracked(() => this.preview.status()) === 'running') {
+        this.preview.reset();
+      }
+    });
+  }
+
+  startPreview(): void {
+    this.activeTab.set('builder');
+    this.preview.start(this.store.steps(), this.store.connections());
+  }
 
   readonly activeTab = signal<WorkflowTab>('builder');
   readonly isDeployOpen = signal(false);
+  readonly isShareOpen = signal(false);
   readonly pendingDeleteId = signal<string | null>(null);
   readonly editingName = signal(false);
 

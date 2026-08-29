@@ -39,6 +39,29 @@
   stroke-width: 2.5;
 }
 
+/* Estados de la simulación del Preview sobre los hilos. */
+.wf-edge--run-active {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2.5;
+  stroke-dasharray: 8 6;
+  animation: wf-edge-flow 700ms linear infinite;
+}
+
+.wf-edge--run-traversed {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2;
+}
+
+.wf-edge--run-skipped {
+  opacity: 0.22;
+}
+
+@keyframes wf-edge-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
 /* El hilo que se está tirando: discontinuo, para que se lea como "en curso". */
 .wf-edge--pending {
   stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
@@ -94,7 +117,8 @@
  * quedarían descolocados respecto al conector.
  */
 @media (prefers-reduced-motion: reduce) {
-  .wf-end {
+  .wf-end,
+  .wf-edge--run-active {
     animation: none;
   }
 

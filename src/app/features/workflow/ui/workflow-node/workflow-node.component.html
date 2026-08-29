@@ -8,9 +8,18 @@
   [style.width.px]="node.width" [style.height.px]="node.height"
   [class.wf-node--dragging]="dragging" (click)="selectStep.emit(step.id)"
   (pointerdown)="dragStart.emit($event)" [attr.aria-current]="selected ? 'true' : null">
+  <!-- Badge de la simulación: duración al terminar (ámbar si faltan datos). -->
+  <span *ngIf="preview && (preview.status === 'done' || preview.status === 'running')"
+    class="wf-run-badge absolute -top-2.5 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm"
+    [ngClass]="preview.warning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
+    [title]="preview.warning ? 'Ran with missing inputs' : 'Estimated duration'">
+    <ion-icon [name]="preview.warning ? 'alert-circle' : 'time-outline'" class="text-[11px]"></ion-icon>
+    {{ preview.status === 'running' ? 'running…' : preview.durationLabel }}
+  </span>
+
   <div class="wf-node__card"
     [ngClass]="[type.border, selected ? 'wf-node__card--selected' : '', dragging ? 'wf-node__card--dragging' : '',
-      linking ? 'wf-node__card--target' : '']">
+      linking ? 'wf-node__card--target' : '', previewClass]">
 
   <!-- Cabecera: color por tipo -->
   <div class="flex items-center gap-2 px-3 py-2" [class]="type.accent">

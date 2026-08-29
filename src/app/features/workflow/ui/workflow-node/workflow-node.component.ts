@@ -2,6 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, O
 import { CommonModule } from '@angular/common';
 import { WorkflowStep, stepTypeOrFallback, summaryPairs } from '../../data-access/workflow.model';
 import { PositionedNode } from '../../utils/workflow-layout.util';
+import { PreviewStepView } from '../../data-access/workflow-preview.service';
 
 /**
  * Tarjeta de un paso en el canvas.
@@ -27,6 +28,13 @@ export class WorkflowNodeComponent {
   @Input() dragging = false;
   /** true mientras se tira un hilo: la carta se marca como destino posible. */
   @Input() linking = false;
+  /** Estado de la simulación del Preview; null = sin corrida. */
+  @Input() preview: PreviewStepView | null = null;
+
+  /** Clase de estado de la corrida para la capa visual de la carta. */
+  get previewClass(): string {
+    return this.preview ? `wf-node__card--run-${this.preview.status}` : '';
+  }
 
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();

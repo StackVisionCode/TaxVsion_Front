@@ -20,7 +20,8 @@
             <path [attr.d]="connector.path" class="wf-edge-hit" fill="none"
               (click)="onConnectorClick(connector, $event)" />
             <path [attr.d]="connector.path" class="wf-edge" fill="none"
-              [class.wf-edge--selected]="connector.id === selectedConnectionId" />
+              [class.wf-edge--selected]="connector.id === selectedConnectionId"
+              [ngClass]="edgeRunClass(connector.id)" />
           </g>
           <!-- Hilo que se está tirando -->
           <path *ngIf="pendingLink()" [attr.d]="pendingPath()" class="wf-edge wf-edge--pending" fill="none" />
@@ -67,6 +68,7 @@
         <ng-container *ngFor="let node of layout.nodes; trackBy: trackNode">
           <app-workflow-node [node]="node" [selected]="node.step.id === selectedId"
             [dragging]="node.step.id === draggingId()" [linking]="pendingLink() !== null"
+            [preview]="previewFor(node)"
             (dragStart)="startNodeDrag($event, node)" (selectStep)="onNodeClick($event)"
             (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"
             (pointerup)="finishLinkOn(node, $event)"></app-workflow-node>

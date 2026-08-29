@@ -1,0 +1,23 @@
+/* Entrada del HUD, con el patrón del repo. */
+
+@keyframes wf-hud-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wf-hud {
+  animation: wf-hud-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* `both` desde `opacity: 0`: se anula entera o el HUD quedaría invisible. */
+@media (prefers-reduced-motion: reduce) {
+  .wf-hud {
+    animation: none;
+  }
+}

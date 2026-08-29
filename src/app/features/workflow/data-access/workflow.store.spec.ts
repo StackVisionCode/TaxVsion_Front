@@ -172,6 +172,45 @@ describe('WorkflowStore', () => {
     expect(revived.steps().some(step => step.id === id)).toBe(true);
   });
 
+  // ---------- Personas ----------
+
+  it('añade colaboradores y persiste; el duplicado se ignora', () => {
+    store.addCollaborator({ userId: 'u1', name: 'Ana Diaz', email: 'ana@x.com', role: 'owner' });
+    store.addCollaborator({ userId: 'u1', name: 'Ana otra vez', email: 'ana@x.com', role: 'viewer' });
+
+    expect(store.collaborators().length).toBe(1);
+    expect(store.collaborators()[0].role).toBe('owner');
+
+    const revived = freshStore();
+    expect(revived.collaborators().length).toBe(1);
+  });
+
+  it('protege al último Owner: ni quitarlo ni degradarlo', () => {
+    store.addCollaborator({ userId: 'u1', name: 'Ana', email: 'a@x.com', role: 'owner' });
+    store.addCollaborator({ userId: 'u2', name: 'Luis', email: 'l@x.com', role: 'viewer' });
+
+    expect(store.removeCollaborator('u1')).toBe('A workflow needs at least one owner');
+    expect(store.setCollaboratorRole('u1', 'viewer')).toBe('A workflow needs at least one owner');
+    // Con un segundo Owner ya se puede.
+    store.setCollaboratorRole('u2', 'owner');
+    expect(store.removeCollaborator('u1')).toBeNull();
+  });
+
+  it('un documento sin colaboradores carga con lista vacía, no revienta', () => {
+    localStorage.setItem(
+      'tvf.workflow.v1',
+      JSON.stringify({
+        id: 'wf',
+        name: 'Old',
+        updatedAtIso: new Date().toISOString(),
+        steps: [{ id: 'a', typeId: 'schedule', title: 'a', subtitle: '', config: {} }],
+        connections: [],
+      }),
+    );
+
+    expect(freshStore().collaborators()).toEqual([]);
+  });
+
   // ---------- Datos ----------
 
   it('sabe qué datos le llegan a una carta y cuáles le faltan', () => {

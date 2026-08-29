@@ -1,5 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
+  WorkflowCollaborator,
+  WorkflowCollaboratorRole,
   WorkflowConnection,
   WorkflowDataField,
   WorkflowDoc,
@@ -71,7 +73,14 @@ function sampleDoc(): WorkflowDoc {
     { id: 'c-4', fromStepId: 'step-email', fromPort: 'main', toStepId: 'step-update' },
     { id: 'c-5', fromStepId: 'step-sequence', fromPort: 'main', toStepId: 'step-update' },
   ];
-  return { id: 'wf-sample', name: 'Crossville Workflow', steps, connections, updatedAtIso: new Date().toISOString() };
+  return {
+    id: 'wf-sample',
+    name: 'Crossville Workflow',
+    steps,
+    connections,
+    collaborators: [],
+    updatedAtIso: new Date().toISOString(),
+  };
 }
 
 /**
@@ -89,6 +98,7 @@ interface LegacyDoc {
   name?: string;
   steps?: LegacyStep[];
   connections?: WorkflowConnection[];
+  collaborators?: WorkflowCollaborator[];
   updatedAtIso?: string;
 }
 
@@ -116,6 +126,7 @@ export class WorkflowStore {
   readonly doc = this._doc.asReadonly();
   readonly steps = computed(() => this._doc().steps);
   readonly connections = computed(() => this._doc().connections);
+  readonly collaborators = computed(() => this._doc().collaborators);
   readonly name = computed(() => this._doc().name);
   readonly selectedId = this._selectedId.asReadonly();
   readonly selectedConnectionId = this._selectedConnectionId.asReadonly();
@@ -155,6 +166,55 @@ export class WorkflowStore {
 
   rename(name: string): void {
     this.commit(doc => ({ ...doc, name: name.trim() || 'Untitled workflow' }));
+  }
+
+  // ---------- Personas ----------
+
+  /** Añade a alguien al workflow; un duplicado por userId se ignora. */
+  addCollaborator(collaborator: WorkflowCollaborator): void {
+    if (this._doc().collaborators.some(c => c.userId === collaborator.userId)) {
+      return;
+    }
+    this.commit(doc => ({ ...doc, collaborators: [...doc.collaborators, collaborator] }));
+  }
+
+  /**
+   * Quita a una persona. Devuelve el motivo si no se puede (mismo patrón que
+   * `connect()`): el último Owner no se quita — un workflow sin dueño no
+   * tendría a nadie que pudiera volver a administrarlo.
+   */
+  removeCollaborator(userId: string): string | null {
+    const collaborators = this._doc().collaborators;
+    const target = collaborators.find(c => c.userId === userId);
+    if (!target) {
+      return null;
+    }
+    if (target.role === 'owner' && collaborators.filter(c => c.role === 'owner').length === 1) {
+      return 'A workflow needs at least one owner';
+    }
+    this.commit(doc => ({ ...doc, collaborators: doc.collaborators.filter(c => c.userId !== userId) }));
+    return null;
+  }
+
+  /** Cambia el rol; degradar al último Owner se rechaza con motivo. */
+  setCollaboratorRole(userId: string, role: WorkflowCollaboratorRole): string | null {
+    const collaborators = this._doc().collaborators;
+    const target = collaborators.find(c => c.userId === userId);
+    if (!target || target.role === role) {
+      return null;
+    }
+    if (
+      target.role === 'owner' &&
+      role !== 'owner' &&
+      collaborators.filter(c => c.role === 'owner').length === 1
+    ) {
+      return 'A workflow needs at least one owner';
+    }
+    this.commit(doc => ({
+      ...doc,
+      collaborators: doc.collaborators.map(c => (c.userId === userId ? { ...c, role } : c)),
+    }));
+    return null;
   }
 
   // ---------- Cartas ----------
@@ -441,6 +501,8 @@ export class WorkflowStore {
         name: parsed.name ?? 'Untitled workflow',
         steps,
         connections,
+        // Docs anteriores a los colaboradores: lista vacía, nunca reventar.
+        collaborators: parsed.collaborators ?? [],
         updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
       };
     } catch {

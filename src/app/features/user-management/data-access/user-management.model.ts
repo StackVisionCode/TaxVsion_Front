@@ -108,12 +108,12 @@ export interface AssignRolesRequest {
 
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500'];
 
-function pickAvatarColor(seed: string): string {
+export function pickAvatarColor(seed: string): string {
   const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
-function deriveInitials(name: string): string {
+export function deriveInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length >= 2) {
     return `${words[0].charAt(0)}${words[words.length - 1].charAt(0)}`.toUpperCase();

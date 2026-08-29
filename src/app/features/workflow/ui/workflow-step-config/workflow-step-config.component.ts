@@ -102,6 +102,15 @@ export class WorkflowStepConfigComponent {
     this.draft.update(draft => ({ ...draft, [key]: value }));
   }
 
+  /**
+   * `ngModel` sobre un `<input type="number">` entrega `number` (o null al
+   * vaciar), y `config` guarda strings: sin esta coerción el documento acabaría
+   * con números que rompen el contrato de tipo al serializar.
+   */
+  setNumber(key: string, value: number | string | null): void {
+    this.setValue(key, value === null || value === undefined || value === '' ? '' : `${value}`);
+  }
+
   addChip(key: string): void {
     const chip = this.newChip().trim();
     if (!chip) {

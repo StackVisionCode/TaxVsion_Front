@@ -63,12 +63,32 @@ export interface WorkflowStep {
   y?: number;
 }
 
+export type WorkflowCollaboratorRole = 'owner' | 'editor' | 'viewer';
+
+/**
+ * Una persona del workflow.
+ *
+ * `name`/`email` son un SNAPSHOT tomado al añadirla: los avatares del header
+ * pintan desde localStorage en el primer frame, sin depender de que
+ * `/auth/users` responda. El modal de Share sí consulta usuarios frescos.
+ *
+ * Honestidad: sin backend de workflows el rol se guarda con el borrador pero
+ * no puede restringirle nada a nadie — este navegador tiene la única copia.
+ */
+export interface WorkflowCollaborator {
+  userId: string;
+  name: string;
+  email: string;
+  role: WorkflowCollaboratorRole;
+}
+
 export interface WorkflowDoc {
   id: string;
   name: string;
   steps: WorkflowStep[];
   /** Los hilos, como dato propio y no como algo derivado de los pasos. */
   connections: WorkflowConnection[];
+  collaborators: WorkflowCollaborator[];
   updatedAtIso: string;
 }
 
@@ -116,10 +136,12 @@ export interface WorkflowDataField {
 export interface WorkflowFieldDef {
   key: string;
   label: string;
-  control: 'text' | 'textarea' | 'select' | 'chips';
+  control: 'text' | 'textarea' | 'select' | 'chips' | 'number';
   /** Solo para `select`. */
   options?: string[];
   placeholder?: string;
+  /** Solo para `number`. */
+  min?: number;
 }
 
 /**
@@ -154,7 +176,16 @@ export interface WorkflowStepType {
   branching?: boolean;
   /** Campos del panel de configuración; sin esto solo se editan título y subtítulo. */
   fields?: WorkflowFieldDef[];
+  /**
+   * Cuánto duraría este paso en una ejecución real, estimado. Lo usa la
+   * simulación del Preview; `delay` y `wait-for-event` lo ignoran y leen su
+   * config (`duration` + `unit`).
+   */
+  estimatedMs?: number;
 }
+
+/** Duración de la simulación para un tipo que no declara la suya. */
+export const DEFAULT_ESTIMATED_MS = 1500;
 
 export const WORKFLOW_CATEGORY_LABEL: Record<WorkflowStepCategory, string> = {
   trigger: 'Triggers',
@@ -188,6 +219,13 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'receivedAt', label: 'Received at', type: 'date' },
     ],
     consumes: [],
+    estimatedMs: 400,
+    fields: [
+      { key: 'mailbox', label: 'Mailbox', control: 'text', placeholder: 'support@company.com' },
+      { key: 'folder', label: 'Folder', control: 'select', options: ['Inbox', 'Support', 'Sales', 'Billing'] },
+      { key: 'fromFilter', label: 'Only from', control: 'text', placeholder: 'anyone' },
+      { key: 'subjectContains', label: 'Subject contains', control: 'text' },
+    ],
   },
   {
     id: 'form-submitted',
@@ -210,6 +248,7 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     ],
     consumes: [],
     fields: [{ key: 'form', label: 'Form', control: 'text', placeholder: 'Lead Generation Form' }],
+    estimatedMs: 300,
   },
   {
     id: 'schedule',
@@ -232,6 +271,7 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'frequency', label: 'Frequency', control: 'select', options: ['Hourly', 'Daily', 'Weekly', 'Monthly'] },
       { key: 'time', label: 'Time', control: 'text', placeholder: '09:00' },
     ],
+    estimatedMs: 300,
   },
   {
     id: 'web-hook',
@@ -250,6 +290,12 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'payload', label: 'Payload', type: 'object' },
     ],
     consumes: [],
+    estimatedMs: 400,
+    fields: [
+      { key: 'method', label: 'Method', control: 'select', options: ['POST', 'GET', 'PUT'] },
+      { key: 'pathSlug', label: 'Path', control: 'text', placeholder: 'lead-intake' },
+      { key: 'secret', label: 'Shared secret', control: 'text', placeholder: 'Draft only — not stored securely' },
+    ],
   },
   {
     id: 'manual-trigger',
@@ -269,6 +315,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'startedAt', label: 'Started at', type: 'date' },
     ],
     consumes: [],
+    estimatedMs: 300,
+    fields: [
+      { key: 'buttonLabel', label: 'Button label', control: 'text', placeholder: 'Run workflow' },
+      { key: 'instructions', label: 'Instructions', control: 'textarea', placeholder: 'What should the person check before running it?' },
+    ],
   },
 
   // ---------- AI & logic ----------
@@ -308,6 +359,7 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'prompt', label: 'Prompt', control: 'textarea', placeholder: 'Analyze the lead data and return…' },
       { key: 'inputVariable', label: 'Input Variable', control: 'chips' },
     ],
+    estimatedMs: 4000,
   },
   {
     id: 'data-enrichment',
@@ -329,6 +381,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     ],
     consumes: [
       { key: 'email', label: 'Email', type: 'string' },
+    ],
+    estimatedMs: 2500,
+    fields: [
+      { key: 'source', label: 'Source', control: 'select', options: ['Company database', 'Public records', 'Social profiles'] },
+      { key: 'enrichFields', label: 'Fields to enrich', control: 'chips' },
     ],
   },
   {
@@ -355,6 +412,7 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'operator', label: 'Operator', control: 'select', options: ['is', 'is not', 'greater than', 'less than'] },
       { key: 'value', label: 'Value', control: 'text' },
     ],
+    estimatedMs: 400,
   },
   {
     id: 'router',
@@ -375,6 +433,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     produces: [],
     consumes: [],
     branching: true,
+    estimatedMs: 400,
+    fields: [
+      { key: 'criterion', label: 'Route by', control: 'text', placeholder: 'Lead source' },
+      { key: 'matchValue', label: 'Match value', control: 'text' },
+    ],
   },
   {
     id: 'loop',
@@ -394,6 +457,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'index', label: 'Index', type: 'number' },
     ],
     consumes: [],
+    estimatedMs: 1500,
+    fields: [
+      { key: 'listSource', label: 'List source', control: 'text', placeholder: 'contacts' },
+      { key: 'maxIterations', label: 'Max iterations', control: 'number', min: 1, placeholder: '100' },
+    ],
   },
 
   // ---------- Actions ----------
@@ -421,6 +489,7 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'template', label: 'Template', control: 'text', placeholder: 'Welcome email' },
       { key: 'subject', label: 'Subject', control: 'text' },
     ],
+    estimatedMs: 2000,
   },
   {
     id: 'send-sms',
@@ -442,6 +511,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     consumes: [
       { key: 'phone', label: 'Phone', type: 'string' },
     ],
+    estimatedMs: 1500,
+    fields: [
+      { key: 'message', label: 'Message', control: 'textarea', placeholder: 'Hi {{name}}, …' },
+      { key: 'fromNumber', label: 'From number', control: 'text', placeholder: '+1 555 0100' },
+    ],
   },
   {
     id: 'create-record',
@@ -460,6 +534,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'recordId', label: 'Record id', type: 'string' },
     ],
     consumes: [],
+    estimatedMs: 800,
+    fields: [
+      { key: 'recordType', label: 'Record type', control: 'select', options: ['Contact', 'Company', 'Deal', 'Task'] },
+      { key: 'initialFields', label: 'Initial fields', control: 'chips' },
+    ],
   },
   {
     id: 'update-record',
@@ -480,6 +559,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     consumes: [
       { key: 'recordId', label: 'Record id', type: 'string' },
     ],
+    estimatedMs: 800,
+    fields: [
+      { key: 'recordType', label: 'Record type', control: 'select', options: ['Contact', 'Company', 'Deal', 'Task'] },
+      { key: 'fieldsToUpdate', label: 'Fields to update', control: 'chips' },
+    ],
   },
   {
     id: 'web-hook-request',
@@ -499,6 +583,12 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'responseBody', label: 'Response body', type: 'object' },
     ],
     consumes: [],
+    estimatedMs: 1200,
+    fields: [
+      { key: 'url', label: 'URL', control: 'text', placeholder: 'https://…' },
+      { key: 'method', label: 'Method', control: 'select', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+      { key: 'payloadTemplate', label: 'Payload', control: 'textarea', placeholder: '{ "lead": "{{email}}" }' },
+    ],
   },
 
   // ---------- Utilities ----------
@@ -517,6 +607,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     outputs: [{ id: 'main' }],
     produces: [],
     consumes: [],
+    estimatedMs: 1500,
+    fields: [
+      { key: 'duration', label: 'Duration', control: 'number', min: 1, placeholder: '2' },
+      { key: 'unit', label: 'Unit', control: 'select', options: ['Minutes', 'Hours', 'Days'] },
+    ],
   },
   {
     id: 'wait-for-event',
@@ -535,6 +630,12 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
       { key: 'eventAt', label: 'Event at', type: 'date' },
     ],
     consumes: [],
+    estimatedMs: 1500,
+    fields: [
+      { key: 'eventName', label: 'Event to wait for', control: 'text', placeholder: 'Document signed' },
+      { key: 'timeoutDuration', label: 'Give up after', control: 'number', min: 1, placeholder: '3' },
+      { key: 'timeoutUnit', label: 'Unit', control: 'select', options: ['Minutes', 'Hours', 'Days'] },
+    ],
   },
 ];
 
