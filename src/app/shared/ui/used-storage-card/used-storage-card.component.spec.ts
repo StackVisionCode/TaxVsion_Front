@@ -1,11 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { UsedStorageCardComponent } from './used-storage-card.component';
+import { FREE_DOT_COLOR, UsedStorageCardComponent } from './used-storage-card.component';
 
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
-
-/** Color gris de los puntos que representan espacio libre (privado del componente). */
-const FREE_DOT_COLOR = '#EBE9F2';
 
 /**
  * Cubre la regresión que dejaba el donut sin porcentaje.

@@ -176,7 +176,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.bodyTooltipEl.setAttribute('role', 'tooltip');
       Object.assign(this.bodyTooltipEl.style, {
         position: 'fixed',
-        backgroundColor: '#111827',
+        backgroundColor: 'rgb(var(--color-gray-900-rgb, 13 13 13))',
         color: '#fff',
         padding: '6px 12px',
         borderRadius: '9999px',

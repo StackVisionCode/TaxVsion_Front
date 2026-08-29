@@ -168,7 +168,7 @@ export class StoragePageComponent implements OnInit {
 
   /** Color hex de la categoría (mismo que su tarjeta/donut), usado para el chip de la tabla. */
   categoryColor(categoryName: string): string {
-    return CATEGORY_META[categoryName]?.color ?? '#9CA3AF';
+    return CATEGORY_META[categoryName]?.color ?? 'rgb(var(--color-gray-400-rgb, 156 163 175))';
   }
 
   /** Ícono de la categoría, para la fila de "mis archivos". */

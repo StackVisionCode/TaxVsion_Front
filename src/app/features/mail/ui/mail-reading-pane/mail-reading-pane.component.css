@@ -49,13 +49,13 @@
 }
 
 :host ::ng-deep .mail-html-body a {
-  color: #4f46e5;
+  color: rgb(var(--color-indigo-600-rgb, 30 70 107));
   text-decoration: underline;
 }
 
 :host ::ng-deep .mail-html-body blockquote {
   margin: 0.75rem 0;
   padding-left: 0.75rem;
-  border-left: 2px solid #e5e7eb;
-  color: #6b7280;
+  border-left: 2px solid rgb(var(--color-gray-200-rgb, 229 231 235));
+  color: rgb(var(--color-gray-500-rgb, 107 114 128));
 }

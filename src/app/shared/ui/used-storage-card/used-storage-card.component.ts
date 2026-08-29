@@ -35,8 +35,12 @@ const INNER_DOTS = 30;
 const DONUT_CENTER = 90;
 const OUTER_RADIUS = 76;
 const INNER_RADIUS = 58;
-/** Color de los puntos que representan espacio libre. */
-const FREE_DOT_COLOR = '#EBE9F2';
+/**
+ * Color de los puntos que representan espacio libre. Se exporta para que las
+ * pruebas no dupliquen el literal: cuando pasó de un hex fijo a la variable de
+ * marca, la copia del spec quedó desincronizada y el test falló por eso.
+ */
+export const FREE_DOT_COLOR = 'rgb(var(--color-gray-200-rgb, 229 231 235))';
 
 const COUNTER_DURATION_MS = 1100;
 
@@ -207,7 +211,7 @@ export class UsedStorageCardComponent implements OnChanges, OnDestroy {
         y: DONUT_CENTER + INNER_RADIUS * Math.sin(angle),
         r: 3,
         // El anillo interior arranca un poco después y barre a su propio ritmo.
-        color: i + 0.5 <= span ? '#111827' : FREE_DOT_COLOR,
+        color: i + 0.5 <= span ? 'rgb(var(--color-gray-900-rgb, 13 13 13))' : FREE_DOT_COLOR,
         delay: `${180 + i * 26}ms`,
       };
     });
