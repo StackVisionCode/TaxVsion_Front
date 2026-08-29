@@ -23,6 +23,8 @@ import { PositionedNode } from '../../utils/workflow-layout.util';
 export class WorkflowNodeComponent {
   @Input({ required: true }) node!: PositionedNode;
   @Input() selected = false;
+  /** true mientras se arrastra: promociona el nodo a su propia capa. */
+  @Input() dragging = false;
 
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();

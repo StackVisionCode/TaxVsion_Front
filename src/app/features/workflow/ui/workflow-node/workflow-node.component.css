@@ -39,6 +39,19 @@
   box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.9);
 }
 
+/*
+ * Solo el nodo que se arrastra se promociona a capa propia. `will-change`
+ * permanente en todos los nodos gastaría memoria de GPU sin necesidad, así
+ * que se pone y se quita con el arrastre. La animación de entrada se anula
+ * mientras tanto: reiniciarla en cada re-render haría parpadear el nodo.
+ */
+.wf-node--dragging {
+  will-change: transform;
+  animation: none;
+  cursor: grabbing;
+  box-shadow: 0 16px 32px rgb(var(--color-gray-900-rgb, 13 13 13) / 0.16);
+}
+
 .wf-menu {
   animation: wf-menu-in 160ms cubic-bezier(0.2, 0, 0, 1) both;
 }

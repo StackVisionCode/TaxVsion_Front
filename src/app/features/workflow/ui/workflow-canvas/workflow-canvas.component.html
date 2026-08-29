@@ -39,7 +39,8 @@
 
         <!-- Nodos -->
         <app-workflow-node *ngFor="let node of layout.nodes; trackBy: trackNode" [node]="node"
-          [selected]="node.step.id === selectedId" (dragStart)="startNodeDrag($event, node)"
+          [selected]="node.step.id === selectedId" [dragging]="node.step.id === draggingId()"
+          (dragStart)="startNodeDrag($event, node)"
           (selectStep)="onNodeClick($event)"
           (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"></app-workflow-node>
 

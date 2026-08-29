@@ -5,6 +5,7 @@ import {
   EventEmitter,
   HostListener,
   Input,
+  OnDestroy,
   Output,
   ViewChild,
   signal,
@@ -66,7 +67,7 @@ interface NodeDragState {
   templateUrl: './workflow-canvas.component.html',
   styleUrl: './workflow-canvas.component.css',
 })
-export class WorkflowCanvasComponent {
+export class WorkflowCanvasComponent implements OnDestroy {
   @Input({ required: true }) layout!: WorkflowLayout;
   @Input() selectedId: string | null = null;
 
@@ -87,9 +88,47 @@ export class WorkflowCanvasComponent {
 
   readonly zoom = signal(1);
   readonly tool = signal<CanvasTool>('select');
+  /** Nodo que se está arrastrando: solo ese se promociona a capa propia. */
+  readonly draggingId = signal<string | null>(null);
 
   private pan: PanState | null = null;
   private nodeDrag: NodeDragState | null = null;
+
+  /**
+   * Throttle a un frame.
+   *
+   * `pointermove` dispara más veces de las que el navegador pinta, así que sin
+   * esto se recalculaba el layout entero (nodos, conectores y paths) varias
+   * veces por frame para tirar todo salvo el último resultado. Se guarda solo
+   * el ÚLTIMO callback pendiente y se ejecuta una vez por frame.
+   */
+  private queuedMove: (() => void) | null = null;
+  private rafId: number | null = null;
+
+  private scheduleFrame(callback: () => void): void {
+    this.queuedMove = callback;
+    if (this.rafId !== null) {
+      return;
+    }
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      const pending = this.queuedMove;
+      this.queuedMove = null;
+      pending?.();
+    });
+  }
+
+  private cancelFrame(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.queuedMove = null;
+  }
+
+  ngOnDestroy(): void {
+    this.cancelFrame();
+  }
 
   /**
    * Pantalla → lienzo. Hay que descontar el scroll del viewport y **dividir
@@ -115,6 +154,9 @@ export class WorkflowCanvasComponent {
       return;
     }
     event.stopPropagation();
+    // Ata el puntero al elemento: los eventos siguen llegando aunque el cursor
+    // se salga del nodo o del viewport, que es el fallo clásico del arrastre.
+    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
     const point = this.toCanvas(event.clientX, event.clientY);
     this.nodeDrag = {
       pointerId: event.pointerId,
@@ -123,6 +165,7 @@ export class WorkflowCanvasComponent {
       offsetY: point.y - node.y,
       moved: false,
     };
+    this.draggingId.set(node.step.id);
     this.moveStepStart.emit();
   }
 
@@ -221,9 +264,12 @@ export class WorkflowCanvasComponent {
   onPointerMove(event: PointerEvent): void {
     const drag = this.nodeDrag;
     if (drag && event.pointerId === drag.pointerId) {
-      const point = this.toCanvas(event.clientX, event.clientY);
       drag.moved = true;
-      this.moveStepLive.emit({ id: drag.stepId, x: point.x - drag.offsetX, y: point.y - drag.offsetY });
+      const { clientX, clientY } = event;
+      this.scheduleFrame(() => {
+        const point = this.toCanvas(clientX, clientY);
+        this.moveStepLive.emit({ id: drag.stepId, x: point.x - drag.offsetX, y: point.y - drag.offsetY });
+      });
       return;
     }
 
@@ -240,6 +286,8 @@ export class WorkflowCanvasComponent {
   @HostListener('document:pointercancel')
   onPointerUp(): void {
     if (this.nodeDrag) {
+      this.cancelFrame();
+      this.draggingId.set(null);
       this.moveStepEnd.emit();
       // Un arrastre no debe además "seleccionar": el clic que sigue al
       // pointerup se ignora si el nodo llegó a moverse.
