@@ -31,10 +31,12 @@ export function toApiError(err: unknown): ApiError {
     if (err.status === 0) {
       return { code: NETWORK_ERROR_CODE, message: 'No se pudo conectar con el servidor.' };
     }
-    const body = err.error as Partial<ApiError & ProblemDetails> | string | null;
+    const body = err.error as (Partial<ApiError & ProblemDetails> & { error?: string }) | string | null;
     if (body && typeof body === 'object') {
+      // Algunos endpoints (Gateway TenantHostGuard, Signature host-guard) usan la clave `error`
+      // en vez de `code` para el discriminador — ej. { error: "tenant_host_mismatch", message }.
       return {
-        code: body.code ?? `Http.${err.status}`,
+        code: body.code ?? body.error ?? `Http.${err.status}`,
         message: body.message ?? body.detail ?? body.title ?? err.message ?? 'Error desconocido.',
       };
     }
@@ -57,10 +59,10 @@ function parseJsonError(raw: string): ApiError | null {
     return null;
   }
   try {
-    const parsed = JSON.parse(trimmed) as Partial<ApiError & ProblemDetails>;
+    const parsed = JSON.parse(trimmed) as Partial<ApiError & ProblemDetails> & { error?: string };
     const message = parsed.message ?? parsed.detail ?? parsed.title;
-    return parsed.code || message
-      ? { code: parsed.code ?? 'Unknown', message: message ?? 'Error desconocido.' }
+    return parsed.code || parsed.error || message
+      ? { code: parsed.code ?? parsed.error ?? 'Unknown', message: message ?? 'Error desconocido.' }
       : null;
   } catch {
     return null;

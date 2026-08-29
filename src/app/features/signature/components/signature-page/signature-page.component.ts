@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
@@ -54,6 +55,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
@@ -105,6 +107,8 @@ export class SignaturePageComponent {
   );
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
+  /** Envío de una solicitud Ready desde el detalle (Ready → InProgress). */
+  readonly sendingRequest = signal(false);
 
   readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
   readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
@@ -225,6 +229,38 @@ export class SignaturePageComponent {
 
   closePreview(): void {
     this.previewRequest.set(null);
+  }
+
+  /**
+   * Envía una solicitud Ready (típicamente creada desde plantilla): Ready → InProgress,
+   * que dispara las invitaciones. Refresca el preview con el nuevo estado.
+   */
+  sendRequest(request: SignatureRequest): void {
+    if (this.sendingRequest()) {
+      return;
+    }
+    this.sendingRequest.set(true);
+    this.store.sendRequest(request.id).subscribe({
+      next: () => {
+        this.store.getRequestUi(request.id).subscribe({
+          next: updated => {
+            if (this.previewRequest()?.id === request.id) {
+              this.previewRequest.set(updated);
+            }
+            this.sendingRequest.set(false);
+            this.showToast('Signature request sent — signers were notified by email');
+          },
+          error: () => {
+            this.sendingRequest.set(false);
+            this.showToast('Sent — reopen the request to see the latest status');
+          },
+        });
+      },
+      error: err => {
+        this.sendingRequest.set(false);
+        this.showToast(toApiError(err).message);
+      },
+    });
   }
 
   // ---------- Reenvíos ----------

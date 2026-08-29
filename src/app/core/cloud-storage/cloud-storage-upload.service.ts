@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
@@ -48,6 +48,16 @@ export class CloudStorageUploadService {
 
   getFile(fileId: string): Observable<FileResponse> {
     return this.http.get<FileResponse>(`${this.base}/files/${fileId}`);
+  }
+
+  /**
+   * GET /storage/files — archivos del tenant (staff), más recientes primero. El backend
+   * NO filtra por tipo/cliente para staff, así que el filtrado (PDF, Available, owner) se
+   * hace en el cliente. `take` va acotado 1..100 por el backend.
+   */
+  listFiles(skip = 0, take = 100): Observable<FileResponse[]> {
+    const params = new HttpParams().set('skip', skip).set('take', take);
+    return this.http.get<FileResponse[]>(`${this.base}/files`, { params });
   }
 
   getDownloadUrl(fileId: string): Observable<DownloadUrlResponse> {

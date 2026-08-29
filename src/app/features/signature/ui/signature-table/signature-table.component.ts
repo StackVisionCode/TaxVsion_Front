@@ -114,6 +114,7 @@ export function isActionableStatus(status: SignatureStatus): boolean {
 export class SignatureTableComponent {
   @Input() requests: SignatureRequest[] = [];
   @Output() previewRequested = new EventEmitter<SignatureRequest>();
+  @Output() sendRequested = new EventEmitter<SignatureRequest>();
   @Output() resendRequested = new EventEmitter<SignatureRequest>();
   @Output() cancelRequested = new EventEmitter<SignatureRequest>();
   @Output() extendRequested = new EventEmitter<SignatureRequest>();
@@ -258,6 +259,17 @@ export class SignatureTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.previewRequested.emit(request);
+  }
+
+  /** Solo una solicitud Ready (archivo disponible, aún sin enviar) se puede enviar. */
+  canSendRow(request: SignatureRequest): boolean {
+    return request.status === 'ready';
+  }
+
+  onSendClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.sendRequested.emit(request);
   }
 
   onResendClick(request: SignatureRequest, event: MouseEvent): void {

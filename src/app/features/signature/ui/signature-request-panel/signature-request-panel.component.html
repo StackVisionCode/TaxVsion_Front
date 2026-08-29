@@ -55,6 +55,7 @@
     <!-- Step 2: document -->
     <div *ngIf="currentStep() === 2" class="step-content">
       <app-signature-wizard-document-step [selectedId]="selectedDocument()?.id ?? null"
+        [clientId]="selectedClient()?.id ?? null"
         (documentSelected)="onDocumentSelected($event)"
         (documentCleared)="onDocumentCleared()"></app-signature-wizard-document-step>
     </div>

@@ -49,6 +49,11 @@
             <ion-icon name="documents-outline" class="text-base"></ion-icon>
             From template
           </button>
+          <a routerLink="/signature/templates"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+            <ion-icon name="settings-outline" class="text-base"></ion-icon>
+            Manage templates
+          </a>
           <button type="button" (click)="openCreatePanel()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
@@ -92,6 +97,7 @@
       <!-- Table + paginación server-side -->
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
+          (sendRequested)="sendRequest($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
           (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)" (preparerRequested)="openPreparerModal($event)"
           (downloadSealedRequested)="downloadSealed($event)"
@@ -107,7 +113,8 @@
     <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" (closed)="closePanel()"
       (sent)="handleSent()"></app-signature-request-panel>
     <ng-template #previewOnly>
-      <app-signature-preview [request]="previewRequest()" (back)="closePreview()"
+      <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
+        (send)="sendRequest($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
         (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>

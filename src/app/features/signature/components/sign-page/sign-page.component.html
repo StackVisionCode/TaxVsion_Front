@@ -8,8 +8,10 @@
       <!-- Header: marca + chip seguro -->
       <div class="border-b border-gray-100 px-6 pb-4 pt-6">
         <div class="mb-4 flex items-center justify-center gap-2">
-          <span class="text-2xl font-bold leading-none text-indigo-600">*</span>
-          <span class="text-sm font-bold text-gray-900">TaxPro Office</span>
+          <app-brand-logo
+            logoClass="h-8 max-w-[150px] object-contain"
+            fallbackClass="text-indigo-600 text-2xl font-bold leading-none"
+          ></app-brand-logo>
           <span class="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
             <ion-icon name="shield-checkmark-outline" class="text-[10px]"></ion-icon>
             Secure
@@ -119,7 +121,7 @@
               <div *ngIf="stepId() === 'welcome'" class="step-content">
                 <h1 class="text-xl font-bold text-gray-900">Hi, {{ firstName() }} 👋</h1>
                 <p class="mt-1.5 text-sm text-gray-500">
-                  <span class="font-semibold text-gray-700">TaxPro Office</span> asked you to sign a document.
+                  <span class="font-semibold text-gray-700">Your tax office</span> asked you to sign a document.
                   It takes less than two minutes.
                 </p>
 
@@ -240,6 +242,45 @@
                 <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
                   <ion-icon name="call-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
                   The PIN never travels by email. If you don't have it, call the office that sent you this document.
+                </p>
+              </div>
+
+              <!-- PASO: Verificación por OTP (solo si requiredVerificationMethod y no completado) -->
+              <div *ngIf="stepId() === 'verify-otp'" class="step-content">
+                <h1 class="text-xl font-bold text-gray-900">Verify it's really you</h1>
+                <p class="mt-1.5 text-sm text-gray-500">
+                  We'll send a 6-digit code to {{ otpDestinationHint() }}. Enter it below to unlock signing.
+                </p>
+
+                <!-- Antes de enviar el primer código -->
+                <div *ngIf="!otpIssued()" class="mt-5">
+                  <button type="button" (click)="sendOtp()" [disabled]="busy()"
+                    class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+                    <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+                    Send my code by {{ otpChannelLabel() }}
+                  </button>
+                </div>
+
+                <!-- Tras enviar: input del código + reenvío con cooldown -->
+                <div *ngIf="otpIssued()" class="mt-5">
+                  <label for="otp" class="mb-1 block text-xs font-medium text-gray-600">6-digit code</label>
+                  <input id="otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                    [ngModel]="otpCode()" (ngModelChange)="otpCode.set($event)"
+                    placeholder="• • • • • •"
+                    class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-xl font-bold tracking-[0.4em] text-gray-900 transition-colors placeholder:tracking-normal placeholder:text-gray-300 focus:border-brand-bold focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
+                  <div class="mt-2 flex items-center justify-between text-[11px] text-gray-400">
+                    <span class="truncate">Sent to {{ otpDestinationHint() }}</span>
+                    <button type="button" (click)="sendOtp()" [disabled]="!canResendOtp() || busy()"
+                      class="shrink-0 font-medium text-brand-bold underline underline-offset-2 disabled:text-gray-300 disabled:no-underline">
+                      <span *ngIf="canResendOtp()">Resend code</span>
+                      <span *ngIf="!canResendOtp()">Resend in {{ otpResendIn() }}s</span>
+                    </button>
+                  </div>
+                </div>
+
+                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
+                  <ion-icon name="shield-checkmark-outline" class="mt-px shrink-0 text-xs text-emerald-500"></ion-icon>
+                  This extra step protects your document. The code expires in a few minutes.
                 </p>
               </div>
 
@@ -402,7 +443,7 @@
           </button>
         </div>
         <p class="mt-3 text-center text-[11px] text-gray-400">
-          Step {{ stepNumber() }} of {{ stepCount() }} · Secured by TaxPro Office
+          Step {{ stepNumber() }} of {{ stepCount() }} · Secure electronic signature
         </p>
       </div>
     </div>

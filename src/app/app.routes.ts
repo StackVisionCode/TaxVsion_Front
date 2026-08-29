@@ -103,6 +103,18 @@ export const routes: Routes = [
     title: 'Sign document',
   },
   {
+    // Puente del enlace de descarga del correo de firma completada. El correo lo arma con la
+    // base del CRM (front), pero `/storage/public/<token>` es un endpoint del backend
+    // (CloudStorage). En dev (front 4200 ≠ Gateway 5047) esta página redirige al backend; en
+    // prod el Gateway del subdominio sirve la ruta directamente y esto ni se alcanza.
+    path: 'storage/public/:token',
+    loadComponent: () =>
+      import('./features/signature/components/public-share-redirect/public-share-redirect.component').then(
+        m => m.PublicShareRedirectComponent,
+      ),
+    title: 'Download document',
+  },
+  {
     // Página pública de pago de una factura: el cliente llega por el link/QR del PDF, sin sesión.
     path: 'pay/:token',
     loadComponent: () =>

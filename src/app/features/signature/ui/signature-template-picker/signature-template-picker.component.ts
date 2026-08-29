@@ -2,11 +2,15 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, compute
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
 import { toApiError } from '@core/models/api-error.model';
+import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 import { SignatureStore } from '../../data-access/signature.store';
+import { WizardClient } from '../signature-request-panel/signature-wizard.model';
 import {
   SignatureRequestDetail,
   SignatureTemplateDetail,
+  SignerVerificationMethod,
   SlotBinding,
   TemplateSummary,
 } from '../../data-access/signature.model';
@@ -17,7 +21,13 @@ interface SlotDraft {
   role: string;
   email: string;
   fullName: string;
+  phone: string;
+  /** Método OTP que exige el rol (del molde); decide si el teléfono es obligatorio. */
+  verificationMethod?: SignerVerificationMethod | null;
 }
+
+/** Origen del documento: subir uno nuevo o reusar un PDF de la oficina. */
+type DocSource = 'upload' | 'library';
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -34,7 +44,7 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
  */
 @Component({
   selector: 'app-signature-template-picker',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, SignatureDocumentLibraryComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-picker.component.html',
   styleUrl: './signature-template-picker.component.css',
@@ -47,6 +57,7 @@ export class SignatureTemplatePickerComponent {
     if (value) {
       this.reset();
       this.store.loadTemplates();
+      this.store.loadCustomers();
     }
   }
   @Output() closed = new EventEmitter<void>();
@@ -69,13 +80,53 @@ export class SignatureTemplatePickerComponent {
   readonly busy = signal(false);
   readonly error = signal('');
 
-  /** Hace falta el PDF y un firmante completo por cada rol del molde. */
+  /** Documento: subir uno nuevo o reusar un PDF ya existente en la oficina. */
+  readonly docSource = signal<DocSource>('upload');
+  readonly libraryFile = signal<FileResponse | null>(null);
+
+  /** Clientes del tenant para el buscador (mapeados a WizardClient por el store). */
+  readonly customers = this.store.customers;
+  readonly customersLoading = this.store.customersLoading;
+  /** Slot cuyo buscador de clientes está abierto (solo uno a la vez). */
+  readonly clientPickerSlot = signal<number | null>(null);
+  readonly clientQuery = signal('');
+
+  readonly filteredClients = computed<WizardClient[]>(() => {
+    const term = this.clientQuery().trim().toLowerCase();
+    const list = this.customers();
+    if (!term) {
+      return list.slice(0, 8);
+    }
+    return list
+      .filter(c => c.displayName.toLowerCase().includes(term) || c.email.toLowerCase().includes(term))
+      .slice(0, 8);
+  });
+
+  /** true si hay documento válido (subido o de librería). */
+  readonly hasDocument = computed(() => (this.docSource() === 'upload' ? !!this.file() : !!this.libraryFile()));
+
+  /** Hace falta el PDF y un firmante completo por cada rol; teléfono si el rol exige SMS/WhatsApp. */
   readonly canCreate = computed(
     () =>
-      !!this.file() &&
+      this.hasDocument() &&
       this.slots().length > 0 &&
-      this.slots().every(slot => slot.email.trim().length > 0 && slot.fullName.trim().length > 0),
+      this.slots().every(
+        slot =>
+          slot.email.trim().length > 0 &&
+          slot.fullName.trim().length > 0 &&
+          (!this.slotNeedsPhone(slot) || slot.phone.trim().length >= 7),
+      ),
   );
+
+  /** true si el rol exige OTP por SMS/WhatsApp (necesita teléfono para entregar el código). */
+  slotNeedsPhone(slot: SlotDraft): boolean {
+    return slot.verificationMethod === 'SmsOtp' || slot.verificationMethod === 'WhatsAppOtp';
+  }
+
+  /** Etiqueta del canal OTP del rol (para la ayuda del campo teléfono). */
+  slotChannelLabel(slot: SlotDraft): string {
+    return slot.verificationMethod === 'WhatsAppOtp' ? 'WhatsApp' : 'SMS';
+  }
 
   close(): void {
     if (this.busy()) {
@@ -91,6 +142,40 @@ export class SignatureTemplatePickerComponent {
     this.file.set(null);
     this.fileError.set('');
     this.error.set('');
+    this.docSource.set('upload');
+    this.libraryFile.set(null);
+    this.clientPickerSlot.set(null);
+    this.clientQuery.set('');
+  }
+
+  // ---------- Documento: subir vs librería ----------
+
+  setDocSource(source: DocSource): void {
+    this.docSource.set(source);
+    this.fileError.set('');
+    if (source === 'upload') {
+      this.libraryFile.set(null);
+    } else {
+      this.file.set(null);
+    }
+  }
+
+  onLibraryPicked(file: FileResponse): void {
+    this.libraryFile.set(file);
+  }
+
+  // ---------- Buscador de cliente por slot ----------
+
+  toggleClientPicker(slotOrder: number): void {
+    this.clientQuery.set('');
+    this.clientPickerSlot.update(current => (current === slotOrder ? null : slotOrder));
+  }
+
+  pickClient(slotOrder: number, client: WizardClient): void {
+    // Autollena nombre/email y — clave para SMS/WhatsApp — el teléfono del cliente registrado.
+    this.updateSlot(slotOrder, { fullName: client.displayName, email: client.email, phone: client.phone ?? '' });
+    this.clientPickerSlot.set(null);
+    this.clientQuery.set('');
   }
 
   /** Al elegir un molde hay que traer su detalle: la lista no incluye los slots. */
@@ -103,7 +188,14 @@ export class SignatureTemplatePickerComponent {
         this.slots.set(
           [...detail.slots]
             .sort((a, b) => a.order - b.order)
-            .map(slot => ({ slotOrder: slot.order, role: slot.role, email: '', fullName: '' })),
+            .map(slot => ({
+              slotOrder: slot.order,
+              role: slot.role,
+              email: '',
+              fullName: '',
+              phone: '',
+              verificationMethod: slot.requiredVerificationMethod ?? null,
+            })),
         );
         this.loadingDetail.set(false);
       },
@@ -122,6 +214,15 @@ export class SignatureTemplatePickerComponent {
 
   updateSlot(slotOrder: number, patch: Partial<SlotDraft>): void {
     this.slots.update(list => list.map(slot => (slot.slotOrder === slotOrder ? { ...slot, ...patch } : slot)));
+  }
+
+  initials(name: string): string {
+    return name
+      .split(' ')
+      .map(part => part[0] ?? '')
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
   }
 
   /** Mismo límite que el wizard: PDF y ≤25 MB (el preflight del backend lo repite). */
@@ -148,8 +249,7 @@ export class SignatureTemplatePickerComponent {
 
   create(): void {
     const template = this.selected();
-    const pdf = this.file();
-    if (!template || !pdf || !this.canCreate() || this.busy()) {
+    if (!template || !this.canCreate() || this.busy()) {
       return;
     }
     this.busy.set(true);
@@ -158,18 +258,26 @@ export class SignatureTemplatePickerComponent {
       slotOrder: slot.slotOrder,
       email: slot.email.trim(),
       fullName: slot.fullName.trim(),
+      phoneNumber: slot.phone.trim() || null,
     }));
-    this.store
-      .instantiateTemplate(template.id, pdf, bindings, this.description().trim() || null)
-      .subscribe({
-        next: detail => {
-          this.busy.set(false);
-          this.created.emit(detail);
-        },
-        error: err => {
-          this.busy.set(false);
-          this.error.set(toApiError(err).message);
-        },
-      });
+    const note = this.description().trim() || null;
+
+    // Librería: reusa el fileId existente (sin validar/subir). Upload: valida y sube.
+    const library = this.libraryFile();
+    const request$ =
+      this.docSource() === 'library' && library
+        ? this.store.instantiateTemplateWithFileId(template.id, library.id, bindings, note)
+        : this.store.instantiateTemplate(template.id, this.file()!, bindings, note);
+
+    request$.subscribe({
+      next: detail => {
+        this.busy.set(false);
+        this.created.emit(detail);
+      },
+      error: err => {
+        this.busy.set(false);
+        this.error.set(toApiError(err).message);
+      },
+    });
   }
 }

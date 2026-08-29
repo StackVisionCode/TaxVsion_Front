@@ -1,4 +1,5 @@
 /** Tipos del wizard de "New Signature Request" (cliente → documento → editor de campos PDF). */
+import { SignerLanguage } from '../../data-access/signature.model';
 
 export type FieldType = 'signature' | 'initials' | 'date' | 'text';
 
@@ -43,6 +44,10 @@ export interface EditorSigner {
   color: string;
   /** Canal preferido para verificar su identidad. */
   channel: VerificationChannel;
+  /** Teléfono para OTP por SMS/WhatsApp (E.164). Vacío si no aplica. */
+  phone: string;
+  /** Idioma de los correos al firmante ('Es' | 'En'). Default 'En'. */
+  language: SignerLanguage;
 }
 
 /** Cliente elegido en el paso 1 (subset mock, alineado con ClientItem de la feature clients). */

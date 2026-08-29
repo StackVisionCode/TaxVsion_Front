@@ -1,10 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
 import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
 import {
@@ -13,6 +14,7 @@ import {
   PublicSignerFieldView,
   PublicSignerView,
   SIGNATURE_CATEGORY_LABEL,
+  SignerVerificationMethod,
   describeDeadLink,
   isDeadLinkCode,
   isValidPractitionerPin,
@@ -20,7 +22,13 @@ import {
 } from '../../data-access/public-signature.model';
 
 /** Pasos posibles del recorrido. Cuáles se muestran depende de lo que exija la solicitud. */
-type StepId = 'welcome' | 'consent' | 'verify' | 'review' | 'sign' | 'done';
+type StepId = 'welcome' | 'consent' | 'verify' | 'verify-otp' | 'review' | 'sign' | 'done';
+
+/** Orden canónico de los pasos: usado para reubicar el paso actual cuando un gate se cierra. */
+const STEP_ORDER: readonly StepId[] = ['welcome', 'consent', 'verify', 'verify-otp', 'review', 'sign', 'done'];
+
+/** Segundos de espera antes de poder reenviar el OTP (espejo de SignatureRequest.ChallengeResendCooldown). */
+const OTP_RESEND_COOLDOWN_SECONDS = 30;
 
 interface WizardStep {
   id: StepId;
@@ -58,12 +66,12 @@ interface BlockedState {
  */
 @Component({
   selector: 'app-sign-page',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sign-page.component.html',
   styleUrl: './sign-page.component.css',
 })
-export class SignPageComponent implements OnInit {
+export class SignPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
 
@@ -102,6 +110,17 @@ export class SignPageComponent implements OnInit {
   readonly pin = signal('');
   readonly typedName = signal('');
 
+  // ---------- OTP (verificación de identidad por firmante) ----------
+
+  readonly otpCode = signal('');
+  /** true cuando ya se emitió al menos un código en esta sesión (cambia el copy y muestra el input). */
+  readonly otpIssued = signal(false);
+  /** Epoch ms hasta el que no se puede reenviar; null si no hay cooldown activo. */
+  private readonly otpCooldownUntil = signal<number | null>(null);
+  /** Reloj de 1 s para recomputar la cuenta atrás del reenvío sin timers en la vista. */
+  private readonly clock = signal(Date.now());
+  private clockTimer: ReturnType<typeof setInterval> | null = null;
+
   readonly isRejectOpen = signal(false);
   readonly rejectReason = signal('');
 
@@ -126,6 +145,10 @@ export class SignPageComponent implements OnInit {
     if (ctx?.requiresPractitionerPin && !ctx.isPinVerified) {
       steps.push({ id: 'verify', caption: 'Verify' });
     }
+    // Gate OTP: independiente del PIN. Solo mientras no esté completado (el backend lo exige).
+    if (ctx?.requiredVerificationMethod && !ctx.isVerificationCompleted) {
+      steps.push({ id: 'verify-otp', caption: 'Code' });
+    }
     steps.push({ id: 'review', caption: 'Review' }, { id: 'sign', caption: 'Sign' }, { id: 'done', caption: 'Done' });
     return steps;
   });
@@ -148,6 +171,8 @@ export class SignPageComponent implements OnInit {
         return 'Accept and continue';
       case 'verify':
         return 'Verify and continue';
+      case 'verify-otp':
+        return 'Confirm code';
       case 'review':
         return 'Go to sign';
       case 'sign':
@@ -164,6 +189,8 @@ export class SignPageComponent implements OnInit {
         return this.consentChecked();
       case 'verify':
         return isValidPractitionerPin(this.pin()) && !this.isPinLocked();
+      case 'verify-otp':
+        return this.otpIssued() && this.isOtpComplete();
       case 'sign':
         return !!ctx && matchesSignerFullName(this.typedName(), ctx.signerFullName);
       case 'done':
@@ -183,6 +210,43 @@ export class SignPageComponent implements OnInit {
     const until = this.context()?.pinLockedUntilUtc;
     return until ? formatTime(until) : '';
   });
+
+  // ---------- OTP derivados ----------
+
+  /** Método OTP que exige la solicitud para este firmante (null = no exige OTP). */
+  readonly otpMethod = computed<SignerVerificationMethod | null>(() => this.context()?.requiredVerificationMethod ?? null);
+
+  /** Cómo se le nombra el canal al firmante en la copy. */
+  readonly otpChannelLabel = computed(() => channelLabel(this.otpMethod()));
+
+  /** A dónde llega el código (email visible; el teléfono no se expone en el contexto público). */
+  readonly otpDestinationHint = computed(() => {
+    switch (this.otpMethod()) {
+      case 'EmailOtp':
+        return this.context()?.signerEmail ?? 'your email';
+      case 'SmsOtp':
+        return 'your phone by text message';
+      case 'WhatsAppOtp':
+        return 'your WhatsApp';
+      default:
+        return 'you';
+    }
+  });
+
+  /** Segundos que faltan para poder reenviar (0 = ya se puede). Depende del reloj de 1 s. */
+  readonly otpResendIn = computed(() => {
+    const until = this.otpCooldownUntil();
+    if (until === null) {
+      return 0;
+    }
+    this.clock();
+    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  });
+
+  readonly canResendOtp = computed(() => this.otpResendIn() === 0);
+
+  /** El código viene de 6 dígitos (IssueVerificationChallengeHandler.OtpLength). */
+  readonly isOtpComplete = computed(() => /^[0-9]{6}$/.test(this.otpCode().trim()));
 
   /**
    * Estados en los que el enlace es válido pero no se puede firmar. Se evalúa el
@@ -318,7 +382,16 @@ export class SignPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.token = this.route.snapshot.paramMap.get('token') ?? '';
+    // Reloj de 1 s: solo alimenta la cuenta atrás del reenvío del OTP.
+    this.clockTimer = setInterval(() => this.clock.set(Date.now()), 1000);
     void this.load();
+  }
+
+  ngOnDestroy(): void {
+    if (this.clockTimer !== null) {
+      clearInterval(this.clockTimer);
+      this.clockTimer = null;
+    }
   }
 
   async load(): Promise<void> {
@@ -352,8 +425,11 @@ export class SignPageComponent implements OnInit {
     }
     const steps = this.steps();
     if (!steps.some(s => s.id === previous)) {
-      const fallback: StepId = previous === 'consent' && steps.some(s => s.id === 'verify') ? 'verify' : 'review';
-      this.stepId.set(fallback);
+      // El gate previo se cerró (consent aceptado, PIN u OTP verificados): aterrizar en el
+      // primer paso vigente que venga en/después de la posición canónica del anterior.
+      const previousRank = STEP_ORDER.indexOf(previous);
+      const next = steps.find(s => STEP_ORDER.indexOf(s.id) >= previousRank);
+      this.stepId.set(next?.id ?? 'review');
     }
     if (ctx.signerStatus === 'Signed' && !this.justSigned()) {
       void this.loadAudit();
@@ -374,6 +450,9 @@ export class SignPageComponent implements OnInit {
         return;
       case 'verify':
         void this.submitPin();
+        return;
+      case 'verify-otp':
+        void this.submitOtp();
         return;
       case 'sign':
         void this.submitSignature();
@@ -429,6 +508,44 @@ export class SignPageComponent implements OnInit {
     // En ambos casos se recarga: al acertar, `isPinVerified` cierra el gate y
     // `applyContext` avanza; al fallar, el contexto trae `pinLockedUntilUtc` si el
     // quinto intento disparó el bloqueo de 30 minutos.
+    await this.reloadContext();
+  }
+
+  /**
+   * POST /challenge → 204. Emite (o reenvía) el OTP por el método que exige la solicitud.
+   * Arranca el cooldown local de 30 s aunque el backend también lo valida — evita spam del
+   * botón. Un reenvío dentro del cooldown se corta antes de llamar.
+   */
+  async sendOtp(): Promise<void> {
+    const method = this.otpMethod();
+    if (!method || this.busy() || !this.canResendOtp()) {
+      return;
+    }
+    const ok = await this.run('Sending your code…', () => firstValueFrom(this.api.issueChallenge(this.token, method)));
+    if (ok) {
+      this.otpIssued.set(true);
+      this.otpCode.set('');
+      this.otpCooldownUntil.set(Date.now() + OTP_RESEND_COOLDOWN_SECONDS * 1000);
+    }
+  }
+
+  /**
+   * POST /verify-challenge → 204. Valida el código del OTP activo. Al acertar, el contexto
+   * recargado trae `isVerificationCompleted = true`: el paso desaparece y `applyContext`
+   * avanza solo. Un código incorrecto/expirado se muestra sin recargar.
+   */
+  private async submitOtp(): Promise<void> {
+    const method = this.otpMethod();
+    if (!method) {
+      return;
+    }
+    const ok = await this.run('Checking your code…', () =>
+      firstValueFrom(this.api.verifyChallenge(this.token, method, this.otpCode().trim())),
+    );
+    if (!ok) {
+      return;
+    }
+    this.otpCode.set('');
     await this.reloadContext();
   }
 
@@ -502,7 +619,13 @@ export class SignPageComponent implements OnInit {
       this.applyContext(await firstValueFrom(this.api.getContext(this.token)));
     } catch (err) {
       const error = toApiError(err);
-      // Un enlace que muere a mitad del recorrido cambia la pantalla completa.
+      // Tras firmar, completar la solicitud REVOCA el token (sube RevocationEpoch): es el
+      // curso normal, no un enlace muerto. Se conserva la pantalla de acuse ("done") en vez
+      // de pisarla con "This link is no longer active".
+      if (this.justSigned()) {
+        return;
+      }
+      // Un enlace que muere a mitad del recorrido (antes de firmar) sí cambia la pantalla.
       if (isDeadLinkCode(error.code)) {
         this.loadError.set(error);
         this.context.set(null);
@@ -551,6 +674,20 @@ function formatDateTime(iso: string): string {
   return `${formatDate(iso)} · ${formatTime(iso)}`;
 }
 
+/** Nombre del canal del OTP en la voz del firmante. */
+function channelLabel(method: SignerVerificationMethod | null): string {
+  switch (method) {
+    case 'EmailOtp':
+      return 'email';
+    case 'SmsOtp':
+      return 'text message';
+    case 'WhatsAppOtp':
+      return 'WhatsApp';
+    default:
+      return 'a code';
+  }
+}
+
 /** El chainHash es un HMAC largo: se muestra abreviado, como en cualquier acuse. */
 function shortenHash(hash: string): string {
   return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-10)}`;
@@ -567,6 +704,16 @@ function friendlyMessage(error: ApiError): string {
       return 'Too many attempts. Try again in a few minutes or contact the office.';
     case 'Signature.Request.PinVerificationRequired':
       return 'Enter the PIN your preparer gave you before signing.';
+    case 'Signature.Signer.ChallengeMismatch':
+      return 'That code is incorrect. Check it and try again, or request a new one.';
+    case 'Signature.Signer.NoActiveChallenge':
+      return 'That code expired. Request a new one to continue.';
+    case 'Signature.Signer.ChallengeCooldown':
+      return 'Please wait a few seconds before requesting another code.';
+    case 'Signature.Signer.NoDeliveryAddress':
+      return 'We could not send the code. Please contact the office that sent you this document.';
+    case 'Signature.Request.VerificationRequired':
+      return 'Verify your identity with the code we sent before signing.';
     case 'Signature.Request.ConsentRequired':
       return 'You need to accept the electronic signature terms first.';
     case 'Signature.Request.NotYourTurn':
