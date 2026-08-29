@@ -1,7 +1,8 @@
-<!-- Altura por flex, no calculada: `100vh - 2rem` no descontaba el navbar del
-     shell, así que la pantalla desbordaba y hacía scrollear toda la ventana.
-     `min-h-0` es lo que permite que las columnas hagan su propio scroll. -->
-<div class="flex min-h-0 flex-1 flex-col gap-4">
+<!-- `wf-screen` ancla la pantalla al hueco del shell (ver el CSS): sin eso el
+     host crecía con su contenido — el catálogo y el lienzo son altos por
+     naturaleza — y desbordaba la ventana entera. `min-h-0` es lo que permite
+     que cada columna haga su propio scroll en vez de empujar hacia abajo. -->
+<div class="wf-screen flex min-h-0 flex-1 flex-col gap-4">
   <!-- ============ Header ============ -->
   <header class="wf-head flex flex-wrap items-center gap-3 rounded-[28px] bg-white px-5 py-3">
     <!-- Decorativo: este producto no tiene equipos. -->
@@ -108,7 +109,8 @@
         <span class="w-24"></span>
       </div>
 
-      <app-workflow-canvas *ngIf="activeTab() === 'builder'; else debuggerTab" [layout]="layout()"
+      <app-workflow-canvas *ngIf="activeTab() === 'builder'; else debuggerTab" class="min-h-0 flex-1"
+        [layout]="layout()"
         [selectedId]="store.selectedId()" (selectStep)="store.select($event)" (deleteStep)="requestDelete($event)"
         (duplicateStep)="store.duplicateStep($event)"
         (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"

@@ -1,3 +1,20 @@
+/*
+ * La pantalla ocupa EXACTAMENTE el hueco del shell, ni un píxel más: el
+ * `<main>` del shell es `relative`, así que anclando la raíz a sus cuatro
+ * lados termina justo donde termina el sidebar (`h-[calc(100vh-2rem)]`), sin
+ * números mágicos que reajustar si el navbar cambia de alto — el intento
+ * anterior con `calc(100vh - 2rem)` fallaba precisamente por no descontarlo.
+ *
+ * Solo de `md` para arriba, que es donde el shell tiene el sidebar flotante;
+ * en móvil se conserva el flujo normal de la página.
+ */
+@media (min-width: 768px) {
+  .wf-screen {
+    position: absolute;
+    inset: 0;
+  }
+}
+
 /* Entrada de la pantalla, con el patrón del repo: keyframes propios y stagger. */
 
 @keyframes wf-head-in {
