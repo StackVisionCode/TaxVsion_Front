@@ -4,12 +4,12 @@
   dispara layout+paint en cada frame del arrastre, mientras que un transform
   se resuelve en el compositor.
 -->
-<div class="wf-node absolute left-0 top-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow"
-  [class]="type.border" [class.wf-node--dragging]="dragging"
-  [style.transform]="'translate3d(' + node.x + 'px,' + node.y + 'px,0)'" [style.width.px]="node.width"
-  [style.height.px]="node.height" [class.wf-node--selected]="selected" (click)="selectStep.emit(step.id)"
-  (pointerdown)="dragStart.emit($event)" style="touch-action: none;"
-  [attr.aria-current]="selected ? 'true' : null">
+<div class="wf-node" [style.transform]="'translate3d(' + node.x + 'px,' + node.y + 'px,0)'"
+  [style.width.px]="node.width" [style.height.px]="node.height"
+  [class.wf-node--dragging]="dragging" (click)="selectStep.emit(step.id)"
+  (pointerdown)="dragStart.emit($event)" [attr.aria-current]="selected ? 'true' : null">
+  <div class="wf-node__card"
+    [ngClass]="[type.border, selected ? 'wf-node__card--selected' : '', dragging ? 'wf-node__card--dragging' : '']">
 
   <!-- Cabecera: color por tipo -->
   <div class="flex items-center gap-2 px-3 py-2" [class]="type.accent">
@@ -60,4 +60,5 @@
       <span class="min-w-0 flex-1 truncate text-gray-600">{{ pair.value }}</span>
     </div>
   </div>
+</div>
 </div>
