@@ -113,7 +113,7 @@ export class NotificationListComponent {
         return 'bg-emerald-500';
       case 'document_signed':
       case 'document_uploaded':
-        return 'bg-[#1E466B]';
+        return 'bg-brand-bold';
       case 'session_expiring':
       case 'subscription_expiring':
         return 'bg-orange-500';

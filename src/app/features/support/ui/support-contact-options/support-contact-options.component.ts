@@ -32,7 +32,7 @@ export class SupportContactOptionsComponent {
     {
       // POST /communication/support (formulario "Submit a ticket" más abajo).
       icon: 'create-outline',
-      circleClass: 'bg-[#D7E3EF] text-[#1E466B]',
+      circleClass: 'bg-[#D7E3EF] text-brand-bold',
       title: 'Open a ticket',
       description:
         'Describe the issue in the form below. The ticket is created in your workspace and routed to our team.',

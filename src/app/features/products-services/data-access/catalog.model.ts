@@ -188,7 +188,7 @@ const CATEGORY_CIRCLES = ['bg-[#E8F1FB]', 'bg-[#CFE2F7]', 'bg-[#DDE9F5]', 'bg-[#
 const CATEGORY_CHIPS = [
   'border-orange-200 text-orange-500',
   'border-indigo-200 text-indigo-600',
-  'border-[#D7E3EF] text-[#1E466B]',
+  'border-[#D7E3EF] text-brand-bold',
   'border-emerald-200 text-emerald-600',
 ];
 

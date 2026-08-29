@@ -11,7 +11,7 @@ import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboa
 const PAGE_SIZE = 8;
 
 /** Colores de punto que rotan por índice (paleta azul de marca + acentos). */
-const DOT_COLORS = ['#1E466B', '#FB923C', '#10B981', '#67BAF4'];
+const DOT_COLORS = ['rgb(var(--color-indigo-600-rgb, 30 70 107))', '#FB923C', '#10B981', 'rgb(var(--color-orange-500-rgb, 103 186 244))'];
 
 /**
  * Widget "Notes".

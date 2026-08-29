@@ -77,14 +77,35 @@ module.exports = {
         brand: {
           black: '#0d0d0d',
           white: '#fafafa',
-          bold: '#1e466b',
-          light: '#67baf4',
-          // Superficies: del más claro (fondo de tarjeta) al más saturado.
+          /**
+           * bold/light/ink son TEMATIZABLES: leen las mismas variables que
+           * ThemeService escribe con el primary/accent del tenant.
+           *
+           * Antes eran hex fijos, así que los ~500 usos de `bg-brand-bold`,
+           * `hover:bg-brand-ink` y `brand-light` (casi todos los botones de la
+           * app) seguían azules aunque el tenant tuviera otra marca: solo se
+           * teñía lo que usaba `indigo-*`/`orange-*` directamente, y por eso el
+           * login se veía con el color del tenant y el resto de la app no.
+           *
+           * Los fallbacks son EXACTAMENTE los hex de antes, que además son los
+           * mismos shades de cada rampa (indigo-600 = #1e466b, indigo-700 =
+           * #132c43, orange-500 = #67baf4), así que sin JS o con la marca por
+           * defecto no cambia ni un pixel.
+           */
+          bold: 'rgb(var(--color-indigo-600-rgb, 30 70 107) / <alpha-value>)',
+          light: 'rgb(var(--color-orange-500-rgb, 103 186 244) / <alpha-value>)',
+          /** Azul muy oscuro para textos sobre fondos claros con más peso que `bold`. */
+          ink: 'rgb(var(--color-indigo-700-rgb, 19 44 67) / <alpha-value>)',
+          /**
+           * Superficies: del más claro (fondo de tarjeta) al más saturado.
+           * Siguen FIJAS a propósito: no coinciden con ningún shade de la rampa
+           * (surface #f1f6fb vs indigo-50 #f5f7fa), así que engancharlas a una
+           * variable existente cambiaría el look por defecto de todos los
+           * tenants. Necesitan su propio canal en ThemeService para tematizarse.
+           */
           surface: '#f1f6fb',
           'surface-strong': '#e2edf7',
           border: '#d7e3ef',
-          // Azul muy oscuro para textos sobre fondos claros que necesitan más peso que `bold`.
-          ink: '#132c43',
         },
       },
     },

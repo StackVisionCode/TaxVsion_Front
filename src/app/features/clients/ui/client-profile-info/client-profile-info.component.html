@@ -24,7 +24,7 @@
         </div>
       </div>
       <div *ngIf="c.addresses.length === 0" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-[#1E466B]">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-brand-bold">
           <ion-icon name="location-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
@@ -33,7 +33,7 @@
         </div>
       </div>
       <div *ngFor="let addr of c.addresses" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-[#1E466B]">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-brand-bold">
           <ion-icon name="location-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">

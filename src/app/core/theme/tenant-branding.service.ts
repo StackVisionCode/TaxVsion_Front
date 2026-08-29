@@ -47,6 +47,15 @@ export class TenantBrandingService {
   /** URL absoluta del logo del tenant, o null si no tiene (los consumidores caen a su placeholder). */
   readonly logoUrl = this._logoUrl.asReadonly();
 
+  private readonly _faviconUrl = signal<string | null>(null);
+  /**
+   * URL absoluta del favicon del tenant. Además de aplicarse al `<head>`, se
+   * expone porque es el asset pensado para tamaños chicos: en espacios
+   * reducidos (sidebar colapsado) se ve mejor que un logo horizontal
+   * encogido a un cuadrado de 40px.
+   */
+  readonly faviconUrl = this._faviconUrl.asReadonly();
+
   /**
    * Carga y aplica la marca de una superficie (CRM) según el slug actual. Sin slug (login central
    * en app.*) no hace nada: el look por defecto ES la marca del sistema. Idempotente y seguro de
@@ -120,7 +129,9 @@ export class TenantBrandingService {
     const favicon = brand.assets.find((a) => a.key === 'Favicon' && a.status === 'Confirmed');
     this._logoUrl.set(logo ? bust(`${base}/tenants/branding/assets/${logo.fileId}`) : null);
     if (favicon) {
-      this.setFavicon(bust(`${base}/tenants/branding/assets/${favicon.fileId}`));
+      const faviconUrl = bust(`${base}/tenants/branding/assets/${favicon.fileId}`);
+      this._faviconUrl.set(faviconUrl);
+      this.setFavicon(faviconUrl);
     }
   }
 
@@ -131,7 +142,9 @@ export class TenantBrandingService {
     // el branding: tenantBase() para la marca de oficina, systemBase() para la del sistema (app.*).
     this._logoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);
     if (branding.faviconUrl) {
-      this.setFavicon(bust(`${base}${branding.faviconUrl}`));
+      const faviconUrl = bust(`${base}${branding.faviconUrl}`);
+      this._faviconUrl.set(faviconUrl);
+      this.setFavicon(faviconUrl);
     }
   }
 

@@ -23,8 +23,20 @@
             <span class="text-gray-900 text-sm font-bold tracking-widest">TAXPROFFICE</span>
           </ng-template>
         </ng-container>
+        <!-- Colapsado (w-16): la marca del tenant reducida (favicon, o el logo
+             si no hay favicon) en un cuadro de 40px con object-contain, que la
+             escala sin recortarla ni deformarla. Sin marca, el asterisco. -->
         <ng-template #collapsedMark>
-          <span class="text-indigo-600 text-2xl font-bold leading-none">*</span>
+          <img
+            *ngIf="collapsedMarkUrl() && !showMarkFallback(); else collapsedFallback"
+            [src]="collapsedMarkUrl()"
+            alt="Logo"
+            class="h-10 w-10 shrink-0 object-contain"
+            (error)="onMarkError()"
+          />
+          <ng-template #collapsedFallback>
+            <span class="text-brand-bold text-2xl font-bold leading-none">*</span>
+          </ng-template>
         </ng-template>
       </div>
 

@@ -41,7 +41,7 @@
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold text-gray-900">Categories</h2>
         <button type="button" (click)="toggleCategories()"
-          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[#1E466B] hover:bg-[#DDE9F5] transition-colors">
+          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-brand-bold hover:bg-[#DDE9F5] transition-colors">
           {{ showAllCategories() ? 'Show less' : 'View All' }}
           <span
             class="flex h-6 w-6 items-center justify-center rounded-full border border-[#D7E3EF] transition-transform"
@@ -96,10 +96,17 @@
   <div class="flex-1">
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Con una categoría activa la tabla lista MIS archivos de esa
+             categoría (que es lo que cuentan las tarjetas de arriba); sin
+             filtro, lo que otros compartieron conmigo. -->
         <div>
-          <h2 class="text-xl font-bold text-gray-900">Shared with me</h2>
+          <h2 class="text-xl font-bold text-gray-900">{{ selectedCategory() || 'Shared with me' }}</h2>
           <p class="mt-1 text-sm text-gray-500">
-            {{ selectedCategory() ? filteredShares().length + ' file(s) in ' + selectedCategory() : 'Files and folders your teammates shared with you' }}
+            <ng-container *ngIf="isCategoryView(); else sharedSubtitle">
+              {{ rowCount() }} file(s) in {{ selectedCategory() }}<ng-container *ngIf="sharedInCategoryCount() > 0">
+                · {{ sharedInCategoryCount() }} shared with you</ng-container>
+            </ng-container>
+            <ng-template #sharedSubtitle>Files and folders your teammates shared with you</ng-template>
           </p>
         </div>
         <button *ngIf="selectedCategory()" type="button" (click)="clearCategoryFilter()"
@@ -109,8 +116,8 @@
         </button>
       </div>
 
-      <!-- Skeleton de filas mientras carga shared-with-me -->
-      <div *ngIf="store.sharesLoading()" class="mt-4 animate-pulse space-y-3">
+      <!-- Skeleton de filas mientras carga la tabla del modo activo -->
+      <div *ngIf="tableLoading()" class="mt-4 animate-pulse space-y-3">
         <div class="h-11 rounded-2xl bg-[#FAFAFA]"></div>
         <div *ngFor="let placeholder of skeletonRows" class="flex items-center gap-3 px-4 py-2">
           <div class="h-9 w-9 rounded-xl bg-gray-100"></div>
@@ -119,30 +126,68 @@
         </div>
       </div>
 
-      <!-- Error de shared-with-me -->
-      <div *ngIf="!store.sharesLoading() && store.sharesError()" class="px-4 py-10 text-center">
+      <!-- Error de la tabla del modo activo -->
+      <div *ngIf="!tableLoading() && tableError()" class="px-4 py-10 text-center">
         <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">{{ store.sharesError() }}</p>
-        <button type="button" (click)="store.loadShares()"
+        <p class="mt-2 text-sm text-gray-500">{{ tableError() }}</p>
+        <button type="button" (click)="retryTable()"
           class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
           Retry
         </button>
       </div>
 
-      <div *ngIf="!store.sharesLoading() && !store.sharesError()" class="mt-4 overflow-x-auto">
+      <div *ngIf="!tableLoading() && !tableError()" class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Name</th>
               <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Category</th>
-              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Shared by</th>
-              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Permission</th>
+              <!-- "Shared by" y "Permission" solo aplican a lo compartido contigo. -->
+              <th *ngIf="!isCategoryView()" class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Shared by</th>
+              <th *ngIf="!isCategoryView()" class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Permission</th>
               <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Date</th>
               <th class="bg-[#FAFAFA] px-4 py-3 text-right font-semibold text-gray-900">Size</th>
               <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3"></th>
             </tr>
           </thead>
-          <tbody>
+
+          <!-- Mis archivos de la categoría activa -->
+          <tbody *ngIf="isCategoryView()">
+            <tr *ngFor="let file of pagedCategoryFiles(); let last = last" class="group">
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span class="flex items-center gap-3">
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FAFAFA]">
+                    <ion-icon [name]="categoryIcon(file.category)" class="text-base text-gray-600"></ion-icon>
+                  </span>
+                  <span class="min-w-0 truncate font-medium text-gray-900">{{ file.name }}</span>
+                </span>
+              </td>
+
+              <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+                [class.border-gray-100]="!last">
+                <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
+                  [style.background-color]="categoryTint(file.category)"
+                  [style.color]="categoryColor(file.category)">
+                  {{ file.category }}
+                </span>
+              </td>
+
+              <td class="px-4 py-3.5 text-right text-xs text-gray-400 group-hover:bg-gray-50 transition-colors"
+                [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatDate(file.dateIso) }}</td>
+
+              <td class="px-4 py-3.5 text-right text-xs font-medium text-gray-500 group-hover:bg-gray-50 transition-colors"
+                [class.border-b]="!last" [class.border-gray-100]="!last">{{ formatBytes(file.sizeBytes) }}</td>
+
+              <!-- La descarga de archivos propios vive en Documents; acá solo se listan. -->
+              <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
+                [class.border-b]="!last" [class.border-gray-100]="!last">
+                <span class="text-xs text-gray-300">—</span>
+              </td>
+            </tr>
+          </tbody>
+
+          <tbody *ngIf="!isCategoryView()">
             <tr *ngFor="let item of pagedShares(); let last = last" class="group">
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
@@ -157,7 +202,7 @@
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
-                  [style.background-color]="categoryColor(item.category) + '1A'"
+                  [style.background-color]="categoryTint(item.category)"
                   [style.color]="categoryColor(item.category)">
                   {{ item.category }}
                 </span>
@@ -207,16 +252,16 @@
           </tbody>
         </table>
 
-        <div *ngIf="pagedShares().length === 0" class="px-4 py-10 text-center">
+        <div *ngIf="rowCount() === 0" class="px-4 py-10 text-center">
           <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
           <p class="mt-2 text-sm text-gray-500">
-            {{ selectedCategory() ? 'No shared files in this category' : 'No files have been shared with you yet' }}
+            {{ isCategoryView() ? 'No files in ' + selectedCategory() : 'No files have been shared with you yet' }}
           </p>
         </div>
       </div>
 
-      <app-pagination *ngIf="!store.sharesLoading() && !store.sharesError()" [currentPage]="currentPage()"
-        [totalItems]="filteredShares().length" [pageSize]="pageSize"
+      <app-pagination *ngIf="!tableLoading() && !tableError()" [currentPage]="currentPage()"
+        [totalItems]="rowCount()" [pageSize]="pageSize"
         (pageChange)="currentPage.set($event)"></app-pagination>
     </div>
   </div>

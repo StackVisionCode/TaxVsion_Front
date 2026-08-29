@@ -50,7 +50,7 @@ const ZOOM_STEP = 0.2;
 const SIGNER_PALETTE = [
   { bg: 'bg-indigo-500', border: 'border-indigo-500', text: 'text-indigo-600' },
   { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-orange-600' },
-  { bg: 'bg-[#1E466B]', border: 'border-[#1E466B]', text: 'text-[#1E466B]' },
+  { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-brand-bold' },
   { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-600' },
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-gray-900' },
 ];

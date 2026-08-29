@@ -95,7 +95,7 @@ export class DashboardRecentActivityComponent implements OnInit {
         return 'bg-emerald-500 text-white';
       case 'document_signed':
       case 'document_uploaded':
-        return 'bg-[#1E466B] text-white';
+        return 'bg-brand-bold text-white';
       case 'session_expiring':
       case 'subscription_expiring':
         return 'bg-orange-500 text-white';

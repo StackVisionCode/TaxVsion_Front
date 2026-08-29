@@ -8,7 +8,7 @@ export interface Referral {
   name: string;
   /** Iniciales mostradas dentro del avatar circular (ej. "MG"). */
   initials: string;
-  /** Clase Tailwind de color de fondo del avatar (ej. "bg-[#1E466B]"). */
+  /** Clase Tailwind de color de fondo del avatar (ej. "bg-brand-bold"). */
   avatarColor: string;
   email: string;
   /** Fecha ya formateada para mostrar (ej. "Jun 22, 2026"). */

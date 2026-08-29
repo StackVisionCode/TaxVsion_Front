@@ -8,12 +8,23 @@ import {
   CATEGORY_META,
   SharePermission,
   SharedWithMeItem,
+  categoryFromFileName,
   formatShareDate,
 } from '../../data-access/storage.model';
 
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
 const PAGE_SIZE = 8;
+
+/** Fila de "mis archivos" cuando hay una categoría seleccionada. */
+export interface CategoryFileRow {
+  id: string;
+  name: string;
+  category: string;
+  sizeBytes: number;
+  /** Fecha de alta, o de borrado para las entradas de la papelera. */
+  dateIso: string;
+}
 
 /**
  * Página del feature Storage, ahora contra el backend real (CloudStorage.Api
@@ -54,17 +65,87 @@ export class StoragePageComponent implements OnInit {
     this.showAllCategories() ? this.store.groups() : this.store.groups().slice(0, 3),
   );
 
+  /** true = la tabla lista MIS archivos de una categoría, no lo compartido conmigo. */
+  readonly isCategoryView = computed(() => this.selectedCategory() !== null);
+
+  /**
+   * Mis archivos de la categoría activa.
+   *
+   * Las tarjetas de categoría cuentan los archivos propios (GET /storage/files
+   * clasificados por extensión), así que al pulsar una hay que mostrar ESOS y
+   * no los "shared with me": filtrar los compartidos por categoría daba
+   * "0 file(s) in Images" justo debajo de una tarjeta que decía "1 files".
+   */
+  readonly categoryFiles = computed<CategoryFileRow[]>(() => {
+    const category = this.selectedCategory();
+    if (!category) {
+      return [];
+    }
+    if (category === 'Trash') {
+      return (this.store.trash() ?? []).map(entry => ({
+        id: entry.id,
+        name: entry.originalName,
+        category: 'Trash',
+        sizeBytes: entry.sizeBytes,
+        dateIso: entry.softDeletedAtUtc,
+      }));
+    }
+    return this.store
+      .files()
+      .filter(file => categoryFromFileName(file.originalName) === category)
+      .map(file => ({
+        id: file.id,
+        name: file.originalName,
+        category,
+        sizeBytes: file.sizeBytes,
+        dateIso: file.createdAtUtc,
+      }));
+  });
+
   /** Shares filtrados por la categoría seleccionada (todas si no hay ninguna activa). */
   readonly filteredShares = computed<SharedWithMeItem[]>(() => {
     const category = this.selectedCategory();
     return category ? this.store.shares().filter(item => item.category === category) : this.store.shares();
   });
 
+  /** Cuántas filas tiene la tabla en el modo actual (para la paginación y el subtítulo). */
+  readonly rowCount = computed(() =>
+    this.isCategoryView() ? this.categoryFiles().length : this.filteredShares().length,
+  );
+
   /** Página actual del filtrado, para la tabla. */
   readonly pagedShares = computed<SharedWithMeItem[]>(() => {
     const start = (this.currentPage() - 1) * PAGE_SIZE;
     return this.filteredShares().slice(start, start + PAGE_SIZE);
   });
+
+  readonly pagedCategoryFiles = computed<CategoryFileRow[]>(() => {
+    const start = (this.currentPage() - 1) * PAGE_SIZE;
+    return this.categoryFiles().slice(start, start + PAGE_SIZE);
+  });
+
+  /** Cuántos de los archivos de la categoría están además compartidos contigo. */
+  readonly sharedInCategoryCount = computed(() => (this.isCategoryView() ? this.filteredShares().length : 0));
+
+  /**
+   * Carga/error de la tabla según el modo: en vista de categoría dependen del
+   * listado de archivos (`groups*`), no del de shares, así que reutilizar el de
+   * shares mostraría un error que no corresponde a lo que se está listando.
+   */
+  readonly tableLoading = computed(() =>
+    this.isCategoryView() ? this.store.groupsLoading() : this.store.sharesLoading(),
+  );
+  readonly tableError = computed(() =>
+    this.isCategoryView() ? this.store.groupsError() : this.store.sharesError(),
+  );
+
+  retryTable(): void {
+    if (this.isCategoryView()) {
+      this.store.loadAll();
+      return;
+    }
+    this.store.loadShares();
+  }
 
   toggleCategories(): void {
     this.showAllCategories.update(value => !value);
@@ -88,6 +169,24 @@ export class StoragePageComponent implements OnInit {
   /** Color hex de la categoría (mismo que su tarjeta/donut), usado para el chip de la tabla. */
   categoryColor(categoryName: string): string {
     return CATEGORY_META[categoryName]?.color ?? '#9CA3AF';
+  }
+
+  /** Ícono de la categoría, para la fila de "mis archivos". */
+  categoryIcon(categoryName: string): string {
+    return CATEGORY_META[categoryName]?.icon ?? 'document-outline';
+  }
+
+  /**
+   * El mismo color al 10 % de opacidad, para el fondo del chip.
+   *
+   * Los colores de marca ya no son hex sino `rgb(var(--token, r g b))` para
+   * seguir la marca del tenant, y ahí la alpha va DENTRO de la función: pegarle
+   * "1A" al final como se hace con un hex daría CSS inválido y el chip se
+   * quedaría sin fondo.
+   */
+  categoryTint(categoryName: string): string {
+    const color = this.categoryColor(categoryName);
+    return color.startsWith('rgb(') ? color.replace(/\)$/, ' / 0.1)') : `${color}1A`;
   }
 
   permissionLabel(permission: SharePermission): string {

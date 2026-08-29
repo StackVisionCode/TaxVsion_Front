@@ -25,7 +25,7 @@ export interface TeamMember {
 
 const ROLE_CHIP_PALETTE = [
   'border-indigo-200 bg-indigo-50 text-indigo-700',
-  'border-[#1E466B]/30 bg-[#DDE9F5] text-[#1E466B]',
+  'border-brand-bold/30 bg-[#DDE9F5] text-brand-bold',
   'border-orange-200 bg-orange-50 text-orange-700',
   'border-emerald-200 bg-emerald-50 text-emerald-700',
 ];
