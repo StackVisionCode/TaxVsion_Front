@@ -2,19 +2,19 @@
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
     <!-- Stats row (analytics del backend; "—" mientras carga o si analytics falla) -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+      <div class="rounded-[24px] bg-indigo-50 p-5">
         <p class="text-sm text-gray-600">Total requests</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.totalRequests) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">In progress</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.inProgress) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+      <div class="rounded-[24px] bg-gray-200 p-5">
         <p class="text-sm text-gray-600">Completed this month</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.completedThisMonth) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">Completion rate</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ completionRateLabel() }}</p>
       </div>
@@ -29,7 +29,7 @@
 
           <!-- Firma propia generada (generador de firmas) -->
           <div *ngIf="mySignature() as sig"
-            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-3 py-2">
+            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
             <img [src]="sig.dataUrl" alt="My signature" class="h-8 max-w-[140px] object-contain" />
             <span class="text-xs font-medium text-gray-600">{{ sig.displayName }}</span>
             <button type="button" (click)="openCreator()"

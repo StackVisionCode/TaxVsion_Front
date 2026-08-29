@@ -393,7 +393,7 @@ export class ClientProfilePageComponent {
   }
 
   typeBadgeClass(client: ClientProfile): string {
-    return client.type === 'individual' ? 'border-[#CFE2F7] text-indigo-600' : 'border-[#E8F1FB] text-orange-600';
+    return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
   }
 
   statusChip(client: ClientProfile): string {

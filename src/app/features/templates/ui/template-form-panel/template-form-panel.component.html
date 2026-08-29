@@ -5,7 +5,7 @@
     <div class="mt-5 flex flex-col gap-3">
       <!-- Template key: identidad de la plantilla, inmutable en el backend -->
       <div class="flex h-11 items-center rounded-full border border-gray-200 px-4 focus-within:border-gray-300 transition-colors"
-        [ngClass]="isEditMode() ? 'bg-[#FAFAFA]' : 'bg-white'">
+        [ngClass]="isEditMode() ? 'bg-brand-white' : 'bg-white'">
         <span class="mr-2 shrink-0 text-sm text-gray-400">Key</span>
         <input type="text" placeholder="e.g. welcome-new-client" [ngModel]="templateKey()" name="templateKey"
           (ngModelChange)="templateKey.set($event)" [disabled]="isEditMode()"
@@ -35,7 +35,7 @@
         <div class="relative" data-dropdown="template-category">
           <div
             class="flex h-11 w-full items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors"
-            [ngClass]="{ 'bg-[#FAFAFA]': isEditMode() }">
+            [ngClass]="{ 'bg-brand-white': isEditMode() }">
             <input type="text" placeholder="Category" [ngModel]="category()" name="category"
               (ngModelChange)="category.set($event)" [disabled]="isEditMode()"
               class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none disabled:text-gray-400" />
@@ -82,7 +82,7 @@
         </div>
         <textarea rows="8" placeholder="Write the template HTML..." [ngModel]="bodyDraft()" name="body"
           (ngModelChange)="bodyDraft.set($event)"
-          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 font-mono text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+          class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 font-mono text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
         <p class="mt-2 text-xs text-gray-400">
           Use <span class="font-medium text-gray-500">{{ '{{client_name}}' }}</span>,
           <span class="font-medium text-gray-500">{{ '{{date}}' }}</span> as placeholders.

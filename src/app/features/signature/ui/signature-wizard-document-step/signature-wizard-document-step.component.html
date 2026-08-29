@@ -4,7 +4,7 @@
     <label class="dropzone flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors"
       [ngClass]="[
         isBusy() ? 'cursor-wait opacity-70' : 'cursor-pointer',
-        isDragging() ? 'dropzone-active border-brand-bold bg-gray-50' : 'border-gray-200 bg-[#FAFAFA] hover:border-gray-300'
+        isDragging() ? 'dropzone-active border-brand-bold bg-gray-50' : 'border-gray-200 bg-brand-white hover:border-gray-300'
       ]"
       (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
       <ion-icon name="cloud-upload-outline" class="text-4xl"
@@ -74,7 +74,7 @@
   <!-- Columna derecha: detalle del seleccionado (sticky) -->
   <aside class="hidden self-start lg:sticky lg:top-4 lg:block">
     <div *ngFor="let doc of selectedAsList(); trackBy: trackDocument"
-      class="doc-detail rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+      class="doc-detail rounded-2xl border border-gray-100 bg-brand-white p-5">
       <div class="flex flex-col items-center text-center">
         <span class="flex h-16 w-16 items-center justify-center rounded-2xl" [ngClass]="circle(doc.kind)">
           <ion-icon [name]="icon(doc.kind)" class="text-2xl text-gray-700"></ion-icon>

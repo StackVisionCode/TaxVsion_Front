@@ -29,7 +29,7 @@ export function initialsOf(name: string): string {
 
 /** Badge de tipo de cliente (misma paleta que client-table). */
 export function clientTypeBadge(type: WizardClient['type']): string {
-  return type === 'company' ? 'border-[#E8F1FB] text-orange-600' : 'border-[#CFE2F7] text-indigo-600';
+  return type === 'company' ? 'border-indigo-50 text-orange-600' : 'border-indigo-100 text-indigo-600';
 }
 
 const KIND_BY_EXTENSION: Record<string, WizardDocKind> = {
@@ -77,13 +77,13 @@ export function kindIcon(kind: WizardDocKind): string {
 export function kindCircle(kind: WizardDocKind): string {
   switch (kind) {
     case 'pdf':
-      return 'bg-[#E8F1FB]';
+      return 'bg-indigo-50';
     case 'xlsx':
-      return 'bg-[#CFE2F7]';
+      return 'bg-indigo-100';
     case 'img':
-      return 'bg-[#E7EAEE]';
+      return 'bg-gray-200';
     case 'doc':
-      return 'bg-[#DDE9F5]';
+      return 'bg-indigo-100';
   }
 }
 
@@ -125,10 +125,10 @@ export const FIELD_TYPE_ICON: Record<FieldType, string> = {
 
 /** Círculo pastel por tipo de campo (paleta de acentos de la casa). */
 export const FIELD_TYPE_CIRCLE: Record<FieldType, string> = {
-  signature: 'bg-[#E8F1FB]',
-  initials: 'bg-[#DDE9F5]',
-  date: 'bg-[#CFE2F7]',
-  text: 'bg-[#E7EAEE]',
+  signature: 'bg-indigo-50',
+  initials: 'bg-indigo-100',
+  date: 'bg-indigo-100',
+  text: 'bg-gray-200',
 };
 
 /** Chip uppercase del tipo de documento (misma paleta que file-browser). */

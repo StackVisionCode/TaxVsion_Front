@@ -32,7 +32,7 @@ export class SupportContactOptionsComponent {
     {
       // POST /communication/support (formulario "Submit a ticket" más abajo).
       icon: 'create-outline',
-      circleClass: 'bg-[#D7E3EF] text-brand-bold',
+      circleClass: 'bg-brand-border text-brand-bold',
       title: 'Open a ticket',
       description:
         'Describe the issue in the form below. The ticket is created in your workspace and routed to our team.',
@@ -40,7 +40,7 @@ export class SupportContactOptionsComponent {
     {
       // GET /communication/support (lista "My tickets" al pie de la página).
       icon: 'list-outline',
-      circleClass: 'bg-[#CFE2F7] text-indigo-600',
+      circleClass: 'bg-indigo-100 text-indigo-600',
       title: 'Follow it up here',
       description:
         'Every ticket you open is listed at the bottom of this page with its current status.',
@@ -48,7 +48,7 @@ export class SupportContactOptionsComponent {
     {
       // POST /communication/support/:id/reopen (solo desde Resolved/Closed).
       icon: 'refresh-outline',
-      circleClass: 'bg-[#E8F1FB] text-orange-500',
+      circleClass: 'bg-indigo-50 text-orange-500',
       title: 'Reopen if needed',
       description:
         'If a resolved or closed ticket still needs attention, you can reopen it from that list.',

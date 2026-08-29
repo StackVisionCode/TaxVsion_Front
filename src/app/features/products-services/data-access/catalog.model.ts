@@ -183,12 +183,12 @@ export function toCatalogEntry(
 // Las categorías son dinámicas (por tenant), así que los colores no pueden ser un switch fijo:
 // se asignan por hash del nombre sobre las paletas pastel del diseño "Aether".
 
-const CATEGORY_CIRCLES = ['bg-[#E8F1FB]', 'bg-[#CFE2F7]', 'bg-[#DDE9F5]', 'bg-[#E7EAEE]'];
+const CATEGORY_CIRCLES = ['bg-indigo-50', 'bg-indigo-100', 'bg-indigo-100', 'bg-gray-200'];
 
 const CATEGORY_CHIPS = [
   'border-orange-200 text-orange-500',
   'border-indigo-200 text-indigo-600',
-  'border-[#D7E3EF] text-brand-bold',
+  'border-brand-border text-brand-bold',
   'border-emerald-200 text-emerald-600',
 ];
 

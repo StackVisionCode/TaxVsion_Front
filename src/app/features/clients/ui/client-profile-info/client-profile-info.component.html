@@ -6,7 +6,7 @@
 
     <div class="mt-4 flex flex-col divide-y divide-gray-100">
       <div class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#CFE2F7] text-indigo-600">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
           <ion-icon name="mail-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
@@ -15,7 +15,7 @@
         </div>
       </div>
       <div class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F1FB] text-orange-500">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-orange-500">
           <ion-icon name="call-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
@@ -24,7 +24,7 @@
         </div>
       </div>
       <div *ngIf="c.addresses.length === 0" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-brand-bold">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-brand-bold">
           <ion-icon name="location-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
@@ -33,7 +33,7 @@
         </div>
       </div>
       <div *ngFor="let addr of c.addresses" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5] text-brand-bold">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-brand-bold">
           <ion-icon name="location-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0">
@@ -123,7 +123,7 @@
 
     <div *ngIf="c.dependents && c.dependents.length > 0; else noDependents" class="mt-4 flex flex-col divide-y divide-gray-100">
       <div *ngFor="let dependent of c.dependents" class="flex items-center gap-4 py-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E7EAEE] text-gray-700">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700">
           <ion-icon name="person-outline" class="text-lg"></ion-icon>
         </span>
         <div class="min-w-0 flex-1">

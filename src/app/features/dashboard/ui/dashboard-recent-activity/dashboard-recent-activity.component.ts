@@ -89,7 +89,7 @@ export class DashboardRecentActivityComponent implements OnInit {
       case 'customer_created':
       case 'customer_updated':
       case 'customer_assigned':
-        return 'bg-[#CFE2F7] text-gray-700';
+        return 'bg-indigo-100 text-gray-700';
       case 'payment_received':
       case 'invoice_generated':
         return 'bg-emerald-500 text-white';
@@ -103,7 +103,7 @@ export class DashboardRecentActivityComponent implements OnInit {
       case 'system_alert':
         return 'bg-red-500 text-white';
       case 'general':
-        return 'bg-[#E7EAEE] text-gray-700';
+        return 'bg-gray-200 text-gray-700';
     }
   }
 }

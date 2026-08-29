@@ -4,7 +4,7 @@ import { ApiCampaignType, CampaignItem, CampaignStatus, openRate } from '../../d
 
 /**
  * Tabla de campañas (patrón "Aether", igual que service-catalog/invoice-table):
- * header en píldora `bg-[#FAFAFA]` con extremos redondeados, columnas
+ * header en píldora `bg-brand-white` con extremos redondeados, columnas
  * Campaign name / Type (chip con icono) / Template / Status (chip outline) /
  * Scheduled / Recipients / Open rate y un menú fantasma "..." por fila.
  * El click en la fila (fuera del menú) abre la vista previa de solo lectura.
@@ -78,7 +78,7 @@ export class CampaignTableComponent {
       case 'Marketing':
         return 'border-emerald-200 text-emerald-600';
       case 'Custom':
-        return 'border-[#67BAF4] text-brand-bold';
+        return 'border-brand-light text-brand-bold';
     }
   }
 

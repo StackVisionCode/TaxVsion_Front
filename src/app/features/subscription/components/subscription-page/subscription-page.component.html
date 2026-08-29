@@ -304,7 +304,7 @@
         <div *ngIf="store.auditEntries().length > 0; else noAudit" class="mt-4 flex flex-col divide-y divide-gray-100">
           <button *ngFor="let entry of store.auditEntries()" type="button" (click)="auditDetail.set(entry)"
             class="sub-row flex items-center gap-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E7EAEE] text-gray-600">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600">
               <ion-icon name="document-text-outline" class="text-base"></ion-icon>
             </span>
             <div class="min-w-0 flex-1">

@@ -93,7 +93,7 @@ export class CampaignPreviewComponent implements OnChanges {
       case 'Marketing':
         return 'border-emerald-200 text-emerald-600';
       case 'Custom':
-        return 'border-[#67BAF4] text-brand-bold';
+        return 'border-brand-light text-brand-bold';
     }
   }
 

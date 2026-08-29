@@ -88,7 +88,7 @@ export function isActionableStatus(status: SignatureStatus): boolean {
 
 /**
  * Tabla de solicitudes de firma (patrón "Aether", igual que campaign-table /
- * service-catalog): header en píldora `bg-[#FAFAFA]` con extremos
+ * service-catalog): header en píldora `bg-brand-white` con extremos
  * redondeados, columnas Document name / Client / Signers (avatares
  * superpuestos) / Status (chip outline) / Sent date / Completed date y un
  * menú fantasma "..." por fila con View / Resend reminder / Cancel request.
@@ -164,7 +164,7 @@ export class SignatureTableComponent {
       case 'draft':
         return 'border-gray-300 text-gray-500';
       case 'ready':
-        return 'border-[#CFE2F7] text-blue-600';
+        return 'border-indigo-100 text-blue-600';
       case 'completed':
         return 'border-emerald-200 text-emerald-600';
       case 'pending':

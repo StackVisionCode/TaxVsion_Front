@@ -47,7 +47,7 @@ export interface ClientItem {
 
 /**
  * Tabla del directorio de clientes (patrón "Aether", igual que
- * invoice-table/service-catalog): header en píldora `bg-[#FAFAFA]` con
+ * invoice-table/service-catalog): header en píldora `bg-brand-white` con
  * extremos redondeados. Columnas: Name (avatar + iniciales) / Email /
  * SSN-ITIN o EIN según el tipo / Type (badge) / Occupation o Business
  * structure / Status (chip outline) / Created / menú fantasma "..." por fila
@@ -106,7 +106,7 @@ export class ClientTableComponent {
   }
 
   typeBadgeClass(client: ClientItem): string {
-    return client.type === 'individual' ? 'border-[#CFE2F7] text-indigo-600' : 'border-[#E8F1FB] text-orange-600';
+    return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
   }
 
   secondaryDetail(client: ClientItem): string {
