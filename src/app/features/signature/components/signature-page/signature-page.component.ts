@@ -90,6 +90,15 @@ export class SignaturePageComponent {
   readonly pinValue = signal('');
   /** Misma regla que el dominio (4–10 dígitos), reutilizada del modelo público. */
   readonly isPinValid = computed(() => isValidPractitionerPin(this.pinValue()));
+
+  /** Solicitud cuyo preparador (Form 8879 §V) se está editando. */
+  readonly preparerTarget = signal<SignatureRequest | null>(null);
+  readonly preparerPtin = signal('');
+  readonly preparerName = signal('');
+  readonly preparerTitle = signal('');
+  readonly isPreparerValid = computed(
+    () => this.preparerPtin().trim().length > 0 && this.preparerName().trim().length > 0,
+  );
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
 
@@ -285,6 +294,76 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.pinTarget.set(null);
+        this.showToast(`${verb} "${target.documentName}"`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Preparador (Form 8879 §V) ----------
+
+  /**
+   * Los campos arrancan vacíos siempre: el detalle del backend NO devuelve el
+   * preparador, así que no hay forma de pre-cargar lo ya guardado. La UI lo
+   * dice en vez de aparentar un formulario que refleja el estado real.
+   */
+  openPreparerModal(request: SignatureRequest): void {
+    this.preparerPtin.set('');
+    this.preparerName.set('');
+    this.preparerTitle.set('');
+    this.actionError.set('');
+    this.preparerTarget.set(request);
+  }
+
+  closePreparerModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.preparerTarget.set(null);
+  }
+
+  confirmSetPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy() || !this.isPreparerValid()) {
+      return;
+    }
+    this.runPreparerAction(
+      this.store.setPreparer(target.id, {
+        ptinOrEfin: this.preparerPtin().trim(),
+        displayName: this.preparerName().trim(),
+        titleLabel: this.preparerTitle().trim() || null,
+      }),
+      target,
+      'Preparer saved on',
+    );
+  }
+
+  confirmClearPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPreparerAction(this.store.clearPreparer(target.id), target, 'Preparer removed from');
+  }
+
+  confirmSignAsPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPreparerAction(this.store.signAsPreparer(target.id), target, 'Signed as preparer on');
+  }
+
+  private runPreparerAction(action: Observable<void>, target: SignatureRequest, verb: string): void {
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    action.subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.preparerTarget.set(null);
         this.showToast(`${verb} "${target.documentName}"`);
       },
       error: err => {

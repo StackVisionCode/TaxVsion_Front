@@ -86,7 +86,7 @@
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
-          (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)"
+          (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)" (preparerRequested)="openPreparerModal($event)"
           (downloadSealedRequested)="downloadSealed($event)"
           (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
         <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
@@ -198,6 +198,58 @@
     <button type="button" (click)="confirmSetPin()" [disabled]="actionBusy() || !isPinValid()"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
       {{ actionBusy() ? 'Saving…' : 'Save PIN' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Preparador (Form 8879 §V). Escritura a ciegas a propósito: el detalle del
+     backend no devuelve el preparador ni si ya firmó, así que no se puede
+     precargar ni mostrar el estado; la UI lo dice en vez de aparentarlo. -->
+<app-modal [isOpen]="preparerTarget() !== null" heading="Preparer"
+  subheading="Identity that signs the return as preparer (Form 8879 §V)" size="md" (closed)="closePreparerModal()">
+  <div *ngIf="preparerTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      For <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
+    </p>
+
+    <p class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+      The request detail doesn't report the preparer back, so these fields always start empty and
+      there's no way to show whether one is already saved. Saving again simply replaces it.
+    </p>
+
+    <label class="text-xs font-medium text-gray-500">PTIN or EFIN</label>
+    <input type="text" autocomplete="off" [ngModel]="preparerPtin()" (ngModelChange)="preparerPtin.set($event)"
+      name="preparerPtin" placeholder="P12345678"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <label class="text-xs font-medium text-gray-500">Display name</label>
+    <input type="text" autocomplete="off" [ngModel]="preparerName()" (ngModelChange)="preparerName.set($event)"
+      name="preparerName" placeholder="Jane Doe, CPA"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <label class="text-xs font-medium text-gray-500">Title <span class="text-gray-400">(optional)</span></label>
+    <input type="text" autocomplete="off" [ngModel]="preparerTitle()" (ngModelChange)="preparerTitle.set($event)"
+      name="preparerTitle" placeholder="Tax Preparer"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex flex-wrap justify-end gap-2">
+    <button type="button" (click)="confirmClearPreparer()" [disabled]="actionBusy()"
+      class="mr-auto rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+      Remove
+    </button>
+    <button type="button" (click)="confirmSignAsPreparer()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Sign as preparer
+    </button>
+    <button type="button" (click)="closePreparerModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmSetPreparer()" [disabled]="actionBusy() || !isPreparerValid()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Save preparer' }}
     </button>
   </div>
 </app-modal>

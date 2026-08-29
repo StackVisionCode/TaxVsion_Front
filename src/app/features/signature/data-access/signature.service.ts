@@ -15,6 +15,7 @@ import {
   SignatureRequestDetail,
   SignatureRequestListResult,
   SignerResponse,
+  SetPreparerBody,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -155,6 +156,32 @@ export class SignatureService {
   /** Quita el PIN: la solicitud vuelve a no exigir verificación por PIN. */
   clearPractitionerPin(requestId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/requests/${requestId}/practitioner-pin`);
+  }
+
+  /**
+   * Identidad del preparador en la solicitud (Form 8879 §V): PTIN/EFIN, nombre
+   * y título. Es **PUT** sobre `/preparer`.
+   *
+   * ⚠️ `SignatureRequestResponse` NO devuelve el preparador ni
+   * `IsPreparerSigned`, así que estas tres son escrituras a ciegas: el front no
+   * puede mostrar si ya está fijado o si ya firmó. Queda reflejado en el PDF
+   * sellado y en la cadena de auditoría, no en el detalle.
+   */
+  setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/preparer`, body);
+  }
+
+  clearPreparer(requestId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/preparer`);
+  }
+
+  /**
+   * Firma interna del preparador. La ruta real es `/preparer/sign` y va **sin
+   * body** (el usuario sale del JWT) — la guía la documenta como
+   * `/sign-as-preparer`, que no existe.
+   */
+  signAsPreparer(requestId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/sign`, {});
   }
 
   resendSignerInvitation(requestId: string, signerId: string): Observable<void> {

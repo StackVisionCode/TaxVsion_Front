@@ -161,6 +161,16 @@ export interface SignatureAnalyticsSummary {
 
 // ---------- Cuerpos de request ----------
 
+/**
+ * PUT /signature/requests/{id}/preparer — identidad del preparador (Form 8879 §V).
+ * Espejo de `SetPreparerBody(string PtinOrEfin, string DisplayName, string? TitleLabel)`.
+ */
+export interface SetPreparerBody {
+  ptinOrEfin: string;
+  displayName: string;
+  titleLabel: string | null;
+}
+
 export interface CreateSignatureRequestBody {
   title: string;
   description?: string | null;

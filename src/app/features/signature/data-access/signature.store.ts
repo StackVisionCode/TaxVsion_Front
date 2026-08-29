@@ -8,6 +8,7 @@ import {
   ApiSignatureRequestStatus,
   SignatureCategory,
   SignatureFieldKind,
+  SetPreparerBody,
   SignatureRequestDetail,
   ValidateDocumentResponse,
   customerToWizardClient,
@@ -241,6 +242,22 @@ export class SignatureStore {
 
   clearPractitionerPin(requestId: string): Observable<void> {
     return this.service.clearPractitionerPin(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * Preparador (Form 8879 §V). No se refresca la lista porque el detalle NO
+   * devuelve el preparador ni `IsPreparerSigned`: no hay nada nuevo que leer.
+   */
+  setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
+    return this.service.setPreparer(requestId, body);
+  }
+
+  clearPreparer(requestId: string): Observable<void> {
+    return this.service.clearPreparer(requestId);
+  }
+
+  signAsPreparer(requestId: string): Observable<void> {
+    return this.service.signAsPreparer(requestId);
   }
 
   resendSigner(requestId: string, signerId: string): Observable<void> {

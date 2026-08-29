@@ -84,6 +84,11 @@
                 <ion-icon name="key-outline" class="text-base"></ion-icon>
                 {{ request.requiresPractitionerPin ? 'Change or remove PIN' : 'Set signing PIN' }}
               </button>
+              <button *ngIf="canManagePin(request)" type="button" (click)="onPreparerClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
+                Preparer (Form 8879)
+              </button>
               <button *ngIf="hasSealed(request)" type="button" (click)="onDownloadSealedClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="download-outline" class="text-base"></ion-icon>

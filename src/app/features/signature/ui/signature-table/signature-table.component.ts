@@ -119,6 +119,8 @@ export class SignatureTableComponent {
   @Output() extendRequested = new EventEmitter<SignatureRequest>();
   /** Fijar o quitar el PIN del preparador de esa solicitud. */
   @Output() pinRequested = new EventEmitter<SignatureRequest>();
+  /** Fijar la identidad del preparador o firmar como tal (Form 8879 §V). */
+  @Output() preparerRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadSealedRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificateRequested = new EventEmitter<SignatureRequest>();
 
@@ -280,6 +282,12 @@ export class SignatureTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.pinRequested.emit(request);
+  }
+
+  onPreparerClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.preparerRequested.emit(request);
   }
 
   onDownloadSealedClick(request: SignatureRequest, event: MouseEvent): void {
