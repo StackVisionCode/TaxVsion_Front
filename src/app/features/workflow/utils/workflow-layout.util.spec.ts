@@ -1,5 +1,5 @@
-import { WorkflowConnection, WorkflowStep } from '../data-access/workflow.model';
-import { NODE_WIDTH, layoutWorkflow } from './workflow-layout.util';
+import { WorkflowConnection, WorkflowStep, summaryPairs } from '../data-access/workflow.model';
+import { NODE_WIDTH, layoutWorkflow, nodeHeight } from './workflow-layout.util';
 
 function step(id: string, typeId: WorkflowStep['typeId'] = 'send-email', extra: Partial<WorkflowStep> = {}): WorkflowStep {
   return { id, typeId, title: id, subtitle: '', config: {}, ...extra };
@@ -8,6 +8,55 @@ function step(id: string, typeId: WorkflowStep['typeId'] = 'send-email', extra: 
 function link(id: string, fromStepId: string, toStepId: string, fromPort = 'main'): WorkflowConnection {
   return { id, fromStepId, fromPort, toStepId };
 }
+
+/**
+ * La carta se dibuja con `overflow: hidden` al alto que decide el layout, así
+ * que este cálculo ES el contrato con el template: lo que no se reserve aquí
+ * se ve cortado. El desglose (en px, con los `leading-*` fijados en el HTML):
+ *
+ *   cabecera  40  — icono de 24 + `py-2`
+ *   cuerpo    56  — `leading-5` (20) + `leading-4` (16) + `py-2.5`
+ *   pie       16  — borde superior + `py-1.5`   ← solo si hay filas
+ *   fila      20  — `leading-4` (16) + `py-0.5`
+ */
+describe('nodeHeight', () => {
+  const CARD_WITHOUT_FOOTER = 96;
+  const FOOTER_CHROME = 16;
+  const ROW = 20;
+
+  function heightFor(step: WorkflowStep): number {
+    const rows = summaryPairs(step).length;
+    return CARD_WITHOUT_FOOTER + (rows > 0 ? FOOTER_CHROME + rows * ROW : 0);
+  }
+
+  it('reserva el marco del pie, no solo sus filas', () => {
+    // El bug: se contaban las filas y no el borde+padding del bloque, así que
+    // una carta con una fila medía 120 cuando necesitaba 129 y la fila salía
+    // partida por la mitad.
+    const one = step('a', 'send-email');
+    expect(summaryPairs(one).length).toBe(1);
+    expect(nodeHeight(one)).toBe(132);
+  });
+
+  it('crece exactamente una fila por cada par del pie', () => {
+    const one = step('a', 'send-email');
+    const two = step('b', 'send-email', { config: { subject: 'Hi' } });
+
+    expect(summaryPairs(two).length).toBe(2);
+    expect(nodeHeight(two) - nodeHeight(one)).toBe(ROW);
+    expect(nodeHeight(two)).toBe(heightFor(two));
+  });
+
+  it('el layout usa ese mismo alto para anclar los hilos', () => {
+    const tall = step('a', 'send-email', { config: { subject: 'Hi', body: 'x' } });
+    const layout = layoutWorkflow([tall, step('b')], [link('l1', 'a', 'b')]);
+    const node = layout.nodes.find(n => n.step.id === 'a')!;
+
+    expect(node.height).toBe(heightFor(tall));
+    // El puerto de salida cuelga del borde inferior real de la carta.
+    expect(node.outputs[0].y).toBe(node.y + node.height);
+  });
+});
 
 describe('layoutWorkflow', () => {
   it('sin pasos devuelve un layout vacío en vez de reventar', () => {
