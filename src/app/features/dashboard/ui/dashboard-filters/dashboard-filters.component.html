@@ -1,4 +1,11 @@
-<div class="bg-white rounded-[28px] px-5 py-4 flex flex-wrap items-center gap-3">
+<!--
+  La tarjeta blanca solo aparece en modo edición, donde de verdad envuelve algo
+  (la pista de arrastre). Fuera de él la barra es únicamente el botón "Edit
+  layout": pintarle un contenedor de ancho completo lo hacía parecer un panel
+  de filtros que se quedó cargando.
+-->
+<div class="flex flex-wrap items-center gap-3 transition-all duration-200"
+  [ngClass]="layout.editMode() ? 'bg-white rounded-[28px] px-5 py-4' : ''">
   <!-- Pista de uso solo mientras se reordena; fuera del modo edición no se afirma nada -->
   <p *ngIf="layout.editMode()" class="flex items-center gap-2 text-sm text-gray-500">
     <ion-icon name="move-outline" class="text-base text-gray-400"></ion-icon>

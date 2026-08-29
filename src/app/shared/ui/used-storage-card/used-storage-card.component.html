@@ -11,9 +11,14 @@
         <circle *ngFor="let dot of innerDots()" class="donut-dot" [attr.cx]="dot.x" [attr.cy]="dot.y"
           [attr.r]="dot.r" [attr.fill]="dot.color" [style.animation-delay]="dot.delay"></circle>
       </svg>
+      <!-- El centro muestra el % USADO, coherente con el título de la tarjeta y
+           con el subtítulo "X of Y used". Sin cuota conocida se muestra "—" en
+           lugar de un porcentaje calculado sobre un total inventado. -->
       <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span class="text-3xl font-bold text-gray-900">{{ displayPercent() }}%</span>
-        <span class="text-xs text-gray-500">Free Storage</span>
+        <span class="text-3xl font-bold text-gray-900">
+          {{ displayPercent() }}<ng-container *ngIf="hasQuota()">%</ng-container>
+        </span>
+        <span class="text-xs text-gray-500">{{ hasQuota() ? 'Used Storage' : 'No quota reported' }}</span>
       </div>
     </div>
 

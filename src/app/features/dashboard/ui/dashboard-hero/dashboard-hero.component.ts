@@ -1,8 +1,8 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnInit, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { DashboardClientsStore } from '../../data-access/dashboard-clients.store';
 import { DashboardInvoicesStore, formatCents } from '../../data-access/dashboard-invoices.store';
+import { TaskStore } from '../../../task/data-access/task.store';
 
 interface HeroStat {
   title: string;
@@ -28,7 +28,7 @@ const NO_VALUE = '—';
  * números reales de la oficina.
  *
  * Ahora las tres salen del backend:
- *  - Total clients   → `GET /customers` (totalCount exacto del servidor).
+ *  - Overdue tasks   → tareas del {@link TaskStore} con vencimiento pasado.
  *  - Outstanding     → `GET /billing/invoices`, facturas emitidas con saldo.
  *  - Revenue         → suma de lo cobrado en el mes en curso.
  *
@@ -46,19 +46,18 @@ const NO_VALUE = '—';
 export class DashboardHeroComponent implements OnInit {
   @Input() userName = '';
 
-  private readonly clients = inject(DashboardClientsStore);
   private readonly invoices = inject(DashboardInvoicesStore);
+  private readonly tasks = inject(TaskStore);
 
   readonly stats = computed<HeroStat[]>(() => [
     {
-      title: 'Total Clients',
-      // El store pide status=All: la cifra incluye los archivados, y el subtítulo lo dice.
-      subtitle: 'All clients on record',
-      value: this.clientsValue(),
-      note: this.noteFor(this.clients.loading(), this.clients.error()),
+      title: 'Overdue Tasks',
+      subtitle: 'Past their due date',
+      value: this.overdueValue(),
+      note: this.noteFor(this.tasks.loading(), this.tasks.error()),
       bg: 'bg-[#E8F1FB]',
-      link: '/clients',
-      linkLabel: 'Go to clients',
+      link: '/task',
+      linkLabel: 'Go to tasks',
     },
     {
       title: 'Outstanding Invoices',
@@ -82,15 +81,32 @@ export class DashboardHeroComponent implements OnInit {
 
   ngOnInit(): void {
     // Ambos stores son idempotentes: si otro widget ya los cargó, no repiten la llamada.
-    this.clients.load();
+    this.tasks.init();
     this.invoices.load();
   }
 
-  private clientsValue(): string {
-    if (this.clients.loading() || this.clients.error()) {
+  /**
+   * Vencidas = con fecha de vencimiento ANTERIOR a hoy y todavía abiertas.
+   *
+   * `dueDate` ya viene como 'YYYY-MM-DD' en UTC, así que se compara como texto
+   * contra el día UTC de hoy: es exacto y evita que el huso del navegador
+   * adelante o atrase el corte un día. Lo que vence hoy no cuenta como vencido.
+   */
+  private overdueValue(): string {
+    if (this.tasks.loading() || this.tasks.error()) {
       return NO_VALUE;
     }
-    return this.clients.totalCount().toLocaleString('en-US');
+    const today = new Date().toISOString().slice(0, 10);
+    const overdue = this.tasks
+      .tasks()
+      .filter(
+        task =>
+          !!task.dueDate &&
+          task.dueDate < today &&
+          task.apiStatus !== 'Completed' &&
+          task.apiStatus !== 'Cancelled',
+      );
+    return overdue.length.toLocaleString('en-US');
   }
 
   private outstandingValue(): string {
