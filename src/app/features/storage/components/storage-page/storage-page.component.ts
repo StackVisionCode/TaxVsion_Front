@@ -176,6 +176,19 @@ export class StoragePageComponent implements OnInit {
     return CATEGORY_META[categoryName]?.icon ?? 'document-outline';
   }
 
+  /**
+   * El mismo color al 10 % de opacidad, para el fondo del chip.
+   *
+   * Los colores de marca ya no son hex sino `rgb(var(--token, r g b))` para
+   * seguir la marca del tenant, y ahí la alpha va DENTRO de la función: pegarle
+   * "1A" al final como se hace con un hex daría CSS inválido y el chip se
+   * quedaría sin fondo.
+   */
+  categoryTint(categoryName: string): string {
+    const color = this.categoryColor(categoryName);
+    return color.startsWith('rgb(') ? color.replace(/\)$/, ' / 0.1)') : `${color}1A`;
+  }
+
   permissionLabel(permission: SharePermission): string {
     return permission === 'EditMetadata' ? 'Edit metadata' : permission;
   }

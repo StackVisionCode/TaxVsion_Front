@@ -41,7 +41,7 @@
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold text-gray-900">Categories</h2>
         <button type="button" (click)="toggleCategories()"
-          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[#1E466B] hover:bg-[#DDE9F5] transition-colors">
+          class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-brand-bold hover:bg-[#DDE9F5] transition-colors">
           {{ showAllCategories() ? 'Show less' : 'View All' }}
           <span
             class="flex h-6 w-6 items-center justify-center rounded-full border border-[#D7E3EF] transition-transform"
@@ -167,7 +167,7 @@
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
-                  [style.background-color]="categoryColor(file.category) + '1A'"
+                  [style.background-color]="categoryTint(file.category)"
                   [style.color]="categoryColor(file.category)">
                   {{ file.category }}
                 </span>
@@ -202,7 +202,7 @@
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="inline-block rounded-full px-3 py-0.5 text-xs font-medium"
-                  [style.background-color]="categoryColor(item.category) + '1A'"
+                  [style.background-color]="categoryTint(item.category)"
                   [style.color]="categoryColor(item.category)">
                   {{ item.category }}
                 </span>

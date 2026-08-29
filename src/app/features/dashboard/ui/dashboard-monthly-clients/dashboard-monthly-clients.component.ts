@@ -22,7 +22,7 @@ import {
 import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
 
 /** Color de la barra del mes en curso y de los meses anteriores (azul de marca). */
-const CURRENT_MONTH_COLOR = '#1E466B';
+const CURRENT_MONTH_COLOR = 'rgb(var(--color-indigo-600-rgb, 30 70 107))';
 const PAST_MONTH_COLOR = '#D7E3EF';
 
 /**

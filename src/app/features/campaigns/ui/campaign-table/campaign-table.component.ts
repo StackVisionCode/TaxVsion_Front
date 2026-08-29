@@ -78,7 +78,7 @@ export class CampaignTableComponent {
       case 'Marketing':
         return 'border-emerald-200 text-emerald-600';
       case 'Custom':
-        return 'border-[#67BAF4] text-[#1E466B]';
+        return 'border-[#67BAF4] text-brand-bold';
     }
   }
 
