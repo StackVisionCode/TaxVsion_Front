@@ -288,6 +288,8 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     originalFileId: detail.originalFileId,
     sealedFileId: detail.sealedFileId,
     certificateFileId: detail.certificateFileId,
+    requiresPractitionerPin: detail.requiresPractitionerPin,
+    practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,
   };
 }
 

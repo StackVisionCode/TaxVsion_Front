@@ -86,7 +86,8 @@
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
-          (extendRequested)="openExtendModal($event)" (downloadSealedRequested)="downloadSealed($event)"
+          (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)"
+          (downloadSealedRequested)="downloadSealed($event)"
           (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
         <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
           (pageChange)="onPageChange($event)"></app-pagination>
@@ -157,6 +158,46 @@
     <button type="button" (click)="confirmExtend()" [disabled]="actionBusy()"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
       {{ actionBusy() ? 'Extending…' : 'Extend' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- PIN del preparador: lo fija el staff y lo teclea el firmante en su paso de
+     verificación. Es la única verificación que el backend impone al firmar. -->
+<app-modal [isOpen]="pinTarget() !== null" heading="Signing PIN"
+  subheading="The signer must enter this PIN before they can sign" size="md" (closed)="closePinModal()">
+  <div *ngIf="pinTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      For <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
+      Share it with the signer in person or by a channel you trust — it is never shown again.
+    </p>
+
+    <p *ngIf="target.requiresPractitionerPin" class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+      This request already has a PIN. Entering a new one replaces it.
+    </p>
+
+    <input type="text" inputmode="numeric" autocomplete="off" [ngModel]="pinValue()"
+      (ngModelChange)="pinValue.set($event)" name="practitionerPin" placeholder="4–10 digits"
+      class="w-44 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm tracking-widest text-gray-700 focus:border-brand-bold focus:outline-none" />
+    <p *ngIf="pinValue() && !isPinValid()" class="text-xs text-amber-700">
+      The PIN must be 4 to 10 digits, numbers only.
+    </p>
+
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button *ngIf="pinTarget()?.requiresPractitionerPin" type="button" (click)="confirmClearPin()"
+      [disabled]="actionBusy()"
+      class="mr-auto rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+      Remove PIN
+    </button>
+    <button type="button" (click)="closePinModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmSetPin()" [disabled]="actionBusy() || !isPinValid()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Save PIN' }}
     </button>
   </div>
 </app-modal>

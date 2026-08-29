@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
@@ -8,6 +9,7 @@ import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
+import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
   TOKEN_EXPIRATION_MAX_HOURS,
@@ -83,6 +85,11 @@ export class SignaturePageComponent {
   readonly cancelReason = signal('');
   readonly extendTarget = signal<SignatureRequest | null>(null);
   readonly extendHours = signal(72);
+  /** Solicitud cuyo PIN del preparador se está fijando o quitando. */
+  readonly pinTarget = signal<SignatureRequest | null>(null);
+  readonly pinValue = signal('');
+  /** Misma regla que el dominio (4–10 dígitos), reutilizada del modelo público. */
+  readonly isPinValid = computed(() => isValidPractitionerPin(this.pinValue()));
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
 
@@ -231,6 +238,54 @@ export class SignaturePageComponent {
           this.previewRequest.set(null);
         }
         this.showToast(`Signature request "${target.documentName}" canceled`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- PIN del preparador ----------
+
+  openPinModal(request: SignatureRequest): void {
+    this.pinValue.set('');
+    this.actionError.set('');
+    this.pinTarget.set(request);
+  }
+
+  closePinModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.pinTarget.set(null);
+  }
+
+  confirmSetPin(): void {
+    const target = this.pinTarget();
+    if (!target || this.actionBusy() || !this.isPinValid()) {
+      return;
+    }
+    this.runPinAction(this.store.setPractitionerPin(target.id, this.pinValue().trim()), target, 'PIN set for');
+  }
+
+  /** Quita el PIN: la solicitud deja de exigir verificación por PIN al firmar. */
+  confirmClearPin(): void {
+    const target = this.pinTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPinAction(this.store.clearPractitionerPin(target.id), target, 'PIN removed from');
+  }
+
+  private runPinAction(action: Observable<void>, target: SignatureRequest, verb: string): void {
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    action.subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.pinTarget.set(null);
+        this.showToast(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);

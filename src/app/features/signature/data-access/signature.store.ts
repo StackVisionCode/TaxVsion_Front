@@ -230,6 +230,19 @@ export class SignatureStore {
     return this.service.extendExpiration(requestId, additionalHours).pipe(tap(() => this.refreshAfterAction()));
   }
 
+  /**
+   * PIN del preparador: lo fija el staff y el firmante lo teclea en su paso de
+   * verificación. Se refresca la lista porque el detalle expone
+   * `requiresPractitionerPin` / `practitionerPinSetAtUtc` y la UI los muestra.
+   */
+  setPractitionerPin(requestId: string, pin: string): Observable<void> {
+    return this.service.setPractitionerPin(requestId, pin).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  clearPractitionerPin(requestId: string): Observable<void> {
+    return this.service.clearPractitionerPin(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
   resendSigner(requestId: string, signerId: string): Observable<void> {
     return this.service.resendSignerInvitation(requestId, signerId);
   }

@@ -137,6 +137,26 @@ export class SignatureService {
     return this.http.post<void>(`${this.base}/requests/${requestId}/extend-expiration`, { additionalHours });
   }
 
+  /**
+   * Fija el PIN del preparador (4–10 dígitos) para verificar al firmante.
+   *
+   * Es **PUT**, no POST — verificado contra `SignatureRequestsController`; la
+   * guía de integración lo documenta como POST y eso daría 405.
+   *
+   * Sin esto la verificación de identidad no existe en la práctica: el dominio
+   * solo bloquea la firma con `RequiresPractitionerPin && !signer.IsPinVerified`,
+   * y ese flag es `PractitionerPinHash is not null`, así que mientras nadie fije
+   * el PIN el paso de verificación del firmante nunca aparece.
+   */
+  setPractitionerPin(requestId: string, pin: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/practitioner-pin`, { pin });
+  }
+
+  /** Quita el PIN: la solicitud vuelve a no exigir verificación por PIN. */
+  clearPractitionerPin(requestId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/practitioner-pin`);
+  }
+
   resendSignerInvitation(requestId: string, signerId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/requests/${requestId}/signers/${signerId}/resend`, {});
   }

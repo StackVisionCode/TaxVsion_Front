@@ -62,6 +62,17 @@ export interface SignatureRequest {
   signatureFields?: PlacedField[];
   /** Reglas de la solicitud (orden, canales, recordatorio…) definidas en el editor. */
   rules?: RequestRules;
+  /**
+   * true = la solicitud exige PIN del preparador para firmar.
+   *
+   * Es la ÚNICA verificación de identidad que el backend impone al firmar
+   * (`RequiresPractitionerPin && !signer.IsPinVerified`), y solo se activa
+   * cuando el staff fija un PIN, así que la UI necesita saberlo para ofrecer
+   * fijarlo o quitarlo.
+   */
+  requiresPractitionerPin?: boolean;
+  /** Cuándo se fijó el PIN (el backend no devuelve el PIN en claro, nunca). */
+  practitionerPinSetAtUtc?: string | null;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
@@ -106,6 +117,8 @@ export class SignatureTableComponent {
   @Output() resendRequested = new EventEmitter<SignatureRequest>();
   @Output() cancelRequested = new EventEmitter<SignatureRequest>();
   @Output() extendRequested = new EventEmitter<SignatureRequest>();
+  /** Fijar o quitar el PIN del preparador de esa solicitud. */
+  @Output() pinRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadSealedRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificateRequested = new EventEmitter<SignatureRequest>();
 
@@ -209,6 +222,14 @@ export class SignatureTableComponent {
     return isActionableStatus(request.status);
   }
 
+  /**
+   * El PIN solo se puede tocar mientras la solicitud siga viva: una vez
+   * completada, cancelada o vencida ya no hay firma que verificar.
+   */
+  canManagePin(request: SignatureRequest): boolean {
+    return isActionableStatus(request.status);
+  }
+
   /** Solo tiene sentido reenviar cuando la solicitud está en curso y queda alguien pendiente. */
   canResend(request: SignatureRequest): boolean {
     return request.status === 'in-progress' && request.signers.some(s => s.status === 'pending');
@@ -253,6 +274,12 @@ export class SignatureTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.extendRequested.emit(request);
+  }
+
+  onPinClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.pinRequested.emit(request);
   }
 
   onDownloadSealedClick(request: SignatureRequest, event: MouseEvent): void {

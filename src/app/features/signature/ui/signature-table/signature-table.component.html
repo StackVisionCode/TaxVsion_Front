@@ -77,6 +77,13 @@
                 <ion-icon name="time-outline" class="text-base"></ion-icon>
                 Extend expiration
               </button>
+              <!-- PIN del preparador: es la única verificación de identidad que
+                   el backend exige al firmar, y solo se activa si el staff lo fija. -->
+              <button *ngIf="canManagePin(request)" type="button" (click)="onPinClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="key-outline" class="text-base"></ion-icon>
+                {{ request.requiresPractitionerPin ? 'Change or remove PIN' : 'Set signing PIN' }}
+              </button>
               <button *ngIf="hasSealed(request)" type="button" (click)="onDownloadSealedClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="download-outline" class="text-base"></ion-icon>
