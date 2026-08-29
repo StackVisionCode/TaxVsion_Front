@@ -11,6 +11,7 @@ import {
   QueryList,
   ViewChild,
   ViewChildren,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -51,6 +52,35 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   /** Logo del tenant (o null → cae al asterisco de marca). */
   readonly logoUrl = this.branding.logoUrl;
   protected readonly showLogoFallback = signal(false);
+
+  /**
+   * Marca del sidebar colapsado (ancho 64px). Se prefiere el favicon: es el
+   * asset cuadrado del tenant y aguanta el tamaño chico sin verse borroso,
+   * mientras que un logo horizontal encogido a 40px queda diminuto. Si el
+   * tenant no subió favicon se usa el logo, y recién sin ninguno de los dos
+   * queda el asterisco de siempre.
+   */
+  protected readonly collapsedMarkUrl = computed(() => {
+    const favicon = this.faviconFailed() ? null : this.branding.faviconUrl();
+    return favicon ?? this.branding.logoUrl();
+  });
+  /** El favicon no cargó (p. ej. un .ico que el navegador no pinta en un <img>). */
+  private readonly faviconFailed = signal(false);
+  /** Ya no queda ninguna imagen que probar: se muestra el asterisco. */
+  protected readonly showMarkFallback = signal(false);
+
+  /**
+   * Fallback encadenado favicon → logo → asterisco. Sin el paso intermedio, un
+   * favicon que el navegador no sabe pintar dejaría el asterisco aunque el
+   * tenant tenga un logo perfectamente válido.
+   */
+  protected onMarkError(): void {
+    if (!this.faviconFailed() && this.branding.faviconUrl() && this.branding.logoUrl()) {
+      this.faviconFailed.set(true);
+      return;
+    }
+    this.showMarkFallback.set(true);
+  }
   private bodyTooltipEl: HTMLDivElement | null = null;
 
   readonly isExpanded = signal(false);
