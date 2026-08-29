@@ -97,6 +97,34 @@ describe('layoutWorkflow', () => {
     expect(layout.nodes.length).toBeGreaterThan(0);
   });
 
+  it('respeta la posición manual de un nodo y deja el resto automático', () => {
+    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 900, y: 640 })]);
+
+    const moved = layout.nodes.find(n => n.step.id === 'b')!;
+    expect(moved.x).toBe(900);
+    expect(moved.y).toBe(640);
+    // El padre, sin posición propia, lo sigue decidiendo el layout.
+    expect(layout.nodes.find(n => n.step.id === 'a')!.x).not.toBe(900);
+  });
+
+  it('traza los conectores contra la posición final, no la automática', () => {
+    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 900, y: 640 })]);
+
+    const edge = layout.connectors.find(c => c.id === 'a->b')!;
+    // El punto medio tiene que caer entre padre e hijo movido.
+    const parent = layout.nodes.find(n => n.step.id === 'a')!;
+    expect(edge.midX).toBeGreaterThan(Math.min(parent.x, 900));
+    expect(edge.midY).toBeGreaterThan(parent.y);
+    expect(edge.path).toContain('M ');
+  });
+
+  it('el lienzo crece para dejar sitio más allá del último nodo', () => {
+    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 1200, y: 900 })]);
+
+    expect(layout.width).toBeGreaterThan(1200);
+    expect(layout.height).toBeGreaterThan(900);
+  });
+
   it('mantiene todo el dibujo en coordenadas positivas', () => {
     const layout = layoutWorkflow([
       step('root', null, { typeId: 'condition' }),

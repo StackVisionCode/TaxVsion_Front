@@ -79,6 +79,18 @@ export class WorkflowStepPaletteComponent {
     }
   }
 
+  /**
+   * Arrastre al lienzo. El tipo viaja en un `dataTransfer` con un tipo MIME
+   * propio para que el canvas solo acepte lo que sale de este catálogo y no
+   * cualquier texto que el usuario suelte encima.
+   */
+  onDragStart(event: DragEvent, typeId: WorkflowStepTypeId): void {
+    event.dataTransfer?.setData('text/workflow-step', typeId);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'copy';
+    }
+  }
+
   toggleCollapsed(): void {
     this.collapsed.update(value => !value);
     this.collapsedChange.emit(this.collapsed());

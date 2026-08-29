@@ -1,7 +1,14 @@
-<!-- La altura viene del layout: los conectores se calcularon contra ella. -->
-<div class="wf-node absolute overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow"
-  [class]="type.border" [style.left.px]="node.x" [style.top.px]="node.y" [style.width.px]="node.width"
+<!--
+  La altura viene del layout: los conectores se calcularon contra ella.
+  La posición va por `translate3d` y NO por left/top: mover con left/top
+  dispara layout+paint en cada frame del arrastre, mientras que un transform
+  se resuelve en el compositor.
+-->
+<div class="wf-node absolute left-0 top-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow"
+  [class]="type.border" [class.wf-node--dragging]="dragging"
+  [style.transform]="'translate3d(' + node.x + 'px,' + node.y + 'px,0)'" [style.width.px]="node.width"
   [style.height.px]="node.height" [class.wf-node--selected]="selected" (click)="selectStep.emit(step.id)"
+  (pointerdown)="dragStart.emit($event)" style="touch-action: none;"
   [attr.aria-current]="selected ? 'true' : null">
 
   <!-- Cabecera: color por tipo -->
@@ -12,7 +19,8 @@
     <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ type.label }}</span>
 
     <div class="relative shrink-0" [attr.data-dropdown]="'node-' + step.id">
-      <button type="button" (click)="toggleMenu($event)" [attr.aria-label]="'Actions for ' + step.title"
+      <button type="button" (click)="toggleMenu($event)" (pointerdown)="$event.stopPropagation()"
+        [attr.aria-label]="'Actions for ' + step.title"
         class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-black/10 transition-colors">
         <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
       </button>

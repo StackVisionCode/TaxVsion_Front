@@ -1,7 +1,7 @@
 <div class="relative h-full w-full overflow-hidden rounded-[28px] bg-brand-white">
   <!-- viewport: el pan es scroll nativo -->
   <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
-    (pointerdown)="startPan($event)">
+    (pointerdown)="startPan($event)" (dragover)="allowDrop($event)" (drop)="onDrop($event)">
 
     <!-- sizer: reserva el área desplazable ya escalada -->
     <div class="relative" [style.width.px]="layout.width * zoom()" [style.height.px]="layout.height * zoom()">
@@ -39,7 +39,9 @@
 
         <!-- Nodos -->
         <app-workflow-node *ngFor="let node of layout.nodes; trackBy: trackNode" [node]="node"
-          [selected]="node.step.id === selectedId" (selectStep)="selectStep.emit($event)"
+          [selected]="node.step.id === selectedId" [dragging]="node.step.id === draggingId()"
+          (dragStart)="startNodeDrag($event, node)"
+          (selectStep)="onNodeClick($event)"
           (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"></app-workflow-node>
 
         <!-- END: se deriva del layout, no es un paso guardado -->
@@ -69,6 +71,11 @@
     <button type="button" (click)="fit()" aria-label="Fit to screen"
       class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
       <ion-icon name="scan-outline" class="text-base"></ion-icon>
+    </button>
+    <!-- Recolocar: rescata el lienzo cuando quedó desordenado a mano. -->
+    <button type="button" (click)="tidy.emit()" aria-label="Tidy layout"
+      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+      <ion-icon name="grid-outline" class="text-base"></ion-icon>
     </button>
   </div>
 

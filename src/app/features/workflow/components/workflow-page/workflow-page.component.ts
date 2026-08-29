@@ -95,6 +95,38 @@ export class WorkflowPageComponent {
     this.store.addStep(typeId, leaf.id, null);
   }
 
+  /**
+   * Suelta un paso del catálogo en el lienzo.
+   *
+   * El flujo sigue siendo un árbol, así que el paso necesita un padre: se elige
+   * el nodo más cercano que quede POR ENCIMA del punto donde se soltó, que es
+   * el que la vista sugiere. Si no hay ninguno encima (se soltó arriba del
+   * todo) se cuelga de la última hoja para no romper la cadena.
+   */
+  onDropStep(event: { typeId: string; x: number; y: number }): void {
+    const typeId = event.typeId as WorkflowStepTypeId;
+    const nodes = this.layout().nodes;
+
+    if (nodes.length === 0) {
+      this.store.addStepAt(typeId, null, event.x, event.y);
+      return;
+    }
+
+    const above = nodes.filter(node => node.y + node.height <= event.y);
+    const pool = above.length > 0 ? above : nodes;
+    const nearest = pool.reduce((best, node) => {
+      const distance = Math.hypot(node.x + node.width / 2 - event.x, node.y + node.height - event.y);
+      const bestDistance = Math.hypot(best.x + best.width / 2 - event.x, best.y + best.height - event.y);
+      return distance < bestDistance ? node : best;
+    });
+
+    this.store.addStepAt(typeId, nearest.step.id, event.x, event.y);
+  }
+
+  onMoveLive(event: { id: string; x: number; y: number }): void {
+    this.store.moveStepLive(event.id, event.x, event.y);
+  }
+
   requestDelete(stepId: string): void {
     this.pendingDeleteId.set(stepId);
   }
