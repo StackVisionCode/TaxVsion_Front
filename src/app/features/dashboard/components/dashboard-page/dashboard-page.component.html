@@ -8,9 +8,10 @@
     <div *ngFor="let widget of layout.widgets(); trackBy: trackById" class="widget-cell relative"
       [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }" [attr.data-widget-id]="widget.id" cdkDrag
       [cdkDragDisabled]="!layout.editMode()">
-      <!-- Placeholder mientras se arrastra: hueco suave del mismo tamaño -->
+      <!-- Placeholder mientras se arrastra: hueco del mismo tamaño, en el color
+           de marca para que se lea como "aquí cae" y no como un widget roto -->
       <div *cdkDragPlaceholder
-        class="h-full min-h-32 rounded-[28px] border-2 border-dashed border-[#D7E3EF] bg-white/50"></div>
+        class="drop-slot h-full min-h-32 rounded-[28px] border-2 border-dashed bg-white/50"></div>
 
       <!-- Handle visual en modo edición -->
       <span *ngIf="layout.editMode()"
