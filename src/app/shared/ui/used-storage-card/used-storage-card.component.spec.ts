@@ -55,10 +55,11 @@ describe('UsedStorageCardComponent', () => {
     expect(component.usedPercent()).toBeCloseTo(75, 5);
   });
 
-  it('muestra "<1" en vez de 0 cuando hay datos pero ocupan menos del 1 %', () => {
+  it('redondea a 0 cuando lo usado no llega al 1 %, sin prefijos', () => {
     mountEmptyThenLoad([{ name: 'Documents', color: '#111827', sizeBytes: 4 * MB }], 200 * GB);
 
-    expect(component.displayPercent()).toBe('<1');
+    // El anillo (abajo) es lo que distingue "poco" de "nada"; el número no lleva "<".
+    expect(component.displayPercent()).toBe('0');
   });
 
   it('colorea al menos un punto del anillo cuando hay algo guardado', () => {

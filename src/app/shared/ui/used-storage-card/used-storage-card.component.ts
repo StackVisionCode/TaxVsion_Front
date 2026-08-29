@@ -86,19 +86,17 @@ export class UsedStorageCardComponent implements OnChanges, OnDestroy {
   private readonly counter = signal(0);
 
   /**
-   * Texto del centro. Con cuotas grandes lo habitual es que el uso real
-   * redondee a 0 % (4 MB de 200 GB), y un "0%" se lee igual que "no cargó":
-   * por eso ese caso se muestra como "<1%" mientras haya algún byte ocupado.
+   * Texto del centro: el porcentaje usado, redondeado.
+   *
+   * Con cuotas grandes lo normal es que dé 0 (581 KB de 200 GB), y eso se deja
+   * tal cual: el dato fino ya está en el subtítulo ("X of Y used") y en la
+   * leyenda por categoría, y el anillo colorea al menos un punto en cuanto hay
+   * algo guardado, así que un 0 no se confunde con una cuenta vacía.
    */
   readonly displayPercent = computed<string>(() => {
     const exact = this.usedPercent();
     if (exact === null) {
       return '—';
-    }
-    // Contar de 0 a 0 no aporta nada, así que por debajo del 1 % se muestra
-    // el literal directamente en vez de seguir al contador.
-    if (exact > 0 && exact < 1) {
-      return '<1';
     }
     return `${Math.round(this.counter())}`;
   });

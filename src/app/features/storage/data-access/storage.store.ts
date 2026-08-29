@@ -71,6 +71,17 @@ export class StorageStore {
   readonly groupsError = this._groupsError.asReadonly();
 
   /**
+   * Los archivos propios (muestra de GET /storage/files) y la papelera.
+   *
+   * Se exponen porque las tarjetas de categoría cuentan ESTOS archivos: al
+   * filtrar por una categoría la tabla tiene que poder listarlos. Antes solo
+   * se filtraba "shared with me", así que una categoría con archivos propios
+   * mostraba "0 file(s)" y parecía rota.
+   */
+  readonly files = this._files.asReadonly();
+  readonly trash = this._trash.asReadonly();
+
+  /**
    * Grupos del donut/tarjetas, computados client-side: GET /storage/usage no
    * trae desglose por categoría, así que se clasifica por extensión el listado
    * de GET /storage/files (muestra de hasta 500) + GET /storage/recycle-bin
