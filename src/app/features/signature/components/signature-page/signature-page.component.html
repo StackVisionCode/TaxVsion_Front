@@ -42,6 +42,11 @@
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             My signature
           </button>
+          <button type="button" (click)="openTemplatePicker()"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+            <ion-icon name="documents-outline" class="text-base"></ion-icon>
+            From template
+          </button>
           <button type="button" (click)="openCreatePanel()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
@@ -106,6 +111,11 @@
     </ng-template>
   </ng-template>
 </div>
+
+<!-- Crear desde plantilla: el molde aporta campos y settings; solo se pide el
+     documento y quién firma cada rol. -->
+<app-signature-template-picker [isOpen]="isTemplatePickerOpen()" (closed)="closeTemplatePicker()"
+  (created)="handleTemplateInstantiated($event)"></app-signature-template-picker>
 
 <!-- Signature generator overlay -->
 <app-signature-creator [isOpen]="isCreatorOpen()" (closed)="closeCreator()"

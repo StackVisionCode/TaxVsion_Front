@@ -6,6 +6,7 @@ import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/sign
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
+import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
@@ -59,6 +60,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureCreatorComponent,
     PaginationComponent,
     ModalComponent,
+    SignatureTemplatePickerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
@@ -73,6 +75,8 @@ export class SignaturePageComponent {
 
   /** Generador de firmas (adaptado del CRM legado): modal + firma propia del preparador. */
   readonly isCreatorOpen = signal(false);
+  /** Modal para crear la solicitud a partir de una plantilla guardada. */
+  readonly isTemplatePickerOpen = signal(false);
   readonly mySignature = signal<CreatedSignature | null>(null);
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
@@ -167,6 +171,23 @@ export class SignaturePageComponent {
 
   closePanel(): void {
     this.isPanelOpen.set(false);
+  }
+
+  openTemplatePicker(): void {
+    this.isTemplatePickerOpen.set(true);
+  }
+
+  closeTemplatePicker(): void {
+    this.isTemplatePickerOpen.set(false);
+  }
+
+  /**
+   * La plantilla ya creó la solicitud en Draft. No se envía sola: el PDF sigue
+   * en escaneo y `send` exige `Ready`, así que queda en la lista para revisarla.
+   */
+  handleTemplateInstantiated(detail: { title: string }): void {
+    this.closeTemplatePicker();
+    this.showToast(`Draft created from template — "${detail.title}" is ready to review`);
   }
 
   openCreator(): void {

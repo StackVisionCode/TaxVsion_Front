@@ -159,6 +159,88 @@ export interface SignatureAnalyticsSummary {
   rejectionRate: number;
 }
 
+// ---------- Plantillas de firma ----------
+
+/** Draft = aún se edita; Published = usable; Archived = fuera de circulación. */
+export type SignatureTemplateStatus = 'Draft' | 'Published' | 'Archived';
+
+/** Fila de GET /signature/templates. */
+export interface TemplateSummary {
+  id: string;
+  title: string;
+  category: SignatureCategory;
+  status: SignatureTemplateStatus;
+  /** Cuántos firmantes por rol define el molde: hay que atar uno concreto a cada uno. */
+  slotCount: number;
+  fieldCount: number;
+  createdAtUtc: string;
+  publishedAtUtc: string | null;
+}
+
+export interface TemplateListResult {
+  items: TemplateSummary[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Rol de firmante del molde (p. ej. "Client", "Spouse", "Preparer"). */
+export interface TemplateSlotResponse {
+  id: string;
+  order: number;
+  role: string;
+  defaultLanguage: string;
+}
+
+export interface TemplateFieldResponse {
+  id: string;
+  slotOrder: number;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+  isRequired: boolean;
+}
+
+/** GET /signature/templates/{id} — el molde completo, con sus slots y campos. */
+export interface SignatureTemplateDetail {
+  id: string;
+  title: string;
+  description: string | null;
+  category: SignatureCategory;
+  status: SignatureTemplateStatus;
+  defaultTokenExpirationHours: number;
+  requiresSequentialSigning: boolean;
+  requiresConsent: boolean;
+  generateCertificate: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  publishedAtUtc: string | null;
+  slots: TemplateSlotResponse[];
+  fields: TemplateFieldResponse[];
+}
+
+/** Ata un firmante real a un rol del molde. */
+export interface SlotBinding {
+  slotOrder: number;
+  email: string;
+  fullName: string;
+}
+
+/**
+ * POST /signature/templates/{id}/instantiate.
+ * El PDF ya tiene que estar subido a CloudStorage: la plantilla aporta el
+ * layout de campos y los settings, no el documento.
+ */
+export interface InstantiateTemplateBody {
+  originalFileId: string;
+  slotBindings: SlotBinding[];
+  descriptionOverride: string | null;
+}
+
 // ---------- Cuerpos de request ----------
 
 /**

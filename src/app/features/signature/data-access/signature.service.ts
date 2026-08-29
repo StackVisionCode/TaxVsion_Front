@@ -14,8 +14,12 @@ import {
   SignatureFieldResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
+  SignatureTemplateDetail,
+  SignatureTemplateStatus,
   SignerResponse,
   SetPreparerBody,
+  InstantiateTemplateBody,
+  TemplateListResult,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -182,6 +186,36 @@ export class SignatureService {
    */
   signAsPreparer(requestId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/sign`, {});
+  }
+
+  // ---------- Plantillas ----------
+
+  /**
+   * Moldes reutilizables de solicitud.
+   *
+   * ⚠️ Exige el permiso `signature.template.create`, que el rol Employee por
+   * defecto NO tiene: para un empleado esto responde 403, no una lista vacía.
+   */
+  listTemplates(status?: SignatureTemplateStatus, page = 1, size = 50): Observable<TemplateListResult> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.http.get<TemplateListResult>(`${this.base}/templates`, { params });
+  }
+
+  /** El molde completo: hace falta para saber qué roles (slots) hay que atar. */
+  getTemplate(templateId: string): Observable<SignatureTemplateDetail> {
+    return this.http.get<SignatureTemplateDetail>(`${this.base}/templates/${templateId}`);
+  }
+
+  /**
+   * Crea una solicitud a partir del molde → 201 con el mismo
+   * `SignatureRequestDetail` que `create`, así que el flujo sigue igual desde
+   * ahí (esperar Ready y enviar).
+   */
+  instantiateTemplate(templateId: string, body: InstantiateTemplateBody): Observable<SignatureRequestDetail> {
+    return this.http.post<SignatureRequestDetail>(`${this.base}/templates/${templateId}/instantiate`, body);
   }
 
   resendSignerInvitation(requestId: string, signerId: string): Observable<void> {

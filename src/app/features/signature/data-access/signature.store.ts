@@ -10,6 +10,9 @@ import {
   SignatureFieldKind,
   SetPreparerBody,
   SignatureRequestDetail,
+  SignatureTemplateDetail,
+  SlotBinding,
+  TemplateSummary,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -258,6 +261,65 @@ export class SignatureStore {
 
   signAsPreparer(requestId: string): Observable<void> {
     return this.service.signAsPreparer(requestId);
+  }
+
+  // ---------- Plantillas ----------
+
+  readonly templates = signal<TemplateSummary[]>([]);
+  readonly templatesLoading = signal(false);
+  readonly templatesError = signal<string | null>(null);
+
+  /**
+   * Solo las publicadas: un molde en Draft todavía se está armando y sus slots
+   * o campos pueden estar incompletos, así que instanciarlo daría una solicitud
+   * a medias.
+   */
+  loadTemplates(): void {
+    this.templatesLoading.set(true);
+    this.templatesError.set(null);
+    this.service.listTemplates('Published').subscribe({
+      next: result => {
+        this.templates.set(result.items ?? []);
+        this.templatesLoading.set(false);
+      },
+      error: err => {
+        this.templatesError.set(toApiError(err).message);
+        this.templatesLoading.set(false);
+      },
+    });
+  }
+
+  getTemplate(templateId: string): Observable<SignatureTemplateDetail> {
+    return this.service.getTemplate(templateId);
+  }
+
+  /**
+   * Crea la solicitud desde el molde. El PDF pasa por el mismo preflight y la
+   * misma cadena de CloudStorage que el wizard normal — la plantilla aporta el
+   * layout de campos y los settings, nunca el documento.
+   *
+   * Queda en Draft a propósito: el staff revisa y envía desde la lista, igual
+   * que una solicitud creada a mano (Draft→Ready sigue dependiendo del scan).
+   */
+  instantiateTemplate(
+    templateId: string,
+    file: File,
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+  ): Observable<SignatureRequestDetail> {
+    return this.service.validateDocument(file).pipe(
+      switchMap(validation => {
+        if (!validation.isAcceptable) {
+          // `issues` son objetos {code, message}, no strings (la guía dice string[]).
+          throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
+        }
+        return this.service.uploadOriginalDocument(file, validation.validationRecordId);
+      }),
+      switchMap(originalFileId =>
+        this.service.instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride }),
+      ),
+      tap(() => this.refreshAfterAction()),
+    );
   }
 
   resendSigner(requestId: string, signerId: string): Observable<void> {
