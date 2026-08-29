@@ -32,6 +32,8 @@
             class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
             <img [src]="sig.dataUrl" alt="My signature" class="h-8 max-w-[140px] object-contain" />
             <span class="text-xs font-medium text-gray-600">{{ sig.displayName }}</span>
+            <!-- No hay endpoint que reciba la imagen: vive solo en esta pantalla. -->
+            <span class="text-[10px] text-gray-400">this screen only</span>
             <button type="button" (click)="openCreator()"
               class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Change</button>
           </div>
@@ -222,10 +224,24 @@
       For <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
     </p>
 
-    <p class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
-      The request detail doesn't report the preparer back, so these fields always start empty and
-      there's no way to show whether one is already saved. Saving again simply replaces it.
-    </p>
+    <!-- El backend no devuelve el preparador en el detalle, así que esto solo
+         refleja lo guardado en esta sesión; se dice, no se aparenta. -->
+    <div *ngIf="preparerState() as state; else noPreparerYet"
+      class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+      <p *ngIf="state.info as info">
+        Saved this session: <span class="font-semibold text-gray-900">{{ info.displayName }}</span>
+        <span class="text-gray-500"> · {{ info.ptinOrEfin }}</span>
+      </p>
+      <p *ngIf="!state.info">No preparer on this request — it was removed in this session.</p>
+      <p *ngIf="state.signed" class="mt-1 text-emerald-700">Signed as preparer in this session.</p>
+      <p class="mt-1 text-xs text-gray-400">Reloading the page clears this: the server doesn't report it back.</p>
+    </div>
+    <ng-template #noPreparerYet>
+      <p class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+        The request detail doesn't report the preparer, so there's no way to show whether one is already
+        saved. Saving replaces whatever is there.
+      </p>
+    </ng-template>
 
     <label class="text-xs font-medium text-gray-500">PTIN or EFIN</label>
     <input type="text" autocomplete="off" [ngModel]="preparerPtin()" (ngModelChange)="preparerPtin.set($event)"

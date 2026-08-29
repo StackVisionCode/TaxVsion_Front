@@ -8,6 +8,7 @@ import {
   ApiSignatureRequestStatus,
   SignatureCategory,
   SignatureFieldKind,
+  PreparerSessionState,
   SetPreparerBody,
   SignatureRequestDetail,
   SignatureTemplateDetail,
@@ -248,19 +249,40 @@ export class SignatureStore {
   }
 
   /**
-   * Preparador (Form 8879 §V). No se refresca la lista porque el detalle NO
-   * devuelve el preparador ni `IsPreparerSigned`: no hay nada nuevo que leer.
+   * Preparador guardado en ESTA sesión, por solicitud.
+   *
+   * `SignatureRequestResponse` no devuelve el preparador ni `IsPreparerSigned`,
+   * así que sin esto el formulario salía vacío cada vez y no había forma de
+   * saber si ya se había guardado algo o firmado. Se conserva la respuesta de
+   * la propia escritura —que es lo que quedó en el servidor— para poder
+   * precargar y mostrar el estado mientras dure la sesión.
    */
+  private readonly _preparers = signal<Record<string, PreparerSessionState>>({});
+  readonly preparers = this._preparers.asReadonly();
+
+  preparerFor(requestId: string): PreparerSessionState | null {
+    return this._preparers()[requestId] ?? null;
+  }
+
+  private patchPreparer(requestId: string, patch: Partial<PreparerSessionState>): void {
+    this._preparers.update(all => {
+      const current = all[requestId] ?? { info: null, signed: false };
+      return { ...all, [requestId]: { ...current, ...patch } };
+    });
+  }
+
   setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
-    return this.service.setPreparer(requestId, body);
+    return this.service.setPreparer(requestId, body).pipe(tap(() => this.patchPreparer(requestId, { info: body })));
   }
 
   clearPreparer(requestId: string): Observable<void> {
-    return this.service.clearPreparer(requestId);
+    return this.service
+      .clearPreparer(requestId)
+      .pipe(tap(() => this.patchPreparer(requestId, { info: null, signed: false })));
   }
 
   signAsPreparer(requestId: string): Observable<void> {
-    return this.service.signAsPreparer(requestId);
+    return this.service.signAsPreparer(requestId).pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
   }
 
   // ---------- Plantillas ----------

@@ -198,10 +198,19 @@ export class SignaturePageComponent {
     this.isCreatorOpen.set(false);
   }
 
+  /**
+   * La imagen se queda SOLO en memoria de esta pantalla.
+   *
+   * Ningún endpoint de Signature acepta un binario de firma: `SetPreparerBody`
+   * son tres strings y `preparer/sign` va sin body, así que no hay dónde
+   * enviarla. Decir "saved" prometía una persistencia que no existe — se pierde
+   * al recargar. Tampoco se guarda en localStorage a propósito: una firma
+   * manuscrita es un dato sensible y ahí la leería cualquier script de la página.
+   */
   handleSignatureCreated(signature: CreatedSignature): void {
     this.mySignature.set(signature);
     this.closeCreator();
-    this.showToast('Signature saved');
+    this.showToast('Signature ready — kept on this screen only, not stored on the server');
   }
 
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */
@@ -327,17 +336,25 @@ export class SignaturePageComponent {
   // ---------- Preparador (Form 8879 §V) ----------
 
   /**
-   * Los campos arrancan vacíos siempre: el detalle del backend NO devuelve el
-   * preparador, así que no hay forma de pre-cargar lo ya guardado. La UI lo
-   * dice en vez de aparentar un formulario que refleja el estado real.
+   * Precarga lo guardado en ESTA sesión. El detalle del backend no devuelve el
+   * preparador, así que es lo último que este navegador escribió: evita
+   * retipearlo todo para cambiar un campo, y al recargar la página vuelve a
+   * quedar vacío (la UI lo advierte).
    */
   openPreparerModal(request: SignatureRequest): void {
-    this.preparerPtin.set('');
-    this.preparerName.set('');
-    this.preparerTitle.set('');
+    const known = this.store.preparerFor(request.id);
+    this.preparerPtin.set(known?.info?.ptinOrEfin ?? '');
+    this.preparerName.set(known?.info?.displayName ?? '');
+    this.preparerTitle.set(known?.info?.titleLabel ?? '');
     this.actionError.set('');
     this.preparerTarget.set(request);
   }
+
+  /** Lo que sabemos del preparador de la solicitud abierta (solo esta sesión). */
+  readonly preparerState = computed(() => {
+    const target = this.preparerTarget();
+    return target ? this.store.preparerFor(target.id) : null;
+  });
 
   closePreparerModal(): void {
     if (this.actionBusy()) {

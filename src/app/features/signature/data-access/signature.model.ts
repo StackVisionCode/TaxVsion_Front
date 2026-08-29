@@ -253,6 +253,18 @@ export interface SetPreparerBody {
   titleLabel: string | null;
 }
 
+/**
+ * Lo que se sabe del preparador de una solicitud DENTRO de esta sesión.
+ *
+ * El backend no lo devuelve en el detalle, así que es lo último que este
+ * navegador escribió: sirve para precargar el formulario y no repreguntar,
+ * pero se pierde al recargar y no refleja lo que otro usuario haya cambiado.
+ */
+export interface PreparerSessionState {
+  info: SetPreparerBody | null;
+  signed: boolean;
+}
+
 export interface CreateSignatureRequestBody {
   title: string;
   description?: string | null;
