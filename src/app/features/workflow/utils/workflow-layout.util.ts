@@ -33,6 +33,11 @@ const END_WIDTH = 118;
 const END_HEIGHT = 44;
 /** Margen alrededor del diagrama. */
 const PADDING = 48;
+/**
+ * Margen superior extra: la barra flotante de Builder/Debugger y el undo/redo
+ * van encima del lienzo, y con solo `PADDING` tapaban el primer nodo.
+ */
+const TOP_PADDING = 104;
 
 export interface PositionedNode {
   step: WorkflowStep;
@@ -156,63 +161,84 @@ export function layoutWorkflow(steps: WorkflowStep[]): WorkflowLayout {
 
   const placed = new Set<string>();
 
-  /** Coloca el subárbol dentro de la banda [laneStart, laneStart + ancho). */
+  /**
+   * Fase 1 — posición automática del subárbol dentro de [laneStart, +ancho).
+   * Es solo la posición POR DEFECTO: si el paso trae `x`/`y` porque el usuario
+   * lo arrastró, esos ganan justo después.
+   */
   function place(step: WorkflowStep, depth: number, laneStart: number, top: number): void {
     if (!guardCycle(placed, step.id)) {
       return;
     }
     const span = measure(steps, step, cache);
-    const centerX = (laneStart + span / 2) * lane;
+    const autoX = (laneStart + span / 2) * lane - NODE_WIDTH / 2;
     const height = nodeHeight(step);
-    const x = centerX - NODE_WIDTH / 2;
 
-    nodes.push({ step, x, y: top, width: NODE_WIDTH, height, branch: step.branch });
+    nodes.push({
+      step,
+      // El PADDING va aquí, no en una normalización al final: con posiciones
+      // libres, recentrar todo el diagrama cada vez que se mueve un nodo haría
+      // que el lienzo "salte" bajo el cursor.
+      x: typeof step.x === 'number' ? step.x : autoX + PADDING,
+      y: typeof step.y === 'number' ? step.y : top + TOP_PADDING,
+      width: NODE_WIDTH,
+      height,
+      branch: step.branch,
+    });
 
     const children = orderedChildren(steps, step.id);
     const childTop = top + height + ROW_GAP;
-    const branching = isBranching(step);
     let cursor = laneStart;
 
     for (const child of children) {
-      const childSpan = measure(steps, child, cache);
-      const childCenter = (cursor + childSpan / 2) * lane;
-      const label = branching ? (child.branch === 'no' ? 'No' : 'Yes') : null;
-
-      connectors.push({
-        id: `${step.id}->${child.id}`,
-        path: connectorPath(centerX, top + height, childCenter, childTop),
-        midX: centerX + (childCenter - centerX) / 2,
-        midY: top + height + ROW_GAP / 2,
-        parentId: step.id,
-        branch: child.branch,
-        label,
-        // La píldora va cerca del padre, antes del codo, como en el diseño.
-        labelX: childCenter,
-        labelY: top + height + ROW_GAP / 2,
-      });
-
       place(child, depth + 1, cursor, childTop);
-      cursor += childSpan;
-    }
-
-    // Una hoja: deja un `+` colgando para seguir construyendo.
-    if (children.length === 0) {
-      const branch = branching ? 'yes' : null;
-      connectors.push({
-        id: `${step.id}->end`,
-        path: '',
-        midX: centerX,
-        midY: top + height + ROW_GAP / 2,
-        parentId: step.id,
-        branch,
-        label: null,
-        labelX: centerX,
-        labelY: 0,
-      });
+      cursor += measure(steps, child, cache);
     }
   }
 
   place(root, 0, 0, 0);
+
+  // Fase 2 — conectores contra las posiciones FINALES. Separarlo de la fase 1
+  // es lo que permite mover nodos libremente sin que las líneas se queden
+  // dibujadas donde estaba el nodo antes.
+  const byId = new Map(nodes.map(node => [node.step.id, node]));
+  for (const node of nodes) {
+    const children = orderedChildren(steps, node.step.id).map(child => byId.get(child.id)).filter(Boolean) as PositionedNode[];
+    const branching = isBranching(node.step);
+    const fromX = node.x + node.width / 2;
+    const fromY = node.y + node.height;
+
+    for (const child of children) {
+      const toX = child.x + child.width / 2;
+      const toY = child.y;
+      connectors.push({
+        id: `${node.step.id}->${child.step.id}`,
+        path: connectorPath(fromX, fromY, toX, toY),
+        midX: fromX + (toX - fromX) / 2,
+        midY: fromY + (toY - fromY) / 2,
+        parentId: node.step.id,
+        branch: child.step.branch,
+        label: branching ? (child.step.branch === 'no' ? 'No' : 'Yes') : null,
+        labelX: toX,
+        labelY: fromY + (toY - fromY) / 2,
+      });
+    }
+
+    // Hoja: `+` colgando para seguir construyendo.
+    if (children.length === 0) {
+      connectors.push({
+        id: `${node.step.id}->end`,
+        path: '',
+        midX: fromX,
+        midY: fromY + ROW_GAP / 2,
+        parentId: node.step.id,
+        branch: branching ? 'yes' : null,
+        label: null,
+        labelX: fromX,
+        labelY: 0,
+      });
+    }
+  }
 
   // El END cuelga bajo la fila más profunda y recoge todas las hojas.
   const leaves = nodes.filter(node => !nodes.some(other => other.step.parentId === node.step.id));
@@ -235,30 +261,9 @@ export function layoutWorkflow(steps: WorkflowStep[]): WorkflowLayout {
     });
   }
 
-  // Normaliza a coordenadas positivas con margen.
-  const minX = Math.min(...nodes.map(n => n.x), end.x);
-  const shift = PADDING - minX;
-  for (const node of nodes) {
-    node.x += shift;
-  }
-  for (const connector of connectors) {
-    connector.midX += shift;
-    connector.labelX += shift;
-    connector.path = shiftPath(connector.path, shift);
-  }
-  end.x += shift;
-
-  const width = Math.max(...nodes.map(n => n.x + n.width), end.x + end.width) + PADDING;
-  const height = end.y + end.height + PADDING;
+  // El lienzo crece con el contenido y deja siempre sitio libre alrededor,
+  // para poder arrastrar un nodo más allá del último.
+  const width = Math.max(...nodes.map(n => n.x + n.width), end.x + end.width) + PADDING * 4;
+  const height = Math.max(end.y + end.height, ...nodes.map(n => n.y + n.height)) + PADDING * 4;
   return { nodes, connectors, end, width, height };
-}
-
-/** Desplaza en X un path ya generado (solo tiene números `x y` en pares). */
-function shiftPath(path: string, dx: number): string {
-  if (!path) {
-    return path;
-  }
-  return path.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_match, x: string, y: string) =>
-    `${(parseFloat(x) + dx).toFixed(2)} ${y}`,
-  );
 }

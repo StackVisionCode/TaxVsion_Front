@@ -103,7 +103,9 @@
       <app-workflow-canvas *ngIf="activeTab() === 'builder'; else debuggerTab" [layout]="layout()"
         [selectedId]="store.selectedId()" (selectStep)="store.select($event)" (deleteStep)="requestDelete($event)"
         (duplicateStep)="store.duplicateStep($event)"
-        (insertStep)="onInsertRequested($event)"></app-workflow-canvas>
+        (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
+        (moveStepStart)="store.beginMove()" (moveStepLive)="onMoveLive($event)"
+        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"></app-workflow-canvas>
 
       <ng-template #debuggerTab>
         <div class="flex h-full flex-col items-center justify-center rounded-[28px] bg-brand-white text-center">

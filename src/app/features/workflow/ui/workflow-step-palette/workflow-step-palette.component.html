@@ -32,8 +32,10 @@
       <div *ngFor="let group of groups()" class="wf-group mt-3 first:mt-1">
         <p class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
 
-        <button *ngFor="let type of group.types" type="button" (click)="addStep.emit(type.id)"
-          class="wf-item group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition-colors">
+        <!-- Se puede pulsar (inserta en el punto marcado) o arrastrar al lienzo. -->
+        <button *ngFor="let type of group.types" type="button" (click)="addStep.emit(type.id)" draggable="true"
+          (dragstart)="onDragStart($event, type.id)"
+          class="wf-item group flex w-full cursor-grab items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 active:cursor-grabbing transition-colors">
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" [class]="type.chip">
             <ion-icon [name]="type.icon" class="text-base text-white"></ion-icon>
           </span>

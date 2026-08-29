@@ -52,6 +52,15 @@ export interface WorkflowStep {
   branch: WorkflowBranch | null;
   /** Configuración libre por tipo; la pinta el panel derecho. */
   config: Record<string, string | string[]>;
+  /**
+   * Posición en el lienzo, si el usuario movió el nodo.
+   *
+   * Cuando falta, el layout automático decide dónde va: así un paso recién
+   * insertado aparece ordenado sin pedirle al usuario que lo coloque, pero en
+   * cuanto lo arrastra su posición manda y ya no se le vuelve a mover debajo.
+   */
+  x?: number;
+  y?: number;
 }
 
 export interface WorkflowDoc {

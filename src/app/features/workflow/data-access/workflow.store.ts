@@ -134,6 +134,79 @@ export class WorkflowStore {
     return id;
   }
 
+  /**
+   * Igual que `addStep` pero fijando dónde cae en el lienzo: es lo que usa el
+   * arrastre desde el catálogo. A diferencia de `addStep`, NO adopta los hijos
+   * del padre — quien suelta un paso en un hueco quiere un paso ahí, no
+   * reencaminar la rama entera.
+   */
+  addStepAt(typeId: WorkflowStepTypeId, parentId: string | null, x: number, y: number): string {
+    const type = stepTypeOrFallback(typeId);
+    const id = `step-${Math.random().toString(36).slice(2, 10)}`;
+    const step: WorkflowStep = {
+      id,
+      typeId,
+      title: type.defaultTitle,
+      subtitle: type.defaultSubtitle,
+      parentId,
+      branch: null,
+      config: {},
+      x: Math.max(0, Math.round(x)),
+      y: Math.max(0, Math.round(y)),
+    };
+    this.commit(doc => ({ ...doc, steps: [...doc.steps, step] }));
+    this._selectedId.set(id);
+    return id;
+  }
+
+  /**
+   * Arrastre de un nodo, en tres tiempos.
+   *
+   * El movimiento se aplica en vivo (para que los conectores sigan al nodo)
+   * pero SIN tocar el historial: si cada `pointermove` apilara un estado, un
+   * solo arrastre dejaría cientos de pasos y "deshacer" sería inservible. Se
+   * guarda el documento previo al empezar y se apila una sola vez al soltar.
+   */
+  private dragOrigin: WorkflowDoc | null = null;
+
+  beginMove(): void {
+    this.dragOrigin = this._doc();
+  }
+
+  moveStepLive(stepId: string, x: number, y: number): void {
+    this._doc.update(doc => ({
+      ...doc,
+      steps: doc.steps.map(step =>
+        step.id === stepId ? { ...step, x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) } : step,
+      ),
+    }));
+  }
+
+  endMove(): void {
+    const origin = this.dragOrigin;
+    this.dragOrigin = null;
+    if (!origin) {
+      return;
+    }
+    const current = this._doc();
+    // Un clic sin desplazamiento no debería ensuciar el historial.
+    if (JSON.stringify(origin.steps) === JSON.stringify(current.steps)) {
+      return;
+    }
+    this._past.update(past => [...past, origin].slice(-HISTORY_LIMIT));
+    this._future.set([]);
+    this._doc.set({ ...current, updatedAtIso: new Date().toISOString() });
+    this.saveDoc(this._doc());
+  }
+
+  /** Devuelve todos los nodos al layout automático. */
+  tidyLayout(): void {
+    this.commit(doc => ({
+      ...doc,
+      steps: doc.steps.map(({ x: _x, y: _y, ...step }) => step),
+    }));
+  }
+
   updateStep(stepId: string, patch: Partial<Omit<WorkflowStep, 'id'>>): void {
     this.commit(doc => ({
       ...doc,

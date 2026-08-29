@@ -71,6 +71,53 @@ describe('WorkflowStore', () => {
     expect(store.canRedo()).toBe(false);
   });
 
+  it('un arrastre completo deja UN solo paso en el historial', () => {
+    const target = store.steps()[1];
+    const undoDepthBefore = store.canUndo();
+
+    store.beginMove();
+    // El arrastre real dispara decenas de movimientos intermedios.
+    store.moveStepLive(target.id, 500, 400);
+    store.moveStepLive(target.id, 520, 420);
+    store.moveStepLive(target.id, 540, 440);
+    store.endMove();
+
+    expect(store.canUndo()).toBe(true);
+    store.undo();
+    // Un único undo devuelve el nodo a donde estaba, no a un punto intermedio.
+    const restored = store.steps().find(step => step.id === target.id)!;
+    expect(restored.x).toBe(target.x);
+    expect(restored.y).toBe(target.y);
+    expect(undoDepthBefore).toBe(false);
+  });
+
+  it('un clic sin desplazamiento no ensucia el historial', () => {
+    store.beginMove();
+    store.endMove();
+    expect(store.canUndo()).toBe(false);
+  });
+
+  it('tidyLayout devuelve los nodos al layout automático', () => {
+    const target = store.steps()[1];
+    store.beginMove();
+    store.moveStepLive(target.id, 700, 500);
+    store.endMove();
+    expect(store.steps().find(step => step.id === target.id)!.x).toBe(700);
+
+    store.tidyLayout();
+    expect(store.steps().every(step => step.x === undefined && step.y === undefined)).toBe(true);
+  });
+
+  it('addStepAt coloca el paso donde se soltó', () => {
+    const root = store.steps()[0];
+    const id = store.addStepAt('delay', root.id, 320, 240);
+
+    const created = store.steps().find(step => step.id === id)!;
+    expect(created.x).toBe(320);
+    expect(created.y).toBe(240);
+    expect(created.parentId).toBe(root.id);
+  });
+
   it('persiste el documento y lo recupera en un store nuevo', () => {
     store.rename('My automation');
     const id = store.addStep('delay', store.steps()[0].id, null);

@@ -27,6 +27,8 @@ export class WorkflowNodeComponent {
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();
   @Output() duplicateStep = new EventEmitter<string>();
+  /** El arrastre lo gestiona el canvas, que es quien conoce zoom y scroll. */
+  @Output() dragStart = new EventEmitter<PointerEvent>();
 
   readonly menuOpen = signal(false);
 
