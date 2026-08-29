@@ -25,6 +25,8 @@ export class WorkflowNodeComponent {
   @Input() selected = false;
   /** true mientras se arrastra: promociona el nodo a su propia capa. */
   @Input() dragging = false;
+  /** true mientras se tira un hilo: la carta se marca como destino posible. */
+  @Input() linking = false;
 
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();
@@ -44,6 +46,16 @@ export class WorkflowNodeComponent {
 
   get pairs(): { label: string; value: string }[] {
     return summaryPairs(this.step);
+  }
+
+  /** Resumen de conexiones: "2 in · 1 out". */
+  get degreeLabel(): string {
+    return `${this.node.inDegree} in · ${this.node.outDegree} out`;
+  }
+
+  /** Datos que la carta necesita y nadie le manda. */
+  get missingLabel(): string {
+    return this.node.missing.map(field => field.label).join(', ');
   }
 
   /** El menú se cierra al pulsar fuera; el `data-dropdown` lo identifica. */

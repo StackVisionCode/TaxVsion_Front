@@ -1,142 +1,143 @@
-import { WorkflowStep } from '../data-access/workflow.model';
+import { WorkflowConnection, WorkflowStep } from '../data-access/workflow.model';
 import { NODE_WIDTH, layoutWorkflow } from './workflow-layout.util';
 
-function step(id: string, parentId: string | null, extra: Partial<WorkflowStep> = {}): WorkflowStep {
-  return {
-    id,
-    typeId: 'send-email',
-    title: id,
-    subtitle: '',
-    parentId,
-    branch: null,
-    config: {},
-    ...extra,
-  };
+function step(id: string, typeId: WorkflowStep['typeId'] = 'send-email', extra: Partial<WorkflowStep> = {}): WorkflowStep {
+  return { id, typeId, title: id, subtitle: '', config: {}, ...extra };
+}
+
+function link(id: string, fromStepId: string, toStepId: string, fromPort = 'main'): WorkflowConnection {
+  return { id, fromStepId, fromPort, toStepId };
 }
 
 describe('layoutWorkflow', () => {
-  it('sin raíz devuelve un layout vacío en vez de reventar', () => {
-    expect(layoutWorkflow([]).nodes).toEqual([]);
-    // Solo hijos huérfanos: tampoco hay por dónde empezar.
-    expect(layoutWorkflow([step('a', 'ghost')]).nodes).toEqual([]);
+  it('sin pasos devuelve un layout vacío en vez de reventar', () => {
+    const layout = layoutWorkflow([], []);
+    expect(layout.nodes).toEqual([]);
+    expect(layout.end).toBeNull();
   });
 
-  it('alinea una cadena lineal en la misma columna', () => {
-    const layout = layoutWorkflow([step('a', null), step('b', 'a'), step('c', 'b')]);
+  it('coloca una cadena en niveles descendentes', () => {
+    const layout = layoutWorkflow(
+      [step('a'), step('b'), step('c')],
+      [link('l1', 'a', 'b'), link('l2', 'b', 'c')],
+    );
 
-    const xs = layout.nodes.map(node => node.x);
-    expect(new Set(xs).size).toBe(1);
-    // Y cada paso queda por debajo del anterior.
-    const ys = layout.nodes.map(node => node.y);
-    expect([...ys].sort((p, q) => p - q)).toEqual(ys);
+    const y = (id: string) => layout.nodes.find(n => n.step.id === id)!.y;
+    expect(y('a')).toBeLessThan(y('b'));
+    expect(y('b')).toBeLessThan(y('c'));
   });
 
-  it('coloca las ramas Yes/No a los lados y centradas sobre el padre', () => {
-    const layout = layoutWorkflow([
-      step('root', null, { typeId: 'condition' }),
-      step('yes', 'root', { branch: 'yes' }),
-      step('no', 'root', { branch: 'no' }),
-    ]);
+  /** Es lo que el modelo de árbol no podía representar. */
+  it('deja que dos ramas vuelvan a unirse en la misma carta', () => {
+    const steps = [step('root', 'condition'), step('yes'), step('no'), step('merge')];
+    const connections = [
+      link('l1', 'root', 'yes', 'yes'),
+      link('l2', 'root', 'no', 'no'),
+      link('l3', 'yes', 'merge'),
+      link('l4', 'no', 'merge'),
+    ];
+    const layout = layoutWorkflow(steps, connections);
+
+    const merge = layout.nodes.find(n => n.step.id === 'merge')!;
+    expect(merge.inDegree).toBe(2);
+    // Y queda por debajo de las dos ramas, no al lado.
+    const yesY = layout.nodes.find(n => n.step.id === 'yes')!.y;
+    expect(merge.y).toBeGreaterThan(yesY);
+  });
+
+  it('da a cada carta un anclaje por salida declarada', () => {
+    const layout = layoutWorkflow([step('root', 'condition'), step('a')], [link('l1', 'root', 'a', 'yes')]);
 
     const root = layout.nodes.find(n => n.step.id === 'root')!;
-    const yes = layout.nodes.find(n => n.step.id === 'yes')!;
-    const no = layout.nodes.find(n => n.step.id === 'no')!;
-
-    expect(yes.x).toBeLessThan(root.x);
-    expect(no.x).toBeGreaterThan(root.x);
-    // El padre queda a la misma distancia de cada rama.
-    const center = (x: number) => x + NODE_WIDTH / 2;
-    expect(center(root.x) - center(yes.x)).toBeCloseTo(center(no.x) - center(root.x), 5);
+    // `condition` declara dos salidas: los puertos se reparten a lo ancho.
+    expect(root.outputs.length).toBe(2);
+    expect(root.outputs[0].x).toBeLessThan(root.outputs[1].x);
+    expect(root.outputs.every(port => port.y === root.y + root.height)).toBe(true);
   });
 
-  it('etiqueta los conectores de un paso que bifurca', () => {
-    const layout = layoutWorkflow([
-      step('root', null, { typeId: 'condition' }),
-      step('yes', 'root', { branch: 'yes' }),
-      step('no', 'root', { branch: 'no' }),
-    ]);
+  it('los hilos conservan el id real de la conexión', () => {
+    const layout = layoutWorkflow([step('a'), step('b')], [link('my-link', 'a', 'b')]);
 
-    const labels = layout.connectors.map(c => c.label).filter(Boolean);
-    expect(labels).toContain('Yes');
-    expect(labels).toContain('No');
+    const connector = layout.connectors.find(c => c.id === 'my-link');
+    expect(connector).toBeTruthy();
+    expect(connector!.fromStepId).toBe('a');
+    expect(connector!.toStepId).toBe('b');
+    expect(connector!.path).toContain('M ');
   });
 
-  it('un paso con pie más alto empuja a su hijo hacia abajo', () => {
-    const withFooter = layoutWorkflow([
-      step('a', null, { config: { form: 'Lead Generation Form' } }),
-      step('b', 'a'),
-    ]);
-    const withoutFooter = layoutWorkflow([step('a', null), step('b', 'a')]);
+  it('etiqueta Yes/No solo cuando la carta tiene más de una salida', () => {
+    const branched = layoutWorkflow(
+      [step('root', 'condition'), step('a'), step('b')],
+      [link('l1', 'root', 'a', 'yes'), link('l2', 'root', 'b', 'no')],
+    );
+    expect(branched.connectors.map(c => c.label).filter(Boolean).sort()).toEqual(['No', 'Yes']);
 
-    const childY = (layout: ReturnType<typeof layoutWorkflow>) =>
-      layout.nodes.find(n => n.step.id === 'b')!.y;
-    expect(childY(withFooter)).toBeGreaterThan(childY(withoutFooter));
-  });
-
-  it('deriva un END al final y conecta las hojas', () => {
-    const layout = layoutWorkflow([
-      step('root', null, { typeId: 'condition' }),
-      step('yes', 'root', { branch: 'yes' }),
-      step('no', 'root', { branch: 'no' }),
-    ]);
-
-    expect(layout.end).not.toBeNull();
-    expect(layout.connectors.filter(c => c.id.endsWith('->END')).length).toBe(2);
+    const plain = layoutWorkflow([step('a'), step('b')], [link('l1', 'a', 'b')]);
+    expect(plain.connectors[0].label).toBeNull();
   });
 
   /**
-   * El documento vive en localStorage y se puede editar a mano: un ciclo no
-   * debe colgar la pestaña.
+   * Antes, cada hoja generaba dos `+` superpuestos (el suyo y el del END) y
+   * ganaba el del END, que insertaba en la raíz.
    */
-  it('no se cuelga con un documento que tiene un ciclo', () => {
-    const cyclic: WorkflowStep[] = [step('a', null), step('b', 'a'), step('c', 'b')];
-    // c pasa a ser padre de b: b → c → b.
-    cyclic[1] = { ...cyclic[1], parentId: 'c' };
+  it('deja un solo punto de inserción por salida libre', () => {
+    const layout = layoutWorkflow([step('a'), step('b')], [link('l1', 'a', 'b')]);
 
-    const layout = layoutWorkflow(cyclic);
-    expect(layout.nodes.length).toBeGreaterThan(0);
+    // `a` tiene su salida ocupada; `b` no tiene ninguna conexión saliente.
+    expect(layout.openEnds.map(open => open.stepId)).toEqual(['b']);
+    expect(layout.openEnds.length).toBe(1);
   });
 
-  it('respeta la posición manual de un nodo y deja el resto automático', () => {
-    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 900, y: 640 })]);
+  it('una carta que necesita un dato que nadie manda queda marcada', () => {
+    // `send-email` declara que consume `email`; suelta, nadie se lo da.
+    const alone = layoutWorkflow([step('mail', 'send-email')], []);
+    expect(alone.nodes[0].missing.map(f => f.key)).toContain('email');
+
+    // Con un `form-submitted` delante, que sí produce `email`, deja de faltar.
+    const fed = layoutWorkflow(
+      [step('form', 'form-submitted'), step('mail', 'send-email')],
+      [link('l1', 'form', 'mail')],
+    );
+    expect(fed.nodes.find(n => n.step.id === 'mail')!.missing).toEqual([]);
+  });
+
+  it('cuenta las conexiones de entrada y salida de cada carta', () => {
+    const layout = layoutWorkflow(
+      [step('a'), step('b'), step('c')],
+      [link('l1', 'a', 'c'), link('l2', 'b', 'c')],
+    );
+
+    const c = layout.nodes.find(n => n.step.id === 'c')!;
+    expect(c.inDegree).toBe(2);
+    expect(c.outDegree).toBe(0);
+    expect(layout.nodes.find(n => n.step.id === 'a')!.outDegree).toBe(1);
+  });
+
+  it('no se cuelga con un documento que tiene un ciclo', () => {
+    const layout = layoutWorkflow(
+      [step('a'), step('b')],
+      [link('l1', 'a', 'b'), link('l2', 'b', 'a')],
+    );
+    expect(layout.nodes.length).toBe(2);
+  });
+
+  it('respeta la posición manual y deja el resto automático', () => {
+    const layout = layoutWorkflow([step('a'), step('b', 'send-email', { x: 900, y: 640 })], [link('l1', 'a', 'b')]);
 
     const moved = layout.nodes.find(n => n.step.id === 'b')!;
     expect(moved.x).toBe(900);
     expect(moved.y).toBe(640);
-    // El padre, sin posición propia, lo sigue decidiendo el layout.
     expect(layout.nodes.find(n => n.step.id === 'a')!.x).not.toBe(900);
   });
 
-  it('traza los conectores contra la posición final, no la automática', () => {
-    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 900, y: 640 })]);
-
-    const edge = layout.connectors.find(c => c.id === 'a->b')!;
-    // El punto medio tiene que caer entre padre e hijo movido.
-    const parent = layout.nodes.find(n => n.step.id === 'a')!;
-    expect(edge.midX).toBeGreaterThan(Math.min(parent.x, 900));
-    expect(edge.midY).toBeGreaterThan(parent.y);
-    expect(edge.path).toContain('M ');
-  });
-
-  it('el lienzo crece para dejar sitio más allá del último nodo', () => {
-    const layout = layoutWorkflow([step('a', null), step('b', 'a', { x: 1200, y: 900 })]);
-
-    expect(layout.width).toBeGreaterThan(1200);
-    expect(layout.height).toBeGreaterThan(900);
-  });
-
-  it('mantiene todo el dibujo en coordenadas positivas', () => {
-    const layout = layoutWorkflow([
-      step('root', null, { typeId: 'condition' }),
-      step('yes', 'root', { branch: 'yes' }),
-      step('no', 'root', { branch: 'no' }),
-    ]);
+  it('mantiene el dibujo en coordenadas positivas y con sitio de sobra', () => {
+    const layout = layoutWorkflow([step('a'), step('b')], [link('l1', 'a', 'b')]);
 
     for (const node of layout.nodes) {
       expect(node.x).toBeGreaterThanOrEqual(0);
       expect(node.y).toBeGreaterThanOrEqual(0);
+      expect(node.width).toBe(NODE_WIDTH);
     }
-    expect(layout.width).toBeGreaterThan(0);
-    expect(layout.height).toBeGreaterThan(0);
+    expect(layout.width).toBeGreaterThan(NODE_WIDTH);
   });
 });

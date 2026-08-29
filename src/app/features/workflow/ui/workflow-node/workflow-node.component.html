@@ -9,7 +9,8 @@
   [class.wf-node--dragging]="dragging" (click)="selectStep.emit(step.id)"
   (pointerdown)="dragStart.emit($event)" [attr.aria-current]="selected ? 'true' : null">
   <div class="wf-node__card"
-    [ngClass]="[type.border, selected ? 'wf-node__card--selected' : '', dragging ? 'wf-node__card--dragging' : '']">
+    [ngClass]="[type.border, selected ? 'wf-node__card--selected' : '', dragging ? 'wf-node__card--dragging' : '',
+      linking ? 'wf-node__card--target' : '']">
 
   <!-- Cabecera: color por tipo -->
   <div class="flex items-center gap-2 px-3 py-2" [class]="type.accent">
@@ -17,6 +18,16 @@
       <ion-icon [name]="type.icon" class="text-sm text-white"></ion-icon>
     </span>
     <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ type.label }}</span>
+
+    <!-- A cuántas cartas está conectada. -->
+    <span class="shrink-0 rounded-full bg-white/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+      [title]="'Connected to ' + degreeLabel">{{ degreeLabel }}</span>
+
+    <!-- Necesita un dato que nadie aguas arriba produce. -->
+    <span *ngIf="node.missing.length > 0" class="shrink-0 text-amber-600"
+      [title]="'Missing input: ' + missingLabel">
+      <ion-icon name="alert-circle" class="text-sm"></ion-icon>
+    </span>
 
     <div class="relative shrink-0" [attr.data-dropdown]="'node-' + step.id">
       <button type="button" (click)="toggleMenu($event)" (pointerdown)="$event.stopPropagation()"

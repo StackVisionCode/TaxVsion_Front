@@ -6,10 +6,14 @@
  * Gateway). Esto describe un documento que hoy vive en el navegador; el día
  * que exista el servicio, estos tipos son los que se mapearán al contrato.
  *
- * El árbol se guarda como **lista plana con `parentId` + `branch`** en vez de
- * un grafo con aristas: serializa trivialmente, el árbol se deriva al vuelo y
- * es la misma forma que ya usa `TaskTemplateStep` en el backend (orden +
- * dependencia del padre), así que el mapeo futuro es directo.
+ * El documento es un **grafo**: pasos (las cartas) y conexiones (los hilos)
+ * como entidades separadas. Cada tipo declara además su propósito, su acción,
+ * sus salidas y **qué datos produce y consume**, que es lo que permite saber
+ * qué variables tiene disponibles cada carta y avisar cuando le falta algo.
+ *
+ * Antes esto era un árbol implícito (`parentId` + `branch` en el paso): el
+ * hilo no existía como dato, así que no podía tener identidad ni transportar
+ * un contrato, y dos ramas no podían volver a unirse.
  */
 
 export type WorkflowStepCategory = 'trigger' | 'ai-logic' | 'action' | 'utility';
@@ -46,10 +50,6 @@ export interface WorkflowStep {
   /** Título editable; arranca con el `defaultTitle` del tipo. */
   title: string;
   subtitle: string;
-  /** null = raíz del flujo (el disparador). */
-  parentId: string | null;
-  /** Solo tiene valor cuando el padre bifurca (`isBranching`). */
-  branch: WorkflowBranch | null;
   /** Configuración libre por tipo; la pinta el panel derecho. */
   config: Record<string, string | string[]>;
   /**
@@ -67,7 +67,43 @@ export interface WorkflowDoc {
   id: string;
   name: string;
   steps: WorkflowStep[];
+  /** Los hilos, como dato propio y no como algo derivado de los pasos. */
+  connections: WorkflowConnection[];
   updatedAtIso: string;
+}
+
+/**
+ * Un hilo entre dos cartas.
+ *
+ * Es una entidad de primera clase: tiene identidad, se puede seleccionar y
+ * borrar, y sabe exactamente de qué salida sale y a qué carta entra. Antes
+ * esto se deducía de un `parentId` en el paso, así que el hilo no existía como
+ * cosa y no podía tener estado propio.
+ */
+export interface WorkflowConnection {
+  id: string;
+  fromStepId: string;
+  /** Id del puerto de salida del tipo de origen ('main', 'yes', 'no'). */
+  fromPort: string;
+  toStepId: string;
+}
+
+/** Una salida declarada por el tipo de paso. */
+export interface WorkflowPort {
+  id: string;
+  label?: string;
+}
+
+/**
+ * Un dato que una carta produce o necesita.
+ *
+ * Es lo que convierte el diagrama en algo que se puede razonar: con esto se
+ * sabe qué variables tiene disponibles cada carta y cuáles le faltan.
+ */
+export interface WorkflowDataField {
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'boolean' | 'date' | 'object';
 }
 
 /**
@@ -104,6 +140,16 @@ export interface WorkflowStepType {
   border: string;
   defaultTitle: string;
   defaultSubtitle: string;
+  /** Para qué existe esta carta, en una frase. */
+  purpose: string;
+  /** La operación concreta que ejecutaría si hubiera motor. */
+  action: string;
+  /** Salidas: una sola ('main') o dos cuando bifurca. */
+  outputs: WorkflowPort[];
+  /** Lo que esta carta MANDA a las siguientes. */
+  produces: WorkflowDataField[];
+  /** Lo que esta carta NECESITA recibir para poder actuar. */
+  consumes: WorkflowDataField[];
   /** true = el paso abre dos ramas (Yes / No). */
   branching?: boolean;
   /** Campos del panel de configuración; sin esto solo se editan título y subtítulo. */
@@ -132,6 +178,16 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-emerald-200',
     defaultTitle: 'New Email Received',
     defaultSubtitle: 'Starts when an email arrives',
+    purpose: 'Escuchar el buzón y arrancar cuando llega un correo.',
+    action: 'Queda a la espera de correos entrantes y dispara el flujo con cada uno.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'from', label: 'From', type: 'string' },
+      { key: 'subject', label: 'Subject', type: 'string' },
+      { key: 'body', label: 'Body', type: 'string' },
+      { key: 'receivedAt', label: 'Received at', type: 'date' },
+    ],
+    consumes: [],
   },
   {
     id: 'form-submitted',
@@ -143,6 +199,16 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-emerald-200',
     defaultTitle: 'New Lead Captured',
     defaultSubtitle: 'Form Submitted',
+    purpose: 'Arrancar cuando alguien envía un formulario.',
+    action: 'Recoge los campos del formulario y los pasa al flujo.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'email', label: 'Email', type: 'string' },
+      { key: 'name', label: 'Name', type: 'string' },
+      { key: 'company', label: 'Company', type: 'string' },
+      { key: 'message', label: 'Message', type: 'string' },
+    ],
+    consumes: [],
     fields: [{ key: 'form', label: 'Form', control: 'text', placeholder: 'Lead Generation Form' }],
   },
   {
@@ -155,6 +221,13 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-emerald-200',
     defaultTitle: 'On a schedule',
     defaultSubtitle: 'Runs at a fixed time',
+    purpose: 'Arrancar solo, a una hora fija.',
+    action: 'Dispara el flujo según la frecuencia configurada.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'firedAt', label: 'Fired at', type: 'date' },
+    ],
+    consumes: [],
     fields: [
       { key: 'frequency', label: 'Frequency', control: 'select', options: ['Hourly', 'Daily', 'Weekly', 'Monthly'] },
       { key: 'time', label: 'Time', control: 'text', placeholder: '09:00' },
@@ -170,6 +243,13 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-emerald-200',
     defaultTitle: 'Incoming web hook',
     defaultSubtitle: 'Starts on an HTTP call',
+    purpose: 'Arrancar cuando otro sistema llama.',
+    action: 'Expone una URL y arranca con lo que le manden.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'payload', label: 'Payload', type: 'object' },
+    ],
+    consumes: [],
   },
   {
     id: 'manual-trigger',
@@ -181,6 +261,14 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-emerald-200',
     defaultTitle: 'Manual start',
     defaultSubtitle: 'Someone runs it by hand',
+    purpose: 'Arrancar a mano.',
+    action: 'Alguien pulsa y el flujo empieza.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'startedBy', label: 'Started by', type: 'string' },
+      { key: 'startedAt', label: 'Started at', type: 'date' },
+    ],
+    consumes: [],
   },
 
   // ---------- AI & logic ----------
@@ -194,6 +282,18 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-cyan-200',
     defaultTitle: 'Lead Qualifier',
     defaultSubtitle: 'Score lead potential',
+    purpose: 'Analizar los datos y decidir por dónde sigue el flujo.',
+    action: 'Manda los datos al modelo y clasifica el resultado en dos salidas.',
+    outputs: [
+      { id: 'yes', label: 'Yes' },
+      { id: 'no', label: 'No' },
+    ],
+    produces: [
+      { key: 'leadScore', label: 'Lead score', type: 'number' },
+      { key: 'intent', label: 'Intent', type: 'string' },
+      { key: 'summary', label: 'Summary', type: 'string' },
+    ],
+    consumes: [],
     branching: true,
     fields: [
       { key: 'agent', label: 'Agent', control: 'text', placeholder: 'Lead Qualifier' },
@@ -219,6 +319,17 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-cyan-200',
     defaultTitle: 'Enrich record',
     defaultSubtitle: 'Fill in missing data',
+    purpose: 'Completar datos que faltan.',
+    action: 'Busca información adicional del contacto y la añade.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'company', label: 'Company', type: 'string' },
+      { key: 'jobTitle', label: 'Job title', type: 'string' },
+      { key: 'industry', label: 'Industry', type: 'string' },
+    ],
+    consumes: [
+      { key: 'email', label: 'Email', type: 'string' },
+    ],
   },
   {
     id: 'condition',
@@ -230,6 +341,14 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-cyan-200',
     defaultTitle: 'Check condition',
     defaultSubtitle: 'Split the flow in two',
+    purpose: 'Partir el flujo según una regla.',
+    action: 'Evalúa el campo configurado y sigue por Yes o por No.',
+    outputs: [
+      { id: 'yes', label: 'Yes' },
+      { id: 'no', label: 'No' },
+    ],
+    produces: [],
+    consumes: [],
     branching: true,
     fields: [
       { key: 'field', label: 'Field', control: 'text', placeholder: 'Lead Score' },
@@ -247,6 +366,14 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-cyan-200',
     defaultTitle: 'Route the record',
     defaultSubtitle: 'Send it down a path',
+    purpose: 'Mandar cada caso por su camino.',
+    action: 'Elige una salida según el criterio configurado.',
+    outputs: [
+      { id: 'yes', label: 'Yes' },
+      { id: 'no', label: 'No' },
+    ],
+    produces: [],
+    consumes: [],
     branching: true,
   },
   {
@@ -259,6 +386,14 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-cyan-200',
     defaultTitle: 'Repeat for each',
     defaultSubtitle: 'Run once per item',
+    purpose: 'Repetir los pasos siguientes por cada elemento.',
+    action: 'Recorre la lista y ejecuta la rama una vez por elemento.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'item', label: 'Item', type: 'object' },
+      { key: 'index', label: 'Index', type: 'number' },
+    ],
+    consumes: [],
   },
 
   // ---------- Actions ----------
@@ -272,6 +407,16 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-amber-200',
     defaultTitle: 'Send Welcome Email',
     defaultSubtitle: 'Introduce product and next steps',
+    purpose: 'Escribir al contacto.',
+    action: 'Envía el email con la plantilla configurada.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'messageId', label: 'Message id', type: 'string' },
+      { key: 'sentAt', label: 'Sent at', type: 'date' },
+    ],
+    consumes: [
+      { key: 'email', label: 'Email', type: 'string' },
+    ],
     fields: [
       { key: 'template', label: 'Template', control: 'text', placeholder: 'Welcome email' },
       { key: 'subject', label: 'Subject', control: 'text' },
@@ -287,6 +432,16 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-amber-200',
     defaultTitle: 'Send SMS',
     defaultSubtitle: 'Text the contact',
+    purpose: 'Mandar un mensaje de texto.',
+    action: 'Envía el SMS al número del contacto.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'messageId', label: 'Message id', type: 'string' },
+      { key: 'sentAt', label: 'Sent at', type: 'date' },
+    ],
+    consumes: [
+      { key: 'phone', label: 'Phone', type: 'string' },
+    ],
   },
   {
     id: 'create-record',
@@ -298,6 +453,13 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-amber-200',
     defaultTitle: 'Create Record',
     defaultSubtitle: 'Add a new entry',
+    purpose: 'Crear una ficha nueva.',
+    action: 'Da de alta el registro con los datos recibidos.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'recordId', label: 'Record id', type: 'string' },
+    ],
+    consumes: [],
   },
   {
     id: 'update-record',
@@ -309,6 +471,15 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-rose-200',
     defaultTitle: 'Update Lead Status',
     defaultSubtitle: 'Mark contacted and update score',
+    purpose: 'Actualizar una ficha existente.',
+    action: 'Escribe los cambios sobre el registro indicado.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'updatedAt', label: 'Updated at', type: 'date' },
+    ],
+    consumes: [
+      { key: 'recordId', label: 'Record id', type: 'string' },
+    ],
   },
   {
     id: 'web-hook-request',
@@ -320,6 +491,14 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-amber-200',
     defaultTitle: 'Call web hook',
     defaultSubtitle: 'Send data to another system',
+    purpose: 'Avisar a otro sistema.',
+    action: 'Hace una llamada HTTP con los datos del flujo.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'responseStatus', label: 'Response status', type: 'number' },
+      { key: 'responseBody', label: 'Response body', type: 'object' },
+    ],
+    consumes: [],
   },
 
   // ---------- Utilities ----------
@@ -333,6 +512,11 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-gray-200',
     defaultTitle: 'Wait a while',
     defaultSubtitle: 'Pause before continuing',
+    purpose: 'Esperar antes de seguir.',
+    action: 'Pausa el flujo el tiempo configurado.',
+    outputs: [{ id: 'main' }],
+    produces: [],
+    consumes: [],
   },
   {
     id: 'wait-for-event',
@@ -344,6 +528,13 @@ export const WORKFLOW_STEP_TYPES: WorkflowStepType[] = [
     border: 'border-gray-200',
     defaultTitle: 'Wait for event',
     defaultSubtitle: 'Continue when something happens',
+    purpose: 'Esperar a que ocurra algo.',
+    action: 'Retiene el flujo hasta que llega el evento esperado.',
+    outputs: [{ id: 'main' }],
+    produces: [
+      { key: 'eventAt', label: 'Event at', type: 'date' },
+    ],
+    consumes: [],
   },
 ];
 
@@ -366,6 +557,11 @@ export function stepTypeOrFallback(typeId: WorkflowStepTypeId): WorkflowStepType
       border: 'border-gray-200',
       defaultTitle: typeId,
       defaultSubtitle: 'Unknown step type',
+      purpose: 'This step type is no longer available',
+      action: 'Nothing — the type was removed or renamed',
+      outputs: [{ id: 'main' }],
+      produces: [],
+      consumes: [],
     }
   );
 }
@@ -374,38 +570,158 @@ export function isBranching(step: WorkflowStep): boolean {
   return stepType(step.typeId)?.branching === true;
 }
 
-export function childrenOf(steps: WorkflowStep[], parentId: string | null, branch?: WorkflowBranch): WorkflowStep[] {
-  return steps.filter(
-    step => step.parentId === parentId && (branch === undefined || step.branch === branch),
-  );
+/** Salidas del tipo del paso; siempre hay al menos una. */
+export function outputsOf(step: WorkflowStep): WorkflowPort[] {
+  const outputs = stepTypeOrFallback(step.typeId).outputs;
+  return outputs.length > 0 ? outputs : [{ id: 'main' }];
 }
 
-export function rootStep(steps: WorkflowStep[]): WorkflowStep | null {
-  return steps.find(step => step.parentId === null) ?? null;
+// ---------- El grafo ----------
+
+export function connectionsFrom(
+  connections: WorkflowConnection[],
+  stepId: string,
+  port?: string,
+): WorkflowConnection[] {
+  return connections.filter(c => c.fromStepId === stepId && (port === undefined || c.fromPort === port));
 }
 
-/** Ids del paso y de todo lo que cuelga de él — borrar un nodo se lleva su subárbol. */
-export function descendantIds(steps: WorkflowStep[], stepId: string): string[] {
-  const collected: string[] = [stepId];
-  for (let i = 0; i < collected.length; i++) {
-    for (const child of steps.filter(step => step.parentId === collected[i])) {
-      collected.push(child.id);
-    }
-  }
-  return collected;
+export function connectionsTo(connections: WorkflowConnection[], stepId: string): WorkflowConnection[] {
+  return connections.filter(c => c.toStepId === stepId);
+}
+
+/** Cuántos hilos entran en la carta. */
+export function inDegree(connections: WorkflowConnection[], stepId: string): number {
+  return connectionsTo(connections, stepId).length;
+}
+
+/** Cuántos hilos salen de la carta. */
+export function outDegree(connections: WorkflowConnection[], stepId: string): number {
+  return connectionsFrom(connections, stepId).length;
+}
+
+/** Las cartas que alimentan a esta. */
+export function predecessorsOf(connections: WorkflowConnection[], stepId: string): string[] {
+  return connectionsTo(connections, stepId).map(c => c.fromStepId);
+}
+
+/** Cartas que no reciben nada: por ahí empieza el flujo. */
+export function rootSteps(steps: WorkflowStep[], connections: WorkflowConnection[]): WorkflowStep[] {
+  return steps.filter(step => inDegree(connections, step.id) === 0);
 }
 
 /**
- * Pares clave/valor del pie de la tarjeta (`Form: Lead Generation Form`,
- * `Model: Claude Fable 5`…). Salen de `config`, así que el nodo refleja lo que
- * se configuró sin que el canvas sepa nada de cada tipo.
+ * ¿Añadir `from → to` cerraría un ciclo?
+ *
+ * Se comprueba ANTES de conectar: un ciclo dejaría el grafo en un estado que
+ * el layout no sabe ordenar por niveles, y el flujo no tendría principio.
+ */
+export function wouldCycle(connections: WorkflowConnection[], fromStepId: string, toStepId: string): boolean {
+  if (fromStepId === toStepId) {
+    return true;
+  }
+  // ¿Se llega a `from` partiendo de `to`? Si sí, el hilo nuevo cierra el lazo.
+  const seen = new Set<string>([toStepId]);
+  const queue = [toStepId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const next of connectionsFrom(connections, current).map(c => c.toStepId)) {
+      if (next === fromStepId) {
+        return true;
+      }
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return false;
+}
+
+/** Motivo por el que un hilo no se puede crear, o null si es válido. */
+export function connectionError(
+  connections: WorkflowConnection[],
+  fromStepId: string,
+  fromPort: string,
+  toStepId: string,
+): string | null {
+  if (fromStepId === toStepId) {
+    return "A step can't connect to itself";
+  }
+  if (connections.some(c => c.fromStepId === fromStepId && c.fromPort === fromPort && c.toStepId === toStepId)) {
+    return 'These steps are already connected';
+  }
+  if (wouldCycle(connections, fromStepId, toStepId)) {
+    return 'That would create a loop';
+  }
+  return null;
+}
+
+// ---------- Qué recibe y qué manda cada carta ----------
+
+/**
+ * Todo lo que llega a una carta: la unión de lo que producen todas las que la
+ * alimentan, directa o indirectamente. Recorrido hacia atrás con `Set` de
+ * visitados, que además protege de un documento con ciclos.
+ */
+export function availableFieldsAt(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+  stepId: string,
+): WorkflowDataField[] {
+  const byId = new Map(steps.map(step => [step.id, step]));
+  const fields = new Map<string, WorkflowDataField>();
+  const seen = new Set<string>([stepId]);
+  const queue = predecessorsOf(connections, stepId);
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (seen.has(currentId)) {
+      continue;
+    }
+    seen.add(currentId);
+    const step = byId.get(currentId);
+    if (step) {
+      for (const field of stepTypeOrFallback(step.typeId).produces) {
+        fields.set(field.key, field);
+      }
+    }
+    queue.push(...predecessorsOf(connections, currentId));
+  }
+  return [...fields.values()];
+}
+
+/** Lo que la carta necesita y nadie aguas arriba le está mandando. */
+export function missingInputs(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+  stepId: string,
+): WorkflowDataField[] {
+  const step = steps.find(s => s.id === stepId);
+  if (!step) {
+    return [];
+  }
+  const available = new Set(availableFieldsAt(steps, connections, stepId).map(field => field.key));
+  return stepTypeOrFallback(step.typeId).consumes.filter(field => !available.has(field.key));
+}
+
+/**
+ * Pie de la tarjeta: lo que la carta MANDA. Antes era un volcado de `config`,
+ * que decía cómo está configurada pero no qué entrega a las siguientes.
  */
 export function summaryPairs(step: WorkflowStep): { label: string; value: string }[] {
-  return Object.entries(step.config)
+  const type = stepTypeOrFallback(step.typeId);
+  const configured = Object.entries(step.config)
     .filter(([, value]) => (Array.isArray(value) ? value.length > 0 : `${value}`.trim().length > 0))
-    .slice(0, 3)
     .map(([label, value]) => ({
       label: label.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase()),
       value: Array.isArray(value) ? value.join(', ') : `${value}`,
     }));
+
+  const sends =
+    type.produces.length > 0
+      ? [{ label: 'Sends', value: type.produces.map(field => field.label).join(', ') }]
+      : [];
+
+  return [...configured, ...sends].slice(0, 3);
 }

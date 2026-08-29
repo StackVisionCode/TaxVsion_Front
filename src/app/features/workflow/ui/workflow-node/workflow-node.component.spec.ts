@@ -9,11 +9,20 @@ function node(x: number, y: number): PositionedNode {
     typeId: 'send-email',
     title: 'Send Welcome Email',
     subtitle: 'Introduce product',
-    parentId: null,
-    branch: null,
     config: {},
   };
-  return { step, x, y, width: 284, height: 96, branch: null };
+  return {
+    step,
+    x,
+    y,
+    width: 284,
+    height: 96,
+    input: { x: x + 142, y },
+    outputs: [{ portId: 'main', x: x + 142, y: y + 96 }],
+    inDegree: 0,
+    outDegree: 0,
+    missing: [],
+  };
 }
 
 /**

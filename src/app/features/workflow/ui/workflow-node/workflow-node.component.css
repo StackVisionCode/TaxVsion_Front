@@ -74,6 +74,11 @@
   box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.9);
 }
 
+/* Destino posible mientras se tira un hilo desde otra carta. */
+.wf-node__card--target {
+  box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.35);
+}
+
 /* Se declara después de la selección para que un nodo seleccionado siga
    mostrando que se está moviendo. La animación se anula mientras se arrastra:
    un re-render la reiniciaría y el nodo parpadearía. */

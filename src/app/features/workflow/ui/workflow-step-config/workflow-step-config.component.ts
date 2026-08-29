@@ -1,7 +1,12 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkflowFieldDef, WorkflowStep, stepTypeOrFallback } from '../../data-access/workflow.model';
+import {
+  WorkflowDataField,
+  WorkflowFieldDef,
+  WorkflowStep,
+  stepTypeOrFallback,
+} from '../../data-access/workflow.model';
 
 export interface StepConfigPatch {
   title: string;
@@ -37,6 +42,11 @@ export class WorkflowStepConfigComponent {
     this.advancedOpen.set(false);
   }
 
+  /** Lo que llega a esta carta desde las anteriores. */
+  @Input() availableFields: WorkflowDataField[] = [];
+  /** De lo anterior, lo que la carta necesita y NO recibe. */
+  @Input() missingFields: WorkflowDataField[] = [];
+
   @Output() save = new EventEmitter<StepConfigPatch>();
 
   readonly current = signal<WorkflowStep | null>(null);
@@ -54,6 +64,28 @@ export class WorkflowStepConfigComponent {
   get typeLabel(): string {
     const step = this.current();
     return step ? stepTypeOrFallback(step.typeId).label : '';
+  }
+
+  /** Para qué existe la carta y qué haría. */
+  get purpose(): string {
+    const step = this.current();
+    return step ? stepTypeOrFallback(step.typeId).purpose : '';
+  }
+
+  get action(): string {
+    const step = this.current();
+    return step ? stepTypeOrFallback(step.typeId).action : '';
+  }
+
+  /** Lo que esta carta manda a las siguientes. */
+  get produces(): WorkflowDataField[] {
+    const step = this.current();
+    return step ? stepTypeOrFallback(step.typeId).produces : [];
+  }
+
+  /** Un dato disponible que la carta declara necesitar ya está cubierto. */
+  isMissing(field: WorkflowDataField): boolean {
+    return this.missingFields.some(missing => missing.key === field.key);
   }
 
   textValue(key: string): string {

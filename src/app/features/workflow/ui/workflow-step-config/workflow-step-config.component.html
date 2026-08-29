@@ -12,6 +12,50 @@
 
   <ng-container *ngIf="current() as step">
     <div class="wf-config mt-4 flex-1 space-y-4 overflow-y-auto px-5 pb-4">
+      <!-- Para qué sirve esta carta y qué hace. -->
+      <div class="rounded-2xl bg-brand-surface px-3 py-2.5">
+        <p class="text-sm font-medium text-gray-800">{{ purpose }}</p>
+        <p class="mt-1 text-xs text-gray-500">{{ action }}</p>
+      </div>
+
+      <!-- Lo que le llega y lo que le falta. -->
+      <div>
+        <p class="text-xs font-medium text-gray-500">Receives</p>
+        <div *ngIf="missingFields.length > 0"
+          class="mt-1.5 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Nothing upstream provides
+          <span class="font-semibold">{{ missingFields[0].label }}</span
+          ><span *ngIf="missingFields.length > 1"> and {{ missingFields.length - 1 }} more</span>.
+          Connect a step that produces it.
+        </div>
+        <div *ngIf="availableFields.length > 0; else noneAvailable" class="mt-1.5 flex flex-wrap gap-1.5">
+          <span *ngFor="let field of availableFields"
+            class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+            [title]="field.key + ' · ' + field.type">
+            {{ field.label }}
+          </span>
+        </div>
+        <ng-template #noneAvailable>
+          <p class="mt-1.5 text-xs text-gray-400">Nothing yet — this step has no incoming links.</p>
+        </ng-template>
+      </div>
+
+      <!-- Lo que manda a las siguientes. -->
+      <div>
+        <p class="text-xs font-medium text-gray-500">Sends</p>
+        <div *ngIf="produces.length > 0; else sendsNothing" class="mt-1.5 flex flex-wrap gap-1.5">
+          <span *ngFor="let field of produces"
+            class="rounded-full bg-brand-surface px-2 py-0.5 text-[11px] font-medium text-gray-700"
+            [title]="field.key + ' · ' + field.type">
+            {{ field.label }}
+          </span>
+        </div>
+        <ng-template #sendsNothing>
+          <p class="mt-1.5 text-xs text-gray-400">Passes through what it receives.</p>
+        </ng-template>
+      </div>
+
+      <div class="h-px bg-gray-100"></div>
       <!-- Comunes a todos los tipos -->
       <div class="space-y-1.5">
         <label class="block text-xs font-medium text-gray-500">Title</label>

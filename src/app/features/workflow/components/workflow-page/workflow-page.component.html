@@ -108,7 +108,15 @@
         (duplicateStep)="store.duplicateStep($event)"
         (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
         (moveStepStart)="store.beginMove()" (moveStepLive)="onMoveLive($event)"
-        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"></app-workflow-canvas>
+        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"
+        [selectedConnectionId]="store.selectedConnectionId()" (selectConnection)="store.selectConnection($event)"
+        (deleteConnection)="store.disconnect($event)" (connectSteps)="onConnect($event)"></app-workflow-canvas>
+
+      <!-- Por qué no se pudo crear ese hilo. -->
+      <div *ngIf="linkError() as error"
+        class="pointer-events-none absolute bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-lg">
+        {{ error }}
+      </div>
 
       <ng-template #debuggerTab>
         <div class="flex h-full flex-col items-center justify-center rounded-[28px] bg-brand-white text-center">
@@ -123,7 +131,8 @@
 
     <!-- Configuración -->
     <aside class="wf-side hidden shrink-0 xl:block" [style.width.px]="320">
-      <app-workflow-step-config [step]="store.selectedStep()" (save)="onSaveStep($event)"></app-workflow-step-config>
+      <app-workflow-step-config [step]="store.selectedStep()" [availableFields]="store.selectedAvailableFields()"
+        [missingFields]="store.selectedMissingInputs()" (save)="onSaveStep($event)"></app-workflow-step-config>
     </aside>
   </div>
 </div>
