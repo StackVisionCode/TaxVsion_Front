@@ -1,0 +1,34 @@
+<div *ngIf="status !== 'idle'"
+  class="wf-hud pointer-events-auto flex items-center gap-3 rounded-full border border-gray-100 bg-white px-4 py-2 shadow-lg">
+
+  <span class="flex items-center gap-2 text-sm">
+    <span *ngIf="status === 'running'" class="h-2 w-2 animate-pulse rounded-full bg-brand-bold"></span>
+    <span *ngIf="status === 'finished'" class="h-2 w-2 rounded-full bg-emerald-500"></span>
+    <span *ngIf="status === 'stopped'" class="h-2 w-2 rounded-full bg-amber-500"></span>
+    <span class="font-medium text-gray-900">
+      {{ status === 'running' ? 'Running' : status === 'finished' ? 'Finished' : 'Stopped' }}
+    </span>
+    <span class="text-gray-400">· {{ doneCount }}/{{ runCount }}</span>
+    <span class="text-gray-400">· {{ status === 'finished' ? totalLabel : elapsedLabel }} simulated</span>
+  </span>
+
+  <!-- Los tiempos largos se acortan en pantalla; el badge de cada carta lleva el real. -->
+  <span class="hidden text-[10px] text-gray-400 sm:inline" title="Long waits are shortened on screen; each card's badge shows the real estimate.">
+    Compressed time
+  </span>
+
+  <span class="h-4 w-px bg-gray-200"></span>
+
+  <button *ngIf="status === 'running'" type="button" (click)="stopRun.emit()"
+    class="rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white hover:bg-black transition-colors">
+    Stop
+  </button>
+  <button *ngIf="status !== 'running'" type="button" (click)="rerun.emit()"
+    class="rounded-full bg-brand-bold px-3 py-1 text-xs font-semibold text-white hover:bg-brand-ink transition-colors">
+    Run again
+  </button>
+  <button *ngIf="status !== 'running'" type="button" (click)="closeHud.emit()" aria-label="Close preview"
+    class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+    <ion-icon name="close-outline" class="text-sm"></ion-icon>
+  </button>
+</div>

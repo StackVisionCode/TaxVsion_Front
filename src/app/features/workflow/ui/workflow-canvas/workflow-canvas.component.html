@@ -12,10 +12,19 @@
 
         <!-- Conectores por DEBAJO de los nodos: así las líneas no tapan el contenido
              ni bloquean el menú de la tarjeta. La semántica la ponen los botones. -->
-        <svg class="pointer-events-none absolute left-0 top-0" [attr.width]="layout.width"
-          [attr.height]="layout.height" aria-hidden="true">
-          <path *ngFor="let connector of layout.connectors; trackBy: trackConnector" [attr.d]="connector.path"
-            class="wf-edge" fill="none" />
+        <svg class="absolute left-0 top-0" [attr.width]="layout.width" [attr.height]="layout.height"
+          aria-hidden="true">
+          <!-- Dos paths por hilo: uno grueso e invisible que hace de zona de
+               clic (una línea de 1.5px es imposible de acertar) y el visible. -->
+          <g *ngFor="let connector of layout.connectors; trackBy: trackConnector">
+            <path [attr.d]="connector.path" class="wf-edge-hit" fill="none"
+              (click)="onConnectorClick(connector, $event)" />
+            <path [attr.d]="connector.path" class="wf-edge" fill="none"
+              [class.wf-edge--selected]="connector.id === selectedConnectionId"
+              [ngClass]="edgeRunClass(connector.id)" />
+          </g>
+          <!-- Hilo que se está tirando -->
+          <path *ngIf="pendingLink()" [attr.d]="pendingPath()" class="wf-edge wf-edge--pending" fill="none" />
         </svg>
 
         <!-- Píldoras de rama (Yes / No) -->
@@ -30,19 +39,48 @@
         </ng-container>
 
         <!-- Botones `+` de inserción: HTML sobre el SVG para que sean botones de verdad -->
-        <button *ngFor="let connector of layout.connectors; trackBy: trackConnector" type="button"
-          (click)="onInsert(connector, $event)"
+        <!-- `+` para insertar EN un hilo; si el hilo está seleccionado, se
+             ofrece además borrarlo. -->
+        <ng-container *ngFor="let connector of layout.connectors; trackBy: trackConnector">
+          <button type="button" (click)="onInsert(connector, $event)"
+            class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:border-brand-bold hover:text-brand-bold transition-colors"
+            [style.left.px]="connector.midX" [style.top.px]="connector.midY" aria-label="Insert step on this link">
+            <ion-icon name="add-outline" class="text-xs"></ion-icon>
+          </button>
+          <button *ngIf="connector.id === selectedConnectionId" type="button"
+            (click)="deleteConnection.emit(connector.id); $event.stopPropagation()"
+            class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-red-200 bg-white text-red-500 hover:bg-red-50 transition-colors"
+            [style.left.px]="connector.midX + 26" [style.top.px]="connector.midY" aria-label="Delete this link">
+            <ion-icon name="close-outline" class="text-xs"></ion-icon>
+          </button>
+        </ng-container>
+
+        <!-- `+` de una salida sin usar. Antes esto se solapaba con el hilo al
+             END y el clic acababa creando una raíz nueva. -->
+        <button *ngFor="let openEnd of layout.openEnds; trackBy: trackOpenEnd" type="button"
+          (click)="onInsertOpenEnd(openEnd, $event)"
           class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:border-brand-bold hover:text-brand-bold transition-colors"
-          [style.left.px]="connector.midX" [style.top.px]="connector.midY" aria-label="Insert step here">
+          [style.left.px]="openEnd.x" [style.top.px]="openEnd.y" aria-label="Add a step after this one">
           <ion-icon name="add-outline" class="text-xs"></ion-icon>
         </button>
 
         <!-- Nodos -->
-        <app-workflow-node *ngFor="let node of layout.nodes; trackBy: trackNode" [node]="node"
-          [selected]="node.step.id === selectedId" [dragging]="node.step.id === draggingId()"
-          (dragStart)="startNodeDrag($event, node)"
-          (selectStep)="onNodeClick($event)"
-          (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"></app-workflow-node>
+        <ng-container *ngFor="let node of layout.nodes; trackBy: trackNode">
+          <app-workflow-node [node]="node" [selected]="node.step.id === selectedId"
+            [dragging]="node.step.id === draggingId()" [linking]="pendingLink() !== null"
+            [preview]="previewFor(node)"
+            (dragStart)="startNodeDrag($event, node)" (selectStep)="onNodeClick($event)"
+            (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"
+            (pointerup)="finishLinkOn(node, $event)"></app-workflow-node>
+
+          <!-- Puertos de salida: de aquí se tira el hilo. -->
+          <button *ngFor="let port of node.outputs" type="button"
+            (pointerdown)="startLink($event, node, port.portId)"
+            class="wf-port absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
+            [style.left.px]="port.x" [style.top.px]="port.y"
+            [attr.aria-label]="'Drag to connect from ' + node.step.title + (port.label ? ' (' + port.label + ')' : '')">
+          </button>
+        </ng-container>
 
         <!-- END: se deriva del layout, no es un paso guardado -->
         <div *ngIf="layout.end as end"

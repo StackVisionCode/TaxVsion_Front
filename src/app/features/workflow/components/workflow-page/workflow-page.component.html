@@ -1,4 +1,7 @@
-<div class="flex h-[calc(100vh-2rem)] flex-col gap-4">
+<!-- Altura por flex, no calculada: `100vh - 2rem` no descontaba el navbar del
+     shell, así que la pantalla desbordaba y hacía scrollear toda la ventana.
+     `min-h-0` es lo que permite que las columnas hagan su propio scroll. -->
+<div class="flex min-h-0 flex-1 flex-col gap-4">
   <!-- ============ Header ============ -->
   <header class="wf-head flex flex-wrap items-center gap-3 rounded-[28px] bg-white px-5 py-3">
     <!-- Decorativo: este producto no tiene equipos. -->
@@ -34,20 +37,25 @@
     </div>
 
     <div class="ml-auto flex items-center gap-2">
-      <!-- Decorativo: no hay colaboración. -->
-      <div class="mr-1 flex -space-x-2" data-decorative="true" aria-hidden="true">
-        <span class="h-7 w-7 rounded-full bg-indigo-400 ring-2 ring-white"></span>
-        <span class="h-7 w-7 rounded-full bg-rose-400 ring-2 ring-white"></span>
-        <span class="h-7 w-7 rounded-full bg-emerald-400 ring-2 ring-white"></span>
-      </div>
+      <!-- La gente del workflow, de verdad: clic para gestionar permisos. -->
+      <app-workflow-collaborator-avatars class="mr-1" [collaborators]="store.collaborators()"
+        (open)="isShareOpen.set(true)"></app-workflow-collaborator-avatars>
 
-      <button type="button" disabled aria-disabled="true" data-decorative="true" title="Not available yet"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-400">
+      <!-- Simula la ejecución sobre el canvas; corriendo se convierte en Stop. -->
+      <button *ngIf="preview.status() !== 'running'; else stopPreview" type="button" (click)="startPreview()"
+        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
         <ion-icon name="play-outline" class="text-sm"></ion-icon>
         Preview
       </button>
-      <button type="button" disabled aria-disabled="true" data-decorative="true" title="Not available yet"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-400">
+      <ng-template #stopPreview>
+        <button type="button" (click)="preview.stop()"
+          class="flex items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black transition-colors">
+          <ion-icon name="stop-outline" class="text-sm"></ion-icon>
+          Stop
+        </button>
+      </ng-template>
+      <button type="button" (click)="isShareOpen.set(true)"
+        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
         <ion-icon name="share-social-outline" class="text-sm"></ion-icon>
         Share
       </button>
@@ -105,7 +113,25 @@
         (duplicateStep)="store.duplicateStep($event)"
         (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
         (moveStepStart)="store.beginMove()" (moveStepLive)="onMoveLive($event)"
-        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"></app-workflow-canvas>
+        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"
+        [selectedConnectionId]="store.selectedConnectionId()" (selectConnection)="store.selectConnection($event)"
+        (deleteConnection)="store.disconnect($event)" (connectSteps)="onConnect($event)"
+        [stepPreview]="preview.status() === 'idle' ? null : preview.stepStates()"
+        [edgePreview]="preview.status() === 'idle' ? null : preview.edgeStates()"></app-workflow-canvas>
+
+      <!-- HUD de la simulación, encima de la barra de herramientas del canvas -->
+      <div class="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center">
+        <app-workflow-preview-hud [status]="preview.status()" [doneCount]="preview.doneCount()"
+          [runCount]="preview.runCount()" [elapsedLabel]="preview.elapsedLabel()"
+          [totalLabel]="preview.totalLabel()" (stopRun)="preview.stop()" (rerun)="startPreview()"
+          (closeHud)="preview.reset()"></app-workflow-preview-hud>
+      </div>
+
+      <!-- Por qué no se pudo crear ese hilo. -->
+      <div *ngIf="linkError() as error"
+        class="pointer-events-none absolute bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-lg">
+        {{ error }}
+      </div>
 
       <ng-template #debuggerTab>
         <div class="flex h-full flex-col items-center justify-center rounded-[28px] bg-brand-white text-center">
@@ -120,10 +146,13 @@
 
     <!-- Configuración -->
     <aside class="wf-side hidden shrink-0 xl:block" [style.width.px]="320">
-      <app-workflow-step-config [step]="store.selectedStep()" (save)="onSaveStep($event)"></app-workflow-step-config>
+      <app-workflow-step-config [step]="store.selectedStep()" [availableFields]="store.selectedAvailableFields()"
+        [missingFields]="store.selectedMissingInputs()" (save)="onSaveStep($event)"></app-workflow-step-config>
     </aside>
   </div>
 </div>
+
+<app-workflow-share-modal [isOpen]="isShareOpen()" (closed)="isShareOpen.set(false)"></app-workflow-share-modal>
 
 <!-- Deploy: explica el estado real en vez de fingir un despliegue -->
 <app-modal [isOpen]="isDeployOpen()" heading="Deploy isn't available yet"

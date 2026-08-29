@@ -1,0 +1,30 @@
+/* Filas del modal entrando escalonadas, con el patrón del repo. */
+
+@keyframes wf-share-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wf-share-row {
+  animation: wf-share-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.wf-share-row:nth-child(1) { animation-delay: 30ms; }
+.wf-share-row:nth-child(2) { animation-delay: 60ms; }
+.wf-share-row:nth-child(3) { animation-delay: 90ms; }
+.wf-share-row:nth-child(4) { animation-delay: 120ms; }
+.wf-share-row:nth-child(5) { animation-delay: 150ms; }
+
+/* `both` desde `opacity: 0`: se anula entera, nunca se acorta. */
+@media (prefers-reduced-motion: reduce) {
+  .wf-share-row {
+    animation: none;
+    animation-delay: 0ms;
+  }
+}

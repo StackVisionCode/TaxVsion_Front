@@ -4,12 +4,22 @@
   dispara layout+paint en cada frame del arrastre, mientras que un transform
   se resuelve en el compositor.
 -->
-<div class="wf-node absolute left-0 top-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow"
-  [class]="type.border" [class.wf-node--dragging]="dragging"
-  [style.transform]="'translate3d(' + node.x + 'px,' + node.y + 'px,0)'" [style.width.px]="node.width"
-  [style.height.px]="node.height" [class.wf-node--selected]="selected" (click)="selectStep.emit(step.id)"
-  (pointerdown)="dragStart.emit($event)" style="touch-action: none;"
-  [attr.aria-current]="selected ? 'true' : null">
+<div class="wf-node" [style.transform]="'translate3d(' + node.x + 'px,' + node.y + 'px,0)'"
+  [style.width.px]="node.width" [style.height.px]="node.height"
+  [class.wf-node--dragging]="dragging" (click)="selectStep.emit(step.id)"
+  (pointerdown)="dragStart.emit($event)" [attr.aria-current]="selected ? 'true' : null">
+  <!-- Badge de la simulación: duración al terminar (ámbar si faltan datos). -->
+  <span *ngIf="preview && (preview.status === 'done' || preview.status === 'running')"
+    class="wf-run-badge absolute -top-2.5 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm"
+    [ngClass]="preview.warning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
+    [title]="preview.warning ? 'Ran with missing inputs' : 'Estimated duration'">
+    <ion-icon [name]="preview.warning ? 'alert-circle' : 'time-outline'" class="text-[11px]"></ion-icon>
+    {{ preview.status === 'running' ? 'running…' : preview.durationLabel }}
+  </span>
+
+  <div class="wf-node__card"
+    [ngClass]="[type.border, selected ? 'wf-node__card--selected' : '', dragging ? 'wf-node__card--dragging' : '',
+      linking ? 'wf-node__card--target' : '', previewClass]">
 
   <!-- Cabecera: color por tipo -->
   <div class="flex items-center gap-2 px-3 py-2" [class]="type.accent">
@@ -17,6 +27,16 @@
       <ion-icon [name]="type.icon" class="text-sm text-white"></ion-icon>
     </span>
     <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ type.label }}</span>
+
+    <!-- A cuántas cartas está conectada. -->
+    <span class="shrink-0 rounded-full bg-white/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+      [title]="'Connected to ' + degreeLabel">{{ degreeLabel }}</span>
+
+    <!-- Necesita un dato que nadie aguas arriba produce. -->
+    <span *ngIf="node.missing.length > 0" class="shrink-0 text-amber-600"
+      [title]="'Missing input: ' + missingLabel">
+      <ion-icon name="alert-circle" class="text-sm"></ion-icon>
+    </span>
 
     <div class="relative shrink-0" [attr.data-dropdown]="'node-' + step.id">
       <button type="button" (click)="toggleMenu($event)" (pointerdown)="$event.stopPropagation()"
@@ -60,4 +80,5 @@
       <span class="min-w-0 flex-1 truncate text-gray-600">{{ pair.value }}</span>
     </div>
   </div>
+</div>
 </div>

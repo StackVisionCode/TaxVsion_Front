@@ -1,0 +1,86 @@
+<app-modal [isOpen]="open()" heading="Share workflow" subheading="Who can see and edit this workflow"
+  size="lg" (closed)="onClosed()">
+
+  <!-- Motivo de un rechazo (último Owner) -->
+  <p *ngIf="error() as reason" class="wf-share-row mb-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+    {{ reason }}
+  </p>
+
+  <!-- Gente del workflow -->
+  <p class="text-xs font-medium uppercase tracking-wide text-gray-400">People with access</p>
+  <div class="mt-2 flex flex-col divide-y divide-gray-50">
+
+    <!-- Dueño implícito: se muestra sin persistirse hasta el primer añadido real. -->
+    <div *ngIf="implicitOwner() as me" class="wf-share-row flex items-center gap-3 py-2.5">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+        [ngClass]="color(me.email)">{{ initials(me.name) }}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium text-gray-900">{{ me.name }} <span class="text-gray-400">(you)</span></span>
+        <span class="block truncate text-xs text-gray-400">{{ me.email }}</span>
+      </span>
+      <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium capitalize text-gray-600">Owner</span>
+    </div>
+
+    <div *ngFor="let person of store.collaborators()" class="wf-share-row flex items-center gap-3 py-2.5">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+        [ngClass]="color(person.email)">{{ initials(person.name) }}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium text-gray-900">{{ person.name }}</span>
+        <span class="block truncate text-xs text-gray-400">{{ person.email }}</span>
+      </span>
+
+      <select [ngModel]="person.role" (ngModelChange)="setRole(person.userId, $event)"
+        [name]="'role-' + person.userId" [attr.aria-label]="'Role for ' + person.name"
+        class="shrink-0 rounded-xl border border-gray-200 bg-white px-2 py-1.5 text-xs capitalize text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option *ngFor="let role of roles" [value]="role" class="capitalize">{{ role }}</option>
+      </select>
+
+      <!-- El último Owner no se puede quitar: la guarda del store, visible. -->
+      <button *ngIf="!isLastOwner(person)" type="button" (click)="remove(person.userId)"
+        [attr.aria-label]="'Remove ' + person.name"
+        class="shrink-0 text-gray-300 hover:text-red-600 transition-colors">
+        <ion-icon name="close-outline" class="text-base"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Añadir gente del tenant -->
+  <p class="mt-5 text-xs font-medium uppercase tracking-wide text-gray-400">Add people</p>
+  <div class="mt-2">
+    <div class="flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 focus-within:border-brand-bold transition-colors">
+      <ion-icon name="search-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
+      <input type="text" placeholder="Search your office" [ngModel]="search()" (ngModelChange)="search.set($event)"
+        name="shareSearch" class="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    <p *ngIf="usersLoading()" class="mt-3 text-center text-xs text-gray-400">Loading your office…</p>
+
+    <div *ngIf="usersError() as err" class="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+      {{ err }}
+      <button type="button" (click)="retryUsers()" class="ml-2 font-semibold underline">Retry</button>
+    </div>
+
+    <div *ngIf="!usersLoading() && !usersError()" class="mt-2 max-h-48 overflow-y-auto">
+      <button *ngFor="let user of candidates()" type="button" (click)="add(user)"
+        class="wf-share-row flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition-colors">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+          [ngClass]="color(user.email)">{{ initials(user.name + ' ' + user.lastName) }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm text-gray-800">{{ user.name }} {{ user.lastName }}</span>
+          <span class="block truncate text-xs text-gray-400">{{ user.email }}</span>
+        </span>
+        <ion-icon name="add-outline" class="shrink-0 text-base text-gray-300"></ion-icon>
+      </button>
+      <p *ngIf="candidates().length === 0" class="py-4 text-center text-xs text-gray-400">
+        Everyone matching is already on this workflow.
+      </p>
+    </div>
+  </div>
+
+  <!-- Honestidad: el rol se guarda, no restringe. -->
+  <p class="mt-5 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+    <span class="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"></span>
+    Roles are saved with this local draft. Until a workflow service exists they don't restrict anyone —
+    this browser holds the only copy.
+  </p>
+</app-modal>

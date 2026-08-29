@@ -1,6 +1,13 @@
 /*
- * Entrada del nodo con un pop breve, siguiendo el patrón del repo:
- * keyframes propios, sin @angular/animations.
+ * Dos capas, y la razón importa:
+ *
+ * `.wf-node` SOLO posiciona, con `translate3d`. `.wf-node__card` es la tarjeta
+ * visual y es la única que anima. Estaban juntas y la animación de entrada
+ * (que interpola `transform: scale`) pisaba el `transform` inline del
+ * posicionamiento: como usa `fill-mode: both`, al terminar dejaba `scale(1)`
+ * sin el `translate3d` y TODOS los nodos acababan apilados en el (0,0) del
+ * lienzo. Una animación CSS gana al estilo inline, así que la propiedad no
+ * puede servir para las dos cosas a la vez.
  */
 
 @keyframes wf-node-in {
@@ -25,31 +32,106 @@
   }
 }
 
+/* Capa de posición: nunca se anima. */
 .wf-node {
+  position: absolute;
+  left: 0;
+  top: 0;
   cursor: pointer;
+  /* El arrastre no debe hacer scroll ni seleccionar texto por el camino. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Solo el nodo que se arrastra se promociona a capa propia: `will-change`
+   permanente en todos gastaría memoria de GPU sin necesidad. */
+.wf-node--dragging {
+  will-change: transform;
+  cursor: grabbing;
+}
+
+/* Capa visual: aquí sí se anima. */
+.wf-node__card {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 1rem;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgb(var(--color-gray-900-rgb, 13 13 13) / 0.05);
+  transition: box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
   animation: wf-node-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.wf-node:hover {
+.wf-node__card:hover {
   box-shadow: 0 10px 24px rgb(var(--color-gray-900-rgb, 13 13 13) / 0.08);
 }
 
 /* Anillo de selección en color de marca, sin ocupar espacio (no mueve el layout). */
-.wf-node--selected {
+.wf-node__card--selected {
   box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.9);
 }
 
-/*
- * Solo el nodo que se arrastra se promociona a capa propia. `will-change`
- * permanente en todos los nodos gastaría memoria de GPU sin necesidad, así
- * que se pone y se quita con el arrastre. La animación de entrada se anula
- * mientras tanto: reiniciarla en cada re-render haría parpadear el nodo.
- */
-.wf-node--dragging {
-  will-change: transform;
+/* Destino posible mientras se tira un hilo desde otra carta. */
+.wf-node__card--target {
+  box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.35);
+}
+
+/* Se declara después de la selección para que un nodo seleccionado siga
+   mostrando que se está moviendo. La animación se anula mientras se arrastra:
+   un re-render la reiniciaría y el nodo parpadearía. */
+.wf-node__card--dragging {
   animation: none;
-  cursor: grabbing;
   box-shadow: 0 16px 32px rgb(var(--color-gray-900-rgb, 13 13 13) / 0.16);
+}
+
+/*
+ * Estados de la simulación sobre la capa visual. SOLO box-shadow, opacity y
+ * filter: tocar `transform` aquí pisaría el translate3d de la capa de
+ * posición (el bug histórico de los nodos apilados en el 0,0).
+ */
+@keyframes wf-run-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.85);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.25);
+  }
+}
+
+.wf-node__card--run-running {
+  animation: wf-run-pulse 900ms ease-in-out infinite;
+}
+
+.wf-node__card--run-done {
+  /* Sin `animation: none`, al soltar la clase de running volvería la animación
+     de entrada (que arranca en opacity 0) y la carta parpadearía. */
+  animation: none;
+  box-shadow: 0 0 0 2px rgb(16 185 129 / 0.7);
+}
+
+.wf-node__card--run-skipped {
+  animation: none;
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+@keyframes wf-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wf-run-badge {
+  animation: wf-badge-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .wf-menu {
@@ -61,8 +143,10 @@
  * acortarlos dejaría los nodos invisibles.
  */
 @media (prefers-reduced-motion: reduce) {
-  .wf-node,
-  .wf-menu {
+  .wf-node__card,
+  .wf-menu,
+  .wf-run-badge,
+  .wf-node__card--run-running {
     animation: none;
   }
 }

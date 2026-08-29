@@ -1,15 +1,19 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { WorkflowCanvasComponent, InsertRequest } from '../../ui/workflow-canvas/workflow-canvas.component';
 import { WorkflowStepPaletteComponent } from '../../ui/workflow-step-palette/workflow-step-palette.component';
+import { WorkflowCollaboratorAvatarsComponent } from '../../ui/workflow-collaborator-avatars/workflow-collaborator-avatars.component';
+import { WorkflowShareModalComponent } from '../workflow-share-modal/workflow-share-modal.component';
 import {
   StepConfigPatch,
   WorkflowStepConfigComponent,
 } from '../../ui/workflow-step-config/workflow-step-config.component';
 import { WorkflowStore } from '../../data-access/workflow.store';
+import { WorkflowPreviewService } from '../../data-access/workflow-preview.service';
+import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
 import { WorkflowStepTypeId } from '../../data-access/workflow.model';
 import { layoutWorkflow } from '../../utils/workflow-layout.util';
 
@@ -37,6 +41,9 @@ type WorkflowTab = 'builder' | 'debugger';
     WorkflowCanvasComponent,
     WorkflowStepPaletteComponent,
     WorkflowStepConfigComponent,
+    WorkflowCollaboratorAvatarsComponent,
+    WorkflowShareModalComponent,
+    WorkflowPreviewHudComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './workflow-page.component.html',
@@ -44,9 +51,32 @@ type WorkflowTab = 'builder' | 'debugger';
 })
 export class WorkflowPageComponent {
   readonly store = inject(WorkflowStore);
+  readonly preview = inject(WorkflowPreviewService);
+
+  constructor() {
+    /**
+     * Editar durante la simulación la ABORTA (no se bloquea la edición, que
+     * exigiría tocar cada punto de interacción). Cualquier mutación del doc —
+     * incluidos undo/redo y el primer frame de un drag — invalida los ids del
+     * plan, así que se limpia el overlay en vez de dejar uno que miente.
+     * Seleccionar no muta el doc: inspeccionar durante la corrida funciona.
+     */
+    effect(() => {
+      this.store.doc();
+      if (untracked(() => this.preview.status()) === 'running') {
+        this.preview.reset();
+      }
+    });
+  }
+
+  startPreview(): void {
+    this.activeTab.set('builder');
+    this.preview.start(this.store.steps(), this.store.connections());
+  }
 
   readonly activeTab = signal<WorkflowTab>('builder');
   readonly isDeployOpen = signal(false);
+  readonly isShareOpen = signal(false);
   readonly pendingDeleteId = signal<string | null>(null);
   readonly editingName = signal(false);
 
@@ -58,7 +88,7 @@ export class WorkflowPageComponent {
   readonly pendingInsert = signal<InsertRequest | null>(null);
 
   /** El layout es derivado: misma lista de pasos, mismo dibujo. */
-  readonly layout = computed(() => layoutWorkflow(this.store.steps()));
+  readonly layout = computed(() => layoutWorkflow(this.store.steps(), this.store.connections()));
 
   readonly savedLabel = computed(() => {
     const iso = this.store.doc().updatedAtIso;
@@ -76,33 +106,27 @@ export class WorkflowPageComponent {
 
   /**
    * Añade el paso donde marque el `+` pulsado. Sin punto elegido, cuelga de la
-   * última hoja de la rama principal, que es lo que espera quien simplemente
-   * va apilando pasos desde el catálogo.
+   * primera salida libre, que es lo que espera quien va apilando pasos desde
+   * el catálogo.
    */
   onAddStep(typeId: WorkflowStepTypeId): void {
     const pending = this.pendingInsert();
     if (pending) {
-      this.store.addStep(typeId, pending.parentId, pending.branch);
+      this.store.addStep(typeId, pending.fromStepId, pending.fromPort);
       this.pendingInsert.set(null);
       return;
     }
     const steps = this.store.steps();
     if (steps.length === 0) {
-      this.store.addStep(typeId, null, null);
+      this.store.addStep(typeId, null);
       return;
     }
-    const leaf = steps.find(step => !steps.some(other => other.parentId === step.id)) ?? steps[steps.length - 1];
-    this.store.addStep(typeId, leaf.id, null);
+    // Sin punto elegido, cuelga de la primera carta con una salida libre.
+    const openEnd = this.layout().openEnds[0];
+    this.store.addStep(typeId, openEnd?.stepId ?? steps[steps.length - 1].id, openEnd?.port ?? 'main');
   }
 
-  /**
-   * Suelta un paso del catálogo en el lienzo.
-   *
-   * El flujo sigue siendo un árbol, así que el paso necesita un padre: se elige
-   * el nodo más cercano que quede POR ENCIMA del punto donde se soltó, que es
-   * el que la vista sugiere. Si no hay ninguno encima (se soltó arriba del
-   * todo) se cuelga de la última hoja para no romper la cadena.
-   */
+  /** Suelta un paso del catálogo en el lienzo. */
   onDropStep(event: { typeId: string; x: number; y: number }): void {
     const typeId = event.typeId as WorkflowStepTypeId;
     const nodes = this.layout().nodes;
@@ -112,15 +136,40 @@ export class WorkflowPageComponent {
       return;
     }
 
+    // Se engancha a la carta más cercana que quede POR ENCIMA del punto: es la
+    // que la vista sugiere. Si no hay ninguna encima, queda suelta y el usuario
+    // tira el hilo a mano — mejor eso que inventarle un origen equivocado.
     const above = nodes.filter(node => node.y + node.height <= event.y);
-    const pool = above.length > 0 ? above : nodes;
-    const nearest = pool.reduce((best, node) => {
+    if (above.length === 0) {
+      this.store.addStepAt(typeId, null, event.x, event.y);
+      return;
+    }
+    const nearest = above.reduce((best, node) => {
       const distance = Math.hypot(node.x + node.width / 2 - event.x, node.y + node.height - event.y);
       const bestDistance = Math.hypot(best.x + best.width / 2 - event.x, best.y + best.height - event.y);
       return distance < bestDistance ? node : best;
     });
 
     this.store.addStepAt(typeId, nearest.step.id, event.x, event.y);
+  }
+
+  /** Un hilo nuevo: si no vale, el store devuelve el motivo y se muestra. */
+  onConnect(event: { fromStepId: string; fromPort: string; toStepId: string }): void {
+    const error = this.store.connect(event.fromStepId, event.fromPort, event.toStepId);
+    if (error) {
+      this.showLinkError(error);
+    }
+  }
+
+  readonly linkError = signal<string | null>(null);
+  private linkErrorTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private showLinkError(message: string): void {
+    this.linkError.set(message);
+    if (this.linkErrorTimer) {
+      clearTimeout(this.linkErrorTimer);
+    }
+    this.linkErrorTimer = setTimeout(() => this.linkError.set(null), 3200);
   }
 
   onMoveLive(event: { id: string; x: number; y: number }): void {
