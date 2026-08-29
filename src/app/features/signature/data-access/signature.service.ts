@@ -14,7 +14,12 @@ import {
   SignatureFieldResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
+  SignatureTemplateDetail,
+  SignatureTemplateStatus,
   SignerResponse,
+  SetPreparerBody,
+  InstantiateTemplateBody,
+  TemplateListResult,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -135,6 +140,82 @@ export class SignatureService {
   /** 1..720 horas adicionales sobre la expiración actual. */
   extendExpiration(requestId: string, additionalHours: number): Observable<void> {
     return this.http.post<void>(`${this.base}/requests/${requestId}/extend-expiration`, { additionalHours });
+  }
+
+  /**
+   * Fija el PIN del preparador (4–10 dígitos) para verificar al firmante.
+   *
+   * Es **PUT**, no POST — verificado contra `SignatureRequestsController`; la
+   * guía de integración lo documenta como POST y eso daría 405.
+   *
+   * Sin esto la verificación de identidad no existe en la práctica: el dominio
+   * solo bloquea la firma con `RequiresPractitionerPin && !signer.IsPinVerified`,
+   * y ese flag es `PractitionerPinHash is not null`, así que mientras nadie fije
+   * el PIN el paso de verificación del firmante nunca aparece.
+   */
+  setPractitionerPin(requestId: string, pin: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/practitioner-pin`, { pin });
+  }
+
+  /** Quita el PIN: la solicitud vuelve a no exigir verificación por PIN. */
+  clearPractitionerPin(requestId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/practitioner-pin`);
+  }
+
+  /**
+   * Identidad del preparador en la solicitud (Form 8879 §V): PTIN/EFIN, nombre
+   * y título. Es **PUT** sobre `/preparer`.
+   *
+   * ⚠️ `SignatureRequestResponse` NO devuelve el preparador ni
+   * `IsPreparerSigned`, así que estas tres son escrituras a ciegas: el front no
+   * puede mostrar si ya está fijado o si ya firmó. Queda reflejado en el PDF
+   * sellado y en la cadena de auditoría, no en el detalle.
+   */
+  setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/preparer`, body);
+  }
+
+  clearPreparer(requestId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/preparer`);
+  }
+
+  /**
+   * Firma interna del preparador. La ruta real es `/preparer/sign` y va **sin
+   * body** (el usuario sale del JWT) — la guía la documenta como
+   * `/sign-as-preparer`, que no existe.
+   */
+  signAsPreparer(requestId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/sign`, {});
+  }
+
+  // ---------- Plantillas ----------
+
+  /**
+   * Moldes reutilizables de solicitud.
+   *
+   * ⚠️ Exige el permiso `signature.template.create`, que el rol Employee por
+   * defecto NO tiene: para un empleado esto responde 403, no una lista vacía.
+   */
+  listTemplates(status?: SignatureTemplateStatus, page = 1, size = 50): Observable<TemplateListResult> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.http.get<TemplateListResult>(`${this.base}/templates`, { params });
+  }
+
+  /** El molde completo: hace falta para saber qué roles (slots) hay que atar. */
+  getTemplate(templateId: string): Observable<SignatureTemplateDetail> {
+    return this.http.get<SignatureTemplateDetail>(`${this.base}/templates/${templateId}`);
+  }
+
+  /**
+   * Crea una solicitud a partir del molde → 201 con el mismo
+   * `SignatureRequestDetail` que `create`, así que el flujo sigue igual desde
+   * ahí (esperar Ready y enviar).
+   */
+  instantiateTemplate(templateId: string, body: InstantiateTemplateBody): Observable<SignatureRequestDetail> {
+    return this.http.post<SignatureRequestDetail>(`${this.base}/templates/${templateId}/instantiate`, body);
   }
 
   resendSignerInvitation(requestId: string, signerId: string): Observable<void> {

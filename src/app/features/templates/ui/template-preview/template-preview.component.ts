@@ -30,7 +30,7 @@ export class TemplatePreviewComponent {
     const key = category.toLowerCase();
     if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
     if (key.includes('letter')) return 'border-orange-200 text-orange-500';
-    if (key.includes('invoice') || key.includes('billing')) return 'border-[#D7E3EF] text-brand-bold';
+    if (key.includes('invoice') || key.includes('billing')) return 'border-brand-border text-brand-bold';
     if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
     return 'border-gray-200 text-gray-500';
   }

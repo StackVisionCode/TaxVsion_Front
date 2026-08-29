@@ -1,0 +1,55 @@
+/*
+ * Entrada del nodo con un pop breve, siguiendo el patrón del repo:
+ * keyframes propios, sin @angular/animations.
+ */
+
+@keyframes wf-node-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes wf-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.wf-node {
+  cursor: pointer;
+  animation: wf-node-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.wf-node:hover {
+  box-shadow: 0 10px 24px rgb(var(--color-gray-900-rgb, 13 13 13) / 0.08);
+}
+
+/* Anillo de selección en color de marca, sin ocupar espacio (no mueve el layout). */
+.wf-node--selected {
+  box-shadow: 0 0 0 2px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.9);
+}
+
+.wf-menu {
+  animation: wf-menu-in 160ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * Los keyframes usan `both` desde `opacity: 0`, así que se anulan ENTEROS:
+ * acortarlos dejaría los nodos invisibles.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .wf-node,
+  .wf-menu {
+    animation: none;
+  }
+}

@@ -11,7 +11,7 @@
 
       <!-- SKU (inmutable en el backend: solo editable al crear) -->
       <div class="flex h-11 items-center rounded-full border border-gray-200 px-4 focus-within:border-gray-300 transition-colors"
-        [ngClass]="isEditMode() ? 'bg-[#FAFAFA]' : 'bg-white'">
+        [ngClass]="isEditMode() ? 'bg-brand-white' : 'bg-white'">
         <span class="mr-2 text-sm text-gray-400">SKU</span>
         <input type="text" placeholder="e.g. SVC-1040" [ngModel]="sku()" name="sku" (ngModelChange)="sku.set($event)"
           [disabled]="isEditMode()"
@@ -80,7 +80,7 @@
       </div>
 
       <!-- Active / inactive toggle -->
-      <div class="flex items-center justify-between rounded-2xl border border-gray-100 bg-[#FAFAFA] px-4 py-3">
+      <div class="flex items-center justify-between rounded-2xl border border-gray-100 bg-brand-white px-4 py-3">
         <div>
           <p class="text-sm font-medium text-gray-900">{{ status() === 'active' ? 'Active' : 'Inactive' }}</p>
           <p class="text-xs text-gray-500">Inactive products stay hidden from clients</p>

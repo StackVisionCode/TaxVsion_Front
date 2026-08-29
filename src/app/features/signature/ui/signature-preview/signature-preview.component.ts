@@ -59,7 +59,7 @@ export class SignaturePreviewComponent {
       case 'canceled':
         return 'border-gray-300 text-gray-500';
       case 'ready':
-        return 'border-[#CFE2F7] text-blue-600';
+        return 'border-indigo-100 text-blue-600';
       case 'completed':
         return 'border-emerald-200 text-emerald-600';
       case 'pending':

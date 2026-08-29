@@ -45,11 +45,11 @@ export class ClientProfileOverviewComponent {
         title: 'Client since',
         subtitle: 'Relationship length',
         value: this.clientSince(),
-        bg: 'bg-[#E8F1FB]',
+        bg: 'bg-indigo-50',
       },
-      { title: 'Open invoices', subtitle: 'Not available yet', value: null, bg: 'bg-[#CFE2F7]' },
-      { title: 'Documents on file', subtitle: 'Not available yet', value: null, bg: 'bg-[#E7EAEE]' },
-      { title: 'Last activity', subtitle: 'Not available yet', value: null, bg: 'bg-[#DDE9F5]' },
+      { title: 'Open invoices', subtitle: 'Not available yet', value: null, bg: 'bg-indigo-100' },
+      { title: 'Documents on file', subtitle: 'Not available yet', value: null, bg: 'bg-gray-200' },
+      { title: 'Last activity', subtitle: 'Not available yet', value: null, bg: 'bg-indigo-100' },
     ];
   }
 

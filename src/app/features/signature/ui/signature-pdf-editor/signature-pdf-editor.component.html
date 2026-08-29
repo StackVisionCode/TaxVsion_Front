@@ -82,7 +82,7 @@
       </div>
 
       <!-- Hint mientras no hay campos -->
-      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] leading-snug text-gray-500">
+      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] leading-snug text-gray-500">
         <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
         Place at least one field on the document to continue.
       </p>
@@ -124,7 +124,7 @@
     </div>
 
     <!-- Superficie del documento (scroll interno) -->
-    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-[#FAFAFA] p-6">
+    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-brand-white p-6">
       <!-- Skeleton mientras renderiza -->
       <div *ngIf="loading()" class="mx-auto w-fit">
         <div class="h-[560px] w-[440px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
@@ -249,7 +249,7 @@
 
       <div class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
         <!-- Documento -->
-        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-[#FAFAFA] p-2.5">
+        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-brand-white p-2.5">
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" [ngClass]="docCircle(d.kind)">
             <ion-icon [name]="docIcon(d.kind)" class="text-sm text-gray-700"></ion-icon>
           </span>
@@ -295,7 +295,7 @@
         </div>
 
         <!-- Readiness -->
-        <div class="space-y-1.5 rounded-xl bg-[#FAFAFA] p-2.5">
+        <div class="space-y-1.5 rounded-xl bg-brand-white p-2.5">
           <p class="flex items-center gap-1.5 text-[11px]"
             [ngClass]="pages().length > 0 && !loadError() ? 'text-emerald-600' : 'text-orange-500'">
             <ion-icon [name]="pages().length > 0 && !loadError() ? 'checkmark-circle' : 'alert-circle-outline'" class="text-sm"></ion-icon>

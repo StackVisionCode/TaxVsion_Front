@@ -52,18 +52,18 @@ export class TemplateCardGridComponent {
 
   categoryCircle(category: string): string {
     const key = category.toLowerCase();
-    if (key.includes('mail')) return 'bg-[#CFE2F7]';
-    if (key.includes('letter')) return 'bg-[#E8F1FB]';
-    if (key.includes('invoice') || key.includes('billing')) return 'bg-[#DDE9F5]';
-    if (key.includes('remind') || key.includes('alert')) return 'bg-[#E7EAEE]';
-    return 'bg-[#E2EDF7]';
+    if (key.includes('mail')) return 'bg-indigo-100';
+    if (key.includes('letter')) return 'bg-indigo-50';
+    if (key.includes('invoice') || key.includes('billing')) return 'bg-indigo-100';
+    if (key.includes('remind') || key.includes('alert')) return 'bg-gray-200';
+    return 'bg-brand-surface-strong';
   }
 
   categoryChip(category: string): string {
     const key = category.toLowerCase();
     if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
     if (key.includes('letter')) return 'border-orange-200 text-orange-500';
-    if (key.includes('invoice') || key.includes('billing')) return 'border-[#D7E3EF] text-brand-bold';
+    if (key.includes('invoice') || key.includes('billing')) return 'border-brand-border text-brand-bold';
     if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
     return 'border-gray-200 text-gray-500';
   }

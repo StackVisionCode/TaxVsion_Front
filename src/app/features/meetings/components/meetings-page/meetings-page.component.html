@@ -2,19 +2,19 @@
   <ng-container *ngIf="!activeRoomMeeting(); else roomView">
     <!-- Stats row (sobre lo cargado de cada scope) -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+      <div class="rounded-[24px] bg-indigo-50 p-5">
         <p class="text-sm text-gray-600">Today's meetings</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ todayCount() }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">This week</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ thisWeekCount() }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+      <div class="rounded-[24px] bg-gray-200 p-5">
         <p class="text-sm text-gray-600">Live now</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ liveNowCount() }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">Transcripts available</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ transcriptsCount() }}</p>
       </div>

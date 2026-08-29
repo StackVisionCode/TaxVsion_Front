@@ -2,19 +2,19 @@
   <ng-container *ngIf="!previewCampaign(); else previewView">
     <!-- Stats row (derivadas de lo cargado del backend) -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+      <div class="rounded-[24px] bg-indigo-50 p-5">
         <p class="text-sm text-gray-600">Total campaigns</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalCampaigns()) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">Active now</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(activeNow()) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+      <div class="rounded-[24px] bg-gray-200 p-5">
         <p class="text-sm text-gray-600">Total recipients reached</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalRecipientsReached()) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">Avg open rate</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatPercent(avgOpenRate()) }}</p>
       </div>

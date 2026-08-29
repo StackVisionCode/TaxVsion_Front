@@ -16,7 +16,7 @@
    así conserva exactamente su tamaño y nada salta al entrar/salir de columnas. */
 .task-card.cdk-drag-placeholder {
   background: #f7f5fc;
-  border: 2px dashed #D7E3EF;
+  border: 2px dashed rgb(var(--color-indigo-200-rgb, 176 201 223));
   box-shadow: none;
 }
 

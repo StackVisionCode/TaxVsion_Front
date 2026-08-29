@@ -62,6 +62,17 @@ export interface SignatureRequest {
   signatureFields?: PlacedField[];
   /** Reglas de la solicitud (orden, canales, recordatorio…) definidas en el editor. */
   rules?: RequestRules;
+  /**
+   * true = la solicitud exige PIN del preparador para firmar.
+   *
+   * Es la ÚNICA verificación de identidad que el backend impone al firmar
+   * (`RequiresPractitionerPin && !signer.IsPinVerified`), y solo se activa
+   * cuando el staff fija un PIN, así que la UI necesita saberlo para ofrecer
+   * fijarlo o quitarlo.
+   */
+  requiresPractitionerPin?: boolean;
+  /** Cuándo se fijó el PIN (el backend no devuelve el PIN en claro, nunca). */
+  practitionerPinSetAtUtc?: string | null;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
@@ -88,7 +99,7 @@ export function isActionableStatus(status: SignatureStatus): boolean {
 
 /**
  * Tabla de solicitudes de firma (patrón "Aether", igual que campaign-table /
- * service-catalog): header en píldora `bg-[#FAFAFA]` con extremos
+ * service-catalog): header en píldora `bg-brand-white` con extremos
  * redondeados, columnas Document name / Client / Signers (avatares
  * superpuestos) / Status (chip outline) / Sent date / Completed date y un
  * menú fantasma "..." por fila con View / Resend reminder / Cancel request.
@@ -106,6 +117,10 @@ export class SignatureTableComponent {
   @Output() resendRequested = new EventEmitter<SignatureRequest>();
   @Output() cancelRequested = new EventEmitter<SignatureRequest>();
   @Output() extendRequested = new EventEmitter<SignatureRequest>();
+  /** Fijar o quitar el PIN del preparador de esa solicitud. */
+  @Output() pinRequested = new EventEmitter<SignatureRequest>();
+  /** Fijar la identidad del preparador o firmar como tal (Form 8879 §V). */
+  @Output() preparerRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadSealedRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificateRequested = new EventEmitter<SignatureRequest>();
 
@@ -164,7 +179,7 @@ export class SignatureTableComponent {
       case 'draft':
         return 'border-gray-300 text-gray-500';
       case 'ready':
-        return 'border-[#CFE2F7] text-blue-600';
+        return 'border-indigo-100 text-blue-600';
       case 'completed':
         return 'border-emerald-200 text-emerald-600';
       case 'pending':
@@ -206,6 +221,14 @@ export class SignatureTableComponent {
   }
 
   canExtend(request: SignatureRequest): boolean {
+    return isActionableStatus(request.status);
+  }
+
+  /**
+   * El PIN solo se puede tocar mientras la solicitud siga viva: una vez
+   * completada, cancelada o vencida ya no hay firma que verificar.
+   */
+  canManagePin(request: SignatureRequest): boolean {
     return isActionableStatus(request.status);
   }
 
@@ -253,6 +276,18 @@ export class SignatureTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.extendRequested.emit(request);
+  }
+
+  onPinClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.pinRequested.emit(request);
+  }
+
+  onPreparerClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.preparerRequested.emit(request);
   }
 
   onDownloadSealedClick(request: SignatureRequest, event: MouseEvent): void {

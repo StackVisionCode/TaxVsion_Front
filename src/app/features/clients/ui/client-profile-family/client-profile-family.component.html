@@ -77,7 +77,7 @@
 
     <div *ngIf="pagedDependents().length > 0; else noDependents" class="mt-3 flex flex-col divide-y divide-gray-100">
       <div *ngFor="let dependent of pagedDependents()" class="family-row flex items-center gap-4 py-3">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E7EAEE] text-gray-700 text-xs font-semibold">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">
           {{ initials(dependent.displayName) }}
         </span>
         <div class="min-w-0 flex-1">

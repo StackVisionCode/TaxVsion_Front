@@ -107,6 +107,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Support', icon: 'headset-outline', route: '/support' },
     { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns' },
     { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', isSpecial: true },
+    { label: 'Workflow', icon: 'git-network-outline', route: '/workflow' },
     { label: 'Subscription', icon: 'card-outline', route: '/subscription' },
     { label: 'Settings', icon: 'settings-outline', route: '/settings' },
   ]);
@@ -176,7 +177,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.bodyTooltipEl.setAttribute('role', 'tooltip');
       Object.assign(this.bodyTooltipEl.style, {
         position: 'fixed',
-        backgroundColor: '#111827',
+        backgroundColor: 'rgb(var(--color-gray-900-rgb, 13 13 13))',
         color: '#fff',
         padding: '6px 12px',
         borderRadius: '9999px',

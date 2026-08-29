@@ -25,19 +25,19 @@
 
   <!-- Totales del intento (autoritativos, vienen de GET /{id}) -->
   <div class="result-block grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+    <div class="rounded-[24px] bg-indigo-50 p-5">
       <p class="text-sm text-gray-600">Created</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.successCount }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Updated</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.updatedCount }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+    <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Skipped</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.skippedCount }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Failed</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.failedCount }}</p>
     </div>
@@ -85,7 +85,7 @@
     <ng-container *ngIf="!rowsLoading && !rowsError">
       <!-- Empty state -->
       <div *ngIf="visibleRows().length === 0"
-        class="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-6 py-10 text-center">
+        class="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-brand-white px-6 py-10 text-center">
         <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white">
           <ion-icon name="checkmark-circle-outline" class="text-xl text-brand-bold"></ion-icon>
         </span>
@@ -103,11 +103,11 @@
         <table class="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th class="rounded-l-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Row</th>
-              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Client</th>
-              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Status</th>
-              <th class="bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Matched by</th>
-              <th class="rounded-r-2xl bg-[#FAFAFA] px-4 py-3 text-left font-semibold text-gray-900">Detail</th>
+              <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Row</th>
+              <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Client</th>
+              <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+              <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Matched by</th>
+              <th class="rounded-r-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Detail</th>
             </tr>
           </thead>
           <tbody>

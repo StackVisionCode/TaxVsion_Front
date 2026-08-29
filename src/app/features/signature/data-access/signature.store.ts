@@ -8,7 +8,12 @@ import {
   ApiSignatureRequestStatus,
   SignatureCategory,
   SignatureFieldKind,
+  PreparerSessionState,
+  SetPreparerBody,
   SignatureRequestDetail,
+  SignatureTemplateDetail,
+  SlotBinding,
+  TemplateSummary,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -228,6 +233,115 @@ export class SignatureStore {
 
   extendExpiration(requestId: string, additionalHours: number): Observable<void> {
     return this.service.extendExpiration(requestId, additionalHours).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * PIN del preparador: lo fija el staff y el firmante lo teclea en su paso de
+   * verificación. Se refresca la lista porque el detalle expone
+   * `requiresPractitionerPin` / `practitionerPinSetAtUtc` y la UI los muestra.
+   */
+  setPractitionerPin(requestId: string, pin: string): Observable<void> {
+    return this.service.setPractitionerPin(requestId, pin).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  clearPractitionerPin(requestId: string): Observable<void> {
+    return this.service.clearPractitionerPin(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * Preparador guardado en ESTA sesión, por solicitud.
+   *
+   * `SignatureRequestResponse` no devuelve el preparador ni `IsPreparerSigned`,
+   * así que sin esto el formulario salía vacío cada vez y no había forma de
+   * saber si ya se había guardado algo o firmado. Se conserva la respuesta de
+   * la propia escritura —que es lo que quedó en el servidor— para poder
+   * precargar y mostrar el estado mientras dure la sesión.
+   */
+  private readonly _preparers = signal<Record<string, PreparerSessionState>>({});
+  readonly preparers = this._preparers.asReadonly();
+
+  preparerFor(requestId: string): PreparerSessionState | null {
+    return this._preparers()[requestId] ?? null;
+  }
+
+  private patchPreparer(requestId: string, patch: Partial<PreparerSessionState>): void {
+    this._preparers.update(all => {
+      const current = all[requestId] ?? { info: null, signed: false };
+      return { ...all, [requestId]: { ...current, ...patch } };
+    });
+  }
+
+  setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
+    return this.service.setPreparer(requestId, body).pipe(tap(() => this.patchPreparer(requestId, { info: body })));
+  }
+
+  clearPreparer(requestId: string): Observable<void> {
+    return this.service
+      .clearPreparer(requestId)
+      .pipe(tap(() => this.patchPreparer(requestId, { info: null, signed: false })));
+  }
+
+  signAsPreparer(requestId: string): Observable<void> {
+    return this.service.signAsPreparer(requestId).pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
+  }
+
+  // ---------- Plantillas ----------
+
+  readonly templates = signal<TemplateSummary[]>([]);
+  readonly templatesLoading = signal(false);
+  readonly templatesError = signal<string | null>(null);
+
+  /**
+   * Solo las publicadas: un molde en Draft todavía se está armando y sus slots
+   * o campos pueden estar incompletos, así que instanciarlo daría una solicitud
+   * a medias.
+   */
+  loadTemplates(): void {
+    this.templatesLoading.set(true);
+    this.templatesError.set(null);
+    this.service.listTemplates('Published').subscribe({
+      next: result => {
+        this.templates.set(result.items ?? []);
+        this.templatesLoading.set(false);
+      },
+      error: err => {
+        this.templatesError.set(toApiError(err).message);
+        this.templatesLoading.set(false);
+      },
+    });
+  }
+
+  getTemplate(templateId: string): Observable<SignatureTemplateDetail> {
+    return this.service.getTemplate(templateId);
+  }
+
+  /**
+   * Crea la solicitud desde el molde. El PDF pasa por el mismo preflight y la
+   * misma cadena de CloudStorage que el wizard normal — la plantilla aporta el
+   * layout de campos y los settings, nunca el documento.
+   *
+   * Queda en Draft a propósito: el staff revisa y envía desde la lista, igual
+   * que una solicitud creada a mano (Draft→Ready sigue dependiendo del scan).
+   */
+  instantiateTemplate(
+    templateId: string,
+    file: File,
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+  ): Observable<SignatureRequestDetail> {
+    return this.service.validateDocument(file).pipe(
+      switchMap(validation => {
+        if (!validation.isAcceptable) {
+          // `issues` son objetos {code, message}, no strings (la guía dice string[]).
+          throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
+        }
+        return this.service.uploadOriginalDocument(file, validation.validationRecordId);
+      }),
+      switchMap(originalFileId =>
+        this.service.instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride }),
+      ),
+      tap(() => this.refreshAfterAction()),
+    );
   }
 
   resendSigner(requestId: string, signerId: string): Observable<void> {

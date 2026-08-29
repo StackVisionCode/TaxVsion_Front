@@ -2,19 +2,19 @@
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
     <!-- Stats row (analytics del backend; "—" mientras carga o si analytics falla) -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+      <div class="rounded-[24px] bg-indigo-50 p-5">
         <p class="text-sm text-gray-600">Total requests</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.totalRequests) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">In progress</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.inProgress) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+      <div class="rounded-[24px] bg-gray-200 p-5">
         <p class="text-sm text-gray-600">Completed this month</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.completedThisMonth) }}</p>
       </div>
-      <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+      <div class="rounded-[24px] bg-indigo-100 p-5">
         <p class="text-sm text-gray-600">Completion rate</p>
         <p class="mt-2 text-3xl font-bold text-gray-900">{{ completionRateLabel() }}</p>
       </div>
@@ -29,9 +29,11 @@
 
           <!-- Firma propia generada (generador de firmas) -->
           <div *ngIf="mySignature() as sig"
-            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-3 py-2">
+            class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
             <img [src]="sig.dataUrl" alt="My signature" class="h-8 max-w-[140px] object-contain" />
             <span class="text-xs font-medium text-gray-600">{{ sig.displayName }}</span>
+            <!-- No hay endpoint que reciba la imagen: vive solo en esta pantalla. -->
+            <span class="text-[10px] text-gray-400">this screen only</span>
             <button type="button" (click)="openCreator()"
               class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Change</button>
           </div>
@@ -41,6 +43,11 @@
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             My signature
+          </button>
+          <button type="button" (click)="openTemplatePicker()"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+            <ion-icon name="documents-outline" class="text-base"></ion-icon>
+            From template
           </button>
           <button type="button" (click)="openCreatePanel()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
@@ -86,7 +93,8 @@
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
-          (extendRequested)="openExtendModal($event)" (downloadSealedRequested)="downloadSealed($event)"
+          (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)" (preparerRequested)="openPreparerModal($event)"
+          (downloadSealedRequested)="downloadSealed($event)"
           (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
         <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
           (pageChange)="onPageChange($event)"></app-pagination>
@@ -105,6 +113,11 @@
     </ng-template>
   </ng-template>
 </div>
+
+<!-- Crear desde plantilla: el molde aporta campos y settings; solo se pide el
+     documento y quién firma cada rol. -->
+<app-signature-template-picker [isOpen]="isTemplatePickerOpen()" (closed)="closeTemplatePicker()"
+  (created)="handleTemplateInstantiated($event)"></app-signature-template-picker>
 
 <!-- Signature generator overlay -->
 <app-signature-creator [isOpen]="isCreatorOpen()" (closed)="closeCreator()"
@@ -157,6 +170,112 @@
     <button type="button" (click)="confirmExtend()" [disabled]="actionBusy()"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
       {{ actionBusy() ? 'Extending…' : 'Extend' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- PIN del preparador: lo fija el staff y lo teclea el firmante en su paso de
+     verificación. Es la única verificación que el backend impone al firmar. -->
+<app-modal [isOpen]="pinTarget() !== null" heading="Signing PIN"
+  subheading="The signer must enter this PIN before they can sign" size="md" (closed)="closePinModal()">
+  <div *ngIf="pinTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      For <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
+      Share it with the signer in person or by a channel you trust — it is never shown again.
+    </p>
+
+    <p *ngIf="target.requiresPractitionerPin" class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+      This request already has a PIN. Entering a new one replaces it.
+    </p>
+
+    <input type="text" inputmode="numeric" autocomplete="off" [ngModel]="pinValue()"
+      (ngModelChange)="pinValue.set($event)" name="practitionerPin" placeholder="4–10 digits"
+      class="w-44 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm tracking-widest text-gray-700 focus:border-brand-bold focus:outline-none" />
+    <p *ngIf="pinValue() && !isPinValid()" class="text-xs text-amber-700">
+      The PIN must be 4 to 10 digits, numbers only.
+    </p>
+
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button *ngIf="pinTarget()?.requiresPractitionerPin" type="button" (click)="confirmClearPin()"
+      [disabled]="actionBusy()"
+      class="mr-auto rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+      Remove PIN
+    </button>
+    <button type="button" (click)="closePinModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmSetPin()" [disabled]="actionBusy() || !isPinValid()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Save PIN' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Preparador (Form 8879 §V). Escritura a ciegas a propósito: el detalle del
+     backend no devuelve el preparador ni si ya firmó, así que no se puede
+     precargar ni mostrar el estado; la UI lo dice en vez de aparentarlo. -->
+<app-modal [isOpen]="preparerTarget() !== null" heading="Preparer"
+  subheading="Identity that signs the return as preparer (Form 8879 §V)" size="md" (closed)="closePreparerModal()">
+  <div *ngIf="preparerTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      For <span class="font-semibold text-gray-900">{{ target.documentName }}</span>.
+    </p>
+
+    <!-- El backend no devuelve el preparador en el detalle, así que esto solo
+         refleja lo guardado en esta sesión; se dice, no se aparenta. -->
+    <div *ngIf="preparerState() as state; else noPreparerYet"
+      class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+      <p *ngIf="state.info as info">
+        Saved this session: <span class="font-semibold text-gray-900">{{ info.displayName }}</span>
+        <span class="text-gray-500"> · {{ info.ptinOrEfin }}</span>
+      </p>
+      <p *ngIf="!state.info">No preparer on this request — it was removed in this session.</p>
+      <p *ngIf="state.signed" class="mt-1 text-emerald-700">Signed as preparer in this session.</p>
+      <p class="mt-1 text-xs text-gray-400">Reloading the page clears this: the server doesn't report it back.</p>
+    </div>
+    <ng-template #noPreparerYet>
+      <p class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+        The request detail doesn't report the preparer, so there's no way to show whether one is already
+        saved. Saving replaces whatever is there.
+      </p>
+    </ng-template>
+
+    <label class="text-xs font-medium text-gray-500">PTIN or EFIN</label>
+    <input type="text" autocomplete="off" [ngModel]="preparerPtin()" (ngModelChange)="preparerPtin.set($event)"
+      name="preparerPtin" placeholder="P12345678"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <label class="text-xs font-medium text-gray-500">Display name</label>
+    <input type="text" autocomplete="off" [ngModel]="preparerName()" (ngModelChange)="preparerName.set($event)"
+      name="preparerName" placeholder="Jane Doe, CPA"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <label class="text-xs font-medium text-gray-500">Title <span class="text-gray-400">(optional)</span></label>
+    <input type="text" autocomplete="off" [ngModel]="preparerTitle()" (ngModelChange)="preparerTitle.set($event)"
+      name="preparerTitle" placeholder="Tax Preparer"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex flex-wrap justify-end gap-2">
+    <button type="button" (click)="confirmClearPreparer()" [disabled]="actionBusy()"
+      class="mr-auto rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+      Remove
+    </button>
+    <button type="button" (click)="confirmSignAsPreparer()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Sign as preparer
+    </button>
+    <button type="button" (click)="closePreparerModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmSetPreparer()" [disabled]="actionBusy() || !isPreparerValid()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Save preparer' }}
     </button>
   </div>
 </app-modal>

@@ -13,7 +13,7 @@ import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboa
 const MAX_ROWS = 5;
 
 /** Pasteles que rotan en el círculo del icono (paleta azul de marca). */
-const ICON_BACKGROUNDS = ['bg-[#E8F1FB]', 'bg-[#CFE2F7]', 'bg-[#E7EAEE]'];
+const ICON_BACKGROUNDS = ['bg-indigo-50', 'bg-indigo-100', 'bg-gray-200'];
 
 /**
  * Widget "Signed Documents".

@@ -1,0 +1,55 @@
+<!-- La altura viene del layout: los conectores se calcularon contra ella. -->
+<div class="wf-node absolute overflow-hidden rounded-2xl border bg-white shadow-sm transition-shadow"
+  [class]="type.border" [style.left.px]="node.x" [style.top.px]="node.y" [style.width.px]="node.width"
+  [style.height.px]="node.height" [class.wf-node--selected]="selected" (click)="selectStep.emit(step.id)"
+  [attr.aria-current]="selected ? 'true' : null">
+
+  <!-- Cabecera: color por tipo -->
+  <div class="flex items-center gap-2 px-3 py-2" [class]="type.accent">
+    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" [class]="type.chip">
+      <ion-icon [name]="type.icon" class="text-sm text-white"></ion-icon>
+    </span>
+    <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ type.label }}</span>
+
+    <div class="relative shrink-0" [attr.data-dropdown]="'node-' + step.id">
+      <button type="button" (click)="toggleMenu($event)" [attr.aria-label]="'Actions for ' + step.title"
+        class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-black/10 transition-colors">
+        <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
+      </button>
+      <div *ngIf="menuOpen()"
+        class="wf-menu absolute right-0 top-7 z-30 w-40 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+        <button type="button" (click)="onDuplicate($event)"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="copy-outline" class="text-sm"></ion-icon>
+          Duplicate
+        </button>
+        <button type="button" (click)="onDelete($event)"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 transition-colors">
+          <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cuerpo -->
+  <div class="flex items-start gap-2 px-3 py-2.5">
+    <ion-icon name="checkmark-circle" class="mt-0.5 shrink-0 text-base text-emerald-500"></ion-icon>
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-sm font-semibold text-gray-900">{{ step.title }}</p>
+      <p class="truncate text-xs text-gray-500">{{ step.subtitle }}</p>
+    </div>
+    <span *ngIf="step.typeId === 'form-submitted'"
+      class="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-gray-500">
+      DATA
+    </span>
+  </div>
+
+  <!-- Pie: pares clave/valor derivados de la configuración -->
+  <div *ngIf="pairs.length > 0" class="border-t border-gray-100 px-3 py-1.5">
+    <div *ngFor="let pair of pairs" class="flex items-center gap-3 py-0.5 text-xs">
+      <span class="w-16 shrink-0 truncate text-gray-400">{{ pair.label }}</span>
+      <span class="min-w-0 flex-1 truncate text-gray-600">{{ pair.value }}</span>
+    </div>
+  </div>
+</div>

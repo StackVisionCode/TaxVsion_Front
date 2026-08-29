@@ -114,7 +114,7 @@
 </div>
 
 <!-- Coreografía de envío: el papel se crea, se firma y sale (pantalla completa) -->
-<div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#FAFAFA]/95"
+<div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95"
   [class.send-overlay-out]="sendPhase() === 'done'">
   <!-- Papel -->
   <div class="send-paper relative w-64 rounded-xl border border-gray-100 bg-white p-6 shadow-2xl shadow-indigo-200/40"

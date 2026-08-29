@@ -21,11 +21,28 @@ interface PublicBrandingResponse {
   faviconUrl: string | null;
 }
 
-/** Respuesta del endpoint autenticado por tenant: colores + assets con fileId (BrandResponse). */
+/**
+ * Respuesta del endpoint autenticado por tenant (`GET /tenants/{id}/brands/{surface}`).
+ *
+ * Trae `fileId`, NUNCA una URL: la de CloudStorage es presignada y muere en
+ * minutos, así que la URL servible se arma como
+ * `{tenantBase}/tenants/branding/assets/{fileId}?v=1`.
+ *
+ * Un asset puede venir `Pending` (el antivirus todavía no lo confirmó) y en ese
+ * caso NO se debe usar: el endpoint público no lo sirve.
+ */
 interface BrandResponse {
   surface: string;
   colors: { token: string; value: string; isCustomized: boolean }[];
-  assets: { key: string; fileId: string; status: string }[];
+  assets: {
+    key: string;
+    fileId: string;
+    status: string;
+    contentType: string;
+    width: number | null;
+    height: number | null;
+    isCustomized: boolean;
+  }[];
 }
 
 /**

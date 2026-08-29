@@ -44,7 +44,7 @@
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Variables</p>
     <div class="mt-2 flex flex-wrap gap-1.5">
       <span *ngFor="let variable of tpl.variables"
-        class="rounded-full bg-[#FAFAFA] px-3 py-1 font-mono text-xs text-gray-600">
+        class="rounded-full bg-brand-white px-3 py-1 font-mono text-xs text-gray-600">
         {{ variable }}
       </span>
     </div>
@@ -53,7 +53,7 @@
   <div *ngIf="tpl.description" class="mt-4 text-sm text-gray-600">{{ tpl.description }}</div>
 
   <!-- Cuerpo: se descarga de CloudStorage, por eso tiene estados propios -->
-  <div class="mt-6 rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+  <div class="mt-6 rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Body</p>
 
     <div *ngIf="bodyLoading" class="mt-3 flex items-center gap-2 text-sm text-gray-400">

@@ -20,7 +20,7 @@ export interface Referral {
 
 /**
  * Tabla de referidos (patrón "Aether", igual que service-catalog / invoice-table):
- * header en píldora `bg-[#FAFAFA]` con extremos redondeados y columnas
+ * header en píldora `bg-brand-white` con extremos redondeados y columnas
  * Name (avatar + iniciales) / Email / Date / Status (chip outline) / Reward.
  * Componente puramente presentacional: recibe la lista ya filtrada por input.
  */

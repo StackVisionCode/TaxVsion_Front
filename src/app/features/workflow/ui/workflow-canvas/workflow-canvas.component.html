@@ -1,0 +1,88 @@
+<div class="relative h-full w-full overflow-hidden rounded-[28px] bg-brand-white">
+  <!-- viewport: el pan es scroll nativo -->
+  <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
+    (pointerdown)="startPan($event)">
+
+    <!-- sizer: reserva el área desplazable ya escalada -->
+    <div class="relative" [style.width.px]="layout.width * zoom()" [style.height.px]="layout.height * zoom()">
+
+      <!-- stage: escala el dibujo sin tocar coordenadas -->
+      <div class="wf-stage absolute left-0 top-0 origin-top-left" [style.width.px]="layout.width"
+        [style.height.px]="layout.height" [style.transform]="'scale(' + zoom() + ')'">
+
+        <!-- Conectores por DEBAJO de los nodos: así las líneas no tapan el contenido
+             ni bloquean el menú de la tarjeta. La semántica la ponen los botones. -->
+        <svg class="pointer-events-none absolute left-0 top-0" [attr.width]="layout.width"
+          [attr.height]="layout.height" aria-hidden="true">
+          <path *ngFor="let connector of layout.connectors; trackBy: trackConnector" [attr.d]="connector.path"
+            class="wf-edge" fill="none" />
+        </svg>
+
+        <!-- Píldoras de rama (Yes / No) -->
+        <ng-container *ngFor="let connector of layout.connectors; trackBy: trackConnector">
+          <span *ngIf="connector.label"
+            class="wf-pill absolute -translate-x-1/2 -translate-y-1/2 rounded-full px-2.5 py-0.5 text-xs font-medium"
+            [class.bg-emerald-50]="connector.label === 'Yes'" [class.text-emerald-700]="connector.label === 'Yes'"
+            [class.bg-rose-50]="connector.label === 'No'" [class.text-rose-700]="connector.label === 'No'"
+            [style.left.px]="connector.labelX" [style.top.px]="connector.labelY">
+            {{ connector.label }}
+          </span>
+        </ng-container>
+
+        <!-- Botones `+` de inserción: HTML sobre el SVG para que sean botones de verdad -->
+        <button *ngFor="let connector of layout.connectors; trackBy: trackConnector" type="button"
+          (click)="onInsert(connector, $event)"
+          class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:border-brand-bold hover:text-brand-bold transition-colors"
+          [style.left.px]="connector.midX" [style.top.px]="connector.midY" aria-label="Insert step here">
+          <ion-icon name="add-outline" class="text-xs"></ion-icon>
+        </button>
+
+        <!-- Nodos -->
+        <app-workflow-node *ngFor="let node of layout.nodes; trackBy: trackNode" [node]="node"
+          [selected]="node.step.id === selectedId" (selectStep)="selectStep.emit($event)"
+          (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"></app-workflow-node>
+
+        <!-- END: se deriva del layout, no es un paso guardado -->
+        <div *ngIf="layout.end as end"
+          class="wf-end absolute flex items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-semibold tracking-wide text-gray-500"
+          [style.left.px]="end.x" [style.top.px]="end.y" [style.width.px]="end.width" [style.height.px]="end.height">
+          END
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de herramientas flotante -->
+  <div
+    class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-lg">
+    <button type="button" (click)="setTool('select')" aria-label="Select tool"
+      class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+      [ngClass]="tool() === 'select' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="navigate-outline" class="text-base"></ion-icon>
+    </button>
+    <button type="button" (click)="setTool('pan')" aria-label="Pan tool"
+      class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+      [ngClass]="tool() === 'pan' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="hand-left-outline" class="text-base"></ion-icon>
+    </button>
+    <span class="mx-1 h-5 w-px bg-gray-200"></span>
+    <button type="button" (click)="fit()" aria-label="Fit to screen"
+      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+      <ion-icon name="scan-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Zoom -->
+  <div
+    class="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-lg">
+    <button type="button" (click)="zoomBy(-0.1)" [disabled]="!canZoomOut()" aria-label="Zoom out"
+      class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+      <ion-icon name="remove-outline" class="text-base"></ion-icon>
+    </button>
+    <span class="w-12 text-center text-xs font-medium text-gray-600">{{ zoomPercent() }}%</span>
+    <button type="button" (click)="zoomBy(0.1)" [disabled]="!canZoomIn()" aria-label="Zoom in"
+      class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+      <ion-icon name="add-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+</div>
