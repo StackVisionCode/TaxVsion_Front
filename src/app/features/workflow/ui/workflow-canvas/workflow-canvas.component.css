@@ -1,0 +1,71 @@
+/* Retícula de puntos del lienzo, como en el diseño. Sin hex: sale de la rampa
+   de grises, que ThemeService tiñe con el hue de la marca del tenant. */
+.wf-viewport {
+  background-image: radial-gradient(rgb(var(--color-gray-300-rgb, 209 213 219) / 0.55) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.wf-viewport--pan {
+  cursor: grab;
+  /* El pan no debe seleccionar texto de los nodos por el camino. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wf-viewport--pan:active {
+  cursor: grabbing;
+}
+
+/* El trazo de los conectores usa la misma rampa tematizable. */
+.wf-edge {
+  stroke: rgb(var(--color-gray-400-rgb, 156 163 175));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes wf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wf-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.wf-pill,
+.wf-plus {
+  animation: wf-pop-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.wf-end {
+  animation: wf-fade-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * `wf-pill` y `wf-plus` llevan su centrado DENTRO del keyframe (translate -50%),
+ * así que aquí no basta con `animation: none`: hay que reponer el transform o
+ * quedarían descolocados respecto al conector.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .wf-end {
+    animation: none;
+  }
+
+  .wf-pill,
+  .wf-plus {
+    animation: none;
+    transform: translate(-50%, -50%);
+  }
+}

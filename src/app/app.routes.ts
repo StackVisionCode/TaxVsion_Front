@@ -143,6 +143,10 @@ export const routes: Routes = [
           import('./features/subscription/subscription.routes').then(m => m.SUBSCRIPTION_ROUTES),
       },
       {
+        path: 'workflow',
+        loadChildren: () => import('./features/workflow/workflow.routes').then(m => m.WORKFLOW_ROUTES),
+      },
+      {
         path: 'documents',
         loadChildren: () => import('./features/documents/documents.routes').then(m => m.DOCUMENTS_ROUTES),
       },

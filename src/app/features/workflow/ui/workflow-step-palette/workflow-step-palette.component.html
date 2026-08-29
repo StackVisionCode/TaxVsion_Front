@@ -1,0 +1,49 @@
+<div class="flex h-full flex-col rounded-[28px] bg-white" [class.w-16]="collapsed()">
+  <!-- Cabecera -->
+  <div class="flex items-center justify-between gap-2 px-4 pt-4">
+    <h2 *ngIf="!collapsed()" class="text-base font-bold text-gray-900">Add Step</h2>
+    <button type="button" (click)="toggleCollapsed()"
+      [attr.aria-label]="collapsed() ? 'Expand step catalog' : 'Collapse step catalog'"
+      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+      <ion-icon [name]="collapsed() ? 'chevron-forward-outline' : 'chevron-back-outline'" class="text-base"></ion-icon>
+    </button>
+  </div>
+
+  <ng-container *ngIf="!collapsed()">
+    <!-- Buscador -->
+    <div class="px-4 pt-3">
+      <div
+        class="flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 focus-within:border-brand-bold transition-colors">
+        <ion-icon name="search-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
+        <input #searchInput type="text" placeholder="Search Step" [ngModel]="search()"
+          (ngModelChange)="search.set($event)" name="stepSearch" aria-label="Search steps"
+          class="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        <span class="ml-2 shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">⌘ K</span>
+      </div>
+    </div>
+
+    <!-- Aviso cuando el canvas está esperando dónde insertar -->
+    <p *ngIf="awaitingInsert" class="mx-4 mt-3 rounded-xl bg-brand-surface px-3 py-2 text-xs text-gray-600">
+      Pick a step to insert at the selected spot.
+    </p>
+
+    <!-- Catálogo -->
+    <div class="mt-2 flex-1 overflow-y-auto px-2 pb-4">
+      <div *ngFor="let group of groups()" class="wf-group mt-3 first:mt-1">
+        <p class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
+
+        <button *ngFor="let type of group.types" type="button" (click)="addStep.emit(type.id)"
+          class="wf-item group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition-colors">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" [class]="type.chip">
+            <ion-icon [name]="type.icon" class="text-base text-white"></ion-icon>
+          </span>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">{{ type.label }}</span>
+          <ion-icon name="add-outline"
+            class="shrink-0 text-base text-gray-300 group-hover:text-brand-bold transition-colors"></ion-icon>
+        </button>
+      </div>
+
+      <p *ngIf="isEmpty()" class="px-2 py-8 text-center text-sm text-gray-400">No steps match that search.</p>
+    </div>
+  </ng-container>
+</div>

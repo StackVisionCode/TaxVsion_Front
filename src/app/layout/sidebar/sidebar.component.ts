@@ -107,6 +107,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Support', icon: 'headset-outline', route: '/support' },
     { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns' },
     { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', isSpecial: true },
+    { label: 'Workflow', icon: 'git-network-outline', route: '/workflow' },
     { label: 'Subscription', icon: 'card-outline', route: '/subscription' },
     { label: 'Settings', icon: 'settings-outline', route: '/settings' },
   ]);
