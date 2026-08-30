@@ -61,10 +61,28 @@ export class SignatureTemplatePickerComponent {
     }
   }
   @Output() closed = new EventEmitter<void>();
-  /** Solicitud recién creada (queda en Draft, lista para revisar y enviar). */
-  @Output() created = new EventEmitter<SignatureRequestDetail>();
+  /**
+   * Solicitud creada. `sent` = si además se envió a los firmantes en el acto (lo normal); `false`
+   * si el documento seguía en escaneo y quedó como borrador para enviar con el botón.
+   */
+  @Output() created = new EventEmitter<{ detail: SignatureRequestDetail; sent: boolean }>();
 
   readonly open = signal(false);
+
+  /** Fase del create+send para el overlay de carga. */
+  readonly phase = signal<'idle' | 'creating' | 'preparing' | 'sending'>('idle');
+  readonly phaseLabel = computed(() => {
+    switch (this.phase()) {
+      case 'creating':
+        return this.docSource() === 'library' ? 'Creating the request…' : 'Uploading and preparing the document…';
+      case 'preparing':
+        return 'Waiting for the document to clear its security scan…';
+      case 'sending':
+        return 'Sending to signers…';
+      default:
+        return '';
+    }
+  });
 
   readonly templates = this.store.templates;
   readonly templatesLoading = this.store.templatesLoading;
@@ -247,7 +265,7 @@ export class SignatureTemplatePickerComponent {
     this.file.set(picked);
   }
 
-  create(): void {
+  async create(): Promise<void> {
     const template = this.selected();
     if (!template || !this.canCreate() || this.busy()) {
       return;
@@ -262,22 +280,24 @@ export class SignatureTemplatePickerComponent {
     }));
     const note = this.description().trim() || null;
 
-    // Librería: reusa el fileId existente (sin validar/subir). Upload: valida y sube.
+    // Una sola acción: crear + esperar a que el documento esté listo + enviar a los firmantes.
+    // Librería reusa el fileId (rápido); upload valida+sube. El botón queda deshabilitado y el
+    // modal no se puede cerrar mientras procesa (close() chequea busy).
     const library = this.libraryFile();
-    const request$ =
-      this.docSource() === 'library' && library
-        ? this.store.instantiateTemplateWithFileId(template.id, library.id, bindings, note)
-        : this.store.instantiateTemplate(template.id, this.file()!, bindings, note);
+    const source: { file: File } | { fileId: string } =
+      this.docSource() === 'library' && library ? { fileId: library.id } : { file: this.file()! };
 
-    request$.subscribe({
-      next: detail => {
-        this.busy.set(false);
-        this.created.emit(detail);
-      },
-      error: err => {
-        this.busy.set(false);
-        this.error.set(toApiError(err).message);
-      },
-    });
+    try {
+      const result = await this.store.instantiateTemplateAndSend(template.id, source, bindings, note, p =>
+        this.phase.set(p),
+      );
+      this.busy.set(false);
+      this.phase.set('idle');
+      this.created.emit(result);
+    } catch (err) {
+      this.busy.set(false);
+      this.phase.set('idle');
+      this.error.set(toApiError(err).message);
+    }
   }
 }

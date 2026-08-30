@@ -27,9 +27,21 @@ import {
  */
 
 export const NODE_WIDTH = 284;
-/** Alto de una carta sin pie. */
+/**
+ * Alto de una carta SIN pie: cabecera 40 (icono de 24 + `py-2`) + cuerpo 56
+ * (líneas `leading-5` + `leading-4` + `py-2.5`). La carta se dibuja con
+ * `overflow: hidden` a esta altura exacta, así que lo que no se cuente aquí
+ * se ve cortado.
+ */
 const NODE_BASE_HEIGHT = 96;
-const NODE_PAIR_HEIGHT = 24;
+/**
+ * Borde superior + `py-1.5` del pie. Solo suma cuando hay pares, y es
+ * justamente lo que faltaba: se contaban las filas pero no el marco del
+ * bloque, así que la última fila salía partida por la mitad.
+ */
+const NODE_FOOTER_CHROME = 16;
+/** Cada fila del pie: `leading-4` (16) + `py-0.5` (4). */
+const NODE_PAIR_HEIGHT = 20;
 const ROW_GAP = 96;
 const COLUMN_GAP = 40;
 /** Radio de los codos de los hilos. */
@@ -99,8 +111,14 @@ export interface WorkflowLayout {
   height: number;
 }
 
-function nodeHeight(step: WorkflowStep): number {
-  return NODE_BASE_HEIGHT + summaryPairs(step).length * NODE_PAIR_HEIGHT;
+/**
+ * Alto de la carta a partir de lo que realmente se dibuja. Los conectores se
+ * anclan a `y + height`, así que la carta no puede crecer sola: es este
+ * cálculo el que tiene que coincidir con el template.
+ */
+export function nodeHeight(step: WorkflowStep): number {
+  const pairs = summaryPairs(step).length;
+  return NODE_BASE_HEIGHT + (pairs > 0 ? NODE_FOOTER_CHROME + pairs * NODE_PAIR_HEIGHT : 0);
 }
 
 /**

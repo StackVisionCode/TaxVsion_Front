@@ -400,11 +400,41 @@
                 <span class="done-check mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
                   <ion-icon name="checkmark" class="text-4xl"></ion-icon>
                 </span>
-                <h1 class="mt-4 text-xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  Your signature was recorded.
-                  <span *ngIf="ctx.requestStatus === 'Completed'">Everyone has signed — the office is sealing the final PDF now.</span>
-                  <span *ngIf="ctx.requestStatus !== 'Completed'">We'll email you a copy once the remaining signers finish.</span>
+                <h1 class="mt-4 text-2xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
+                <p class="mt-1 text-sm font-medium text-emerald-600">Your signature was recorded successfully.</p>
+
+                <!-- Resumen de lo firmado -->
+                <div class="mt-5 rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
+                  <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
+                      <ion-icon name="document-text-outline" class="text-lg"></ion-icon>
+                    </span>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-semibold text-gray-900">{{ ctx.title }}</p>
+                      <p class="text-[11px] text-gray-400">Signed as {{ ctx.signerFullName }}</p>
+                    </div>
+                    <span class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
+                      <ion-icon name="shield-checkmark" class="text-[11px]"></ion-icon>Signed
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Qué sigue -->
+                <div class="mt-3 flex items-start gap-2 rounded-2xl border border-gray-100 px-4 py-3 text-left text-xs leading-snug text-gray-600">
+                  <ion-icon name="mail-outline" class="mt-0.5 shrink-0 text-base text-brand-bold"></ion-icon>
+                  <span *ngIf="ctx.requestStatus === 'Completed'">
+                    <span class="font-semibold text-gray-800">Everyone has signed.</span>
+                    The office is sealing the final PDF now — we'll email you a copy with a secure download link. No further action is needed.
+                  </span>
+                  <span *ngIf="ctx.requestStatus !== 'Completed'">
+                    <span class="font-semibold text-gray-800">You're done.</span>
+                    We'll email you a copy of the signed document once the remaining signers finish. No further action is needed.
+                  </span>
+                </div>
+
+                <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                  <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
+                  You can safely close this window.
                 </p>
 
                 <div class="mt-5">
