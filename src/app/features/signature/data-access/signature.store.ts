@@ -382,6 +382,52 @@ export class SignatureStore {
     return this.service.getById(requestId).pipe(map(detailToUiRequest));
   }
 
+  /**
+   * Instancia desde plantilla (subiendo un archivo o reusando uno de la oficina) y la ENVÍA en
+   * cuanto el documento queda Ready — todo en una sola acción, como el wizard normal. Reporta la
+   * fase para el loading. Si el archivo sigue en escaneo cuando se agota el poll, la solicitud
+   * queda creada (Draft/Ready) y se devuelve `sent: false` para que el usuario la mande con el
+   * botón (no se pierde nada). El barrido de reconciliación del backend también la rescata.
+   */
+  async instantiateTemplateAndSend(
+    templateId: string,
+    source: { file: File } | { fileId: string },
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+    onPhase?: (phase: 'creating' | 'preparing' | 'sending') => void,
+  ): Promise<{ detail: SignatureRequestDetail; sent: boolean }> {
+    onPhase?.('creating');
+    const detail =
+      'fileId' in source
+        ? await firstValueFrom(
+            this.instantiateTemplateWithFileId(templateId, source.fileId, slotBindings, descriptionOverride),
+          )
+        : await firstValueFrom(this.instantiateTemplate(templateId, source.file, slotBindings, descriptionOverride));
+
+    try {
+      onPhase?.('preparing');
+      await this.waitUntilReady(detail.id);
+      onPhase?.('sending');
+      await firstValueFrom(this.service.send(detail.id));
+      this.refreshAfterAction();
+      return { detail, sent: true };
+    } catch (err) {
+      // Sigue en scan (SendNotReadyError) o el send falló: la request quedó creada. Se refresca y
+      // se deja al usuario el botón de enviar.
+      this.refreshAfterAction();
+      if (err instanceof SendNotReadyError) {
+        return { detail, sent: false };
+      }
+      throw new Error(toApiError(err).message);
+    }
+  }
+
+  /** Reset a la primera página + refresh: para mostrar la solicitud recién creada (orden CreatedAt DESC). */
+  reloadTop(): void {
+    this._page.set(1);
+    this.refresh();
+  }
+
   resendSigner(requestId: string, signerId: string): Observable<void> {
     return this.service.resendSignerInvitation(requestId, signerId);
   }

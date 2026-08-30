@@ -186,12 +186,17 @@ export class SignaturePageComponent {
   }
 
   /**
-   * La plantilla ya creó la solicitud en Draft. No se envía sola: el PDF sigue
-   * en escaneo y `send` exige `Ready`, así que queda en la lista para revisarla.
+   * La plantilla creó (y normalmente envió) la solicitud. Si el documento seguía en escaneo
+   * quedó como borrador para enviar desde la lista. Se recarga la tabla al tope.
    */
-  handleTemplateInstantiated(detail: { title: string }): void {
+  handleTemplateInstantiated(result: { detail: { title: string }; sent: boolean }): void {
     this.closeTemplatePicker();
-    this.showToast(`Draft created from template — "${detail.title}" is ready to review`);
+    this.store.reloadTop();
+    this.showToast(
+      result.sent
+        ? `Sent to signers — "${result.detail.title}"`
+        : `Saved as draft — "${result.detail.title}" is still scanning; send it from the list`,
+    );
   }
 
   openCreator(): void {
@@ -220,6 +225,7 @@ export class SignaturePageComponent {
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */
   handleSent(): void {
     this.closePanel();
+    this.store.reloadTop();
     this.showToast('Signature request sent — signers were notified by email');
   }
 
