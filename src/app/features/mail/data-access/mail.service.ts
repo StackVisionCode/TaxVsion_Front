@@ -50,9 +50,16 @@ export class MailService {
     return this.http.get<MailAccount[]>(`${this.connectors}/accounts`);
   }
 
-  /** El resultado NO se consume por fetch: hay que redirigir el navegador a authorizationUrl. */
+  /**
+   * El resultado NO se consume por fetch: hay que redirigir el navegador a authorizationUrl. Se manda
+   * `returnUrl` (origen de ESTE subdominio del tenant) para que el callback de OAuth devuelva el
+   * navegador acá — donde el usuario está logueado — y no a un dominio central fijo.
+   */
   initiateOAuthConnect(providerCode: 'Gmail' | 'Graph'): Observable<InitiateOAuthConnectResult> {
-    return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, { providerCode });
+    return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, {
+      providerCode,
+      returnUrl: window.location.origin,
+    });
   }
 
   /**

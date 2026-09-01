@@ -66,6 +66,24 @@ export class MailPageComponent implements OnInit {
     this.connectResult.set(null);
   }
 
+  /** Traduce el slug de error del callback (query `connectors_error`) a un mensaje claro en inglés. */
+  private mailboxErrorMessage(code: string | null): string {
+    switch (code) {
+      case 'identity_mismatch':
+        return 'You can only connect your own mailbox. Sign in to the provider with the same email you use here, then try again.';
+      case 'identity_unknown':
+        return "We couldn't verify your account email. Please sign in again and retry.";
+      case 'already_connected':
+        return 'This mailbox is already connected. Disconnect it first to reconnect.';
+      case 'consent_incomplete':
+        return 'The provider did not grant offline access. Try again and approve all the requested permissions.';
+      case 'invalid_state':
+        return 'The connection link expired. Please start the connection again.';
+      default:
+        return 'Could not connect the mailbox. Please try again.';
+    }
+  }
+
   /**
    * Lee el resultado del callback una sola vez y limpia la URL (los params traen el
    * `accountId` recién conectado y no deben quedar en el historial). Tras un connect
@@ -90,7 +108,7 @@ export class MailPageComponent implements OnInit {
           : { ok: false, text: 'Admin consent was denied.' },
       );
     } else {
-      this.connectResult.set({ ok: false, text: `Could not connect the mailbox (${error}).` });
+      this.connectResult.set({ ok: false, text: this.mailboxErrorMessage(error) });
     }
 
     void this.router.navigate([], {
