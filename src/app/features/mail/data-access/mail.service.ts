@@ -115,6 +115,15 @@ export class MailService {
     return this.http.post<void>(`${this.correspondence}/threads/${threadId}/archive`, {});
   }
 
+  /** Marca TODO el hilo como leído / no-leído (estado compartido por el tenant). 204. */
+  markThreadRead(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/read`, {});
+  }
+
+  markThreadUnread(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/unread`, {});
+  }
+
   // ---------- Correspondence: mensajes (solo inbound) ----------
 
   /** Body pedido en vivo a Connectors — puede tardar/fallar si el buzón externo no responde. */
@@ -124,6 +133,15 @@ export class MailService {
 
   listMessageAttachments(messageId: string): Observable<AttachmentSummary[]> {
     return this.http.get<AttachmentSummary[]>(`${this.correspondence}/messages/${messageId}/attachments`);
+  }
+
+  /** Marca un mensaje inbound como leído / no-leído (estado compartido por el tenant). 204. */
+  markMessageRead(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/read`, {});
+  }
+
+  markMessageUnread(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/unread`, {});
   }
 
   /** Dispara la descarga bajo demanda hacia CloudStorage. Idempotente. */

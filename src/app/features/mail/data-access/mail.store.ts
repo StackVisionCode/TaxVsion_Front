@@ -144,6 +144,19 @@ export class MailStore {
   );
   readonly hasMailbox = computed(() => this.usableAccounts().length > 0);
 
+  /**
+   * ¿El email de login ya tiene un buzón utilizable? Como el guard de identidad obliga a que el buzón
+   * sea el propio email de login, esto significa "no queda nada por conectar": la pantalla de gestión
+   * debe ocultar el hero de conexión (Connect Gmail/M365) y mostrar solo el estado + desconectar.
+   */
+  readonly loginMailboxConnected = computed(() => {
+    const email = this.loginEmail()?.trim().toLowerCase();
+    if (!email) {
+      return false;
+    }
+    return this.usableAccounts().some(account => account.emailAddress.trim().toLowerCase() === email);
+  });
+
   private readonly _activeAccountId = signal<string | null>(null);
   readonly activeAccountId = this._activeAccountId.asReadonly();
   readonly activeAccount = computed(
@@ -600,6 +613,11 @@ export class MailStore {
             list.map(item => (item.messageId === messageId ? { ...item, bodyStatus: 'BodyReady' } : item)),
           );
         }
+        // Abrir el cuerpo marca el correo como leído en el backend (GetMessageBodyHandler): reflejar
+        // local para que baje el contador de no-leídos del hilo sin recargar el listado.
+        if (message.direction === 'Inbound' && !message.isRead) {
+          this.applyMessageReadLocal(messageId, true);
+        }
       },
       error: err => {
         this.updateBody(messageId, { loading: false, error: toApiError(err).message, html: null, text: null });
@@ -739,6 +757,94 @@ export class MailStore {
         this._messagesError.set(toApiError(err).message);
       },
     });
+  }
+
+  // ---------- Leído / no leído ----------
+
+  /**
+   * Marca UN mensaje inbound como leído/no-leído. Optimista: refleja local de inmediato (el
+   * contador de no-leídos del hilo baja/sube al toque) y revierte si el backend falla.
+   */
+  setMessageRead(messageId: string, isRead: boolean): void {
+    const message = this._messages().find(item => item.messageId === messageId);
+    if (!message || message.direction !== 'Inbound' || message.isRead === isRead) {
+      return;
+    }
+    this.applyMessageReadLocal(messageId, isRead);
+    const request$ = isRead ? this.service.markMessageRead(messageId) : this.service.markMessageUnread(messageId);
+    request$.subscribe({
+      error: err => {
+        this.applyMessageReadLocal(messageId, !isRead); // revertir
+        this._messagesError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Marca TODO el hilo abierto como leído/no-leído. Optimista con reversión ante fallo. */
+  setThreadRead(isRead: boolean): void {
+    const threadId = this._selectedThreadId();
+    if (!threadId) {
+      return;
+    }
+    const previousMessages = this._messages();
+    const previousThreads = this._threads();
+    this._messages.update(list =>
+      list.map(item => (item.direction === 'Inbound' ? { ...item, isRead } : item)),
+    );
+    this._threads.update(list =>
+      list.map(thread =>
+        thread.threadId === threadId
+          ? { ...thread, unreadCount: isRead ? 0 : this.inboundCountOf(threadId) }
+          : thread,
+      ),
+    );
+    const request$ = isRead ? this.service.markThreadRead(threadId) : this.service.markThreadUnread(threadId);
+    request$.subscribe({
+      error: err => {
+        this._messages.set(previousMessages);
+        this._threads.set(previousThreads);
+        this._messagesError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  /** No-leídos totales del cliente activo (para el badge de la carpeta Conversations). */
+  readonly unreadTotal = computed(() =>
+    this._threads()
+      .filter(thread => thread.status === 'Active')
+      .reduce((sum, thread) => sum + thread.unreadCount, 0),
+  );
+
+  /** Actualiza isRead de un mensaje en memoria y ajusta el unreadCount del hilo abierto por el delta. */
+  private applyMessageReadLocal(messageId: string, isRead: boolean): void {
+    const threadId = this._selectedThreadId();
+    let delta = 0;
+    this._messages.update(list =>
+      list.map(item => {
+        if (item.messageId !== messageId || item.isRead === isRead) {
+          return item;
+        }
+        delta = isRead ? -1 : 1;
+        return { ...item, isRead };
+      }),
+    );
+    if (delta !== 0 && threadId) {
+      this._threads.update(list =>
+        list.map(thread =>
+          thread.threadId === threadId
+            ? { ...thread, unreadCount: Math.max(0, thread.unreadCount + delta) }
+            : thread,
+        ),
+      );
+    }
+  }
+
+  /** Mensajes inbound cargados del hilo — mejor esfuerzo para el optimista de "marcar todo no-leído". */
+  private inboundCountOf(threadId: string): number {
+    if (this._selectedThreadId() !== threadId) {
+      return 0;
+    }
+    return this._messages().filter(item => item.direction === 'Inbound').length;
   }
 
   // ---------- Reply inline ----------

@@ -161,6 +161,7 @@ export class MailPageComponent implements OnInit {
         time: formatMailTime(draft.updatedAtUtc),
         // El estado sólo se muestra cuando NO es el normal (Sending/Failed/Sent).
         badge: draft.status === 'Draft' ? null : draft.status,
+        unreadCount: 0,
       }));
     }
 
@@ -175,6 +176,7 @@ export class MailPageComponent implements OnInit {
       subtitle: `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
       time: formatMailTime(thread.lastMessageAtUtc),
       badge: null,
+      unreadCount: thread.unreadCount,
     }));
   });
 
@@ -357,6 +359,14 @@ export class MailPageComponent implements OnInit {
 
   archiveThread(): void {
     this.store.archiveSelectedThread();
+  }
+
+  toggleMessageRead(event: { messageId: string; isRead: boolean }): void {
+    this.store.setMessageRead(event.messageId, event.isRead);
+  }
+
+  setThreadRead(isRead: boolean): void {
+    this.store.setThreadRead(isRead);
   }
 
   // ---------- Reply ----------

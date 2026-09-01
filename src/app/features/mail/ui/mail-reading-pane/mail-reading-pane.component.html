@@ -12,8 +12,14 @@
       </div>
     </div>
 
-    <!-- Archivar es la ÚNICA acción de hilo del backend (no hay unarchive ni delete). -->
     <div class="flex shrink-0 items-center gap-1.5">
+      <!-- Marcar todo el hilo leído / no-leído (estado compartido por el tenant) -->
+      <button type="button" (click)="markThreadRead(threadHasUnread())"
+        class="flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        <ion-icon [name]="threadHasUnread() ? 'checkmark-done-outline' : 'mail-unread-outline'" class="text-base"></ion-icon>
+        {{ threadHasUnread() ? 'Mark all read' : 'Mark all unread' }}
+      </button>
+      <!-- Archivar es la ÚNICA acción destructiva de hilo del backend (no hay unarchive ni delete). -->
       <button *ngIf="thread.status === 'Active'" type="button" (click)="archive()" [disabled]="archiving"
         class="flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors">
         <ion-icon [name]="archiving ? 'sync-outline' : 'archive-outline'" class="text-base"
@@ -56,9 +62,10 @@
           <span class="min-w-0 flex-1">
             <span class="flex items-center justify-between gap-2">
               <span class="flex min-w-0 items-center gap-1.5">
-                <!-- Punto = "nunca se abrió" (bodyStatus BodyPending), no "no leído" -->
-                <span *ngIf="isUnopened(message)" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"></span>
-                <span class="truncate text-sm font-semibold text-gray-900">{{ senderLabel(message) }}</span>
+                <!-- Punto de no-leído (estado compartido por el tenant) -->
+                <span *ngIf="isUnread(message)" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"></span>
+                <span class="truncate text-sm text-gray-900"
+                  [ngClass]="isUnread(message) ? 'font-bold' : 'font-semibold'">{{ senderLabel(message) }}</span>
                 <span *ngIf="message.direction === 'Outbound'"
                   class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Sent</span>
               </span>
@@ -147,10 +154,16 @@
             </div>
           </ng-container>
 
-          <!-- Responder (sólo inbound: el draft de reply se ancla al mensaje entrante) -->
-          <div *ngIf="canReplyTo(message) && !isReplyingTo(message.messageId)"
+          <!-- Acciones del mensaje inbound: marcar leído/no-leído + responder -->
+          <div *ngIf="message.direction === 'Inbound' && !isReplyingTo(message.messageId)"
             class="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
-            <button type="button" (click)="startReply(message.messageId, $event)"
+            <button type="button" (click)="toggleMessageRead(message)"
+              class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              <ion-icon [name]="message.isRead ? 'mail-unread-outline' : 'checkmark-outline'"
+                class="mr-1.5 align-[-2px] text-sm text-gray-400"></ion-icon>
+              {{ message.isRead ? 'Mark as unread' : 'Mark as read' }}
+            </button>
+            <button *ngIf="canReplyTo(message)" type="button" (click)="startReply(message.messageId, $event)"
               class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               <ion-icon name="arrow-undo-outline" class="mr-1.5 align-[-2px] text-sm text-gray-400"></ion-icon>
               Reply

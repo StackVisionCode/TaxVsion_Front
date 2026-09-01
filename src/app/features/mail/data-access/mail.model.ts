@@ -102,6 +102,8 @@ export interface ThreadSummary {
   messageCount: number;
   firstMessageAtUtc: string;
   lastMessageAtUtc: string;
+  /** Correos inbound no leídos del hilo (estado compartido por el tenant). 0 = todo leído. */
+  unreadCount: number;
 }
 
 /** Espejo de MessageDirection: Inbound = recibido por el tenant, Outbound = draft ya enviado. */
@@ -128,6 +130,8 @@ export interface MessageSummary {
   hasAttachments: boolean;
   attachmentCount: number;
   bodyStatus: MessageBodyStatus | null;
+  /** Estado leído/no-leído compartido por el tenant. En outbound siempre true (no hay nada que leer). */
+  isRead: boolean;
 }
 
 /** GET /correspondence/messages/{id}/body — pedido en vivo a Connectors, nunca persistido. */
