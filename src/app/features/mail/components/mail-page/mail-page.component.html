@@ -40,22 +40,38 @@
       <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
         <ion-icon name="mail-outline" class="text-2xl text-brand-bold"></ion-icon>
       </span>
-      <h2 class="mt-4 text-xl font-bold text-gray-900">Connect a mailbox</h2>
+      <h2 class="mt-4 text-xl font-bold text-gray-900">Connect your mailbox</h2>
       <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
-        Mail reads and sends through your own Gmail or Microsoft 365 account. You'll be redirected to the
-        provider to grant access; nothing is stored until you approve it.
+        Mail reads and sends through <span class="font-semibold text-gray-700">your own</span> email account.
+        You can only connect the address you signed in with; nothing is stored until you approve it.
       </p>
+
+      <!-- Recomendación según el dominio del email de login -->
+      <div *ngIf="store.loginEmail() as email"
+        class="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 rounded-2xl bg-gray-50 px-4 py-2.5 text-sm">
+        <ion-icon name="person-circle-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
+        <span class="min-w-0 truncate text-gray-600">
+          {{ email }} · looks like <span class="font-semibold text-gray-800">{{ store.providerDetection().label }}</span>
+        </span>
+      </div>
     </div>
 
-    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+    <!-- OAuth: recomendado para Gmail / Microsoft 365 (el guard valida que sea tu propio correo) -->
+    <div *ngIf="!showManualForm()" class="mt-6 flex flex-wrap items-center justify-center gap-3">
       <button type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+        [ngClass]="store.providerDetection().provider === 'Gmail'
+          ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
+          : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
         <ion-icon [name]="store.connectBusy() === 'Gmail' ? 'sync-outline' : 'logo-google'" class="text-base"
           [ngClass]="store.connectBusy() === 'Gmail' ? 'animate-spin' : ''"></ion-icon>
         {{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Connect Gmail' }}
       </button>
       <button type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
-        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+        class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+        [ngClass]="store.providerDetection().provider === 'Graph'
+          ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
+          : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
         <ion-icon [name]="store.connectBusy() === 'Graph' ? 'sync-outline' : 'logo-microsoft'" class="text-base"
           [ngClass]="store.connectBusy() === 'Graph' ? 'animate-spin' : ''"></ion-icon>
         {{ store.connectBusy() === 'Graph' ? 'Redirecting…' : 'Connect Microsoft 365' }}
@@ -66,6 +82,37 @@
       class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm text-red-600">
       {{ connectErr }}
     </p>
+
+    <!-- Alta manual IMAP/SMTP: toggle + formulario (para dominios propios / proveedores sin OAuth) -->
+    <div *ngIf="!showManualForm()" class="mt-4 text-center">
+      <button type="button" (click)="toggleManualForm()"
+        class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+        <ion-icon name="settings-outline" class="text-base"></ion-icon>
+        Use another provider (IMAP/SMTP)
+      </button>
+    </div>
+
+    <div *ngIf="showManualForm()" class="mt-6 border-t border-gray-100 pt-5">
+      <div class="flex items-center justify-between">
+        <p class="flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <ion-icon name="options-outline" class="text-base text-brand-bold"></ion-icon>
+          Manual setup · {{ store.providerDetection().label }}
+        </p>
+        <button type="button" (click)="toggleManualForm()"
+          class="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors">
+          Back to OAuth
+        </button>
+      </div>
+      <app-mail-connect-manual
+        [loginEmail]="store.loginEmail()"
+        [preset]="store.providerDetection().imapPreset"
+        [providerLabel]="store.providerDetection().label"
+        [busy]="store.manualConnecting()"
+        [error]="store.manualError()"
+        (submitConnect)="submitManualConnect($event)"
+        (cancel)="toggleManualForm()">
+      </app-mail-connect-manual>
+    </div>
 
     <!-- Cuentas existentes que todavía no sirven: Error admite reauth, el resto es informativo -->
     <div *ngIf="store.accounts().length > 0" class="mt-6 border-t border-gray-100 pt-5">

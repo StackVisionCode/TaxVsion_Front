@@ -6,8 +6,9 @@ import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/m
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
 import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-reading-pane.component';
 import { ComposeDraftPayload, MailComposeComponent } from '../../ui/mail-compose/mail-compose.component';
+import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-connect-manual.component';
 import { MailFolderId, MailStore } from '../../data-access/mail.store';
-import { avatarColorFor, formatMailTime, initialsFor } from '../../data-access/mail.model';
+import { ConnectManualAccountRequest, avatarColorFor, formatMailTime, initialsFor } from '../../data-access/mail.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -34,6 +35,7 @@ import { avatarColorFor, formatMailTime, initialsFor } from '../../data-access/m
     MailListComponent,
     MailReadingPaneComponent,
     MailComposeComponent,
+    MailConnectManualComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -205,9 +207,25 @@ export class MailPageComponent implements OnInit {
     this.store.setActiveAccount(accountId);
   }
 
+  /** Muestra/oculta el formulario de alta manual IMAP/SMTP en la pantalla de conexión. */
+  readonly showManualForm = signal(false);
+
   connectMailbox(provider: 'Gmail' | 'Graph'): void {
     // El store redirige la pestaña completa al consentimiento del proveedor.
     this.store.connectMailbox(provider);
+  }
+
+  toggleManualForm(): void {
+    this.store.clearManualError();
+    this.showManualForm.update(open => !open);
+  }
+
+  submitManualConnect(body: ConnectManualAccountRequest): void {
+    this.store.connectManualAccount(body, () => {
+      // Éxito: la cuenta ya existe y hasMailbox() pasa a true → la bandeja aparece sola.
+      this.showManualForm.set(false);
+      this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
+    });
   }
 
   reauthAccount(accountId: string): void {

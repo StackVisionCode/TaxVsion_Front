@@ -3,10 +3,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, concatMap, forkJoin, map, of, retry, throwError, timer } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { AuthService } from '@core/auth/auth.service';
 import { MailService } from './mail.service';
 import {
   AttachFileToDraftRequest,
   AttachmentSummary,
+  ConnectManualAccountRequest,
   DraftDetail,
   DraftListItem,
   MailAccount,
@@ -17,6 +19,7 @@ import {
   parseRecipients,
   plainTextToHtml,
 } from './mail.model';
+import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
 export type MailFolderId = 'conversations' | 'archived' | 'drafts';
@@ -105,6 +108,14 @@ const EMPTY_COMPOSE: ComposeState = {
 export class MailStore {
   private readonly service = inject(MailService);
   private readonly uploads = inject(CloudStorageUploadService);
+  private readonly auth = inject(AuthService);
+
+  // ---------- Identidad del usuario (guía la conexión de buzón) ----------
+
+  /** Email de login del usuario — el buzón conectado DEBE ser este (guard de identidad del backend). */
+  readonly loginEmail = computed(() => this.auth.currentUser()?.email ?? null);
+  /** Proveedor inferido del dominio del email de login, para recomendar OAuth vs IMAP/SMTP manual. */
+  readonly providerDetection = computed<ProviderDetection>(() => detectProvider(this.loginEmail()));
 
   // ---------- Bootstrap: cuentas de buzón + clientes ----------
 
@@ -140,6 +151,14 @@ export class MailStore {
   readonly connectBusy = this._connectBusy.asReadonly();
   readonly connectError = this._connectError.asReadonly();
   readonly reauthBusyId = this._reauthBusyId.asReadonly();
+
+  // ---------- Conectar buzón manual (IMAP/SMTP, sin redirect) ----------
+
+  private readonly _manualConnecting = signal(false);
+  private readonly _manualError = signal<string | null>(null);
+
+  readonly manualConnecting = this._manualConnecting.asReadonly();
+  readonly manualError = this._manualError.asReadonly();
 
   // ---------- Selección de cliente y carpeta ----------
 
@@ -304,6 +323,35 @@ export class MailStore {
         this._connectBusy.set(null);
       },
     });
+  }
+
+  /**
+   * Alta de buzón por IMAP/SMTP (POST /connectors/accounts/manual). Síncrono: al 200 la cuenta ya
+   * existe y quedó validada contra ambos servidores. Recarga cuentas (flip a hasMailbox) y avisa al
+   * caller para cerrar el formulario. Los errores de conectividad / identidad vienen legibles del backend.
+   */
+  connectManualAccount(body: ConnectManualAccountRequest, onSuccess?: () => void): void {
+    if (this._manualConnecting()) {
+      return;
+    }
+    this._manualConnecting.set(true);
+    this._manualError.set(null);
+    this.service.connectManualAccount(body).subscribe({
+      next: () => {
+        this._manualConnecting.set(false);
+        this.reloadAccounts();
+        onSuccess?.();
+      },
+      error: err => {
+        this._manualError.set(toApiError(err).message);
+        this._manualConnecting.set(false);
+      },
+    });
+  }
+
+  /** Limpia el error del alta manual (al cerrar/reabrir el formulario). */
+  clearManualError(): void {
+    this._manualError.set(null);
   }
 
   /** Reintenta el watch de una cuenta en Error (POST /connectors/accounts/{id}/reauth). */
