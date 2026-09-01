@@ -8,7 +8,13 @@ import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-readin
 import { ComposeDraftPayload, MailComposeComponent } from '../../ui/mail-compose/mail-compose.component';
 import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-connect-manual.component';
 import { MailFolderId, MailStore } from '../../data-access/mail.store';
-import { ConnectManualAccountRequest, avatarColorFor, formatMailTime, initialsFor } from '../../data-access/mail.model';
+import {
+  ConnectManualAccountRequest,
+  MailAccountStatus,
+  avatarColorFor,
+  formatMailTime,
+  initialsFor,
+} from '../../data-access/mail.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -266,8 +272,31 @@ export class MailPageComponent implements OnInit {
     this.store.reauthAccount(accountId);
   }
 
+  disconnectAccount(accountId: string): void {
+    this.store.disconnectAccount(accountId);
+  }
+
   reloadAccounts(): void {
     this.store.reloadAccounts();
+  }
+
+  /** Panel de gestión de buzones (reauth / desconectar / agregar) accesible desde la bandeja. */
+  readonly showMailboxManager = signal(false);
+
+  toggleMailboxManager(): void {
+    this.store.clearManualError();
+    this.showManualForm.set(false);
+    this.showMailboxManager.update(open => !open);
+  }
+
+  /** Reauth sirve para cuentas con token pero sin watch activo (Draft/Connected/Error), no para Active/Disconnected. */
+  canReauth(status: MailAccountStatus): boolean {
+    return status === 'Draft' || status === 'Connected' || status === 'Error';
+  }
+
+  /** Se puede desconectar cualquier cuenta que no esté ya desconectada. */
+  canDisconnect(status: MailAccountStatus): boolean {
+    return status !== 'Disconnected';
   }
 
   retryBoot(): void {

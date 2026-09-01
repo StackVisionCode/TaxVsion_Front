@@ -71,9 +71,14 @@ export class MailService {
     return this.http.post<ConnectManualAccountResult>(`${this.connectors}/accounts/manual`, body);
   }
 
-  /** Reintenta el watch de una cuenta en estado Error. 204. */
+  /** Reintenta el watch/subscription de una cuenta (Draft/Connected/Error). 204. */
   reauthAccount(accountId: string): Observable<void> {
     return this.http.post<void>(`${this.connectors}/accounts/${accountId}/reauth`, {});
+  }
+
+  /** Desconecta la cuenta (deja de sincronizar). 204. */
+  disconnectAccount(accountId: string): Observable<void> {
+    return this.http.delete<void>(`${this.connectors}/accounts/${accountId}`);
   }
 
   // ---------- Customer: picker de cliente ----------

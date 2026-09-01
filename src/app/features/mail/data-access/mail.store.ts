@@ -134,6 +134,14 @@ export class MailStore {
   readonly usableAccounts = computed(() => this._accounts().filter(isUsableAccount));
   /** Cuentas caídas (watch/OAuth roto) — se ofrecen para reautorizar. */
   readonly errorAccounts = computed(() => this._accounts().filter(account => account.status === 'Error'));
+  /**
+   * Cuentas que necesitan acción para sincronizar de verdad: `Error` (watch/OAuth roto) o `Connected`
+   * (el connect llegó pero el watch NUNCA se armó — p. ej. el 403 del topic de Pub/Sub — así que se
+   * puede leer/enviar pero NO llega correo entrante). `Active` = watch OK, no aparece acá.
+   */
+  readonly attentionAccounts = computed(() =>
+    this._accounts().filter(account => account.status === 'Error' || account.status === 'Connected'),
+  );
   readonly hasMailbox = computed(() => this.usableAccounts().length > 0);
 
   private readonly _activeAccountId = signal<string | null>(null);
@@ -147,10 +155,12 @@ export class MailStore {
   private readonly _connectBusy = signal<'Gmail' | 'Graph' | null>(null);
   private readonly _connectError = signal<string | null>(null);
   private readonly _reauthBusyId = signal<string | null>(null);
+  private readonly _disconnectBusyId = signal<string | null>(null);
 
   readonly connectBusy = this._connectBusy.asReadonly();
   readonly connectError = this._connectError.asReadonly();
   readonly reauthBusyId = this._reauthBusyId.asReadonly();
+  readonly disconnectBusyId = this._disconnectBusyId.asReadonly();
 
   // ---------- Conectar buzón manual (IMAP/SMTP, sin redirect) ----------
 
@@ -354,7 +364,7 @@ export class MailStore {
     this._manualError.set(null);
   }
 
-  /** Reintenta el watch de una cuenta en Error (POST /connectors/accounts/{id}/reauth). */
+  /** Reintenta el watch/subscription de una cuenta (POST /connectors/accounts/{id}/reauth). */
   reauthAccount(accountId: string): void {
     if (this._reauthBusyId()) {
       return;
@@ -369,6 +379,26 @@ export class MailStore {
       error: err => {
         this._connectError.set(toApiError(err).message);
         this._reauthBusyId.set(null);
+      },
+    });
+  }
+
+  /** Desconecta una cuenta (DELETE /connectors/accounts/{id}) y recarga la lista. */
+  disconnectAccount(accountId: string): void {
+    if (this._disconnectBusyId()) {
+      return;
+    }
+    this._disconnectBusyId.set(accountId);
+    this._connectError.set(null);
+    this.service.disconnectAccount(accountId).subscribe({
+      next: () => {
+        this._disconnectBusyId.set(null);
+        // Si era la cuenta activa, reloadAccounts reasigna a otra usable (o null → pantalla de conectar).
+        this.reloadAccounts();
+      },
+      error: err => {
+        this._connectError.set(toApiError(err).message);
+        this._disconnectBusyId.set(null);
       },
     });
   }
