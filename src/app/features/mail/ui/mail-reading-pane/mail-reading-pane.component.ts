@@ -67,6 +67,10 @@ export class MailReadingPaneComponent implements OnChanges {
   @Output() archiveRequested = new EventEmitter<void>();
   @Output() loadMoreRequested = new EventEmitter<void>();
   @Output() retryRequested = new EventEmitter<void>();
+  /** Marca un mensaje inbound leído/no-leído. */
+  @Output() messageReadStateToggled = new EventEmitter<{ messageId: string; isRead: boolean }>();
+  /** Marca TODO el hilo leído (true) o no-leído (false). */
+  @Output() threadReadStateToggled = new EventEmitter<boolean>();
 
   /** Texto del reply inline (el body viaja en el autosave justo antes del send). */
   readonly replyText = signal('');
@@ -136,9 +140,14 @@ export class MailReadingPaneComponent implements OnChanges {
     return this.attachments.get(messageId) ?? null;
   }
 
-  /** El backend marca BodyReady al servir el cuerpo: el punto sólo indica "nunca abierto". */
-  isUnopened(message: MessageSummary): boolean {
-    return message.direction === 'Inbound' && message.bodyStatus === 'BodyPending';
+  /** Correo entrante sin leer (estado compartido por el tenant) — pinta el punto y la negrita. */
+  isUnread(message: MessageSummary): boolean {
+    return message.direction === 'Inbound' && !message.isRead;
+  }
+
+  /** El hilo tiene correos sin leer (para el botón "Mark all as read/unread" del header). */
+  threadHasUnread(): boolean {
+    return (this.thread?.unreadCount ?? 0) > 0;
   }
 
   canReplyTo(message: MessageSummary): boolean {
@@ -187,5 +196,16 @@ export class MailReadingPaneComponent implements OnChanges {
       return;
     }
     this.archiveRequested.emit();
+  }
+
+  toggleMessageRead(message: MessageSummary): void {
+    if (message.direction !== 'Inbound') {
+      return;
+    }
+    this.messageReadStateToggled.emit({ messageId: message.messageId, isRead: !message.isRead });
+  }
+
+  markThreadRead(isRead: boolean): void {
+    this.threadReadStateToggled.emit(isRead);
   }
 }

@@ -20,7 +20,6 @@ import { FormsModule } from '@angular/forms';
 /**
  * Fila del listado central, ya aplanada por mail-page desde `ThreadSummary`
  * (carpetas Conversations/Archived) o `DraftListItem` (carpeta Drafts).
- * No hay campos `isRead`/`isStarred`: Correspondence no expone ninguno de los dos.
  */
 export interface MailListRow {
   /** threadId o draftId, según la carpeta activa. */
@@ -35,6 +34,8 @@ export interface MailListRow {
   time: string;
   /** Chip opcional: "Archived", o el estado del draft cuando no es `Draft`. */
   badge: string | null;
+  /** Correos inbound no leídos del hilo (0 en drafts). Pinta el hilo en negrita + globo. */
+  unreadCount: number;
 }
 
 /**

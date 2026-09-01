@@ -44,6 +44,20 @@
       </button>
     </div>
 
+    <!-- Ya hay buzón para el email de login: el guard solo permite conectar el propio login, así que no
+         queda nada por conectar — se muestra solo estado + desconectar, sin el hero de conexión. -->
+    <div *ngIf="store.loginMailboxConnected()" class="text-center">
+      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+        <ion-icon name="mail-open-outline" class="text-2xl text-emerald-600"></ion-icon>
+      </span>
+      <h2 class="mt-4 text-xl font-bold text-gray-900">Your mailbox</h2>
+      <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+        Your mailbox is connected. Check its sync status below, or disconnect it.
+      </p>
+    </div>
+
+    <!-- Sin buzón para el email de login todavía: flujo de conexión completo -->
+    <ng-container *ngIf="!store.loginMailboxConnected()">
     <div class="text-center">
       <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
         <ion-icon name="mail-outline" class="text-2xl text-brand-bold"></ion-icon>
@@ -130,6 +144,7 @@
         (cancel)="toggleManualForm()">
       </app-mail-connect-manual>
     </div>
+    </ng-container>
 
     <!-- Buzones del tenant: estado real + acciones (reauth para los que tienen token sin watch, disconnect) -->
     <div *ngIf="store.accounts().length > 0" class="mt-6 border-t border-gray-100 pt-5">
@@ -164,7 +179,7 @@
     <div class="mt-6 text-center">
       <button type="button" (click)="reloadAccounts()"
         class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
-        Already connected? Refresh
+        {{ store.loginMailboxConnected() ? 'Refresh status' : 'Already connected? Refresh' }}
       </button>
     </div>
   </div>
@@ -279,6 +294,7 @@
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
           (attachmentDownloadRequested)="downloadAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
+          (messageReadStateToggled)="toggleMessageRead($event)" (threadReadStateToggled)="setThreadRead($event)"
           (loadMoreRequested)="loadMoreMessages()" (retryRequested)="retryMessages()"></app-mail-reading-pane>
       </ng-template>
     </div>
