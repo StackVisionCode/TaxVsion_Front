@@ -210,6 +210,22 @@ export class MailPageComponent implements OnInit {
   /** Muestra/oculta el formulario de alta manual IMAP/SMTP en la pantalla de conexión. */
   readonly showManualForm = signal(false);
 
+  /**
+   * Qué opciones de conexión ofrecer según el proveedor detectado del email de login. Como el guard
+   * obliga a que el buzón sea ese mismo email, solo tiene sentido el proveedor de su dominio:
+   * gmail.com → solo Gmail; outlook/hotmail → solo Microsoft; dominio propio (Unknown) → ambos, porque
+   * no se puede saber si es Google Workspace o M365; yahoo/icloud/zoho (Imap) → ninguno OAuth, solo manual.
+   */
+  readonly showGmailOption = computed(() => {
+    const p = this.store.providerDetection().provider;
+    return p === 'Gmail' || p === 'Unknown';
+  });
+  readonly showGraphOption = computed(() => {
+    const p = this.store.providerDetection().provider;
+    return p === 'Graph' || p === 'Unknown';
+  });
+  readonly showOAuthOptions = computed(() => this.showGmailOption() || this.showGraphOption());
+
   connectMailbox(provider: 'Gmail' | 'Graph'): void {
     // El store redirige la pestaña completa al consentimiento del proveedor.
     this.store.connectMailbox(provider);

@@ -56,9 +56,9 @@
       </div>
     </div>
 
-    <!-- OAuth: recomendado para Gmail / Microsoft 365 (el guard valida que sea tu propio correo) -->
-    <div *ngIf="!showManualForm()" class="mt-6 flex flex-wrap items-center justify-center gap-3">
-      <button type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
+    <!-- OAuth: solo el proveedor del dominio detectado (ambos solo si es dominio propio: Google Workspace vs M365 no se distinguen) -->
+    <div *ngIf="!showManualForm() && showOAuthOptions()" class="mt-6 flex flex-wrap items-center justify-center gap-3">
+      <button *ngIf="showGmailOption()" type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
         class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
         [ngClass]="store.providerDetection().provider === 'Gmail'
           ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
@@ -67,7 +67,7 @@
           [ngClass]="store.connectBusy() === 'Gmail' ? 'animate-spin' : ''"></ion-icon>
         {{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Connect Gmail' }}
       </button>
-      <button type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
+      <button *ngIf="showGraphOption()" type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
         class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
         [ngClass]="store.providerDetection().provider === 'Graph'
           ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
@@ -78,13 +78,22 @@
       </button>
     </div>
 
+    <!-- Proveedor conocido sin OAuth (Yahoo/iCloud/Zoho): el setup manual ES la acción primaria -->
+    <div *ngIf="!showManualForm() && !showOAuthOptions()" class="mt-6 flex items-center justify-center">
+      <button type="button" (click)="toggleManualForm()"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="options-outline" class="text-base"></ion-icon>
+        Set up {{ store.providerDetection().label }}
+      </button>
+    </div>
+
     <p *ngIf="store.connectError() as connectErr"
       class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm text-red-600">
       {{ connectErr }}
     </p>
 
-    <!-- Alta manual IMAP/SMTP: toggle + formulario (para dominios propios / proveedores sin OAuth) -->
-    <div *ngIf="!showManualForm()" class="mt-4 text-center">
+    <!-- Escape hatch a IMAP/SMTP: solo cuando ya hay opciones OAuth (Gmail/M365/dominio propio) -->
+    <div *ngIf="!showManualForm() && showOAuthOptions()" class="mt-4 text-center">
       <button type="button" (click)="toggleManualForm()"
         class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
         <ion-icon name="settings-outline" class="text-base"></ion-icon>
