@@ -7,6 +7,8 @@ import {
   AttachmentDownloadUrlResult,
   AttachmentSummary,
   AutoSaveDraftRequest,
+  ConnectManualAccountRequest,
+  ConnectManualAccountResult,
   DownloadAttachmentResult,
   DraftDetail,
   DraftListItem,
@@ -51,6 +53,15 @@ export class MailService {
   /** El resultado NO se consume por fetch: hay que redirigir el navegador a authorizationUrl. */
   initiateOAuthConnect(providerCode: 'Gmail' | 'Graph'): Observable<InitiateOAuthConnectResult> {
     return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, { providerCode });
+  }
+
+  /**
+   * Alta de buzón por IMAP+SMTP (sin OAuth). Síncrono: el backend valida conectividad real contra
+   * ambos servidores y aplica el guard de identidad (emailAddress debe ser el email de login) antes
+   * de responder 200. Devuelve la cuenta creada — no hay redirección.
+   */
+  connectManualAccount(body: ConnectManualAccountRequest): Observable<ConnectManualAccountResult> {
+    return this.http.post<ConnectManualAccountResult>(`${this.connectors}/accounts/manual`, body);
   }
 
   /** Reintenta el watch de una cuenta en estado Error. 204. */

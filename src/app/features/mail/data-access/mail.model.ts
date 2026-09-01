@@ -58,6 +58,32 @@ export interface InitiateOAuthConnectResult {
   authorizationUrl: string;
 }
 
+/**
+ * POST /connectors/accounts/manual — alta de buzón por IMAP+SMTP (sin OAuth). Espejo de
+ * ConnectManualAccountRequest. El backend valida conectividad real contra ambos servidores antes
+ * de persistir, y exige que `emailAddress` sea el email de login del usuario (guard de identidad).
+ */
+export interface ConnectManualAccountRequest {
+  emailAddress: string;
+  displayName: string | null;
+  imapHost: string;
+  imapPort: number;
+  imapUseSsl: boolean;
+  imapUsername: string;
+  imapPassword: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUseStartTls: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
+}
+
+/** POST /connectors/accounts/manual — a diferencia de OAuth NO redirige: la cuenta queda creada al 200. */
+export interface ConnectManualAccountResult {
+  accountId: string;
+  emailAddress: string;
+}
+
 /** Cuenta utilizable para leer/enviar (Draft/Disconnected no sirven; Error se reautoriza). */
 export function isUsableAccount(account: MailAccount): boolean {
   return account.status === 'Connected' || account.status === 'Active';
