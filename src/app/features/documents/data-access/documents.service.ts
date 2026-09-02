@@ -107,6 +107,16 @@ export class DocumentsService {
     return this.http.post<CreatedShareLinkResponse>(`${this.base}/files/${fileId}/shares`, req);
   }
 
+  /** Los links activos/históricos creados sobre un archivo (para gestionarlos: ver/revocar). */
+  listFileShares(fileId: string): Observable<ShareLinkResponse[]> {
+    return this.http.get<ShareLinkResponse[]>(`${this.base}/files/${fileId}/shares`);
+  }
+
+  /** Revoca un link de compartir (irreversible). */
+  revokeShareLink(shareLinkId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/shares/${shareLinkId}`);
+  }
+
   /** Lo compartido conmigo. */
   listSharedWithMe(): Observable<ShareLinkResponse[]> {
     return this.http.get<ShareLinkResponse[]>(`${this.base}/shares/shared-with-me`, {

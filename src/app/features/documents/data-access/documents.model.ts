@@ -187,7 +187,10 @@ export interface ShareLinkResponse {
   visibility: ShareVisibility;
   permission: SharePermission;
   tokenLast4: string;
+  hasPassword: boolean;
   expiresAtUtc: string | null;
+  maxAccessCount: number | null;
+  accessCount: number;
   status: string;
   createdAtUtc: string;
 }

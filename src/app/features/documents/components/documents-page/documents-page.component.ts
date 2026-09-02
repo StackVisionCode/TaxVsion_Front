@@ -83,6 +83,8 @@ export class DocumentsPageComponent {
   readonly sharedWithMe = this.store.sharedWithMe;
   readonly sharedLoading = this.store.sharedLoading;
   readonly createdShare = this.store.createdShare;
+  readonly fileShares = this.store.fileShares;
+  readonly fileSharesLoading = this.store.fileSharesLoading;
   readonly publicSharingAllowed = computed(() => this.usage()?.allowPublicShareLinks ?? false);
 
   // Estado local de la vista (menús/diálogos).
@@ -299,6 +301,13 @@ export class DocumentsPageComponent {
     // Mismo origen que la oficina actual: en prod es su subdominio (`https://<oficina>.taxproffice.com`),
     // donde vive la página pública `/s/:token`; en dev es el mismo host del CRM.
     return `${window.location.origin}/s/${token}`;
+  }
+
+  revokeShare(shareLinkId: string): void {
+    // Irreversible: se confirma antes. Si el usuario cancela, no pasa nada.
+    if (confirm('Revoke this link? Anyone using it will lose access immediately.')) {
+      this.store.revokeShare(shareLinkId);
+    }
   }
 
   // ---------- Diálogos ----------
