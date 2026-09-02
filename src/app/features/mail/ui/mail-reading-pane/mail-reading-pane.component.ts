@@ -65,6 +65,8 @@ export class MailReadingPaneComponent implements OnChanges {
   @Output() replyCancelled = new EventEmitter<void>();
   @Output() replySent = new EventEmitter<string>();
   @Output() archiveRequested = new EventEmitter<void>();
+  @Output() unarchiveRequested = new EventEmitter<void>();
+  @Output() deleteMessageRequested = new EventEmitter<string>();
   @Output() loadMoreRequested = new EventEmitter<void>();
   @Output() retryRequested = new EventEmitter<void>();
   /** Marca un mensaje inbound leído/no-leído. */

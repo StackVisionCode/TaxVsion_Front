@@ -36,6 +36,8 @@ export interface MailListRow {
   badge: string | null;
   /** Correos inbound no leídos del hilo (0 en drafts). Pinta el hilo en negrita + globo. */
   unreadCount: number;
+  /** Adjuntos de la fila (carpeta Sent): >0 pinta un clip. Ausente/0 = sin indicador. */
+  attachmentCount?: number;
 }
 
 /**
@@ -71,10 +73,14 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   @Input() hasMore = false;
   /** Texto del estado vacío honesto según el contexto (sin cliente, carpeta vacía…). */
   @Input() emptyText = 'Nothing here yet';
+  /** Papelera: muestra botones Restore / Delete-forever por fila. */
+  @Input() showTrashActions = false;
 
   @Output() rowSelected = new EventEmitter<string>();
   @Output() retryRequested = new EventEmitter<void>();
   @Output() loadMoreRequested = new EventEmitter<void>();
+  @Output() restoreRequested = new EventEmitter<string>();
+  @Output() purgeRequested = new EventEmitter<string>();
 
   readonly search = signal('');
 
