@@ -68,6 +68,8 @@ export class ShareDialogComponent implements OnChanges {
   readonly password = signal('');
   readonly maxAccess = signal('');
   readonly emails = signal('');
+  /** Idioma del email al destinatario externo ('En'/'Es'). Solo aplica a ExternalRecipients. */
+  readonly language = signal<'En' | 'Es'>('En');
 
   ngOnChanges(): void {
     if (this.file) {
@@ -78,6 +80,7 @@ export class ShareDialogComponent implements OnChanges {
       this.password.set('');
       this.maxAccess.set('');
       this.emails.set('');
+      this.language.set('En');
     }
   }
 
@@ -93,6 +96,7 @@ export class ShareDialogComponent implements OnChanges {
       expiresAtUtc: this.expires() ? new Date(this.expires()).toISOString() : null,
       maxAccessCount: this.maxAccess() ? Number(this.maxAccess()) : null,
       recipientEmails: this.access() === 'ExternalRecipients' ? emailList : null,
+      recipientLanguage: this.access() === 'ExternalRecipients' ? this.language() : null,
     };
     this.created.emit(req);
   }
