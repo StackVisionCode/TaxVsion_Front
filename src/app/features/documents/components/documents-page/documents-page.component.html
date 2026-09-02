@@ -362,7 +362,10 @@
 <app-share-dialog
   [file]="shareTarget()"
   [publicAllowed]="publicSharingAllowed()"
+  [shares]="fileShares()"
   (created)="confirmShare($event)"
+  (revokeShare)="revokeShare($event)"
+  (reshare)="reshareLink($event)"
   (cancelled)="shareTarget.set(null)" />
 
 <app-modal [isOpen]="!!createdShare()" heading="Share link created" size="md" (closed)="closeCreatedShare()">

@@ -13,6 +13,7 @@ import {
   CreateShareLinkRequest,
   FileResponse,
   SharePermission,
+  ShareLinkResponse,
   ShareVisibility,
 } from '../../data-access/documents.model';
 
@@ -37,8 +38,66 @@ interface AccessOption {
 export class ShareDialogComponent implements OnChanges {
   @Input() file: FileResponse | null = null;
   @Input() publicAllowed = false;
+  @Input() shares: ShareLinkResponse[] = [];
   @Output() created = new EventEmitter<CreateShareLinkRequest>();
   @Output() cancelled = new EventEmitter<void>();
+  @Output() revokeShare = new EventEmitter<string>();
+  @Output() reshare = new EventEmitter<ShareLinkResponse>();
+
+  /** Links vigentes del archivo (para mostrar "ya compartido" en vez de arrancar en blanco). */
+  get activeShares(): ShareLinkResponse[] {
+    return this.shares.filter(s => s.status === 'Active');
+  }
+
+  accessLabel(visibility: ShareVisibility): string {
+    switch (visibility) {
+      case 'Public':
+        return 'Anyone with the link';
+      case 'ExternalRecipients':
+        return 'External recipient';
+      case 'TenantCustomers':
+        return 'Client';
+      case 'SpecificUsers':
+        return 'Specific people';
+      default:
+        return 'Tenant members';
+    }
+  }
+
+  /** Solo los Public producen una URL pública copiable (re-compartir = revocar viejo + crear nuevo). */
+  isCopyable(share: ShareLinkResponse): boolean {
+    return share.visibility === 'Public';
+  }
+
+  /** true si hay algún link Public activo (para mostrar la nota del "Copy link"). */
+  hasPublic(): boolean {
+    return this.activeShares.some(s => s.visibility === 'Public');
+  }
+
+  /** Nota de por qué un link no se copia (según su tipo). */
+  noCopyReason(share: ShareLinkResponse): string {
+    return share.visibility === 'ExternalRecipients' ? 'Sent by email' : 'Opens in the app';
+  }
+
+  expiryLabel(iso: string | null): string {
+    if (!iso) {
+      return 'No expiry';
+    }
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+    const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
+    if (days <= 0) {
+      return 'Expired';
+    }
+    if (days === 1) {
+      return 'Expires tomorrow';
+    }
+    return days <= 30
+      ? `Expires in ${days} days`
+      : `Until ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }
 
   /**
    * "Anyone with the link" (Public) solo se ofrece si la oficina lo permite (toggle de Settings).
