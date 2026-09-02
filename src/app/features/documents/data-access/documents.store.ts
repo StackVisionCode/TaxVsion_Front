@@ -299,7 +299,8 @@ export class DocumentsStore {
         parentFolderId: this.currentFolderId(),
         name: trimmed,
         ownerType: this.ownerType(),
-        ownerId: this.ownerId() ?? '',
+        // null (no "") para la oficina: "" no bindea a Guid? y el backend responde 400.
+        ownerId: this.ownerId(),
         category: null,
       })
       .subscribe({
@@ -377,7 +378,8 @@ export class DocumentsStore {
       contentType: file.type || 'application/octet-stream',
       sizeBytes: file.size,
       ownerType: this.ownerType(),
-      ownerId: this.ownerId() ?? '',
+      // null (no "") para la oficina: "" no bindea a Guid? y el backend responde 400.
+      ownerId: this.ownerId(),
       folderType: 'Documents',
       taxYear: new Date().getFullYear(),
     };

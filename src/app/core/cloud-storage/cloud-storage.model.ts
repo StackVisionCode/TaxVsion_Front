@@ -65,7 +65,8 @@ export interface InitiateUploadRequest {
   contentType: string;
   sizeBytes: number;
   ownerType: OwnerType;
-  ownerId: string;
+  // null para owner Tenant (oficina). Debe ir null, NO "" — el backend lo bindea a Guid?.
+  ownerId: string | null;
   folderType: FolderType;
   taxYear: number | null;
 }
