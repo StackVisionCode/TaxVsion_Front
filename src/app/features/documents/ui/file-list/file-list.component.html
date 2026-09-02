@@ -80,11 +80,17 @@
             <td class="hide-xs px-3 py-2.5 text-gray-500">{{ folder.createdAtUtc ? formatCreated(folder.createdAtUtc) : '—' }}</td>
             <td class="hide-sm hide-xs px-3 py-2.5 text-gray-400">—</td>
             <td class="c-act act px-3 py-2.5 text-right">
-              <div class="row-actions inline-flex items-center gap-0.5">
-                <button type="button" (click)="action.emit({ kind: 'rename-folder', folder })" title="Rename" aria-label="Rename folder" class="qbtn"><ion-icon name="create-outline"></ion-icon></button>
-                <button type="button" (click)="action.emit({ kind: 'move-folder', folder })" title="Move" aria-label="Move folder" class="qbtn"><ion-icon name="arrow-redo-outline"></ion-icon></button>
-                <button type="button" (click)="action.emit({ kind: 'delete-folder', folder })" title="Delete" aria-label="Delete folder" class="qbtn qbtn-danger"><ion-icon name="trash-outline"></ion-icon></button>
-              </div>
+              @if (isSystemFolder(folder)) {
+                <span class="inline-flex items-center gap-1 text-xs text-gray-300" title="System folder — managed automatically">
+                  <ion-icon name="lock-closed-outline"></ion-icon>
+                </span>
+              } @else {
+                <div class="row-actions inline-flex items-center gap-0.5">
+                  <button type="button" (click)="action.emit({ kind: 'rename-folder', folder })" title="Rename" aria-label="Rename folder" class="qbtn"><ion-icon name="create-outline"></ion-icon></button>
+                  <button type="button" (click)="action.emit({ kind: 'move-folder', folder })" title="Move" aria-label="Move folder" class="qbtn"><ion-icon name="arrow-redo-outline"></ion-icon></button>
+                  <button type="button" (click)="action.emit({ kind: 'delete-folder', folder })" title="Delete" aria-label="Delete folder" class="qbtn qbtn-danger"><ion-icon name="trash-outline"></ion-icon></button>
+                </div>
+              }
             </td>
           </tr>
         }

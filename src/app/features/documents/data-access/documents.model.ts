@@ -177,6 +177,8 @@ export interface CreateShareLinkRequest {
   expiresAtUtc?: string | null;
   maxAccessCount?: number | null;
   recipientEmails?: string[] | null;
+  /** 'Es' | 'En' — idioma del email al destinatario externo (solo ExternalRecipients). */
+  recipientLanguage?: string | null;
 }
 
 /** ShareLinkResponse (subset que usa el front). */
@@ -187,7 +189,10 @@ export interface ShareLinkResponse {
   visibility: ShareVisibility;
   permission: SharePermission;
   tokenLast4: string;
+  hasPassword: boolean;
   expiresAtUtc: string | null;
+  maxAccessCount: number | null;
+  accessCount: number;
   status: string;
   createdAtUtc: string;
 }

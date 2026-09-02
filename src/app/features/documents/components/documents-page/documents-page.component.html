@@ -308,10 +308,13 @@
       <app-file-details-panel
         [file]="file"
         [locationText]="detailsLocation()"
+        [shares]="fileShares()"
+        [sharesLoading]="fileSharesLoading()"
         (closed)="closeDetails()"
         (download)="downloadFile($event)"
         (move)="moveFromDetails($event)"
-        (remove)="deleteFromDetails($event)" />
+        (remove)="deleteFromDetails($event)"
+        (revokeShare)="revokeShare($event)" />
     </div>
   }
 </div>

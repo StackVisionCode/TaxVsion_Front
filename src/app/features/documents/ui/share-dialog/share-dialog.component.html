@@ -21,6 +21,22 @@
       <input type="text" [ngModel]="emails()" (ngModelChange)="emails.set($event)" placeholder="name@example.com, other@example.com"
         class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
     </label>
+    <p class="mb-1 mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+      <ion-icon name="mail-outline" class="text-sm"></ion-icon>
+      Each recipient gets a secure link by email.
+    </p>
+    <div class="mb-1 mt-2">
+      <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Email language</span>
+      <div class="flex gap-2">
+        @for (lang of [{ id: 'En', label: 'English' }, { id: 'Es', label: 'Español' }]; track lang.id) {
+          <button type="button" (click)="language.set($any(lang.id))" [attr.aria-pressed]="language() === lang.id"
+            class="rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors"
+            [class]="language() === lang.id ? 'border-transparent bg-brand-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+            {{ lang.label }}
+          </button>
+        }
+      </div>
+    </div>
   }
 
   <p class="mb-2 mt-4 text-xs font-bold uppercase tracking-wide text-gray-400">Permission</p>

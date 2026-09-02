@@ -145,6 +145,11 @@ export class DocumentsStore {
   private readonly _sharedLoading = signal(false);
   readonly sharedWithMe = this._sharedWithMe.asReadonly();
   readonly sharedLoading = this._sharedLoading.asReadonly();
+  /** Links creados sobre el archivo seleccionado (gestión: ver/revocar). */
+  private readonly _fileShares = signal<ShareLinkResponse[]>([]);
+  private readonly _fileSharesLoading = signal(false);
+  readonly fileShares = this._fileShares.asReadonly();
+  readonly fileSharesLoading = this._fileSharesLoading.asReadonly();
 
   // ---------- Árbol para "mover" ----------
   private readonly _folderTree = signal<FolderTreeNode[]>([]);
@@ -473,10 +478,39 @@ export class DocumentsStore {
 
   selectFile(file: FileResponse): void {
     this._selectedFileId.set(file.id);
+    this.loadFileShares(file.id);
   }
 
   clearSelection(): void {
     this._selectedFileId.set(null);
+    this._fileShares.set([]);
+  }
+
+  private loadFileShares(fileId: string): void {
+    this._fileShares.set([]);
+    this._fileSharesLoading.set(true);
+    this.service.listFileShares(fileId).subscribe({
+      next: shares => {
+        this._fileShares.set(shares);
+        this._fileSharesLoading.set(false);
+      },
+      // Silencioso: la sección de links es secundaria; un fallo no debe romper el panel.
+      error: () => this._fileSharesLoading.set(false),
+    });
+  }
+
+  /** Revoca un link del archivo seleccionado y refresca la lista. */
+  revokeShare(shareLinkId: string): void {
+    this.service.revokeShareLink(shareLinkId).subscribe({
+      next: () => {
+        const fileId = this._selectedFileId();
+        if (fileId) {
+          this.loadFileShares(fileId);
+        }
+        this.toast.success('Share link revoked.');
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
   }
 
   // ================= Papelera =================
@@ -659,7 +693,13 @@ export class DocumentsStore {
 
   createShareLink(file: FileResponse, req: CreateShareLinkRequest): void {
     this.service.createShareLink(file.id, req).subscribe({
-      next: created => this._createdShare.set(created),
+      next: created => {
+        this._createdShare.set(created);
+        // Si el archivo sigue seleccionado, refresca su lista de links para que el nuevo aparezca.
+        if (this._selectedFileId() === file.id) {
+          this.loadFileShares(file.id);
+        }
+      },
       error: err => this.toast.error(toUserMessage(err)),
     });
   }

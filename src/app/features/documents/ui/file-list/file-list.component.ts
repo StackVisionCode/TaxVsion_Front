@@ -103,4 +103,9 @@ export class FileListComponent {
   formatCreated(iso: string): string {
     return formatDate(iso);
   }
+
+  /** Carpeta del sistema (Documents, Email, Signed Documents…): no se puede renombrar/mover/borrar. */
+  isSystemFolder(folder: FolderResponse): boolean {
+    return !!folder.category?.startsWith('sys.');
+  }
 }
