@@ -26,7 +26,9 @@ export interface CreateFolderRequest {
   parentFolderId: string | null;
   name: string;
   ownerType: OwnerType;
-  ownerId: string;
+  // null en la oficina (owner Tenant). Debe ir null, NO "" — el backend lo bindea a Guid? y un
+  // string vacío revienta la validación con 400.
+  ownerId: string | null;
   category?: string | null;
 }
 
