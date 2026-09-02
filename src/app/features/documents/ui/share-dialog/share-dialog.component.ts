@@ -40,11 +40,26 @@ export class ShareDialogComponent implements OnChanges {
   @Output() created = new EventEmitter<CreateShareLinkRequest>();
   @Output() cancelled = new EventEmitter<void>();
 
-  readonly accessOptions: AccessOption[] = [
-    { id: 'TenantOnly', title: 'Tenant members', description: 'Anyone signed in to your firm can open it.' },
-    { id: 'TenantCustomers', title: 'Client', description: 'The client sees it in their portal.' },
-    { id: 'ExternalRecipients', title: 'External recipient', description: 'Send to an email address outside the firm.' },
-  ];
+  /**
+   * "Anyone with the link" (Public) solo se ofrece si la oficina lo permite (toggle de Settings).
+   * A diferencia de "External recipient" —que acota a un email y exige ?email= en la URL— este link
+   * abre para cualquiera que lo tenga, sin identificarse.
+   */
+  get accessOptions(): AccessOption[] {
+    const options: AccessOption[] = [
+      { id: 'TenantOnly', title: 'Tenant members', description: 'Anyone signed in to your firm can open it.' },
+      { id: 'TenantCustomers', title: 'Client', description: 'The client sees it in their portal.' },
+      { id: 'ExternalRecipients', title: 'External recipient', description: 'Only the email you enter can open it.' },
+    ];
+    if (this.publicAllowed) {
+      options.push({
+        id: 'Public',
+        title: 'Anyone with the link',
+        description: 'No sign-in needed — anyone who has the link can open it.',
+      });
+    }
+    return options;
+  }
 
   readonly access = signal<ShareVisibility>('TenantOnly');
   readonly permission = signal<SharePermission>('Download');
