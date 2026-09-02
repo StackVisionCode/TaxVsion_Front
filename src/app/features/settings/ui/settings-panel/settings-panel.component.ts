@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ThemeService } from '@core/theme/theme.service';
+import { PublicSharingSettingComponent } from '../public-sharing-setting/public-sharing-setting.component';
 
 /**
  * Un campo con persistencia real. Hoy el único caso son los colores del tema,
@@ -135,7 +136,7 @@ const PANELS: Record<string, PanelConfig> = {
  */
 @Component({
   selector: 'app-settings-panel',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './settings-panel.component.html',
 })

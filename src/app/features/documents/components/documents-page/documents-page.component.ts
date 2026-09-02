@@ -1,107 +1,416 @@
-import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ClientPickerComponent } from '../../ui/client-picker/client-picker.component';
-import { FileBrowserComponent } from '../../ui/file-browser/file-browser.component';
-import { RecycleBinComponent } from '../../ui/recycle-bin/recycle-bin.component';
-import { DocumentsClientSummary } from '../../data-access/documents-clients.service';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DocumentsStore } from '../../data-access/documents.store';
-import { FolderResponse } from '../../data-access/documents.model';
+import { DocumentsClientSummary } from '../../data-access/documents-clients.service';
+import {
+  CreateShareLinkRequest,
+  FileResponse,
+  FolderResponse,
+  RecycleBinItemResponse,
+  formatBytes,
+  formatDate,
+} from '../../data-access/documents.model';
+import { DocumentNavigatorComponent } from '../../ui/document-navigator/document-navigator.component';
+import { FileListComponent, FileRowAction } from '../../ui/file-list/file-list.component';
+import { FileDetailsPanelComponent } from '../../ui/file-details-panel/file-details-panel.component';
+import { DocumentPreviewComponent } from '../../ui/document-preview/document-preview.component';
+import { UploadDialogComponent } from '../../ui/upload-dialog/upload-dialog.component';
+import { MoveDialogComponent } from '../../ui/move-dialog/move-dialog.component';
+import { NamePromptDialogComponent } from '../../ui/name-prompt-dialog/name-prompt-dialog.component';
+import { BulkActionBarComponent } from '../../ui/bulk-action-bar/bulk-action-bar.component';
+import { ShareDialogComponent } from '../../ui/share-dialog/share-dialog.component';
 
-type DocumentsView = 'clients' | 'browser' | 'recycle-bin';
+/** Elemento que se está moviendo (archivo o carpeta) — el diálogo de destino es el mismo. */
+type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderResponse; file?: undefined };
 
 /**
- * Página del módulo Documents (migración #1 del roadmap Aether). Tres vistas
- * locales: selector de cliente → explorador de archivos → papelera. Único
- * contenedor "smart" de la feature — inyecta DocumentsStore (CloudStorage.Api
- * vía /storage + Customer.Api vía /customers) y lo cablea a las tres
- * presentacionales de `ui/` por input()/output().
+ * Contenedor "smart" del gestor documental. Único punto que inyecta el
+ * DocumentsStore y lo cablea al navegador y a las presentacionales por
+ * input()/output(). El cliente es un contexto dentro del workspace, no una
+ * pantalla previa: entrar a Documents abre directo el gestor.
  */
 @Component({
   selector: 'app-documents-page',
-  imports: [CommonModule, ClientPickerComponent, FileBrowserComponent, RecycleBinComponent],
+  imports: [
+    ModalComponent,
+    ConfirmDialogComponent,
+    DocumentNavigatorComponent,
+    FileListComponent,
+    FileDetailsPanelComponent,
+    DocumentPreviewComponent,
+    UploadDialogComponent,
+    MoveDialogComponent,
+    NamePromptDialogComponent,
+    BulkActionBarComponent,
+    ShareDialogComponent,
+  ],
   templateUrl: './documents-page.component.html',
+  styleUrl: './documents-page.component.css',
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
 export class DocumentsPageComponent {
   private readonly store = inject(DocumentsStore);
 
-  readonly view = signal<DocumentsView>('clients');
-
+  // Estado del store expuesto al template.
+  readonly context = this.store.context;
+  readonly section = this.store.section;
+  readonly isBrowsing = this.store.isBrowsing;
   readonly clients = this.store.clients;
+  readonly clientsTotal = this.store.clientsTotal;
+  readonly clientSearch = this.store.clientSearch;
   readonly clientsLoading = this.store.clientsLoading;
-  readonly clientsError = this.store.clientsError;
-
-  readonly selectedClient = this.store.selectedClient;
   readonly breadcrumbs = this.store.breadcrumbs;
   readonly subfolders = this.store.subfolders;
   readonly files = this.store.files;
   readonly folderLoading = this.store.folderLoading;
-  readonly folderError = this.store.folderError;
-  readonly uploading = this.store.uploading;
-
+  readonly selectedFile = this.store.selectedFile;
+  readonly folderTree = this.store.folderTree;
   readonly recycleBinItems = this.store.recycleBinItems;
   readonly recycleBinLoading = this.store.recycleBinLoading;
-  readonly recycleBinError = this.store.recycleBinError;
+  readonly recent = this.store.recent;
+  readonly recentLoading = this.store.recentLoading;
+  readonly usage = this.store.usage;
+  // Fase 4: vista/filtros/orden, multiselección, compartir, shared-with-me.
+  readonly visibleFiles = this.store.visibleFiles;
+  readonly viewMode = this.store.viewMode;
+  readonly sort = this.store.sort;
+  readonly filters = this.store.filters;
+  readonly activeFilterCount = this.store.activeFilterCount;
+  readonly selectedIds = this.store.selectedIds;
+  readonly selectionCount = this.store.selectionCount;
+  readonly hasSelection = this.store.hasSelection;
+  readonly sharedWithMe = this.store.sharedWithMe;
+  readonly sharedLoading = this.store.sharedLoading;
+  readonly createdShare = this.store.createdShare;
+  readonly publicSharingAllowed = computed(() => this.usage()?.allowPublicShareLinks ?? false);
+
+  // Estado local de la vista (menús/diálogos).
+  readonly newMenuOpen = signal(false);
+  readonly filtersOpen = signal(false);
+  readonly sortOpen = signal(false);
+  readonly uploadOpen = signal(false);
+  readonly newFolderOpen = signal(false);
+  readonly renameTarget = signal<FolderResponse | null>(null);
+  readonly moveTarget = signal<MoveTarget | null>(null);
+  readonly shareTarget = signal<FileResponse | null>(null);
+  readonly storageOpen = signal(false);
+  readonly emptyTrashOpen = signal(false);
+  readonly previewFile = signal<FileResponse | null>(null);
+
+  readonly filterYears = [2025, 2024, 2023];
+  readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
+  readonly filterStatuses = ['ready', 'processing', 'blocked'] as const;
+
+  readonly title = computed(() => {
+    const crumbs = this.breadcrumbs();
+    if (this.isBrowsing() && crumbs.length > 0) {
+      return crumbs[crumbs.length - 1].name;
+    }
+    switch (this.section()) {
+      case 'office':
+        return 'Office Files';
+      case 'client':
+        return this.context().clientName ?? 'Client documents';
+      case 'recent':
+        return 'Recent';
+      case 'shared':
+        return 'Shared with Me';
+      default:
+        return 'Recycle Bin';
+    }
+  });
+
+  readonly subtitle = computed(() => {
+    switch (this.section()) {
+      case 'office':
+        return 'Documents that belong to the office, not to a single client.';
+      case 'client':
+        return 'Client documents';
+      case 'recent':
+        return 'The files your office worked on lately.';
+      case 'shared':
+        return 'Files and folders your teammates shared with you.';
+      default:
+        return 'Items are automatically removed after 30 days.';
+    }
+  });
+
+  /** Etiqueta del dueño para el diálogo de subida y el destino de "mover". */
+  readonly ownerLabel = computed(() =>
+    this.section() === 'client' ? (this.context().clientName ?? 'Client') : 'Office Files',
+  );
+
+  readonly currentFolderLabel = computed(() => {
+    const crumbs = this.breadcrumbs();
+    return crumbs.length > 0 ? crumbs[crumbs.length - 1].name : this.ownerLabel();
+  });
 
   constructor() {
     this.store.refreshClients();
+    this.store.loadUsage();
+    this.store.openOffice();
   }
 
-  onClientSearch(term: string): void {
+  // ---------- Navegador ----------
+  openOffice(): void {
+    this.store.openOffice();
+  }
+  openClient(client: DocumentsClientSummary): void {
+    this.store.openClient(client);
+  }
+  openRecent(): void {
+    this.store.openRecent();
+  }
+  openShared(): void {
+    this.store.openSharedWithMe();
+  }
+  openTrash(): void {
+    this.store.openRecycleBin();
+  }
+  searchClients(term: string): void {
     this.store.setClientSearch(term);
   }
-
-  onClientSelected(client: DocumentsClientSummary): void {
-    this.store.selectClient(client);
-    this.view.set('browser');
+  openStorage(): void {
+    this.store.loadUsage();
+    this.storageOpen.set(true);
   }
 
-  backToClients(): void {
-    this.store.clearSelectedClient();
-    this.view.set('clients');
-  }
-
-  showRecycleBin(): void {
-    this.store.loadRecycleBin();
-    this.view.set('recycle-bin');
-  }
-
-  backToBrowser(): void {
-    this.view.set('browser');
-  }
-
-  onOpenFolder(folder: FolderResponse): void {
-    this.store.openFolder(folder);
-  }
-
-  onGoToRoot(): void {
+  // ---------- Breadcrumbs ----------
+  goToRoot(): void {
     this.store.goToRoot();
   }
-
-  onGoToBreadcrumb(folder: FolderResponse): void {
+  goToBreadcrumb(folder: FolderResponse): void {
     this.store.goToBreadcrumb(folder);
   }
 
-  onCreateFolder(name: string): void {
-    this.store.createFolder(name);
+  // ---------- Menú "New" ----------
+  toggleNewMenu(): void {
+    this.newMenuOpen.update(open => !open);
+  }
+  startUpload(): void {
+    this.newMenuOpen.set(false);
+    this.uploadOpen.set(true);
+  }
+  startNewFolder(): void {
+    this.newMenuOpen.set(false);
+    this.newFolderOpen.set(true);
   }
 
-  onFilesSelected(files: FileList): void {
+  // ---------- Acciones de fila ----------
+  onRowAction(action: FileRowAction): void {
+    switch (action.kind) {
+      case 'open-folder':
+        this.store.openFolder(action.folder);
+        break;
+      case 'rename-folder':
+        this.renameTarget.set(action.folder);
+        break;
+      case 'move-folder':
+        this.openMove({ folder: action.folder });
+        break;
+      case 'delete-folder':
+        this.store.deleteFolder(action.folder);
+        break;
+      case 'select-file':
+        this.store.selectFile(action.file);
+        break;
+      case 'toggle-file':
+        this.store.toggleFileSelection(action.file.id);
+        break;
+      case 'preview-file':
+        this.previewFile.set(action.file);
+        break;
+      case 'download-file':
+        this.store.downloadFile(action.file);
+        break;
+      case 'share-file':
+        this.shareTarget.set(action.file);
+        break;
+      case 'move-file':
+        this.openMove({ file: action.file });
+        break;
+      case 'delete-file':
+        this.store.deleteFile(action.file.id);
+        break;
+    }
+  }
+
+  // ---------- Toolbar: filtros / orden / vista ----------
+  toggleFiltersMenu(): void {
+    this.filtersOpen.update(o => !o);
+  }
+  toggleSortMenu(): void {
+    this.sortOpen.update(o => !o);
+  }
+  toggleFilter(group: 'years' | 'types' | 'statuses', value: string | number): void {
+    this.store.toggleFilter(group, value);
+  }
+  clearFilters(): void {
+    this.store.clearFilters();
+  }
+  setSort(key: 'name' | 'modified' | 'size'): void {
+    this.store.setSort(key);
+    this.sortOpen.set(false);
+  }
+  setView(mode: 'list' | 'grid'): void {
+    this.store.setViewMode(mode);
+  }
+  toggleSelectAll(): void {
+    this.store.toggleSelectAll();
+  }
+
+  // ---------- Barra en lote ----------
+  bulkDownload(): void {
+    this.store.downloadSelected();
+  }
+  bulkMove(): void {
+    this.store.loadFolderTree();
+    this.moveTarget.set({ file: this.store.selectedFiles()[0] });
+    this.bulkMoveMode.set(true);
+  }
+  bulkDelete(): void {
+    this.store.deleteSelected();
+  }
+  clearSelection(): void {
+    this.store.clearFileSelection();
+  }
+  readonly bulkMoveMode = signal(false);
+
+  // ---------- Compartir ----------
+  confirmShare(req: CreateShareLinkRequest): void {
+    const file = this.shareTarget();
+    if (file) {
+      this.store.createShareLink(file, req);
+    }
+    this.shareTarget.set(null);
+  }
+  closeCreatedShare(): void {
+    this.store.clearCreatedShare();
+  }
+  copyShareLink(): void {
+    const created = this.createdShare();
+    if (created) {
+      void navigator.clipboard?.writeText(this.shareUrl(created.plainToken));
+    }
+    this.store.clearCreatedShare();
+  }
+  shareUrl(token: string): string {
+    // Mismo origen que la oficina actual: en prod es su subdominio (`https://<oficina>.taxproffice.com`),
+    // donde vive la página pública `/s/:token`; en dev es el mismo host del CRM.
+    return `${window.location.origin}/s/${token}`;
+  }
+
+  // ---------- Diálogos ----------
+  confirmUpload(files: File[]): void {
     this.store.uploadFiles(files);
+    this.uploadOpen.set(false);
   }
 
-  onDownloadFile(fileId: string): void {
-    this.store.downloadFile(fileId);
+  confirmNewFolder(name: string): void {
+    this.store.createFolder(name);
+    this.newFolderOpen.set(false);
   }
 
-  onDeleteFile(fileId: string): void {
-    this.store.deleteFile(fileId);
+  confirmRename(name: string): void {
+    const target = this.renameTarget();
+    if (target) {
+      this.store.renameFolder(target, name);
+    }
+    this.renameTarget.set(null);
   }
 
-  onRestoreFile(fileId: string): void {
-    this.store.restoreFile(fileId);
+  private openMove(target: MoveTarget): void {
+    this.store.loadFolderTree();
+    this.moveTarget.set(target);
   }
 
-  onEmptyRecycleBin(): void {
+  confirmMove(targetFolderId: string | null): void {
+    if (this.bulkMoveMode()) {
+      this.store.moveSelected(targetFolderId);
+      this.closeMove();
+      return;
+    }
+    const target = this.moveTarget();
+    if (target?.file) {
+      this.store.moveFile(target.file.id, targetFolderId);
+    } else if (target?.folder) {
+      this.store.moveFolder(target.folder, targetFolderId);
+    }
+    this.moveTarget.set(null);
+  }
+
+  closeMove(): void {
+    this.moveTarget.set(null);
+    this.bulkMoveMode.set(false);
+  }
+
+  confirmEmptyTrash(): void {
     this.store.emptyRecycleBin();
+    this.emptyTrashOpen.set(false);
+  }
+
+  // ---------- Panel de detalles / preview ----------
+  closeDetails(): void {
+    this.store.clearSelection();
+  }
+  downloadFile(file: FileResponse): void {
+    this.store.downloadFile(file);
+  }
+  moveFromDetails(file: FileResponse): void {
+    this.openMove({ file });
+  }
+  deleteFromDetails(file: FileResponse): void {
+    this.store.deleteFile(file.id);
+  }
+
+  // ---------- Papelera ----------
+  restoreItem(item: RecycleBinItemResponse): void {
+    this.store.restoreFile(item);
+  }
+
+  // ---------- Helpers de presentación ----------
+  moveItemLabel(): string {
+    if (this.bulkMoveMode()) {
+      const n = this.selectionCount();
+      return `${n} ${n === 1 ? 'item' : 'items'}`;
+    }
+    const target = this.moveTarget();
+    if (target?.file) {
+      return `"${target.file.originalName}"`;
+    }
+    if (target?.folder) {
+      return `"${target.folder.name}"`;
+    }
+    return '';
+  }
+
+  moveExcludeId(): string | null {
+    return this.moveTarget()?.folder?.id ?? null;
+  }
+
+  detailsLocation(): string {
+    const segments = [this.section() === 'client' ? `Clients / ${this.context().clientName ?? ''}` : 'Office Files'];
+    for (const crumb of this.breadcrumbs()) {
+      segments.push(crumb.name);
+    }
+    return segments.join(' / ');
+  }
+
+  size(bytes: number): string {
+    return formatBytes(bytes);
+  }
+
+  date(iso: string): string {
+    return formatDate(iso);
+  }
+
+  daysLeft(item: RecycleBinItemResponse): number {
+    const ms = new Date(item.softDeleteExpiresAtUtc).getTime() - Date.now();
+    return Math.max(0, Math.ceil(ms / 86_400_000));
+  }
+
+  usedGb(bytes: number): string {
+    return (bytes / 1024 ** 3).toFixed(1);
   }
 }

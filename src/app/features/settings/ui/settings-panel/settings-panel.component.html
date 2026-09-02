@@ -6,23 +6,27 @@
       <p class="mt-1 text-sm text-gray-500">Settings that apply to this module</p>
     </div>
 
-    <span *ngIf="allPending()"
+    <span *ngIf="allPending() && moduleId !== 'documents'"
       class="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500">
       <ion-icon name="time-outline" class="text-sm"></ion-icon>
       Not available yet
     </span>
   </div>
 
+  <!-- Ajuste con backend real (a diferencia de los "pending"): enlaces públicos de la firma.
+       Solo en el módulo Documents; el propio control se bloquea si el usuario no tiene el permiso. -->
+  <app-public-sharing-setting *ngIf="moduleId === 'documents'" class="mt-4 block" />
+
   <!-- Aviso honesto: qué se guarda y qué no. -->
   <div *ngIf="hasPending()" class="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3">
     <p class="text-sm leading-relaxed text-gray-600">
-      <ng-container *ngIf="allPending(); else mixedNotice">
+      <ng-container *ngIf="allPending() && moduleId !== 'documents'; else mixedNotice">
         These settings aren't available yet. Nothing on this panel is stored, so leaving it will not
         change how the module behaves.
       </ng-container>
       <ng-template #mixedNotice>
-        Color choices apply instantly and are remembered in this browser. The fields marked below
-        aren't available yet — nothing you set there is stored.
+        <ng-container *ngIf="moduleId === 'overview'">Color choices apply instantly and are remembered in this browser. </ng-container>The
+        fields marked below aren't available yet — nothing you set there is stored.
       </ng-template>
     </p>
     <p *ngIf="note()" class="mt-1.5 text-sm leading-relaxed text-gray-500">{{ note() }}</p>

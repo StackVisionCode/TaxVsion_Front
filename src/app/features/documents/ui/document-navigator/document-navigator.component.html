@@ -1,0 +1,96 @@
+<nav class="flex h-full w-full flex-col overflow-hidden" aria-label="Documents navigation">
+  <div class="flex-1 overflow-y-auto px-2.5 pt-3.5 pb-1.5">
+    <p class="px-2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-gray-400">Workspace</p>
+
+    <button type="button" (click)="openOffice.emit()"
+      class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
+      [class]="section === 'office' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      <ion-icon name="business-outline" class="text-base"></ion-icon>
+      <span>Office Files</span>
+    </button>
+
+    <button type="button" (click)="clientsExpanded.set(!clientsExpanded())"
+      class="mt-0.5 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
+      [class]="section === 'client' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      <ion-icon name="people-outline" class="text-base"></ion-icon>
+      <span>Clients</span>
+      <span class="ml-auto flex items-center gap-1 text-xs text-gray-400">
+        {{ clients.length }}
+        <ion-icon [name]="clientsExpanded() ? 'chevron-down' : 'chevron-forward'" class="text-xs"></ion-icon>
+      </span>
+    </button>
+
+    @if (clientsExpanded()) {
+      <div class="ml-2 mt-1 flex flex-col gap-0.5 border-l border-gray-100 pl-2">
+        <div class="mx-1 my-1 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+          <ion-icon name="search-outline" class="text-xs text-gray-400"></ion-icon>
+          <input type="text" [ngModel]="clientSearch" (ngModelChange)="onSearch($event)"
+            placeholder="Search clients..." aria-label="Search clients"
+            class="w-full border-0 bg-transparent text-xs outline-none placeholder:text-gray-400" />
+        </div>
+
+        @if (clientsLoading) {
+          <div class="px-2 py-1.5 text-xs text-gray-400">Loading clients…</div>
+        } @else if (clients.length === 0) {
+          <div class="px-2 py-1.5 text-xs text-gray-400">No clients match your search.</div>
+        } @else {
+          <div class="max-h-64 overflow-y-auto">
+            @for (client of clients; track client.id) {
+              <button type="button" (click)="openClient.emit(client)"
+                class="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors"
+                [class]="section === 'client' && client.id === activeClientId ? 'bg-indigo-50' : 'hover:bg-gray-100'">
+                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9.5px] font-bold"
+                  [class]="section === 'client' && client.id === activeClientId
+                    ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700'">
+                  {{ initials(client.displayName) }}
+                </span>
+                <span class="truncate text-xs"
+                  [class]="section === 'client' && client.id === activeClientId ? 'font-semibold text-indigo-700' : 'text-gray-700'">
+                  {{ client.displayName }}
+                </span>
+              </button>
+            }
+          </div>
+          @if (clientsTotal > clients.length) {
+            <p class="px-2 pt-1.5 text-[11px] text-gray-400">
+              Showing {{ clients.length }} of {{ clientsTotal }}. Search to find a specific client.
+            </p>
+          }
+        }
+      </div>
+    }
+
+    <button type="button" (click)="openShared.emit()"
+      class="mt-0.5 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
+      [class]="section === 'shared' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      <ion-icon name="share-social-outline" class="text-base"></ion-icon>
+      <span>Shared with Me</span>
+    </button>
+
+    <button type="button" (click)="openRecent.emit()"
+      class="mt-0.5 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
+      [class]="section === 'recent' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      <ion-icon name="time-outline" class="text-base"></ion-icon>
+      <span>Recent</span>
+    </button>
+
+    <p class="px-2 pt-3 pb-2.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-gray-400">Management</p>
+    <button type="button" (click)="openTrash.emit()"
+      class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
+      [class]="section === 'trash' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      <ion-icon name="trash-outline" class="text-base"></ion-icon>
+      <span>Recycle Bin</span>
+    </button>
+  </div>
+
+  <button type="button" (click)="openStorage.emit()"
+    class="flex flex-col gap-1.5 border-t border-gray-100 px-3.5 py-3 text-left transition-colors hover:bg-gray-50">
+    <span class="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+      <ion-icon name="server-outline" class="text-xs"></ion-icon> Storage
+    </span>
+    <span class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+      <span class="block h-full rounded-full bg-brand-bold transition-all" [style.width.%]="usedPercent"></span>
+    </span>
+    <span class="text-[11px] text-gray-400">{{ usedGb }} GB of {{ maxGb }} GB used</span>
+  </button>
+</nav>
