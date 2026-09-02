@@ -132,7 +132,12 @@ export interface MessageSummary {
   bodyStatus: MessageBodyStatus | null;
   /** Estado leído/no-leído compartido por el tenant. En outbound siempre true (no hay nada que leer). */
   isRead: boolean;
+  /** Veredicto de autenticación del remitente. Solo inbound; null en outbound. */
+  senderTrust: SenderTrust | null;
 }
+
+/** Veredicto de autenticación del remitente (el front lo traduce a lenguaje simple). */
+export type SenderTrust = 'Verified' | 'Unverified' | 'Unknown';
 
 /** GET /correspondence/messages/{id}/body — pedido en vivo a Connectors, nunca persistido. */
 export interface MessageBody {
@@ -142,7 +147,7 @@ export interface MessageBody {
 }
 
 /** Espejo de AttachmentDownloadStatus (descarga bajo demanda hacia CloudStorage). */
-export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed';
+export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed' | 'Blocked';
 
 /** Fila de GET /correspondence/messages/{id}/attachments — metadata, cero bytes. */
 export interface AttachmentSummary {
@@ -174,6 +179,22 @@ export interface AttachmentDownloadUrlResult {
 /** Espejo de DraftStatus. `Sending` dura lo que la llamada síncrona a Postmaster. */
 export type DraftStatus = 'Draft' | 'Sending' | 'Sent' | 'Failed' | 'Discarded';
 
+/**
+ * Fila de la carpeta "Sent" (GET /correspondence/sent?customerId=): un mensaje ya enviado.
+ * `emailThreadId` null = envío nuevo (compose) sin hilo → el front lo abre como mensaje suelto;
+ * no-null = reply → abre el hilo completo. El body se pide con GET /drafts/{id} al abrirlo.
+ */
+export interface SentMessageListItem {
+  messageId: string;
+  emailThreadId: string | null;
+  subject: string;
+  toAddresses: string[];
+  isReply: boolean;
+  sentAtUtc: string;
+  hasAttachments: boolean;
+  attachmentCount: number;
+}
+
 /** Fila lean de GET /correspondence/drafts?customerId= ("retomar un autoguardado"). */
 export interface DraftListItem {
   draftId: string;
@@ -189,6 +210,18 @@ export interface DraftRecipientSummary {
   address: string;
   type: 'To' | 'Cc' | 'Bcc';
   displayName: string | null;
+}
+
+/** Fila de la papelera (GET /correspondence/trash) — entrante o enviado borrado. */
+export interface TrashItem {
+  messageId: string;
+  kind: 'Incoming' | 'Sent';
+  emailThreadId: string | null;
+  subject: string;
+  counterparty: string;
+  deletedAtUtc: string;
+  hasAttachments: boolean;
+  attachmentCount: number;
 }
 
 /** Adjunto ya referenciado en el draft (el binario vive en CloudStorage). */

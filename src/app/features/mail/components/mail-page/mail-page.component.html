@@ -243,18 +243,37 @@
           (composeClicked)="openCompose()"></app-mail-folder-list>
       </div>
 
-      <!-- Cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un customer -->
+      <!-- Cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un customer.
+           Typeahead server-side (no un <select> con tope de 200): escala a cualquier cantidad. -->
       <div class="mt-5">
         <label for="mailCustomer" class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           Client
         </label>
-        <select id="mailCustomer" *ngIf="store.customers().length > 0" [ngModel]="store.selectedCustomerId()"
-          name="mailCustomer" (ngModelChange)="selectCustomer($event)"
-          class="mt-2 h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
-          <option *ngFor="let customer of store.customers()" [value]="customer.id">{{ customer.displayName }}</option>
-        </select>
-        <p *ngIf="store.customers().length === 0" class="mt-2 px-1 text-xs text-gray-400">
-          No clients yet. Mail threads belong to a client.
+        <div class="relative mt-2">
+          <ion-icon name="search-outline" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
+          <input id="mailCustomer" type="text" name="mailCustomerSearch" autocomplete="off"
+            [ngModel]="store.customerQuery()" (ngModelChange)="onCustomerQuery($event)"
+            (focus)="onCustomerFocus()" (blur)="closeCustomerPickerSoon()"
+            [placeholder]="store.selectedCustomerName() || 'Search a client…'"
+            class="h-10 w-full rounded-full border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder-gray-500 focus:border-gray-300 focus:outline-none transition-colors" />
+
+          <!-- Dropdown de resultados (server-side) -->
+          <div *ngIf="customerPickerOpen() && (store.customerResults().length > 0 || store.customerSearchLoading())"
+            class="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
+            <div *ngIf="store.customerSearchLoading()" class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
+              <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
+            </div>
+            <button *ngFor="let customer of store.customerResults()" type="button" (click)="pickCustomer(customer)"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+              [ngClass]="customer.id === store.selectedCustomerId() ? 'text-brand-bold font-semibold' : 'text-gray-700'">
+              <span class="truncate">{{ customer.displayName }}</span>
+              <span *ngIf="customer.primaryEmail" class="ml-auto shrink-0 truncate text-[11px] text-gray-400">{{ customer.primaryEmail }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p *ngIf="store.selectedCustomerName() as name" class="mt-1.5 px-1 text-xs text-gray-500">
+          Viewing <span class="font-medium text-gray-700">{{ name }}</span>
         </p>
       </div>
 
@@ -275,7 +294,9 @@
     <div class="bg-white rounded-[28px] p-5 lg:col-span-4 flex flex-col min-h-0">
       <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
         [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
+        [showTrashActions]="store.activeFolderId() === 'trash'"
         (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
+        (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
         (loadMoreRequested)="loadMoreList()"></app-mail-list>
     </div>
 
@@ -294,6 +315,7 @@
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
           (attachmentDownloadRequested)="downloadAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
+          (unarchiveRequested)="unarchiveThread()" (deleteMessageRequested)="trashMessage($event)"
           (messageReadStateToggled)="toggleMessageRead($event)" (threadReadStateToggled)="setThreadRead($event)"
           (loadMoreRequested)="loadMoreMessages()" (retryRequested)="retryMessages()"></app-mail-reading-pane>
       </ng-template>

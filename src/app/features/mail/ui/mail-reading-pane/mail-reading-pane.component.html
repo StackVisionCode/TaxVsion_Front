@@ -19,12 +19,16 @@
         <ion-icon [name]="threadHasUnread() ? 'checkmark-done-outline' : 'mail-unread-outline'" class="text-base"></ion-icon>
         {{ threadHasUnread() ? 'Mark all read' : 'Mark all unread' }}
       </button>
-      <!-- Archivar es la ÚNICA acción destructiva de hilo del backend (no hay unarchive ni delete). -->
       <button *ngIf="thread.status === 'Active'" type="button" (click)="archive()" [disabled]="archiving"
         class="flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors">
         <ion-icon [name]="archiving ? 'sync-outline' : 'archive-outline'" class="text-base"
           [ngClass]="archiving ? 'animate-spin' : ''"></ion-icon>
         {{ archiving ? 'Archiving…' : 'Archive' }}
+      </button>
+      <button *ngIf="thread.status === 'Archived'" type="button" (click)="unarchiveRequested.emit()" [disabled]="archiving"
+        class="flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+        <ion-icon name="arrow-undo-outline" class="text-base"></ion-icon>
+        Unarchive
       </button>
     </div>
   </div>
@@ -66,10 +70,18 @@
                 <span *ngIf="isUnread(message)" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"></span>
                 <span class="truncate text-sm text-gray-900"
                   [ngClass]="isUnread(message) ? 'font-bold' : 'font-semibold'">{{ senderLabel(message) }}</span>
+                <ion-icon *ngIf="message.direction === 'Inbound' && message.senderTrust === 'Unverified'"
+                  name="alert-circle" class="shrink-0 text-sm text-amber-500" title="We couldn't verify this sender"></ion-icon>
                 <span *ngIf="message.direction === 'Outbound'"
                   class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Sent</span>
               </span>
-              <span class="shrink-0 text-[11px] text-gray-400">{{ timeFor(message.occurredAtUtc) }}</span>
+              <span class="flex shrink-0 items-center gap-1.5">
+                <span class="text-[11px] text-gray-400">{{ timeFor(message.occurredAtUtc) }}</span>
+                <span (click)="$event.stopPropagation(); deleteMessageRequested.emit(message.messageId)" title="Delete"
+                  class="flex h-6 w-6 items-center justify-center rounded-full text-gray-300 hover:bg-red-50 hover:text-red-600 cursor-pointer">
+                  <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+                </span>
+              </span>
             </span>
 
             <span class="mt-0.5 block truncate text-xs text-gray-400">{{ addressLabel(message) }}</span>
@@ -89,6 +101,16 @@
 
         <!-- Cuerpo expandido -->
         <div *ngIf="expandedId === message.messageId" class="border-t border-gray-100 px-4 py-4">
+          <!-- Aviso de remitente no verificado (lenguaje simple, no técnico) -->
+          <div *ngIf="message.direction === 'Inbound' && message.senderTrust === 'Unverified'"
+            class="mb-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <ion-icon name="alert-circle-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
+            <p class="text-xs leading-relaxed text-amber-800">
+              <span class="font-semibold">We couldn't confirm this email really came from this sender.</span>
+              It could be someone pretending to be them — be careful with links and attachments.
+            </p>
+          </div>
+
           <ng-container *ngIf="bodyFor(message.messageId) as body">
             <div *ngIf="body.loading" class="flex items-center gap-2 py-4 text-sm text-gray-400">
               <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
@@ -134,16 +156,27 @@
               </div>
 
               <div *ngIf="!attachmentsView.loading && !attachmentsView.error" class="mt-2 flex flex-wrap gap-2">
-                <button *ngFor="let file of attachmentsView.items" type="button"
-                  (click)="downloadAttachment(message.messageId, file.attachmentId)" [disabled]="file.busy"
-                  class="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-3 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
-                  [attr.title]="file.error || 'Download ' + file.filename">
-                  <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
-                    [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
-                  <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
-                  <span class="text-gray-400">{{ fileSize(file.sizeBytes) }}</span>
-                  <ion-icon *ngIf="!file.busy" name="download-outline" class="text-sm text-gray-400"></ion-icon>
-                </button>
+                <ng-container *ngFor="let file of attachmentsView.items">
+                  <!-- Bloqueado por el escaneo: no se puede descargar -->
+                  <span *ngIf="file.downloadStatus === 'Blocked'"
+                    class="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 py-1.5 pl-3 pr-3 text-xs text-red-700"
+                    title="This file was blocked because it may be unsafe">
+                    <ion-icon name="shield-outline" class="text-sm text-red-500"></ion-icon>
+                    <span class="max-w-[12rem] truncate font-medium line-through">{{ file.filename }}</span>
+                    <span class="font-semibold">Blocked — may be unsafe</span>
+                  </span>
+
+                  <button *ngIf="file.downloadStatus !== 'Blocked'" type="button"
+                    (click)="downloadAttachment(message.messageId, file.attachmentId)" [disabled]="file.busy"
+                    class="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-3 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                    [attr.title]="file.error || 'Download ' + file.filename">
+                    <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
+                      [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
+                    <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
+                    <span class="text-gray-400">{{ fileSize(file.sizeBytes) }}</span>
+                    <ion-icon *ngIf="!file.busy" name="download-outline" class="text-sm text-gray-400"></ion-icon>
+                  </button>
+                </ng-container>
 
                 <p *ngIf="attachmentsView.items.length === 0" class="text-xs text-gray-400">No attachments.</p>
               </div>

@@ -17,6 +17,8 @@ import {
   MailCustomerSummary,
   MessageBody,
   MessageSummary,
+  SentMessageListItem,
+  TrashItem,
   PagedResult,
   SendDraftResult,
   StartReplyResult,
@@ -101,6 +103,12 @@ export class MailService {
     );
   }
 
+  /** Carpeta "Sent": mensajes ya enviados del cliente, más reciente primero. */
+  listSent(customerId: string, page: number, size: number): Observable<PagedResult<SentMessageListItem>> {
+    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+    return this.http.get<PagedResult<SentMessageListItem>>(`${this.correspondence}/sent`, { params });
+  }
+
   /** Inbound + outbound mezclados, cronológico ascendente (más viejo primero). */
   listThreadMessages(threadId: string, page: number, size: number): Observable<PagedResult<MessageSummary>> {
     const params = new HttpParams().set('page', page).set('size', size);
@@ -110,9 +118,42 @@ export class MailService {
     );
   }
 
-  /** Archiva el hilo completo (no hay unarchive ni delete en el backend). 204. */
+  /** Archiva el hilo completo (marca leído). 204. */
   archiveThread(threadId: string): Observable<void> {
     return this.http.post<void>(`${this.correspondence}/threads/${threadId}/archive`, {});
+  }
+
+  /** Desarchiva el hilo (Archived → Active). 204. */
+  unarchiveThread(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/unarchive`, {});
+  }
+
+  /** Papelera unificada (entrantes + enviados borrados) del cliente. */
+  listTrash(customerId: string, page: number, size: number): Observable<PagedResult<TrashItem>> {
+    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+    return this.http.get<PagedResult<TrashItem>>(`${this.correspondence}/trash`, { params });
+  }
+
+  // ---------- Soft-delete: entrantes ----------
+  trashMessage(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/trash`, {});
+  }
+  restoreMessage(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/restore`, {});
+  }
+  purgeMessage(messageId: string): Observable<void> {
+    return this.http.delete<void>(`${this.correspondence}/messages/${messageId}`);
+  }
+
+  // ---------- Soft-delete: enviados ----------
+  trashSent(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/sent/${messageId}/trash`, {});
+  }
+  restoreSent(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/sent/${messageId}/restore`, {});
+  }
+  purgeSent(messageId: string): Observable<void> {
+    return this.http.delete<void>(`${this.correspondence}/sent/${messageId}`);
   }
 
   /** Marca TODO el hilo como leído / no-leído (estado compartido por el tenant). 204. */

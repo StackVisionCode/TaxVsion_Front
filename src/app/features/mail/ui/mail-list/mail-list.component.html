@@ -57,6 +57,12 @@
         <div class="mt-0.5 flex items-center justify-between gap-2">
           <span class="truncate text-xs" [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-500'">{{ row.subtitle }}</span>
           <span class="flex shrink-0 items-center gap-1.5">
+            <!-- Clip de adjuntos (carpeta Sent): icono + número -->
+            <span *ngIf="(row.attachmentCount ?? 0) > 0"
+              class="flex items-center gap-0.5 text-[10px] font-medium leading-none"
+              [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">
+              <ion-icon name="attach-outline" class="text-xs"></ion-icon>{{ row.attachmentCount }}
+            </span>
             <!-- Globo con el número de no-leídos -->
             <span *ngIf="row.unreadCount > 0"
               class="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none"
@@ -64,6 +70,18 @@
             <span *ngIf="row.badge"
               class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
               [ngClass]="row.id === selectedId ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'">{{ row.badge }}</span>
+
+            <!-- Papelera: restaurar / borrar permanente -->
+            <ng-container *ngIf="showTrashActions">
+              <span (click)="$event.stopPropagation(); restoreRequested.emit(row.id)" title="Restore"
+                class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer">
+                <ion-icon name="arrow-undo-outline" class="text-sm"></ion-icon>
+              </span>
+              <span (click)="$event.stopPropagation(); purgeRequested.emit(row.id)" title="Delete forever"
+                class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer">
+                <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+              </span>
+            </ng-container>
           </span>
         </div>
       </div>
