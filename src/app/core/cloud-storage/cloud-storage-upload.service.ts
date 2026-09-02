@@ -7,6 +7,7 @@ import {
   FileResponse,
   InitiateUploadRequest,
   InitiatedUploadResponse,
+  OwnerType,
 } from './cloud-storage.model';
 
 /**
@@ -51,12 +52,18 @@ export class CloudStorageUploadService {
   }
 
   /**
-   * GET /storage/files — archivos del tenant (staff), más recientes primero. El backend
-   * NO filtra por tipo/cliente para staff, así que el filtrado (PDF, Available, owner) se
-   * hace en el cliente. `take` va acotado 1..100 por el backend.
+   * GET /storage/files — listado plano de archivos, más recientes primero. Para staff se
+   * puede acotar a UN dueño (`ownerType`/`ownerId`, ej. todos los de un customer cross-carpeta);
+   * un actor de portal ignora ese filtro y solo ve lo suyo. `take` va acotado 1..100 por el backend.
    */
-  listFiles(skip = 0, take = 100): Observable<FileResponse[]> {
-    const params = new HttpParams().set('skip', skip).set('take', take);
+  listFiles(skip = 0, take = 100, ownerType?: OwnerType, ownerId?: string | null): Observable<FileResponse[]> {
+    let params = new HttpParams().set('skip', skip).set('take', take);
+    if (ownerType) {
+      params = params.set('ownerType', ownerType);
+    }
+    if (ownerId) {
+      params = params.set('ownerId', ownerId);
+    }
     return this.http.get<FileResponse[]>(`${this.base}/files`, { params });
   }
 

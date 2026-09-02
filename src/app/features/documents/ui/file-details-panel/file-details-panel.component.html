@@ -1,0 +1,84 @@
+<aside class="details-panel flex h-full w-full flex-col overflow-hidden bg-white">
+  <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
+    <h3 class="text-sm font-bold text-gray-900">File details</h3>
+    <button type="button" (click)="closed.emit()" aria-label="Close details"
+      class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900">
+      <ion-icon name="close-outline" class="text-base"></ion-icon>
+    </button>
+  </div>
+
+  <div class="flex-1 overflow-y-auto p-4">
+    <div class="mb-4 grid h-28 place-items-center rounded-2xl border border-gray-100 bg-gray-50 text-gray-300">
+      <ion-icon name="document-text-outline" class="text-4xl"></ion-icon>
+    </div>
+
+    <dl class="flex flex-col gap-3.5">
+      <div>
+        <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Name</dt>
+        <dd class="mt-0.5 break-words text-sm text-gray-800">{{ file.originalName }}</dd>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Type</dt>
+          <dd class="mt-0.5 text-sm text-gray-800">{{ extension }}</dd>
+        </div>
+        <div>
+          <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Size</dt>
+          <dd class="mt-0.5 text-sm text-gray-800">{{ sizeLabel }}</dd>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tax year</dt>
+          <dd class="mt-0.5 text-sm text-gray-800">{{ file.taxYear ?? 'Not applicable' }}</dd>
+        </div>
+        <div>
+          <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</dt>
+          <dd class="mt-1">
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold"
+              [class]="statusKind === 'ready' ? 'bg-green-50 text-green-700'
+                : statusKind === 'blocked' ? 'bg-red-50 text-red-600'
+                : 'bg-amber-50 text-amber-700'">
+              @if (statusKind === 'ready') { <ion-icon name="checkmark-circle" class="text-sm"></ion-icon> }
+              {{ statusLabel }}
+            </span>
+          </dd>
+        </div>
+      </div>
+      @if (locationText) {
+        <div>
+          <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Location</dt>
+          <dd class="mt-0.5 break-words text-sm text-gray-800">{{ locationText }}</dd>
+        </div>
+      }
+      <div>
+        <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Last modified</dt>
+        <dd class="mt-0.5 text-sm text-gray-800">{{ modifiedLabel }}</dd>
+      </div>
+    </dl>
+
+    @if (statusKind === 'blocked') {
+      <p class="mt-4 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-600">
+        <ion-icon name="alert-circle-outline" class="mt-0.5 text-sm"></ion-icon>
+        <span>Blocked — this file may be unsafe. It can't be opened or downloaded.</span>
+      </p>
+    }
+
+    <div class="mt-5 flex flex-wrap gap-2">
+      @if (ready) {
+        <button type="button" (click)="download.emit(file)"
+          class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
+          <ion-icon name="download-outline"></ion-icon> Download
+        </button>
+      }
+      <button type="button" (click)="move.emit(file)"
+        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+        <ion-icon name="arrow-redo-outline"></ion-icon> Move
+      </button>
+      <button type="button" (click)="remove.emit(file)"
+        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 hover:border-red-100">
+        <ion-icon name="trash-outline"></ion-icon> Delete
+      </button>
+    </div>
+  </div>
+</aside>

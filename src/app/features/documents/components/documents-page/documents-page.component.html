@@ -1,17 +1,429 @@
-<div class="min-h-full pt-3 pb-1 flex flex-col">
-  <app-client-picker *ngIf="view() === 'clients'" class="flex-1 min-h-0" [clients]="clients()"
-    [loading]="clientsLoading()" [error]="clientsError()" (search)="onClientSearch($event)"
-    (clientSelected)="onClientSelected($event)"></app-client-picker>
+<div class="flex min-h-0 flex-1 overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
+  <!-- Navegador del workspace -->
+  <div class="hidden w-60 shrink-0 border-r border-gray-100 md:block">
+    <app-document-navigator
+      [section]="section()"
+      [activeClientId]="context().clientId"
+      [clients]="clients()"
+      [clientsTotal]="clientsTotal()"
+      [clientSearch]="clientSearch()"
+      [clientsLoading]="clientsLoading()"
+      [usage]="usage()"
+      (openOffice)="openOffice()"
+      (openClient)="openClient($event)"
+      (openRecent)="openRecent()"
+      (openShared)="openShared()"
+      (openTrash)="openTrash()"
+      (searchChanged)="searchClients($event)"
+      (openStorage)="openStorage()" />
+  </div>
 
-  <app-file-browser *ngIf="view() === 'browser'" class="flex-1 min-h-0"
-    [clientName]="selectedClient()?.displayName ?? ''" [breadcrumbs]="breadcrumbs()" [subfolders]="subfolders()"
-    [files]="files()" [loading]="folderLoading()" [error]="folderError()" [uploading]="uploading()"
-    (back)="backToClients()" (openRecycleBin)="showRecycleBin()" (openFolder)="onOpenFolder($event)"
-    (goToRoot)="onGoToRoot()" (goToBreadcrumb)="onGoToBreadcrumb($event)" (createFolder)="onCreateFolder($event)"
-    (filesSelected)="onFilesSelected($event)" (downloadFile)="onDownloadFile($event)"
-    (deleteFile)="onDeleteFile($event)"></app-file-browser>
+  <!-- Contenido -->
+  <div class="relative flex min-w-0 flex-1 flex-col">
+    <header class="shrink-0 px-5 pt-4">
+      <!-- Breadcrumbs -->
+      <nav class="flex flex-wrap items-center gap-1 text-xs text-gray-500" aria-label="Breadcrumb">
+        <button type="button" (click)="openOffice()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">
+          Documents
+        </button>
+        @if (section() === 'office') {
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Office Files</button>
+        } @else if (section() === 'client') {
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <span class="px-1.5 py-0.5 text-gray-400">Clients</span>
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">{{ context().clientName }}</button>
+        } @else {
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <span class="px-1.5 py-0.5 font-semibold text-gray-700">{{ title() }}</span>
+        }
+        @for (crumb of breadcrumbs(); track crumb.id) {
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <button type="button" (click)="goToBreadcrumb(crumb)" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">{{ crumb.name }}</button>
+        }
+      </nav>
 
-  <app-recycle-bin *ngIf="view() === 'recycle-bin'" class="flex-1 min-h-0" [items]="recycleBinItems()"
-    [loading]="recycleBinLoading()" [error]="recycleBinError()" (back)="backToBrowser()"
-    (restore)="onRestoreFile($event)" (emptyBin)="onEmptyRecycleBin()"></app-recycle-bin>
+      <!-- Título + acciones -->
+      <div class="mt-2 flex flex-wrap items-start gap-3">
+        <div class="min-w-0">
+          <h1 class="text-xl font-bold tracking-tight text-gray-900">{{ title() }}</h1>
+          <p class="mt-0.5 text-xs text-gray-500">{{ subtitle() }}</p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          @if (isBrowsing()) {
+            <div class="relative">
+              <button type="button" (click)="toggleNewMenu()" aria-haspopup="menu" [attr.aria-expanded]="newMenuOpen()"
+                class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-ink">
+                <ion-icon name="add-outline" class="text-base"></ion-icon> New
+                <ion-icon name="chevron-down" class="text-xs"></ion-icon>
+              </button>
+              @if (newMenuOpen()) {
+                <div class="fixed inset-0 z-10" (click)="newMenuOpen.set(false)"></div>
+                <div class="menu-pop absolute right-0 z-20 mt-1.5 w-48 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-lg" role="menu">
+                  <button type="button" (click)="startUpload()" role="menuitem"
+                    class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50">
+                    <ion-icon name="cloud-upload-outline" class="text-base text-gray-500"></ion-icon> Upload files
+                  </button>
+                  <button type="button" (click)="startNewFolder()" role="menuitem"
+                    class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50">
+                    <ion-icon name="folder-open-outline" class="text-base text-gray-500"></ion-icon> New folder
+                  </button>
+                </div>
+              }
+            </div>
+          }
+          @if (section() === 'trash' && recycleBinItems().length > 0) {
+            <button type="button" (click)="emptyTrashOpen.set(true)"
+              class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:border-red-100">
+              <ion-icon name="trash-outline" class="text-base"></ion-icon> Empty recycle bin
+            </button>
+          }
+        </div>
+      </div>
+      <!-- Toolbar: filtros / orden / vista -->
+      @if (isBrowsing()) {
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <div class="relative">
+            <button type="button" (click)="toggleFiltersMenu()" aria-haspopup="menu" [attr.aria-expanded]="filtersOpen()"
+              class="flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors"
+              [class]="activeFilterCount() > 0 ? 'border-transparent bg-brand-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+              <ion-icon name="filter-outline" class="text-sm"></ion-icon> Filters@if (activeFilterCount() > 0) { <span>· {{ activeFilterCount() }}</span> }
+            </button>
+            @if (filtersOpen()) {
+              <div class="fixed inset-0 z-10" (click)="filtersOpen.set(false)"></div>
+              <div class="menu-pop absolute left-0 z-20 mt-1.5 max-h-[60vh] w-60 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-lg" role="menu">
+                <p class="px-2 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">Tax year</p>
+                @for (y of filterYears; track y) {
+                  <button type="button" (click)="toggleFilter('years', y)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-gray-50">
+                    <span class="cb" [class.cb-on]="filters().years.includes(y)">@if (filters().years.includes(y)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ y }}
+                  </button>
+                }
+                <p class="px-2 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">File type</p>
+                @for (t of filterTypes; track t) {
+                  <button type="button" (click)="toggleFilter('types', t)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-gray-50">
+                    <span class="cb" [class.cb-on]="filters().types.includes(t)">@if (filters().types.includes(t)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ t }}
+                  </button>
+                }
+                <p class="px-2 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">Status</p>
+                @for (s of filterStatuses; track s) {
+                  <button type="button" (click)="toggleFilter('statuses', s)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm capitalize hover:bg-gray-50">
+                    <span class="cb" [class.cb-on]="filters().statuses.includes(s)">@if (filters().statuses.includes(s)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ s }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="relative">
+            <button type="button" (click)="toggleSortMenu()" aria-haspopup="menu"
+              class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3.5 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+              <ion-icon name="swap-vertical-outline" class="text-sm"></ion-icon> Sort
+            </button>
+            @if (sortOpen()) {
+              <div class="fixed inset-0 z-10" (click)="sortOpen.set(false)"></div>
+              <div class="menu-pop absolute left-0 z-20 mt-1.5 w-44 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-lg" role="menu">
+                @for (opt of [['name','Name'],['modified','Modified'],['size','Size']]; track opt[0]) {
+                  <button type="button" (click)="setSort($any(opt[0]))" class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-gray-50">
+                    <span class="cb" [class.cb-on]="sort().key === opt[0]">@if (sort().key === opt[0]) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span>
+                    {{ opt[1] }}
+                    @if (sort().key === opt[0]) { <span class="ml-auto text-xs text-gray-400">{{ sort().dir === 'asc' ? 'A→Z' : 'Z→A' }}</span> }
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="ml-auto inline-flex overflow-hidden rounded-full border border-gray-200">
+            <button type="button" (click)="setView('list')" aria-label="List view" [attr.aria-pressed]="viewMode() === 'list'"
+              class="grid h-8 w-9 place-items-center transition-colors" [class]="viewMode() === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'"><ion-icon name="list-outline" class="text-base"></ion-icon></button>
+            <button type="button" (click)="setView('grid')" aria-label="Grid view" [attr.aria-pressed]="viewMode() === 'grid'"
+              class="grid h-8 w-9 place-items-center border-l border-gray-200 transition-colors" [class]="viewMode() === 'grid' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'"><ion-icon name="grid-outline" class="text-base"></ion-icon></button>
+          </div>
+        </div>
+
+        @if (activeFilterCount() > 0) {
+          <div class="mt-2 flex flex-wrap items-center gap-1.5">
+            @for (y of filters().years; track y) {
+              <span class="fchip">{{ y }} <button type="button" (click)="toggleFilter('years', y)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+            }
+            @for (t of filters().types; track t) {
+              <span class="fchip">{{ t }} <button type="button" (click)="toggleFilter('types', t)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+            }
+            @for (s of filters().statuses; track s) {
+              <span class="fchip capitalize">{{ s }} <button type="button" (click)="toggleFilter('statuses', s)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+            }
+            <button type="button" (click)="clearFilters()" class="rounded-full px-2.5 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-100">Clear all</button>
+          </div>
+        }
+      }
+    </header>
+
+    <main class="mt-3 min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+      @switch (section()) {
+        @case ('recent') {
+          @if (recentLoading()) {
+            <p class="py-10 text-center text-sm text-gray-400">Loading…</p>
+          } @else if (recent().length === 0) {
+            <div class="flex flex-col items-center gap-2 py-14 text-center text-gray-500">
+              <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400"><ion-icon name="time-outline" class="text-2xl"></ion-icon></span>
+              <h3 class="text-sm font-bold text-gray-900">Nothing recent.</h3>
+              <p class="max-w-xs text-sm">Files your office works on show up here.</p>
+            </div>
+          } @else {
+            <div class="divide-y divide-gray-50">
+              @for (file of recent(); track file.id) {
+                <div class="group flex items-center gap-3 py-2.5">
+                  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon name="document-text-outline"></ion-icon></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold text-gray-800">{{ file.originalName }}</p>
+                    <p class="text-xs text-gray-400">{{ date(file.createdAtUtc) }}</p>
+                  </div>
+                  <button type="button" (click)="previewFile.set(file)" title="Preview"
+                    class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"><ion-icon name="eye-outline"></ion-icon></button>
+                </div>
+              }
+            </div>
+          }
+        }
+        @case ('trash') {
+          @if (recycleBinLoading()) {
+            <p class="py-10 text-center text-sm text-gray-400">Loading…</p>
+          } @else if (recycleBinItems().length === 0) {
+            <div class="flex flex-col items-center gap-2 py-14 text-center text-gray-500">
+              <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400"><ion-icon name="trash-outline" class="text-2xl"></ion-icon></span>
+              <h3 class="text-sm font-bold text-gray-900">Recycle bin is empty.</h3>
+              <p class="max-w-xs text-sm">Deleted files stay here for 30 days before they are removed for good.</p>
+            </div>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                    <th class="px-3 py-2.5">Name</th>
+                    <th class="w-28 px-3 py-2.5">Deleted</th>
+                    <th class="w-28 px-3 py-2.5">Expires</th>
+                    <th class="w-24 px-3 py-2.5">Size</th>
+                    <th class="w-28 px-3 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of recycleBinItems(); track item.id) {
+                    <tr class="doc-row group border-b border-gray-50 transition-colors hover:bg-gray-50">
+                      <td class="px-3 py-2.5">
+                        <div class="flex min-w-0 items-center gap-2.5">
+                          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon name="document-text-outline"></ion-icon></span>
+                          <span class="truncate font-semibold text-gray-800">{{ item.originalName }}</span>
+                        </div>
+                      </td>
+                      <td class="px-3 py-2.5 text-gray-500">{{ date(item.softDeletedAtUtc) }}</td>
+                      <td class="px-3 py-2.5">
+                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                          [class]="daysLeft(item) <= 7 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'">In {{ daysLeft(item) }} days</span>
+                      </td>
+                      <td class="px-3 py-2.5 text-gray-600">{{ size(item.sizeBytes) }}</td>
+                      <td class="px-3 py-2.5 text-right">
+                        <button type="button" (click)="restoreItem(item)"
+                          class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                          <ion-icon name="refresh-outline"></ion-icon> Restore
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+        @case ('shared') {
+          @if (sharedLoading()) {
+            <p class="py-10 text-center text-sm text-gray-400">Loading…</p>
+          } @else if (sharedWithMe().length === 0) {
+            <div class="flex flex-col items-center gap-2 py-14 text-center text-gray-500">
+              <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400"><ion-icon name="share-social-outline" class="text-2xl"></ion-icon></span>
+              <h3 class="text-sm font-bold text-gray-900">Nothing shared with you yet.</h3>
+              <p class="max-w-xs text-sm">When a teammate shares a file or folder, it shows up here.</p>
+            </div>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                    <th class="px-3 py-2.5">Type</th>
+                    <th class="px-3 py-2.5">Permission</th>
+                    <th class="w-32 px-3 py-2.5">Expires</th>
+                    <th class="w-32 px-3 py-2.5">Shared</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (share of sharedWithMe(); track share.id) {
+                    <tr class="doc-row border-b border-gray-50">
+                      <td class="px-3 py-2.5">
+                        <span class="flex items-center gap-2 font-semibold text-gray-800">
+                          <ion-icon [name]="share.resourceType === 'Folder' ? 'folder-outline' : 'document-text-outline'" class="text-base text-gray-500"></ion-icon>
+                          {{ share.resourceType }}
+                        </span>
+                      </td>
+                      <td class="px-3 py-2.5"><span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{{ share.permission }}</span></td>
+                      <td class="px-3 py-2.5 text-gray-500">{{ share.expiresAtUtc ? date(share.expiresAtUtc) : 'No expiration' }}</td>
+                      <td class="px-3 py-2.5 text-gray-500">{{ date(share.createdAtUtc) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+        @default {
+          <app-file-list
+            [subfolders]="subfolders()"
+            [files]="visibleFiles()"
+            [loading]="folderLoading()"
+            [selectedFileId]="selectedFile()?.id ?? null"
+            [selectedIds]="selectedIds()"
+            [view]="viewMode()"
+            (action)="onRowAction($event)"
+            (toggleAll)="toggleSelectAll()"
+            (setSort)="setSort($event)" />
+        }
+      }
+    </main>
+
+    <!-- Barra de acciones en lote -->
+    @if (isBrowsing() && hasSelection()) {
+      <div class="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+        <app-bulk-action-bar
+          [count]="selectionCount()"
+          (download)="bulkDownload()"
+          (move)="bulkMove()"
+          (delete)="bulkDelete()"
+          (clear)="clearSelection()" />
+      </div>
+    }
+  </div>
+
+  <!-- Panel de detalles -->
+  @if (isBrowsing() && selectedFile(); as file) {
+    <div class="hidden w-80 shrink-0 border-l border-gray-100 lg:block">
+      <app-file-details-panel
+        [file]="file"
+        [locationText]="detailsLocation()"
+        (closed)="closeDetails()"
+        (download)="downloadFile($event)"
+        (move)="moveFromDetails($event)"
+        (remove)="deleteFromDetails($event)" />
+    </div>
+  }
 </div>
+
+<!-- Preview -->
+<app-document-preview [file]="previewFile()" (closed)="previewFile.set(null)" (download)="downloadFile($event); previewFile.set(null)" />
+
+<!-- Diálogos -->
+<app-upload-dialog
+  [isOpen]="uploadOpen()"
+  [ownerLabel]="ownerLabel()"
+  [folderLabel]="currentFolderLabel()"
+  (uploaded)="confirmUpload($event)"
+  (cancelled)="uploadOpen.set(false)" />
+
+<app-name-prompt-dialog
+  [isOpen]="newFolderOpen()"
+  heading="New folder"
+  [subheading]="'In ' + currentFolderLabel()"
+  label="Folder name"
+  confirmLabel="Create folder"
+  (confirmed)="confirmNewFolder($event)"
+  (cancelled)="newFolderOpen.set(false)" />
+
+<app-name-prompt-dialog
+  [isOpen]="!!renameTarget()"
+  heading="Rename folder"
+  label="New name"
+  confirmLabel="Rename"
+  [initialValue]="renameTarget()?.name ?? ''"
+  (confirmed)="confirmRename($event)"
+  (cancelled)="renameTarget.set(null)" />
+
+<app-move-dialog
+  [isOpen]="!!moveTarget()"
+  [tree]="folderTree()"
+  [rootLabel]="ownerLabel()"
+  [rootIcon]="section() === 'client' ? 'people-outline' : 'business-outline'"
+  [itemLabel]="moveItemLabel()"
+  [excludeFolderId]="moveExcludeId()"
+  (moved)="confirmMove($event)"
+  (cancelled)="closeMove()" />
+
+<!-- Compartir -->
+<app-share-dialog
+  [file]="shareTarget()"
+  [publicAllowed]="publicSharingAllowed()"
+  (created)="confirmShare($event)"
+  (cancelled)="shareTarget.set(null)" />
+
+<app-modal [isOpen]="!!createdShare()" heading="Share link created" size="md" (closed)="closeCreatedShare()">
+  @if (createdShare(); as created) {
+    <div class="mt-5 flex items-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-2.5">
+      <ion-icon name="link-outline" class="shrink-0 text-gray-500"></ion-icon>
+      <span class="min-w-0 break-all text-sm text-gray-700">{{ shareUrl(created.plainToken) }}</span>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-4">
+      <div><p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Permission</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.permission }}</p></div>
+      <div><p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Expires</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.expiresAtUtc ? date(created.link.expiresAtUtc) : 'No expiration' }}</p></div>
+    </div>
+    <p class="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-700">
+      <ion-icon name="alert-circle-outline" class="mt-0.5 text-sm"></ion-icon>
+      <span>Copy this link now. For security we only show it once — after you close this you can revoke it, but not see it again.</span>
+    </p>
+    <div class="mt-6 flex items-center justify-end gap-2">
+      <button type="button" (click)="closeCreatedShare()" class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900">Done</button>
+      <button type="button" (click)="copyShareLink()" class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"><ion-icon name="copy-outline"></ion-icon> Copy link</button>
+    </div>
+  }
+</app-modal>
+
+<app-confirm-dialog
+  [isOpen]="emptyTrashOpen()"
+  heading="Empty recycle bin?"
+  message="Permanently delete all eligible items in the recycle bin? Files on legal hold are kept."
+  confirmLabel="Empty recycle bin"
+  (confirmed)="confirmEmptyTrash()"
+  (cancelled)="emptyTrashOpen.set(false)" />
+
+<!-- Almacenamiento -->
+<app-modal [isOpen]="storageOpen()" heading="Storage usage" size="md" (closed)="storageOpen.set(false)">
+  @if (usage(); as u) {
+    <div class="mt-5 grid grid-cols-2 gap-4">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Used</p>
+        <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.usedBytes) }} GB</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Available</p>
+        <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.availableBytes) }} GB</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Reserved</p>
+        <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.reservedBytes) }} GB</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Plan</p>
+        <p class="mt-0.5 text-lg font-bold text-gray-900">{{ u.planCode }}</p>
+      </div>
+    </div>
+    <div class="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
+      <span class="block h-full rounded-full bg-brand-bold" [style.width.%]="u.maxBytes ? (u.usedBytes / u.maxBytes) * 100 : 0"></span>
+    </div>
+    <p class="mt-4 flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs leading-relaxed text-gray-500">
+      <ion-icon name="information-circle-outline" class="mt-0.5 text-sm"></ion-icon>
+      <span>Items in the recycle bin still count toward your storage until they are permanently removed.</span>
+    </p>
+  } @else {
+    <p class="py-8 text-center text-sm text-gray-400">Loading…</p>
+  }
+  <div class="mt-6 flex justify-end">
+    <button type="button" (click)="storageOpen.set(false)"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">Close</button>
+  </div>
+</app-modal>

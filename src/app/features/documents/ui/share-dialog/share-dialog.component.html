@@ -1,0 +1,74 @@
+<app-modal [isOpen]="!!file" [heading]="file ? 'Share ' + file.originalName : 'Share'" size="lg" (closed)="cancelled.emit()">
+  <p class="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-gray-400">Access</p>
+  @for (option of accessOptions; track option.id) {
+    <button type="button" (click)="access.set(option.id)" role="radio" [attr.aria-checked]="access() === option.id"
+      class="mb-1.5 flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors"
+      [class]="access() === option.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'">
+      <span class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-[1.5px]"
+        [class]="access() === option.id ? 'border-indigo-600' : 'border-gray-300'">
+        @if (access() === option.id) { <span class="h-2 w-2 rounded-full bg-indigo-600"></span> }
+      </span>
+      <span>
+        <span class="block text-sm font-semibold text-gray-800">{{ option.title }}</span>
+        <span class="block text-xs text-gray-500">{{ option.description }}</span>
+      </span>
+    </button>
+  }
+
+  @if (access() === 'ExternalRecipients') {
+    <label class="mb-1 mt-3 block">
+      <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Recipient emails</span>
+      <input type="text" [ngModel]="emails()" (ngModelChange)="emails.set($event)" placeholder="name@example.com, other@example.com"
+        class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+    </label>
+  }
+
+  <p class="mb-2 mt-4 text-xs font-bold uppercase tracking-wide text-gray-400">Permission</p>
+  <div class="flex gap-2">
+    @for (perm of ['View', 'Download']; track perm) {
+      <button type="button" (click)="permission.set(perm === 'View' ? 'View' : 'Download')" [attr.aria-pressed]="permission() === perm"
+        class="flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors"
+        [class]="permission() === perm ? 'border-transparent bg-brand-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+        <ion-icon [name]="perm === 'View' ? 'eye-outline' : 'download-outline'"></ion-icon> {{ perm }}
+      </button>
+    }
+  </div>
+
+  <button type="button" (click)="showAdvanced.set(!showAdvanced())" class="mt-4 flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900" [attr.aria-expanded]="showAdvanced()">
+    <ion-icon [name]="showAdvanced() ? 'chevron-down' : 'chevron-forward'" class="text-sm"></ion-icon> Advanced options
+  </button>
+  @if (showAdvanced()) {
+    <div class="mt-3 space-y-3 border-t border-gray-100 pt-3">
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Expiration</span>
+        <input type="date" [ngModel]="expires()" (ngModelChange)="expires.set($event)" class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+      </label>
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Password</span>
+        <input type="text" [ngModel]="password()" (ngModelChange)="password.set($event)" placeholder="Optional" class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+      </label>
+      <label class="block">
+        <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Maximum accesses</span>
+        <input type="text" inputmode="numeric" [ngModel]="maxAccess()" (ngModelChange)="maxAccess.set($event)" placeholder="Unlimited" class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+      </label>
+    </div>
+  }
+
+  <div class="mt-4 flex items-center gap-2 border-t border-gray-100 pt-4">
+    <span class="text-sm font-semibold text-gray-700">Public links</span>
+    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="publicAllowed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'">{{ publicAllowed ? 'Enabled' : 'Disabled' }}</span>
+  </div>
+  @if (!publicAllowed) {
+    <p class="mt-2 flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs leading-relaxed text-gray-500">
+      <ion-icon name="lock-closed-outline" class="mt-0.5 text-sm"></ion-icon>
+      <span>Public links are turned off by your firm's security settings. Only people who sign in can open this.</span>
+    </p>
+  }
+
+  <div class="mt-6 flex items-center justify-end gap-2">
+    <button type="button" (click)="cancelled.emit()" class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900">Cancel</button>
+    <button type="button" (click)="submit()" class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+      <ion-icon name="link-outline"></ion-icon> Generate link
+    </button>
+  </div>
+</app-modal>

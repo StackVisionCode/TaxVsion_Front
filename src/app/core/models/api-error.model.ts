@@ -22,6 +22,14 @@ export interface ProblemDetails {
 export const NETWORK_ERROR_CODE = 'Network.Unreachable';
 
 /**
+ * Fallback SEGURO cuando el backend no manda un `message` propio. Nunca usamos
+ * `err.message` de Angular como texto de usuario: incluye la URL del API
+ * (`"Http failure response for http://…: 500"`), lo que filtraría rutas
+ * internas y GUIDs. Para el texto final de UI usar `toUserMessage`.
+ */
+const SAFE_FALLBACK_MESSAGE = 'Something went wrong. Please try again.';
+
+/**
  * Normaliza cualquier error HTTP a un `ApiError` con `code` + `message`.
  * Cubre el `Error` plano, `ProblemDetails` y el fallo de conexión (status 0).
  */
@@ -29,15 +37,17 @@ export function toApiError(err: unknown): ApiError {
   if (err instanceof HttpErrorResponse) {
     // status 0 => no hubo respuesta (backend caído, CORS o sin red).
     if (err.status === 0) {
-      return { code: NETWORK_ERROR_CODE, message: 'No se pudo conectar con el servidor.' };
+      return { code: NETWORK_ERROR_CODE, message: SAFE_FALLBACK_MESSAGE };
     }
     const body = err.error as (Partial<ApiError & ProblemDetails> & { error?: string }) | string | null;
     if (body && typeof body === 'object') {
       // Algunos endpoints (Gateway TenantHostGuard, Signature host-guard) usan la clave `error`
       // en vez de `code` para el discriminador — ej. { error: "tenant_host_mismatch", message }.
+      // Solo confiamos en el texto que manda NUESTRO backend (message/detail/title); nunca
+      // caemos a `err.message`, que trae la URL del API.
       return {
         code: body.code ?? body.error ?? `Http.${err.status}`,
-        message: body.message ?? body.detail ?? body.title ?? err.message ?? 'Error desconocido.',
+        message: body.message ?? body.detail ?? body.title ?? SAFE_FALLBACK_MESSAGE,
       };
     }
     // Con `responseType: 'text'` Angular NO parsea el cuerpo, así que un error del
@@ -45,11 +55,13 @@ export function toApiError(err: unknown): ApiError {
     // literal `{"code":"...","message":"..."}` (pasaba en el modal de términos del alta).
     if (typeof body === 'string' && body) {
       const parsed = parseJsonError(body);
-      return parsed ?? { code: `Http.${err.status}`, message: body };
+      // Si NO es nuestro JSON de error, no mostramos el cuerpo crudo (podría traer detalle
+      // técnico); devolvemos el código HTTP y un genérico seguro.
+      return parsed ?? { code: `Http.${err.status}`, message: SAFE_FALLBACK_MESSAGE };
     }
-    return { code: `Http.${err.status}`, message: err.message };
+    return { code: `Http.${err.status}`, message: SAFE_FALLBACK_MESSAGE };
   }
-  return { code: 'Unknown', message: 'Error desconocido.' };
+  return { code: 'Unknown', message: SAFE_FALLBACK_MESSAGE };
 }
 
 /** `{"code":"...","message":"..."}` servido como texto plano → ApiError; null si no lo es. */

@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
@@ -23,7 +24,7 @@ import { AuthService } from '@core/auth/auth.service';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, NavbarComponent, SidebarComponent],
+  imports: [RouterOutlet, NavbarComponent, SidebarComponent, ToastHostComponent],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',
 })

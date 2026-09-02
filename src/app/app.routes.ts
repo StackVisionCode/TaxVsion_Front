@@ -115,6 +115,15 @@ export const routes: Routes = [
     title: 'Download document',
   },
   {
+    // Página pública de un enlace compartido de Documents: el cliente externo llega por
+    // `https://<oficina>.taxproffice.com/s/<token>`, sin sesión (fuera del authGuard). Muestra el
+    // documento con la marca de la oficina y dispara la descarga contra el resolver del backend.
+    path: 's/:token',
+    loadComponent: () =>
+      import('./features/public-share/public-share-page.component').then(m => m.PublicSharePageComponent),
+    title: 'Shared document',
+  },
+  {
     // Página pública de pago de una factura: el cliente llega por el link/QR del PDF, sin sesión.
     path: 'pay/:token',
     loadComponent: () =>
