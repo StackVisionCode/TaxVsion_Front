@@ -8,6 +8,7 @@ import {
   FileResponse,
   FolderResponse,
   RecycleBinItemResponse,
+  ShareLinkResponse,
   formatBytes,
   formatDate,
 } from '../../data-access/documents.model';
@@ -228,6 +229,7 @@ export class DocumentsPageComponent {
         break;
       case 'share-file':
         this.shareTarget.set(action.file);
+        this.store.loadFileShares(action.file.id);
         break;
       case 'move-file':
         this.openMove({ file: action.file });
@@ -285,6 +287,16 @@ export class DocumentsPageComponent {
     if (file) {
       this.store.createShareLink(file, req);
     }
+    this.shareTarget.set(null);
+  }
+
+  /** "Copy link" sobre un Public existente: crea uno nuevo (copiable) y revoca el viejo. */
+  reshareLink(share: ShareLinkResponse): void {
+    const file = this.shareTarget();
+    if (file) {
+      this.store.resharePublicLink(file, share);
+    }
+    // Cierra el diálogo; aparece el modal de "link creado" con la URL nueva copiable.
     this.shareTarget.set(null);
   }
   closeCreatedShare(): void {

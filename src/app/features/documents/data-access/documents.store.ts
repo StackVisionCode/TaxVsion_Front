@@ -148,6 +148,7 @@ export class DocumentsStore {
   /** Links creados sobre el archivo seleccionado (gestión: ver/revocar). */
   private readonly _fileShares = signal<ShareLinkResponse[]>([]);
   private readonly _fileSharesLoading = signal(false);
+  private readonly _fileSharesFileId = signal<string | null>(null);
   readonly fileShares = this._fileShares.asReadonly();
   readonly fileSharesLoading = this._fileSharesLoading.asReadonly();
 
@@ -488,7 +489,9 @@ export class DocumentsStore {
     this._fileShares.set([]);
   }
 
-  private loadFileShares(fileId: string): void {
+  /** Carga los links de un archivo (panel de detalle y diálogo de compartir). */
+  loadFileShares(fileId: string): void {
+    this._fileSharesFileId.set(fileId);
     this._fileShares.set([]);
     this._fileSharesLoading.set(true);
     this.service.listFileShares(fileId).subscribe({
@@ -501,11 +504,44 @@ export class DocumentsStore {
     });
   }
 
-  /** Revoca un link del archivo seleccionado y refresca la lista. */
+  /**
+   * "Compartir de nuevo" un link Public: como el token del viejo no se puede recuperar (solo se
+   * emite al crear), se crea uno NUEVO con el mismo permiso/expiración y se REVOCA el viejo al
+   * instante. El modal de "link creado" muestra la URL copiable. Solo aplica a Public — los otros
+   * tipos no producen una URL pública que copiar.
+   */
+  resharePublicLink(file: FileResponse, old: ShareLinkResponse): void {
+    const req: CreateShareLinkRequest = {
+      visibility: 'Public',
+      permission: old.permission,
+      password: null,
+      expiresAtUtc: old.expiresAtUtc,
+      maxAccessCount: old.maxAccessCount ?? null,
+      recipientEmails: null,
+      recipientLanguage: null,
+    };
+    this.service.createShareLink(file.id, req).subscribe({
+      next: created => {
+        this._createdShare.set(created);
+        // El viejo ya no se puede copiar: se revoca al instante para no dejar dos links vivos.
+        this.service.revokeShareLink(old.id).subscribe({
+          next: () => {
+            if (this._fileSharesFileId() === file.id) {
+              this.loadFileShares(file.id);
+            }
+          },
+          error: () => {},
+        });
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
+  }
+
+  /** Revoca un link y refresca la lista del archivo que se está mostrando (panel o diálogo). */
   revokeShare(shareLinkId: string): void {
     this.service.revokeShareLink(shareLinkId).subscribe({
       next: () => {
-        const fileId = this._selectedFileId();
+        const fileId = this._fileSharesFileId();
         if (fileId) {
           this.loadFileShares(fileId);
         }
@@ -697,8 +733,8 @@ export class DocumentsStore {
     this.service.createShareLink(file.id, req).subscribe({
       next: created => {
         this._createdShare.set(created);
-        // Si el archivo sigue seleccionado, refresca su lista de links para que el nuevo aparezca.
-        if (this._selectedFileId() === file.id) {
+        // Refresca la lista de links del archivo que se está mostrando (panel o diálogo).
+        if (this._fileSharesFileId() === file.id) {
           this.loadFileShares(file.id);
         }
       },

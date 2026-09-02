@@ -1,5 +1,51 @@
 <app-modal [isOpen]="!!file" [heading]="file ? 'Share ' + file.originalName : 'Share'" size="lg" (closed)="cancelled.emit()">
-  <p class="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-gray-400">Access</p>
+  @if (activeShares.length > 0) {
+    <p class="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-gray-400">Already shared</p>
+    <ul class="flex flex-col gap-2">
+      @for (s of activeShares; track s.id) {
+        <li class="rounded-xl border border-gray-100 p-2.5">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-gray-800">{{ accessLabel(s.visibility) }}</p>
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-gray-400">
+                <span>{{ s.permission === 'Download' ? 'Download' : 'View' }}</span>
+                <span aria-hidden="true">·</span>
+                <span>••••{{ s.tokenLast4 }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ expiryLabel(s.expiresAtUtc) }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ s.accessCount }} opened</span>
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-1.5">
+              @if (isCopyable(s)) {
+                <button type="button" (click)="reshare.emit(s)" title="Create a fresh copyable link and revoke this one"
+                  class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                  <ion-icon name="copy-outline"></ion-icon> Copy link
+                </button>
+              } @else {
+                <span class="text-[11px] text-gray-400">{{ noCopyReason(s) }}</span>
+              }
+              <button type="button" (click)="revokeShare.emit(s.id)"
+                class="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-100 hover:bg-red-50">
+                Revoke
+              </button>
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+    @if (activeShares.length && hasPublic()) {
+      <p class="mt-2 flex items-start gap-1.5 text-[11px] text-gray-400">
+        <ion-icon name="information-circle-outline" class="mt-0.5"></ion-icon>
+        "Copy link" makes a new link and revokes the current one — the old link can't be shown again.
+      </p>
+    }
+    <div class="my-4 border-t border-gray-100"></div>
+    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Create another link</p>
+  } @else {
+    <p class="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-gray-400">Access</p>
+  }
   @for (option of accessOptions; track option.id) {
     <button type="button" (click)="access.set(option.id)" role="radio" [attr.aria-checked]="access() === option.id"
       class="mb-1.5 flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors"
