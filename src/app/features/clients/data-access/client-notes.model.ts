@@ -212,8 +212,12 @@ export function toClientNoteCard(
   userNames: ReadonlyMap<string, string>,
   currentUserId: string | null,
   hasViewAll: boolean,
+  // Una nota recién creada la escribió el usuario actual por definición: se marca propia en el
+  // alta optimista para que sus controles (editar/pin/adjuntar) salgan al instante, sin depender
+  // de que `currentUser()` ya haya resuelto en ese milisegundo. El listado real la sobrescribe.
+  forceMine = false,
 ): ClientNoteCard {
-  const isMine = currentUserId !== null && note.createdByUserId === currentUserId;
+  const isMine = forceMine || (currentUserId !== null && note.createdByUserId === currentUserId);
   const authorName = isMine ? 'You' : userNames.get(note.createdByUserId) ?? 'Team member';
   const colorKind = note.colorKind ?? 'Default';
   return {

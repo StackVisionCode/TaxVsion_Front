@@ -48,6 +48,8 @@ export class ClientNotesStore {
   private readonly _actionError = signal<string | null>(null);
   private readonly _busyIds = signal<ReadonlySet<string>>(new Set());
   private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
+  /** Ids de notas creadas en esta sesión: propias con certeza, aunque `currentUser()` tarde. */
+  private readonly _optimisticMineIds = signal<ReadonlySet<string>>(new Set());
 
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
@@ -61,7 +63,8 @@ export class ClientNotesStore {
     const names = this._userNames();
     const me = this.currentUserId();
     const viewAll = this.hasViewAll();
-    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll));
+    const mine = this._optimisticMineIds();
+    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll, mine.has(note.id)));
   });
 
   readonly total = computed(() => this._raw().length);
@@ -116,7 +119,10 @@ export class ClientNotesStore {
         colorKind: colorKind === 'Default' ? null : colorKind,
       })
       .pipe(
-        tap(created => this._raw.update(list => [created, ...list])),
+        tap(created => {
+          this._optimisticMineIds.update(ids => new Set(ids).add(created.id));
+          this._raw.update(list => [created, ...list]);
+        }),
         map(() => undefined),
       );
   }
@@ -188,7 +194,12 @@ export class ClientNotesStore {
       .pipe(
         switchMap(initiated =>
           this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
-            switchMap(() => this.cloud.completeUpload(initiated.fileId)),
+            // Se crea el link (attach → NoteAttachment en Pending) ANTES de `complete`. `complete`
+            // dispara el escaneo → `cloudstorage.file.available` → el consumer de Notes busca la fila
+            // por CloudStorageFileId para marcarla Available. Si `complete` fuera primero, ese evento
+            // podía llegar (~100ms) antes de que la fila existiera y el adjunto quedaba atascado en
+            // "Scanning". Con attach primero la fila ya está cuando el evento llega (Notes no tiene
+            // client de CloudStorage para auto-sanarse en lectura, así que el orden es la garantía).
             switchMap(() =>
               this.service.attach(noteId, {
                 cloudStorageFileId: initiated.fileId,
@@ -197,6 +208,7 @@ export class ClientNotesStore {
                 sizeBytes: file.size,
               }),
             ),
+            switchMap(updated => this.cloud.completeUpload(initiated.fileId).pipe(map(() => updated))),
           ),
         ),
       )
