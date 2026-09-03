@@ -2,6 +2,8 @@ import type {
   AddressResponse,
   ContactPointResponse,
   CustomerFiscalProfileResponse,
+  CustomerLanguage,
+  PreferredChannel,
   RelationResponse,
 } from '../data-access/clients.model';
 
@@ -62,6 +64,9 @@ export interface ClientProfile {
   displayName: string;
   email: string;
   phone: string;
+  /** Idioma y canal preferido reales (GET /customers/{id}). */
+  language: CustomerLanguage;
+  preferredChannel: PreferredChannel;
   isActive: boolean;
   /** ISO date string (YYYY-MM-DD). */
   createdAt: string;

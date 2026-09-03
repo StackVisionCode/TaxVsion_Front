@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
 import {
   CustomerImportAttempt,
   ImportStatus,
@@ -16,7 +17,7 @@ import {
  */
 @Component({
   selector: 'app-client-import-progress-step',
-  imports: [CommonModule],
+  imports: [CommonModule, CountUpDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-progress-step.component.html',
   styleUrl: './client-import-progress-step.component.css',

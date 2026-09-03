@@ -37,7 +37,15 @@ export type NoteColorKind = 'Default' | 'Important' | 'FollowUp' | 'Idea' | 'War
 export type NoteStatus = 'Active' | 'Archived' | 'Deleted';
 
 /** Espejo de NoteAttachment.Status (se serializa con `.ToString()`, no como enum tipado). */
-export type NoteAttachmentStatus = 'Pending' | 'Available' | 'Rejected';
+export type NoteAttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+
+/** Body de POST /notes/{id}/attachments — enlaza un fileId ya subido a CloudStorage (Caso B). */
+export interface AttachFileToNoteRequest {
+  cloudStorageFileId: string;
+  displayName: string;
+  contentType: string;
+  sizeBytes: number;
+}
 
 /** Target de las notas de esta pestaña: siempre el cliente del perfil. */
 export const CLIENT_NOTE_TARGET_TYPE: NoteTargetType = 'Customer';

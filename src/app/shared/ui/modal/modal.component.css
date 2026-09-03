@@ -1,7 +1,7 @@
-/* Entrada del modal: el backdrop hace fade y el panel sube con un leve
-   scale — sutil, coherente con el resto de la app. Solo animación de
-   entrada: al cerrar, el *ngIf desmonta en seco (patrón ya usado en toda
-   la app; una salida animada requeriría diferir el desmontaje). */
+/* Entrada del modal: el backdrop hace fade y el panel sube con un leve scale — sutil,
+   coherente con el resto de la app. La SALIDA (`.is-closing`) invierte el gesto: el
+   desmontaje se difiere `EXIT_MS` en el componente para que el cierre no desaparezca en
+   seco (ver ModalComponent.beginClose). */
 @keyframes modal-backdrop-in {
   from {
     opacity: 0;
@@ -22,10 +22,50 @@
   }
 }
 
+@keyframes modal-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
 .modal-backdrop {
   animation: modal-backdrop-in 200ms ease-out both;
 }
 
 .modal-panel {
   animation: modal-panel-in 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* Salida: sobrescribe la entrada (2 clases > 1) y queda en el estado final con `forwards`. */
+.modal-backdrop.is-closing {
+  animation: modal-backdrop-out 180ms ease-in forwards;
+}
+
+.modal-panel.is-closing {
+  animation: modal-panel-out 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Accesibilidad: sin movimiento, el modal aparece y desaparece sin animar. El componente
+   además hace el cierre inmediato (no difiere el desmontaje) cuando reduced-motion está activo. */
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal-panel,
+  .modal-backdrop.is-closing,
+  .modal-panel.is-closing {
+    animation: none;
+  }
 }

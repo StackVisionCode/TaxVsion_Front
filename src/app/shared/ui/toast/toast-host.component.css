@@ -1,4 +1,6 @@
-/* Entrada suave con la curva de la casa (misma que sign-page/verify-audit). */
+/* Entrada suave con la curva de la casa (misma que sign-page/verify-audit). La SALIDA
+   (`.is-leaving`) invierte el gesto: el ToastService difiere el retiro 180ms para que el
+   toast caiga en vez de desaparecer en seco. */
 .toast-item {
   animation: toast-rise 200ms cubic-bezier(0.2, 0, 0, 1) both;
 }
@@ -14,8 +16,25 @@
   }
 }
 
+/* Salida: sobrescribe la entrada (2 clases > 1) y queda en el estado final con `forwards`. */
+.toast-item.is-leaving {
+  animation: toast-fall 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes toast-fall {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .toast-item {
+  .toast-item,
+  .toast-item.is-leaving {
     animation: none;
   }
 }

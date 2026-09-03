@@ -1,9 +1,62 @@
 <div *ngIf="loading() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[28px] p-6 text-sm text-gray-400">Loading client…</div>
+  <div class="bg-white rounded-[28px] p-6">
+    <div class="h-4 w-28 animate-pulse rounded-full bg-gray-100"></div>
+    <div class="mt-4 flex items-center gap-4">
+      <div class="h-14 w-14 shrink-0 animate-pulse rounded-full bg-gray-100"></div>
+      <div class="flex-1">
+        <div class="h-6 w-48 animate-pulse rounded-full bg-gray-100"></div>
+        <div class="mt-2 h-4 w-32 animate-pulse rounded-full bg-gray-100"></div>
+      </div>
+    </div>
+    <div class="mt-6 flex gap-2">
+      <div class="h-9 w-24 animate-pulse rounded-full bg-gray-100"></div>
+      <div class="h-9 w-24 animate-pulse rounded-full bg-gray-100"></div>
+      <div class="h-9 w-24 animate-pulse rounded-full bg-gray-100"></div>
+    </div>
+  </div>
+  <span class="sr-only" role="status">Loading client…</span>
 </div>
 
 <div *ngIf="loadError() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[28px] p-6 text-sm text-red-600">{{ loadError() }}</div>
+  <div class="bg-white rounded-[28px] p-6">
+    <a routerLink="/clients"
+      class="-ml-3 flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+      Back to clients
+    </a>
+
+    <div class="flex flex-col items-center px-6 py-14 text-center">
+      <span class="flex h-16 w-16 items-center justify-center rounded-full"
+        [ngClass]="loadErrorKind() === 'network' ? 'bg-amber-50 text-amber-500' : loadErrorKind() === 'not-found' ? 'bg-indigo-50 text-brand-bold' : 'bg-red-50 text-red-500'">
+        <ion-icon class="text-3xl"
+          [attr.name]="loadErrorKind() === 'network' ? 'cloud-offline-outline' : loadErrorKind() === 'not-found' ? 'person-outline' : 'alert-circle-outline'"></ion-icon>
+      </span>
+
+      <h2 class="mt-5 text-xl font-bold text-gray-900">
+        {{ loadErrorKind() === 'network' ? "Can't reach the server" : loadErrorKind() === 'not-found' ? 'Client not found' : "Couldn't load this client" }}
+      </h2>
+      <p class="mt-2 max-w-sm text-sm text-gray-500">
+        {{ loadErrorKind() === 'network'
+          ? 'Check your connection and try again.'
+          : loadErrorKind() === 'not-found'
+            ? "This client may have been removed, or you don't have access to it."
+            : 'Something went wrong while loading this client. Please try again.' }}
+      </p>
+
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <a routerLink="/clients"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold">
+          <ion-icon name="people-outline" class="text-base"></ion-icon>
+          Back to clients
+        </a>
+        <button *ngIf="loadErrorKind() !== 'not-found'" type="button" (click)="retryLoad()" [disabled]="loading()"
+          class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60">
+          <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+          Try again
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
@@ -83,11 +136,23 @@
   <ng-container [ngSwitch]="activeTab()">
     <app-client-profile-overview *ngSwitchCase="'overview'" [client]="c"></app-client-profile-overview>
 
-    <app-client-profile-info *ngSwitchCase="'info'" [client]="c" [revealedTaxId]="revealedTaxId()"
-      [revealingTaxId]="revealingTaxId()" (revealTaxId)="handleRevealTaxId($event)"></app-client-profile-info>
+    <div *ngSwitchCase="'info'" class="flex flex-col gap-6">
+      <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
+        [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
+        (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
+        (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
+      <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
+        [canEditFiscal]="canEditFiscal()" (revealTaxId)="handleRevealTaxId($event)"
+        (editFiscal)="openFiscalForm()"></app-client-profile-info>
+    </div>
+
+    <div *ngSwitchCase="'work'" class="flex flex-col gap-6">
+      <app-client-profile-work [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-work>
+      <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
+    </div>
 
     <div *ngSwitchCase="'documents'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-documents [clientId]="c.id"></app-client-profile-documents>
+      <app-client-profile-documents [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-documents>
     </div>
 
     <div *ngSwitchCase="'invoices'" class="bg-white rounded-[28px] p-6">
@@ -98,8 +163,15 @@
       <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
     </div>
 
-    <div *ngSwitchCase="'communication'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
+    <div *ngSwitchCase="'communication'" class="flex flex-col gap-6">
+      <app-client-chat-card
+        [customerId]="c.id"
+        [email]="c.email"
+        [displayName]="c.displayName"
+      ></app-client-chat-card>
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
+      </div>
     </div>
 
     <app-client-profile-calls *ngSwitchCase="'calls'" [clientId]="c.id"></app-client-profile-calls>
@@ -119,10 +191,15 @@
 
     <app-client-profile-mileage *ngSwitchCase="'mileage'" [clientId]="c.id"></app-client-profile-mileage>
 
-    <app-client-profile-permissions *ngSwitchCase="'permissions'" [clientId]="c.id"></app-client-profile-permissions>
+    <app-client-profile-portal *ngSwitchCase="'portal'" [clientId]="c.id" [clientEmail]="c.email"
+      [clientName]="c.displayName"></app-client-profile-portal>
   </ng-container>
 
   <!-- Edit client -->
   <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="editClientItem()" (closed)="closeEditPanel()"
     (saved)="handleClientSaved($event)"></app-client-form-panel>
+
+  <!-- Tax profile form -->
+  <app-client-fiscal-form [isOpen]="isFiscalFormOpen()" [existing]="c.fiscalProfile" [clientKind]="c.type"
+    [saving]="savingFiscal()" (save)="handleSaveFiscal($event)" (closed)="closeFiscalForm()"></app-client-fiscal-form>
 </div>

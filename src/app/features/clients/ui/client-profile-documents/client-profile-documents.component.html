@@ -1,22 +1,109 @@
-<div>
-  <div>
-    <h3 class="text-lg font-bold text-gray-900">Documents</h3>
-    <p class="mt-1 text-sm text-gray-500">Files stored for this client</p>
+<div (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
+  class="relative rounded-2xl transition-colors" [class.ring-2]="isDragging()" [class.ring-brand-bold]="isDragging()">
+
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Documents</h3>
+      <p class="mt-1 text-sm text-gray-500">
+        Files stored for this client
+        <span *ngIf="store.total() > 0" class="text-gray-400">· {{ store.total() }}{{ store.maybeTruncated() ? '+' : '' }}</span>
+      </p>
+    </div>
+    <label *ngIf="canUpload()"
+      class="flex cursor-pointer items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors"
+      [class.opacity-60]="store.uploading()">
+      <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+      {{ store.uploading() ? 'Uploading…' : 'Upload' }}
+      <input type="file" multiple class="hidden" (change)="onFilePicked($event)" [disabled]="store.uploading()" />
+    </label>
   </div>
 
-  <!-- Declaración de la limitación: el listado de storage no se puede filtrar por cliente -->
-  <div class="mt-4 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-    <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base text-blue-500"></ion-icon>
-    <p class="text-sm text-blue-800">
-      Per-client documents aren't available yet: stored files can't be
-      <span class="font-semibold">listed by client</span>, so this tab can't show a complete or trustworthy
-      set of files for this client.
-    </p>
+  <!-- Overlay de drag -->
+  <div *ngIf="isDragging()"
+    class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-bold bg-brand-white/80">
+    <p class="text-sm font-semibold text-brand-bold">Drop files to upload</p>
   </div>
 
-  <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-12 text-center">
-    <ion-icon name="document-text-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">No document data to show for this client</p>
-    <p class="mt-1 text-xs text-gray-400">Open the Documents module to browse and upload files for the whole office.</p>
+  <!-- Sin permiso -->
+  <div *ngIf="!canView()" class="mt-6 rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
+    You don't have permission to view this client's documents.
   </div>
+
+  <ng-container *ngIf="canView()">
+    <!-- Cargando -->
+    <div *ngIf="store.loading() && store.total() === 0" class="mt-5 flex flex-col gap-2">
+      <div class="h-14 animate-pulse rounded-2xl bg-gray-100"></div>
+      <div class="h-14 animate-pulse rounded-2xl bg-gray-100"></div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="store.error() as err" class="mt-5 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+      <p class="text-sm text-red-700">{{ err }}</p>
+      <button type="button" (click)="retry()"
+        class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors">
+        Try again
+      </button>
+    </div>
+
+    <!-- Vacío -->
+    <div *ngIf="!store.loading() && !store.error() && store.total() === 0"
+      class="mt-5 rounded-2xl border border-dashed border-gray-200 p-10 text-center">
+      <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+        <ion-icon name="folder-open-outline" class="text-2xl"></ion-icon>
+      </span>
+      <p class="mt-3 text-sm font-medium text-gray-900">No documents yet</p>
+      <p class="mt-1 text-sm text-gray-400">
+        {{ canUpload() ? 'Upload a file or drag it here to store it for this client.' : 'No files stored for this client.' }}
+      </p>
+    </div>
+
+    <!-- Lista -->
+    <div *ngIf="store.total() > 0" class="mt-5 flex flex-col gap-2">
+      <div *ngFor="let doc of store.documents(); trackBy: trackById"
+        class="doc-row group flex items-center gap-3 rounded-2xl border border-gray-100 p-3 transition-colors hover:border-gray-200"
+        [class.opacity-60]="store.isBusy(doc.id)">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" [ngClass]="iconTint(doc.kind)">
+          <ion-icon [name]="doc.kindIcon" class="text-lg"></ion-icon>
+        </span>
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="truncate text-sm font-semibold text-gray-900">{{ doc.name }}</p>
+            <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
+              [ngClass]="statusChipClass(doc.status)">
+              {{ statusLabel(doc.status) }}
+            </span>
+          </div>
+          <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400">
+            <span>{{ doc.sizeLabel }}</span>
+            <span>{{ doc.dateLabel }}</span>
+            <span *ngIf="doc.taxYear" class="inline-flex items-center rounded-full border border-gray-200 px-1.5 text-[10px] font-medium text-gray-500">TY {{ doc.taxYear }}</span>
+          </div>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-1">
+          <button *ngIf="canDownload() && doc.isReady" type="button" (click)="download(doc)" [disabled]="store.isBusy(doc.id)"
+            title="Download"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors">
+            <ion-icon name="download-outline" class="text-base"></ion-icon>
+          </button>
+          <button *ngIf="canDelete()" type="button" (click)="requestDelete(doc)" [disabled]="store.isBusy(doc.id)"
+            title="Delete"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors">
+            <ion-icon name="trash-outline" class="text-base"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Aviso de truncado -->
+      <p *ngIf="store.maybeTruncated()" class="mt-1 px-2 text-xs text-gray-400">
+        Showing the {{ store.total() }} most recent files. Open the Documents module for the full history.
+      </p>
+    </div>
+  </ng-container>
 </div>
+
+<!-- Confirmar borrado -->
+<app-confirm-dialog [isOpen]="pendingDelete() !== null" heading="Delete document" [message]="pendingDeleteMessage()"
+  confirmLabel="Delete" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

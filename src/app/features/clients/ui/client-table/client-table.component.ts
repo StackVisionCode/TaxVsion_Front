@@ -6,14 +6,6 @@ export type ClientType = 'individual' | 'company';
 
 export type BusinessStructure = 'LLC' | 'S-Corp' | 'C-Corp' | 'Partnership' | 'Sole Proprietorship';
 
-/**
- * Todos los campos opcionales: el backend real (Customer.Api) no expone ssn/ein,
- * dateOfBirth ni maritalStatus vía GET (solo se pueden escribir), así que estos
- * datos solo están disponibles cuando vienen de la seed local/mock. `occupation`
- * y `businessStructure` se tipan como `string` (no como los union types de abajo)
- * porque el valor real del backend (occupationName / enum distinto) no calza con
- * las opciones fijas del dropdown del formulario.
- */
 export interface ClientIndividualDetails {
   ssnOrItin?: string;
   /** ISO date string (YYYY-MM-DD). */
@@ -46,25 +38,33 @@ export interface ClientItem {
 }
 
 /**
- * Tabla del directorio de clientes (patrón "Aether", igual que
- * invoice-table/service-catalog): header en píldora `bg-brand-white` con
- * extremos redondeados. Columnas: Name (avatar + iniciales) / Email /
- * SSN-ITIN o EIN según el tipo / Type (badge) / Occupation o Business
- * structure / Status (chip outline) / Created / menú fantasma "..." por fila
- * con Edit / Toggle active-inactive / Delete. El click en la fila (fuera del
- * menú) navega al perfil del cliente vía routerLink.
+ * Tabla del directorio (patrón "Aether"). Muestra SOLO lo que el listado paginado del
+ * backend devuelve realmente (`CustomerSummaryResponse`): nombre, email, tipo, estado,
+ * fecha de alta. No hay columnas de SSN/EIN/ocupación ni preparer porque el summary no
+ * los trae (evita prometer datos que la API no da).
+ *
+ * En escritorio se pinta como tabla; en móvil (< md) como tarjetas compactas apilables.
+ * Soporta selección múltiple (checkbox por fila + "seleccionar todo lo de la página").
+ * Las acciones de fila (editar / activar-desactivar / archivar) se ocultan según permisos.
  */
 @Component({
   selector: 'app-client-table',
   imports: [CommonModule, RouterModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-table.component.html',
+  styleUrl: './client-table.component.css',
 })
 export class ClientTableComponent {
   @Input() clients: ClientItem[] = [];
+  @Input() selectedIds: ReadonlySet<string> = new Set<string>();
+  @Input() canManage = true;
+  @Input() canChangeStatus = true;
+
   @Output() editRequested = new EventEmitter<ClientItem>();
   @Output() toggleActiveRequested = new EventEmitter<ClientItem>();
   @Output() deleteRequested = new EventEmitter<ClientItem>();
+  @Output() selectToggled = new EventEmitter<string>();
+  @Output() selectAllToggled = new EventEmitter<void>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -82,6 +82,20 @@ export class ClientTableComponent {
     return client.id;
   }
 
+  isSelected(client: ClientItem): boolean {
+    return this.selectedIds.has(client.id);
+  }
+
+  /** True si TODAS las filas de la página están seleccionadas (para el checkbox del header). */
+  allSelected(): boolean {
+    return this.clients.length > 0 && this.clients.every(c => this.selectedIds.has(c.id));
+  }
+
+  /** Cualquier acción de fila disponible (para decidir si mostrar la columna/menú). */
+  hasRowActions(): boolean {
+    return this.canManage || this.canChangeStatus;
+  }
+
   initials(client: ClientItem): string {
     const words = client.displayName.trim().split(/\s+/);
     return words.length >= 2
@@ -93,26 +107,12 @@ export class ClientTableComponent {
     return this.avatarPalette[index % this.avatarPalette.length];
   }
 
-  taxIdLabel(client: ClientItem): string {
-    return client.type === 'individual' ? client.individual?.ssnOrItin ?? '—' : client.company?.ein ?? '—';
-  }
-
-  taxIdCaption(client: ClientItem): string {
-    return client.type === 'individual' ? 'SSN/ITIN' : 'EIN';
-  }
-
   typeLabel(client: ClientItem): string {
-    return client.type === 'individual' ? 'Individual' : 'Company';
+    return client.type === 'individual' ? 'Individual' : 'Business';
   }
 
   typeBadgeClass(client: ClientItem): string {
     return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
-  }
-
-  secondaryDetail(client: ClientItem): string {
-    return client.type === 'individual'
-      ? client.individual?.occupation ?? '—'
-      : client.company?.businessStructure ?? '—';
   }
 
   statusChip(client: ClientItem): string {
@@ -125,6 +125,16 @@ export class ClientTableComponent {
 
   formatDate(iso: string): string {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  onSelectRow(client: ClientItem, event: Event): void {
+    event.stopPropagation();
+    this.selectToggled.emit(client.id);
+  }
+
+  onSelectAll(event: Event): void {
+    event.stopPropagation();
+    this.selectAllToggled.emit();
   }
 
   toggleMenu(client: ClientItem, event: MouseEvent): void {

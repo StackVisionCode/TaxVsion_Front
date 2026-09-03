@@ -1,7 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { ClientNotesService } from './client-notes.service';
 import {
   ClientNoteCard,
@@ -11,6 +13,10 @@ import {
   NoteVisibility,
   toClientNoteCard,
 } from './client-notes.model';
+
+/** Cuántas veces se recarga la lista tras adjuntar, buscando el flip Pending→Available (scan async). */
+const ATTACH_POLLS = 6;
+const ATTACH_POLL_INTERVAL_MS = 3000;
 
 /** Permiso de gobernanza de Notes: habilita archivar/restaurar/borrar notas ajenas (nunca editarlas). */
 const NOTES_VIEW_ALL = 'notes.view_all';
@@ -31,6 +37,7 @@ const NOTES_VIEW_ALL = 'notes.view_all';
 export class ClientNotesStore {
   private readonly service = inject(ClientNotesService);
   private readonly auth = inject(AuthService);
+  private readonly cloud = inject(CloudStorageUploadService);
 
   private clientId = '';
   private userNamesLoaded = false;
@@ -153,6 +160,110 @@ export class ClientNotesStore {
         this.markBusy(id, false);
       },
     });
+  }
+
+  // ---------- Adjuntos (solo el autor) ----------
+
+  /**
+   * Sube el archivo a CloudStorage (presigned) y lo enlaza a la nota. El adjunto queda `Pending`
+   * hasta que el escaneo lo marca `Available` (evento async) — se sondea la lista para reflejarlo.
+   * OwnerType=Customer/OwnerId=cliente para co-ubicarlo; la nota se enlaza por `fileId`.
+   */
+  attachFile(noteId: string, file: File): void {
+    this.markBusy(noteId, true);
+    const contentType = file.type || 'application/octet-stream';
+    const request: InitiateUploadRequest = {
+      originalName: file.name,
+      contentType,
+      sizeBytes: file.size,
+      ownerType: 'Customer',
+      ownerId: this.clientId,
+      // `Other`: un adjunto de nota NO es un documento fiscal, así que no exige tax year
+      // (los buckets Documents/Receipts/Invoices sí lo piden — FolderTypeRules.RequiresYear).
+      folderType: 'Other',
+      taxYear: null,
+    };
+    this.cloud
+      .initiateUpload(request)
+      .pipe(
+        switchMap(initiated =>
+          this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
+            switchMap(() => this.cloud.completeUpload(initiated.fileId)),
+            switchMap(() =>
+              this.service.attach(noteId, {
+                cloudStorageFileId: initiated.fileId,
+                displayName: file.name,
+                contentType,
+                sizeBytes: file.size,
+              }),
+            ),
+          ),
+        ),
+      )
+      .subscribe({
+        next: updated => {
+          this.replace(updated);
+          this.markBusy(noteId, false);
+          this.pollAttachments(ATTACH_POLLS);
+        },
+        error: err => {
+          this._actionError.set(toApiError(err).message);
+          this.markBusy(noteId, false);
+        },
+      });
+  }
+
+  /** DELETE del adjunto (204) + recarga para reflejar el cambio. */
+  detachAttachment(noteId: string, fileId: string): void {
+    this.markBusy(noteId, true);
+    this.service.detach(noteId, fileId).subscribe({
+      next: () => {
+        this.markBusy(noteId, false);
+        this.refresh();
+      },
+      error: err => {
+        this._actionError.set(toApiError(err).message);
+        this.markBusy(noteId, false);
+      },
+    });
+  }
+
+  /** Descarga un adjunto por su fileId de CloudStorage (URL presignada). */
+  downloadAttachment(fileId: string): void {
+    this.cloud.getDownloadUrl(fileId).subscribe({
+      next: res => this.triggerDownload(res.downloadUrl),
+      error: err => this._actionError.set(toApiError(err).message),
+    });
+  }
+
+  private pollAttachments(attemptsLeft: number): void {
+    if (attemptsLeft <= 0 || !this.clientId) {
+      return;
+    }
+    const hasPending = this._raw().some(note => note.attachments.some(a => a.status === 'Pending'));
+    if (!hasPending) {
+      return;
+    }
+    setTimeout(() => {
+      this.service.listByClient(this.clientId).subscribe({
+        next: result => {
+          this._raw.set(result.items);
+          this.pollAttachments(attemptsLeft - 1);
+        },
+        error: () => {
+          // Best-effort: si un poll falla, se deja de intentar.
+        },
+      });
+    }, ATTACH_POLL_INTERVAL_MS);
+  }
+
+  private triggerDownload(url: string): void {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   // ---------- Internos ----------

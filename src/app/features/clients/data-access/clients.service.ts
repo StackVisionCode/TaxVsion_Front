@@ -7,13 +7,18 @@ import {
   AddContactPointRequest,
   AddRelationRequest,
   AddressResponse,
+  BulkStatusActionRequest,
+  BulkStatusActionResponse,
+  BusinessActivityOption,
   ContactPointResponse,
   CreateCustomerRequest,
   Customer,
   CustomerDetailResponse,
+  CustomerExistsResponse,
   CustomerStatusAction,
   CustomerStatusFilter,
   CustomerSummary,
+  OccupationOption,
   PagedResult,
   RelationResponse,
   RevealedTaxIdentifierResponse,
@@ -37,6 +42,24 @@ export class ClientsService {
     return this.api.tenantUrl('/customers');
   }
 
+  /** GET /customers/occupations?q= — catálogo curado para el picker de ocupación (individuo). */
+  listOccupations(q?: string): Observable<OccupationOption[]> {
+    let params = new HttpParams();
+    if (q && q.trim()) {
+      params = params.set('q', q.trim());
+    }
+    return this.http.get<OccupationOption[]>(`${this.base}/occupations`, { params });
+  }
+
+  /** GET /customers/business-activities?q= — catálogo NAICS para el picker de actividad (empresa). */
+  listBusinessActivities(q?: string): Observable<BusinessActivityOption[]> {
+    let params = new HttpParams();
+    if (q && q.trim()) {
+      params = params.set('q', q.trim());
+    }
+    return this.http.get<BusinessActivityOption[]>(`${this.base}/business-activities`, { params });
+  }
+
   search(params: SearchParams): Observable<PagedResult<CustomerSummary>> {
     let query = new HttpParams();
     if (params.term) {
@@ -52,6 +75,18 @@ export class ClientsService {
       query = query.set('size', params.size);
     }
     return this.http.get<PagedResult<CustomerSummary>>(this.base, { params: query });
+  }
+
+  /** GET /customers/check-exists?email=&taxIdentifier= — preflight de duplicados (al menos uno requerido). */
+  checkExists(email?: string, taxIdentifier?: string): Observable<CustomerExistsResponse> {
+    let query = new HttpParams();
+    if (email) {
+      query = query.set('email', email);
+    }
+    if (taxIdentifier) {
+      query = query.set('taxIdentifier', taxIdentifier);
+    }
+    return this.http.get<CustomerExistsResponse>(`${this.base}/check-exists`, { params: query });
   }
 
   /** Detalle completo: escalares + addresses/contactPoints/relations/fiscalProfile (enmascarado). */
@@ -70,6 +105,16 @@ export class ClientsService {
   /** archive/reactivate/activate/deactivate — todas 204 No Content, requieren rol TenantAdmin en el backend. */
   changeStatus(id: string, action: CustomerStatusAction): Observable<void> {
     return this.http.post<void>(`${this.base}/${id}/${action}`, {});
+  }
+
+  /** POST /customers/bulk/{statusAction} — acción de estado masiva. 200 con posibles fallos parciales. */
+  bulkStatus(
+    action: CustomerStatusAction,
+    customerIds: string[],
+    reason?: string | null,
+  ): Observable<BulkStatusActionResponse> {
+    const body: BulkStatusActionRequest = { customerIds, reason: reason ?? null };
+    return this.http.post<BulkStatusActionResponse>(`${this.base}/bulk/${action}`, body);
   }
 
   /** PUT /customers/{id}/fiscal-profile — SSN/ITIN/EIN. Requiere rol TenantAdmin; un TenantEmployee recibe 403. */

@@ -44,19 +44,19 @@
   <div class="progress-block grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
     <div class="rounded-[24px] bg-indigo-50 p-5">
       <p class="text-sm text-gray-600">Created</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.successCount }}</p>
+      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.successCount">0</p>
     </div>
     <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Updated</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.updatedCount }}</p>
+      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.updatedCount">0</p>
     </div>
     <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Skipped</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.skippedCount }}</p>
+      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.skippedCount">0</p>
     </div>
     <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Failed</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.failedCount }}</p>
+      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.failedCount">0</p>
     </div>
   </div>
 

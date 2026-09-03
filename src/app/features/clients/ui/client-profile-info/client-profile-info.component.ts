@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 
@@ -19,8 +19,27 @@ export class ClientProfileInfoComponent {
   @Input() client!: ClientProfile;
   @Input() revealedTaxId: string | null = null;
   @Input() revealingTaxId = false;
+  /** true = el usuario puede crear/editar el perfil fiscal (customers.manage + admin). */
+  @Input() canEditFiscal = false;
 
   @Output() revealTaxId = new EventEmitter<string>();
+  @Output() editFiscal = new EventEmitter<void>();
+
+  /** Confirmación de un paso antes de revelar: el reveal queda registrado en el backend. */
+  readonly confirmingReveal = signal(false);
+
+  requestReveal(): void {
+    this.confirmingReveal.set(true);
+  }
+
+  cancelReveal(): void {
+    this.confirmingReveal.set(false);
+  }
+
+  doReveal(customerId: string): void {
+    this.confirmingReveal.set(false);
+    this.revealTaxId.emit(customerId);
+  }
 
   formatDate(iso: string | undefined): string {
     if (!iso) {

@@ -136,15 +136,14 @@ export class ActiveMeetingService {
         void this.startSfu(); // >4: media por mediasoup (no mesh)
         return;
       }
-      // Mesh: conectar con cada participante ya presente (menos yo).
-      const myId = this.myUserId();
-      snap.participants
-        .filter(p => p.status === 'Joined' && p.userId !== myId)
-        .forEach(p => this.connectToPeer(p.userId));
-      // Depurar peers que ya no están en el snapshot.
-      const present = new Set(snap.participants.map(p => p.userId));
-      [...this.peerConns.keys()].filter(id => !present.has(id)).forEach(id => this.disconnectFromPeer(id));
+      // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
+      this.reconcileMeshPeers(snap.participants);
     });
+
+    // Reconnect transparente del socket (churn del tunnel): si seguimos dentro de un meeting, re-unir
+    // la room `m:` para no perder participantes/controles/señalización. La media mesh sigue viva; solo
+    // se reconcilia el roster. La room de chat del meeting la re-une el join-on-connect del server.
+    this.rtc.reconnected$.subscribe(() => void this.handleSocketReconnected());
 
     this.rtc.onParticipantChanged().subscribe(dto => {
       if (dto.meetingId !== this.meetingId()) {
@@ -323,6 +322,42 @@ export class ActiveMeetingService {
       this.errorMessage.set('Could not join the meeting.');
       this.reset();
     }
+  }
+
+  /**
+   * Reconnect transparente del socket a mitad de meeting: re-une la room `m:` (backend) y reconcilia
+   * el roster con el snapshot del ack. NO toca la media viva ni el conversationId (se conserva); si el
+   * mesh quedó incompleto durante el corte, `reconcileMeshPeers` re-conecta a los peers faltantes.
+   */
+  private async handleSocketReconnected(): Promise<void> {
+    const id = this.meetingId();
+    if (!id || this.phase() !== 'joined') {
+      return; // solo re-unimos si estábamos DENTRO (no en sala de espera, idle ni ended)
+    }
+    try {
+      const { snapshot } = await this.rtc.rejoin(id);
+      if (snapshot.meetingId !== this.meetingId()) {
+        return;
+      }
+      this.yourRole.set(snapshot.yourRole);
+      this.isLocked.set(snapshot.isLocked);
+      this.participants.set(snapshot.participants);
+      this.reconcileMeshPeers(snapshot.participants);
+    } catch {
+      // Best-effort: si el rejoin falla (ya no sos participante / meeting terminó), no rompemos el
+      // estado local; el próximo evento o una recarga lo resuelven.
+    }
+  }
+
+  /** Conecta a los peers Joined que falten y depura los ausentes (idempotente). No-op en SFU. */
+  private reconcileMeshPeers(participants: MeetingParticipantDto[]): void {
+    if (this.strategy() === 'Sfu') {
+      return;
+    }
+    const myId = this.myUserId();
+    participants.filter(p => p.status === 'Joined' && p.userId !== myId).forEach(p => this.connectToPeer(p.userId));
+    const present = new Set(participants.map(p => p.userId));
+    [...this.peerConns.keys()].filter(id => !present.has(id)).forEach(id => this.disconnectFromPeer(id));
   }
 
   // ---------- Mesh WebRTC (perfect negotiation por peer) ----------
