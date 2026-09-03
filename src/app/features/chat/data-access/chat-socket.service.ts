@@ -20,6 +20,7 @@ const EVENTS = {
   markRead: 'chat.message.mark_read',
   typingStart: 'chat.typing.start',
   typingStop: 'chat.typing.stop',
+  presenceQuery: 'chat.presence.query',
   startDirect: 'chat.conversation.start_direct',
   startGroup: 'chat.conversation.start_group',
 } as const;
@@ -120,5 +121,12 @@ export class ChatSocketService {
 
   typingStop(conversationId: string): void {
     this.realtime.emitNoAck(EVENTS.typingStop, { conversationId });
+  }
+
+  /** Pide el estado de presencia ACTUAL de unos peers; el server responde con `chat.presence.changed`. */
+  queryPresence(userIds: string[]): void {
+    if (userIds.length > 0) {
+      this.realtime.emitNoAck(EVENTS.presenceQuery, { userIds });
+    }
   }
 }

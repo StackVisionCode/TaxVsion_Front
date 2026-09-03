@@ -202,8 +202,13 @@ export class ChatStore {
               this.ensureOptimisticConversation(preferConversationId, 'Conversation');
             }
             this.selectConversation(preferConversationId);
-          } else if (!this._activeConversationId() && conversations.length) {
-            this.selectConversation(conversations[0].id);
+          } else if (conversations.length) {
+            // `load()` reconstruye la lista con SOLO el preview (take:1); si ya había una conversación
+            // activa (store singleton que sobrevive a navegar dentro de la SPA), hay que volver a pedir
+            // su historial completo — sin esto, al re-entrar a /chat el hilo quedaba con 1 solo mensaje
+            // hasta hacer click. Re-selecciona la activa (si sigue en la lista) o la primera.
+            const active = this._activeConversationId();
+            this.selectConversation(active && conversations.some(c => c.id === active) ? active : conversations[0].id);
           }
         });
       },
@@ -217,6 +222,14 @@ export class ChatStore {
   selectConversation(id: string): void {
     this._activeConversationId.set(id);
     this._conversations.update(list => list.map(c => (c.id === id ? { ...c, unread: 0 } : c)));
+
+    // Snapshot de presencia del peer: `chat.presence.changed` solo llega en transiciones, así que si el
+    // otro ya estaba conectado antes de abrir, quedaba "Offline" falso. Se pide su estado actual (la
+    // respuesta entra por el mismo `presenceChanged$`).
+    const peerUserId = this.otherParticipantByConversation.get(id);
+    if (peerUserId) {
+      this.socket.queryPresence([peerUserId]);
+    }
 
     // Trae el historial recién al abrir el hilo (evita 1 llamada "take=50" por conversación al cargar la lista).
     // El backend pagina DESC (más nuevo→más viejo); lo invertimos a ASC para renderizar cronológico.

@@ -128,9 +128,14 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
       this.pendingScroll = 'bottom'; // conversación nueva: al fondo
     } else if (count > this.prevCount) {
       const prepended = last === this.prevLastId && first !== this.prevFirstId;
-      if (prepended) {
+      if (prepended && this.prevCount > 1) {
+        // Prepend REAL (loadOlder sobre un hilo ya cargado): preservá el mensaje que se estaba mirando.
         this.pendingScroll = 'preserve';
         this.preserveFromHeight = this.scrollContainer?.nativeElement.scrollHeight ?? 0; // alto ANTES de renderizar
+      } else if (prepended) {
+        // Carga INICIAL (el hilo tenía solo el preview de 1 mensaje y llega el historial completo):
+        // al fondo. Sin esto se trataba como prepend y quedaba casi arriba (preserveFromHeight del preview).
+        this.pendingScroll = 'bottom';
       } else {
         this.pendingScroll = this.isAtBottom ? 'bottom' : null; // mensaje nuevo: solo si estabas al fondo
       }
