@@ -5,28 +5,42 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
 import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
+import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
+import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
 import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
 import { ClientProfileCommunicationComponent } from '../../ui/client-profile-communication/client-profile-communication.component';
+import { ClientChatCardComponent } from '../../ui/client-chat-card/client-chat-card.component';
 import { ClientProfileCallsComponent } from '../../ui/client-profile-calls/client-profile-calls.component';
 import { ClientProfileBankComponent } from '../../ui/client-profile-bank/client-profile-bank.component';
 import { ClientProfileFamilyComponent } from '../../ui/client-profile-family/client-profile-family.component';
 import { ClientProfileRemindersComponent } from '../../ui/client-profile-reminders/client-profile-reminders.component';
 import { ClientProfileMileageComponent } from '../../ui/client-profile-mileage/client-profile-mileage.component';
-import { ClientProfilePermissionsComponent } from '../../ui/client-profile-permissions/client-profile-permissions.component';
+import { ClientProfilePortalComponent } from '../../ui/client-profile-portal/client-profile-portal.component';
 import { ClientProfile } from '../../models/client-profile.model';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { ClientItem } from '../../ui/client-table/client-table.component';
 import { ClientsStore } from '../../data-access/clients.store';
 import { RelationResponse, customerToClientProfile } from '../../data-access/clients.model';
 import { SaveRelationPayload } from '../../ui/client-profile-family/client-profile-family.component';
-import { toApiError } from '@core/models/api-error.model';
+import {
+  ClientProfileContactDetailsComponent,
+  SaveAddressPayload,
+  SaveContactPayload,
+} from '../../ui/client-profile-contact-details/client-profile-contact-details.component';
+import { ClientFiscalFormComponent } from '../../ui/client-fiscal-form/client-fiscal-form.component';
+import { ClientPermissions } from '../../data-access/client-permissions';
+import { SetCustomerFiscalProfileRequest } from '../../data-access/clients.model';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
 export type ClientProfileTabId =
   | 'overview'
   | 'info'
   | 'documents'
   | 'invoices'
+  | 'work'
   | 'notes'
   | 'communication'
   | 'calls'
@@ -34,7 +48,7 @@ export type ClientProfileTabId =
   | 'family'
   | 'reminders'
   | 'mileage'
-  | 'permissions';
+  | 'portal';
 
 interface ClientProfileTab {
   id: ClientProfileTabId;
@@ -68,6 +82,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
     kind: 'group',
     label: 'Activity',
     tabs: [
+      { id: 'work', label: 'Work' },
       { id: 'documents', label: 'Documents' },
       { id: 'notes', label: 'Notes' },
       { id: 'communication', label: 'Communication' },
@@ -76,7 +91,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
       { id: 'reminders', label: 'Reminders' },
     ],
   },
-  { kind: 'tab', id: 'permissions', label: 'Permissions' },
+  { kind: 'tab', id: 'portal', label: 'Portal' },
 ];
 
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
@@ -96,12 +111,15 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
  * Estado de los datos por tab (auditoría ago-2026, ver el comentario de clase
  * de cada componente para el detalle del contrato):
  *  - REALES y filtradas por este cliente: Info, Family (del propio Customer),
- *    Notes (`/notes?targetType=Customer&targetId=`) y Communication
- *    (`/correspondence/customers/{id}/threads`).
+ *    Notes (`/notes?targetType=Customer&targetId=`), Communication
+ *    (`/correspondence/customers/{id}/threads`), Work
+ *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents
+ *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff) y
+ *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
  *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
- *    (parcial), Invoices, Documents, Bank, Mileage, Calls y Permissions. Cada
+ *    (parcial), Invoices, Bank, Mileage y Calls. Cada
  *    una muestra un estado vacío que explica qué falta. NO son un olvido:
  *    antes pintaban mocks estáticos bajo el nombre de un cliente real, que es
  *    justo lo que había que quitar antes de producción.
@@ -114,15 +132,20 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
     ClientProfileDocumentsComponent,
+    ClientProfileWorkComponent,
+    ClientProfileRequestsComponent,
     ClientProfileInvoicesComponent,
     ClientProfileNotesComponent,
     ClientProfileCommunicationComponent,
+    ClientChatCardComponent,
     ClientProfileCallsComponent,
     ClientProfileBankComponent,
     ClientProfileFamilyComponent,
     ClientProfileRemindersComponent,
     ClientProfileMileageComponent,
-    ClientProfilePermissionsComponent,
+    ClientProfilePortalComponent,
+    ClientProfileContactDetailsComponent,
+    ClientFiscalFormComponent,
     ClientFormPanelComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -131,6 +154,11 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
 export class ClientProfilePageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly store = inject(ClientsStore);
+  private readonly toast = inject(ToastService);
+  private readonly caps = inject(ClientPermissions);
+
+  /** Puede crear/editar el perfil fiscal (customers.manage + actor admin). */
+  readonly canEditFiscal = this.caps.canSetFiscalProfile;
 
   readonly navItems = PROFILE_NAV;
   readonly activeTab = signal<ClientProfileTabId>('overview');
@@ -148,6 +176,8 @@ export class ClientProfilePageComponent {
 
   readonly loading = signal(false);
   readonly loadError = signal<string | null>(null);
+  /** Tipo de fallo de carga, para elegir el estado (no encontrado/sin acceso · sin red · genérico). */
+  readonly loadErrorKind = signal<'not-found' | 'network' | 'error'>('error');
   readonly client = signal<ClientProfile | null>(null);
 
   readonly isEditPanelOpen = signal(false);
@@ -182,8 +212,14 @@ export class ClientProfilePageComponent {
   readonly revealedTaxId = signal<string | null>(null);
   readonly revealingTaxId = signal(false);
 
+  readonly isFiscalFormOpen = signal(false);
+  readonly savingFiscal = signal(false);
+
   readonly savingRelation = signal(false);
   readonly relationError = signal<string | null>(null);
+
+  /** Guardando una dirección o punto de contacto (deshabilita los forms mientras dura). */
+  readonly savingContactDetails = signal(false);
 
   /**
    * Relaciones creadas/editadas en ESTA sesión.
@@ -254,10 +290,26 @@ export class ClientProfilePageComponent {
         this.loading.set(false);
       },
       error: err => {
-        this.loadError.set(toApiError(err).message);
+        const apiError = toApiError(err);
+        const status = err instanceof HttpErrorResponse ? err.status : -1;
+        // 404/403 se tratan igual a propósito: el backend no revela si el cliente existe en otro
+        // tenant (el filtro de tenant lo hace parecer un 404), así que el estado no distingue
+        // "no existe" de "sin acceso" — cubre ambos sin filtrar la existencia.
+        this.loadErrorKind.set(
+          status === 404 || status === 403 ? 'not-found' : apiError.code === NETWORK_ERROR_CODE ? 'network' : 'error',
+        );
+        this.loadError.set(apiError.message);
         this.loading.set(false);
       },
     });
+  }
+
+  /** Reintenta la carga del cliente actual (botón del estado de error). */
+  retryLoad(): void {
+    const id = this.paramMap().get('id');
+    if (id) {
+      this.loadClient(id);
+    }
   }
 
   /**
@@ -311,6 +363,90 @@ export class ClientProfilePageComponent {
     });
   }
 
+  // ---------- Direcciones y puntos de contacto (sub-recursos del detalle) ----------
+
+  handleSaveAddress(payload: SaveAddressPayload): void {
+    const client = this.client();
+    if (!client || this.savingContactDetails()) {
+      return;
+    }
+    this.savingContactDetails.set(true);
+    const call = payload.id
+      ? this.store.updateAddress(client.id, payload.id, payload.req)
+      : this.store.addAddress(client.id, payload.req);
+    call.subscribe({
+      next: () => {
+        this.savingContactDetails.set(false);
+        this.loadClient(client.id);
+        this.toast.success(payload.id ? 'Address updated' : 'Address added');
+      },
+      error: err => {
+        this.savingContactDetails.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  handleDeleteAddress(addressId: string): void {
+    const client = this.client();
+    if (!client || this.savingContactDetails()) {
+      return;
+    }
+    this.savingContactDetails.set(true);
+    this.store.deleteAddress(client.id, addressId).subscribe({
+      next: () => {
+        this.savingContactDetails.set(false);
+        this.loadClient(client.id);
+        this.toast.success('Address removed');
+      },
+      error: err => {
+        this.savingContactDetails.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  handleSaveContact(payload: SaveContactPayload): void {
+    const client = this.client();
+    if (!client || this.savingContactDetails()) {
+      return;
+    }
+    this.savingContactDetails.set(true);
+    const call = payload.id
+      ? this.store.updateContactPoint(client.id, payload.id, payload.req)
+      : this.store.addContactPoint(client.id, payload.req);
+    call.subscribe({
+      next: () => {
+        this.savingContactDetails.set(false);
+        this.loadClient(client.id);
+        this.toast.success(payload.id ? 'Contact updated' : 'Contact added');
+      },
+      error: err => {
+        this.savingContactDetails.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  handleDeleteContact(contactId: string): void {
+    const client = this.client();
+    if (!client || this.savingContactDetails()) {
+      return;
+    }
+    this.savingContactDetails.set(true);
+    this.store.deleteContactPoint(client.id, contactId).subscribe({
+      next: () => {
+        this.savingContactDetails.set(false);
+        this.loadClient(client.id);
+        this.toast.success('Contact removed');
+      },
+      error: err => {
+        this.savingContactDetails.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
   handleRevealTaxId(customerId: string): void {
     if (this.revealingTaxId()) {
       return;
@@ -321,8 +457,40 @@ export class ClientProfilePageComponent {
         this.revealedTaxId.set(response.taxIdentifier);
         this.revealingTaxId.set(false);
       },
-      error: () => {
+      error: err => {
         this.revealingTaxId.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Perfil fiscal ----------
+
+  openFiscalForm(): void {
+    this.isFiscalFormOpen.set(true);
+  }
+
+  closeFiscalForm(): void {
+    this.isFiscalFormOpen.set(false);
+  }
+
+  handleSaveFiscal(req: SetCustomerFiscalProfileRequest): void {
+    const client = this.client();
+    if (!client || this.savingFiscal()) {
+      return;
+    }
+    this.savingFiscal.set(true);
+    this.store.setFiscalProfile(client.id, req).subscribe({
+      next: () => {
+        this.savingFiscal.set(false);
+        this.isFiscalFormOpen.set(false);
+        this.revealedTaxId.set(null); // el id cambió; no dejar un reveal viejo colgado
+        this.loadClient(client.id);
+        this.toast.success('Tax profile saved');
+      },
+      error: err => {
+        this.savingFiscal.set(false);
+        this.toast.error(toApiError(err).message);
       },
     });
   }
@@ -357,6 +525,7 @@ export class ClientProfilePageComponent {
    * que sí se solapan, las colecciones reales de este cliente se conservan.
    */
   handleClientSaved(updated: ClientItem): void {
+    // Parche inmediato para feedback instantáneo…
     this.client.update(current =>
       current
         ? {
@@ -371,6 +540,13 @@ export class ClientProfilePageComponent {
         : current,
     );
     this.closeEditPanel();
+    // …y recarga del detalle: los campos derivados del detalle (occupation, DOB) no vienen en el
+    // ClientItem del evento; sin esto se veían "—" hasta recargar la página (misma política que el
+    // resto de mutaciones del perfil).
+    const id = this.client()?.id;
+    if (id) {
+      this.loadClient(id);
+    }
   }
 
   initials(client: ClientProfile): string {

@@ -6,4 +6,6 @@ export interface Toast {
   readonly id: number;
   readonly kind: ToastKind;
   readonly message: string;
+  /** true durante la animación de salida (antes del desmontaje diferido). */
+  readonly leaving?: boolean;
 }

@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { skip } from 'rxjs';
@@ -101,6 +101,29 @@ export class ChatPageComponent {
         this.store.focusConversation(id);
       }
     });
+
+    // Deep-link `?startCustomer&startUser&name` desde el perfil de cliente (tab Communication):
+    // inicia (o reabre) el 1:1 con ese cliente. Espera a que el socket conecte para no chocar con
+    // `Socket.NotConnected`; el guard `started` corta el seguimiento tras disparar una sola vez.
+    const startUser = this.route.snapshot.queryParamMap.get('startUser');
+    const startCustomer = this.route.snapshot.queryParamMap.get('startCustomer');
+    const startName = this.route.snapshot.queryParamMap.get('name');
+    if (startUser && startCustomer) {
+      let started = false;
+      effect(() => {
+        if (started || !this.store.connected()) {
+          return;
+        }
+        started = true;
+        void this.store.startDirectWithCustomer({
+          customerId: startCustomer,
+          displayName: startName ?? 'Client',
+          email: '',
+          isActive: true,
+          portalUserId: startUser,
+        });
+      });
+    }
   }
 
   get isActiveSupport(): boolean {

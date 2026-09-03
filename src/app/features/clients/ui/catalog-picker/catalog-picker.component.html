@@ -1,0 +1,37 @@
+<div class="relative" [attr.data-dropdown]="scope">
+  <button type="button" (click)="toggle()"
+    class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900 hover:bg-gray-50 transition-colors">
+    <span class="flex min-w-0 items-center gap-2">
+      <span class="text-gray-400">{{ label }}</span>
+      <span class="truncate" [class.text-gray-400]="!selectedName">{{ selectedName || placeholder }}</span>
+    </span>
+    <span class="flex shrink-0 items-center gap-1">
+      <span *ngIf="selectedName" (click)="clear($event)" role="button" tabindex="0"
+        [attr.aria-label]="'Clear ' + label"
+        class="grid h-5 w-5 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+        <ion-icon name="close-outline" class="text-sm"></ion-icon>
+      </span>
+      <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
+    </span>
+  </button>
+
+  <div *ngIf="open()"
+    class="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+    <div class="border-b border-gray-100 p-2">
+      <input type="text" [placeholder]="placeholder" [ngModel]="query()" (ngModelChange)="onSearch($event)"
+        (click)="$event.stopPropagation()" [attr.aria-label]="'Search ' + label"
+        class="h-9 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+    </div>
+    <div class="max-h-56 overflow-y-auto">
+      <button *ngFor="let option of results()" type="button" (click)="choose(option)"
+        class="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        <span class="min-w-0 truncate">
+          {{ option.label }}
+          <span *ngIf="option.hint" class="block truncate text-xs text-gray-400">{{ option.hint }}</span>
+        </span>
+      </button>
+      <p *ngIf="searching()" class="px-4 py-3 text-sm text-gray-400">Searching…</p>
+      <p *ngIf="!searching() && results().length === 0" class="px-4 py-3 text-sm text-gray-400">No matches</p>
+    </div>
+  </div>
+</div>

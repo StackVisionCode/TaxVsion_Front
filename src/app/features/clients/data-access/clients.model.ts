@@ -91,6 +91,13 @@ export interface Customer {
   occupationName: string | null;
   principalBusinessActivityId: string | null;
   principalBusinessActivityName: string | null;
+  /** Fecha de nacimiento (individuo), `yyyy-MM-dd`. Ahora sí viene en el detalle (antes write-only). */
+  dateOfBirth?: string | null;
+  /** Partes del nombre — ahora en el detalle para que el form de edición prefille sin partir el displayName. */
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  legalName?: string | null;
   createdAtUtc: string;
   assignedPreparerUserId: string | null;
 }
@@ -152,18 +159,15 @@ export interface RevealedTaxIdentifierResponse {
 /**
  * GET /customers/{id}.
  *
- * ⚠️ Verificado contra el backend (2026-08-28): hoy este endpoint devuelve
- * `CustomerResponse`, que son **solo escalares** — los mismos campos que
- * `Customer`. NO trae `addresses`, `contactPoints`, `relations` ni
- * `fiscalProfile`, y no existe ningún otro GET que los liste
- * (`/customers/{id}/relations` solo tiene POST/PATCH/DELETE; el único GET de
- * colección aparte es `/customers/{id}/fiscal-profile`).
+ * ✅ Verificado contra el backend (2026-09-03, `CustomerReadService.GetDetailByIdAsync`):
+ * este endpoint SÍ puebla `addresses`, `contactPoints`, `relations` y `fiscalProfile`
+ * (los proyecta desde `CustomerAddresses`/`ContactPoints`/`Relations`/`FiscalProfiles`).
+ * El detalle es el único punto de lectura de estas colecciones — no hay GET por
+ * sub-colección (solo POST/PATCH/DELETE), salvo el reveal auditado del tax id.
  *
- * Por eso las colecciones son **opcionales**: en runtime llegan `undefined`.
- * Si el backend las agrega al detalle, esto empieza a poblarse solo y no hay
- * que tocar a los consumidores — pero mientras tanto el tipo no puede
- * prometer lo que la respuesta no trae (prometerlo ya causó un TypeError al
- * abrir el perfil: `customer.relations.find(...)` sobre `undefined`).
+ * Se dejan **opcionales por defensa** (y los adaptadores usan `?? []`): así un
+ * cliente sin direcciones/relaciones no rompe la ficha, y el tipo tolera un
+ * backend más viejo. El fiscalProfile va siempre enmascarado (last4).
  */
 export interface CustomerDetailResponse extends Customer {
   addresses?: AddressResponse[];
@@ -226,6 +230,20 @@ export interface PagedResult<T> {
   hasPrevious: boolean;
 }
 
+/** Opción del catálogo curado de ocupaciones (`GET /customers/occupations`). */
+export interface OccupationOption {
+  id: string;
+  name: string;
+}
+
+/** Opción del catálogo curado de actividades NAICS (`GET /customers/business-activities`). */
+export interface BusinessActivityOption {
+  id: string;
+  naicsCode: string;
+  description: string;
+  sector: string | null;
+}
+
 /** Body de POST /customers. */
 export interface CreateCustomerRequest {
   kind: CustomerKind;
@@ -247,6 +265,18 @@ export interface CreateCustomerRequest {
   primaryPhone?: string | null;
   language: CustomerLanguage;
   preferredChannel: PreferredChannel;
+  /**
+   * false (default) → si hay duplicado, 409 `Customer.DuplicateFound` con el id existente.
+   * true → aplica los datos sobre el cliente existente (publica CustomerUpdated, no crea otro).
+   */
+  overwrite?: boolean;
+}
+
+/** GET /customers/check-exists?email=&taxIdentifier= — preflight de duplicados (email + tax id). */
+export interface CustomerExistsResponse {
+  emailExists: boolean;
+  taxIdentifierExists: boolean;
+  existingCustomerId: string | null;
 }
 
 /** Body de PATCH /customers/{id} — merge parcial: campos omitidos conservan el valor actual. */
@@ -270,10 +300,32 @@ export interface UpdateCustomerRequest {
   principalBusinessActivityId?: string | null;
 }
 
+/** Body de POST /customers/bulk/{statusAction}. */
+export interface BulkStatusActionRequest {
+  customerIds: string[];
+  reason?: string | null;
+}
+
+/** Un fallo por-cliente dentro de una acción masiva (200 con fallos parciales). */
+export interface BulkStatusFailure {
+  customerId: string;
+  errorCode: string;
+  message: string;
+}
+
+/** Respuesta de POST /customers/bulk/{statusAction} — puede traer fallos parciales aunque el HTTP sea 200. */
+export interface BulkStatusActionResponse {
+  totalRequested: number;
+  succeeded: number;
+  failed: number;
+  failures: BulkStatusFailure[];
+}
+
 /** Body de PUT /customers/{id}/fiscal-profile — SSN/ITIN/EIN. Requiere rol TenantAdmin en el backend. */
 export interface SetCustomerFiscalProfileRequest {
   subjectKind: FiscalSubjectKind;
-  taxIdentifier: string;
+  /** Opcional al EDITAR: null conserva el identificador actual y solo actualiza filing/AGI/returning. */
+  taxIdentifier: string | null;
   filingStatus?: string | null;
   priorYearAgi?: number | null;
   isReturningCustomer: boolean;
@@ -305,7 +357,13 @@ export function summaryToClientItem(summary: CustomerSummary): ClientItem {
 export function customerToClientItem(customer: Customer): ClientItem {
   const base = summaryToClientItem(customer);
   if (customer.kind === 'Individual') {
-    return { ...base, individual: { occupation: customer.occupationName ?? undefined } };
+    return {
+      ...base,
+      individual: {
+        occupation: customer.occupationName ?? undefined,
+        dateOfBirth: customer.dateOfBirth ?? undefined,
+      },
+    };
   }
   return { ...base, company: { principalBusinessActivity: customer.principalBusinessActivityName ?? undefined } };
 }
@@ -336,6 +394,8 @@ export function customerToClientProfile(customer: CustomerDetailResponse): Clien
     displayName: base.displayName,
     email: base.email,
     phone: base.phone,
+    language: customer.language,
+    preferredChannel: customer.preferredChannel,
     isActive: base.isActive,
     createdAt: base.createdAt,
     individual: base.individual,

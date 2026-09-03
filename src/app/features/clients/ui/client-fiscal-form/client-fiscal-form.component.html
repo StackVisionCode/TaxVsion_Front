@@ -1,0 +1,94 @@
+<app-modal [isOpen]="isOpen" [heading]="isEdit() ? 'Edit tax profile' : 'Add tax profile'"
+  subheading="Sensitive — the tax identifier is encrypted on save" size="lg" (closed)="close()">
+
+  <div class="mt-4 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3">
+    <ion-icon name="shield-checkmark-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
+    <p class="text-xs text-amber-700">
+      This information is encrypted. Only the last 4 digits are shown afterwards; revealing the full identifier is recorded.
+    </p>
+  </div>
+
+  <div class="mt-4 flex flex-col gap-3">
+    <div class="grid grid-cols-2 gap-3">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4">
+        <span class="text-sm text-gray-400">Subject</span>
+        <select [ngModel]="subjectKind()" (ngModelChange)="onSubjectChange($event)" name="subjectKind"
+          class="h-full w-full bg-transparent text-sm text-gray-800 focus:outline-none">
+          <option value="Individual">Individual (SSN/ITIN)</option>
+          <option value="Business">Business (EIN)</option>
+        </select>
+      </label>
+      <div>
+        <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+          [ngClass]="taxErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+          <span class="mr-2 whitespace-nowrap text-sm text-gray-400">{{ taxIdKindLabel() }}</span>
+          <input type="text" inputmode="numeric" [maxlength]="subjectKind() === 'Business' ? 10 : 11"
+            [placeholder]="subjectKind() === 'Business' ? '00-0000000' : '000-00-0000'" [ngModel]="taxIdentifier()"
+            (ngModelChange)="onTaxInput($event)" name="taxId" [attr.aria-invalid]="!!taxErr()"
+            class="h-full w-full bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+        </div>
+        @if (taxErr()) { <p class="field-err mt-1 px-4 text-xs text-red-600">{{ taxErr() }}</p> }
+      </div>
+    </div>
+
+    <p *ngIf="isEdit()" class="px-1 text-xs text-gray-400">Leave the tax identifier blank to keep the current one, or re-enter it to change it (only its last 4 digits are stored).</p>
+
+    <div class="grid grid-cols-2 gap-3">
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4">
+        <span class="text-sm text-gray-400">Filing</span>
+        <select [ngModel]="filingStatus()" (ngModelChange)="filingStatus.set($event)" name="filing"
+          class="h-full w-full bg-transparent text-sm text-gray-800 focus:outline-none">
+          <option value="">Not set</option>
+          <option *ngFor="let f of filingStatuses" [value]="f.value">{{ f.label }}</option>
+        </select>
+      </label>
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">Prior-year AGI</span>
+        <input type="text" inputmode="decimal" placeholder="45000.00" [ngModel]="priorYearAgi()"
+          (ngModelChange)="priorYearAgi.set($event)" name="agi"
+          class="h-full w-full bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+      </div>
+    </div>
+
+    <label class="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-2.5">
+      <span class="min-w-0">
+        <span class="block text-sm font-medium text-gray-700">Returning client</span>
+        <span class="block text-xs text-gray-400">Filed with this office in a prior year (not a first-time client).</span>
+      </span>
+      <button type="button" (click)="isReturning.set(!isReturning())" class="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+        [ngClass]="isReturning() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" aria-label="Returning client"
+        [attr.aria-checked]="isReturning()">
+        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
+          [ngClass]="isReturning() ? 'translate-x-5' : 'translate-x-0.5'"></span>
+      </button>
+    </label>
+
+    <div class="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <span>Refund bank (optional)</span>
+      <span class="h-px flex-1 bg-gray-100"></span>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <input type="text" inputmode="numeric" placeholder="Routing number" [ngModel]="refundRouting()"
+        (ngModelChange)="refundRouting.set($event); bankErr.set(null)" name="routing"
+        class="h-11 rounded-full border bg-white px-4 text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+        [ngClass]="bankErr() ? 'border-red-300' : 'border-gray-200 focus:border-gray-300'" />
+      <input type="text" inputmode="numeric" placeholder="Account number" [ngModel]="refundAccount()"
+        (ngModelChange)="refundAccount.set($event); bankErr.set(null)" name="account"
+        class="h-11 rounded-full border bg-white px-4 text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+        [ngClass]="bankErr() ? 'border-red-300' : 'border-gray-200 focus:border-gray-300'" />
+    </div>
+    @if (bankErr()) { <p class="field-err text-xs text-red-600">{{ bankErr() }}</p> }
+    <p *ngIf="isEdit() && existing?.hasRefundBankInfo" class="px-1 text-xs text-gray-400">
+      Bank details are on file. Leaving these blank will remove them.
+    </p>
+  </div>
+
+  <div class="mt-5 flex items-center justify-end gap-2">
+    <button type="button" (click)="close()"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+    <button type="button" (click)="submit()" [disabled]="saving || (!isEdit() && !taxIdentifier().trim())"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+      {{ saving ? 'Saving…' : (isEdit() ? 'Save tax profile' : 'Add tax profile') }}
+    </button>
+  </div>
+</app-modal>

@@ -8,6 +8,8 @@ import {
   ClientNoteCard,
   NOTE_COLOR_OPTIONS,
   NOTE_VISIBILITY_OPTIONS,
+  NoteAttachmentResponse,
+  NoteAttachmentStatus,
   NoteColorKind,
   NoteVisibility,
   initialsOf,
@@ -60,6 +62,8 @@ export class ClientProfileNotesComponent implements OnChanges {
   readonly openColorMenuId = signal<string | null>(null);
 
   readonly pendingDelete = signal<ClientNoteCard | null>(null);
+  /** Adjunto pendiente de quitar (nota + adjunto) para el diálogo de confirmación. */
+  readonly pendingDetach = signal<{ note: ClientNoteCard; attachment: NoteAttachmentResponse } | null>(null);
 
   ngOnChanges(): void {
     if (this.clientId) {
@@ -182,7 +186,7 @@ export class ClientProfileNotesComponent implements OnChanges {
     this.pendingDelete.set(null);
   }
 
-  /** Tamaño legible de un adjunto (los adjuntos son de solo lectura en esta pestaña). */
+  /** Tamaño legible de un adjunto. */
   attachmentSize(sizeBytes: number): string {
     if (sizeBytes < 1024) {
       return `${sizeBytes} B`;
@@ -191,6 +195,65 @@ export class ClientProfileNotesComponent implements OnChanges {
       return `${Math.round(sizeBytes / 1024)} KB`;
     }
     return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  // ---------- Adjuntos ----------
+
+  /** Se ocultan los `Detached` (quitados): siguen viniendo en la respuesta pero ya no aplican. */
+  visibleAttachments(note: ClientNoteCard): NoteAttachmentResponse[] {
+    return note.attachments.filter(a => a.status !== 'Detached');
+  }
+
+  onAttachPicked(note: ClientNoteCard, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.store.attachFile(note.id, input.files[0]);
+      input.value = '';
+    }
+  }
+
+  downloadAttachment(attachment: NoteAttachmentResponse): void {
+    if (attachment.status === 'Available') {
+      this.store.downloadAttachment(attachment.cloudStorageFileId);
+    }
+  }
+
+  requestDetach(note: ClientNoteCard, attachment: NoteAttachmentResponse): void {
+    this.pendingDetach.set({ note, attachment });
+  }
+
+  confirmDetach(): void {
+    const pending = this.pendingDetach();
+    if (pending) {
+      this.store.detachAttachment(pending.note.id, pending.attachment.cloudStorageFileId);
+    }
+    this.pendingDetach.set(null);
+  }
+
+  attachmentStatusLabel(status: NoteAttachmentStatus): string {
+    switch (status) {
+      case 'Available':
+        return 'Ready';
+      case 'Pending':
+        return 'Scanning…';
+      case 'Rejected':
+        return 'Blocked';
+      case 'Detached':
+        return 'Removed';
+    }
+  }
+
+  attachmentStatusClass(status: NoteAttachmentStatus): string {
+    switch (status) {
+      case 'Available':
+        return 'border-emerald-200 bg-emerald-50 text-emerald-600';
+      case 'Pending':
+        return 'border-amber-200 bg-amber-50 text-amber-600';
+      case 'Rejected':
+        return 'border-red-200 bg-red-50 text-red-500';
+      case 'Detached':
+        return 'border-gray-200 bg-gray-50 text-gray-400';
+    }
   }
 }
 

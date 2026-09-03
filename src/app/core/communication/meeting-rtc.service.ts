@@ -45,8 +45,20 @@ import {
 export class MeetingRtcService {
   private readonly realtime = inject(CommunicationRealtimeService);
 
+  /** Reconexión del socket compartido (churn del tunnel). El servicio de meeting re-une la room. */
+  readonly reconnected$ = this.realtime.reconnected$;
+
   join(meetingId: string, opts?: MeetingJoinOptions): Promise<MeetingJoinAck> {
     return this.emitOrThrow('meeting.join', { clientKey: this.realtime.newClientKey(), meetingId, ...(opts ?? {}) });
+  }
+
+  /**
+   * Re-une la room `m:{meetingId}` tras un reconnect transparente del socket, SIN re-pedir media ni
+   * re-pasar por sala de espera (a diferencia de `join`). Devuelve el snapshot para reconciliar la
+   * lista de participantes. Solo válido para un participante que sigue admitido.
+   */
+  rejoin(meetingId: string): Promise<{ snapshot: MeetingSnapshotDto }> {
+    return this.emitOrThrow('meeting.rejoin', { meetingId });
   }
 
   leave(meetingId: string): Promise<unknown> {

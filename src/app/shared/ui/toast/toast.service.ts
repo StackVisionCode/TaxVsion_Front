@@ -11,6 +11,8 @@ import { Toast, ToastKind } from './toast.model';
 @Injectable({ providedIn: 'root' })
 export class ToastService {
   private static readonly AUTO_DISMISS_MS = 3200;
+  /** Debe casar con el keyframe de salida del host (`toast-fall`). */
+  private static readonly EXIT_MS = 180;
 
   private nextId = 0;
   private readonly _toasts = signal<Toast[]>([]);
@@ -30,8 +32,22 @@ export class ToastService {
     this.push('info', message);
   }
 
-  /** Descarta un toast por id (botón de cerrar o auto-dismiss). */
+  /**
+   * Descarta un toast por id (botón de cerrar o auto-dismiss). Lo marca `leaving` para que el
+   * host reproduzca la salida y difiere el retiro real `EXIT_MS`; con `prefers-reduced-motion`
+   * o si ya estaba saliendo, lo retira al instante.
+   */
   dismiss(id: number): void {
+    const toast = this._toasts().find(item => item.id === id);
+    if (!toast || toast.leaving || prefersReducedMotion()) {
+      this.remove(id);
+      return;
+    }
+    this._toasts.update(list => list.map(item => (item.id === id ? { ...item, leaving: true } : item)));
+    setTimeout(() => this.remove(id), ToastService.EXIT_MS);
+  }
+
+  private remove(id: number): void {
     this._toasts.update(list => list.filter(toast => toast.id !== id));
   }
 
@@ -39,5 +55,13 @@ export class ToastService {
     const id = this.nextId++;
     this._toasts.update(list => [...list, { id, kind, message }]);
     setTimeout(() => this.dismiss(id), ToastService.AUTO_DISMISS_MS);
+  }
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
   }
 }

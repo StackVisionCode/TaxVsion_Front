@@ -1,74 +1,154 @@
-<app-modal [isOpen]="isOpen" [heading]="isEditMode() ? 'Edit Client' : 'New Client'"
-  [subheading]="isEditMode() ? 'Update the details of this client' : 'Add a client to your directory'" size="xl"
-  (closed)="close()">
+<app-modal [isOpen]="isOpen" [heading]="heading()"
+  [subheading]="confirmingOverwrite() ? '' : (duplicate() ? 'This may already be in your directory' : (isEditMode() ? 'Update the details of this client' : 'Add a client to your directory'))"
+  size="xl" (closed)="close()">
 
+  <!-- ============ OVERWRITE CONFIRM ============ -->
+  @if (confirmingOverwrite()) {
+    <div class="dup-panel mt-5 flex flex-col gap-4">
+      <div class="flex items-start gap-3 rounded-2xl bg-indigo-50 p-4">
+        <ion-icon name="refresh-outline" class="mt-0.5 text-xl text-brand-bold"></ion-icon>
+        <p class="text-sm text-gray-700">
+          The information you entered will be applied to
+          <strong>{{ duplicate()?.existingName || 'the existing client' }}</strong>’s record.
+          This won’t create a new client.
+        </p>
+      </div>
+      <div class="flex items-center justify-end gap-2">
+        <button type="button" (click)="cancelDuplicate()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+        <button type="button" (click)="confirmOverwrite()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          Update existing client
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ============ DUPLICATE FOUND ============ -->
+  @else if (duplicate(); as dup) {
+    <div class="dup-panel mt-5 flex flex-col gap-4">
+      <div class="flex items-start gap-3 rounded-2xl bg-amber-50 p-4">
+        <ion-icon name="alert-circle-outline" class="mt-0.5 text-xl text-amber-600"></ion-icon>
+        <p class="text-sm text-gray-700">
+          A client matching by <strong>{{ dup.matchedBy }}</strong>
+          @if (dup.existingName) { — <strong>{{ dup.existingName }}</strong> — } may already exist in this office.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <button type="button" (click)="cancelDuplicate()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+        @if (dup.existingId) {
+          <button type="button" (click)="openExisting()"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-brand-bold hover:bg-gray-100 transition-colors">
+            <ion-icon name="arrow-forward-outline"></ion-icon> Open existing client
+          </button>
+        }
+        <button type="button" (click)="startOverwrite()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          Update existing with these details
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ============ FORM ============ -->
+  @else {
     <!-- Individual / Company toggle -->
     <div class="mt-5 inline-flex items-center rounded-full border border-gray-200 p-1">
       <button type="button" (click)="setClientType('individual')"
         class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="clientType() === 'individual' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-        Individual
-      </button>
+        [ngClass]="clientType() === 'individual' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">Individual</button>
       <button type="button" (click)="setClientType('company')"
         class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="clientType() === 'company' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-        Company
-      </button>
+        [ngClass]="clientType() === 'company' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">Company</button>
     </div>
 
     <div class="mt-5 flex flex-col gap-3">
-      <!-- Individual fields -->
-      <ng-container *ngIf="clientType() === 'individual'">
+      <!-- Individual -->
+      @if (clientType() === 'individual') {
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <input type="text" placeholder="First name" [ngModel]="firstName()" name="firstName"
-              (ngModelChange)="firstName.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          <div>
+            <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="firstErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <input type="text" placeholder="First name" [maxlength]="nameMax" [ngModel]="firstName()" name="firstName"
+                (ngModelChange)="firstName.set($event); firstErr.set(null)" [attr.aria-invalid]="!!firstErr()"
+                aria-describedby="err-first" class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </div>
+            @if (firstErr()) { <p id="err-first" class="field-err mt-1 px-4 text-xs text-red-600">{{ firstErr() }}</p> }
           </div>
-          <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <input type="text" placeholder="Last name" [ngModel]="lastName()" name="lastName"
-              (ngModelChange)="lastName.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          <div>
+            <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="lastErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <input type="text" placeholder="Last name" [maxlength]="nameMax" [ngModel]="lastName()" name="lastName"
+                (ngModelChange)="lastName.set($event); lastErr.set(null)" [attr.aria-invalid]="!!lastErr()"
+                aria-describedby="err-last" class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </div>
+            @if (lastErr()) { <p id="err-last" class="field-err mt-1 px-4 text-xs text-red-600">{{ lastErr() }}</p> }
           </div>
         </div>
 
+        <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="Middle name (optional)" [maxlength]="nameMax" [ngModel]="middleName()"
+            name="middleName" (ngModelChange)="middleName.set($event)"
+            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        </div>
+
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <span class="mr-2 text-sm text-gray-400">SSN/ITIN</span>
-            <input type="text" placeholder="000-00-0000" [ngModel]="ssnOrItin()" name="ssnOrItin"
-              (ngModelChange)="ssnOrItin.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          <div>
+            <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="taxErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="mr-2 text-sm text-gray-400">SSN/ITIN</span>
+              <input type="text" inputmode="numeric" maxlength="11" placeholder="000-00-0000" [ngModel]="ssnOrItin()"
+                name="ssnOrItin" (ngModelChange)="onSsnInput($event)" [attr.aria-invalid]="!!taxErr()" aria-describedby="err-tax"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </div>
+            @if (taxErr()) { <p id="err-tax" class="field-err mt-1 px-4 text-xs text-red-600">{{ taxErr() }}</p> }
           </div>
-          <label
-            class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+          <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
             <span class="text-sm text-gray-400">DOB</span>
             <input type="date" [ngModel]="dateOfBirth()" name="dateOfBirth" (ngModelChange)="dateOfBirth.set($event)"
               class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
           </label>
         </div>
 
-      </ng-container>
+        <app-catalog-picker label="Occupation" placeholder="Search occupations" scope="client-occupation"
+          [selectedName]="occupationName()" [search]="searchOccupations"
+          (picked)="onOccupationPicked($event)"></app-catalog-picker>
+      }
 
-      <!-- Company fields -->
-      <ng-container *ngIf="clientType() === 'company'">
-        <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="Business name" [ngModel]="businessName()" name="businessName"
-            (ngModelChange)="businessName.set($event)"
-            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      <!-- Company -->
+      @if (clientType() === 'company') {
+        <div>
+          <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+            [ngClass]="bizErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+            <input type="text" placeholder="Legal name" [ngModel]="businessName()" name="businessName"
+              (ngModelChange)="businessName.set($event); bizErr.set(null)" [attr.aria-invalid]="!!bizErr()"
+              aria-describedby="err-biz" class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          </div>
+          @if (bizErr()) { <p id="err-biz" class="field-err mt-1 px-4 text-xs text-red-600">{{ bizErr() }}</p> }
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <span class="mr-2 text-sm text-gray-400">EIN</span>
-            <input type="text" placeholder="00-0000000" [ngModel]="ein()" name="ein" (ngModelChange)="ein.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          <div>
+            <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="taxErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="mr-2 text-sm text-gray-400">EIN</span>
+              <input type="text" inputmode="numeric" maxlength="10" placeholder="00-0000000" [ngModel]="ein()" name="ein"
+                (ngModelChange)="onEinInput($event)" [attr.aria-invalid]="!!taxErr()" aria-describedby="err-tax"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </div>
+            @if (taxErr()) { <p id="err-tax" class="field-err mt-1 px-4 text-xs text-red-600">{{ taxErr() }}</p> }
           </div>
-          <label
-            class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
-            <span class="text-sm text-gray-400">Formed</span>
-            <input type="date" [ngModel]="formationDate()" name="formationDate" (ngModelChange)="formationDate.set($event)"
-              class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
-          </label>
+          <div>
+            <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 cursor-pointer transition-colors"
+              [ngClass]="formationErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="text-sm text-gray-400">Formed</span>
+              <input type="date" [ngModel]="formationDate()" name="formationDate"
+                (ngModelChange)="formationDate.set($event); formationErr.set(null)"
+                class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+            </label>
+            @if (formationErr()) { <p class="field-err mt-1 px-4 text-xs text-red-600">{{ formationErr() }}</p> }
+          </div>
         </div>
 
         <!-- Business structure dropdown -->
@@ -78,40 +158,69 @@
             <span>{{ businessStructure() }}</span>
             <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
           </button>
-          <div *ngIf="isStructureOpen()"
-            class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-            <button *ngFor="let option of businessStructures" type="button" (click)="selectBusinessStructure(option)"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              {{ option }}
-              <ion-icon *ngIf="option === businessStructure()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-            </button>
-          </div>
+          @if (isStructureOpen()) {
+            <div class="menu-pop absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <button *ngFor="let option of businessStructures" type="button" (click)="selectBusinessStructure(option)"
+                class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                {{ option }}
+                <ion-icon *ngIf="option === businessStructure()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+              </button>
+            </div>
+          }
         </div>
 
-        <textarea rows="2" placeholder="Principal business activity" [ngModel]="principalBusinessActivity()"
-          name="principalBusinessActivity" (ngModelChange)="principalBusinessActivity.set($event)"
-          class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
-      </ng-container>
+        <app-catalog-picker label="Activity" placeholder="Search NAICS activities" scope="client-activity"
+          [selectedName]="businessActivityName()" [search]="searchBusinessActivities"
+          (picked)="onBusinessActivityPicked($event)"></app-catalog-picker>
+      }
 
-      <!-- Shared fields -->
+      <!-- Shared -->
       <div class="mt-1 h-px w-full bg-gray-100"></div>
 
       <div class="grid grid-cols-2 gap-3">
-        <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <input type="email" placeholder="Email" [ngModel]="email()" name="email" (ngModelChange)="email.set($event)"
-            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        <div>
+          <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+            [ngClass]="emailErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+            <input type="email" inputmode="email" placeholder="Email" [ngModel]="email()" name="email"
+              (ngModelChange)="email.set($event); emailErr.set(null)" (blur)="validateEmail()"
+              [attr.aria-invalid]="!!emailErr()" aria-describedby="err-email"
+              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          </div>
+          @if (emailErr()) { <p id="err-email" class="field-err mt-1 px-4 text-xs text-red-600">{{ emailErr() }}</p> }
         </div>
-        <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="Phone" [ngModel]="phone()" name="phone" (ngModelChange)="phone.set($event)"
-            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        <div>
+          <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+            [ngClass]="phoneErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+            <input type="tel" inputmode="tel" maxlength="20" placeholder="Phone (optional)" [ngModel]="phone()" name="phone"
+              (ngModelChange)="phone.set($event); phoneErr.set(null)" (blur)="onPhoneBlur()"
+              [attr.aria-invalid]="!!phoneErr()" aria-describedby="err-phone"
+              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          </div>
+          @if (phoneErr()) { <p id="err-phone" class="field-err mt-1 px-4 text-xs text-red-600">{{ phoneErr() }}</p> }
         </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <span class="text-sm text-gray-400">Language</span>
+          <select [ngModel]="language()" name="language" (ngModelChange)="language.set($event)"
+            class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+            <option *ngFor="let l of languages" [value]="l.value">{{ l.label }}</option>
+          </select>
+        </label>
+        <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+          <span class="text-sm text-gray-400">Contact</span>
+          <select [ngModel]="preferredChannel()" name="preferredChannel" (ngModelChange)="preferredChannel.set($event)"
+            class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+            <option *ngFor="let c of channels" [value]="c.value">{{ c.label }}</option>
+          </select>
+        </label>
       </div>
 
       <!-- Active toggle -->
       <div class="flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
         <span class="text-sm font-medium text-gray-700">Active client</span>
-        <button type="button" (click)="isActive.set(!isActive())"
-          class="relative h-6 w-11 rounded-full transition-colors"
+        <button type="button" (click)="isActive.set(!isActive())" class="relative h-6 w-11 rounded-full transition-colors"
           [ngClass]="isActive() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="isActive()">
           <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
             [ngClass]="isActive() ? 'translate-x-5' : 'translate-x-0.5'"></span>
@@ -119,16 +228,15 @@
       </div>
     </div>
 
-  <p *ngIf="saveError()" class="mt-3 text-sm text-red-600">{{ saveError() }}</p>
+    @if (saveError()) { <p class="field-err mt-3 text-sm text-red-600">{{ saveError() }}</p> }
 
-  <div class="mt-5 flex items-center justify-end gap-2">
-    <button type="button" (click)="close()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-      Cancel
-    </button>
-    <button type="button" (click)="save()" [disabled]="!canSave()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      {{ isSaving() ? 'Saving…' : (isEditMode() ? 'Save changes' : 'Create client') }}
-    </button>
-  </div>
+    <div class="mt-5 flex items-center justify-end gap-2">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+      <button type="button" (click)="save()" [disabled]="!canSave()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        {{ isSaving() ? 'Saving…' : (isEditMode() ? 'Save changes' : 'Create client') }}
+      </button>
+    </div>
+  }
 </app-modal>

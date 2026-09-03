@@ -249,6 +249,16 @@ export class AuthService {
   }
 
   /**
+   * Contenido HTML del documento legal, para RENDERIZARLO inline en el front (no abrir la API cruda
+   * en otra pestaña). Anónimo, host de sistema, `responseType: 'text'` porque el endpoint responde
+   * `text/html`. El HTML es contenido propio de la plataforma (subido por un Platform Admin); igual
+   * se sanea en el componente antes de pintarlo.
+   */
+  termsContent(termsVersionId: string): Observable<string> {
+    return this.http.get(this.termsContentUrl(termsVersionId), { responseType: 'text' });
+  }
+
+  /**
    * Marca que el usuario debe enrolar MFA. Lo usa el canje del login central (from-ticket) cuando
    * la política exige segundo factor pero aún no hay método: así el authGuard lo desvía al setup,
    * igual que el desenlace `mfa-setup-required` del login directo.

@@ -1,0 +1,115 @@
+<div class="bg-white rounded-[28px] p-6">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Portal access</h2>
+      <p class="mt-1 text-sm text-gray-500">Whether this client can sign in to the client portal</p>
+    </div>
+  </div>
+
+  <!-- Cargando -->
+  <div *ngIf="store.loading()" class="mt-5 h-24 animate-pulse rounded-2xl bg-gray-100"></div>
+
+  <!-- Error de carga -->
+  <div *ngIf="store.error() as err" class="mt-5 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+    <p class="text-sm text-red-700">{{ err }}</p>
+    <button type="button" (click)="retry()"
+      class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors">
+      Try again
+    </button>
+  </div>
+
+  <ng-container *ngIf="!store.loading() && !store.error()">
+    <!-- Tarjeta de estado -->
+    <div class="pa-card mt-5 rounded-2xl border border-gray-100 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="flex h-11 w-11 items-center justify-center rounded-full"
+            [ngClass]="access().status === 'active' ? 'bg-emerald-50 text-emerald-600' : access().status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-400'">
+            <ion-icon [name]="access().status === 'active' ? 'shield-checkmark-outline' : access().status === 'pending' ? 'mail-outline' : 'shield-outline'" class="text-xl"></ion-icon>
+          </span>
+          <div>
+            <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+              [ngClass]="statusChipClass(access().status)">
+              {{ statusLabel(access().status) }}
+            </span>
+            <p class="mt-1 text-sm text-gray-500">
+              Login email: <span class="font-medium text-gray-800">{{ access().email || clientEmail || '—' }}</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- No invitado / expirado → invitar -->
+          <button *ngIf="(access().status === 'not-invited' || access().status === 'expired') && canInvite()"
+            type="button" (click)="invite()" [disabled]="busy()"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+            <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+            {{ busy() ? 'Sending…' : 'Send portal invitation' }}
+          </button>
+
+          <!-- Pendiente → reenviar / cancelar -->
+          <ng-container *ngIf="access().status === 'pending' && canManageInvites()">
+            <button type="button" (click)="resend()" [disabled]="busy() || access().resendsLeft === 0"
+              [title]="access().resendsLeft === 0 ? 'Resend limit reached' : ''"
+              class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              <ion-icon name="refresh-outline" class="text-base"></ion-icon> Resend
+            </button>
+            <button type="button" (click)="askCancel()" [disabled]="busy()"
+              class="rounded-full px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors">
+              Cancel
+            </button>
+          </ng-container>
+
+          <!-- Activo → desactivar -->
+          <button *ngIf="access().status === 'active' && canManageUsers()" type="button" (click)="askDeactivate()"
+            [disabled]="busy()"
+            class="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors">
+            Deactivate access
+          </button>
+
+          <!-- Desactivado → reactivar -->
+          <button *ngIf="access().status === 'deactivated' && canManageUsers()" type="button" (click)="reactivate()"
+            [disabled]="busy()"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+            <ion-icon name="power-outline" class="text-base"></ion-icon> Reactivate
+          </button>
+        </div>
+      </div>
+
+      <!-- Detalle de la invitación pendiente -->
+      <div *ngIf="access().status === 'pending'" class="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-gray-100 pt-4 text-sm">
+        <div>
+          <p class="text-xs text-gray-400">Invited</p>
+          <p class="font-medium text-gray-800">{{ formatDate(access().invitedAtUtc) }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400">Expires</p>
+          <p class="font-medium text-gray-800">{{ formatDate(access().expiresAtUtc) }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400">Resends left</p>
+          <p class="font-medium text-gray-800">{{ access().resendsLeft }} of 5</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aviso: sin permiso para ver el estado -->
+    <div *ngIf="!canReadStatus()"
+      class="mt-4 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base"></ion-icon>
+      <span>You don't have permission to read portal status, so it may be incomplete. Managing invitations needs the user-management permissions.</span>
+    </div>
+
+    <!-- Nada que hacer y sin permiso de invitar -->
+    <div *ngIf="access().status !== 'active' && access().status !== 'pending' && access().status !== 'deactivated' && !canInvite()"
+      class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+      This client has no portal access. Inviting a client to the portal is available to tenant administrators.
+    </div>
+  </ng-container>
+</div>
+
+<!-- Confirmación (cancelar / desactivar) -->
+<app-confirm-dialog [isOpen]="confirm() !== null" [heading]="confirm()?.heading ?? ''" [message]="confirm()?.message ?? ''"
+  [confirmLabel]="confirm()?.confirmLabel ?? 'Confirm'" (confirmed)="onConfirm()"
+  (cancelled)="confirm.set(null)"></app-confirm-dialog>

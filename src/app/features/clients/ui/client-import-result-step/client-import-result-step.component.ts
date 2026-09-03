@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
 import { CustomerImportAttempt, CustomerImportRow, ImportRowStatus } from '../../data-access/client-imports.model';
 
 type RowFilter = 'failed' | 'all';
@@ -17,7 +18,7 @@ const ROWS_PAGE_SIZE = 10;
  */
 @Component({
   selector: 'app-client-import-result-step',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, CountUpDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-result-step.component.html',
   styleUrl: './client-import-result-step.component.css',
