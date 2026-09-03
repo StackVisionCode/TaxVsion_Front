@@ -58,14 +58,11 @@ export class CommunicationRealtimeService {
     }
     this.socket = io(this.api.tenantBase(), {
       path: '/communication/socket.io',
-      // SOLO polling, sin upgrade a WebSocket. A través del túnel cloudflared el
-      // WS se corta a los ~15s y socket.io reconecta en bucle (real-time perdido;
-      // las llamadas "funcionan" porque solo usan el socket unos segundos y luego
-      // van P2P). El long-poll con ping de 10s es estable y entrega todos los
-      // eventos server→cliente igual. Reactivar WS solo cuando el túnel mantenga
-      // el WebSocket abierto de forma fiable.
-      transports: ['polling'],
-      upgrade: false,
+      // WebSocket primero; polling solo de fallback. El gateway ya proxya el
+      // upgrade WS (UseWebSockets en YARP), así que el WS —conexión persistente—
+      // es el transporte estable: no sufre el buffering del long-poll que rompía
+      // el ciclo ping/pong detrás de Cloudflare (ping timeout en bucle).
+      transports: ['websocket', 'polling'],
       auth: { token },
       withCredentials: true,
     });
