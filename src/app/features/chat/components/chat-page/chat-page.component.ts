@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
@@ -35,6 +36,7 @@ import { ChatStore } from '../../data-access/chat.store';
   selector: 'app-chat-page',
   imports: [
     CommonModule,
+    FormsModule,
     ChatConversationListComponent,
     ChatThreadComponent,
     ChatComposerComponent,
@@ -62,8 +64,20 @@ export class ChatPageComponent {
   readonly activeConversationId = computed(() => this.store.activeConversationId() ?? '');
   readonly uploadingAttachment = this.store.uploadingAttachment;
 
+  /** True solo cuando hay una conversación real seleccionada — controla el thread vs. el empty state. */
+  readonly hasActiveConversation = computed(() => {
+    const id = this.store.activeConversationId();
+    return !!id && this.conversations().some(conv => conv.id === id);
+  });
+
   readonly isInfoOpen = signal(false);
   readonly isNewConversationOpen = signal(false);
+
+  /** Tab del rail izquierdo: conversaciones, o directorio de clientes/equipo (estilo WhatsApp). */
+  readonly railTab = signal<'chats' | 'clients' | 'team'>('chats');
+  readonly railSearch = signal('');
+  private railSearchDebounce: ReturnType<typeof setTimeout> | undefined;
+
   readonly loadingOlder = this.store.loadingOlder;
   private readonly pendingDeleteId = signal<string | null>(null);
   readonly isDeleteConfirmOpen = computed(() => this.pendingDeleteId() !== null);
@@ -218,6 +232,45 @@ export class ChatPageComponent {
 
   cancelDelete(): void {
     this.pendingDeleteId.set(null);
+  }
+
+  // ---------- Rail directorio (Clients / Team) ----------
+
+  switchRailTab(tab: 'chats' | 'clients' | 'team'): void {
+    if (this.railTab() === tab) {
+      return;
+    }
+    this.railTab.set(tab);
+    this.railSearch.set('');
+    clearTimeout(this.railSearchDebounce);
+    this.store.resetNewConversationState();
+  }
+
+  onRailSearch(term: string): void {
+    this.railSearch.set(term);
+    clearTimeout(this.railSearchDebounce);
+    const tab = this.railTab();
+    this.railSearchDebounce = setTimeout(() => {
+      if (tab === 'clients') {
+        this.store.searchCustomers(term);
+      } else if (tab === 'team') {
+        this.store.searchEmployees(term);
+      }
+    }, 300);
+  }
+
+  async onRailSelectCustomer(entry: CustomerDirectoryEntry): Promise<void> {
+    const ok = await this.store.startDirectWithCustomer(entry);
+    if (ok) {
+      this.switchRailTab('chats');
+    }
+  }
+
+  async onRailSelectEmployee(entry: EmployeeDirectoryEntry): Promise<void> {
+    const ok = await this.store.startDirectConversation(entry);
+    if (ok) {
+      this.switchRailTab('chats');
+    }
   }
 
   openNewConversation(): void {
