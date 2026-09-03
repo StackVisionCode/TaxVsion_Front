@@ -84,7 +84,7 @@
       <!-- List -->
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-meeting-list [meetings]="visibleMeetings()" [busyId]="busyId()" (manage)="openManagePanel($event)"
-          (cancelMeeting)="cancelMeeting($event)" (startMeeting)="startMeeting($event)"
+          (join)="joinMeeting($event)" (cancelMeeting)="cancelMeeting($event)" (startMeeting)="startMeeting($event)"
           (endMeeting)="endMeeting($event)" (viewTranscript)="viewTranscript($event)"
           (copyCode)="copyCode($event)"></app-meeting-list>
 
@@ -100,7 +100,7 @@
   </ng-container>
 
   <ng-template #roomView>
-    <app-meeting-room-preview [meeting]="activeRoomMeeting()" (left)="leaveMeeting()"></app-meeting-room-preview>
+    <app-meeting-room (left)="leaveMeeting()"></app-meeting-room>
   </ng-template>
 </div>
 

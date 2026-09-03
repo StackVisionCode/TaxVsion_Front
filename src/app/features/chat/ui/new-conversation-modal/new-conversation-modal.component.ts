@@ -11,9 +11,16 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { EmployeeDirectoryEntry } from '../../data-access/chat.model';
+import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from '../../data-access/chat.model';
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+export type ConversationAudience = 'clients' | 'team';
+
+export interface DirectorySearch {
+  term: string;
+  audience: ConversationAudience;
+}
 
 export interface GroupCreateRequest {
   title: string;
@@ -21,10 +28,11 @@ export interface GroupCreateRequest {
 }
 
 /**
- * Modal de "nueva conversación": buscador de compañeros de equipo (directorio de
- * empleados, no de clientes — ver ChatDirectoryService) + selección directa 1:1, y si
- * el usuario tiene el permiso `communication.group.create`, un modo "Group" con
- * multi-selección + título. Presentacional puro sobre `app-modal`.
+ * Modal de "nueva conversación". Dos audiencias:
+ *  - Clients: busca en el directorio de clientes; 1:1 con `portalUserId`. Los clientes sin
+ *    portal (`portalUserId == null`) se muestran deshabilitados ("Portal not activated").
+ *  - Team: compañeros de equipo; 1:1 y, con permiso `communication.group.create`, grupos.
+ * Presentacional puro sobre `app-modal`: el padre resuelve búsquedas y creación.
  */
 @Component({
   selector: 'app-new-conversation-modal',
@@ -35,6 +43,7 @@ export interface GroupCreateRequest {
 export class NewConversationModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() employees: EmployeeDirectoryEntry[] = [];
+  @Input() customers: CustomerDirectoryEntry[] = [];
   @Input() searching = false;
   @Input() error: string | null = null;
   @Input() creationError: string | null = null;
@@ -42,10 +51,13 @@ export class NewConversationModalComponent implements OnChanges {
   @Input() creating = false;
 
   @Output() closed = new EventEmitter<void>();
-  @Output() searchChanged = new EventEmitter<string>();
+  @Output() searchChanged = new EventEmitter<DirectorySearch>();
+  @Output() customerSelected = new EventEmitter<CustomerDirectoryEntry>();
   @Output() directSelected = new EventEmitter<EmployeeDirectoryEntry>();
   @Output() groupCreateRequested = new EventEmitter<GroupCreateRequest>();
 
+  /** Clientes por defecto: es el flujo pedido (staff -> cliente). */
+  readonly audience = signal<ConversationAudience>('clients');
   readonly mode = signal<'direct' | 'group'>('direct');
   readonly searchTerm = signal('');
   readonly groupTitle = signal('');
@@ -55,6 +67,7 @@ export class NewConversationModalComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
+      this.audience.set('clients');
       this.mode.set('direct');
       this.searchTerm.set('');
       this.groupTitle.set('');
@@ -62,10 +75,24 @@ export class NewConversationModalComponent implements OnChanges {
     }
   }
 
+  setAudience(audience: ConversationAudience): void {
+    if (this.audience() === audience) {
+      return;
+    }
+    this.audience.set(audience);
+    this.mode.set('direct'); // los grupos son solo de equipo; se elige aparte
+    this.selectedMembers.set([]);
+    // Cambiar de audiencia limpia la búsqueda: los resultados de la otra no aplican.
+    clearTimeout(this.searchDebounce);
+    this.searchTerm.set('');
+    this.searchChanged.emit({ term: '', audience });
+  }
+
   onSearchChange(value: string): void {
     this.searchTerm.set(value);
     clearTimeout(this.searchDebounce);
-    this.searchDebounce = setTimeout(() => this.searchChanged.emit(value), SEARCH_DEBOUNCE_MS);
+    const audience = this.audience();
+    this.searchDebounce = setTimeout(() => this.searchChanged.emit({ term: value, audience }), SEARCH_DEBOUNCE_MS);
   }
 
   isSelected(entry: EmployeeDirectoryEntry): boolean {
@@ -80,6 +107,18 @@ export class NewConversationModalComponent implements OnChanges {
     this.selectedMembers.update(list =>
       this.isSelected(entry) ? list.filter(m => m.userId !== entry.userId) : [...list, entry],
     );
+  }
+
+  /** Cliente chateable = tiene cuenta de portal activa. */
+  isChatable(entry: CustomerDirectoryEntry): boolean {
+    return !!entry.portalUserId;
+  }
+
+  selectCustomer(entry: CustomerDirectoryEntry): void {
+    if (!this.isChatable(entry)) {
+      return;
+    }
+    this.customerSelected.emit(entry);
   }
 
   createGroup(): void {

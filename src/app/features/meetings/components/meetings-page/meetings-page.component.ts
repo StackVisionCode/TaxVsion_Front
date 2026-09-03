@@ -5,7 +5,8 @@ import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { MeetingListComponent } from '../../ui/meeting-list/meeting-list.component';
 import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/meeting-schedule-panel.component';
-import { MeetingRoomPreviewComponent } from '../../ui/meeting-room-preview/meeting-room-preview.component';
+import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
+import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
 
@@ -22,12 +23,13 @@ import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/
  */
 @Component({
   selector: 'app-meetings-page',
-  imports: [CommonModule, FormsModule, MeetingListComponent, MeetingSchedulePanelComponent, MeetingRoomPreviewComponent],
+  imports: [CommonModule, FormsModule, MeetingListComponent, MeetingSchedulePanelComponent, MeetingRoomComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
 })
 export class MeetingsPageComponent implements OnInit {
   readonly store = inject(MeetingsStore);
+  private readonly activeMeeting = inject(ActiveMeetingService);
 
   readonly activeTab = signal<MeetingsScope>('upcoming');
   readonly search = signal('');
@@ -190,9 +192,10 @@ export class MeetingsPageComponent implements OnInit {
     this.runRowAction(meeting, this.store.cancelMeeting(meeting.id), 'Meeting cancelled');
   }
 
-  /** Sala interna (preview sin WebRTC real): solo para meetings en curso. */
+  /** Entra a la sala real (Socket.IO): solo meetings Live. El ActiveMeetingService maneja el join/espera. */
   joinMeeting(meeting: MeetingItem): void {
     this.activeRoomMeeting.set(meeting);
+    void this.activeMeeting.join(meeting.id, meeting.title);
   }
 
   leaveMeeting(): void {

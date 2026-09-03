@@ -111,15 +111,15 @@
                 {{ item.label }}
               </span>
 
-              <!-- Notification badge -->
+              <!-- Unread count badge (p. ej. chat) -->
               <span
                 *ngIf="item.badge"
-                class="absolute rounded-full bg-emerald-500 border-2 border-white pointer-events-none"
+                class="pointer-events-none absolute flex items-center justify-center rounded-full bg-orange-500 font-bold leading-none text-white ring-2 ring-white"
                 [ngClass]="{
-                  'top-0.5 right-0.5 h-2.5 w-2.5': !isExpanded(),
-                  'top-2 right-3 h-2 w-2': isExpanded(),
+                  'top-0 right-0 h-[16px] min-w-[16px] px-1 text-[9px]': !isExpanded(),
+                  'top-1.5 right-2.5 h-[18px] min-w-[18px] px-1 text-[10px]': isExpanded(),
                 }"
-              ></span>
+              >{{ item.badge > 9 ? '9+' : item.badge }}</span>
             </button>
           </ng-container>
         </div>

@@ -2,13 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { EmployeeDirectoryEntry } from './chat.model';
+import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from './chat.model';
 
 /**
- * Cliente HTTP del directorio de Communication (`/communication/directory`) — solo
- * empleados: `/directory/customers` devuelve `customerId`, no `userId` (el id que pide
- * `chat.conversation.start_direct`), y no hay endpoint que resuelva ese mapeo por HTTP,
- * así que "nueva conversación" es solo con compañeros de equipo por ahora.
+ * Cliente HTTP del directorio de Communication (`/communication/directory`), staff-only.
+ * - `employees`: compañeros de equipo → `userId` directo para `chat.conversation.start_direct`.
+ * - `customers`: clientes → incluye `portalUserId` (userId de Auth de la cuenta de portal
+ *   activa, o null). Con eso el CRM inicia el chat con un cliente; los que tienen
+ *   `portalUserId == null` no son chateables (sin portal).
  */
 @Injectable({ providedIn: 'root' })
 export class ChatDirectoryService {
@@ -21,5 +22,10 @@ export class ChatDirectoryService {
   searchEmployees(term: string, limit = 10): Observable<EmployeeDirectoryEntry[]> {
     const params = new HttpParams().set('q', term).set('limit', limit);
     return this.http.get<EmployeeDirectoryEntry[]>(`${this.base}/employees`, { params });
+  }
+
+  searchCustomers(term: string, limit = 10): Observable<CustomerDirectoryEntry[]> {
+    const params = new HttpParams().set('q', term).set('limit', limit);
+    return this.http.get<CustomerDirectoryEntry[]>(`${this.base}/customers`, { params });
   }
 }

@@ -28,34 +28,55 @@
       <div class="relative shrink-0">
         <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
           [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
-        <span *ngIf="activeConversation.online" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+        <span *ngIf="showPresenceDot" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-white"
+          [ngClass]="presenceDotClass" [attr.aria-label]="presenceLabel" [attr.title]="presenceLabel"></span>
       </div>
       <div>
-        <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
-        <span class="flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
-          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-          {{ activeConversation.online ? 'Online' : 'Offline' }}
+        <div class="flex items-center gap-2">
+          <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
+          <span *ngIf="isActiveSupport"
+            class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
+        </div>
+        <span class="flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
+          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>
+          {{ presenceLabel }}
         </span>
       </div>
 
+      <button *ngIf="canCallActiveConversation" type="button" (click)="startAudioCall()"
+        [disabled]="callPhase() !== 'idle'" aria-label="Start audio call"
+        class="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:hover:bg-transparent transition-colors">
+        <ion-icon name="call-outline" class="text-base"></ion-icon>
+      </button>
+
+      <button *ngIf="canVideoCallActiveConversation" type="button" (click)="startVideoCall()"
+        [class.ml-auto]="!canCallActiveConversation" [disabled]="callPhase() !== 'idle'" aria-label="Start video call"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:hover:bg-transparent transition-colors">
+        <ion-icon name="videocam-outline" class="text-base"></ion-icon>
+      </button>
+
       <button type="button" (click)="openInfo()"
-        class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        [class.ml-auto]="!canCallActiveConversation && !canVideoCallActiveConversation"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
         <ion-icon name="information-circle-outline" class="text-base text-gray-400"></ion-icon>
         Info
       </button>
     </div>
 
-    <!-- Thread -->
-    <div class="flex-1 overflow-y-auto py-4">
+    <!-- Thread (el propio thread es el contenedor scrollable) -->
+    <div class="flex-1 min-h-0">
       <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
-        [otherAvatarColor]="activeConversation.avatarColor"
-        (attachmentClicked)="onAttachmentClicked($event)"></app-chat-thread>
+        [otherAvatarColor]="activeConversation.avatarColor" [conversationId]="activeConversation.id"
+        [typingName]="activeConversation.typingName" [readUpToMessageId]="activeConversation.readUpToMessageId"
+        [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
+        (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
+        (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"></app-chat-thread>
     </div>
 
     <!-- Composer -->
     <div class="pt-4 border-t border-gray-100">
       <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
-        (attach)="onAttach($event)"></app-chat-composer>
+        (attach)="onAttach($event)" (typing)="onTyping($event)"></app-chat-composer>
     </div>
   </div>
 </div>
@@ -66,9 +87,9 @@
     <span class="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
       [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
     <p class="mt-3 text-base font-bold text-gray-900">{{ activeConversation.name }}</p>
-    <span class="mt-1 flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
-      <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-      {{ activeConversation.online ? 'Online' : 'Offline' }}
+    <span class="mt-1 flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
+      <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>
+      {{ presenceLabel }}
     </span>
   </div>
 
@@ -93,8 +114,13 @@
   </div>
 </app-modal>
 
+<app-confirm-dialog [isOpen]="isDeleteConfirmOpen()" heading="Delete message"
+  message="This message will be removed for everyone in the conversation. This can't be undone." confirmLabel="Delete"
+  (confirmed)="confirmDelete()" (cancelled)="cancelDelete()"></app-confirm-dialog>
+
 <app-new-conversation-modal [isOpen]="isNewConversationOpen()" [employees]="employeeResults()"
-  [searching]="employeeSearchLoading()" [error]="employeeSearchError()" [creationError]="newConversationError()"
-  [canCreateGroups]="canCreateGroups()" [creating]="creatingConversation()" (closed)="closeNewConversation()"
-  (searchChanged)="onEmployeeSearch($event)" (directSelected)="onDirectSelected($event)"
+  [customers]="customerResults()" [searching]="employeeSearchLoading()" [error]="employeeSearchError()"
+  [creationError]="newConversationError()" [canCreateGroups]="canCreateGroups()" [creating]="creatingConversation()"
+  (closed)="closeNewConversation()" (searchChanged)="onDirectorySearch($event)"
+  (customerSelected)="onCustomerSelected($event)" (directSelected)="onDirectSelected($event)"
   (groupCreateRequested)="onGroupCreateRequested($event)"></app-new-conversation-modal>

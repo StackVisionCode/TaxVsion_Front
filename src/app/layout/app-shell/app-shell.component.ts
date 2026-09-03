@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  OnDestroy,
   OnInit,
   ViewChild,
   inject,
@@ -12,7 +13,11 @@ import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
+import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
+import { ActiveCallService } from '@core/communication/active-call.service';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
+import { ChatStore } from '@features/chat/data-access/chat.store';
+import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AuthService } from '@core/auth/auth.service';
@@ -24,12 +29,15 @@ import { AuthService } from '@core/auth/auth.service';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, NavbarComponent, SidebarComponent, ToastHostComponent],
+  imports: [RouterOutlet, NavbarComponent, SidebarComponent, ToastHostComponent, CallOverlayComponent],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',
 })
-export class AppShellComponent implements OnInit {
+export class AppShellComponent implements OnInit, OnDestroy {
   private readonly socket = inject(ChatSocketService);
+  private readonly activeCall = inject(ActiveCallService);
+  private readonly chatStore = inject(ChatStore);
+  private readonly notificationsStore = inject(NotificationsStore);
   private readonly sessionRevocation = inject(SessionRevocationService);
   private readonly branding = inject(TenantBrandingService);
   private readonly auth = inject(AuthService);
@@ -51,6 +59,11 @@ export class AppShellComponent implements OnInit {
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,
     // así que el chat reusa esta misma conexión cuando se abre.
     this.socket.connect();
+    // Llamadas 1:1: escuchar entrantes en cualquier página (el overlay global vive en el shell).
+    this.activeCall.bindGlobalListeners();
+    // Notificaciones reales en vivo (campana del navbar) + badge de no-leídos del chat (sidebar).
+    this.notificationsStore.startRealtime();
+    this.chatStore.primeForBadge();
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((revokedSid) => {
@@ -58,6 +71,12 @@ export class AppShellComponent implements OnInit {
           this.socket.disconnect();
         }
       });
+  }
+
+  ngOnDestroy(): void {
+    // El shell posee el ciclo de vida del socket compartido de Communication: se destruye al
+    // salir de /app (logout / redirección), así que acá se cierra para no dejarlo colgado.
+    this.socket.disconnect();
   }
 
   onSidebarStateChange(expanded: boolean): void {

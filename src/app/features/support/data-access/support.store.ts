@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Subject } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SupportService } from './support.service';
 import { SupportTicket, SupportTicketFormValue } from './support.model';
@@ -47,6 +48,9 @@ export class SupportStore {
   readonly reopeningId = this._reopeningId.asReadonly();
   readonly reopenError = this._reopenError.asReadonly();
 
+  /** Emite al crear un ticket: el consumidor abre su conversación en el chat. */
+  readonly ticketCreated$ = new Subject<{ ticketId: string; conversationId: string }>();
+
   /** Carga (o recarga) una página de la lista. Sin argumento: la página actual. */
   loadTickets(page: number = this._page()): void {
     const target = Math.max(1, page);
@@ -89,6 +93,7 @@ export class SupportStore {
           this._lastTicketId.set(result.ticketId);
           this._submitting.set(false);
           this.loadTickets(1);
+          this.ticketCreated$.next({ ticketId: result.ticketId, conversationId: result.conversationId });
         },
         error: err => {
           this._submitError.set(toApiError(err).message);

@@ -1,9 +1,13 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { catchError, forkJoin, of } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { AppNotification } from '../ui/notification-list/notification-list.component';
-import { dtoToAppNotification } from './notifications.model';
+import { NotificationDto, dtoToAppNotification } from './notifications.model';
 import { NotificationsService } from './notifications.service';
+
+/** Cuántas notificaciones recientes muestra la campana del navbar. */
+const RECENT_SIZE = 8;
 
 /** Tamaño de página del listado server-paged (el backend acepta 1–100). */
 const PAGE_SIZE = 20;
@@ -28,8 +32,13 @@ const PAGE_SIZE = 20;
 @Injectable({ providedIn: 'root' })
 export class NotificationsStore {
   private readonly service = inject(NotificationsService);
+  private readonly realtime = inject(CommunicationRealtimeService);
 
   private readonly _items = signal<AppNotification[]>([]);
+  /** Feed corto para la campana del navbar (todas, independiente del tab de la página). */
+  private readonly _recent = signal<AppNotification[]>([]);
+  readonly recent = this._recent.asReadonly();
+  private realtimeWired = false;
   private readonly _loading = signal(false);
   private readonly _loadingMore = signal(false);
   private readonly _markingAll = signal(false);
@@ -53,6 +62,39 @@ export class NotificationsStore {
   readonly unreadOnly = this._unreadOnly.asReadonly();
   /** La última página vino llena: probablemente hay más para cargar. */
   readonly hasMore = this._hasMore.asReadonly();
+
+  /**
+   * Cablea el tiempo real (una vez) y carga el feed corto de la campana. Lo llama el
+   * shell al entrar: `notification.received` antepone; `notification.unread_count.changed`
+   * fija el conteo. Independiente del listado paginado de la página.
+   */
+  startRealtime(): void {
+    if (!this.realtimeWired) {
+      this.realtimeWired = true;
+      this.realtime.on<NotificationDto>('notification.received').subscribe(dto => this.applyIncoming(dto));
+      this.realtime.on<{ count: number }>('notification.unread_count.changed').subscribe(dto => this._unreadCount.set(dto.count));
+    }
+    this.loadRecent();
+  }
+
+  /** Feed corto (todas, page 1) para la campana — no toca el listado paginado de la página. */
+  loadRecent(): void {
+    this.service.list({ page: 1, size: RECENT_SIZE }).subscribe({
+      next: result => {
+        this._recent.set(result.items.map(dtoToAppNotification));
+        this._unreadCount.set(result.unreadCount);
+      },
+      error: () => undefined,
+    });
+  }
+
+  /** Notificación entrante en vivo: la antepone a la campana y al listado activo. */
+  private applyIncoming(dto: NotificationDto): void {
+    const item = dtoToAppNotification(dto);
+    this._recent.update(list => (list.some(n => n.id === item.id) ? list : [item, ...list].slice(0, RECENT_SIZE)));
+    // Una entrante es no-leída → cabe tanto en "all" como en "unread".
+    this._items.update(list => (list.some(n => n.id === item.id) ? list : [item, ...list]));
+  }
 
   /** Página 1 del feed activo. Resetea la paginación y el error. */
   loadFirstPage(): void {
@@ -125,20 +167,25 @@ export class NotificationsStore {
    * El unreadCount definitivo lo devuelve el propio endpoint.
    */
   markRead(id: string): void {
-    const target = this._items().find(n => n.id === id);
+    const target = this._items().find(n => n.id === id) ?? this._recent().find(n => n.id === id);
     if (!target || target.isRead) {
       return;
     }
-    this._items.update(list => list.map(n => (n.id === id ? { ...n, isRead: true } : n)));
+    this.setReadLocally(id, true);
     this._unreadCount.update(count => Math.max(0, count - 1));
     this.service.markRead(id).subscribe({
       next: result => this._unreadCount.set(result.unreadCount),
       error: err => {
-        this._items.update(list => list.map(n => (n.id === id ? { ...n, isRead: false } : n)));
+        this.setReadLocally(id, false);
         this._error.set(toApiError(err).message);
         this.refreshUnreadCount();
       },
     });
+  }
+
+  private setReadLocally(id: string, isRead: boolean): void {
+    this._items.update(list => list.map(n => (n.id === id ? { ...n, isRead } : n)));
+    this._recent.update(list => list.map(n => (n.id === id ? { ...n, isRead } : n)));
   }
 
   /**
@@ -153,6 +200,7 @@ export class NotificationsStore {
     }
     this._markingAll.set(true);
     this._items.update(list => list.map(n => (n.isRead ? n : { ...n, isRead: true })));
+    this._recent.update(list => list.map(n => (n.isRead ? n : { ...n, isRead: true })));
     forkJoin(
       unread.map(n => this.service.markRead(n.id).pipe(catchError(() => of(null)))),
     ).subscribe(results => {

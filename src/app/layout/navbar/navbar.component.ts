@@ -4,6 +4,13 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { AuthService } from '@core/auth/auth.service';
+import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
+import { AppNotification, NotificationType } from '@features/notifications/ui/notification-list/notification-list.component';
+import {
+  notificationIcon,
+  notificationIconBg,
+  notificationIconText,
+} from '@features/notifications/data-access/notifications.model';
 
 /**
  * Visual port of the production navbar. El usuario del menú viene de
@@ -24,17 +31,6 @@ interface NavbarUser {
   role: string;
 }
 
-interface NavbarNotification {
-  id: string;
-  title: string;
-  message: string;
-  time: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  icon: string;
-  isRead: boolean;
-  priority?: 2 | 3;
-}
-
 interface NavbarCustomer {
   id: string;
   firstName: string;
@@ -53,6 +49,7 @@ interface NavbarCustomer {
 export class NavbarComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly notificationsStore = inject(NotificationsStore);
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 
@@ -88,51 +85,11 @@ export class NavbarComponent {
     };
   });
 
-  // Static notifications feed
-  readonly notifications = signal<NavbarNotification[]>([
-    {
-      id: 'n1',
-      title: 'New invoice signed',
-      message: 'Maria Gonzalez signed invoice #1042 for tax year 2025.',
-      time: '5m ago',
-      type: 'success',
-      icon: 'checkmark-done-outline',
-      isRead: false,
-    },
-    {
-      id: 'n2',
-      title: 'Task assigned to you',
-      message: 'Review W-2 documents for the Alvarez family before Friday.',
-      time: '38m ago',
-      type: 'info',
-      icon: 'clipboard-outline',
-      isRead: false,
-      priority: 2,
-    },
-    {
-      id: 'n3',
-      title: 'Payment received',
-      message: '$450.00 payment received from David Chen.',
-      time: '2h ago',
-      type: 'success',
-      icon: 'cash-outline',
-      isRead: true,
-    },
-    {
-      id: 'n4',
-      title: 'Payment failed',
-      message: 'Card payment from Sarah Kim could not be processed.',
-      time: '1d ago',
-      type: 'error',
-      icon: 'alert-circle-outline',
-      isRead: true,
-      priority: 3,
-    },
-  ]);
-
-  readonly notificationCount = computed(() => this.notifications().filter(n => !n.isRead).length);
+  // Notificaciones REALES (Communication): feed corto de la campana + conteo en vivo.
+  readonly notifications = this.notificationsStore.recent;
+  readonly notificationCount = this.notificationsStore.unreadCount;
   readonly hasNotifications = computed(() => this.notifications().length > 0);
-  readonly hasReadNotifications = computed(() => this.notifications().some(n => n.isRead));
+  readonly hasUnread = computed(() => this.notificationCount() > 0);
 
   // Static customer directory used for the local search demo
   private readonly customers: NavbarCustomer[] = [
@@ -282,68 +239,32 @@ export class NavbarComponent {
     this.isUserMenuOpen.set(false);
   }
 
-  getNotificationTypeColor(type: NavbarNotification['type']): string {
-    switch (type) {
-      case 'info':
-        return 'text-blue-600';
-      case 'success':
-        return 'text-green-600';
-      case 'warning':
-        return 'text-yellow-600';
-      case 'error':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
-    }
+  notificationIcon(type: NotificationType): string {
+    return notificationIcon(type);
+  }
+  notificationIconBg(type: NotificationType): string {
+    return notificationIconBg(type);
+  }
+  notificationIconText(type: NotificationType): string {
+    return notificationIconText(type);
   }
 
-  getNotificationBgColor(type: NavbarNotification['type']): string {
-    switch (type) {
-      case 'info':
-        return 'bg-blue-50 border-blue-200';
-      case 'success':
-        return 'bg-green-50 border-green-200';
-      case 'warning':
-        return 'bg-yellow-50 border-yellow-200';
-      case 'error':
-        return 'bg-red-50 border-red-200';
-      default:
-        return 'bg-gray-50 border-gray-200';
-    }
-  }
-
-  trackByNotificationId(index: number, notification: NavbarNotification): string {
+  trackByNotificationId(_index: number, notification: AppNotification): string {
     return notification.id;
   }
 
   markAsRead(notificationId: string, event?: Event): void {
     event?.stopPropagation();
-    this.notifications.update(list =>
-      list.map(n => (n.id === notificationId ? { ...n, isRead: true } : n))
-    );
+    this.notificationsStore.markRead(notificationId);
   }
 
   markAllAsRead(): void {
-    this.notifications.update(list => list.map(n => ({ ...n, isRead: true })));
-  }
-
-  deleteNotification(notificationId: string, event?: Event): void {
-    event?.stopPropagation();
-    this.notifications.update(list => list.filter(n => n.id !== notificationId));
-  }
-
-  deleteAllRead(): void {
-    this.notifications.update(list => list.filter(n => !n.isRead));
-  }
-
-  clearAllNotifications(): void {
-    this.notifications.set([]);
-    this.isNotificationsOpen.set(false);
+    this.notificationsStore.markAllRead();
   }
 
   navigateToNotificationCenter(): void {
     this.isNotificationsOpen.set(false);
-    this.router.navigate(['/app/notifications']);
+    this.router.navigate(['/notifications']);
   }
 
   // ==========================================

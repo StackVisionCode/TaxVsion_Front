@@ -91,9 +91,13 @@
           <ion-icon name="notifications-outline" class="text-lg"></ion-icon>
           <span class="sr-only">Notifications</span>
 
-          <!-- Unread dot -->
-          <span *ngIf="notificationCount() > 0"
-            class="absolute top-1 right-1.5 h-2.5 w-2.5 rounded-full bg-orange-500 ring-2 ring-white pointer-events-none"></span>
+          <!-- Unread count badge (con anillo pulsante) -->
+          <span *ngIf="hasUnread()"
+            class="pointer-events-none absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+            {{ notificationCount() > 9 ? '9+' : notificationCount() }}
+          </span>
+          <span *ngIf="hasUnread()"
+            class="pointer-events-none absolute -right-1 -top-1 h-[18px] w-[18px] animate-ping rounded-full bg-orange-400/60 motion-reduce:hidden"></span>
         </button>
 
         <!-- Notifications dropdown -->
@@ -101,102 +105,60 @@
           class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
           <!-- Dropdown header -->
-          <div class="border-b border-gray-100 px-4 py-3">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                Notifications
-                <span *ngIf="notificationCount() > 0"
-                  class="rounded-full bg-brand-bold px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {{ notificationCount() }} new
-                </span>
-              </h3>
-              <button (click)="deleteAllRead()"
-                class="text-xs text-gray-500 hover:text-red-600 transition-colors duration-200 font-medium flex items-center gap-1"
-                [disabled]="!hasReadNotifications()" [class.opacity-50]="!hasReadNotifications()"
-                [class.cursor-not-allowed]="!hasReadNotifications()" title="Clear read">
-                <ion-icon name="trash-outline" class="text-xs"></ion-icon>
-                <span class="hidden sm:inline">Clear read</span>
-              </button>
-            </div>
-            <div class="flex items-center justify-between">
-              <button (click)="markAllAsRead()"
-                class="text-xs text-gray-900 hover:text-gray-600 transition-colors duration-200 font-medium underline underline-offset-2"
-                [disabled]="notificationCount() === 0" [class.opacity-50]="notificationCount() === 0"
-                [class.cursor-not-allowed]="notificationCount() === 0">
-                Mark all as read
-              </button>
-              <button (click)="clearAllNotifications()"
-                class="text-xs text-gray-500 hover:text-gray-900 transition-colors duration-200 font-medium flex items-center gap-1"
-                [disabled]="!hasNotifications()" [class.opacity-50]="!hasNotifications()"
-                [class.cursor-not-allowed]="!hasNotifications()" title="Clear all">
-                <ion-icon name="close-circle-outline" class="text-xs"></ion-icon>
-                <span>Clear all</span>
-              </button>
-            </div>
+          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+              Notifications
+              <span *ngIf="hasUnread()"
+                class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-600">
+                {{ notificationCount() }} new
+              </span>
+            </h3>
+            <button (click)="markAllAsRead()" *ngIf="hasUnread()"
+              class="flex items-center gap-1 text-xs font-semibold text-brand-bold hover:text-brand-ink transition-colors">
+              <ion-icon name="checkmark-done-outline" class="text-sm"></ion-icon>
+              Mark all read
+            </button>
           </div>
 
           <!-- Notifications list -->
           <div class="max-h-80 overflow-y-auto">
-            <div *ngFor="let notification of notifications(); trackBy: trackByNotificationId"
-              class="dropdown-menu-item group relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50"
-              [ngClass]="{'bg-gray-50/70': !notification.isRead}">
+            <button *ngFor="let notification of notifications(); trackBy: trackByNotificationId" type="button"
+              (click)="markAsRead(notification.id, $event)"
+              class="group relative flex w-full items-start gap-3 border-b border-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+              [class.bg-orange-50/40]="!notification.isRead">
+              <!-- Acento de no-leída -->
+              <span *ngIf="!notification.isRead" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-orange-400"></span>
 
-              <div class="flex items-start gap-3">
-                <!-- Notification icon -->
-                <div class="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0"
-                  [ngClass]="getNotificationBgColor(notification.type)">
-                  <ion-icon [name]="notification.icon" class="text-sm"
-                    [ngClass]="getNotificationTypeColor(notification.type)">
-                  </ion-icon>
-                </div>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                [ngClass]="notificationIconBg(notification.type)">
+                <ion-icon [name]="notificationIcon(notification.type)" class="text-base"
+                  [ngClass]="notificationIconText(notification.type)"></ion-icon>
+              </span>
 
-                <!-- Notification content -->
-                <div class="flex-1 min-w-0 cursor-pointer" (click)="markAsRead(notification.id, $event)">
-                  <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-gray-900 truncate pr-2">{{ notification.title }}</p>
-                    <div class="flex items-center gap-1">
-                      <!-- Unread indicator -->
-                      <div *ngIf="!notification.isRead" class="w-2 h-2 bg-brand-bold rounded-full flex-shrink-0"></div>
-                    </div>
-                  </div>
-                  <p class="text-xs text-gray-600 mt-1 line-clamp-2">{{ notification.message }}</p>
-                  <div class="flex items-center justify-between mt-1">
-                    <p class="text-xs text-gray-400">{{ notification.time }}</p>
-                    <!-- Priority badge -->
-                    <span *ngIf="notification.priority" class="text-xs px-2 py-0.5 rounded-full" [ngClass]="{
-                  'bg-yellow-100 text-yellow-700': notification.priority === 2,
-                  'bg-red-100 text-red-700': notification.priority === 3
-                }">
-                      {{ notification.priority === 3 ? 'Urgent' : 'High' }}
-                    </span>
-                  </div>
-                </div>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate text-sm text-gray-900"
+                    [ngClass]="notification.isRead ? 'font-medium' : 'font-bold'">{{ notification.title }}</span>
+                  <span *ngIf="!notification.isRead" class="h-2 w-2 shrink-0 rounded-full bg-orange-500"></span>
+                </span>
+                <span class="mt-0.5 line-clamp-2 text-xs text-gray-500">{{ notification.message }}</span>
+                <span class="mt-1 block text-[11px] text-gray-400">{{ notification.time }}</span>
+              </span>
 
-                <!-- Action buttons (visible on hover) -->
-                <div
-                  class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  <!-- Mark as read button -->
-                  <button *ngIf="!notification.isRead" (click)="markAsRead(notification.id, $event)"
-                    class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/70 hover:text-gray-900 transition-colors"
-                    title="Mark read">
-                    <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
-                  </button>
-
-                  <!-- Delete button -->
-                  <button (click)="deleteNotification(notification.id, $event)"
-                    class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    title="Delete">
-                    <ion-icon name="trash-outline" class="text-sm"></ion-icon>
-                  </button>
-                </div>
-              </div>
-            </div>
+              <!-- Check en hover (solo no-leídas) -->
+              <span *ngIf="!notification.isRead"
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
+                <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
+              </span>
+            </button>
 
             <!-- Empty state -->
-            <div *ngIf="notifications().length === 0" class="px-4 py-8 text-center">
-              <ion-icon name="notifications-off-outline" class="text-4xl text-gray-300 mx-auto mb-3"></ion-icon>
-              <p class="text-sm font-medium text-gray-600">No notifications</p>
-              <p class="text-xs text-gray-400 mt-1">You're all caught up!</p>
+            <div *ngIf="notifications().length === 0" class="px-4 py-10 text-center">
+              <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
+                <ion-icon name="checkmark-done-outline" class="text-3xl"></ion-icon>
+              </span>
+              <p class="text-sm font-semibold text-gray-700">You're all caught up</p>
+              <p class="mt-1 text-xs text-gray-400">New notifications will show up here.</p>
             </div>
           </div>
 
