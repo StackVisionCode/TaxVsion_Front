@@ -1,54 +1,118 @@
-<div class="flex flex-col gap-3">
-  <ng-container *ngFor="let message of messages; let i = index">
-    <!-- Date separator -->
-    <div *ngIf="showDateSeparator(i)" class="my-2 flex justify-center">
-      <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">{{ message.dateGroup }}</span>
+<div #scrollContainer class="h-full overflow-y-auto" (scroll)="onScroll()">
+  <div class="flex min-h-full flex-col justify-end gap-3 py-4 pr-1">
+    <!-- Loading older history -->
+    <div *ngIf="loadingOlder" class="flex justify-center py-2" aria-live="polite">
+      <span class="flex items-center gap-2 text-xs text-gray-400">
+        <ion-icon name="reload-outline" class="animate-spin text-sm motion-reduce:animate-none"></ion-icon>
+        Loading earlier messages…
+      </span>
     </div>
 
-    <div class="flex" [class.justify-end]="message.senderId === 'me'">
-      <!-- Their message -->
-      <div *ngIf="message.senderId === 'them'" class="flex max-w-lg items-end gap-2">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-          [ngClass]="otherAvatarColor">{{ initials(otherName) }}</span>
-        <div>
-          <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3">
-            <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line">{{ message.text }}</p>
-          </div>
-          <button *ngIf="message.attachment" type="button"
-            (click)="attachmentClicked.emit(message.attachment.fileId)"
-            class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
-              <ion-icon name="document-text-outline" class="text-base"></ion-icon>
-            </span>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-              <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+    <ng-container *ngFor="let message of messages; let i = index">
+      <!-- Date separator -->
+      <div *ngIf="showDateSeparator(i)" class="my-2 flex justify-center">
+        <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">{{ message.dateGroup }}</span>
+      </div>
+
+      <div class="group flex" [class.justify-end]="message.senderId === 'me'">
+        <!-- Their message -->
+        <div *ngIf="message.senderId === 'them'" class="flex max-w-lg items-end gap-2">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+            [ngClass]="otherAvatarColor">{{ initials(otherName) }}</span>
+          <div>
+            <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3"
+              [class.italic]="message.isDeleted" [class.text-gray-400]="message.isDeleted">
+              <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line" [class.text-gray-400]="message.isDeleted">{{ message.text }}</p>
             </div>
-          </button>
-          <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
-        </div>
-      </div>
-
-      <!-- My message -->
-      <div *ngIf="message.senderId === 'me'" class="max-w-lg text-right">
-        <div *ngIf="message.text" class="rounded-2xl rounded-br-md bg-brand-bold px-4 py-3">
-          <p class="text-sm leading-relaxed text-white whitespace-pre-line">{{ message.text }}</p>
-        </div>
-        <button *ngIf="message.attachment" type="button"
-          (click)="attachmentClicked.emit(message.attachment.fileId)"
-          class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
-            <ion-icon name="document-text-outline" class="text-base"></ion-icon>
-          </span>
-          <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-            <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+            <button *ngIf="message.attachment" type="button"
+              (click)="attachmentClicked.emit(message.attachment.fileId)"
+              class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+                <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+              </span>
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
+                <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+              </div>
+            </button>
+            <p class="mt-1 text-xs text-gray-400">
+              {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
+            </p>
           </div>
-        </button>
-        <p class="mt-1 text-xs text-gray-400">{{ message.time }}</p>
-      </div>
-    </div>
-  </ng-container>
+        </div>
 
-  <div #scrollAnchor></div>
+        <!-- My message -->
+        <div *ngIf="message.senderId === 'me'" class="flex max-w-lg items-center gap-1.5">
+          <!-- Hover actions (edit/delete) -->
+          <div *ngIf="(canEdit(message) || canDelete(message)) && editingId() !== message.id"
+            class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <button *ngIf="canEdit(message)" type="button" (click)="startEdit(message)" aria-label="Edit message"
+              class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+              <ion-icon name="create-outline" class="text-sm"></ion-icon>
+            </button>
+            <button *ngIf="canDelete(message)" type="button" (click)="deleteRequested.emit(message.id)" aria-label="Delete message"
+              class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+              <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+
+          <div class="min-w-0 text-right">
+            <!-- Inline editor -->
+            <div *ngIf="editingId() === message.id" class="flex items-center gap-2">
+              <input #editInput type="text" [ngModel]="editDraft()" (ngModelChange)="editDraft.set($event)"
+                (keydown.enter)="saveEdit(message)" (keydown.escape)="cancelEdit()" aria-label="Edit message"
+                class="h-9 w-64 max-w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300" />
+              <button type="button" (click)="saveEdit(message)" aria-label="Save edit"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors">
+                <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+              </button>
+              <button type="button" (click)="cancelEdit()" aria-label="Cancel edit"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+                <ion-icon name="close-outline" class="text-base"></ion-icon>
+              </button>
+            </div>
+
+            <!-- Bubble -->
+            <ng-container *ngIf="editingId() !== message.id">
+              <div *ngIf="message.text" class="rounded-2xl rounded-br-md px-4 py-3"
+                [ngClass]="message.isDeleted ? 'bg-gray-100' : 'bg-brand-bold'">
+                <p class="text-sm leading-relaxed whitespace-pre-line"
+                  [ngClass]="message.isDeleted ? 'italic text-gray-400' : 'text-white'">{{ message.text }}</p>
+              </div>
+              <button *ngIf="message.attachment" type="button"
+                (click)="attachmentClicked.emit(message.attachment.fileId)"
+                class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+                  <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
+                  <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+                </div>
+              </button>
+              <p class="mt-1 text-xs text-gray-400">
+                {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
+              </p>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <!-- Read receipt: bajo mi último mensaje leído por el otro -->
+      <p *ngIf="message.senderId === 'me' && message.id === seenAfterMessageId"
+        class="-mt-1 text-right text-[11px] font-medium text-gray-400">Seen</p>
+    </ng-container>
+
+    <!-- Typing indicator -->
+    <div *ngIf="typingName" class="flex items-center gap-2" aria-live="polite">
+      <span class="flex items-end gap-1 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5" aria-hidden="true">
+        <span class="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.3s] motion-reduce:animate-none"></span>
+        <span class="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.15s] motion-reduce:animate-none"></span>
+        <span class="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce motion-reduce:animate-none"></span>
+      </span>
+      <span class="text-xs italic text-gray-500">{{ typingName }} is typing…</span>
+    </div>
+
+    <div #scrollAnchor></div>
+  </div>
 </div>

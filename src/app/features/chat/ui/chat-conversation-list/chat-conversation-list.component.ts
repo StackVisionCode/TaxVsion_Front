@@ -2,12 +2,29 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatMessage } from '../chat-thread/chat-thread.component';
+import {
+  ConversationKind,
+  PresenceBusyReason,
+  PresenceStatus,
+  presenceDotClass,
+  presenceLabel,
+} from '../../data-access/chat.model';
 
 export interface ChatConversation {
   id: string;
   name: string;
+  kind: ConversationKind;
+  /** userId del par en un 1:1 (Direct/Support con 2 participantes), o null (grupo/desconocido). Para llamar. */
+  peerUserId: string | null;
   avatarColor: string;
-  online: boolean;
+  presence: PresenceStatus;
+  busyReason: PresenceBusyReason;
+  /** displayName del otro participante que está escribiendo (1:1), o null. */
+  typingName: string | null;
+  /** id del último mensaje que el otro participante marcó como leído (para "Seen"). */
+  readUpToMessageId: string | null;
+  /** Hay más historial más viejo por cargar (scrollback). */
+  hasMoreHistory: boolean;
   unread: number;
   messages: ChatMessage[];
 }
@@ -56,6 +73,19 @@ export class ChatConversationListComponent {
       return `📎 ${last.attachment.name}`;
     }
     return last.text ?? '';
+  }
+
+  /** El punto de estado solo se muestra si el otro está Online o Busy (Offline no pinta punto). */
+  showPresenceDot(conv: ChatConversation): boolean {
+    return conv.presence !== 'Offline';
+  }
+
+  presenceDotClass(conv: ChatConversation): string {
+    return presenceDotClass(conv.presence);
+  }
+
+  presenceLabel(conv: ChatConversation): string {
+    return presenceLabel(conv.presence, conv.busyReason);
   }
 
   lastTime(conv: ChatConversation): string {

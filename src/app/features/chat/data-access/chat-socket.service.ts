@@ -1,8 +1,6 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { Socket, io } from 'socket.io-client';
-import { Subject } from 'rxjs';
-import { TokenService } from '@core/auth/token.service';
-import { ApiConfigService } from '@core/config/api-config.service';
+import { Injectable, inject } from '@angular/core';
+import { map } from 'rxjs';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import {
   AttachmentFlaggedDto,
   MessageDeletedDto,
@@ -11,13 +9,14 @@ import {
   PresenceChangedDto,
   ReadReceiptDto,
   SocketAck,
-  SocketEnvelope,
   TypingDto,
 } from './chat.model';
 
 /** Nombres de evento exactos de chat-socket-events.ts en Communication (no confiar en el README, está desactualizado). */
 const EVENTS = {
   sendMessage: 'chat.message.send',
+  editMessage: 'chat.message.edit',
+  deleteMessage: 'chat.message.delete',
   markRead: 'chat.message.mark_read',
   typingStart: 'chat.typing.start',
   typingStop: 'chat.typing.stop',
@@ -26,71 +25,81 @@ const EVENTS = {
 } as const;
 
 /**
- * Conexión Socket.IO a Communication — crear conversación, enviar/editar/
- * borrar mensaje, typing, reacciones, etc. son Socket.IO-only en el backend
- * real (no hay fallback HTTP). Un solo socket por sesión de usuario, path
- * fijo `/communication/socket.io` vía Gateway; el token va en
- * `handshake.auth.token`, nunca en la query string.
+ * Fachada tipada de chat sobre {@link CommunicationRealtimeService}: mapea los eventos
+ * server->cliente de chat a streams tipados y traduce los comandos a `emitAck`/`emitNoAck`.
+ * NO abre su propio socket — comparte el único de Communication, cuyo ciclo de vida posee
+ * el shell. Crear conversación, enviar/editar/borrar mensaje y typing son Socket.IO-only
+ * en el backend real (no hay fallback HTTP).
  */
 @Injectable({ providedIn: 'root' })
 export class ChatSocketService {
-  private readonly tokenService = inject(TokenService);
-  private readonly api = inject(ApiConfigService);
-  private socket: Socket | null = null;
+  private readonly realtime = inject(CommunicationRealtimeService);
 
-  readonly connected = signal(false);
+  readonly connected = this.realtime.connected;
+  /** Se re-establece el socket tras un corte — el store re-sincroniza el historial. */
+  readonly reconnected$ = this.realtime.reconnected$;
 
-  readonly messageNew$ = new Subject<MessageDto>();
-  readonly messageEdited$ = new Subject<MessageEditedDto>();
-  readonly messageDeleted$ = new Subject<MessageDeletedDto>();
-  readonly messageRead$ = new Subject<ReadReceiptDto>();
-  readonly typingStarted$ = new Subject<TypingDto>();
-  readonly typingStopped$ = new Subject<TypingDto>();
-  readonly presenceChanged$ = new Subject<PresenceChangedDto>();
-  readonly attachmentFlagged$ = new Subject<AttachmentFlaggedDto>();
-  /** Emite el sessionId (sid) de la sesión revocada; el consumidor lo compara con el suyo. */
-  readonly sessionRevoked$ = new Subject<string | null>();
+  readonly messageNew$ = this.realtime.on<MessageDto>('chat.message.new');
+  readonly messageEdited$ = this.realtime.on<MessageEditedDto>('chat.message.edited');
+  readonly messageDeleted$ = this.realtime.on<MessageDeletedDto>('chat.message.deleted');
+  readonly messageRead$ = this.realtime.on<ReadReceiptDto>('chat.message.read');
+  readonly typingStarted$ = this.realtime.on<TypingDto>('chat.typing.started');
+  readonly typingStopped$ = this.realtime.on<TypingDto>('chat.typing.stopped');
+  readonly presenceChanged$ = this.realtime.on<PresenceChangedDto>('chat.presence.changed');
+  readonly attachmentFlagged$ = this.realtime.on<AttachmentFlaggedDto>('chat.message.attachment_flagged');
+  /**
+   * Emite el sessionId (sid) de la sesión revocada; el consumidor lo compara con el suyo.
+   * El evento va a la sala del usuario (todos sus sockets), así que el consumidor debe
+   * ignorar los que no sean de ESTA sesión — ver SessionRevocationService.
+   */
+  readonly sessionRevoked$ = this.realtime
+    .on<{ sessionId: string | null }>('session.revoked')
+    .pipe(map(payload => payload?.sessionId ?? null));
 
   connect(): void {
-    if (this.socket) {
-      return;
-    }
-    const token = this.tokenService.getAccessToken();
-    if (!token) {
-      return;
-    }
-    this.socket = io(this.api.tenantBase(), {
-      path: '/communication/socket.io',
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
-    this.wireEvents(this.socket);
+    this.realtime.connect();
   }
 
   disconnect(): void {
-    this.socket?.disconnect();
-    this.socket = null;
-    this.connected.set(false);
+    this.realtime.disconnect();
   }
 
   async sendMessage(conversationId: string, body: string): Promise<SocketAck<{ message: MessageDto }>> {
-    return this.emitWithAck(EVENTS.sendMessage, { clientKey: newClientKey(), conversationId, body });
+    return this.realtime.emitAck(EVENTS.sendMessage, { clientKey: this.realtime.newClientKey(), conversationId, body });
   }
 
   /** Mismo evento que sendMessage, pero con attachmentFileId — body/attachmentFileId son mutuamente excluyentes en el backend. */
   async sendAttachment(conversationId: string, attachmentFileId: string): Promise<SocketAck<{ message: MessageDto }>> {
-    return this.emitWithAck(EVENTS.sendMessage, { clientKey: newClientKey(), conversationId, attachmentFileId });
+    return this.realtime.emitAck(EVENTS.sendMessage, {
+      clientKey: this.realtime.newClientKey(),
+      conversationId,
+      attachmentFileId,
+    });
+  }
+
+  /** Edita el texto de un mensaje propio (solo Text, solo el sender). Broadcast: chat.message.edited. */
+  async editMessage(messageId: string, body: string): Promise<SocketAck<{ edited: MessageEditedDto }>> {
+    return this.realtime.emitAck(EVENTS.editMessage, { clientKey: this.realtime.newClientKey(), messageId, body });
+  }
+
+  /** Borra (soft) un mensaje propio (o como moderador). Broadcast: chat.message.deleted. */
+  async deleteMessage(messageId: string): Promise<SocketAck<{ deleted: MessageDeletedDto }>> {
+    return this.realtime.emitAck(EVENTS.deleteMessage, { clientKey: this.realtime.newClientKey(), messageId });
   }
 
   async markRead(conversationId: string, lastReadMessageId: string): Promise<SocketAck<{ markedCount: number }>> {
-    return this.emitWithAck(EVENTS.markRead, { clientKey: newClientKey(), conversationId, lastReadMessageId });
+    return this.realtime.emitAck(EVENTS.markRead, {
+      clientKey: this.realtime.newClientKey(),
+      conversationId,
+      lastReadMessageId,
+    });
   }
 
   /** Crea (o reabre, ver `wasCreated`) un chat 1:1. Requiere permiso communication.chat.start. */
   async startDirectConversation(
     recipientUserId: string,
   ): Promise<SocketAck<{ conversationId: string; wasCreated: boolean }>> {
-    return this.emitWithAck(EVENTS.startDirect, { clientKey: newClientKey(), recipientUserId });
+    return this.realtime.emitAck(EVENTS.startDirect, { clientKey: this.realtime.newClientKey(), recipientUserId });
   }
 
   /** Crea un grupo nuevo (nunca dedupe). Requiere permiso communication.group.create + tenant con internalGroupsEnabled. */
@@ -98,59 +107,18 @@ export class ChatSocketService {
     title: string,
     memberUserIds: string[],
   ): Promise<SocketAck<{ conversationId: string }>> {
-    return this.emitWithAck(EVENTS.startGroup, { clientKey: newClientKey(), title, memberUserIds });
+    return this.realtime.emitAck(EVENTS.startGroup, {
+      clientKey: this.realtime.newClientKey(),
+      title,
+      memberUserIds,
+    });
   }
 
   typingStart(conversationId: string): void {
-    this.socket?.emit(EVENTS.typingStart, { conversationId });
+    this.realtime.emitNoAck(EVENTS.typingStart, { conversationId });
   }
 
   typingStop(conversationId: string): void {
-    this.socket?.emit(EVENTS.typingStop, { conversationId });
+    this.realtime.emitNoAck(EVENTS.typingStop, { conversationId });
   }
-
-  private async emitWithAck<T>(event: string, payload: unknown): Promise<SocketAck<T>> {
-    if (!this.socket?.connected) {
-      return { ok: false, code: 'Socket.NotConnected', message: 'Not connected to chat server.' };
-    }
-    try {
-      return await this.socket.timeout(10_000).emitWithAck(event, payload);
-    } catch {
-      return { ok: false, code: 'Socket.Timeout', message: 'The chat server did not respond in time.' };
-    }
-  }
-
-  private wireEvents(socket: Socket): void {
-    socket.on('connect', () => this.connected.set(true));
-    socket.on('disconnect', () => this.connected.set(false));
-
-    socket.on('chat.message.new', (envelope: SocketEnvelope<MessageDto>) => this.messageNew$.next(envelope.payload));
-    socket.on('chat.message.edited', (envelope: SocketEnvelope<MessageEditedDto>) =>
-      this.messageEdited$.next(envelope.payload),
-    );
-    socket.on('chat.message.deleted', (envelope: SocketEnvelope<MessageDeletedDto>) =>
-      this.messageDeleted$.next(envelope.payload),
-    );
-    socket.on('chat.message.read', (envelope: SocketEnvelope<ReadReceiptDto>) => this.messageRead$.next(envelope.payload));
-    socket.on('chat.typing.started', (envelope: SocketEnvelope<TypingDto>) => this.typingStarted$.next(envelope.payload));
-    socket.on('chat.typing.stopped', (envelope: SocketEnvelope<TypingDto>) => this.typingStopped$.next(envelope.payload));
-    socket.on('chat.presence.changed', (envelope: SocketEnvelope<PresenceChangedDto>) =>
-      this.presenceChanged$.next(envelope.payload),
-    );
-    socket.on('chat.message.attachment_flagged', (envelope: SocketEnvelope<AttachmentFlaggedDto>) =>
-      this.attachmentFlagged$.next(envelope.payload),
-    );
-    // Canal propio, separado de cualquier otro evento — logout forzado (ver README Communication). Se
-    // emite el sid revocado: el evento va a la sala del usuario (todos sus sockets), así que el
-    // consumidor debe ignorar los que no sean de ESTA sesión.
-    socket.on('session.revoked', (envelope: SocketEnvelope<{ sessionId: string | null }>) =>
-      this.sessionRevoked$.next(envelope?.payload?.sessionId ?? null),
-    );
-  }
-}
-
-function newClientKey(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `ck-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

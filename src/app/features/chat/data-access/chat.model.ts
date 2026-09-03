@@ -67,12 +67,32 @@ export interface TypingDto {
 }
 
 export type PresenceStatus = 'Online' | 'Busy' | 'Offline';
+export type PresenceBusyReason = 'Call' | 'Meeting' | null;
 
 export interface PresenceChangedDto {
   userId: string;
   status: PresenceStatus;
-  busyReason: 'Call' | 'Meeting' | null;
+  busyReason: PresenceBusyReason;
   changedAtUtc: string;
+}
+
+/** Etiqueta legible del estado de presencia (nunca solo color — ver a11y). */
+export function presenceLabel(status: PresenceStatus, busyReason: PresenceBusyReason): string {
+  if (status === 'Online') {
+    return 'Online';
+  }
+  if (status === 'Busy') {
+    return busyReason === 'Call' ? 'In a call' : busyReason === 'Meeting' ? 'In a meeting' : 'Busy';
+  }
+  return 'Offline';
+}
+
+export function presenceDotClass(status: PresenceStatus): string {
+  return status === 'Online' ? 'bg-emerald-500' : status === 'Busy' ? 'bg-amber-500' : 'bg-gray-300';
+}
+
+export function presenceTextClass(status: PresenceStatus): string {
+  return status === 'Online' ? 'text-emerald-600' : status === 'Busy' ? 'text-amber-600' : 'text-gray-400';
 }
 
 export interface MessageEditedDto {
@@ -97,6 +117,20 @@ export interface EmployeeDirectoryEntry {
   actorType: string;
 }
 
+/**
+ * Fila de GET /communication/directory/customers?q=&limit=.
+ * `portalUserId` es el userId de Auth de la cuenta de portal activa del cliente
+ * (el id que pide `chat.conversation.start_direct`), o null si el cliente todavía
+ * no activó el portal — en ese caso NO es chateable.
+ */
+export interface CustomerDirectoryEntry {
+  customerId: string;
+  displayName: string;
+  email: string;
+  isActive: boolean;
+  portalUserId: string | null;
+}
+
 /** Payload de chat.message.attachment_flagged — CloudStorage marcó el adjunto como no disponible. */
 export interface AttachmentFlaggedDto {
   messageId: string;
@@ -106,14 +140,6 @@ export interface AttachmentFlaggedDto {
   flaggedAtUtc: string;
 }
 
-/** Sobre de ack de todos los comandos Socket.IO (send/edit/delete/markRead/...). */
-export type SocketAck<T> = { ok: true; value: T } | { ok: false; code: string; message: string };
-
-/** Sobre de todo evento server->client (chat-socket-events.ts SocketEnvelope<T>). */
-export interface SocketEnvelope<T> {
-  eventId: string;
-  correlationId: string;
-  emittedAtUtc: string;
-  sequence?: number;
-  payload: T;
-}
+// SocketEnvelope<T> y SocketAck<T> son transversales: viven en core/realtime y se
+// re-exportan acá para no romper los imports existentes del feature de chat.
+export type { SocketAck, SocketEnvelope } from '@core/realtime/realtime.model';

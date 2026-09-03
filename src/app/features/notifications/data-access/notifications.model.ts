@@ -115,6 +115,73 @@ export function relativeTimeLabel(isoUtc: string, nowMs: number = Date.now()): s
   return new Date(then).toLocaleDateString();
 }
 
+/** Icono ion por tipo — compartido por el centro de notificaciones y la campana del navbar. */
+export function notificationIcon(type: NotificationType): string {
+  switch (type) {
+    case 'customer_created':
+      return 'person-add-outline';
+    case 'customer_updated':
+      return 'person-outline';
+    case 'customer_assigned':
+      return 'people-outline';
+    case 'payment_received':
+      return 'cash-outline';
+    case 'payment_failed':
+      return 'alert-circle-outline';
+    case 'invoice_generated':
+      return 'receipt-outline';
+    case 'document_signed':
+      return 'checkmark-done-outline';
+    case 'document_uploaded':
+      return 'cloud-upload-outline';
+    case 'session_expiring':
+      return 'time-outline';
+    case 'subscription_expiring':
+      return 'warning-outline';
+    case 'system_alert':
+      return 'alert-outline';
+    default:
+      return 'notifications-outline';
+  }
+}
+
+/** Color de fondo del círculo del icono por tipo. */
+export function notificationIconBg(type: NotificationType): string {
+  switch (type) {
+    case 'customer_created':
+    case 'customer_updated':
+    case 'customer_assigned':
+      return 'bg-indigo-100';
+    case 'payment_received':
+    case 'invoice_generated':
+      return 'bg-emerald-500';
+    case 'document_signed':
+    case 'document_uploaded':
+      return 'bg-brand-bold';
+    case 'session_expiring':
+    case 'subscription_expiring':
+      return 'bg-orange-500';
+    case 'payment_failed':
+    case 'system_alert':
+      return 'bg-red-500';
+    default:
+      return 'bg-gray-200';
+  }
+}
+
+/** Color del icono (oscuro sobre pasteles, blanco sobre sólidos). */
+export function notificationIconText(type: NotificationType): string {
+  switch (type) {
+    case 'customer_created':
+    case 'customer_updated':
+    case 'customer_assigned':
+    case 'general':
+      return 'text-gray-700';
+    default:
+      return 'text-white';
+  }
+}
+
 /** DTO del backend → modelo de la lista (leída = readAtUtc !== null). */
 export function dtoToAppNotification(dto: NotificationDto): AppNotification {
   return {

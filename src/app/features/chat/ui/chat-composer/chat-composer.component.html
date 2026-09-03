@@ -7,7 +7,7 @@
 
   <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
     <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"
-      (ngModelChange)="draft.set($event)"
+      (ngModelChange)="onDraftChange($event)" (blur)="onBlur()"
       class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
   </div>
 

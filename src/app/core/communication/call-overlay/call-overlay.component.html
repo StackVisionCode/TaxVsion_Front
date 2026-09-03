@@ -1,0 +1,188 @@
+<!-- Audio remoto (siempre en el DOM para que suene aunque sea video o se oculte). -->
+<audio [srcObject]="remoteStream()" autoplay class="hidden"></audio>
+
+<!-- ============ Modal de consentimiento de grabación (lo ve quien NO pidió grabar) ============ -->
+<div *ngIf="recordingConsentFrom()" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+  role="dialog" aria-modal="true" aria-label="Recording consent">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500">
+      <ion-icon name="radio-button-on-outline" class="text-2xl"></ion-icon>
+    </span>
+    <p class="mt-4 text-base font-bold text-gray-900">{{ peerDisplayName() || 'The other participant' }} wants to record this call</p>
+    <p class="mt-1 text-sm text-gray-500">The call will be recorded only if you allow it.</p>
+    <div class="mt-5 flex items-center justify-center gap-3">
+      <button type="button" (click)="declineRecording()"
+        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+        Decline
+      </button>
+      <button type="button" (click)="acceptRecording()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Allow recording
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Video stage (llamada de video conectándose/activa) ============ -->
+<div *ngIf="visible() && showVideoStage()"
+  class="fixed inset-x-4 bottom-4 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-96"
+  role="dialog" aria-live="polite" [attr.aria-label]="statusLabel() + ' with ' + (peerDisplayName() || 'contact')">
+  <div class="relative overflow-hidden rounded-3xl bg-gray-900 text-white shadow-2xl">
+    <!-- Remote video stage -->
+    <div class="relative aspect-video w-full bg-black">
+      <video [srcObject]="remoteStream()" autoplay playsinline muted
+        class="h-full w-full object-cover" [class.opacity-0]="showRemotePlaceholder()"></video>
+
+      <!-- Placeholder cuando el par no envía video (conectando, o audio-only) -->
+      <div *ngIf="showRemotePlaceholder()" class="absolute inset-0 flex flex-col items-center justify-center gap-2">
+        <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-lg font-bold">
+          {{ initials(peerDisplayName()) }}
+        </span>
+        <span class="text-xs text-white/70">{{ isConnecting() ? 'Connecting…' : (peerDisplayName() || 'Contact') }}</span>
+      </div>
+
+      <!-- Nombre + badge "Sharing" (arriba, sobre el video) -->
+      <div class="absolute left-3 top-3 flex items-center gap-2">
+        <span class="rounded-full bg-black/40 px-3 py-1 text-xs font-medium backdrop-blur-sm">{{ peerDisplayName() || 'Contact' }}</span>
+        <span *ngIf="screenSharing()" class="flex items-center gap-1 rounded-full bg-brand-bold/80 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
+          <ion-icon name="desktop-outline" class="text-xs"></ion-icon> Sharing
+        </span>
+        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
+          <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC
+        </span>
+        <span *ngIf="showQuality()" class="flex items-end gap-0.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm"
+          role="img" [attr.aria-label]="connectionQuality() + ' connection'" [attr.title]="connectionQuality() + ' connection'">
+          <span class="h-1.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 1 ? qualityColor() : 'bg-white/25'"></span>
+          <span class="h-2.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 2 ? qualityColor() : 'bg-white/25'"></span>
+          <span class="h-3.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 3 ? qualityColor() : 'bg-white/25'"></span>
+        </span>
+        <span *ngIf="reconnecting()" class="flex items-center gap-1 rounded-full bg-amber-500/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
+          <ion-icon name="reload-outline" class="animate-spin text-xs motion-reduce:animate-none"></ion-icon> Reconnecting…
+        </span>
+      </div>
+
+      <!-- Local PiP (abajo-derecha) -->
+      <div class="absolute bottom-3 right-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
+        <video [srcObject]="localStream()" autoplay playsinline muted
+          class="h-full w-full object-cover" [class.-scale-x-100]="!screenSharing()"
+          [class.opacity-0]="!videoEnabled() && !screenSharing()"></video>
+        <div *ngIf="!videoEnabled() && !screenSharing()" class="absolute inset-0 flex items-center justify-center">
+          <ion-icon name="videocam-off-outline" class="text-lg text-white/60"></ion-icon>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls (siempre visibles) -->
+    <div class="flex items-center justify-center gap-3 py-4">
+      <button type="button" (click)="toggleAudio()"
+        [attr.aria-pressed]="!audioEnabled()" [attr.aria-label]="audioEnabled() ? 'Mute microphone' : 'Unmute microphone'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
+        [ngClass]="audioEnabled() ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-white text-gray-900'">
+        <ion-icon [name]="audioEnabled() ? 'mic-outline' : 'mic-off-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="!screenSharing()" type="button" (click)="toggleVideo()"
+        [attr.aria-pressed]="!videoEnabled()" [attr.aria-label]="videoEnabled() ? 'Turn camera off' : 'Turn camera on'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
+        [ngClass]="videoEnabled() ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-white text-gray-900'">
+        <ion-icon [name]="videoEnabled() ? 'videocam-outline' : 'videocam-off-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="canScreenShare" type="button" (click)="toggleScreenShare()"
+        [attr.aria-pressed]="screenSharing()" [attr.aria-label]="screenSharing() ? 'Stop sharing screen' : 'Share screen'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
+        [ngClass]="screenSharing() ? 'bg-white text-gray-900' : 'bg-white/15 hover:bg-white/25 text-white'">
+        <ion-icon [name]="screenSharing() ? 'stop-circle-outline' : 'desktop-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="showRecordButton() || (isRecording() && isRecordingRequester())" type="button" (click)="toggleRecording()"
+        [disabled]="isRecordingBusy()"
+        [attr.aria-label]="isRecording() ? 'Stop recording' : 'Record call'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors disabled:opacity-50"
+        [ngClass]="isRecording() ? 'bg-white text-red-600' : 'bg-white/15 hover:bg-white/25 text-white'">
+        <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button type="button" (click)="end()" aria-label="End call"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors">
+        <ion-icon name="call-outline" class="rotate-[135deg] text-xl"></ion-icon>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Card compacta (audio, o entrante/saliente de cualquier tipo) ============ -->
+<div *ngIf="visible() && !showVideoStage()"
+  class="fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-80"
+  role="dialog" aria-live="polite" [attr.aria-label]="statusLabel() + ' with ' + (peerDisplayName() || 'contact')">
+  <div class="rounded-3xl bg-brand-bold p-5 text-white shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 text-base font-bold">
+        {{ initials(peerDisplayName()) }}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-base font-semibold">{{ peerDisplayName() || 'Contact' }}</p>
+        <p class="flex items-center gap-1.5 text-xs text-white/70">
+          <span *ngIf="isOutgoing() || isConnecting()"
+            class="inline-block h-1.5 w-1.5 rounded-full bg-white/70 animate-pulse motion-reduce:animate-none"></span>
+          <ion-icon *ngIf="isIncoming() && isVideo()" name="videocam-outline" class="text-sm"></ion-icon>
+          {{ reconnecting() ? 'Reconnecting…' : statusLabel() }}
+          <span *ngIf="showQuality()" class="ml-1 flex items-end gap-0.5" role="img"
+            [attr.aria-label]="connectionQuality() + ' connection'" [attr.title]="connectionQuality() + ' connection'">
+            <span class="h-1.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 1 ? qualityColor() : 'bg-white/25'"></span>
+            <span class="h-2 w-1 rounded-sm" [ngClass]="qualityBars() >= 2 ? qualityColor() : 'bg-white/25'"></span>
+            <span class="h-2.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 3 ? qualityColor() : 'bg-white/25'"></span>
+          </span>
+          <ion-icon *ngIf="reconnecting()" name="reload-outline" class="ml-1 animate-spin text-xs motion-reduce:animate-none"></ion-icon>
+          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Incoming: accept / decline -->
+    <div *ngIf="isIncoming()" class="mt-5 flex items-center justify-center gap-3">
+      <button type="button" (click)="decline()" aria-label="Decline call"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors">
+        <ion-icon name="call-outline" class="rotate-[135deg] text-xl"></ion-icon>
+      </button>
+      <button type="button" (click)="accept()" aria-label="Accept call"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+        <ion-icon [name]="isVideo() ? 'videocam-outline' : 'call-outline'" class="text-xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Outgoing / connecting (audio): cancel -->
+    <div *ngIf="isOutgoing() || isConnecting()" class="mt-5 flex justify-center">
+      <button type="button" (click)="end()" aria-label="Cancel call"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors">
+        <ion-icon name="call-outline" class="rotate-[135deg] text-xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Active (audio): mute + turn on video (upgrade) + end -->
+    <div *ngIf="isActive()" class="mt-5 flex items-center justify-center gap-3">
+      <button type="button" (click)="toggleAudio()"
+        [attr.aria-pressed]="!audioEnabled()" [attr.aria-label]="audioEnabled() ? 'Mute microphone' : 'Unmute microphone'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
+        [ngClass]="audioEnabled() ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-white text-brand-bold'">
+        <ion-icon [name]="audioEnabled() ? 'mic-outline' : 'mic-off-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="canUpgradeToVideo()" type="button" (click)="upgrade()" aria-label="Turn on video"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
+        <ion-icon name="videocam-outline" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="canScreenShare" type="button" (click)="toggleScreenShare()" aria-label="Share screen"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
+        <ion-icon name="desktop-outline" class="text-xl"></ion-icon>
+      </button>
+      <button *ngIf="showRecordButton() || (isRecording() && isRecordingRequester())" type="button" (click)="toggleRecording()"
+        [disabled]="isRecordingBusy()" [attr.aria-label]="isRecording() ? 'Stop recording' : 'Record call'"
+        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors disabled:opacity-50"
+        [ngClass]="isRecording() ? 'bg-white text-red-600' : 'bg-white/15 hover:bg-white/25 text-white'">
+        <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-xl"></ion-icon>
+      </button>
+      <button type="button" (click)="end()" aria-label="End call"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors">
+        <ion-icon name="call-outline" class="rotate-[135deg] text-xl"></ion-icon>
+      </button>
+    </div>
+  </div>
+</div>

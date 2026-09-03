@@ -17,7 +17,8 @@ export interface MenuItem {
   submenu?: SubMenuItem[];
   isOpen?: boolean;
   isActive?: boolean;
-  badge?: boolean;
+  /** Conteo para el badge (p. ej. no-leídos del chat). Undefined/0 = sin badge. */
+  badge?: number;
   isSpecial?: boolean; // Para elementos especiales como AI
   requiredPermissions?: string[];
   visibleForRoles?: string[];

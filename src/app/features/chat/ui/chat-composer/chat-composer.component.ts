@@ -18,8 +18,19 @@ export class ChatComposerComponent {
   @Input() uploading = false;
   @Output() send = new EventEmitter<string>();
   @Output() attach = new EventEmitter<File>();
+  /** true en cada pulsación con texto, false al enviar o vaciar/blur. El padre lo throttlea al socket. */
+  @Output() typing = new EventEmitter<boolean>();
 
   readonly draft = signal('');
+
+  onDraftChange(value: string): void {
+    this.draft.set(value);
+    this.typing.emit(value.trim().length > 0);
+  }
+
+  onBlur(): void {
+    this.typing.emit(false);
+  }
 
   submit(): void {
     const text = this.draft().trim();
@@ -28,6 +39,7 @@ export class ChatComposerComponent {
     }
     this.send.emit(text);
     this.draft.set('');
+    this.typing.emit(false);
   }
 
   onFileSelected(event: Event): void {

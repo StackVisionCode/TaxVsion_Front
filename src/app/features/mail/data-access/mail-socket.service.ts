@@ -1,8 +1,6 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { Socket, io } from 'socket.io-client';
-import { Subject } from 'rxjs';
-import { TokenService } from '@core/auth/token.service';
-import { ApiConfigService } from '@core/config/api-config.service';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 
 /** Payload de `mail.incoming` (Communication) — solo ids, sin asunto ni cuerpo. */
 export interface MailIncomingEmailPayload {
@@ -11,52 +9,33 @@ export interface MailIncomingEmailPayload {
   incomingEmailId: string;
 }
 
-interface SocketEnvelope<T> {
-  payload: T;
-}
-
 /**
- * Socket realtime del módulo Mail. Se conecta al MISMO Socket.IO de Communication que el chat
- * (`/communication/socket.io` vía Gateway, token en `handshake.auth`), pero solo escucha
- * `mail.incoming`: cuando llega un correo entrante de un cliente, Communication lo emite a la room
- * del tenant (`t:{tenantId}`, a la que todo socket autenticado se une al conectar) y el store decide
- * si recarga los hilos. No envía nada al server — es solo escucha.
+ * Fachada de realtime del módulo Mail sobre {@link CommunicationRealtimeService}. Solo
+ * escucha `mail.incoming`: cuando llega un correo entrante de un cliente, Communication lo
+ * emite a la sala del tenant y el store decide si recarga los hilos. No envía nada.
  *
- * TODO: cuando exista `core/realtime` (socket compartido), consolidar esta conexión con la del chat
- * para no abrir dos sockets por usuario.
+ * Comparte el ÚNICO socket de Communication (antes abría uno propio): el ciclo de vida lo
+ * posee el shell autenticado.
  */
 @Injectable({ providedIn: 'root' })
 export class MailSocketService {
-  private readonly tokenService = inject(TokenService);
-  private readonly api = inject(ApiConfigService);
-  private socket: Socket | null = null;
+  private readonly realtime = inject(CommunicationRealtimeService);
 
-  readonly connected = signal(false);
-  readonly incomingEmail$ = new Subject<MailIncomingEmailPayload>();
+  readonly connected = this.realtime.connected;
+  readonly incomingEmail$: Observable<MailIncomingEmailPayload> =
+    this.realtime.on<MailIncomingEmailPayload>('mail.incoming');
 
+  /** Asegura que el socket compartido esté arriba. Idempotente; normalmente el shell ya lo conectó. */
   connect(): void {
-    if (this.socket) {
-      return;
-    }
-    const token = this.tokenService.getAccessToken();
-    if (!token) {
-      return;
-    }
-    this.socket = io(this.api.tenantBase(), {
-      path: '/communication/socket.io',
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
-    this.socket.on('connect', () => this.connected.set(true));
-    this.socket.on('disconnect', () => this.connected.set(false));
-    this.socket.on('mail.incoming', (env: SocketEnvelope<MailIncomingEmailPayload>) =>
-      this.incomingEmail$.next(env.payload),
-    );
+    this.realtime.connect();
   }
 
+  /**
+   * No-op deliberado. El socket de Communication es COMPARTIDO (chat, presencia y
+   * session.revoked viajan por él) y su ciclo de vida lo posee el shell. Salir del módulo
+   * Mail no debe cerrarlo. Se conserva el método para no cambiar el call site de mail.store.
+   */
   disconnect(): void {
-    this.socket?.disconnect();
-    this.socket = null;
-    this.connected.set(false);
+    /* intencionalmente no cierra el socket compartido */
   }
 }
