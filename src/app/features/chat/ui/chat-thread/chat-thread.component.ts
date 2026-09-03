@@ -126,9 +126,15 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
 
     if (this.conversationId !== this.prevConversationId) {
       this.pendingScroll = 'bottom'; // conversación nueva: al fondo
+      this.isAtBottom = true; // entrar a un hilo arranca pegado al fondo (no arrastra el estado del anterior)
     } else if (count > this.prevCount) {
       const prepended = last === this.prevLastId && first !== this.prevFirstId;
-      if (prepended && this.prevCount > 1) {
+      if (this.prevCount === 0) {
+        // Primera población del hilo: al cambiar de conversación el store vacía la lista y los mensajes
+        // llegan en un ngOnChanges POSTERIOR (con conversationId ya igual). Sin este caso caía al `else`
+        // y dependía de `isAtBottom` heredado de la conversación anterior → se quedaba arriba.
+        this.pendingScroll = 'bottom';
+      } else if (prepended && this.prevCount > 1) {
         // Prepend REAL (loadOlder sobre un hilo ya cargado): preservá el mensaje que se estaba mirando.
         this.pendingScroll = 'preserve';
         this.preserveFromHeight = this.scrollContainer?.nativeElement.scrollHeight ?? 0; // alto ANTES de renderizar
