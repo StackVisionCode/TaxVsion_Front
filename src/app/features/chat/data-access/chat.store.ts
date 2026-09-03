@@ -482,6 +482,17 @@ export class ChatStore {
     return this.startDirectWith(entry.portalUserId, entry.displayName);
   }
 
+  /** Traduce el ack de error a un mensaje de usuario (sin filtrar códigos de permiso). */
+  private friendlyStartError(code: string, message: string): string {
+    if (/^Missing communication|forbidden|permission|not allowed|not assigned/i.test(message) || /forbidden|permission/i.test(code)) {
+      return "You don't have access to start chats yet. This may require a plan upgrade.";
+    }
+    if (code === 'Socket.NotConnected' || code === 'Socket.Timeout') {
+      return "Couldn't reach the chat server. Please try again.";
+    }
+    return 'Could not start the conversation.';
+  }
+
   /** Núcleo compartido de start_direct (empleado o cliente): mismo comando, mismo optimismo/navegación. */
   private async startDirectWith(recipientUserId: string, displayName: string): Promise<boolean> {
     this._creatingConversation.set(true);
@@ -489,7 +500,7 @@ export class ChatStore {
     const ack = await this.socket.startDirectConversation(recipientUserId);
     this._creatingConversation.set(false);
     if (!ack.ok) {
-      this._newConversationError.set(ack.message);
+      this._newConversationError.set(this.friendlyStartError(ack.code, ack.message));
       return false;
     }
     this.ensureOptimisticConversation(ack.value.conversationId, displayName);
@@ -506,7 +517,7 @@ export class ChatStore {
     );
     this._creatingConversation.set(false);
     if (!ack.ok) {
-      this._newConversationError.set(ack.message);
+      this._newConversationError.set(this.friendlyStartError(ack.code, ack.message));
       return false;
     }
     this.ensureOptimisticConversation(ack.value.conversationId, title);
