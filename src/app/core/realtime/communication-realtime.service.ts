@@ -58,7 +58,11 @@ export class CommunicationRealtimeService {
     }
     this.socket = io(this.api.tenantBase(), {
       path: '/communication/socket.io',
-      transports: ['websocket', 'polling'],
+      // Polling primero y luego upgrade a WebSocket: detrás de proxies/Cloudflare
+      // el upgrade WS puede fallar y con websocket-first socket.io reintenta en
+      // bucle (reconexión constante → real-time perdido). Polling-first es estable
+      // y sube a WS solo si el proxy lo permite.
+      transports: ['polling', 'websocket'],
       auth: { token },
       withCredentials: true,
     });
