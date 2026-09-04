@@ -82,6 +82,14 @@ export class ActiveCallService {
    */
   private pcReady: Promise<void> | null = null;
   private isPolite = false;
+  /**
+   * Solo el que INICIA la llamada crea la oferta. Ambos peers agregan pistas en `buildPeerConnection`
+   * → ambos disparaban `onnegotiationneeded` → el callee creaba su propia oferta y, al llegar la del
+   * caller, hacía un rollback que reordenaba los m-lines ("m-lines in answer don't match order in offer").
+   * Como el upgrade a video / screen-share usan `replaceTrack` (sin renegociar), el callee NUNCA necesita
+   * ofertar: solo responde. Se basa en quién inició (no en `isPolite`, que lo reasigna el server).
+   */
+  private isCaller = false;
   private makingOffer = false;
   private ignoreOffer = false;
   private listenersBound = false;
@@ -121,6 +129,7 @@ export class ActiveCallService {
       this.peerDisplayName.set(dto.callerDisplayName);
       this.conversationId.set(dto.conversationId);
       this.isPolite = true; // el callee es polite
+      this.isCaller = false; // el callee responde, no oferta
       this.phase.set('incoming');
     });
 
@@ -233,6 +242,7 @@ export class ActiveCallService {
     this.audioEnabled.set(true);
     this.videoEnabled.set(kind === 'Video');
     this.isPolite = false; // el caller es impolite
+    this.isCaller = true; // el caller crea la ÚNICA oferta
     this.phase.set('outgoing');
 
     try {
@@ -623,6 +633,11 @@ export class ActiveCallService {
     };
 
     pc.onnegotiationneeded = async () => {
+      // Solo el que inició oferta (ver `isCaller`). El callee solo responde → evita glare y el
+      // reordenamiento de m-lines que rechazaba la answer.
+      if (!this.isCaller) {
+        return;
+      }
       try {
         this.makingOffer = true;
         await pc.setLocalDescription();
@@ -834,6 +849,7 @@ export class ActiveCallService {
     this._recordingRequesterId.set(null);
     this.makingOffer = false;
     this.ignoreOffer = false;
+    this.isCaller = false;
   }
 
   /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
