@@ -21,8 +21,6 @@ export interface ChatConversation {
   busyReason: PresenceBusyReason;
   /** displayName del otro participante que está escribiendo (1:1), o null. */
   typingName: string | null;
-  /** id del último mensaje que el otro participante marcó como leído (para "Seen"). */
-  readUpToMessageId: string | null;
   /** Hay más historial más viejo por cargar (scrollback). */
   hasMoreHistory: boolean;
   unread: number;

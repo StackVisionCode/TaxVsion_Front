@@ -171,7 +171,6 @@ export class ChatPageComponent {
         presence: 'Offline' as const,
         busyReason: null,
         typingName: null,
-        readUpToMessageId: null,
         hasMoreHistory: false,
         unread: 0,
         messages: [] as ChatMessage[],

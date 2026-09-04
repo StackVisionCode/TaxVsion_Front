@@ -90,17 +90,21 @@
                   <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
                 </div>
               </button>
-              <p class="mt-1 text-xs text-gray-400">
-                {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
+              <p class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-400">
+                <span>{{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span></span>
+                <!-- Cotejos (solo MIS mensajes, no borrados): ✓ enviado / ✓✓ entregado (gris) / ✓✓ leído (azul). -->
+                <span *ngIf="!message.isDeleted"
+                  class="inline-flex items-center leading-none"
+                  [ngClass]="message.status === 'read' ? 'text-indigo-500' : 'text-gray-400'"
+                  [attr.title]="message.status === 'read' ? 'Read' : message.status === 'delivered' ? 'Delivered' : 'Sent'"
+                  [attr.aria-label]="message.status === 'read' ? 'Read' : message.status === 'delivered' ? 'Delivered' : 'Sent'">
+                  <ion-icon [name]="message.status === 'read' || message.status === 'delivered' ? 'checkmark-done-outline' : 'checkmark-outline'" class="text-sm"></ion-icon>
+                </span>
               </p>
             </ng-container>
           </div>
         </div>
       </div>
-
-      <!-- Read receipt: bajo mi último mensaje leído por el otro -->
-      <p *ngIf="message.senderId === 'me' && message.id === seenAfterMessageId"
-        class="-mt-1 text-right text-[11px] font-medium text-gray-400">Seen</p>
     </ng-container>
 
     <!-- Typing indicator -->

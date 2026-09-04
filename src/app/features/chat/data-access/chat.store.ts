@@ -552,7 +552,6 @@ export class ChatStore {
       presence: 'Offline',
       busyReason: null,
       typingName: null,
-      readUpToMessageId: null,
       hasMoreHistory: false,
       unread: 0,
       messages: [],
@@ -578,7 +577,6 @@ export class ChatStore {
       presence: 'Offline',
       busyReason: null,
       typingName: null,
-      readUpToMessageId: null,
       hasMoreHistory: false,
       unread: summary.unreadCount,
       messages: lastMessages.map(dto => this.toMessage(dto, currentUserId)),
@@ -599,7 +597,41 @@ export class ChatStore {
       dateGroup: formatDateGroup(dto.createdAtUtc),
       isEdited: dto.isEdited,
       isDeleted: dto.isDeleted,
+      createdAtUtc: dto.createdAtUtc,
+      // Cotejo inicial del historial (solo mis mensajes): el backend calcula entregado/leído del otro.
+      status: isMine ? (dto.readAtUtc ? 'read' : dto.deliveredAtUtc ? 'delivered' : 'sent') : undefined,
     };
+  }
+
+  /**
+   * Avanza los cotejos de MIS mensajes hasta `upToMessageId` (por createdAtUtc) al recibir un recibo
+   * del otro. "read" implica "delivered"; monótono (nunca retrocede read→delivered→sent).
+   */
+  private advanceOwnReceipts(conversationId: string, upToMessageId: string, kind: 'delivered' | 'read'): void {
+    this._conversations.update(list =>
+      list.map(c => {
+        if (c.id !== conversationId) {
+          return c;
+        }
+        const upTo = c.messages.find(m => m.id === upToMessageId);
+        if (!upTo) {
+          return c;
+        }
+        const cutoff = upTo.createdAtUtc;
+        const rank = { sent: 0, delivered: 1, read: 2 } as const;
+        const next = kind === 'read' ? 'read' : 'delivered';
+        return {
+          ...c,
+          messages: c.messages.map(m => {
+            if (m.senderId !== 'me' || m.createdAtUtc > cutoff) {
+              return m;
+            }
+            const current = m.status ?? 'sent';
+            return rank[next] > rank[current] ? { ...m, status: next } : m;
+          }),
+        };
+      }),
+    );
   }
 
   /** MessageDto solo trae el fileId — arma un placeholder y dispara la resolución real una vez, cacheada por fileId. */
@@ -644,9 +676,24 @@ export class ChatStore {
     const currentUserId = this.auth.currentUser()?.id ?? null;
     const message = this.toMessage(dto, currentUserId, knownAttachment);
     const fromOther = message.senderId === 'them';
+    const isActive = this._activeConversationId() === dto.conversationId;
     if (fromOther) {
       // Su mensaje llegó: el indicador de "typing" ya no aplica.
       this.clearTypingExpiry(dto.conversationId, dto.senderId);
+      // Cotejos hacia el emisor: si tengo la conversación ABIERTA → leído (2 azules); si NO la tengo
+      // abierta → solo entregado (2 grises). Estar conectado nunca equivale a haber leído.
+      if (isActive) {
+        void this.socket.markRead(dto.conversationId, dto.id);
+      } else {
+        void this.socket.markDelivered(dto.conversationId, dto.id);
+      }
+    }
+    // Conversación aún NO en la lista (la oficina la creó y mandó el primer mensaje mientras estaba
+    // en /chat, o se perdió el `conversation.created`): un `list.map` no la insertaría → sin fila ni
+    // badge. Se re-lee la lista (trae la nueva con su unreadCount del server). Espeja al Portal.
+    if (!this._conversations().some(c => c.id === dto.conversationId)) {
+      this.refreshConversationList();
+      return;
     }
     this._conversations.update(list =>
       list.map(c => {
@@ -656,7 +703,6 @@ export class ChatStore {
         if (c.messages.some(m => m.id === message.id)) {
           return c; // ya insertado (ack local + broadcast del propio mensaje)
         }
-        const isActive = this._activeConversationId() === c.id;
         return {
           ...c,
           messages: [...c.messages, message],
@@ -674,6 +720,15 @@ export class ChatStore {
     this.socketWired = true;
 
     this.socket.messageNew$.subscribe(dto => this.appendMessage(dto));
+
+    // La oficina creó (o me añadió a) una conversación estando yo en /chat: el payload es delgado (sin
+    // participants/unreadCount), así que re-leo la lista completa para que la fila y su badge aparezcan
+    // sin recargar. Solo si aún no la tengo (evita refetch redundante cuando ya la insertó un mensaje).
+    this.socket.conversationCreated$.subscribe(summary => {
+      if (!this._conversations().some(c => c.id === summary.id)) {
+        this.refreshConversationList();
+      }
+    });
 
     this.socket.messageEdited$.subscribe(edit => {
       this._conversations.update(list =>
@@ -721,17 +776,22 @@ export class ChatStore {
     this.socket.typingStarted$.subscribe(dto => this.applyIncomingTyping(dto, true));
     this.socket.typingStopped$.subscribe(dto => this.applyIncomingTyping(dto, false));
 
-    // Read receipts: el otro leyó hasta `lastReadMessageId` → ubica el "Seen".
+    // Cotejos LEÍDO (2 azules): el otro abrió la conversación y leyó hasta lastReadMessageId.
     this.socket.messageRead$.subscribe(receipt => {
       const currentUserId = this.auth.currentUser()?.id ?? null;
       if (receipt.userId === currentUserId) {
         return; // mi propia lectura, no el "visto" del otro
       }
-      this._conversations.update(list =>
-        list.map(c =>
-          c.id === receipt.conversationId ? { ...c, readUpToMessageId: receipt.lastReadMessageId } : c,
-        ),
-      );
+      this.advanceOwnReceipts(receipt.conversationId, receipt.lastReadMessageId, 'read');
+    });
+
+    // Cotejos ENTREGADO (2 grises): el otro recibió hasta upToMessageId SIN abrir el chat.
+    this.socket.messageDelivered$.subscribe(receipt => {
+      const currentUserId = this.auth.currentUser()?.id ?? null;
+      if (receipt.userId === currentUserId) {
+        return;
+      }
+      this.advanceOwnReceipts(receipt.conversationId, receipt.upToMessageId, 'delivered');
     });
 
     this.socket.attachmentFlagged$.subscribe(flag => {

@@ -510,12 +510,30 @@ export class ActiveMeetingService {
     this.publishMediaStatus();
   }
 
-  toggleVideo(): void {
-    const enabled = !this.videoEnabled();
-    this.videoEnabled.set(enabled);
+  async toggleVideo(): Promise<void> {
+    const enabling = !this.videoEnabled();
+    // Encender cuando NO hay pista de video (entré con la cámara apagada / denegada, o nunca la publiqué):
+    // adquirir la cámara y publicarla ahora — sin esto, `enabled=true` no llegaba a los remotos.
+    const hasVideoTrack = (this.localStream()?.getVideoTracks().length ?? 0) > 0;
+    if (enabling && !hasVideoTrack && !this.screenSharing()) {
+      let cam: MediaStream;
+      try {
+        cam = await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch {
+        this.videoEnabled.set(false); // sin permiso: no marcar como encendida
+        return;
+      }
+      const track = cam.getVideoTracks()[0] ?? null;
+      if (track) {
+        this.cameraTrack = track;
+        await this.applyVideoTrack(track); // SFU: crea/replace producer; mesh: addTrack+renegocia
+        this.swapLocalVideoTrack(track);
+      }
+    }
+    this.videoEnabled.set(enabling);
     this.localStream()
       ?.getVideoTracks()
-      .forEach(t => (t.enabled = enabled));
+      .forEach(t => (t.enabled = enabling));
     this.publishMediaStatus();
   }
 
@@ -534,6 +552,17 @@ export class ActiveMeetingService {
     if (meetingId) {
       this.rtc.mediaStatus(meetingId, this.audioEnabled(), this.videoEnabled(), this.screenSharing());
     }
+  }
+
+  /**
+   * Pide la capa de simulcast de un peer (solo SFU; no-op en mesh). Lo usa el driver de "spotlight" del
+   * meeting-room: tile destacado = alta (spatial 2), thumbnails = baja (spatial 0). Fire-and-forget.
+   */
+  setPeerPreferredLayers(userId: string, spatialLayer: number, temporalLayer?: number): void {
+    if (this.strategy() !== 'Sfu') {
+      return;
+    }
+    void this.sfu.setPeerPreferredLayers(userId, spatialLayer, temporalLayer);
   }
 
   // ---------- Screen share (replaceTrack por peer, sin renegociar) ----------
@@ -584,6 +613,10 @@ export class ActiveMeetingService {
       const sender = conn.pc.getSenders().find(s => s.track?.kind === 'video');
       if (sender) {
         await sender.replaceTrack(track);
+      } else if (track) {
+        // No había m-line de video con este peer (me uní sin cámara): agregar la pista dispara
+        // onnegotiationneeded → renegocia por perfect-negotiation, así el remoto la recibe.
+        conn.pc.addTrack(track);
       }
     }
   }

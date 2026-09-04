@@ -128,8 +128,14 @@
           <span *ngIf="handRaised()" class="absolute right-2 top-2 text-base" title="Hand raised" aria-label="Hand raised">✋</span>
         </div>
 
-        <!-- Tiles remotas (sin overflow-hidden para que el menú de host no se recorte) -->
-        <div *ngFor="let p of remoteParticipants()" class="relative aspect-video rounded-2xl bg-gray-900">
+        <!-- Tiles remotas (sin overflow-hidden para que el menú de host no se recorte). Click = spotlight
+             (destacar en grande y pedir capa alta al SFU; el resto pasa a capa baja). -->
+        <div *ngFor="let p of remoteParticipants()" (click)="toggleSpotlight(p.userId)"
+          [title]="spotlightUserId() === p.userId ? 'Click to unpin' : 'Click to spotlight'"
+          class="relative aspect-video cursor-pointer rounded-2xl bg-gray-900 transition-all"
+          [class.sm:col-span-2]="spotlightUserId() === p.userId"
+          [class.ring-2]="spotlightUserId() === p.userId"
+          [class.ring-brand-bold]="spotlightUserId() === p.userId">
           <video [srcObject]="streamFor(p.userId)" autoplay playsinline
             class="h-full w-full rounded-2xl object-cover" [class.hidden]="!p.videoEnabled || !streamFor(p.userId)"></video>
           <div *ngIf="!p.videoEnabled || !streamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
@@ -143,8 +149,8 @@
           </div>
           <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
 
-          <!-- Menú de host por participante -->
-          <div *ngIf="isHost()" class="absolute right-2 top-2" data-dropdown="meeting-peer-menu">
+          <!-- Menú de host por participante (swallow del click para que no dispare el spotlight del tile) -->
+          <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2" data-dropdown="meeting-peer-menu">
             <button type="button" (click)="toggleMenu(p.userId, $event)" aria-label="Participant options"
               class="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
               <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>

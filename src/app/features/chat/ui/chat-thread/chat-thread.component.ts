@@ -23,6 +23,10 @@ export interface ChatMessage {
   dateGroup: string;
   isEdited: boolean;
   isDeleted: boolean;
+  /** createdAtUtc crudo (ISO) — cursor para avanzar cotejos por fecha. */
+  createdAtUtc: string;
+  /** Cotejo de MI mensaje: 'sent' (1 gris) / 'delivered' (2 grises) / 'read' (2 azules). undefined si es del otro. */
+  status?: 'sent' | 'delivered' | 'read';
 }
 
 export interface MessageEdit {
@@ -54,8 +58,6 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   @Input() conversationId = '';
   /** displayName del otro escribiendo, o null — muestra el indicador "… is typing". */
   @Input() typingName: string | null = null;
-  /** id del último mensaje que el otro leyó — ubica el marcador "Seen". */
-  @Input() readUpToMessageId: string | null = null;
   /** Hay más historial más viejo por cargar. */
   @Input() hasMoreHistory = false;
   /** Se está cargando una página más vieja. */
@@ -72,9 +74,6 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   readonly editingId = signal<string | null>(null);
   readonly editDraft = signal('');
 
-  /** id de mi último mensaje propio que ya fue leído — bajo él va el "Seen". */
-  seenAfterMessageId: string | null = null;
-
   // Estado de scroll para "pegar al fondo" y preservar posición al anteponer historial.
   private isAtBottom = true;
   private pendingScroll: 'bottom' | 'preserve' | null = null;
@@ -88,9 +87,6 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     if (changes['messages'] || changes['conversationId']) {
       this.decideScroll();
     }
-    if (changes['messages'] || changes['readUpToMessageId']) {
-      this.seenAfterMessageId = this.computeSeenAfterMessageId();
-    }
   }
 
   ngAfterViewChecked(): void {
@@ -100,6 +96,11 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     }
     if (this.pendingScroll === 'bottom') {
       el.scrollTop = el.scrollHeight;
+      // Re-afirma al fondo en el próximo frame: al abrir un hilo, el alto final asienta un tick
+      // después (fuentes/adjuntos/avatares), y el primer scrollTop se queda corto → quedabas arriba.
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
     } else {
       // Antepusimos historial: mantené el mensaje que el usuario estaba mirando.
       el.scrollTop += el.scrollHeight - this.preserveFromHeight;
@@ -153,23 +154,6 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     this.prevFirstId = first;
     this.prevLastId = last;
     this.prevCount = count;
-  }
-
-  /** El "Seen" va bajo mi último mensaje propio situado en o antes del readUpToMessageId. */
-  private computeSeenAfterMessageId(): string | null {
-    if (!this.readUpToMessageId) {
-      return null;
-    }
-    const readIdx = this.messages.findIndex(m => m.id === this.readUpToMessageId);
-    if (readIdx < 0) {
-      return null;
-    }
-    for (let i = Math.min(readIdx, this.messages.length - 1); i >= 0; i--) {
-      if (this.messages[i].senderId === 'me') {
-        return this.messages[i].id;
-      }
-    }
-    return null;
   }
 
   canEdit(message: ChatMessage): boolean {

@@ -65,6 +65,14 @@ export class ActiveCallService {
   );
 
   private pc: RTCPeerConnection | null = null;
+  /**
+   * Latch del armado de la PeerConnection. `ensurePeerConnection` se dispara desde varios eventos
+   * casi simultáneos (peer_joined, state_changed 'Accepted', accept/startCall) y tiene awaits (ICE +
+   * getUserMedia); sin un latch, dos disparos crean DOS PeerConnection (media a medio negociar), y una
+   * oferta que llega en ese hueco arma la answer SIN pistas locales (recvonly → audio en un solo
+   * sentido). Todos comparten esta promesa y esperan el MISMO armado.
+   */
+  private pcReady: Promise<void> | null = null;
   private isPolite = false;
   private makingOffer = false;
   private ignoreOffer = false;
@@ -516,7 +524,18 @@ export class ActiveCallService {
     }
   }
 
-  private async ensurePeerConnection(): Promise<void> {
+  /** Arma la PeerConnection UNA sola vez por llamada; disparos concurrentes esperan el mismo armado. */
+  private ensurePeerConnection(): Promise<void> {
+    if (!this.pcReady) {
+      this.pcReady = this.buildPeerConnection().catch(err => {
+        this.pcReady = null; // permite reintentar tras un fallo de armado
+        throw err;
+      });
+    }
+    return this.pcReady;
+  }
+
+  private async buildPeerConnection(): Promise<void> {
     if (this.pc) {
       return;
     }
@@ -686,9 +705,9 @@ export class ActiveCallService {
   }
 
   private async handleSignal(kind: 'offer' | 'answer' | 'ice', data: unknown): Promise<void> {
-    if (!this.pc) {
-      await this.ensurePeerConnection();
-    }
+    // Espera el armado COMPLETO (no solo `this.pc` truthy): las pistas locales deben estar agregadas
+    // antes de construir la answer, o el m-line sale recvonly y el audio queda en un solo sentido.
+    await this.ensurePeerConnection();
     const pc = this.pc;
     if (!pc) {
       return;
@@ -746,6 +765,7 @@ export class ActiveCallService {
     this.prevPacketsReceived = 0;
     this.pc?.close();
     this.pc = null;
+    this.pcReady = null;
     this.videoSender = null;
     this.pendingCandidates = [];
     this.screenTrack?.stop();

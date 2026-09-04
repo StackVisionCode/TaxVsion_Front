@@ -77,6 +77,15 @@ export class MeetingRoomComponent {
   /** userId de la tile con el menú de host abierto (o null). */
   readonly openMenuUserId = signal<string | null>(null);
 
+  /** userId del tile "destacado" (spotlight) o null (galería). Click en un tile lo alterna. */
+  readonly spotlightUserId = signal<string | null>(null);
+  /** Última capa espacial pedida por peer, para no re-emitir de más (default del server = 2). */
+  private readonly lastLayerByUser = new Map<string, number>();
+
+  toggleSpotlight(userId: string): void {
+    this.spotlightUserId.update(cur => (cur === userId ? null : userId));
+  }
+
   // ---------- Chat del meeting ----------
   readonly chatOpen = signal(false);
   readonly chatUnread = signal(0);
@@ -93,6 +102,32 @@ export class MeetingRoomComponent {
         const fromOthers = added.filter(m => !m.isMine).length;
         if (fromOthers) {
           this.chatUnread.update(u => u + fromOthers);
+        }
+      }
+    });
+
+    // Driver de spotlight → capas de simulcast (solo SFU): el destacado pide capa alta (spatial 2), los
+    // thumbnails baja (spatial 0). Sin spotlight, todos quedan en el default (2) sin emitir. Se apoya en
+    // `lastLayerByUser` para no re-emitir; el service es no-op en mesh.
+    effect(() => {
+      if (this.strategy() !== 'Sfu') {
+        return;
+      }
+      const spot = this.spotlightUserId();
+      const remotes = this.remoteParticipants();
+      const seen = new Set<string>();
+      for (const p of remotes) {
+        seen.add(p.userId);
+        const want = spot === null || p.userId === spot ? 2 : 0;
+        const prev = this.lastLayerByUser.has(p.userId) ? this.lastLayerByUser.get(p.userId)! : 2;
+        if (prev !== want) {
+          this.meeting.setPeerPreferredLayers(p.userId, want, want === 2 ? 2 : 1);
+        }
+        this.lastLayerByUser.set(p.userId, want);
+      }
+      for (const id of [...this.lastLayerByUser.keys()]) {
+        if (!seen.has(id)) {
+          this.lastLayerByUser.delete(id);
         }
       }
     });
