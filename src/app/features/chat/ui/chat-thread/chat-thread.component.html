@@ -1,5 +1,5 @@
 <div #scrollContainer class="h-full overflow-y-auto" (scroll)="onScroll()">
-  <div class="flex min-h-full flex-col justify-end gap-3 py-4 pr-1">
+  <div #scrollInner class="flex min-h-full flex-col justify-end gap-3 py-4 pr-1">
     <!-- Loading older history -->
     <div *ngIf="loadingOlder" class="flex justify-center py-2" aria-live="polite">
       <span class="flex items-center gap-2 text-xs text-gray-400">

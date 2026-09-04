@@ -1,11 +1,13 @@
 import {
   AfterViewChecked,
+  AfterViewInit,
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   ElementRef,
   EventEmitter,
   Input,
   OnChanges,
+  OnDestroy,
   Output,
   SimpleChanges,
   ViewChild,
@@ -57,7 +59,7 @@ const BOTTOM_STICK_THRESHOLD = 80;
   // el hilo nunca es scrolleable y crecía la página entera (no bajaba al último mensaje).
   host: { class: 'block h-full min-h-0' },
 })
-export class ChatThreadComponent implements AfterViewChecked, OnChanges {
+export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnChanges, OnDestroy {
   @Input() messages: ChatMessage[] = [];
   @Input() otherName = '';
   @Input() otherAvatarColor = 'bg-brand-bold';
@@ -78,6 +80,7 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   @Output() deleteRequested = new EventEmitter<string>();
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild('scrollInner') private scrollInner?: ElementRef<HTMLDivElement>;
   @ViewChild('editInput') private editInput?: ElementRef<HTMLInputElement>;
 
   readonly editingId = signal<string | null>(null);
@@ -93,6 +96,14 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   private pinToBottom = false;
   private pendingScroll: 'bottom' | 'preserve' | null = null;
   private preserveFromHeight = 0;
+  /**
+   * Observa el crecimiento del contenido (avatares/notas de voz/adjuntos cargan async y NO siempre
+   * disparan change-detection → `ngAfterViewChecked` no vuelve a correr y el pin no se re-afirmaba).
+   * Mientras `pinToBottom` está activo, cada resize re-pega al fondo. Es el fix definitivo del auto-scroll.
+   */
+  private resizeObserver?: ResizeObserver;
+  /** scrollTop del último evento — para distinguir scroll del USUARIO (sube) del programático (baja). */
+  private lastScrollTop = 0;
   private prevConversationId = '';
   private prevFirstId: string | null = null;
   private prevLastId: string | null = null;
@@ -104,32 +115,48 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     }
   }
 
+  ngAfterViewInit(): void {
+    const inner = this.scrollInner?.nativeElement;
+    if (inner && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        // El contenido creció (mensajes pintados, avatar/nota de voz/adjunto async): si seguimos pegados
+        // al fondo, re-pegar. Esto NO depende de un ciclo de Angular, así que sobrevive a las cargas async.
+        if (this.pinToBottom) {
+          this.scrollToBottom();
+        }
+      });
+      this.resizeObserver.observe(inner);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+  }
+
   ngAfterViewChecked(): void {
+    const el = this.scrollContainer?.nativeElement;
+    if (!el || !this.pendingScroll) {
+      return;
+    }
+    if (this.pendingScroll === 'bottom') {
+      this.scrollToBottom();
+    } else {
+      // Antepusimos historial: mantené el mensaje que el usuario estaba mirando.
+      el.scrollTop += el.scrollHeight - this.preserveFromHeight;
+      this.lastScrollTop = el.scrollTop;
+    }
+    this.pendingScroll = null;
+  }
+
+  /** Baja al fondo y registra la posición para que `onScroll` no lo confunda con un scroll del usuario. */
+  private scrollToBottom(): void {
     const el = this.scrollContainer?.nativeElement;
     if (!el) {
       return;
     }
-    // Pin al fondo tras abrir el hilo: se re-afirma en CADA ciclo mientras el contenido async crece
-    // (notas de voz/adjuntos/avatares), hasta que el usuario sube (onScroll lo suelta).
-    if (this.pinToBottom) {
-      el.scrollTop = el.scrollHeight;
-      this.pendingScroll = null;
-      return;
-    }
-    if (!this.pendingScroll) {
-      return;
-    }
-    if (this.pendingScroll === 'bottom') {
-      el.scrollTop = el.scrollHeight;
-      // Re-afirma al fondo en el próximo frame: el alto final asienta un tick después.
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-    } else {
-      // Antepusimos historial: mantené el mensaje que el usuario estaba mirando.
-      el.scrollTop += el.scrollHeight - this.preserveFromHeight;
-    }
-    this.pendingScroll = null;
+    el.scrollTop = el.scrollHeight;
+    this.lastScrollTop = el.scrollTop;
+    this.isAtBottom = true;
   }
 
   onScroll(): void {
@@ -137,12 +164,16 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     if (!el) {
       return;
     }
-    this.isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_STICK_THRESHOLD;
-    // El usuario tomó control del scroll hacia arriba: soltar el pin de apertura para no arrastrarlo abajo.
-    if (!this.isAtBottom) {
+    const top = el.scrollTop;
+    this.isAtBottom = el.scrollHeight - top - el.clientHeight < BOTTOM_STICK_THRESHOLD;
+    // Soltar el pin SOLO cuando el usuario sube de verdad (scrollTop bajó respecto al último) y ya no
+    // está al fondo. El pin programático siempre BAJA (scrollTop sube), así que nunca se auto-suelta —
+    // esto evita que el hilo se quede arriba mientras el contenido async todavía está creciendo.
+    if (this.pinToBottom && top < this.lastScrollTop - 4 && !this.isAtBottom) {
       this.pinToBottom = false;
     }
-    if (el.scrollTop < TOP_LOAD_THRESHOLD && this.hasMoreHistory && !this.loadingOlder) {
+    this.lastScrollTop = top;
+    if (top < TOP_LOAD_THRESHOLD && this.hasMoreHistory && !this.loadingOlder) {
       this.loadOlder.emit();
     }
   }
@@ -156,7 +187,6 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     if (this.conversationId !== this.prevConversationId) {
       this.pendingScroll = 'bottom'; // conversación nueva: al fondo
       this.isAtBottom = true; // entrar a un hilo arranca pegado al fondo (no arrastra el estado del anterior)
-      this.pinToBottom = true; // mantener pegado mientras el hilo asienta su alto (async)
     } else if (count > this.prevCount) {
       const prepended = last === this.prevLastId && first !== this.prevFirstId;
       if (this.prevCount === 0) {
@@ -177,6 +207,14 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
       }
     } else {
       this.pendingScroll = null; // edit/delete: no muevas la vista
+    }
+
+    // El pin (que el ResizeObserver usa para re-pegar ante crecimiento async) sigue la intención: activo
+    // cuando vamos al fondo, suelto al preservar historial (el usuario está leyendo hacia arriba).
+    if (this.pendingScroll === 'bottom') {
+      this.pinToBottom = true;
+    } else if (this.pendingScroll === 'preserve') {
+      this.pinToBottom = false;
     }
 
     this.prevConversationId = this.conversationId;
