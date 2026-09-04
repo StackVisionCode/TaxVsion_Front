@@ -1,0 +1,22 @@
+<div class="flex items-center gap-2.5 min-w-[190px]">
+  <button type="button" (click)="toggle()" [disabled]="loading"
+    [attr.aria-label]="playback?.isPlaying ? 'Pause voice note' : 'Play voice note'"
+    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
+    [ngClass]="mine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-indigo-500 text-white hover:bg-indigo-600'">
+    <ion-icon *ngIf="!loading" [name]="playback?.isPlaying ? 'pause' : 'play'" class="text-base"></ion-icon>
+    <span *ngIf="loading"
+      class="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin motion-reduce:animate-none"></span>
+  </button>
+
+  <button type="button" (click)="seek($event)" aria-label="Seek voice note"
+    class="flex h-8 flex-1 items-center gap-[2px] cursor-pointer">
+    <span *ngFor="let bar of bars; let i = index" class="w-[3px] shrink-0 rounded-full transition-colors"
+      [style.height.%]="bar" [ngClass]="i / bars.length <= progress
+            ? (mine ? 'bg-white' : 'bg-indigo-500')
+            : (mine ? 'bg-white/40' : 'bg-gray-300')"></span>
+  </button>
+
+  <span class="shrink-0 text-[11px] tabular-nums" [ngClass]="mine ? 'text-white/80' : 'text-gray-400'">
+    {{ label }}
+  </span>
+</div>

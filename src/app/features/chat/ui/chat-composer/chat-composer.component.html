@@ -1,19 +1,50 @@
-<form class="flex items-center gap-2" (ngSubmit)="submit()">
-  <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
-    class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-    <ion-icon [name]="uploading ? 'reload-outline' : 'attach-outline'" class="text-lg" [class.animate-spin]="uploading"></ion-icon>
-    <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
-  </label>
+<!-- Modo grabación: reemplaza el input+botones por cancelar / punto rojo + timer + nivel en vivo / enviar. -->
+<div *ngIf="recorder.isRecording(); else composer" class="flex items-center gap-2">
+  <button type="button" (click)="cancelRecording()" aria-label="Cancel recording"
+    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+    <ion-icon name="trash-outline" class="text-lg"></ion-icon>
+  </button>
 
-  <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-    <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"
-      (ngModelChange)="onDraftChange($event)" (blur)="onBlur()"
-      class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+  <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4">
+    <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 animate-pulse motion-reduce:animate-none"></span>
+    <span class="shrink-0 text-sm tabular-nums text-gray-700">{{ elapsedLabel() }}</span>
+    <!-- Nivel de audio en vivo: la barra crece con recorder.level(). -->
+    <span class="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden" aria-hidden="true">
+      <span class="block h-full rounded-full bg-red-400 transition-[width] duration-100" [style.width.%]="recorder.level()"></span>
+    </span>
+    <span class="shrink-0 text-[11px] italic text-gray-400">Recording…</span>
   </div>
 
-  <button type="submit"
-    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors"
-    aria-label="Send message">
+  <button type="button" (click)="stopAndSend()" aria-label="Send voice note"
+    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors">
     <ion-icon name="send-outline" class="text-base"></ion-icon>
   </button>
-</form>
+</div>
+
+<ng-template #composer>
+  <form class="flex items-center gap-2" (ngSubmit)="submit()">
+    <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
+      class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+      <ion-icon [name]="uploading ? 'reload-outline' : 'attach-outline'" class="text-lg" [class.animate-spin]="uploading"></ion-icon>
+      <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
+    </label>
+
+    <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+      <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"
+        (ngModelChange)="onDraftChange($event)" (blur)="onBlur()"
+        class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+    </div>
+
+    <!-- Con texto: enviar. Sin texto: micrófono para grabar una nota de voz. -->
+    <button *ngIf="hasText()" type="submit"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors"
+      aria-label="Send message">
+      <ion-icon name="send-outline" class="text-base"></ion-icon>
+    </button>
+    <button *ngIf="!hasText()" type="button" (click)="startRecording()" [disabled]="uploading || !recorder.isSupported"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors"
+      aria-label="Record voice note">
+      <ion-icon name="mic-outline" class="text-lg"></ion-icon>
+    </button>
+  </form>
+</ng-template>

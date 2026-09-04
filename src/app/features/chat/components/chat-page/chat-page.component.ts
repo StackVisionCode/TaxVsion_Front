@@ -23,6 +23,7 @@ import {
   presenceTextClass,
 } from '../../data-access/chat.model';
 import { ChatStore } from '../../data-access/chat.store';
+import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 
 /**
  * Página del módulo Chat (estilo "Aether"): mensajería interna de equipo,
@@ -144,6 +145,30 @@ export class ChatPageComponent {
     return this.isCallableConversation && this.canStartVideoCall();
   }
 
+  /**
+   * Motivo por el que NO se puede llamar ahora (null = se puede). Deshabilita el botón cuando ya
+   * estoy en una llamada, o cuando el par está offline (llamada eterna sin respuesta) o ya en otra
+   * llamada. Solo `Online` es llamable; la presencia se refresca al abrir el hilo y al reconectar.
+   */
+  get callDisabledReason(): string | null {
+    if (this.callPhase() !== 'idle') {
+      return 'You are already on a call';
+    }
+    const conv = this.activeConversation;
+    const who = conv.name || 'This contact';
+    if (conv.presence === 'Busy') {
+      return `${who} is currently on a call`;
+    }
+    if (conv.presence !== 'Online') {
+      return `${who} is offline`;
+    }
+    return null;
+  }
+
+  get callButtonsDisabled(): boolean {
+    return this.callDisabledReason !== null;
+  }
+
   startAudioCall(): void {
     this.startCall('Audio');
   }
@@ -171,6 +196,7 @@ export class ChatPageComponent {
         presence: 'Offline' as const,
         busyReason: null,
         typingName: null,
+        recordingName: null,
         hasMoreHistory: false,
         unread: 0,
         messages: [] as ChatMessage[],
@@ -226,6 +252,14 @@ export class ChatPageComponent {
 
   onAttach(file: File): void {
     void this.store.sendAttachment(file);
+  }
+
+  onSendVoiceNote(recorded: RecordedVoiceNote): void {
+    void this.store.sendVoiceNote(recorded);
+  }
+
+  onRecording(isRecording: boolean): void {
+    this.store.notifyRecording(isRecording);
   }
 
   onAttachmentClicked(fileId: string): void {

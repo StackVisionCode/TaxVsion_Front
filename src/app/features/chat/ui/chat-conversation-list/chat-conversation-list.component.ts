@@ -21,6 +21,8 @@ export interface ChatConversation {
   busyReason: PresenceBusyReason;
   /** displayName del otro participante que está escribiendo (1:1), o null. */
   typingName: string | null;
+  /** displayName del otro participante que está grabando una nota de voz (1:1), o null. */
+  recordingName: string | null;
   /** Hay más historial más viejo por cargar (scrollback). */
   hasMoreHistory: boolean;
   unread: number;

@@ -22,6 +22,8 @@ const EVENTS = {
   markDelivered: 'chat.message.mark_delivered',
   typingStart: 'chat.typing.start',
   typingStop: 'chat.typing.stop',
+  recordingStart: 'chat.recording.start',
+  recordingStop: 'chat.recording.stop',
   presenceQuery: 'chat.presence.query',
   startDirect: 'chat.conversation.start_direct',
   startGroup: 'chat.conversation.start_group',
@@ -54,6 +56,8 @@ export class ChatSocketService {
   readonly conversationCreated$ = this.realtime.on<{ id: string }>('chat.conversation.created');
   readonly typingStarted$ = this.realtime.on<TypingDto>('chat.typing.started');
   readonly typingStopped$ = this.realtime.on<TypingDto>('chat.typing.stopped');
+  readonly recordingStarted$ = this.realtime.on<TypingDto>('chat.recording.started');
+  readonly recordingStopped$ = this.realtime.on<TypingDto>('chat.recording.stopped');
   readonly presenceChanged$ = this.realtime.on<PresenceChangedDto>('chat.presence.changed');
   readonly attachmentFlagged$ = this.realtime.on<AttachmentFlaggedDto>('chat.message.attachment_flagged');
   /**
@@ -83,6 +87,22 @@ export class ChatSocketService {
       clientKey: this.realtime.newClientKey(),
       conversationId,
       attachmentFileId,
+    });
+  }
+
+  /** Nota de voz: adjunto de audio + metadata (duración/waveform). El backend rutea el blob a la carpeta del tenant. */
+  async sendVoiceNote(
+    conversationId: string,
+    attachmentFileId: string,
+    audioDurationMs: number,
+    audioWaveform: number[],
+  ): Promise<SocketAck<{ message: MessageDto }>> {
+    return this.realtime.emitAck(EVENTS.sendMessage, {
+      clientKey: this.realtime.newClientKey(),
+      conversationId,
+      attachmentFileId,
+      audioDurationMs,
+      audioWaveform,
     });
   }
 
@@ -138,6 +158,15 @@ export class ChatSocketService {
 
   typingStop(conversationId: string): void {
     this.realtime.emitNoAck(EVENTS.typingStop, { conversationId });
+  }
+
+  /** Indicador "grabando una nota de voz…": se re-emite cada ~12-15s mientras se graba (renueva el TTL). */
+  recordingStart(conversationId: string): void {
+    this.realtime.emitNoAck(EVENTS.recordingStart, { conversationId });
+  }
+
+  recordingStop(conversationId: string): void {
+    this.realtime.emitNoAck(EVENTS.recordingStop, { conversationId });
   }
 
   /** Pide el estado de presencia ACTUAL de unos peers; el server responde con `chat.presence.changed`. */

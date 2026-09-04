@@ -13,12 +13,15 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
 
 export interface ChatMessage {
   id: string;
   senderId: 'me' | 'them';
   text?: string;
   attachment?: { name: string; size: string; fileId: string };
+  /** Nota de voz: player en vez de tarjeta de archivo. */
+  voiceNote?: { fileId: string; durationMs: number; waveform: number[] };
   time: string;
   dateGroup: string;
   isEdited: boolean;
@@ -46,7 +49,7 @@ const BOTTOM_STICK_THRESHOLD = 80;
  */
 @Component({
   selector: 'app-chat-thread',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
 })
@@ -58,6 +61,8 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   @Input() conversationId = '';
   /** displayName del otro escribiendo, o null — muestra el indicador "… is typing". */
   @Input() typingName: string | null = null;
+  /** displayName del otro grabando una nota de voz, o null — muestra "… is recording a voice note". */
+  @Input() recordingName: string | null = null;
   /** Hay más historial más viejo por cargar. */
   @Input() hasMoreHistory = false;
   /** Se está cargando una página más vieja. */
@@ -76,6 +81,12 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
 
   // Estado de scroll para "pegar al fondo" y preservar posición al anteponer historial.
   private isAtBottom = true;
+  /**
+   * "Pin al fondo" tras abrir un hilo: se mantiene pegado en CADA ciclo de vista mientras el alto
+   * sigue asentando (notas de voz, adjuntos, avatares cargan async y crecen la lista un tick después,
+   * cuando un solo scrollTop ya quedó corto → te quedabas arriba). Se suelta en cuanto el usuario sube.
+   */
+  private pinToBottom = false;
   private pendingScroll: 'bottom' | 'preserve' | null = null;
   private preserveFromHeight = 0;
   private prevConversationId = '';
@@ -91,13 +102,22 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
 
   ngAfterViewChecked(): void {
     const el = this.scrollContainer?.nativeElement;
-    if (!el || !this.pendingScroll) {
+    if (!el) {
+      return;
+    }
+    // Pin al fondo tras abrir el hilo: se re-afirma en CADA ciclo mientras el contenido async crece
+    // (notas de voz/adjuntos/avatares), hasta que el usuario sube (onScroll lo suelta).
+    if (this.pinToBottom) {
+      el.scrollTop = el.scrollHeight;
+      this.pendingScroll = null;
+      return;
+    }
+    if (!this.pendingScroll) {
       return;
     }
     if (this.pendingScroll === 'bottom') {
       el.scrollTop = el.scrollHeight;
-      // Re-afirma al fondo en el próximo frame: al abrir un hilo, el alto final asienta un tick
-      // después (fuentes/adjuntos/avatares), y el primer scrollTop se queda corto → quedabas arriba.
+      // Re-afirma al fondo en el próximo frame: el alto final asienta un tick después.
       requestAnimationFrame(() => {
         el.scrollTop = el.scrollHeight;
       });
@@ -114,6 +134,10 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
       return;
     }
     this.isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_STICK_THRESHOLD;
+    // El usuario tomó control del scroll hacia arriba: soltar el pin de apertura para no arrastrarlo abajo.
+    if (!this.isAtBottom) {
+      this.pinToBottom = false;
+    }
     if (el.scrollTop < TOP_LOAD_THRESHOLD && this.hasMoreHistory && !this.loadingOlder) {
       this.loadOlder.emit();
     }
@@ -128,6 +152,7 @@ export class ChatThreadComponent implements AfterViewChecked, OnChanges {
     if (this.conversationId !== this.prevConversationId) {
       this.pendingScroll = 'bottom'; // conversación nueva: al fondo
       this.isAtBottom = true; // entrar a un hilo arranca pegado al fondo (no arrastra el estado del anterior)
+      this.pinToBottom = true; // mantener pegado mientras el hilo asienta su alto (async)
     } else if (count > this.prevCount) {
       const prepended = last === this.prevLastId && first !== this.prevFirstId;
       if (this.prevCount === 0) {
