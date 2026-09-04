@@ -31,6 +31,7 @@ export class CallOverlayComponent implements OnDestroy {
   readonly localStream = this.call.localStream;
   readonly remoteStream = this.call.remoteStream;
   readonly recordingState = this.call.recordingState;
+  readonly recordingElapsedLabel = this.call.recordingElapsedLabel;
   readonly recordingConsentFrom = this.call.recordingConsentFrom;
   readonly isRecordingRequester = this.call.isRecordingRequester;
   readonly connectionQuality = this.call.connectionQuality;

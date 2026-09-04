@@ -47,8 +47,8 @@
         <span *ngIf="screenSharing()" class="flex items-center gap-1 rounded-full bg-brand-bold/80 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
           <ion-icon name="desktop-outline" class="text-xs"></ion-icon> Sharing
         </span>
-        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
-          <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC
+        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm tabular-nums">
+          <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
         </span>
         <span *ngIf="showQuality()" class="flex items-end gap-0.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm"
           role="img" [attr.aria-label]="connectionQuality() + ' connection'" [attr.title]="connectionQuality() + ' connection'">
@@ -130,8 +130,8 @@
             <span class="h-2.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 3 ? qualityColor() : 'bg-white/25'"></span>
           </span>
           <ion-icon *ngIf="reconnecting()" name="reload-outline" class="ml-1 animate-spin text-xs motion-reduce:animate-none"></ion-icon>
-          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC
+          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
           </span>
         </p>
       </div>
