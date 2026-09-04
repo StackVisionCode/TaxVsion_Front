@@ -47,6 +47,9 @@ export interface MessageDto {
   /** Cotejos del emisor sobre SU mensaje: null=enviado (1 gris), fecha=entregado (2 grises)/leído (2 azules). */
   deliveredAtUtc?: string | null;
   readAtUtc?: string | null;
+  /** Nota de voz (adjunto de audio): duración en ms y waveform (picos 0-100). null en otros mensajes. */
+  audioDurationMs?: number | null;
+  audioWaveform?: number[] | null;
 }
 
 /** Cotejo de entrega (2 grises): el otro recibió hasta `upToMessageId` (sin abrir el chat). */

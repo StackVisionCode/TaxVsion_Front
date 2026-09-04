@@ -35,6 +35,11 @@
                 <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
               </div>
             </button>
+            <!-- Nota de voz -->
+            <div *ngIf="message.voiceNote" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5">
+              <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
+                [waveform]="message.voiceNote.waveform" [mine]="false"></app-voice-note-player>
+            </div>
             <p class="mt-1 text-xs text-gray-400">
               {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
             </p>
@@ -90,6 +95,11 @@
                   <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
                 </div>
               </button>
+              <!-- Nota de voz (mía) -->
+              <div *ngIf="message.voiceNote" class="inline-block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2.5 text-left">
+                <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
+                  [waveform]="message.voiceNote.waveform" [mine]="true"></app-voice-note-player>
+              </div>
               <p class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-400">
                 <span>{{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span></span>
                 <!-- Cotejos (solo MIS mensajes, no borrados): ✓ enviado / ✓✓ entregado (gris) / ✓✓ leído (azul). -->
@@ -115,6 +125,19 @@
         <span class="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce motion-reduce:animate-none"></span>
       </span>
       <span class="text-xs italic text-gray-500">{{ typingName }} is typing…</span>
+    </div>
+
+    <!-- Recording-a-voice-note indicator (misma burbuja "them", con mic pulsante) -->
+    <div *ngIf="recordingName" class="flex items-center gap-2" aria-live="polite">
+      <span class="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5" aria-hidden="true">
+        <ion-icon name="mic" class="text-sm text-red-500 animate-pulse motion-reduce:animate-none"></ion-icon>
+        <span class="flex items-end gap-0.5">
+          <span class="w-[3px] h-2 rounded-full bg-red-400 animate-bounce [animation-delay:-0.3s] motion-reduce:animate-none"></span>
+          <span class="w-[3px] h-3 rounded-full bg-red-400 animate-bounce [animation-delay:-0.15s] motion-reduce:animate-none"></span>
+          <span class="w-[3px] h-2 rounded-full bg-red-400 animate-bounce motion-reduce:animate-none"></span>
+        </span>
+      </span>
+      <span class="text-xs italic text-gray-500">{{ recordingName }} is recording a voice note…</span>
     </div>
 
     <div #scrollAnchor></div>

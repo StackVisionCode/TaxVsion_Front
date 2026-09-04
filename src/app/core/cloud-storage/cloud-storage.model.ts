@@ -27,7 +27,8 @@ export type FolderType =
   | 'Backups'
   | 'Templates'
   | 'Branding'
-  | 'Other';
+  | 'Other'
+  | 'VoiceNotes';
 
 /** Espejo de TaxVision.CloudStorage.Domain.Files.FileStatus. */
 export type FileStatus =

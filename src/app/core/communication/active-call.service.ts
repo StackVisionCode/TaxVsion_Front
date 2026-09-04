@@ -609,6 +609,10 @@ export class ActiveCallService {
       if (state === 'connected') {
         this.reconnecting.set(false);
         this.phase.set('active');
+        // Anunciar mi estado de media al conectar: el par no recibe ningún mediaStatus hasta que
+        // yo toggleo algo, así que sin esto su `peerVideoActive` queda en false y mi video se ve
+        // como placeholder (iniciales) hasta el primer toggle. Publicarlo aquí lo pinta de una.
+        this.publishMediaStatus();
       } else if (state === 'disconnected') {
         // Caída transitoria de ICE: puede recuperarse, NO cortamos — mostramos "Reconnecting…".
         this.reconnecting.set(true);

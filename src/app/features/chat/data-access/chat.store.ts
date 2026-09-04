@@ -11,6 +11,7 @@ import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
+import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
 import { parseUtcDate } from '../../../shared/utils/utc-date.util';
 
@@ -20,6 +21,10 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
 const TYPING_IDLE_MS = 3000;
 /** Red de seguridad: si no llega `typing.stopped`, se limpia el indicador entrante igual. */
 const TYPING_EXPIRY_MS = 6000;
+/** Re-emite `recording.start` mientras se graba para renovar el TTL del server (20s). */
+const RECORDING_HEARTBEAT_MS = 12000;
+/** Red de seguridad del indicador "grabando…" entrante si no llega `recording.stopped`. */
+const RECORDING_EXPIRY_MS = 22000;
 
 function avatarColorFor(id: string): string {
   let hash = 0;
@@ -102,6 +107,11 @@ export class ChatStore {
   private typingStopTimer: ReturnType<typeof setTimeout> | undefined;
   /** Expiración por (conversación:usuario) del typing ENTRANTE — clave `${convId}:${userId}`. */
   private readonly typingExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  // ---------- Recording (indicador "grabando una nota de voz…") ----------
+  private recordingActiveConversationId: string | null = null;
+  private recordingHeartbeat: ReturnType<typeof setInterval> | undefined;
+  private readonly recordingExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // ---------- Nueva conversación ----------
   private readonly _employeeResults = signal<EmployeeDirectoryEntry[]>([]);
@@ -360,6 +370,97 @@ export class ChatStore {
     this._conversations.update(list => list.map(c => (c.id === conversationId ? { ...c, typingName: name } : c)));
   }
 
+  // ---------- Notas de voz ----------
+
+  /** Sube la nota grabada a la carpeta "Voice Notes" del tenant y la envía como adjunto de audio + metadata. */
+  async sendVoiceNote(recorded: RecordedVoiceNote): Promise<void> {
+    const conversationId = this._activeConversationId();
+    if (!conversationId) {
+      return;
+    }
+    this._uploadingAttachment.set(true);
+    try {
+      // Extensión acorde al contenedor: audio/mp4 → .mp4 (CloudStorage mapea .mp4→video/mp4), resto → .webm.
+      const ext = recorded.mimeType === 'audio/mp4' ? 'mp4' : 'webm';
+      const file = new File([recorded.blob], `voice-note-${Date.now()}.${ext}`, { type: recorded.mimeType });
+      const fileId = await firstValueFrom(this.attachments.uploadVoiceNote(file));
+      const ack = await this.socket.sendVoiceNote(conversationId, fileId, recorded.durationMs, recorded.waveform);
+      if (!ack.ok) {
+        console.warn('No se pudo enviar la nota de voz:', ack.message);
+        return;
+      }
+      this.appendMessage(ack.value.message);
+    } catch (err) {
+      console.warn('No se pudo subir la nota de voz:', toApiError(err).message);
+    } finally {
+      this._uploadingAttachment.set(false);
+    }
+  }
+
+  /** URL presignada de descarga para reproducir una nota de voz (la usa VoiceNotePlayback en el bubble). */
+  resolveVoiceNoteUrl(fileId: string): Promise<string> {
+    return firstValueFrom(this.cloudStorage.getDownloadUrl(fileId)).then(res => res.downloadUrl);
+  }
+
+  // ---------- Recording indicator ----------
+
+  /** Lo llama el composer al iniciar/parar la grabación. Emite start + heartbeat cada 12s; stop al parar. */
+  notifyRecording(isRecording: boolean): void {
+    const conversationId = this._activeConversationId();
+    if (!conversationId) {
+      return;
+    }
+    if (!isRecording) {
+      this.stopRecordingNow();
+      return;
+    }
+    if (this.recordingActiveConversationId !== conversationId) {
+      this.stopRecordingNow();
+      this.socket.recordingStart(conversationId);
+      this.recordingActiveConversationId = conversationId;
+      this.recordingHeartbeat = setInterval(() => this.socket.recordingStart(conversationId), RECORDING_HEARTBEAT_MS);
+    }
+  }
+
+  private stopRecordingNow(): void {
+    clearInterval(this.recordingHeartbeat);
+    this.recordingHeartbeat = undefined;
+    const active = this.recordingActiveConversationId;
+    if (active) {
+      this.socket.recordingStop(active);
+      this.recordingActiveConversationId = null;
+    }
+  }
+
+  private applyIncomingRecording(dto: TypingDto, started: boolean): void {
+    const currentUserId = this.auth.currentUser()?.id ?? null;
+    if (dto.userId === currentUserId) {
+      return; // eco de mi propia grabación
+    }
+    const key = `${dto.conversationId}:${dto.userId}`;
+    const existing = this.recordingExpiryTimers.get(key);
+    if (existing) {
+      clearTimeout(existing);
+      this.recordingExpiryTimers.delete(key);
+    }
+    if (started) {
+      this.setRecordingName(dto.conversationId, dto.displayName);
+      this.recordingExpiryTimers.set(
+        key,
+        setTimeout(() => {
+          this.recordingExpiryTimers.delete(key);
+          this.setRecordingName(dto.conversationId, null);
+        }, RECORDING_EXPIRY_MS),
+      );
+    } else {
+      this.setRecordingName(dto.conversationId, null);
+    }
+  }
+
+  private setRecordingName(conversationId: string, name: string | null): void {
+    this._conversations.update(list => list.map(c => (c.id === conversationId ? { ...c, recordingName: name } : c)));
+  }
+
   // ---------- Editar / borrar mensaje ----------
 
   clearMessageActionError(): void {
@@ -552,6 +653,7 @@ export class ChatStore {
       presence: 'Offline',
       busyReason: null,
       typingName: null,
+      recordingName: null,
       hasMoreHistory: false,
       unread: 0,
       messages: [],
@@ -577,6 +679,7 @@ export class ChatStore {
       presence: 'Offline',
       busyReason: null,
       typingName: null,
+      recordingName: null,
       hasMoreHistory: false,
       unread: summary.unreadCount,
       messages: lastMessages.map(dto => this.toMessage(dto, currentUserId)),
@@ -585,14 +688,24 @@ export class ChatStore {
 
   private toMessage(dto: MessageDto, currentUserId: string | null, knownAttachment?: ChatMessage['attachment']): ChatMessage {
     const isMine = !!currentUserId && dto.senderId === currentUserId;
+    // Nota de voz: adjunto con metadata de audio (durationMs/waveform del backend). Se renderiza como
+    // player en vez de tarjeta de archivo. Un adjunto normal no trae audioDurationMs/audioWaveform.
+    const isVoice =
+      !dto.isDeleted &&
+      dto.kind === 'Attachment' &&
+      !!dto.attachmentFileId &&
+      (dto.audioDurationMs != null || (dto.audioWaveform?.length ?? 0) > 0);
     return {
       id: dto.id,
       senderId: isMine ? 'me' : 'them',
       text: dto.isDeleted ? '(message deleted)' : dto.kind === 'Text' ? (dto.body ?? undefined) : undefined,
       attachment:
-        !dto.isDeleted && dto.kind === 'Attachment' && dto.attachmentFileId
+        !dto.isDeleted && !isVoice && dto.kind === 'Attachment' && dto.attachmentFileId
           ? (knownAttachment ?? this.resolveAttachment(dto.attachmentFileId))
           : undefined,
+      voiceNote: isVoice
+        ? { fileId: dto.attachmentFileId!, durationMs: dto.audioDurationMs ?? 0, waveform: dto.audioWaveform ?? [] }
+        : undefined,
       time: formatTime(dto.createdAtUtc),
       dateGroup: formatDateGroup(dto.createdAtUtc),
       isEdited: dto.isEdited,
@@ -776,6 +889,9 @@ export class ChatStore {
     this.socket.typingStarted$.subscribe(dto => this.applyIncomingTyping(dto, true));
     this.socket.typingStopped$.subscribe(dto => this.applyIncomingTyping(dto, false));
 
+    this.socket.recordingStarted$.subscribe(dto => this.applyIncomingRecording(dto, true));
+    this.socket.recordingStopped$.subscribe(dto => this.applyIncomingRecording(dto, false));
+
     // Cotejos LEÍDO (2 azules): el otro abrió la conversación y leyó hasta lastReadMessageId.
     this.socket.messageRead$.subscribe(receipt => {
       const currentUserId = this.auth.currentUser()?.id ?? null;
@@ -821,6 +937,13 @@ export class ChatStore {
     const activeId = this._activeConversationId();
     if (!activeId) {
       return;
+    }
+    // La presencia solo llega en transiciones: durante el corte se perdió el `presence.changed` del par
+    // (p.ej. su llamada terminó y pasó a Online), y sin re-consultarlo se queda "In a call" pegado hasta
+    // refrescar. Se pide el snapshot actual del peer (la respuesta entra por el mismo `presenceChanged$`).
+    const peerUserId = this.otherParticipantByConversation.get(activeId);
+    if (peerUserId) {
+      this.socket.queryPresence([peerUserId]);
     }
     const since = this.lastMessageAtByConversation.get(activeId);
     this.chatService.getMessages(activeId, since ? { since } : { take: 50 }).subscribe({

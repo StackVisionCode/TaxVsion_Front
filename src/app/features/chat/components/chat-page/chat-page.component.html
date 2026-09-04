@@ -99,7 +99,10 @@
   </div>
 
   <!-- Thread card -->
-  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem]">
+  <!-- min-h-[32rem] en móvil (sin fila acotada) pero lg:min-h-0 para que el grid-item respete la fila
+       minmax(0,1fr): sin esto la columna crece a todo el contenido, el hilo nunca acota su alto y
+       scrollea la PÁGINA en vez del contenedor (por eso no bajaba solo al último mensaje). -->
+  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem] lg:min-h-0">
     <!-- Empty state: no conversation selected yet -->
     <div *ngIf="!hasActiveConversation()" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10">
       <span class="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-bold/10 text-brand-bold">
@@ -152,14 +155,15 @@
       </div>
 
       <button *ngIf="canCallActiveConversation" type="button" (click)="startAudioCall()"
-        [disabled]="callPhase() !== 'idle'" aria-label="Start audio call"
-        class="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:hover:bg-transparent transition-colors">
+        [disabled]="callButtonsDisabled" [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start audio call'"
+        class="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
         <ion-icon name="call-outline" class="text-base"></ion-icon>
       </button>
 
       <button *ngIf="canVideoCallActiveConversation" type="button" (click)="startVideoCall()"
-        [class.ml-auto]="!canCallActiveConversation" [disabled]="callPhase() !== 'idle'" aria-label="Start video call"
-        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:hover:bg-transparent transition-colors">
+        [class.ml-auto]="!canCallActiveConversation" [disabled]="callButtonsDisabled"
+        [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start video call'"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
         <ion-icon name="videocam-outline" class="text-base"></ion-icon>
       </button>
 
@@ -175,7 +179,7 @@
     <div class="flex-1 min-h-0">
       <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
         [otherAvatarColor]="activeConversation.avatarColor" [conversationId]="activeConversation.id"
-        [typingName]="activeConversation.typingName"
+        [typingName]="activeConversation.typingName" [recordingName]="activeConversation.recordingName"
         [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
         (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
         (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"></app-chat-thread>
@@ -184,7 +188,8 @@
     <!-- Composer -->
     <div class="pt-4 border-t border-gray-100">
       <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
-        (attach)="onAttach($event)" (typing)="onTyping($event)"></app-chat-composer>
+        (attach)="onAttach($event)" (typing)="onTyping($event)"
+        (sendVoiceNote)="onSendVoiceNote($event)" (recording)="onRecording($event)"></app-chat-composer>
     </div>
     </ng-container>
   </div>
