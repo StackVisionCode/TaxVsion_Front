@@ -1,0 +1,56 @@
+<app-modal [isOpen]="isOpen" heading="Status labels"
+  subheading="Rename status columns for your office" size="md" (closed)="close()">
+  <div class="flex flex-col gap-4">
+    <p class="rounded-xl bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+      Labels rename a status for your whole office (e.g. call <b>In progress</b> “Under review”). They don't tag or filter individual tasks.
+    </p>
+
+    <!-- Existing labels -->
+    @if (loading()) {
+      <div class="flex flex-col gap-2">
+        @for (i of [1, 2]; track i) { <div class="h-10 rounded-xl bg-gray-100 animate-pulse"></div> }
+      </div>
+    } @else {
+      @for (label of labels(); track trackById($index, label)) {
+        <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3 py-2">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="label.labelColor || '#94a3b8'"></span>
+            <span class="truncate text-sm font-medium text-gray-800">{{ label.displayName }}</span>
+            <span class="shrink-0 text-xs text-gray-400">→ {{ statusLabel(label.mapsToStatus) }}</span>
+          </div>
+          <button type="button" (click)="remove(label)" [disabled]="busy()" aria-label="Delete label"
+            class="shrink-0 text-gray-300 hover:text-red-500 disabled:opacity-40 transition-colors">
+            <ion-icon name="trash-outline"></ion-icon>
+          </button>
+        </div>
+      } @empty {
+        <p class="text-xs text-gray-400">No custom labels — the default status names are used.</p>
+      }
+    }
+
+    <!-- Add label -->
+    <div class="rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">New label</h3>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" [ngModel]="newCode()" (ngModelChange)="newCode.set($event)" placeholder="Code (e.g. review)"
+          class="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+        <input type="text" [ngModel]="newName()" (ngModelChange)="newName.set($event)" placeholder="Display name"
+          class="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+      </div>
+      <div class="grid grid-cols-[1fr,auto] gap-2 items-center">
+        <select [ngModel]="newStatus()" (ngModelChange)="newStatus.set($event)"
+          class="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+          @for (s of statuses; track s) { <option [ngValue]="s">Renames: {{ statusLabel(s) }}</option> }
+        </select>
+        <input type="color" [ngModel]="newColor()" (ngModelChange)="newColor.set($event)"
+          class="h-10 w-12 rounded-full border border-gray-200 bg-white p-1" aria-label="Label color" />
+      </div>
+      @if (addError()) { <p class="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ addError() }}</p> }
+      <button type="button" (click)="add()" [disabled]="!canAdd()"
+        class="inline-flex items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        <span>Add label</span>
+      </button>
+    </div>
+  </div>
+</app-modal>

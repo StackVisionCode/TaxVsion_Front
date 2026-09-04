@@ -15,7 +15,8 @@
 /* Hueco que deja la tarjeta: es la MISMA tarjeta convertida en slot punteado,
    así conserva exactamente su tamaño y nada salta al entrar/salir de columnas. */
 .task-card.cdk-drag-placeholder {
-  background: #f7f5fc;
+  /* Themeable: sigue la marca del tenant (fallback = el lavanda near-white original). */
+  background: rgb(var(--color-indigo-50-rgb, 247 245 252) / 0.6);
   border: 2px dashed rgb(var(--color-indigo-200-rgb, 176 201 223));
   box-shadow: none;
 }
@@ -26,11 +27,11 @@
 
 /* Solo la columna bajo el cursor se resalta; las demás candidatas apenas se tiñen. */
 .task-dropzone.cdk-drop-list-dragging {
-  background: #faf9ff;
+  background: rgb(var(--color-indigo-50-rgb, 250 249 255) / 0.45);
 }
 
 .task-dropzone.cdk-drop-list-receiving {
-  background: #fcfbfe;
+  background: rgb(var(--color-indigo-50-rgb, 252 251 254) / 0.3);
 }
 
 /* Transición al asentar la tarjeta soltada en su lugar final. */

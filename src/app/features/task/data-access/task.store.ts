@@ -19,8 +19,8 @@ import {
 
 /** Cuántas Completed recientes se traen aparte: /tasks/board es OnlyOpen y no las incluye. */
 const COMPLETED_FETCH_SIZE = 50;
-/** Lote de resultados cuando la búsqueda va al servidor. */
-const SEARCH_FETCH_SIZE = 100;
+/** Tamaño de página del listado server-paginado (modo búsqueda). */
+const SEARCH_PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 function isClosed(status: ApiTaskStatus): boolean {
@@ -45,6 +45,14 @@ export class TaskStore {
   /** Error transitorio de una acción (drag, guardado…): banner descartable, no rompe el tablero. */
   private readonly _actionError = signal<string | null>(null);
   private readonly _search = signal('');
+  private readonly _searchPage = signal(1);
+  private readonly _searchTotalCount = signal(0);
+  /** Renombres de columna por tenant (label → estado). Vacío = se usan los nombres por defecto. */
+  private readonly _labelOverrides = signal<ReadonlyMap<TaskStatus, string>>(new Map());
+  /** Filtros server-side (van a /tasks/search). null = sin filtro. */
+  private readonly _filterAssignee = signal<string | null>(null);
+  private readonly _filterCustomer = signal<string | null>(null);
+  private readonly _filterTaxYear = signal<number | null>(null);
   private searchDebounce: ReturnType<typeof setTimeout> | null = null;
   private initialized = false;
 
@@ -57,6 +65,26 @@ export class TaskStore {
   readonly actionError = this._actionError.asReadonly();
   readonly search = this._search.asReadonly();
   readonly clients = this._clients.asReadonly();
+
+  /** Modo búsqueda = hay término O algún filtro → resultados server-paginados de /tasks/search. */
+  readonly isSearching = computed(
+    () => this._search().trim().length > 0 || this.hasActiveFilters(),
+  );
+  readonly hasActiveFilters = computed(
+    () => this._filterAssignee() !== null || this._filterCustomer() !== null || this._filterTaxYear() !== null,
+  );
+  readonly searchPage = this._searchPage.asReadonly();
+  readonly searchTotalCount = this._searchTotalCount.asReadonly();
+  readonly searchPageSize = SEARCH_PAGE_SIZE;
+  readonly labelOverrides = this._labelOverrides.asReadonly();
+  readonly filterAssignee = this._filterAssignee.asReadonly();
+  readonly filterCustomer = this._filterCustomer.asReadonly();
+  readonly filterTaxYear = this._filterTaxYear.asReadonly();
+
+  /** Opciones de asignado para el picker de filtro (de los nombres ya resueltos). */
+  readonly assigneeOptions = computed(() =>
+    [...this._userNames().entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+  );
 
   private readonly clientNameById = computed<ReadonlyMap<string, string>>(
     () => new Map(this._clients().map(client => [client.id, client.displayName])),
@@ -82,21 +110,59 @@ export class TaskStore {
     this.registerCurrentUserName();
     this.loadClients();
     this.loadUserNames();
+    this.loadTaxonomies();
     this.refresh();
   }
 
+  /** Recarga los labels del tenant (p.ej. tras editarlos en el manager). Público, idempotente. */
+  loadTaxonomies(): void {
+    this.service.taxonomies().subscribe({
+      next: tax => {
+        const map = new Map<TaskStatus, string>();
+        for (const label of tax.labels) {
+          const column = statusToColumn(label.mapsToStatus);
+          // Primer label por estado gana; Cancelled no tiene columna en el tablero.
+          if (column && !map.has(column)) {
+            map.set(column, label.displayName);
+          }
+        }
+        this._labelOverrides.set(map);
+      },
+      error: () => {
+        /* best-effort: sin taxonomías se usan los nombres por defecto */
+      },
+    });
+  }
+
   refresh(): void {
-    const term = this._search().trim();
-    if (term) {
-      this.loadSearch(term);
+    if (this.isSearching()) {
+      this.loadSearch();
     } else {
       this.loadBoard();
     }
   }
 
+  /** Fija los filtros server-side (assignee/customer/taxYear) y recarga (vuelve a la primera página). */
+  setFilters(patch: { assignee?: string | null; customer?: string | null; taxYear?: number | null }): void {
+    if (patch.assignee !== undefined) this._filterAssignee.set(patch.assignee);
+    if (patch.customer !== undefined) this._filterCustomer.set(patch.customer);
+    if (patch.taxYear !== undefined) this._filterTaxYear.set(patch.taxYear);
+    this._searchPage.set(1);
+    this.refresh();
+  }
+
+  clearFilters(): void {
+    this._filterAssignee.set(null);
+    this._filterCustomer.set(null);
+    this._filterTaxYear.set(null);
+    this._searchPage.set(1);
+    this.refresh();
+  }
+
   /** Búsqueda contra GET /tasks/search?q= (con debounce); término vacío vuelve al tablero. */
   setSearch(term: string): void {
     this._search.set(term);
+    this._searchPage.set(1); // nuevo término → primera página
     if (this.searchDebounce !== null) {
       clearTimeout(this.searchDebounce);
     }
@@ -104,6 +170,15 @@ export class TaskStore {
       this.searchDebounce = null;
       this.refresh();
     }, SEARCH_DEBOUNCE_MS);
+  }
+
+  /** Cambia de página en modo búsqueda (sin debounce). */
+  setSearchPage(page: number): void {
+    if (page < 1 || !this.isSearching()) {
+      return;
+    }
+    this._searchPage.set(page);
+    this.loadSearch();
   }
 
   clearActionError(): void {
@@ -135,19 +210,30 @@ export class TaskStore {
     });
   }
 
-  private loadSearch(term: string): void {
+  private loadSearch(): void {
     this._loading.set(true);
     this._error.set(null);
-    this.service.search({ q: term, size: SEARCH_FETCH_SIZE }).subscribe({
-      next: result => {
-        this._raw.set(result.items);
-        this._loading.set(false);
-      },
-      error: err => {
-        this._error.set(toApiError(err).message);
-        this._loading.set(false);
-      },
-    });
+    const term = this._search().trim();
+    this.service
+      .search({
+        ...(term ? { q: term } : {}),
+        ...(this._filterAssignee() ? { assigneeUserId: this._filterAssignee()! } : {}),
+        ...(this._filterCustomer() ? { customerId: this._filterCustomer()! } : {}),
+        ...(this._filterTaxYear() ? { taxYear: this._filterTaxYear()! } : {}),
+        page: this._searchPage(),
+        size: SEARCH_PAGE_SIZE,
+      })
+      .subscribe({
+        next: result => {
+          this._raw.set(result.items);
+          this._searchTotalCount.set(result.totalCount);
+          this._loading.set(false);
+        },
+        error: err => {
+          this._error.set(toApiError(err).message);
+          this._loading.set(false);
+        },
+      });
   }
 
   // ---------- Catálogos ----------

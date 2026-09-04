@@ -174,6 +174,11 @@ export class VoiceNotePlayback {
   }
 
   private async onNativeError(): Promise<void> {
+    // Ya destruido: `dispose()` vacía `audioEl.src`, lo que dispara un evento `error`
+    // (code 4) en una tarea posterior. Sin este guard, el fallback re-fetchea, decodifica
+    // y ARRANCA la reproducción (`shouldPlay = isPlaying || !buffer` → true) — la nota se
+    // reproducía sola al navegar de módulo o cerrar sesión.
+    if (this.disposed) return;
     // Códigos 2 (network) y 3 (decode) = Safari no reproduce webm → Web Audio.
     const code = this.audioEl?.error?.code;
     if (this.mode === 'webaudio' || (code !== 2 && code !== 3 && code !== undefined)) {

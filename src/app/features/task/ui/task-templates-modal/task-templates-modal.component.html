@@ -1,0 +1,306 @@
+<app-modal [isOpen]="isOpen"
+  [heading]="view() === 'edit' ? (editingId() ? 'Edit template' : 'New template') : 'Tax task templates'"
+  [subheading]="view() === 'apply' ? 'Apply a template to a client' : (view() === 'edit' ? 'Define the steps of an engagement' : 'Reusable checklists for common engagements')"
+  size="lg" (closed)="close()">
+
+  @if (view() === 'list') {
+    <!-- ===================== Catálogo ===================== -->
+    <div class="flex flex-col gap-4">
+      @if (loading()) {
+        <div class="flex flex-col gap-2">
+          @for (i of [1, 2, 3]; track i) { <div class="h-14 rounded-2xl bg-gray-100 animate-pulse"></div> }
+        </div>
+      } @else if (templates().length === 0) {
+        <div class="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+            <ion-icon name="documents-outline" class="text-2xl"></ion-icon>
+          </span>
+          <p class="text-sm text-gray-500 max-w-xs">No templates yet. Install the standard tax catalog (1040, 1040-ES, 941) or build your own.</p>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button type="button" (click)="installStandard()" [disabled]="installing()"
+              class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-60 transition-colors">
+              @if (installing()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+              <span>Install standard</span>
+            </button>
+            <button type="button" (click)="newTemplate()"
+              class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              <ion-icon name="add-outline" class="text-base"></ion-icon>
+              <span>New template</span>
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-gray-500">{{ templates().length }} template(s)</p>
+          <button type="button" (click)="newTemplate()"
+            class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+            <ion-icon name="add-outline" class="text-base"></ion-icon>
+            <span>New</span>
+          </button>
+        </div>
+        <div class="flex flex-col gap-2">
+          @for (t of templates(); track t.id) {
+            <div class="flex items-center gap-2 rounded-2xl border border-gray-100 p-4 hover:border-gray-200 transition-colors"
+              [class.opacity-60]="!t.isActive">
+              <button type="button" (click)="pickTemplate(t)" class="min-w-0 flex-1 text-left">
+                <div class="flex items-center gap-2">
+                  <p class="truncate text-sm font-semibold text-gray-900">{{ t.name }}</p>
+                  @if (t.recurrenceRule) {
+                    <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">Recurring</span>
+                  }
+                  @if (!t.isActive) {
+                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-400">Retired</span>
+                  }
+                </div>
+                <p class="text-xs text-gray-500">{{ t.steps.length }} step{{ t.steps.length === 1 ? '' : 's' }}@if (t.description) { · {{ t.description }} }</p>
+              </button>
+              <button type="button" (click)="editTemplate(t, $event)" aria-label="Edit template"
+                class="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <ion-icon name="create-outline"></ion-icon>
+              </button>
+              <button type="button" (click)="toggleActive(t, $event)" [attr.aria-label]="t.isActive ? 'Retire template' : 'Reactivate template'"
+                class="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <ion-icon [name]="t.isActive ? 'archive-outline' : 'refresh-outline'"></ion-icon>
+              </button>
+            </div>
+          }
+          <button type="button" (click)="installStandard()" [disabled]="installing()"
+            class="mt-1 inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors">
+            @if (installing()) { <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div> }
+            <ion-icon name="download-outline" class="text-base"></ion-icon>
+            <span>Reinstall standard catalog</span>
+          </button>
+        </div>
+      }
+    </div>
+  } @else if (view() === 'apply') {
+    <!-- ===================== Aplicar ===================== -->
+    <div class="flex flex-col gap-4">
+      <button type="button" (click)="backToList()" class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <ion-icon name="chevron-back-outline"></ion-icon> Templates
+      </button>
+
+      @if (result(); as r) {
+        <div class="flex flex-col items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 px-6 py-8 text-center">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <ion-icon name="checkmark-done-outline" class="text-2xl"></ion-icon>
+          </span>
+          <p class="text-sm font-semibold text-gray-900">Created {{ r.tasksCreated }} task(s)</p>
+          <p class="text-xs text-gray-500">
+            {{ r.dependenciesCreated }} dependency link(s). Only the first step is executable now.
+            @if (r.seriesId) { A recurring series was opened. }
+          </p>
+          <button type="button" (click)="close()"
+            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">Done</button>
+        </div>
+      } @else {
+        <div>
+          <p class="text-sm font-bold text-gray-900">{{ selected()!.name }}</p>
+          <p class="text-xs text-gray-500">Applying will create {{ selected()!.steps.length }} chained task(s) for the client.</p>
+        </div>
+
+        <div class="relative">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Client</label>
+          <input type="text" [ngModel]="clientSearch()" (ngModelChange)="onClientSearch($event)" placeholder="Search clients…"
+            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+          @if (clientResults().length > 0) {
+            <ul class="absolute z-10 mt-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+              @for (c of clientResults(); track c.id) {
+                <li>
+                  <button type="button" (click)="chooseClient(c)"
+                    class="w-full truncate px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    {{ c.displayName }} <span class="text-gray-400">· {{ c.primaryEmail }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Tax year</label>
+            <input type="number" [ngModel]="taxYear()" (ngModelChange)="taxYear.set(+$event)" min="1990" max="2100"
+              class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Engagement due (anchor)</label>
+            <input type="date" [ngModel]="anchorDate()" (ngModelChange)="anchorDate.set($event)"
+              class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+          </div>
+        </div>
+
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" [ngModel]="allowDuplicate()" (ngModelChange)="allowDuplicate.set($event)"
+            class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
+          Apply anyway if already applied to this client and year
+        </label>
+
+        @if (applyError()) { <p class="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ applyError() }}</p> }
+
+        <button type="button" (click)="apply()" [disabled]="!canApply()"
+          class="inline-flex items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
+          @if (applying()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          <span>Apply template</span>
+        </button>
+      }
+    </div>
+  } @else {
+    <!-- ===================== Editor ===================== -->
+    <div class="flex flex-col gap-4">
+      <button type="button" (click)="backToList()" class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <ion-icon name="chevron-back-outline"></ion-icon> Templates
+      </button>
+
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Name</label>
+          <input type="text" [ngModel]="formName()" (ngModelChange)="formName.set($event)" placeholder="e.g. 1040 — Individual return"
+            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Description</label>
+          <input type="text" [ngModel]="formDescription()" (ngModelChange)="formDescription.set($event)" placeholder="Optional"
+            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- Recurrence -->
+      <div class="rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" [ngModel]="formRecurring()" (ngModelChange)="formRecurring.set($event)"
+            class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
+          Recurring template (opens a series)
+        </label>
+        @if (formRecurring()) {
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">RRULE (RFC 5545)</label>
+              <input type="text" [ngModel]="formRecurrenceRule()" (ngModelChange)="formRecurrenceRule.set($event)"
+                placeholder="FREQ=YEARLY;BYMONTH=1,4,6,9;BYMONTHDAY=15"
+                class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Mode</label>
+              <select [ngModel]="formRecurrenceMode()" (ngModelChange)="formRecurrenceMode.set($event)"
+                class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+                <option value="FixedSchedule">Fixed schedule</option>
+                <option value="AfterCompletion">After completion</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-xs text-amber-600">A recurring template must have exactly one step.</p>
+        }
+      </div>
+
+      <!-- Steps -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Steps</h3>
+          <button type="button" (click)="addStep()"
+            class="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            <ion-icon name="add-outline"></ion-icon> Add step
+          </button>
+        </div>
+
+        @for (step of formSteps(); track $index) {
+          <div class="rounded-2xl border border-gray-100 p-3 flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500">{{ $index + 1 }}</span>
+              <input type="text" [ngModel]="step.title" (ngModelChange)="updateStep($index, { title: $event })" placeholder="Step title"
+                class="h-9 flex-1 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+              <button type="button" (click)="moveStep($index, -1)" [disabled]="$index === 0" aria-label="Move up"
+                class="shrink-0 text-gray-300 hover:text-gray-600 disabled:opacity-30 transition-colors"><ion-icon name="chevron-up-outline"></ion-icon></button>
+              <button type="button" (click)="moveStep($index, 1)" [disabled]="$index === formSteps().length - 1" aria-label="Move down"
+                class="shrink-0 text-gray-300 hover:text-gray-600 disabled:opacity-30 transition-colors"><ion-icon name="chevron-down-outline"></ion-icon></button>
+              <button type="button" (click)="removeStep($index)" aria-label="Remove step"
+                class="shrink-0 text-gray-300 hover:text-red-500 transition-colors"><ion-icon name="close-outline"></ion-icon></button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div>
+                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Due offset (days)</label>
+                <input type="number" [ngModel]="step.dueOffsetDays" (ngModelChange)="updateStep($index, { dueOffsetDays: +$event })"
+                  class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+              </div>
+              <div>
+                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Priority</label>
+                <select [ngModel]="step.priority" (ngModelChange)="updateStep($index, { priority: $event })"
+                  class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+                  @for (p of priorities; track p) { <option [value]="p">{{ p }}</option> }
+                </select>
+              </div>
+              <div>
+                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Depends on</label>
+                <select [ngModel]="step.dependsOnStepOrder" (ngModelChange)="updateStep($index, { dependsOnStepOrder: $event ? +$event : null })"
+                  class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+                  <option [ngValue]="null">—</option>
+                  @for (o of otherOrders($index); track o) { <option [ngValue]="o">Step {{ o }}</option> }
+                </select>
+              </div>
+              <div>
+                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Parent step</label>
+                <select [ngModel]="step.parentStepOrder" (ngModelChange)="updateStep($index, { parentStepOrder: $event ? +$event : null })"
+                  class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+                  <option [ngValue]="null">—</option>
+                  @for (o of otherOrders($index); track o) { <option [ngValue]="o">Step {{ o }}</option> }
+                </select>
+              </div>
+            </div>
+            <label class="flex items-center gap-2 text-xs text-gray-600">
+              <input type="checkbox" [ngModel]="step.isStatutory" (ngModelChange)="updateStep($index, { isStatutory: $event })"
+                class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
+              Statutory deadline
+            </label>
+          </div>
+        }
+      </div>
+
+      <!-- Reference attachments (edit mode only — needs a template id) -->
+      <div class="flex flex-col gap-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Reference files</h3>
+        @if (editingId()) {
+          @for (att of editorAttachments(); track att.fileId) {
+            <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3 py-2">
+              <span class="min-w-0 truncate text-sm text-gray-700">
+                <ion-icon name="document-outline" class="align-middle text-gray-400"></ion-icon>
+                {{ att.displayName }} <span class="text-gray-400">· {{ attachSize(att.sizeBytes) }}</span>
+              </span>
+              <button type="button" (click)="removeTemplateAttachment(att.fileId)" aria-label="Remove file"
+                class="shrink-0 text-gray-300 hover:text-red-500 transition-colors"><ion-icon name="close-outline"></ion-icon></button>
+            </div>
+          } @empty {
+            <p class="text-xs text-gray-400">No reference files. Attach a blank form or checklist shared by all instances.</p>
+          }
+          <div class="relative">
+            <input type="file" (change)="uploadTemplateAttachment($event)" [disabled]="uploadingAttachment()"
+              class="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-10" />
+            <button type="button" [disabled]="uploadingAttachment()"
+              class="w-full flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              @if (uploadingAttachment()) {
+                <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div>
+                <span>Uploading…</span>
+              } @else {
+                <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+                <span>Attach a reference file</span>
+              }
+            </button>
+          </div>
+        } @else {
+          <p class="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">Save the template first, then reopen it to attach reference files.</p>
+        }
+      </div>
+
+      @if (saveError()) { <p class="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ saveError() }}</p> }
+
+      <div class="flex items-center justify-end gap-2">
+        <button type="button" (click)="backToList()"
+          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+        <button type="button" (click)="saveTemplate()" [disabled]="!canSave()"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
+          @if (saving()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          <span>{{ editingId() ? 'Save changes' : 'Create template' }}</span>
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

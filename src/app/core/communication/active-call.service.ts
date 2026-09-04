@@ -479,7 +479,9 @@ export class ActiveCallService {
       sizeBytes: file.size,
       ownerType: 'Communication',
       ownerId: callId,
-      folderType: 'Other',
+      // La grabación (audio mezclado, audio/webm) va a la carpeta Recordings — OtherPolicy no admite
+      // audio/* y devolvía 400 ("Could not save the recording"). RecordingsPolicy acepta audio/webm.
+      folderType: 'Recordings',
       taxYear: null,
     };
     try {

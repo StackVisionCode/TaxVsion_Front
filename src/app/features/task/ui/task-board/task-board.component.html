@@ -4,7 +4,7 @@
     <!-- Column header -->
     <div class="flex items-center gap-2">
       <span class="h-2.5 w-2.5 rounded-full" [ngClass]="column.dotClass"></span>
-      <h3 class="text-sm font-semibold text-gray-900">{{ column.label }}</h3>
+      <h3 class="text-sm font-semibold text-gray-900">{{ columnLabel(column) }}</h3>
       <span class="ml-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
         {{ bucketFor(column.id).length }}
       </span>

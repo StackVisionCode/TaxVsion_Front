@@ -1,48 +1,22 @@
 /**
- * Espejos del contrato HTTP de Tasks (TaxVision.Tasks.Api, ruta `/tasks` vía Gateway)
- * + view-model del tablero. Los enums viajan como STRING (JsonStringEnumConverter en
- * Program.cs del servicio): `TaskItemStatus` y `TaskPriority` se comparan por nombre.
+ * View-model del tablero Kanban + re-export del contrato HTTP compartido.
+ *
+ * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry,
+ * avatarColorFor/initialsFor) vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
+ * acá para no romper a los consumidores que importan desde `./task.model`. Lo que queda en este
+ * archivo es SOLO lo específico de la superficie tablero.
  */
+export * from '@core/tasks/task-contract.model';
 
-// ---------- Enums del backend (TaxVision.Tasks.Domain) ----------
+import {
+  ApiTaskPriority,
+  ApiTaskStatus,
+  TaskResponse,
+  avatarColorFor,
+  initialsFor,
+} from '@core/tasks/task-contract.model';
 
-/** Espejo de TaskItemStatus. No hay `Blocked`: el bloqueo es `isBlocked` (contador de dependencias). */
-export type ApiTaskStatus = 'NotStarted' | 'InProgress' | 'WaitingOnClient' | 'Completed' | 'Cancelled';
-
-/** Espejo de TaskPriority. Ojo: es `Normal`, no `Medium`. */
-export type ApiTaskPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
-
-// ---------- Respuestas ----------
-
-/** Espejo de TaxVision.Tasks.Application.Tasks.TaskResponse (camelCase). */
-export interface TaskResponse {
-  id: string;
-  title: string;
-  description: string | null;
-  status: ApiTaskStatus;
-  priority: ApiTaskPriority;
-  createdByUserId: string;
-  assigneeUserId: string | null;
-  customerId: string | null;
-  taxYear: number | null;
-  dueAtUtc: string | null;
-  dueTimeZoneId: string | null;
-  dueIsStatutory: boolean;
-  startedAtUtc: string | null;
-  completedAtUtc: string | null;
-  createdAtUtc: string;
-  parentTaskId: string | null;
-  depth: number;
-  openSubtaskCount: number;
-  openBlockerCount: number;
-  isBlocked: boolean;
-  estimatedHours: number | null;
-  actualHours: number;
-  expectedItems: string | null;
-  clientDueAtUtc: string | null;
-  clientRequestedByUserId: string | null;
-  clientRequestedAtUtc: string | null;
-}
+// ---------- Respuestas específicas del tablero ----------
 
 /** GET /tasks/board — una columna por valor de TaskItemStatus, incluidas las vacías. */
 export interface TaskBoardColumnResponse {
@@ -53,74 +27,6 @@ export interface TaskBoardColumnResponse {
 export interface TaskBoardApiResponse {
   columns: TaskBoardColumnResponse[];
   totalCount: number;
-}
-
-/** Espejo de BuildingBlocks.Common.PagedResult<T> (campo `size`, no `pageSize`). */
-export interface PagedResult<T> {
-  items: T[];
-  page: number;
-  size: number;
-  totalCount: number;
-  totalPages: number;
-  hasMore: boolean;
-  hasPrevious: boolean;
-}
-
-// ---------- Requests (TaxVision.Tasks.Api.Requests) ----------
-
-export interface CreateTaskRequest {
-  title: string;
-  description: string | null;
-  priority: ApiTaskPriority;
-  assigneeUserId: string | null;
-  customerId: string | null;
-  taxYear: number | null;
-  dueAtUtc: string | null;
-  dueTimeZoneId: string | null;
-  dueIsStatutory: boolean;
-  estimatedHours: number | null;
-}
-
-export interface UpdateTaskDetailsRequest {
-  title: string;
-  description: string | null;
-}
-
-export interface ChangeTaskPriorityRequest {
-  priority: ApiTaskPriority;
-}
-
-export interface ChangeTaskDueRequest {
-  dueAtUtc: string | null;
-  timeZoneId: string | null;
-  isStatutory: boolean;
-  statutoryChangeReason: string | null;
-}
-
-export interface CancelTaskRequest {
-  /** Obligatoria: el dominio rechaza cancelar sin razón (TaskErrors.CancellationReasonRequired). */
-  reason: string;
-}
-
-export interface AssignTaskRequest {
-  assigneeUserId: string;
-}
-
-/** POST /tasks/{id}/wait-on-client — `expectedItems` es obligatorio (viaja al correo del cliente). */
-export interface WaitOnClientRequest {
-  expectedItems: string;
-  clientDueAtUtc: string | null;
-}
-
-// ---------- Réplicas mínimas de otros servicios (sin imports cross-feature) ----------
-
-/** Fila de GET /communication/directory/employees (mismo shape que usa el chat). */
-export interface EmployeeDirectoryEntry {
-  userId: string;
-  displayName: string;
-  email: string;
-  isActive: boolean;
-  actorType: string;
 }
 
 /** Subset mínimo de GET /customers para el picker de cliente (réplica, no import de features/clients). */
@@ -218,40 +124,6 @@ export function statusToColumn(status: ApiTaskStatus): TaskStatus | null {
     case 'Cancelled':
       return null;
   }
-}
-
-const AVATAR_COLORS = [
-  'bg-brand-bold',
-  'bg-sky-700',
-  'bg-brand-ink',
-  'bg-slate-500',
-  'bg-indigo-400',
-  'bg-cyan-800',
-  'bg-slate-700',
-  'bg-indigo-600',
-];
-
-/** Color estable por usuario: hash simple del userId sobre la paleta de avatares. */
-export function avatarColorFor(userId: string): string {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-export function initialsFor(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(part => part.length > 0);
-  if (parts.length === 0) {
-    return '?';
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 /**

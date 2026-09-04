@@ -1,122 +1,20 @@
 /**
- * Espejo del contrato HTTP de Tasks (TaxVision.Tasks.Api, ruta `/tasks` vía Gateway) para
- * la pestaña "Work" del perfil de cliente + su view-model. Autocontenido, como el resto de
- * las pestañas del perfil (notes/reminders): no importa nada de `features/task` para no
- * acoplar features; el contrato se replica igual que allí.
+ * View-model de la pestaña "Work" del perfil de cliente + re-export del contrato HTTP compartido.
  *
- * El vínculo con el cliente es REAL: cada tarea lleva `customerId` (VO `TaskReference` en el
- * dominio) y el listado por cliente es `GET /tasks/by-customer/{customerId}` — no hay
- * simulación. Los enums viajan como STRING (el JSON del servicio usa nombres; el tablero
- * global ya funciona así en vivo), se comparan por nombre.
+ * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry,
+ * avatarColorFor/initialsFor) vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
+ * acá para no tocar a los consumidores de la pestaña. Lo que queda es SOLO lo específico de Work
+ * (la lista por secciones, `WorkTaskItem` con `overdue`/`clientDueAtUtc`, y su mapeo).
  */
+export * from '@core/tasks/task-contract.model';
 
-// ---------- Enums del backend (TaxVision.Tasks.Domain) ----------
-
-/** Espejo de TaskItemStatus. No hay `Blocked`: el bloqueo es `isBlocked` (contador de dependencias). */
-export type ApiTaskStatus = 'NotStarted' | 'InProgress' | 'WaitingOnClient' | 'Completed' | 'Cancelled';
-
-/** Espejo de TaskPriority. Ojo: es `Normal`, no `Medium`. */
-export type ApiTaskPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
-
-// ---------- Respuestas ----------
-
-/** Espejo de TaxVision.Tasks.Application.Tasks.TaskResponse (camelCase). */
-export interface TaskResponse {
-  id: string;
-  title: string;
-  description: string | null;
-  status: ApiTaskStatus;
-  priority: ApiTaskPriority;
-  createdByUserId: string;
-  assigneeUserId: string | null;
-  customerId: string | null;
-  taxYear: number | null;
-  dueAtUtc: string | null;
-  dueTimeZoneId: string | null;
-  dueIsStatutory: boolean;
-  startedAtUtc: string | null;
-  completedAtUtc: string | null;
-  createdAtUtc: string;
-  parentTaskId: string | null;
-  depth: number;
-  openSubtaskCount: number;
-  openBlockerCount: number;
-  isBlocked: boolean;
-  estimatedHours: number | null;
-  actualHours: number;
-  expectedItems: string | null;
-  clientDueAtUtc: string | null;
-  clientRequestedByUserId: string | null;
-  clientRequestedAtUtc: string | null;
-}
-
-/** Espejo de BuildingBlocks.Common.PagedResult<T> (campo `size`, no `pageSize`). */
-export interface PagedResult<T> {
-  items: T[];
-  page: number;
-  size: number;
-  totalCount: number;
-  totalPages: number;
-  hasMore: boolean;
-  hasPrevious: boolean;
-}
-
-// ---------- Requests (TaxVision.Tasks.Api.Requests) ----------
-
-export interface CreateTaskRequest {
-  title: string;
-  description: string | null;
-  priority: ApiTaskPriority;
-  assigneeUserId: string | null;
-  customerId: string | null;
-  taxYear: number | null;
-  dueAtUtc: string | null;
-  dueTimeZoneId: string | null;
-  dueIsStatutory: boolean;
-  estimatedHours: number | null;
-}
-
-export interface UpdateTaskDetailsRequest {
-  title: string;
-  description: string | null;
-}
-
-export interface ChangeTaskPriorityRequest {
-  priority: ApiTaskPriority;
-}
-
-export interface ChangeTaskDueRequest {
-  dueAtUtc: string | null;
-  timeZoneId: string | null;
-  isStatutory: boolean;
-  statutoryChangeReason: string | null;
-}
-
-/** POST /tasks/{id}/cancel — el dominio rechaza cancelar sin razón (TaskErrors.CancellationReasonRequired). */
-export interface CancelTaskRequest {
-  reason: string;
-}
-
-export interface AssignTaskRequest {
-  assigneeUserId: string;
-}
-
-/** POST /tasks/{id}/wait-on-client — `expectedItems` es obligatorio (viaja al cliente). */
-export interface WaitOnClientRequest {
-  expectedItems: string;
-  clientDueAtUtc: string | null;
-}
-
-// ---------- Réplicas mínimas de otros servicios (sin imports cross-feature) ----------
-
-/** Fila de GET /communication/directory/employees (mismo shape que usa el chat / el módulo Task). */
-export interface EmployeeDirectoryEntry {
-  userId: string;
-  displayName: string;
-  email: string;
-  isActive: boolean;
-  actorType: string;
-}
+import {
+  ApiTaskPriority,
+  ApiTaskStatus,
+  TaskResponse,
+  avatarColorFor,
+  initialsFor,
+} from '@core/tasks/task-contract.model';
 
 /** Fila mínima de GET /auth/users — solo para resolver nombres de asignados (best-effort, requiere users.view). */
 export interface WorkUserSummary {
@@ -203,40 +101,6 @@ export function statusToColumn(status: ApiTaskStatus): WorkColumnId | null {
     case 'Cancelled':
       return null;
   }
-}
-
-const AVATAR_COLORS = [
-  'bg-brand-bold',
-  'bg-sky-700',
-  'bg-brand-ink',
-  'bg-slate-500',
-  'bg-indigo-400',
-  'bg-cyan-800',
-  'bg-slate-700',
-  'bg-indigo-600',
-];
-
-/** Color estable por usuario: hash simple del userId sobre la paleta de avatares. */
-export function avatarColorFor(userId: string): string {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-export function initialsFor(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(part => part.length > 0);
-  if (parts.length === 0) {
-    return '?';
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 /** TaskResponse → tarjeta. El nombre del asignado se resuelve contra el mapa id→nombre del store. */
