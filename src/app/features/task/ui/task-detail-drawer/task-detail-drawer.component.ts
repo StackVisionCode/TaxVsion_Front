@@ -221,8 +221,10 @@ export class TaskDetailDrawerComponent implements OnChanges {
           sizeBytes: file.size,
           ownerType,
           ownerId,
+          // El bucket `Tasks` exige tax year (FolderTypeRules.RequiresYear) o CloudStorage responde 400
+          // File.YearRequired. Una tarea puede no tener año → fallback al actual (convención de la casa).
           folderType: 'Tasks',
-          taxYear: task.taxYear,
+          taxYear: task.taxYear ?? new Date().getFullYear(),
         }),
       );
       await firstValueFrom(this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file));
