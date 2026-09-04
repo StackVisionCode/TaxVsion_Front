@@ -175,7 +175,7 @@
     <div class="flex-1 min-h-0">
       <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
         [otherAvatarColor]="activeConversation.avatarColor" [conversationId]="activeConversation.id"
-        [typingName]="activeConversation.typingName" [readUpToMessageId]="activeConversation.readUpToMessageId"
+        [typingName]="activeConversation.typingName"
         [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
         (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
         (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"></app-chat-thread>

@@ -112,6 +112,22 @@ export class MeetingSfuService {
     this.recvTransport = transport;
   }
 
+  /**
+   * Simulcast del video (VP8, ver mediasoup-config): 3 capas espaciales (¼, ½, full). mediasoup elige
+   * por consumidor la capa más alta que quepa en su ancho de banda estimado → el SFU DEGRADA solo bajo
+   * congestión. Sin esto se producía UNA sola capa y no había nada que bajar ("SFU no degrada").
+   */
+  private videoProduceOptions(): { encodings: RTCRtpEncodingParameters[]; codecOptions: { videoGoogleStartBitrate: number } } {
+    return {
+      encodings: [
+        { rid: 'r0', maxBitrate: 150_000, scaleResolutionDownBy: 4 },
+        { rid: 'r1', maxBitrate: 500_000, scaleResolutionDownBy: 2 },
+        { rid: 'r2', maxBitrate: 1_200_000 },
+      ],
+      codecOptions: { videoGoogleStartBitrate: 1000 },
+    };
+  }
+
   private async produceLocal(localStream: MediaStream | null): Promise<void> {
     if (!this.sendTransport || !localStream) {
       return;
@@ -120,7 +136,9 @@ export class MeetingSfuService {
       if (track.kind === 'video' && !this.device!.canProduce('video')) {
         continue;
       }
-      const producer = await this.sendTransport.produce({ track });
+      const producer = await this.sendTransport.produce(
+        track.kind === 'video' ? { track, ...this.videoProduceOptions() } : { track },
+      );
       this.producers.set(track.kind, producer);
     }
   }
@@ -156,6 +174,27 @@ export class MeetingSfuService {
     }
   }
 
+  /**
+   * Fija la capa de simulcast preferida del video de un peer (spotlight = alta, thumbnail = baja).
+   * Resuelve el consumerId de VIDEO de ese userId (no hay mapa directo userId→consumerId). No-op en mesh
+   * (producerIndex vacío) o si el peer aún no tiene consumer de video.
+   */
+  async setPeerPreferredLayers(userId: string, spatialLayer: number, temporalLayer?: number): Promise<void> {
+    for (const { userId: u, consumerId } of this.producerIndex.values()) {
+      if (u !== userId) {
+        continue;
+      }
+      if (this.consumers.get(consumerId)?.kind !== 'video') {
+        continue;
+      }
+      try {
+        await this.rtc.sfuSetPreferredLayers(this.meetingId!, consumerId, spatialLayer, temporalLayer);
+      } catch (err) {
+        console.error('[MeetingSfu] setPreferredLayers failed:', err);
+      }
+    }
+  }
+
   private closeRemoteProducer(producerId: string): void {
     const entry = this.producerIndex.get(producerId);
     if (!entry) {
@@ -185,7 +224,7 @@ export class MeetingSfuService {
     }
     // No había producer de video (entré con la cámara apagada): crear uno con la pantalla.
     if (track && this.sendTransport && this.device?.canProduce('video')) {
-      const newProducer = await this.sendTransport.produce({ track });
+      const newProducer = await this.sendTransport.produce({ track, ...this.videoProduceOptions() });
       this.producers.set('video', newProducer);
     }
   }

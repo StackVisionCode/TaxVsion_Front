@@ -119,6 +119,9 @@ export class MeetingRtcService {
   sfuResumeConsumer(meetingId: string, consumerId: string): Promise<unknown> {
     return this.emitOrThrow('meeting.sfu.resume_consumer', { meetingId, consumerId });
   }
+  sfuSetPreferredLayers(meetingId: string, consumerId: string, spatialLayer: number, temporalLayer?: number): Promise<unknown> {
+    return this.emitOrThrow('meeting.sfu.set_preferred_layers', { meetingId, consumerId, spatialLayer, temporalLayer });
+  }
   sfuListRemoteProducers(meetingId: string): Promise<SfuRemoteProducer[]> {
     return this.emitOrThrow('meeting.sfu.list_remote_producers', { meetingId });
   }

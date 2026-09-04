@@ -3,6 +3,7 @@ import { map } from 'rxjs';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import {
   AttachmentFlaggedDto,
+  DeliveryReceiptDto,
   MessageDeletedDto,
   MessageDto,
   MessageEditedDto,
@@ -18,6 +19,7 @@ const EVENTS = {
   editMessage: 'chat.message.edit',
   deleteMessage: 'chat.message.delete',
   markRead: 'chat.message.mark_read',
+  markDelivered: 'chat.message.mark_delivered',
   typingStart: 'chat.typing.start',
   typingStop: 'chat.typing.stop',
   presenceQuery: 'chat.presence.query',
@@ -44,6 +46,12 @@ export class ChatSocketService {
   readonly messageEdited$ = this.realtime.on<MessageEditedDto>('chat.message.edited');
   readonly messageDeleted$ = this.realtime.on<MessageDeletedDto>('chat.message.deleted');
   readonly messageRead$ = this.realtime.on<ReadReceiptDto>('chat.message.read');
+  readonly messageDelivered$ = this.realtime.on<DeliveryReceiptDto>('chat.message.delivered');
+  /**
+   * La oficina/otro creó (o me añadió a) una conversación. El payload es delgado (id/kind/title/creador),
+   * SIN participants ni unreadCount, así que sirve solo de señal para re-leer la lista completa.
+   */
+  readonly conversationCreated$ = this.realtime.on<{ id: string }>('chat.conversation.created');
   readonly typingStarted$ = this.realtime.on<TypingDto>('chat.typing.started');
   readonly typingStopped$ = this.realtime.on<TypingDto>('chat.typing.stopped');
   readonly presenceChanged$ = this.realtime.on<PresenceChangedDto>('chat.presence.changed');
@@ -93,6 +101,15 @@ export class ChatSocketService {
       clientKey: this.realtime.newClientKey(),
       conversationId,
       lastReadMessageId,
+    });
+  }
+
+  /** Cotejo de ENTREGA: avisa que recibí hasta `upToMessageId` SIN abrir el chat (no marca leído). */
+  async markDelivered(conversationId: string, upToMessageId: string): Promise<SocketAck<{ markedCount: number }>> {
+    return this.realtime.emitAck(EVENTS.markDelivered, {
+      clientKey: this.realtime.newClientKey(),
+      conversationId,
+      upToMessageId,
     });
   }
 

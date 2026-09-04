@@ -44,6 +44,17 @@ export interface MessageDto {
   pinnedByUserId: string | null;
   createdAtUtc: string;
   editedAtUtc: string | null;
+  /** Cotejos del emisor sobre SU mensaje: null=enviado (1 gris), fecha=entregado (2 grises)/leído (2 azules). */
+  deliveredAtUtc?: string | null;
+  readAtUtc?: string | null;
+}
+
+/** Cotejo de entrega (2 grises): el otro recibió hasta `upToMessageId` (sin abrir el chat). */
+export interface DeliveryReceiptDto {
+  conversationId: string;
+  userId: string;
+  upToMessageId: string;
+  deliveredAtUtc: string;
 }
 
 /** GET /communication/conversations/:id/messages — paginación por cursor, no por página. */
