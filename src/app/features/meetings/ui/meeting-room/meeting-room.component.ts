@@ -50,6 +50,7 @@ export class MeetingRoomComponent {
   readonly strategy = this.meeting.strategy;
   readonly chatMessages = this.meeting.chatMessages;
   readonly recordingState = this.meeting.recordingState;
+  readonly recordingElapsedLabel = this.meeting.recordingElapsedLabel;
   readonly recordingConsentFrom = this.meeting.recordingConsentFrom;
   readonly isRecordingRequester = this.meeting.isRecordingRequester;
   private readonly peers = this.meeting.peers;

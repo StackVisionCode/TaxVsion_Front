@@ -1,4 +1,6 @@
-<div class="flex items-center gap-2.5 min-w-[190px]">
+<!-- w-full + min-w-0: el player se adapta al ancho de la burbuja en vez de forzar 190px y desbordar; el
+     waveform (min-w-0 + overflow-hidden) encoge, así el tiempo NUNCA se recorta en pantallas angostas. -->
+<div class="flex items-center gap-2.5 w-full min-w-0">
   <button type="button" (click)="toggle()" [disabled]="loading"
     [attr.aria-label]="playback?.isPlaying ? 'Pause voice note' : 'Play voice note'"
     class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
@@ -9,7 +11,7 @@
   </button>
 
   <button type="button" (click)="seek($event)" aria-label="Seek voice note"
-    class="flex h-8 flex-1 items-center gap-[2px] cursor-pointer">
+    class="flex h-8 flex-1 min-w-0 items-center gap-[2px] overflow-hidden cursor-pointer">
     <span *ngFor="let bar of bars; let i = index" class="w-[3px] shrink-0 rounded-full transition-colors"
       [style.height.%]="bar" [ngClass]="i / bars.length <= progress
             ? (mine ? 'bg-white' : 'bg-indigo-500')

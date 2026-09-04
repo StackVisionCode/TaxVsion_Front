@@ -86,6 +86,14 @@ export class ActiveMeetingService {
 
   // ---------- Grabación ----------
   readonly recordingState = signal<MeetingRecordingState>('Idle');
+  /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
+  readonly recordingElapsedMs = signal(0);
+  readonly recordingElapsedLabel = computed(() => {
+    const s = Math.floor(this.recordingElapsedMs() / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  });
+  private recordingTimer: ReturnType<typeof setInterval> | null = null;
+  private recordingStartedAt = 0;
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
@@ -231,14 +239,20 @@ export class ActiveMeetingService {
         return;
       }
       this.recordingState.set(dto.state);
-      if (dto.state === 'Recording' && this.isRecordingRequester()) {
-        const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.stream)];
-        this.recording.start(...streams);
-      } else if (dto.state === 'Failed') {
-        this.toast.error('The recording failed.');
-      } else if (dto.state === 'Idle') {
-        this.recordingConsentFrom.set(null);
-        this._recordingRequesterId.set(null);
+      if (dto.state === 'Recording') {
+        this.startRecordingTimer();
+        if (this.isRecordingRequester()) {
+          const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.stream)];
+          this.recording.start(...streams);
+        }
+      } else {
+        this.stopRecordingTimer();
+        if (dto.state === 'Failed') {
+          this.toast.error('The recording failed.');
+        } else if (dto.state === 'Idle') {
+          this.recordingConsentFrom.set(null);
+          this._recordingRequesterId.set(null);
+        }
       }
     });
 
@@ -741,8 +755,10 @@ export class ActiveMeetingService {
       folderType: 'Recordings',
       taxYear: null,
     };
+    // Paso 1: subir a CloudStorage. Si esto falla, la grabación se perdió → toast de error.
+    let fileId: string;
     try {
-      const fileId = await firstValueFrom(
+      fileId = await firstValueFrom(
         this.cloudStorage.initiateUpload(request).pipe(
           switchMap(init =>
             this.cloudStorage.uploadToPresignedUrl(init.uploadUrl, init.formData, file).pipe(
@@ -752,9 +768,20 @@ export class ActiveMeetingService {
           ),
         ),
       );
-      await this.rtc.attachRecording(meetingId, fileId);
     } catch {
       this.toast.error('Could not save the recording.');
+      return;
+    }
+    // Paso 2: enlazar el fileId al meeting. El archivo YA está guardado; el attach puede perder la carrera
+    // con el fin del meeting. Idempotente → un reintento; si aun así falla NO se muestra error.
+    try {
+      await this.rtc.attachRecording(meetingId, fileId);
+    } catch {
+      try {
+        await this.rtc.attachRecording(meetingId, fileId);
+      } catch {
+        /* la grabación quedó guardada; sin toast de error. */
+      }
     }
   }
 
@@ -852,8 +879,29 @@ export class ActiveMeetingService {
     this.videoEnabled.set(true);
     this.handRaised.set(false);
     this.recordingState.set('Idle');
+    this.stopRecordingTimer();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
     this.myUserId.set(null);
+  }
+
+  /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
+  private startRecordingTimer(): void {
+    if (this.recordingTimer) {
+      return;
+    }
+    this.recordingStartedAt = Date.now();
+    this.recordingElapsedMs.set(0);
+    this.recordingTimer = setInterval(() => {
+      this.recordingElapsedMs.set(Date.now() - this.recordingStartedAt);
+    }, 250);
+  }
+
+  private stopRecordingTimer(): void {
+    if (this.recordingTimer) {
+      clearInterval(this.recordingTimer);
+      this.recordingTimer = null;
+    }
+    this.recordingElapsedMs.set(0);
   }
 }

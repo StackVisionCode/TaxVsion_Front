@@ -56,6 +56,14 @@ export class ActiveCallService {
 
   // ---------- Grabación ----------
   readonly recordingState = signal<CallRecordingState>('Idle');
+  /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
+  readonly recordingElapsedMs = signal(0);
+  readonly recordingElapsedLabel = computed(() => {
+    const s = Math.floor(this.recordingElapsedMs() / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  });
+  private recordingTimer: ReturnType<typeof setInterval> | null = null;
+  private recordingStartedAt = 0;
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
@@ -192,10 +200,16 @@ export class ActiveCallService {
         return;
       }
       this.recordingState.set(dto.state);
-      if (dto.state === 'Recording' && this.isRecordingRequester()) {
-        this.recording.start(this.localStream(), this.remoteStream());
-      } else if (dto.state === 'Failed') {
-        this.toast.error('The recording failed.');
+      if (dto.state === 'Recording') {
+        this.startRecordingTimer();
+        if (this.isRecordingRequester()) {
+          this.recording.start(this.localStream(), this.remoteStream());
+        }
+      } else {
+        this.stopRecordingTimer();
+        if (dto.state === 'Failed') {
+          this.toast.error('The recording failed.');
+        }
       }
     });
 
@@ -484,8 +498,10 @@ export class ActiveCallService {
       folderType: 'Recordings',
       taxYear: null,
     };
+    // Paso 1: subir a CloudStorage. Si esto falla, la grabación de verdad se perdió → toast de error.
+    let fileId: string;
     try {
-      const fileId = await firstValueFrom(
+      fileId = await firstValueFrom(
         this.cloudStorage.initiateUpload(request).pipe(
           switchMap(init =>
             this.cloudStorage.uploadToPresignedUrl(init.uploadUrl, init.formData, file).pipe(
@@ -495,9 +511,21 @@ export class ActiveCallService {
           ),
         ),
       );
-      await this.calls.attachRecording(callId, fileId);
     } catch {
       this.toast.error('Could not save the recording.');
+      return;
+    }
+    // Paso 2: enlazar el fileId a la llamada por socket. El archivo YA está guardado; este attach puede
+    // perder la carrera con el fin de la llamada. Es idempotente (mismo fileId) → un reintento; si aun así
+    // falla NO se muestra error (la grabación existe en CloudStorage, solo faltó el vínculo).
+    try {
+      await this.calls.attachRecording(callId, fileId);
+    } catch {
+      try {
+        await this.calls.attachRecording(callId, fileId);
+      } catch {
+        /* la grabación quedó guardada; el vínculo se puede reconciliar aparte. Sin toast de error. */
+      }
     }
   }
 
@@ -731,6 +759,12 @@ export class ActiveCallService {
         await pc.setLocalDescription();
         this.sendSignal('answer', pc.localDescription);
       } else if (kind === 'answer') {
+        // Una answer solo es válida si estamos esperando una (tenemos oferta local pendiente). Si ya
+        // estamos `stable`, es una answer duplicada/stale → aplicarla lanza "Called in wrong state: stable"
+        // y dejaba la negociación a medias. Se ignora sin ruido.
+        if (pc.signalingState !== 'have-local-offer') {
+          return;
+        }
         await pc.setRemoteDescription(data as RTCSessionDescriptionInit);
         await this.flushPendingCandidates(pc);
       } else if (kind === 'ice') {
@@ -795,9 +829,30 @@ export class ActiveCallService {
     this.connectionQuality.set('Good');
     this.reconnecting.set(false);
     this.recordingState.set('Idle');
+    this.stopRecordingTimer();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
     this.makingOffer = false;
     this.ignoreOffer = false;
+  }
+
+  /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
+  private startRecordingTimer(): void {
+    if (this.recordingTimer) {
+      return;
+    }
+    this.recordingStartedAt = Date.now();
+    this.recordingElapsedMs.set(0);
+    this.recordingTimer = setInterval(() => {
+      this.recordingElapsedMs.set(Date.now() - this.recordingStartedAt);
+    }, 250);
+  }
+
+  private stopRecordingTimer(): void {
+    if (this.recordingTimer) {
+      clearInterval(this.recordingTimer);
+      this.recordingTimer = null;
+    }
+    this.recordingElapsedMs.set(0);
   }
 }

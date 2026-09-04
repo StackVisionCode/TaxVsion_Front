@@ -64,8 +64,8 @@
           <span *ngIf="isLocked()" class="ml-1 inline-flex items-center gap-1 text-gray-400">
             <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> Locked
           </span>
-          <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC
+          <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
           </span>
         </p>
       </div>
