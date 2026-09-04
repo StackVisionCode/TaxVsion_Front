@@ -52,6 +52,10 @@ const BOTTOM_STICK_THRESHOLD = 80;
   imports: [CommonModule, FormsModule, VoiceNotePlayerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
+  // El host debe llenar su contenedor acotado (`flex-1 min-h-0`); por defecto un
+  // componente Angular es `display:inline` con alto auto → el `h-full` interno colapsa,
+  // el hilo nunca es scrolleable y crecía la página entera (no bajaba al último mensaje).
+  host: { class: 'block h-full min-h-0' },
 })
 export class ChatThreadComponent implements AfterViewChecked, OnChanges {
   @Input() messages: ChatMessage[] = [];

@@ -24,6 +24,7 @@ import {
   WorkTaskFormValue,
   WorkTaskItem,
 } from '../../data-access/client-work.model';
+import { priorityChipClass } from '@core/tasks/task-format';
 
 /** Permisos del servicio Tasks (BuildingBlocks.Authorization.TasksPermissions). */
 const TASKS_READ = 'tasks.read';
@@ -268,18 +269,10 @@ export class ClientProfileWorkComponent implements OnChanges {
   }
 
   priorityChipClass(priority: ApiTaskPriority): string {
-    switch (priority) {
-      case 'Urgent':
-        return 'border-red-200 text-red-500';
-      case 'High':
-        return 'border-orange-200 text-orange-500';
-      case 'Normal':
-        return 'border-amber-200 text-amber-600';
-      case 'Low':
-        return 'border-emerald-200 text-emerald-600';
-    }
+    return priorityChipClass(priority);
   }
 
+  /** La pestaña Work usa redacción "Due …/N days overdue" (distinta del tablero, a propósito). */
   formatDue(dueDate: string): string {
     if (!dueDate) {
       return 'No due date';
