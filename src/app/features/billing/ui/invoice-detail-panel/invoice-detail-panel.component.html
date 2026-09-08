@@ -1,0 +1,119 @@
+<app-modal [isOpen]="isOpen" heading="Invoice details" size="xl"
+  [subheading]="invoice?.invoiceNumber || 'Draft — not issued yet'" (closed)="close()">
+  <div *ngIf="invoice as inv" class="mt-5">
+    <!-- Estado + importe -->
+    <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-brand-white px-5 py-4">
+      <div>
+        <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+          [ngClass]="statusChip(inv.status)">
+          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(inv.status)"></span>
+          {{ statusLabel(inv.status) }}
+        </span>
+        <p class="mt-2 text-sm text-gray-500">Created {{ longDate(inv.createdAtUtc) }}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-2xl font-bold text-gray-900">{{ money(inv.totalCents) }}</p>
+        <p class="mt-0.5 text-sm" [ngClass]="inv.amountDueCents > 0 ? 'text-amber-600' : 'text-emerald-600'">
+          {{ inv.amountDueCents > 0 ? money(inv.amountDueCents) + ' outstanding' : 'Fully paid' }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Totales -->
+    <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <dl class="flex flex-col gap-2.5 text-sm">
+        <div class="flex items-center justify-between gap-4">
+          <dt class="text-gray-500">Subtotal</dt>
+          <dd class="font-medium text-gray-900">{{ money(inv.subtotalCents) }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <dt class="text-gray-500">Tax</dt>
+          <dd class="font-medium text-gray-900">{{ money(inv.taxTotalCents) }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-gray-100 pt-2.5">
+          <dt class="font-medium text-gray-700">Total</dt>
+          <dd class="font-bold text-gray-900">{{ money(inv.totalCents) }}</dd>
+        </div>
+      </dl>
+
+      <dl class="flex flex-col gap-2.5 text-sm">
+        <div class="flex items-center justify-between gap-4">
+          <dt class="text-gray-500">Paid</dt>
+          <dd class="font-medium text-gray-900">{{ money(inv.amountPaidCents) }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <dt class="text-gray-500">Payment method</dt>
+          <dd class="font-medium text-gray-900">{{ methodLabel(inv.paymentMethod) }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-gray-100 pt-2.5">
+          <dt class="text-gray-500">Paid on</dt>
+          <dd class="font-medium text-gray-900">{{ longDate(inv.paidAtUtc) }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Lo que el contrato de lectura no devuelve: se dice, no se finge -->
+    <div class="mt-5 flex items-start gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <ion-icon name="information-circle-outline" class="mt-0.5 shrink-0 text-base text-gray-400"></ion-icon>
+      <p class="text-xs leading-relaxed text-gray-500">
+        Line items, the client and the due date are stored with the invoice but are not returned by the billing API,
+        so they can't be shown here. The generated PDF contains all of them.
+      </p>
+    </div>
+
+    <!-- Artefactos que llegan asíncronos tras emitir -->
+    <div *ngIf="artifactsPending"
+      class="mt-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <ion-icon name="hourglass-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
+      <p class="text-xs leading-relaxed text-amber-800">
+        The PDF and the payment link are generated in the background right after issuing. Refresh in a few seconds if
+        they are not here yet.
+      </p>
+    </div>
+
+    <!-- Recibo -->
+    <div *ngIf="inv.receiptNumber"
+      class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+      <p class="text-sm text-emerald-800">
+        Receipt <span class="font-mono text-xs font-semibold">{{ inv.receiptNumber }}</span>
+      </p>
+      <button type="button" (click)="receiptRequested.emit(inv)"
+        class="shrink-0 text-sm font-medium text-emerald-800 hover:text-emerald-950 transition-colors">
+        View receipt
+      </button>
+    </div>
+
+    <!-- Acciones -->
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="refreshRequested.emit(inv)" [disabled]="busy"
+        class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
+        <ion-icon name="refresh-outline" class="text-base" [ngClass]="busy ? 'animate-spin' : ''"></ion-icon>
+        Refresh
+      </button>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button *ngIf="inv.checkoutUrl" type="button" (click)="copyLinkRequested.emit(inv.checkoutUrl!)"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="link-outline" class="text-base"></ion-icon>
+          Copy payment link
+        </button>
+        <button *ngIf="inv.pdfFileId" type="button" (click)="pdfRequested.emit(inv)" [disabled]="busy"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+          <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+          Open PDF
+        </button>
+        <button *ngIf="canRecordPayment" type="button" (click)="recordPaymentRequested.emit(inv)"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="cash-outline" class="text-base"></ion-icon>
+          Record payment
+        </button>
+        <button *ngIf="canIssue" type="button" (click)="issueRequested.emit(inv)" [disabled]="busy"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+          <ion-icon [name]="busy ? 'sync-outline' : 'send-outline'" class="text-base"
+            [ngClass]="busy ? 'animate-spin' : ''"></ion-icon>
+          {{ busy ? 'Issuing…' : 'Issue invoice' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</app-modal>

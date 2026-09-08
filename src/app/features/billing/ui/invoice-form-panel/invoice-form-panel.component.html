@@ -1,0 +1,199 @@
+<app-modal [isOpen]="isOpen" heading="New invoice"
+  subheading="Billing has no edit endpoint — check the details before saving" size="2xl" (closed)="close()">
+  <div class="mt-5">
+    <!-- Sin emisor guardado el PDF sale sin los datos de la firma -->
+    <div *ngIf="!hasIssuerProfile"
+      class="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <ion-icon name="business-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
+      <p class="text-xs leading-relaxed text-amber-800">
+        Your company details are not set yet, so the invoice PDF will go out without them. You can fill them in the
+        <span class="font-semibold">Company</span> tab.
+      </p>
+    </div>
+
+    <!-- Cliente -->
+    <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
+
+    <div *ngIf="customer() as picked"
+      class="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+        <ion-icon name="person-outline" class="text-base text-brand-bold"></ion-icon>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium text-gray-900">{{ picked.displayName }}</span>
+        <span class="block truncate text-xs text-gray-400">{{ picked.primaryEmail || 'No email on file' }}</span>
+      </span>
+      <button type="button" (click)="clearCustomer()" [disabled]="saving"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
+        aria-label="Change client">
+        <ion-icon name="close-outline" class="text-base"></ion-icon>
+      </button>
+    </div>
+
+    <div *ngIf="!customer()" class="relative mt-2">
+      <ion-icon name="search-outline"
+        class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
+      <input type="text" name="invoiceCustomer" autocomplete="off" placeholder="Search a client…"
+        [disabled]="saving" [ngModel]="customerQuery()" (ngModelChange)="onCustomerQuery($event)"
+        (focus)="onCustomerFocus()" (blur)="closeCustomerPickerSoon()"
+        class="h-11 w-full rounded-full border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+
+      <div *ngIf="customerPickerOpen() && (customerResults.length > 0 || customerSearching)"
+        class="absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
+        <div *ngIf="customerSearching && customerResults.length === 0"
+          class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
+          <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
+        </div>
+        <button *ngFor="let option of customerResults" type="button" (mousedown)="$event.preventDefault()"
+          (click)="pickCustomer(option)"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50">
+          <span class="min-w-0 flex-1 truncate text-gray-700">{{ option.displayName }}</span>
+          <span class="shrink-0 truncate text-[11px] text-gray-400">{{ option.primaryEmail }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Identificación fiscal del cliente + moneda -->
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <label for="customerTaxId" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Client tax ID <span class="font-normal normal-case tracking-normal text-gray-400">(optional)</span>
+        </label>
+        <input id="customerTaxId" type="text" name="customerTaxId" [disabled]="saving" [ngModel]="customerTaxId()"
+          (ngModelChange)="customerTaxId.set($event)" placeholder="EIN / SSN"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+      </div>
+      <div>
+        <label for="invoiceCurrency" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Currency
+        </label>
+        <select id="invoiceCurrency" name="invoiceCurrency" [disabled]="saving" [ngModel]="currency()"
+          (ngModelChange)="currency.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          <option *ngFor="let code of currencies" [value]="code">{{ code }}</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Líneas -->
+    <div class="mt-6 flex items-center justify-between">
+      <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Items</label>
+      <button type="button" (click)="addLine()" [disabled]="saving"
+        class="flex items-center gap-1.5 text-sm font-medium text-brand-bold hover:text-brand-ink disabled:opacity-50 transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        Add item
+      </button>
+    </div>
+
+    <div class="mt-2 overflow-x-auto">
+      <table class="w-full min-w-[680px] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th class="rounded-l-2xl bg-brand-white px-3 py-2.5 text-left text-xs font-semibold text-gray-900">
+              Description
+            </th>
+            <th class="w-20 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Qty</th>
+            <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Price</th>
+            <th class="w-24 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Tax %</th>
+            <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Total</th>
+            <th class="w-10 rounded-r-2xl bg-brand-white px-2 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let line of lines(); let i = index">
+            <td class="px-3 py-2 align-top">
+              <div class="flex items-center gap-1.5">
+                <input type="text" [name]="'lineDescription' + i" placeholder="Description" [disabled]="saving"
+                  [ngModel]="line.description" (ngModelChange)="updateLineText(i, $event)"
+                  class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+                <button type="button" (click)="openCatalog(i)" [disabled]="saving" title="Pick from catalog"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors">
+                  <ion-icon name="cube-outline" class="text-base"></ion-icon>
+                </button>
+              </div>
+              <p *ngIf="line.catalogItemId" class="mt-1 pl-3 text-[11px] text-gray-400">Linked to a catalog item</p>
+            </td>
+            <td class="px-3 py-2 align-top">
+              <input type="number" min="1" step="1" [name]="'lineQuantity' + i" [disabled]="saving"
+                [ngModel]="line.quantity" (ngModelChange)="updateLine(i, { quantity: $event })"
+                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+            </td>
+            <td class="px-3 py-2 align-top">
+              <input type="number" min="0" step="0.01" [name]="'lineUnitAmount' + i" [disabled]="saving"
+                [ngModel]="line.unitAmount" (ngModelChange)="updateLine(i, { unitAmount: $event })"
+                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+            </td>
+            <td class="px-3 py-2 align-top">
+              <input type="number" min="0" max="1000" step="0.01" [name]="'lineTax' + i" [disabled]="saving"
+                [ngModel]="line.taxPercent" (ngModelChange)="updateLine(i, { taxPercent: $event })"
+                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+            </td>
+            <td class="px-3 py-2 text-right align-middle">
+              <span class="text-sm font-semibold text-gray-900">{{ money(lineTotal(line)) }}</span>
+            </td>
+            <td class="px-2 py-2 text-right align-middle">
+              <button type="button" (click)="removeLine(i)" [disabled]="saving || lines().length === 1"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"
+                aria-label="Remove item">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Totales: misma aritmética que el backend -->
+    <div class="mt-4 flex justify-end">
+      <dl class="w-full max-w-xs text-sm sm:w-64">
+        <div class="flex items-center justify-between">
+          <dt class="text-gray-500">Subtotal</dt>
+          <dd class="font-medium text-gray-900">{{ money(totals().subtotalCents) }}</dd>
+        </div>
+        <div class="mt-2 flex items-center justify-between">
+          <dt class="text-gray-500">Tax</dt>
+          <dd class="font-medium text-gray-900">{{ money(totals().taxCents) }}</dd>
+        </div>
+        <div class="mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+          <dt class="font-medium text-gray-700">Total</dt>
+          <dd class="text-base font-bold text-gray-900">{{ money(totals().totalCents) }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Notas -->
+    <div class="mt-5">
+      <label for="invoiceNotes" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        Notes <span class="font-normal normal-case tracking-normal text-gray-400">(printed on the PDF)</span>
+      </label>
+      <textarea id="invoiceNotes" name="invoiceNotes" rows="3" [disabled]="saving" [ngModel]="notes()"
+        (ngModelChange)="notes.set($event)" placeholder="Payment terms, thank-you note…"
+        class="mt-2 w-full resize-none rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors"></textarea>
+    </div>
+
+    <!-- Pie -->
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="close()" [disabled]="saving"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
+        Cancel
+      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" (click)="submit(false)" [disabled]="!canSubmit()"
+          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+          Save as draft
+        </button>
+        <button type="button" (click)="submit(true)" [disabled]="!canSubmit()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+          <ion-icon [name]="saving ? 'sync-outline' : 'send-outline'" class="text-base"
+            [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+          {{ saving ? 'Saving…' : 'Save and issue' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Picker del catálogo, apilado sobre el formulario -->
+<app-catalog-item-picker [isOpen]="catalogTargetIndex() !== null" [items]="catalogResults"
+  [searching]="catalogSearching" (searchChanged)="catalogSearchChanged.emit($event)"
+  (itemPicked)="applyCatalogItem($event)" (closed)="closeCatalog()"></app-catalog-item-picker>

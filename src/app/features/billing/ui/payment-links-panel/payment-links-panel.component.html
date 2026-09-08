@@ -1,0 +1,202 @@
+<div class="rounded-[28px] bg-white p-6">
+  <!-- Cabecera -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Payment links</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        One-off charges that don't belong to an invoice — a deposit, a retainer, a consultation.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" (click)="refreshRequested.emit()" [disabled]="loading"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
+        aria-label="Refresh payment links">
+        <ion-icon name="refresh-outline" class="text-base" [ngClass]="loading ? 'animate-spin' : ''"></ion-icon>
+      </button>
+      <button type="button" (click)="openForm()"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        New link
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtro por estado -->
+  <div class="mt-5 flex flex-wrap gap-2">
+    <button *ngFor="let status of statusFilters" type="button" (click)="statusFilterChanged.emit(status)"
+      class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="statusFilter === status
+        ? 'border-brand-bold bg-brand-bold text-white'
+        : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+      {{ filterLabel(status) }}
+    </button>
+  </div>
+
+  <p *ngIf="error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+    {{ error }}
+  </p>
+
+  <!-- Tabla -->
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[820px] border-separate border-spacing-0 text-sm">
+      <thead>
+        <tr>
+          <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+          <th class="bg-brand-white px-4 py-3 text-right font-semibold text-gray-900">Amount</th>
+          <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Purpose</th>
+          <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Reference</th>
+          <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Created</th>
+          <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Expires</th>
+          <th class="rounded-r-2xl bg-brand-white px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let link of links; trackBy: trackByLinkId; let last = last" class="group">
+          <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium"
+              [ngClass]="statusChip(link.status)">{{ link.status }}</span>
+          </td>
+          <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ money(link) }}</td>
+          <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ purposeText(link.purposeKind) }}</td>
+          <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+            [class.border-gray-100]="!last">
+            <span class="font-mono text-xs" [ngClass]="link.purposeExternalReferenceId ? 'text-gray-600' : 'text-gray-300'">
+              {{ link.purposeExternalReferenceId || '—' }}
+            </span>
+          </td>
+          <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ shortDate(link.createdAtUtc) }}</td>
+          <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+            [class.border-gray-100]="!last">{{ shortDate(link.expiresAtUtc) }}</td>
+          <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+            [class.border-b]="!last" [class.border-gray-100]="!last">
+            <div class="flex items-center justify-end gap-1">
+              <button type="button" (click)="copy(link)" title="Copy link"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Copy payment link">
+                <ion-icon name="copy-outline" class="text-base"></ion-icon>
+              </button>
+              <button *ngIf="canRevoke(link)" type="button" (click)="askRevoke(link)" title="Revoke"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
+                aria-label="Revoke payment link">
+                <ion-icon name="ban-outline" class="text-base"></ion-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="links.length === 0 && !loading" class="px-4 py-10 text-center">
+      <ion-icon name="link-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-500">No payment links here</p>
+    </div>
+
+    <div *ngIf="loading && links.length === 0" class="flex items-center justify-center gap-2 px-4 py-10 text-sm text-gray-400">
+      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      Loading payment links…
+    </div>
+  </div>
+
+  <!-- Paginación: el endpoint no devuelve total, así que solo prev/next -->
+  <div *ngIf="page > 1 || hasMore" class="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+    <p class="text-sm text-gray-500">Page {{ page }}</p>
+    <div class="flex items-center gap-2">
+      <button type="button" (click)="pageChanged.emit(page - 1)" [disabled]="page <= 1 || loading"
+        class="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+        Previous
+      </button>
+      <button type="button" (click)="pageChanged.emit(page + 1)" [disabled]="!hasMore || loading"
+        class="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+        Next
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Alta de link -->
+<app-modal [isOpen]="formOpen()" heading="New payment link"
+  subheading="Anyone with the link can pay it until it expires" size="md" (closed)="closeForm()">
+  <div class="mt-5">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <label for="linkAmount" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Amount</label>
+        <input id="linkAmount" type="number" min="0" step="0.01" name="linkAmount" [disabled]="creating"
+          [ngModel]="amount()" (ngModelChange)="amount.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+      </div>
+      <div>
+        <label for="linkCurrency" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Currency</label>
+        <input id="linkCurrency" type="text" maxlength="3" name="linkCurrency" [disabled]="creating"
+          [ngModel]="currency()" (ngModelChange)="currency.set(($event || '').toUpperCase())"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm uppercase text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <label for="linkPurpose" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Purpose</label>
+      <select id="linkPurpose" name="linkPurpose" [disabled]="creating" [ngModel]="purpose()"
+        (ngModelChange)="purpose.set($event)"
+        class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+        <option *ngFor="let kind of purposes" [value]="kind">{{ purposeText(kind) }}</option>
+      </select>
+    </div>
+
+    <div class="mt-4">
+      <label for="linkReference" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        Reference <span class="font-normal normal-case tracking-normal text-gray-400">(optional)</span>
+      </label>
+      <input id="linkReference" type="text" name="linkReference" placeholder="Your own note or ID"
+        [disabled]="creating" [ngModel]="reference()" (ngModelChange)="reference.set($event)"
+        class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+    </div>
+
+    <div class="mt-4">
+      <label for="linkExpiration" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Expires in</label>
+      <select id="linkExpiration" name="linkExpiration" [disabled]="creating" [ngModel]="expiration()"
+        (ngModelChange)="expiration.set($event)"
+        class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+        <option *ngFor="let option of expirations" [value]="option.value">{{ option.label }}</option>
+      </select>
+      <p class="mt-2 text-xs text-gray-400">Payment links can't last longer than 30 days.</p>
+    </div>
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="closeForm()" [disabled]="creating"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="submit()" [disabled]="!canCreate"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        <ion-icon [name]="creating ? 'sync-outline' : 'link-outline'" class="text-base"
+          [ngClass]="creating ? 'animate-spin' : ''"></ion-icon>
+        {{ creating ? 'Creating…' : 'Create link' }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Revocar -->
+<app-modal [isOpen]="!!revokeTarget()" heading="Revoke payment link"
+  subheading="The link stops working immediately" size="sm" (closed)="cancelRevoke()">
+  <div class="mt-5">
+    <label for="revokeReason" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Reason</label>
+    <input id="revokeReason" type="text" name="revokeReason" placeholder="Why is it being revoked?"
+      [ngModel]="revokeReason()" (ngModelChange)="revokeReason.set($event)"
+      class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="cancelRevoke()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmRevoke()"
+        class="rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+        Revoke link
+      </button>
+    </div>
+  </div>
+</app-modal>

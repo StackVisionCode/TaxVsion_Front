@@ -1,0 +1,60 @@
+<app-modal [isOpen]="isOpen" heading="Payment receipt" size="md"
+  [subheading]="invoice?.receiptNumber ?? ''" (closed)="close()">
+  <div *ngIf="invoice as inv" class="mt-5">
+    <div class="rounded-2xl bg-emerald-50 px-4 py-4 text-center">
+      <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+        <ion-icon name="checkmark-circle-outline" class="text-2xl text-emerald-600"></ion-icon>
+      </span>
+      <p class="mt-3 text-2xl font-bold text-gray-900">{{ money(inv.amountPaidCents) }}</p>
+      <p class="mt-0.5 text-sm text-emerald-800">Paid in full</p>
+    </div>
+
+    <dl class="mt-5 flex flex-col gap-3 text-sm">
+      <div class="flex items-center justify-between gap-4">
+        <dt class="text-gray-500">Receipt number</dt>
+        <dd class="font-mono text-xs font-medium text-gray-900">{{ inv.receiptNumber }}</dd>
+      </div>
+      <div class="flex items-center justify-between gap-4">
+        <dt class="text-gray-500">Invoice</dt>
+        <dd class="font-mono text-xs font-medium text-gray-900">{{ inv.invoiceNumber }}</dd>
+      </div>
+      <div class="flex items-center justify-between gap-4">
+        <dt class="text-gray-500">Method</dt>
+        <dd class="font-medium text-gray-900">{{ methodLabel(inv.paymentMethod) }}</dd>
+      </div>
+      <div class="flex items-center justify-between gap-4">
+        <dt class="text-gray-500">Paid on</dt>
+        <dd class="font-medium text-gray-900">{{ longDate(inv.paidAtUtc) }}</dd>
+      </div>
+    </dl>
+
+    <!-- Hash de verificación: reproducible, así que el cliente puede comprobar el comprobante -->
+    <div class="mt-5 rounded-2xl border border-gray-100 bg-brand-white px-4 py-3">
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Verification hash</p>
+        <button type="button" (click)="copyHash()"
+          class="flex items-center gap-1.5 text-xs font-medium text-brand-bold hover:text-brand-ink transition-colors">
+          <ion-icon name="copy-outline" class="text-sm"></ion-icon>
+          Copy
+        </button>
+      </div>
+      <p class="mt-1.5 break-all font-mono text-[11px] text-gray-600">{{ shortHash(inv.receiptHash) }}</p>
+      <p class="mt-2 text-xs text-gray-400">
+        SHA-256 of the payment details. Recomputing it from the same data yields the same value, so it proves the
+        receipt has not been altered.
+      </p>
+    </div>
+
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        Close
+      </button>
+      <button *ngIf="inv.pdfFileId" type="button" (click)="openPdf()"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+        Open PDF
+      </button>
+    </div>
+  </div>
+</app-modal>

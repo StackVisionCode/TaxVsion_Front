@@ -1,0 +1,70 @@
+<app-modal [isOpen]="isOpen" heading="Record payment" size="md"
+  [subheading]="invoice?.invoiceNumber ? 'Invoice ' + invoice!.invoiceNumber : 'Offline payment'"
+  (closed)="close()">
+  <div *ngIf="invoice as inv" class="mt-5">
+    <!-- Estado actual del saldo -->
+    <div class="rounded-2xl bg-brand-white px-4 py-3">
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-500">Invoice total</span>
+        <span class="font-semibold text-gray-900">{{ money(inv.totalCents) }}</span>
+      </div>
+      <div *ngIf="inv.amountPaidCents > 0" class="mt-1.5 flex items-center justify-between text-sm">
+        <span class="text-gray-500">Already paid</span>
+        <span class="font-medium text-emerald-600">{{ money(inv.amountPaidCents) }}</span>
+      </div>
+      <div class="mt-1.5 flex items-center justify-between text-sm">
+        <span class="text-gray-500">Outstanding</span>
+        <span class="font-semibold text-gray-900">{{ money(inv.amountDueCents) }}</span>
+      </div>
+    </div>
+
+    <!-- Método -->
+    <label class="mt-5 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Payment method</label>
+    <div class="mt-2 flex flex-wrap gap-2">
+      <button *ngFor="let option of methods" type="button" (click)="method.set(option)" [disabled]="saving"
+        class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+        [ngClass]="method() === option
+          ? 'border-brand-bold bg-brand-bold text-white'
+          : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+        {{ methodLabel(option) }}
+      </button>
+    </div>
+
+    <!-- Importe recibido ahora -->
+    <div class="mt-5">
+      <div class="flex items-center justify-between">
+        <label for="paymentAmount" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Amount received now
+        </label>
+        <button type="button" (click)="payFullBalance()" [disabled]="saving"
+          class="text-xs font-medium text-brand-bold hover:text-brand-ink disabled:opacity-50 transition-colors">
+          Full balance
+        </button>
+      </div>
+      <div
+        class="mt-2 flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="mr-2 text-sm text-gray-400">{{ inv.currency }}</span>
+        <input id="paymentAmount" type="number" min="0" step="0.01" name="paymentAmount" [disabled]="saving"
+          [ngModel]="amount()" (ngModelChange)="amount.set($event)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none" />
+      </div>
+      <p class="mt-2 text-xs text-gray-500">
+        {{ settlesInvoice ? 'This settles the invoice in full.' : 'The invoice will stay partially paid.' }}
+      </p>
+    </div>
+
+    <!-- Pie -->
+    <div class="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
+      <button type="button" (click)="close()" [disabled]="saving"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
+        Cancel
+      </button>
+      <button type="button" (click)="submit()" [disabled]="!canSubmit"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        <ion-icon [name]="saving ? 'sync-outline' : 'checkmark-outline'" class="text-base"
+          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+        {{ saving ? 'Recording…' : 'Record payment' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

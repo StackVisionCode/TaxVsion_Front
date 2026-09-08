@@ -1,0 +1,102 @@
+<div class="flex flex-col gap-6">
+  <!-- Proveedores ya configurados -->
+  <div class="rounded-[28px] bg-white p-6">
+    <h2 class="text-xl font-bold text-gray-900">Payment provider</h2>
+    <p class="mt-1 text-sm text-gray-500">
+      Invoices are collected online through your own Stripe account. Without an active provider you can still issue
+      invoices and record offline payments, but they won't get a payment link.
+    </p>
+
+    <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-gray-400">
+      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      Loading providers…
+    </div>
+
+    <div *ngIf="!loading && configs.length === 0"
+      class="mt-5 flex items-start gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <ion-icon name="card-outline" class="mt-0.5 shrink-0 text-base text-gray-400"></ion-icon>
+      <p class="text-sm text-gray-500">No provider connected yet. Add your Stripe keys below.</p>
+    </div>
+
+    <div *ngIf="configs.length > 0" class="mt-5 flex flex-col gap-2">
+      <div *ngFor="let config of configs; trackBy: trackByConfigId"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+        <div class="min-w-0">
+          <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
+            {{ config.providerCode }}
+            <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
+              [ngClass]="config.isActive
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 bg-gray-50 text-gray-500'">
+              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="config.isActive ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+              {{ config.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </p>
+          <p class="mt-0.5 truncate text-xs text-gray-400">
+            {{ config.mode }} · {{ config.statementDescriptor }}
+            <span *ngIf="!config.hasSecretKey" class="text-amber-600">· secret key missing</span>
+            <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="text-amber-600">
+              · webhook secret missing
+            </span>
+          </p>
+        </div>
+        <button type="button" (click)="providerToggleRequested.emit(config)"
+          class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          {{ config.isActive ? 'Deactivate' : 'Activate' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alta de Stripe -->
+  <div class="rounded-[28px] bg-white p-6">
+    <h2 class="text-xl font-bold text-gray-900">Connect Stripe</h2>
+    <p class="mt-1 text-sm text-gray-500">
+      Saving these keys creates the configuration, stores the secrets and activates the provider in one go.
+    </p>
+
+    <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div>
+        <label for="publishableKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Publishable key
+        </label>
+        <input id="publishableKey" type="text" name="publishableKey" placeholder="pk_live_…" [disabled]="saving"
+          [ngModel]="publishableKey()" (ngModelChange)="publishableKey.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+      </div>
+      <div>
+        <label for="secretKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Secret key</label>
+        <input id="secretKey" type="password" name="secretKey" placeholder="sk_live_…" autocomplete="off"
+          [disabled]="saving" [ngModel]="secretKey()" (ngModelChange)="secretKey.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+      </div>
+      <div>
+        <label for="webhookSecret" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Webhook secret
+        </label>
+        <input id="webhookSecret" type="password" name="webhookSecret" placeholder="whsec_…" autocomplete="off"
+          [disabled]="saving" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-gray-400">Needed for Stripe to confirm payments back to us.</p>
+      </div>
+      <div>
+        <label for="statementDescriptor" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Statement descriptor
+        </label>
+        <input id="statementDescriptor" type="text" name="statementDescriptor" [disabled]="saving"
+          [ngModel]="statementDescriptor()" (ngModelChange)="statementDescriptor.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-gray-400">What your clients see on their card statement.</p>
+      </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-4">
+      <button type="button" (click)="save()" [disabled]="!canSave"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
+          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+        {{ saving ? 'Connecting…' : 'Save and activate' }}
+      </button>
+    </div>
+  </div>
+</div>
