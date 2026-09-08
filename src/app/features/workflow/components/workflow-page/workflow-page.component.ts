@@ -1,4 +1,15 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  OnDestroy,
+  ViewChild,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
@@ -13,6 +24,9 @@ import {
 } from '../../ui/workflow-step-config/workflow-step-config.component';
 import { WorkflowStore } from '../../data-access/workflow.store';
 import { WorkflowPreviewService } from '../../data-access/workflow-preview.service';
+import { WorkflowPresenceService } from '../../data-access/workflow-presence.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ImageTooLargeError, prepareImage } from '../../utils/workflow-image.util';
 import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
 import { WorkflowStepTypeId } from '../../data-access/workflow.model';
 import { layoutWorkflow } from '../../utils/workflow-layout.util';
@@ -49,11 +63,57 @@ type WorkflowTab = 'builder' | 'debugger';
   templateUrl: './workflow-page.component.html',
   styleUrl: './workflow-page.component.css',
 })
-export class WorkflowPageComponent {
+export class WorkflowPageComponent implements OnDestroy {
   readonly store = inject(WorkflowStore);
   readonly preview = inject(WorkflowPreviewService);
+  readonly presence = inject(WorkflowPresenceService);
+  private readonly toast = inject(ToastService);
+
+  @ViewChild('imageInput') private imageInput?: ElementRef<HTMLInputElement>;
+  /** Dónde cae la imagen que se está eligiendo, fijado al abrir el selector. */
+  private imageDropPoint = { x: 0, y: 0 };
+
+  ngOnDestroy(): void {
+    this.presence.leave();
+  }
+
+  /** Abre el selector de archivo. El punto se guarda ahora: al volver ya no se sabe. */
+  onPickImage(point: { x: number; y: number }): void {
+    this.imageDropPoint = point;
+    this.imageInput?.nativeElement.click();
+  }
+
+  async onImageChosen(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Se limpia siempre: si no, elegir el MISMO archivo dos veces no dispara `change`.
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    try {
+      const image = await prepareImage(file);
+      this.store.addImage(
+        image.src,
+        this.imageDropPoint.x - image.width / 2,
+        this.imageDropPoint.y - image.height / 2,
+        image.width,
+        image.height,
+        file.name,
+      );
+    } catch (error) {
+      this.toast.error(
+        error instanceof ImageTooLargeError
+          ? error.message
+          : "That file couldn't be read as an image.",
+      );
+    }
+  }
 
   constructor() {
+    // Cursores en vivo de quien esté en el mismo documento.
+    this.presence.join(this.store.doc().id);
+
     /**
      * Editar durante la simulación la ABORTA (no se bloquea la edición, que
      * exigiría tocar cada punto de interacción). Cualquier mutación del doc —

@@ -269,3 +269,48 @@ describe('WorkflowStore', () => {
     expect(store.steps().every(step => step.x === undefined && step.y === undefined)).toBe(true);
   });
 });
+
+describe('anotaciones del lienzo', () => {
+  it('coloca una nota, la guarda en el documento y se puede deshacer', () => {
+    const store = new WorkflowStore();
+    const before = store.annotations().length;
+
+    const id = store.addNote(300, 200, 'purple');
+    const note = store.annotations().find(a => a.id === id)!;
+    expect(note.kind).toBe('note');
+    expect(note.color).toBe('purple');
+    expect(note.text).toBe('');
+
+    store.undo();
+    expect(store.annotations().length).toBe(before);
+  });
+
+  it('nunca coloca en negativo: el lienzo empieza en 0,0 y lo de fuera sale recortado', () => {
+    const store = new WorkflowStore();
+    const id = store.addNote(-500, -40);
+    const note = store.annotations().find(a => a.id === id)!;
+    expect(note.x).toBe(0);
+    expect(note.y).toBe(0);
+  });
+
+  it('acota el tamaño de dibujo de una imagen grande sin deformarla', () => {
+    const store = new WorkflowStore();
+    const id = store.addImage('data:image/png;base64,AAA', 0, 0, 1400, 700);
+    const image = store.annotations().find(a => a.id === id)!;
+
+    expect(Math.max(image.width, image.height)).toBeLessThanOrEqual(360);
+    // La proporción original (2:1) se conserva.
+    expect(image.width / image.height).toBeCloseTo(2, 1);
+  });
+
+  it('editar y borrar una nota queda reflejado en el documento', () => {
+    const store = new WorkflowStore();
+    const id = store.addNote(10, 10);
+
+    store.updateAnnotation(id, { text: 'Revisar el trigger' });
+    expect(store.annotations().find(a => a.id === id)!.text).toBe('Revisar el trigger');
+
+    store.removeAnnotation(id);
+    expect(store.annotations().some(a => a.id === id)).toBe(false);
+  });
+});

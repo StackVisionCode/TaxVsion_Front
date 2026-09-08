@@ -82,14 +82,66 @@ export interface WorkflowCollaborator {
   role: WorkflowCollaboratorRole;
 }
 
+/** Colores de nota, en la paleta de la app (no hex sueltos). */
+export type WorkflowNoteColor = 'yellow' | 'purple' | 'green' | 'blue' | 'pink' | 'gray';
+
+export const NOTE_COLORS: readonly WorkflowNoteColor[] = [
+  'yellow',
+  'purple',
+  'green',
+  'blue',
+  'pink',
+  'gray',
+];
+
+/**
+ * Anotación libre sobre el lienzo: una nota adhesiva o una imagen. NO es un paso — no
+ * entra en el ranking del layout ni se puede conectar con hilos; es lo que el equipo
+ * escribe *encima* del diagrama para explicarse.
+ */
+export interface WorkflowAnnotation {
+  id: string;
+  kind: 'note' | 'image';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** kind: 'note' */
+  text?: string;
+  color?: WorkflowNoteColor;
+  /** kind: 'image' — data URL ya reescalada (ver `prepareImage`). */
+  src?: string;
+  alt?: string;
+}
+
 export interface WorkflowDoc {
   id: string;
   name: string;
   steps: WorkflowStep[];
   /** Los hilos, como dato propio y no como algo derivado de los pasos. */
   connections: WorkflowConnection[];
+  /** Notas e imágenes sueltas sobre el lienzo. */
+  annotations: WorkflowAnnotation[];
   collaborators: WorkflowCollaborator[];
   updatedAtIso: string;
+}
+
+/** Clases Tailwind de cada color de nota: fondo, borde y color del texto. */
+export function noteColorClasses(color: WorkflowNoteColor | undefined): string {
+  switch (color) {
+    case 'purple':
+      return 'bg-violet-200 border-violet-300 text-violet-950';
+    case 'green':
+      return 'bg-emerald-200 border-emerald-300 text-emerald-950';
+    case 'blue':
+      return 'bg-sky-200 border-sky-300 text-sky-950';
+    case 'pink':
+      return 'bg-pink-200 border-pink-300 text-pink-950';
+    case 'gray':
+      return 'bg-gray-200 border-gray-300 text-gray-900';
+    default:
+      return 'bg-amber-200 border-amber-300 text-amber-950';
+  }
 }
 
 /**

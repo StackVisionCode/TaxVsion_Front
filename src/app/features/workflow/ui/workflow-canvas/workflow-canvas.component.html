@@ -1,6 +1,7 @@
 <div class="relative h-full w-full overflow-hidden rounded-[28px] bg-brand-white">
   <!-- viewport: el pan es scroll nativo -->
   <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
+    [class.wf-viewport--place]="tool() === 'note'" (click)="onCanvasClick($event)"
     (pointerdown)="startPan($event)" (dragover)="allowDrop($event)" (drop)="onDrop($event)">
 
     <!-- sizer: reserva el área desplazable ya escalada -->
@@ -9,6 +10,49 @@
       <!-- stage: escala el dibujo sin tocar coordenadas -->
       <div class="wf-stage absolute left-0 top-0 origin-top-left" [style.width.px]="layout.width"
         [style.height.px]="layout.height" [style.transform]="'scale(' + zoom() + ')'">
+
+        <!-- Notas e imágenes, DEBAJO de todo lo demás: son anotaciones sobre el diagrama,
+             así que no deben taparlo ni robarle el clic a una carta. -->
+        <div *ngFor="let annotation of annotations; trackBy: trackAnnotation"
+          class="wf-annotation absolute" [style.left.px]="annotation.x" [style.top.px]="annotation.y"
+          [style.width.px]="annotation.width" [style.height.px]="annotation.height"
+          [class.wf-annotation--active]="annotation.id === activeAnnotationId()"
+          (pointerdown)="startAnnotationDrag($event, annotation)"
+          (click)="$event.stopPropagation(); activeAnnotationId.set(annotation.id)">
+
+          <ng-container [ngSwitch]="annotation.kind">
+            <!-- Nota: se escribe en el sitio, sin abrir ningún panel. -->
+            <div *ngSwitchCase="'note'"
+              class="flex h-full w-full flex-col rounded-[14px] border p-3 shadow-sm"
+              [ngClass]="noteClasses(annotation.color)">
+              <textarea [value]="annotation.text ?? ''" (input)="onNoteInput(annotation, $event)"
+                (focus)="editingAnnotationId.set(annotation.id)" (blur)="editingAnnotationId.set(null)"
+                placeholder="Write a note…" aria-label="Note text"
+                class="h-full w-full resize-none border-0 bg-transparent text-sm leading-6 outline-none placeholder:opacity-50"></textarea>
+            </div>
+
+            <img *ngSwitchCase="'image'" [src]="annotation.src" [alt]="annotation.alt || 'Canvas image'"
+              draggable="false"
+              class="pointer-events-none h-full w-full rounded-[14px] border border-gray-200 bg-white object-cover shadow-sm" />
+          </ng-container>
+
+          <!-- Barra de la anotación seleccionada: color (solo notas) y borrar. -->
+          <div *ngIf="annotation.id === activeAnnotationId()"
+            class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-md"
+            (pointerdown)="$event.stopPropagation()">
+            <ng-container *ngIf="annotation.kind === 'note'">
+              <button *ngFor="let color of noteColors" type="button" (click)="setNoteColor(annotation, color)"
+                class="h-4 w-4 rounded-full border" [ngClass]="noteClasses(color)"
+                [attr.aria-label]="'Use ' + color + ' note'"></button>
+              <span class="mx-0.5 h-4 w-px bg-gray-200"></span>
+            </ng-container>
+            <button type="button" (click)="removeAnnotation.emit(annotation.id)"
+              class="grid h-6 w-6 place-items-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+              aria-label="Delete annotation">
+              <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+        </div>
 
         <!-- Conectores por DEBAJO de los nodos: así las líneas no tapan el contenido
              ni bloquean el menú de la tarjeta. La semántica la ponen los botones. -->
@@ -82,6 +126,20 @@
           </button>
         </ng-container>
 
+        <!-- Cursores de los demás. Van DENTRO del stage para seguir al zoom y al scroll sin
+             recalcular nada, pero la flecha se contra-escala: un puntero que se agranda con
+             el zoom deja de leerse como un puntero. -->
+        <div *ngFor="let peer of peers; trackBy: trackPeer"
+          class="wf-cursor pointer-events-none absolute" [style.left.px]="peer.x" [style.top.px]="peer.y"
+          [style.transform]="'scale(' + 1 / zoom() + ')'" aria-hidden="true">
+          <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+            <path d="M2 1.5 L2 17 L6.2 13.2 L9 19.5 L11.6 18.3 L8.9 12.2 L14.5 12 Z"
+              [attr.fill]="peer.color" stroke="white" stroke-width="1.4" stroke-linejoin="round" />
+          </svg>
+          <span class="ml-3.5 -mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+            [ngClass]="peer.pill">{{ peer.name }}</span>
+        </div>
+
         <!-- END: se deriva del layout, no es un paso guardado -->
         <div *ngIf="layout.end as end"
           class="wf-end absolute flex items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-semibold tracking-wide text-gray-500"
@@ -104,6 +162,18 @@
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
       [ngClass]="tool() === 'pan' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
       <ion-icon name="hand-left-outline" class="text-base"></ion-icon>
+    </button>
+    <span class="mx-1 h-5 w-px bg-gray-200"></span>
+    <!-- Anotar: la nota se coloca donde se haga clic; la imagen entra en el centro de lo
+         que se está viendo, que es donde el usuario está mirando. -->
+    <button type="button" (click)="tool.set(tool() === 'note' ? 'select' : 'note')" aria-label="Add note"
+      class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+      [ngClass]="tool() === 'note' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="reader-outline" class="text-base"></ion-icon>
+    </button>
+    <button type="button" (click)="requestImage()" aria-label="Add image"
+      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+      <ion-icon name="image-outline" class="text-base"></ion-icon>
     </button>
     <span class="mx-1 h-5 w-px bg-gray-200"></span>
     <button type="button" (click)="fit()" aria-label="Fit to screen"

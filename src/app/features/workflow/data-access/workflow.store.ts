@@ -1,10 +1,12 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
+  WorkflowAnnotation,
   WorkflowCollaborator,
   WorkflowCollaboratorRole,
   WorkflowConnection,
   WorkflowDataField,
   WorkflowDoc,
+  WorkflowNoteColor,
   WorkflowStep,
   WorkflowStepTypeId,
   availableFieldsAt,
@@ -78,6 +80,7 @@ function sampleDoc(): WorkflowDoc {
     name: 'Crossville Workflow',
     steps,
     connections,
+    annotations: [],
     collaborators: [],
     updatedAtIso: new Date().toISOString(),
   };
@@ -98,6 +101,7 @@ interface LegacyDoc {
   name?: string;
   steps?: LegacyStep[];
   connections?: WorkflowConnection[];
+  annotations?: WorkflowAnnotation[];
   collaborators?: WorkflowCollaborator[];
   updatedAtIso?: string;
 }
@@ -127,6 +131,11 @@ export class WorkflowStore {
   readonly steps = computed(() => this._doc().steps);
   readonly connections = computed(() => this._doc().connections);
   readonly collaborators = computed(() => this._doc().collaborators);
+  readonly annotations = computed(() => this._doc().annotations);
+
+  /** Último fallo al persistir (cuota llena). `null` = todo se está guardando. */
+  private readonly _saveError = signal<string | null>(null);
+  readonly saveError = this._saveError.asReadonly();
   readonly name = computed(() => this._doc().name);
   readonly selectedId = this._selectedId.asReadonly();
   readonly selectedConnectionId = this._selectedConnectionId.asReadonly();
@@ -383,6 +392,77 @@ export class WorkflowStore {
    * `pointermove` guardara historial, un solo arrastre dejaría cientos de
    * pasos y "deshacer" sería inservible.
    */
+  // ---------- Notas e imágenes del lienzo ----------
+
+  /** Nota nueva bajo el cursor. Nace en edición: nadie pega una nota para dejarla vacía. */
+  addNote(x: number, y: number, color: WorkflowNoteColor = 'yellow'): string {
+    const id = newId('note');
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'note',
+          // Acotado a positivo, igual que el arrastre: el stage empieza en 0,0 y lo que
+          // caiga en negativo se dibuja fuera y aparece recortado.
+          x: Math.max(0, Math.round(x)),
+          y: Math.max(0, Math.round(y)),
+          width: 220,
+          height: 180,
+          text: '',
+          color,
+        },
+      ],
+    }));
+    return id;
+  }
+
+  /** La imagen llega ya reescalada (ver `prepareImage`): aquí solo se coloca. */
+  addImage(src: string, x: number, y: number, width: number, height: number, alt = ''): string {
+    const id = newId('img');
+    // Se acota el tamaño de dibujo para que una captura grande no tape el diagrama.
+    const scale = Math.min(1, 360 / Math.max(width, height));
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'image',
+          x: Math.max(0, Math.round(x)),
+          y: Math.max(0, Math.round(y)),
+          width: Math.round(width * scale),
+          height: Math.round(height * scale),
+          src,
+          alt,
+        },
+      ],
+    }));
+    return id;
+  }
+
+  updateAnnotation(id: string, patch: Partial<WorkflowAnnotation>): void {
+    this.commit(doc => ({
+      ...doc,
+      annotations: doc.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
+    }));
+  }
+
+  removeAnnotation(id: string): void {
+    this.commit(doc => ({ ...doc, annotations: doc.annotations.filter(a => a.id !== id) }));
+  }
+
+  /** Arrastre en vivo, sin apilar historial (lo cierra `endMove`, igual que los pasos). */
+  moveAnnotationLive(id: string, x: number, y: number): void {
+    this._doc.update(doc => ({
+      ...doc,
+      annotations: doc.annotations.map(a =>
+        a.id === id ? { ...a, x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) } : a,
+      ),
+    }));
+  }
+
   private dragOrigin: WorkflowDoc | null = null;
 
   beginMove(): void {
@@ -405,7 +485,12 @@ export class WorkflowStore {
       return;
     }
     const current = this._doc();
-    if (JSON.stringify(origin.steps) === JSON.stringify(current.steps)) {
+    // Se comparan pasos Y anotaciones: `endMove` cierra el arrastre de ambos, y mirando
+    // solo `steps` un movimiento de nota se quedaba fuera del historial y sin guardar.
+    if (
+      JSON.stringify(origin.steps) === JSON.stringify(current.steps) &&
+      JSON.stringify(origin.annotations) === JSON.stringify(current.annotations)
+    ) {
       return;
     }
     this._past.update(past => [...past, origin].slice(-HISTORY_LIMIT));
@@ -501,7 +586,8 @@ export class WorkflowStore {
         name: parsed.name ?? 'Untitled workflow',
         steps,
         connections,
-        // Docs anteriores a los colaboradores: lista vacía, nunca reventar.
+        // Docs anteriores a las notas/imágenes o a los colaboradores: lista vacía, nunca reventar.
+        annotations: parsed.annotations ?? [],
         collaborators: parsed.collaborators ?? [],
         updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
       };
@@ -510,12 +596,21 @@ export class WorkflowStore {
     }
   }
 
-  /** Punto de integración futuro con backend: PUT del workflow. */
+  /**
+   * Punto de integración futuro con backend: PUT del workflow.
+   *
+   * El fallo ya NO se traga en silencio. Con notas e imágenes en el documento, quedarse
+   * sin cuota de `localStorage` es un caso real, y antes el editor seguía como si nada
+   * mientras dejaba de guardar TODO — se perdía el diagrama entero sin un solo aviso.
+   */
   private saveDoc(doc: WorkflowDoc): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+      this._saveError.set(null);
     } catch {
-      // Sin almacenamiento disponible el documento vive solo en memoria.
+      this._saveError.set(
+        'This browser ran out of room for the draft. Remove an image to keep saving changes.',
+      );
     }
   }
 }

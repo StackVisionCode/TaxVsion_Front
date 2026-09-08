@@ -12,6 +12,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Connector, OpenEnd, PositionedNode, WorkflowLayout } from '../../utils/workflow-layout.util';
+import { WorkflowAnnotation, WorkflowNoteColor, NOTE_COLORS, noteColorClasses } from '../../data-access/workflow.model';
+import { PeerCursor } from '../../data-access/workflow-presence.service';
 import { PreviewEdgeStatus, PreviewStepView } from '../../data-access/workflow-preview.service';
 import { WorkflowNodeComponent } from '../workflow-node/workflow-node.component';
 
@@ -33,7 +35,8 @@ export interface PendingLink {
   toY: number;
 }
 
-export type CanvasTool = 'select' | 'pan';
+/** `note` deja el lienzo a la espera de un clic para colocar la nota. */
+export type CanvasTool = 'select' | 'pan' | 'note';
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2;
@@ -46,6 +49,15 @@ interface PanState {
   startY: number;
   scrollLeft: number;
   scrollTop: number;
+}
+
+/** Estado del arrastre de una nota o imagen. */
+interface AnnotationDragState {
+  pointerId: number;
+  id: string;
+  offsetX: number;
+  offsetY: number;
+  moved: boolean;
 }
 
 /** Estado del arrastre de un nodo. */
@@ -114,6 +126,20 @@ export class WorkflowCanvasComponent implements OnDestroy {
   @Output() deleteConnection = new EventEmitter<string>();
   @Output() connectSteps = new EventEmitter<{ fromStepId: string; fromPort: string; toStepId: string }>();
 
+  /** Notas e imágenes: colocar, editar, mover y borrar. */
+  @Output() addNote = new EventEmitter<{ x: number; y: number }>();
+  @Output() pickImage = new EventEmitter<{ x: number; y: number }>();
+  @Output() updateAnnotation = new EventEmitter<{ id: string; patch: Partial<WorkflowAnnotation> }>();
+  @Output() removeAnnotation = new EventEmitter<string>();
+  @Output() moveAnnotationLive = new EventEmitter<{ id: string; x: number; y: number }>();
+  /** Mi cursor, en coordenadas del lienzo, para que lo vean los demás. */
+  @Output() cursorMoved = new EventEmitter<{ x: number; y: number }>();
+
+  /** Notas e imágenes sueltas del documento. */
+  @Input() annotations: readonly WorkflowAnnotation[] = [];
+  /** Cursores de quien más está mirando el mismo workflow. */
+  @Input() peers: readonly PeerCursor[] = [];
+
   @ViewChild('viewport') private viewportRef?: ElementRef<HTMLElement>;
 
   readonly zoom = signal(1);
@@ -123,6 +149,14 @@ export class WorkflowCanvasComponent implements OnDestroy {
 
   private pan: PanState | null = null;
   private nodeDrag: NodeDragState | null = null;
+  private annotationDrag: AnnotationDragState | null = null;
+
+  /** Anotación seleccionada: la que enseña su barra de color/borrado. */
+  readonly activeAnnotationId = signal<string | null>(null);
+  /** Nota que se está escribiendo (no se arrastra mientras se escribe). */
+  readonly editingAnnotationId = signal<string | null>(null);
+  readonly noteColors = NOTE_COLORS;
+  noteClasses = noteColorClasses;
 
   /**
    * Throttle a un frame.
@@ -148,6 +182,29 @@ export class WorkflowCanvasComponent implements OnDestroy {
     });
   }
 
+  /**
+   * Throttle propio para el cursor. No puede compartir el hueco de `scheduleFrame`: ese
+   * guarda UN solo callback pendiente, así que publicar el cursor ahí se comería el frame
+   * del arrastre (o al revés) y una de las dos cosas se quedaría a medias.
+   */
+  private cursorRaf: number | null = null;
+  private cursorPoint: { x: number; y: number } | null = null;
+
+  private publishCursor(clientX: number, clientY: number): void {
+    this.cursorPoint = { x: clientX, y: clientY };
+    if (this.cursorRaf !== null) {
+      return;
+    }
+    this.cursorRaf = requestAnimationFrame(() => {
+      this.cursorRaf = null;
+      const pending = this.cursorPoint;
+      this.cursorPoint = null;
+      if (pending) {
+        this.cursorMoved.emit(this.toCanvas(pending.x, pending.y));
+      }
+    });
+  }
+
   private cancelFrame(): void {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
@@ -158,6 +215,9 @@ export class WorkflowCanvasComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.cancelFrame();
+    if (this.cursorRaf !== null) {
+      cancelAnimationFrame(this.cursorRaf);
+    }
   }
 
   /**
@@ -198,6 +258,75 @@ export class WorkflowCanvasComponent implements OnDestroy {
     this.draggingId.set(node.step.id);
     this.moveStepStart.emit();
   }
+
+  /** Arrastre de una nota o imagen. Con la mano activa manda el pan; escribiendo, no se mueve. */
+  startAnnotationDrag(event: PointerEvent, annotation: WorkflowAnnotation): void {
+    if (this.tool() === 'pan' || this.editingAnnotationId() === annotation.id) {
+      return;
+    }
+    event.stopPropagation();
+    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+    const point = this.toCanvas(event.clientX, event.clientY);
+    this.annotationDrag = {
+      pointerId: event.pointerId,
+      id: annotation.id,
+      offsetX: point.x - annotation.x,
+      offsetY: point.y - annotation.y,
+      moved: false,
+    };
+    this.activeAnnotationId.set(annotation.id);
+    this.moveStepStart.emit();
+  }
+
+  /**
+   * Clic en el lienzo vacío. Con la herramienta `note` coloca una nota AHÍ, que es lo que
+   * se espera de una herramienta de colocar; con `select` solo deselecciona.
+   */
+  onCanvasClick(event: MouseEvent): void {
+    if (this.tool() === 'note') {
+      const point = this.toCanvas(event.clientX, event.clientY);
+      // Se centra en el cursor, como el drop del catálogo.
+      this.addNote.emit({ x: point.x - 110, y: point.y - 90 });
+      this.tool.set('select');
+      return;
+    }
+    this.activeAnnotationId.set(null);
+    this.editingAnnotationId.set(null);
+  }
+
+  /** Coloca la imagen en el centro de lo que se está viendo, no en una esquina cualquiera. */
+  requestImage(): void {
+    this.pickImage.emit(this.viewportCenter());
+  }
+
+  requestNoteAtCenter(): void {
+    const center = this.viewportCenter();
+    this.addNote.emit({ x: center.x - 110, y: center.y - 90 });
+  }
+
+  private viewportCenter(): { x: number; y: number } {
+    const viewport = this.viewportRef?.nativeElement;
+    if (!viewport) {
+      return { x: 0, y: 0 };
+    }
+    const zoom = this.zoom();
+    return {
+      x: (viewport.scrollLeft + viewport.clientWidth / 2) / zoom,
+      y: (viewport.scrollTop + viewport.clientHeight / 2) / zoom,
+    };
+  }
+
+  onNoteInput(annotation: WorkflowAnnotation, event: Event): void {
+    const text = (event.target as HTMLTextAreaElement).value;
+    this.updateAnnotation.emit({ id: annotation.id, patch: { text } });
+  }
+
+  setNoteColor(annotation: WorkflowAnnotation, color: WorkflowNoteColor): void {
+    this.updateAnnotation.emit({ id: annotation.id, patch: { color } });
+  }
+
+  trackAnnotation = (_index: number, annotation: WorkflowAnnotation): string => annotation.id;
+  trackPeer = (_index: number, peer: PeerCursor): string => peer.userId;
 
   /** Recibe el tipo soltado desde el catálogo y lo sitúa bajo el cursor. */
   onDrop(event: DragEvent): void {
@@ -292,6 +421,24 @@ export class WorkflowCanvasComponent implements OnDestroy {
   /** En `document`, no en el elemento: si no, el arrastre se pierde al salirse. */
   @HostListener('document:pointermove', ['$event'])
   onPointerMove(event: PointerEvent): void {
+    // Mi cursor se publica SIEMPRE, se esté arrastrando algo o no: es lo que ven los demás.
+    this.publishCursor(event.clientX, event.clientY);
+
+    const annotation = this.annotationDrag;
+    if (annotation && event.pointerId === annotation.pointerId) {
+      annotation.moved = true;
+      const { clientX, clientY } = event;
+      this.scheduleFrame(() => {
+        const point = this.toCanvas(clientX, clientY);
+        this.moveAnnotationLive.emit({
+          id: annotation.id,
+          x: point.x - annotation.offsetX,
+          y: point.y - annotation.offsetY,
+        });
+      });
+      return;
+    }
+
     const link = this.pendingLink();
     if (link && event.pointerId === this.linkPointerId) {
       const { clientX, clientY } = event;
@@ -330,6 +477,12 @@ export class WorkflowCanvasComponent implements OnDestroy {
       this.pendingLink.set(null);
       this.linkPointerId = null;
       this.cancelFrame();
+    }
+    if (this.annotationDrag) {
+      this.cancelFrame();
+      this.moveStepEnd.emit();
+      this.suppressClick = this.annotationDrag.moved;
+      this.annotationDrag = null;
     }
     if (this.nodeDrag) {
       this.cancelFrame();
