@@ -49,11 +49,18 @@ export class CommunicationRealtimeService {
     // connect() a veces en el mismo tick, y durante la ventana previa a conectar el
     // socket existe pero `connected` es false — guardar por `connected` abriría un
     // segundo socket.
+    //
+    // `active` es la excepción: un socket que ya NO va a reintentar (el server cortó, o
+    // el handshake se rechazó) sigue existiendo, y sin esta comprobación connect() se
+    // volvía un no-op silencioso para siempre — la app se quedaba sin tiempo real hasta
+    // recargar. Un socket muerto se tira y se rehace.
     if (this.socket) {
-      return;
+      if (this.socket.connected || this.socket.active) {
+        return;
+      }
+      this.dispose();
     }
-    const token = this.tokenService.getAccessToken();
-    if (!token) {
+    if (!this.tokenService.getAccessToken()) {
       return;
     }
     this.socket = io(this.api.tenantBase(), {
@@ -63,7 +70,12 @@ export class CommunicationRealtimeService {
       // es el transporte estable: no sufre el buffering del long-poll que rompía
       // el ciclo ping/pong detrás de Cloudflare (ping timeout en bucle).
       transports: ['websocket', 'polling'],
-      auth: { token },
+      // Callback, NO objeto fijo: socket.io lo invoca en CADA intento de conexión, así
+      // que las reconexiones mandan el token vigente. Con `auth: { token }` el token
+      // quedaba congelado en el del primer connect y, tras un refresh (o al volver de una
+      // pestaña en segundo plano con el token ya vencido), cada reintento reenviaba el
+      // viejo: bucle de reconexión rechazada del que no se salía.
+      auth: cb => cb({ token: this.tokenService.getAccessToken() ?? '' }),
       withCredentials: true,
     });
     this.bind(this.socket);
@@ -71,6 +83,29 @@ export class CommunicationRealtimeService {
 
   disconnect(): void {
     this.socket?.disconnect();
+    this.dispose();
+  }
+
+  /**
+   * Suelta un socket muerto DESDE SUS PROPIOS handlers. La comprobación de identidad
+   * importa: si mientras tanto ya se construyó uno nuevo, el evento tardío del viejo no
+   * debe tirar al que está vivo.
+   */
+  private discard(socket: Socket): void {
+    if (this.socket !== socket) {
+      socket.removeAllListeners();
+      return;
+    }
+    socket.disconnect();
+    this.dispose();
+  }
+
+  /** Suelta el socket y su estado derivado. No lo desconecta: eso lo decide quien llama. */
+  private dispose(): void {
+    // removeAllListeners antes de soltar la referencia: el onAny/`connect` de un socket
+    // huérfano seguiría empujando eventos al Subject compartido (y marcando `connected`)
+    // si el transporte tardaba en morir, mezclándose con los del socket nuevo.
+    this.socket?.removeAllListeners();
     this.socket = null;
     this.connected.set(false);
     this.seenEventIds.clear();
@@ -121,7 +156,25 @@ export class CommunicationRealtimeService {
       }
       this.hasConnectedOnce = true;
     });
-    socket.on('disconnect', () => this.connected.set(false));
+    socket.on('disconnect', reason => {
+      this.connected.set(false);
+      // 'io server disconnect' = nos echó el server (típicamente el token venció mientras
+      // la pestaña estaba en segundo plano). socket.io NO reintenta solo en ese caso, así
+      // que se suelta el socket: sin esto quedaba un cadáver que hacía de connect() un
+      // no-op para siempre. Rehacerlo es responsabilidad de quien posee el ciclo de vida
+      // (el shell lo reintenta al volver el foco).
+      if (reason === 'io server disconnect') {
+        this.discard(socket);
+      }
+    });
+
+    // Idem para un handshake rechazado que ya no va a reintentarse: se suelta para que el
+    // próximo connect() pueda construir uno nuevo con el token vigente.
+    socket.on('connect_error', () => {
+      if (!socket.active) {
+        this.discard(socket);
+      }
+    });
 
     // onAny capta cualquier nombre de evento sin registrar uno por uno.
     socket.onAny((event: string, envelope: SocketEnvelope<unknown>) => {

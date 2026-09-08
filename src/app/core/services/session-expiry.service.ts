@@ -7,14 +7,22 @@ export interface SessionExpiryState {
   remainingSeconds: number;
 }
 
+/** Sin DOM (tests) se asume visible: el comportamiento por defecto no debe depender del entorno. */
+function isDocumentHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
 /**
  * Aviso de sesión por INACTIVIDAD (no por un timer fijo desde el login). El modal aparece cuando el
  * usuario lleva `IDLE_WARNING` sin interactuar; mientras SÍ usa la app, el access token se refresca en
  * silencio para que no muera a mitad de uso y el modal nunca lo interrumpa. Cualquier interacción real
  * (mouse, teclado, scroll, touch) reinicia el reloj de inactividad.
  *
- * Robustez: además del intervalo, re-chequea al volver la pestaña al foco — en segundo plano el
- * navegador estrangula `setInterval` y la ventana de aviso (60s) se puede perder. Espejo del portal.
+ * Pestaña en segundo plano: el navegador estrangula `setInterval`, así que el reloj no es fiable
+ * ahí. Se maneja con dos reglas, no con una: (a) el aviso NO se abre mientras la pestaña está
+ * oculta —se abre al volver el foco, para que sus 60s se vean enteros— y (b) un access token
+ * vencido no cierra sesión por sí solo: se intenta el refresh y solo si ESE falla se hace logout.
+ * Sin la segunda, volver de otra pestaña tras un rato caía directo en el login sin aviso.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionExpiryService implements OnDestroy {
@@ -49,7 +57,7 @@ export class SessionExpiryService implements OnDestroy {
   private lastActivityAt = Date.now();
 
   private readonly onVisibilityChange = () => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    if (!isDocumentHidden()) {
       this.checkTokenExpiry();
     }
   };
@@ -117,22 +125,34 @@ export class SessionExpiryService implements OnDestroy {
     }
 
     const remainingSeconds = this.tokenService.getAccessTokenRemainingSeconds();
-    if (remainingSeconds <= 0) {
-      this.sessionExpired.next();
-      return;
-    }
-
     const idleMs = Date.now() - this.lastActivityAt;
 
     // 1) Demasiado tiempo sin interacción → mostrar el aviso (countdown → logout).
     if (idleMs >= this.IDLE_WARNING_MS) {
+      // Con la pestaña oculta el aviso NO se abre: su countdown de 60s correría
+      // estrangulado por el navegador y el usuario se encontraría el modal ya vencido (o la
+      // sesión cerrada) al volver, sin haber tenido ocasión de responder. Se abre al
+      // recuperar el foco — `onVisibilityChange` vuelve a entrar acá — para que la ventana
+      // de aviso se vea entera. Mientras tanto no se refresca nada, así que la sesión
+      // muere sola igual: no se está alargando la vida de una pestaña abandonada.
+      if (isDocumentHidden()) {
+        return;
+      }
       this.showWarning(this.WARNING_COUNTDOWN_SECONDS);
       return;
     }
 
-    // 2) El usuario sigue activo dentro de la ventana: si el token está por vencer, extender en
-    //    silencio para no interrumpirlo. El reloj de inactividad NO se toca (solo lo reinicia la
-    //    interacción real), así que el aviso igual saldrá a los 14 min de que deje de usar la app.
+    // 2) El usuario sigue dentro de la ventana de actividad. Que el ACCESS token esté
+    //    vencido no es motivo de logout — para eso está el refresh token: se extiende en
+    //    silencio y solo si ESE refresh falla se cierra la sesión (lo hace `App`).
+    //
+    //    Antes había aquí un `remainingSeconds <= 0 → sessionExpired` que cortaba por lo
+    //    sano, y era justo el camino que se tomaba al volver de una pestaña en segundo
+    //    plano: con los timers estrangulados el refresh silencioso no llegaba a correr, el
+    //    token vencía, y el usuario aterrizaba en el login sin aviso ninguno.
+    //
+    //    El reloj de inactividad NO se toca (solo lo reinicia la interacción real), así que
+    //    el aviso igual saldrá a los 14 min de que deje de usar la app.
     if (!this.refreshInFlight && remainingSeconds <= this.REFRESH_MARGIN_SECONDS) {
       this.refreshInFlight = true;
       this.sessionExtended.next();
