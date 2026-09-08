@@ -71,6 +71,9 @@ export class WorkflowPageComponent implements OnDestroy {
   readonly presence = inject(WorkflowPresenceService);
   private readonly toast = inject(ToastService);
 
+  /** La paleta de pasos está plegada: el aside se estrecha y el lienzo se ensancha. */
+  readonly paletteCollapsed = signal(false);
+
   /** Objeto del lienzo seleccionado: manda sobre el panel de configuración del paso. */
   readonly selectedAnnotationId = signal<string | null>(null);
   readonly selectedAnnotation = computed(() => {
