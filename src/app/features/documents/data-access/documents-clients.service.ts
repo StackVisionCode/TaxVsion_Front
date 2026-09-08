@@ -15,12 +15,22 @@ export interface DocumentsClientSummary {
   status: 'Active' | 'Inactive' | 'Archived';
 }
 
+/** Espejo del query param `status` de GET /customers (CustomerStatusFilter). */
+export type DocumentsClientStatusFilter = 'NotArchived' | 'Active' | 'Inactive' | 'Archived' | 'All';
+
+export interface DocumentsClientQuery {
+  term?: string;
+  status?: DocumentsClientStatusFilter;
+  page?: number;
+  size?: number;
+}
+
 interface PagedResult<T> {
   items: T[];
   totalCount: number;
 }
 
-/** Cliente HTTP fino sobre GET /customers, solo para el picker del módulo Documents. */
+/** Cliente HTTP fino sobre GET /customers, solo para el selector del módulo Documents. */
 @Injectable({ providedIn: 'root' })
 export class DocumentsClientsService {
   private readonly http = inject(HttpClient);
@@ -29,12 +39,20 @@ export class DocumentsClientsService {
     return this.api.tenantUrl('/customers');
   }
 
-  search(term: string): Observable<PagedResult<DocumentsClientSummary>> {
-    // Lista para el rail del navegador: página chica + búsqueda server-side (escala a miles
-    // de clientes sin volcar todo en el sidebar). El total real viaja en `totalCount`.
-    let params = new HttpParams().set('status', 'NotArchived').set('size', 25);
-    if (term.trim()) {
-      params = params.set('term', term.trim());
+  /**
+   * Búsqueda paginada server-side. La paginación es del backend a propósito: la oficina
+   * puede tener miles de clientes y traerlos todos para filtrar en memoria no escala.
+   */
+  search(query: DocumentsClientQuery = {}): Observable<PagedResult<DocumentsClientSummary>> {
+    let params = new HttpParams().set('status', query.status ?? 'NotArchived');
+    if (query.term?.trim()) {
+      params = params.set('term', query.term.trim());
+    }
+    if (query.page) {
+      params = params.set('page', query.page);
+    }
+    if (query.size) {
+      params = params.set('size', query.size);
     }
     return this.http.get<PagedResult<DocumentsClientSummary>>(this.base, { params });
   }

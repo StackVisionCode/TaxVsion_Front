@@ -3,18 +3,14 @@
   <div class="hidden w-60 shrink-0 border-r border-gray-100 md:block">
     <app-document-navigator
       [section]="section()"
-      [activeClientId]="context().clientId"
-      [clients]="clients()"
+      [activeClientName]="context().clientName"
       [clientsTotal]="clientsTotal()"
-      [clientSearch]="clientSearch()"
-      [clientsLoading]="clientsLoading()"
       [usage]="usage()"
       (openOffice)="openOffice()"
-      (openClient)="openClient($event)"
+      (openClients)="openClients()"
       (openRecent)="openRecent()"
       (openShared)="openShared()"
       (openTrash)="openTrash()"
-      (searchChanged)="searchClients($event)"
       (openStorage)="openStorage()" />
   </div>
 
@@ -29,9 +25,12 @@
         @if (section() === 'office') {
           <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
           <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Office Files</button>
+        } @else if (section() === 'clients') {
+          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <span class="px-1.5 py-0.5 font-semibold text-gray-700">Clients</span>
         } @else if (section() === 'client') {
           <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
-          <span class="px-1.5 py-0.5 text-gray-400">Clients</span>
+          <button type="button" (click)="openClients()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Clients</button>
           <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
           <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">{{ context().clientName }}</button>
         } @else {
@@ -161,6 +160,104 @@
 
     <main class="mt-3 min-h-0 flex-1 overflow-y-auto px-5 pb-6">
       @switch (section()) {
+        <!-- Selector de clientes. Vive aquí, con el ancho de toda la pantalla, porque en el
+             rail solo cabía una página: la búsqueda y el filtro son del servidor, así que
+             funcionan sobre TODOS los clientes de la oficina, no sobre lo que se ve. -->
+        @case ('clients') {
+          <div class="flex flex-wrap items-center gap-2 pb-3">
+            <div class="flex min-w-56 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-2">
+              <ion-icon name="search-outline" class="text-sm text-gray-400"></ion-icon>
+              <input type="text" [ngModel]="clientSearch()" (ngModelChange)="searchClients($event)"
+                placeholder="Search by name or email" aria-label="Search clients"
+                class="w-full border-0 bg-transparent text-sm outline-none placeholder:text-gray-400" />
+              @if (clientSearch()) {
+                <button type="button" (click)="searchClients('')" aria-label="Clear search"
+                  class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                  <ion-icon name="close-outline" class="text-sm"></ion-icon>
+                </button>
+              }
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
+              @for (option of clientStatusOptions; track option.id) {
+                <button type="button" (click)="setClientsStatus(option.id)"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                  [class]="clientsStatus() === option.id
+                    ? 'border-brand-bold bg-brand-bold text-white'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+                  {{ option.label }}
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (clientsLoading()) {
+            <p class="py-10 text-center text-sm text-gray-400">Loading clients…</p>
+          } @else if (clients().length === 0) {
+            <div class="flex flex-col items-center gap-2 py-14 text-center text-gray-500">
+              <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400"><ion-icon name="people-outline" class="text-2xl"></ion-icon></span>
+              <h3 class="text-sm font-bold text-gray-900">
+                {{ clientsFiltered() ? 'No clients match this search.' : 'No clients yet.' }}
+              </h3>
+              @if (clientsFiltered()) {
+                <button type="button" (click)="clearClientFilters()"
+                  class="mt-1 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50">
+                  Clear search and filters
+                </button>
+              } @else {
+                <p class="max-w-xs text-sm">Clients you add to the office show up here.</p>
+              }
+            </div>
+          } @else {
+            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              @for (client of clients(); track client.id) {
+                <button type="button" (click)="openClient(client)"
+                  class="flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors"
+                  [class]="client.id === context().clientId
+                    ? 'border-brand-bold bg-brand-surface'
+                    : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
+                  <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
+                    {{ clientInitials(client.displayName) }}
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-semibold text-gray-900">{{ client.displayName }}</span>
+                    <span class="block truncate text-xs text-gray-500">{{ client.primaryEmail }}</span>
+                  </span>
+                  @if (client.status !== 'Active') {
+                    <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                      {{ client.status }}
+                    </span>
+                  }
+                </button>
+              }
+            </div>
+
+            <!-- Paginación real del servidor: es lo que faltaba cuando esto vivía en el rail. -->
+            <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
+              <p class="text-xs text-gray-500">
+                {{ clients().length }} of {{ clientsTotal() }} clients
+              </p>
+              @if (clientsPageCount() > 1) {
+                <div class="ml-auto flex items-center gap-1.5">
+                  <button type="button" (click)="goToClientsPage(clientsPage() - 1)" [disabled]="clientsPage() === 1"
+                    class="grid h-8 w-8 place-items-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                    aria-label="Previous page">
+                    <ion-icon name="chevron-back" class="text-sm"></ion-icon>
+                  </button>
+                  <span class="px-1 text-xs tabular-nums text-gray-500">
+                    Page {{ clientsPage() }} of {{ clientsPageCount() }}
+                  </span>
+                  <button type="button" (click)="goToClientsPage(clientsPage() + 1)"
+                    [disabled]="clientsPage() === clientsPageCount()"
+                    class="grid h-8 w-8 place-items-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                    aria-label="Next page">
+                    <ion-icon name="chevron-forward" class="text-sm"></ion-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        }
         @case ('recent') {
           @if (recentLoading()) {
             <p class="py-10 text-center text-sm text-gray-400">Loading…</p>

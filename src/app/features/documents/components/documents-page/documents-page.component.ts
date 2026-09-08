@@ -1,8 +1,12 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DocumentsStore } from '../../data-access/documents.store';
-import { DocumentsClientSummary } from '../../data-access/documents-clients.service';
+import {
+  DocumentsClientStatusFilter,
+  DocumentsClientSummary,
+} from '../../data-access/documents-clients.service';
 import {
   CreateShareLinkRequest,
   FileResponse,
@@ -34,6 +38,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
 @Component({
   selector: 'app-documents-page',
   imports: [
+    FormsModule,
     ModalComponent,
     ConfirmDialogComponent,
     DocumentNavigatorComponent,
@@ -61,6 +66,18 @@ export class DocumentsPageComponent {
   readonly clientsTotal = this.store.clientsTotal;
   readonly clientSearch = this.store.clientSearch;
   readonly clientsLoading = this.store.clientsLoading;
+  readonly clientsPage = this.store.clientsPage;
+  readonly clientsStatus = this.store.clientsStatus;
+  readonly clientsPageCount = this.store.clientsPageCount;
+  readonly clientsFiltered = this.store.clientsFiltered;
+  /** Filtros de estado del selector, en el orden en que se ofrecen. */
+  readonly clientStatusOptions: ReadonlyArray<{ id: DocumentsClientStatusFilter; label: string }> = [
+    { id: 'NotArchived', label: 'Active & inactive' },
+    { id: 'Active', label: 'Active' },
+    { id: 'Inactive', label: 'Inactive' },
+    { id: 'Archived', label: 'Archived' },
+    { id: 'All', label: 'All' },
+  ];
   readonly breadcrumbs = this.store.breadcrumbs;
   readonly subfolders = this.store.subfolders;
   readonly files = this.store.files;
@@ -113,6 +130,8 @@ export class DocumentsPageComponent {
     switch (this.section()) {
       case 'office':
         return 'Office Files';
+      case 'clients':
+        return 'Clients';
       case 'client':
         return this.context().clientName ?? 'Client documents';
       case 'recent':
@@ -128,6 +147,8 @@ export class DocumentsPageComponent {
     switch (this.section()) {
       case 'office':
         return 'Documents that belong to the office, not to a single client.';
+      case 'clients':
+        return 'Open a client to work on their documents.';
       case 'client':
         return 'Client documents';
       case 'recent':
@@ -159,6 +180,9 @@ export class DocumentsPageComponent {
   openOffice(): void {
     this.store.openOffice();
   }
+  openClients(): void {
+    this.store.openClients();
+  }
   openClient(client: DocumentsClientSummary): void {
     this.store.openClient(client);
   }
@@ -173,6 +197,18 @@ export class DocumentsPageComponent {
   }
   searchClients(term: string): void {
     this.store.setClientSearch(term);
+  }
+  setClientsStatus(status: DocumentsClientStatusFilter): void {
+    this.store.setClientsStatus(status);
+  }
+  goToClientsPage(page: number): void {
+    this.store.setClientsPage(page);
+  }
+  clearClientFilters(): void {
+    this.store.clearClientFilters();
+  }
+  clientInitials(name: string): string {
+    return name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
   }
   openStorage(): void {
     this.store.loadUsage();

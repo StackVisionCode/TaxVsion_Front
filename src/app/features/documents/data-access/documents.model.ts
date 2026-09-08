@@ -70,7 +70,13 @@ export function formatDate(iso: string): string {
 // ---------- Workspace (gestor documental de toda la oficina) ----------
 
 /** Secciones del navegador del workspace. */
-export type WorkspaceSection = 'office' | 'client' | 'recent' | 'shared' | 'trash';
+/**
+ * `clients` es el SELECTOR (la lista de clientes, a pantalla completa); `client` es ya el
+ * workspace de uno concreto. Son dos cosas distintas: el selector necesita su propia
+ * búsqueda, filtro y paginación, y en el rail lateral no cabían — con más de una página de
+ * clientes la lista quedaba truncada y había que adivinar el nombre para encontrarlos.
+ */
+export type WorkspaceSection = 'office' | 'clients' | 'client' | 'recent' | 'shared' | 'trash';
 
 /**
  * Contexto activo del workspace. `office` = archivos de la oficina (ownerType Tenant);
