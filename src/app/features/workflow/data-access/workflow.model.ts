@@ -82,14 +82,173 @@ export interface WorkflowCollaborator {
   role: WorkflowCollaboratorRole;
 }
 
+/** Colores de nota, en la paleta de la app (no hex sueltos). */
+export type WorkflowNoteColor = 'yellow' | 'purple' | 'green' | 'blue' | 'pink' | 'gray';
+
+export const NOTE_COLORS: readonly WorkflowNoteColor[] = [
+  'yellow',
+  'purple',
+  'green',
+  'blue',
+  'pink',
+  'gray',
+];
+
+export type WorkflowAnnotationKind = 'note' | 'image' | 'draw' | 'arrow' | 'text' | 'rect';
+
+/** Tamaño relativo. Significa grosor de trazo o cuerpo de letra según el objeto. */
+export type WorkflowInkSize = 'S' | 'M' | 'L' | 'XL';
+export const INK_SIZES: readonly WorkflowInkSize[] = ['S', 'M', 'L', 'XL'];
+
+/** Familia tipográfica del texto suelto. */
+export type WorkflowTextStyle = 'sans' | 'serif' | 'mono' | 'hand';
+export const TEXT_STYLES: readonly WorkflowTextStyle[] = ['sans', 'serif', 'mono', 'hand'];
+
+/**
+ * Tinta de trazos, flechas, texto y marcos. Hex explícito y no clases de Tailwind: esto
+ * va a un atributo `stroke`/`fill` de SVG, donde una clase no sirve.
+ */
+export const INK_COLORS = [
+  '#111827',
+  '#6b7280',
+  '#c084fc',
+  '#7c3aed',
+  '#2563eb',
+  '#38bdf8',
+  '#f59e0b',
+  '#ea580c',
+  '#16a34a',
+  '#4ade80',
+  '#fb7185',
+  '#dc2626',
+] as const;
+
+/**
+ * Anotación libre sobre el lienzo: nota, imagen, trazo a mano, flecha, texto o marco. NO
+ * es un paso — no entra en el ranking del layout ni se puede conectar con hilos; es lo que
+ * el equipo dibuja *encima* del diagrama para explicarse.
+ */
+export interface WorkflowAnnotation {
+  id: string;
+  kind: WorkflowAnnotationKind;
+  /** Esquina superior izquierda de su caja. Para `arrow`, el ORIGEN del trazo. */
+  x: number;
+  y: number;
+  /** Para `arrow`, el desplazamiento hasta la punta (puede ser negativo). */
+  width: number;
+  height: number;
+
+  /** kind: 'note' | 'text' */
+  text?: string;
+  /** kind: 'note' — color del papel. */
+  color?: WorkflowNoteColor;
+
+  /** kind: 'draw' | 'arrow' | 'text' | 'rect' — color de la tinta (hex de INK_COLORS). */
+  stroke?: string;
+  /** Grosor del trazo, o cuerpo de la letra en `text`. */
+  size?: WorkflowInkSize;
+  /** 0..1. Aplica a todo lo que se dibuja, incluida la imagen. */
+  opacity?: number;
+  /** kind: 'text' */
+  textStyle?: WorkflowTextStyle;
+
+  /**
+   * kind: 'draw' — puntos del trazo RELATIVOS a `x`/`y`, aplanados como [x0,y0,x1,y1,…].
+   * Relativos y no absolutos para que mover el trazo sea cambiar `x`/`y` y nada más.
+   */
+  points?: number[];
+
+  /** kind: 'image' — data URL ya reescalada (ver `prepareImage`). */
+  src?: string;
+  alt?: string;
+}
+
+/** Grosor de trazo en px por tamaño. */
+export function strokeWidthFor(size: WorkflowInkSize | undefined): number {
+  switch (size) {
+    case 'S':
+      return 2;
+    case 'L':
+      return 6;
+    case 'XL':
+      return 10;
+    default:
+      return 3.5;
+  }
+}
+
+/** Cuerpo de letra en px por tamaño, para el texto suelto. */
+export function fontSizeFor(size: WorkflowInkSize | undefined): number {
+  switch (size) {
+    case 'S':
+      return 14;
+    case 'L':
+      return 28;
+    case 'XL':
+      return 40;
+    default:
+      return 20;
+  }
+}
+
+/** Familia CSS del texto suelto. `hand` es la que imita la nota escrita a mano. */
+export function fontFamilyFor(style: WorkflowTextStyle | undefined): string {
+  switch (style) {
+    case 'serif':
+      return 'Georgia, "Times New Roman", serif';
+    case 'mono':
+      return 'ui-monospace, SFMono-Regular, Menlo, monospace';
+    case 'hand':
+      return '"Bradley Hand", "Segoe Print", "Comic Sans MS", cursive';
+    default:
+      return 'inherit';
+  }
+}
+
+/** Qué secciones del panel de propiedades tienen sentido para cada objeto. */
+export function annotationSupports(
+  kind: WorkflowAnnotationKind,
+): { color: boolean; ink: boolean; size: boolean; opacity: boolean; textStyle: boolean } {
+  return {
+    // El color de papel solo existe en la nota.
+    color: kind === 'note',
+    // La tinta, en todo lo que se traza.
+    ink: kind === 'draw' || kind === 'arrow' || kind === 'text' || kind === 'rect',
+    size: kind === 'draw' || kind === 'arrow' || kind === 'text' || kind === 'rect',
+    // La opacidad aplica a cualquier cosa que se pinte encima del diagrama.
+    opacity: true,
+    textStyle: kind === 'text',
+  };
+}
+
 export interface WorkflowDoc {
   id: string;
   name: string;
   steps: WorkflowStep[];
   /** Los hilos, como dato propio y no como algo derivado de los pasos. */
   connections: WorkflowConnection[];
+  /** Notas e imágenes sueltas sobre el lienzo. */
+  annotations: WorkflowAnnotation[];
   collaborators: WorkflowCollaborator[];
   updatedAtIso: string;
+}
+
+/** Clases Tailwind de cada color de nota: fondo, borde y color del texto. */
+export function noteColorClasses(color: WorkflowNoteColor | undefined): string {
+  switch (color) {
+    case 'purple':
+      return 'bg-violet-200 border-violet-300 text-violet-950';
+    case 'green':
+      return 'bg-emerald-200 border-emerald-300 text-emerald-950';
+    case 'blue':
+      return 'bg-sky-200 border-sky-300 text-sky-950';
+    case 'pink':
+      return 'bg-pink-200 border-pink-300 text-pink-950';
+    case 'gray':
+      return 'bg-gray-200 border-gray-300 text-gray-900';
+    default:
+      return 'bg-amber-200 border-amber-300 text-amber-950';
+  }
 }
 
 /**

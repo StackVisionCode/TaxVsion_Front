@@ -9,54 +9,30 @@
       <span>Office Files</span>
     </button>
 
-    <button type="button" (click)="clientsExpanded.set(!clientsExpanded())"
+    <!-- Abre el selector a pantalla completa. Antes esto desplegaba la lista aquí dentro,
+         pero en un rail de 240px solo cabía la primera página: con más clientes había que
+         acertar el nombre en el buscador para llegar a ellos. -->
+    <button type="button" (click)="openClients.emit()"
       class="mt-0.5 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
-      [class]="section === 'client' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
+      [class]="section === 'clients' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
       <ion-icon name="people-outline" class="text-base"></ion-icon>
       <span>Clients</span>
-      <span class="ml-auto flex items-center gap-1 text-xs text-gray-400">
-        {{ clients.length }}
-        <ion-icon [name]="clientsExpanded() ? 'chevron-down' : 'chevron-forward'" class="text-xs"></ion-icon>
-      </span>
+      @if (clientsTotal > 0) {
+        <span class="ml-auto text-xs text-gray-400">{{ clientsTotal }}</span>
+      }
     </button>
 
-    @if (clientsExpanded()) {
-      <div class="ml-2 mt-1 flex flex-col gap-0.5 border-l border-gray-100 pl-2">
-        <div class="mx-1 my-1 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
-          <ion-icon name="search-outline" class="text-xs text-gray-400"></ion-icon>
-          <input type="text" [ngModel]="clientSearch" (ngModelChange)="onSearch($event)"
-            placeholder="Search clients..." aria-label="Search clients"
-            class="w-full border-0 bg-transparent text-xs outline-none placeholder:text-gray-400" />
-        </div>
-
-        @if (clientsLoading) {
-          <div class="px-2 py-1.5 text-xs text-gray-400">Loading clients…</div>
-        } @else if (clients.length === 0) {
-          <div class="px-2 py-1.5 text-xs text-gray-400">No clients match your search.</div>
-        } @else {
-          <div class="max-h-64 overflow-y-auto">
-            @for (client of clients; track client.id) {
-              <button type="button" (click)="openClient.emit(client)"
-                class="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors"
-                [class]="section === 'client' && client.id === activeClientId ? 'bg-indigo-50' : 'hover:bg-gray-100'">
-                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9.5px] font-bold"
-                  [class]="section === 'client' && client.id === activeClientId
-                    ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700'">
-                  {{ initials(client.displayName) }}
-                </span>
-                <span class="truncate text-xs"
-                  [class]="section === 'client' && client.id === activeClientId ? 'font-semibold text-indigo-700' : 'text-gray-700'">
-                  {{ client.displayName }}
-                </span>
-              </button>
-            }
-          </div>
-          @if (clientsTotal > clients.length) {
-            <p class="px-2 pt-1.5 text-[11px] text-gray-400">
-              Showing {{ clients.length }} of {{ clientsTotal }}. Search to find a specific client.
-            </p>
-          }
-        }
+    <!-- El cliente abierto se queda a la vista: es el contexto en el que estás trabajando,
+         y sin esto el rail no dice de quién son los archivos que tienes delante. -->
+    @if (section === 'client' && activeClientName) {
+      <div class="ml-2 mt-1 border-l border-gray-100 pl-2">
+        <button type="button" (click)="openClients.emit()"
+          class="flex w-full items-center gap-2 rounded-lg bg-indigo-50 px-1.5 py-1.5 text-left">
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-indigo-600 text-[9.5px] font-bold text-white">
+            {{ initials(activeClientName) }}
+          </span>
+          <span class="truncate text-xs font-semibold text-indigo-700">{{ activeClientName }}</span>
+        </button>
       </div>
     }
 

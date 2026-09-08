@@ -1,4 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -309,17 +319,25 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   // ---------- Typeahead de clientes ----------
 
-  /** Abre/cierra el dropdown de resultados del buscador de clientes. */
+  @ViewChild('customerInput') private customerInput?: ElementRef<HTMLInputElement>;
+
+  /**
+   * El rail muestra una sola fila con el cliente activo; el buscador aparece al pulsarla y se
+   * repliega al elegir. Correspondence no tiene bandeja global, así que el cliente sigue siendo
+   * obligatorio, pero no tiene por qué ocupar un bloque permanente del rail.
+   */
   readonly customerPickerOpen = signal(false);
+
+  openCustomerPicker(): void {
+    this.customerPickerOpen.set(true);
+    this.store.openCustomerSearch();
+    // El input nace en este mismo ciclo: se enfoca cuando ya existe en el DOM.
+    setTimeout(() => this.customerInput?.nativeElement.focus(), 0);
+  }
 
   onCustomerQuery(term: string): void {
     this.store.onCustomerQueryChange(term);
     this.customerPickerOpen.set(true);
-  }
-
-  onCustomerFocus(): void {
-    this.customerPickerOpen.set(true);
-    this.store.openCustomerSearch();
   }
 
   /** Cierra con un pequeño delay para que el click en un resultado alcance a registrarse antes del blur. */
@@ -327,21 +345,27 @@ export class MailPageComponent implements OnInit, OnDestroy {
     setTimeout(() => this.customerPickerOpen.set(false), 150);
   }
 
+  closeCustomerPicker(): void {
+    this.customerPickerOpen.set(false);
+  }
+
+  /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
   pickCustomer(customer: MailCustomerSummary): void {
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
     this.store.pickCustomer(customer);
     this.customerPickerOpen.set(false);
+  }
+
+  /** Sugerencias para el destinatario que se está tecleando en el composer (To/Cc). */
+  searchRecipients(term: string): void {
+    this.store.searchRecipients(term);
   }
 
   /** Redactar exige cuenta de buzón utilizable + cliente (el draft cuelga de ambos). */
   readonly canCompose = computed(() => !!this.store.activeAccountId() && !!this.store.selectedCustomerId());
 
   // ---------- Cuentas de buzón ----------
-
-  selectCustomer(customerId: string): void {
-    this.selectedDraftId.set(null);
-    this.selectedSentId.set(null);
-    this.store.selectCustomer(customerId);
-  }
 
   selectAccount(accountId: string): void {
     this.store.setActiveAccount(accountId);

@@ -91,82 +91,83 @@
           <ion-icon name="notifications-outline" class="text-lg"></ion-icon>
           <span class="sr-only">Notifications</span>
 
-          <!-- Unread count badge (con anillo pulsante) -->
+          <!-- Contador de no-leídas. Sin anillo pulsante: latía sin parar aunque no hubiera
+               pasado nada nuevo, así que no señalaba un cambio, solo hacía ruido. El número
+               ya dice lo que hay que decir. -->
           <span *ngIf="hasUnread()"
             class="pointer-events-none absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
             {{ notificationCount() > 9 ? '9+' : notificationCount() }}
           </span>
-          <span *ngIf="hasUnread()"
-            class="pointer-events-none absolute -right-1 -top-1 h-[18px] w-[18px] animate-ping rounded-full bg-orange-400/60 motion-reduce:hidden"></span>
         </button>
 
         <!-- Notifications dropdown -->
         <div *ngIf="isNotificationsOpen()"
           class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
-          <!-- Dropdown header -->
-          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900">
-              Notifications
-              <span *ngIf="hasUnread()"
-                class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-600">
-                {{ notificationCount() }} new
-              </span>
-            </h3>
+          <!-- Cabecera: título + la única acción global. -->
+          <div class="flex items-center justify-between px-4 pb-2 pt-3.5">
+            <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
             <button (click)="markAllAsRead()" *ngIf="hasUnread()"
-              class="flex items-center gap-1 text-xs font-semibold text-brand-bold hover:text-brand-ink transition-colors">
-              <ion-icon name="checkmark-done-outline" class="text-sm"></ion-icon>
+              class="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
               Mark all read
             </button>
           </div>
 
-          <!-- Notifications list -->
-          <div class="max-h-80 overflow-y-auto">
-            <button *ngFor="let notification of notifications(); trackBy: trackByNotificationId" type="button"
-              (click)="markAsRead(notification.id, $event)"
-              class="group relative flex w-full items-start gap-3 border-b border-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-50"
-              [class.bg-orange-50/40]="!notification.isRead">
-              <!-- Acento de no-leída -->
-              <span *ngIf="!notification.isRead" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-orange-400"></span>
+          <!-- Pestañas. Filtran el feed que ya está cargado; el subrayado marca la activa
+               en vez de un fondo de color, para que la lista siga siendo lo más llamativo. -->
+          <div class="flex items-center gap-5 border-b border-gray-100 px-4" role="tablist">
+            <button *ngFor="let tab of notificationTabs" type="button" role="tab"
+              [attr.aria-selected]="notificationTab() === tab.id" (click)="selectNotificationTab(tab.id)"
+              class="-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-xs transition-colors"
+              [ngClass]="notificationTab() === tab.id
+                ? 'border-gray-900 font-semibold text-gray-900'
+                : 'border-transparent font-medium text-gray-400 hover:text-gray-700'">
+              {{ tab.label }}
+              <span *ngIf="notificationTabCounts()[tab.id] > 0"
+                class="rounded-full px-1.5 py-px text-[10px] font-semibold leading-4"
+                [ngClass]="notificationTab() === tab.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">
+                {{ notificationTabCounts()[tab.id] }}
+              </span>
+            </button>
+          </div>
 
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          <!-- Lista -->
+          <div class="max-h-80 overflow-y-auto">
+            <button *ngFor="let notification of visibleNotifications(); trackBy: trackByNotificationId" type="button"
+              (click)="markAsRead(notification.id, $event)"
+              class="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50
+                     border-b border-gray-50 last:border-b-0">
+              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
                 [ngClass]="notificationIconBg(notification.type)">
                 <ion-icon [name]="notificationIcon(notification.type)" class="text-base"
                   [ngClass]="notificationIconText(notification.type)"></ion-icon>
               </span>
 
               <span class="min-w-0 flex-1">
-                <span class="flex items-center gap-2">
+                <!-- Título y "cuándo" en la misma línea: el ojo termina el renglón sabiendo
+                     ya de qué es y de cuándo, sin bajar a buscar la fecha. -->
+                <span class="flex items-baseline gap-2">
                   <span class="min-w-0 flex-1 truncate text-sm text-gray-900"
-                    [ngClass]="notification.isRead ? 'font-medium' : 'font-bold'">{{ notification.title }}</span>
-                  <span *ngIf="!notification.isRead" class="h-2 w-2 shrink-0 rounded-full bg-orange-500"></span>
+                    [ngClass]="notification.isRead ? 'font-medium' : 'font-semibold'">{{ notification.title }}</span>
+                  <span class="shrink-0 text-[11px] tabular-nums text-gray-400">{{ notification.time }}</span>
+                  <span *ngIf="!notification.isRead" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"
+                    aria-label="Unread"></span>
                 </span>
-                <span class="mt-0.5 line-clamp-2 text-xs text-gray-500">{{ notification.message }}</span>
-                <span class="mt-1 block text-[11px] text-gray-400">{{ notification.time }}</span>
-              </span>
-
-              <!-- Check en hover (solo no-leídas) -->
-              <span *ngIf="!notification.isRead"
-                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity group-hover:opacity-100">
-                <ion-icon name="checkmark-outline" class="text-sm"></ion-icon>
+                <span class="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-500">{{ notification.message }}</span>
               </span>
             </button>
 
-            <!-- Empty state -->
-            <div *ngIf="notifications().length === 0" class="px-4 py-10 text-center">
-              <span class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
-                <ion-icon name="checkmark-done-outline" class="text-3xl"></ion-icon>
-              </span>
-              <p class="text-sm font-semibold text-gray-700">You're all caught up</p>
-              <p class="mt-1 text-xs text-gray-400">New notifications will show up here.</p>
-            </div>
+            <!-- Vacío: dice de QUÉ está vacío, que cambia según la pestaña. -->
+            <p *ngIf="visibleNotifications().length === 0" class="px-4 py-12 text-center text-sm text-gray-400">
+              {{ emptyNotificationsMessage() }}
+            </p>
           </div>
 
-          <!-- Footer with "View all" button -->
-          <div class="border-t border-gray-100 px-4 py-2">
+          <!-- La campana solo trae el feed corto; el historial completo vive en /notifications. -->
+          <div class="border-t border-gray-100 p-2">
             <button (click)="navigateToNotificationCenter()"
-              class="w-full text-center text-sm text-gray-900 hover:bg-gray-100 transition-colors duration-200 font-medium py-2 rounded-full">
-              View all notifications
+              class="w-full rounded-xl py-2 text-center text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
+              View all
             </button>
           </div>
         </div>
@@ -184,85 +185,59 @@
 
         <!-- User dropdown -->
         <div *ngIf="isUserMenuOpen()"
-          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
+          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
 
-          <!-- User Info Header: fondo con degradado sutil de marca -->
-          <div class="border-b border-gray-100 bg-gradient-to-br from-indigo-50 via-white to-indigo-50 px-4 py-4">
-            <div class="flex items-start gap-3">
-              <!-- TaxUser Avatar (larger, con anillo blanco para que "flote" sobre el degradado) -->
-              <div
-                class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden ring-4 ring-white shadow-md">
-                <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
-                  class="w-full h-full object-cover" (error)="onImageError($event)">
-                <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
-              </div>
-
-              <div class="flex-1 min-w-0">
-                <!-- TaxUser Name -->
-                <p class="text-sm font-bold text-gray-900 truncate">
-                  {{ getTaxUserFullName() || getUserEmail() }}
-                </p>
-
-                <!-- Company Name -->
-                <p class="text-xs text-gray-600 truncate" *ngIf="getCompanyName()">
-                  {{ getCompanyName() }}
-                </p>
-
-                <!-- Email -->
-                <p class="text-xs text-gray-400 truncate mt-0.5">
-                  {{ getUserEmail() }}
-                </p>
-
-                <!-- Role Badge -->
-                <div class="mt-2">
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-bold text-white shadow-sm">
-                    <ion-icon [name]="user().isOwner ? 'shield-checkmark-outline' : 'person-outline'"
-                      class="text-xs mr-1"></ion-icon>
-                    {{ getUserRole() }}
-                  </span>
-                </div>
-              </div>
+          <!-- Quién eres y en qué oficina estás. El CRM es multi-tenant: el nombre de la
+               oficina no es adorno, es lo que evita operar en la cuenta equivocada. Sin el
+               degradado ni el avatar repetido de antes — el avatar ya está justo arriba. -->
+          <div class="px-3 pb-2.5 pt-2">
+            <div class="flex items-center gap-2">
+              <p class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+                {{ getTaxUserFullName() || getUserEmail() }}
+              </p>
+              <span *ngIf="getUserRole()"
+                class="shrink-0 rounded-full bg-brand-surface px-2 py-0.5 text-[10px] font-semibold text-brand-ink">
+                {{ getUserRole() }}
+              </span>
             </div>
+            <p class="mt-0.5 truncate text-xs text-gray-500">{{ getCompanyName() || getUserEmail() }}</p>
           </div>
 
-          <!-- Menu Items -->
-          <div class="py-1.5">
+          <div class="mx-1.5 border-t border-gray-100"></div>
+
+          <!-- Los iconos van monocromos: en un menú de seis filas, seis colores distintos
+               no ordenan nada, solo compiten. El realce lo da la pastilla del hover. -->
+          <div class="py-1">
             <a routerLink="/profile"
-              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
-              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-                <ion-icon name="person-outline" class="text-base text-indigo-600"></ion-icon>
-              </span>
-              <span>My Profile</span>
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+              <ion-icon name="person-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
+              <span>Profile</span>
             </a>
 
             <a routerLink="/company/users"
-              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
-              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-                <ion-icon name="people-outline" class="text-base text-brand-bold"></ion-icon>
-              </span>
-              <span>User Management</span>
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+              <ion-icon name="people-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
+              <span>User management</span>
             </a>
 
             <a routerLink="/company/settings"
-              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900">
-              <span class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-                <ion-icon name="business-outline" class="text-base text-orange-600"></ion-icon>
-              </span>
-              <span>Company Settings</span>
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+              <ion-icon name="business-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
+              <span>Company settings</span>
             </a>
           </div>
 
-          <!-- Logout -->
-          <div class="border-t border-gray-100 py-1.5">
-            <a (click)="logout()"
-              class="dropdown-menu-item flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 cursor-pointer group">
-              <span
-                class="mr-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 transition-colors group-hover:bg-red-100">
-                <ion-icon name="log-out-outline" class="text-base text-red-500"></ion-icon>
-              </span>
-              <span>Logout</span>
-            </a>
+          <div class="mx-1.5 border-t border-gray-100"></div>
+
+          <!-- Cerrar sesión no lleva rojo permanente: solo se tiñe cuando el puntero está
+               encima, que es cuando el aviso sirve de algo. -->
+          <div class="py-1">
+            <button type="button" (click)="logout()"
+              class="dropdown-menu-item group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-red-50 hover:text-red-600">
+              <ion-icon name="log-out-outline"
+                class="shrink-0 text-lg text-gray-500 transition-colors group-hover:text-red-500"></ion-icon>
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
       </div>

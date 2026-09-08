@@ -1,0 +1,188 @@
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Pestañas de la sección -->
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="button" (click)="selectTab('invoices')"
+      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+      [ngClass]="tab() === 'invoices' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Invoices
+    </button>
+    <button type="button" (click)="selectTab('links')"
+      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+      [ngClass]="tab() === 'links' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Payment links
+    </button>
+    <button type="button" (click)="selectTab('methods')"
+      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+      [ngClass]="tab() === 'methods' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Payment provider
+    </button>
+    <button type="button" (click)="selectTab('company')"
+      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+      [ngClass]="tab() === 'company' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Company
+    </button>
+  </div>
+
+  <!-- ---------------- Facturas ---------------- -->
+  <ng-container *ngIf="tab() === 'invoices'">
+    <app-invoice-metrics [metrics]="store.metrics()" [loading]="store.invoicesLoading()"></app-invoice-metrics>
+
+    <div class="rounded-[28px] bg-white p-6">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Invoices</h2>
+          <p class="mt-1 text-sm text-gray-500">Create, issue and collect invoices for your clients</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" (click)="exportCsv()" [disabled]="store.filteredInvoices().length === 0"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+            <ion-icon name="download-outline" class="text-base"></ion-icon>
+            Export CSV
+          </button>
+          <button type="button" (click)="store.loadInvoices(true)" [disabled]="store.invoicesLoading()"
+            class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
+            aria-label="Refresh invoices">
+            <ion-icon name="refresh-outline" class="text-base"
+              [ngClass]="store.invoicesLoading() ? 'animate-spin' : ''"></ion-icon>
+          </button>
+          <button type="button" (click)="openForm()"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+            <ion-icon name="add-outline" class="text-base"></ion-icon>
+            New invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Sin datos de empresa el PDF sale incompleto -->
+      <div *ngIf="!store.hasIssuerProfile()"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p class="text-sm text-amber-800">
+          Your company details are not set, so invoices will be issued without them.
+        </p>
+        <button type="button" (click)="selectTab('company')"
+          class="shrink-0 text-sm font-semibold text-amber-800 hover:text-amber-950 transition-colors">
+          Set them up
+        </button>
+      </div>
+
+      <!-- Pestañas de estado -->
+      <div class="mt-5 flex flex-wrap items-center gap-2">
+        <button *ngFor="let status of statusTabs" type="button" (click)="store.setStatusFilter(status)"
+          class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="store.statusFilter() === status
+            ? 'bg-brand-bold text-white'
+            : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          {{ statusTabLabel(status) }}
+          <span *ngIf="statusTabCount(status) > 0"
+            class="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+            [ngClass]="store.statusFilter() === status ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600'">
+            {{ statusTabCount(status) }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="mt-4 flex flex-wrap items-end gap-3">
+        <div class="relative min-w-[200px] flex-1">
+          <ion-icon name="search-outline"
+            class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
+          <input type="text" name="invoiceNumberQuery" autocomplete="off" placeholder="Search by invoice number…"
+            [ngModel]="store.numberQuery()" (ngModelChange)="store.setNumberQuery($event)"
+            class="h-10 w-full rounded-full border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+        </div>
+
+        <div>
+          <label for="fromDate" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">From</label>
+          <input id="fromDate" type="date" name="fromDate" [ngModel]="store.fromDate()"
+            (ngModelChange)="store.setFromDate($event)"
+            class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+        </div>
+        <div>
+          <label for="toDate" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">To</label>
+          <input id="toDate" type="date" name="toDate" [ngModel]="store.toDate()"
+            (ngModelChange)="store.setToDate($event)"
+            class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+        </div>
+
+        <div>
+          <label for="takeSize" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Load</label>
+          <select id="takeSize" name="takeSize" [ngModel]="store.take()" (ngModelChange)="store.setTake($event)"
+            class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+            <option *ngFor="let option of takeOptions" [ngValue]="option">Last {{ option }}</option>
+          </select>
+        </div>
+
+        <button *ngIf="store.hasActiveFilters()" type="button" (click)="store.clearFilters()"
+          class="h-10 rounded-full px-4 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+          Clear filters
+        </button>
+      </div>
+
+      <p *ngIf="store.invoicesError() as error"
+        class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+        {{ error }}
+      </p>
+
+      <div *ngIf="store.invoicesLoading() && store.invoices().length === 0"
+        class="flex items-center justify-center gap-2 px-4 py-12 text-sm text-gray-400">
+        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        Loading invoices…
+      </div>
+
+      <div *ngIf="!store.invoicesLoading() || store.invoices().length > 0" class="mt-4">
+        <app-invoice-table [invoices]="store.pagedInvoices()" [busyInvoiceId]="store.busyInvoiceId()"
+          [emptyText]="emptyText" (actionRequested)="onTableAction($event)"></app-invoice-table>
+      </div>
+
+      <app-pagination [currentPage]="store.page()" [totalItems]="store.filteredInvoices().length"
+        [pageSize]="store.pageSize" (pageChange)="store.setPage($event)"></app-pagination>
+
+      <!-- Lo que el listado del backend no permite: se declara una vez, no por fila -->
+      <p class="mt-4 border-t border-gray-100 pt-4 text-xs leading-relaxed text-gray-400">
+        The billing API returns the tenant's latest invoices without paging or filters, so the list shows the last
+        {{ store.take() }} and the filters above apply to those. It also doesn't return the client, the due date or the
+        line items — all of them are in the invoice PDF.
+      </p>
+    </div>
+  </ng-container>
+
+  <!-- ---------------- Links de pago ---------------- -->
+  <app-payment-links-panel *ngIf="tab() === 'links'" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
+    [error]="store.linksError()" [statusFilter]="store.linkStatusFilter()" [page]="store.linkPage()"
+    [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()"
+    (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
+    (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
+    (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
+
+  <!-- ---------------- Proveedor de cobro ---------------- -->
+  <app-payment-method-form *ngIf="tab() === 'methods'" [configs]="store.paymentConfigs()"
+    [loading]="store.configsLoading()" [saving]="store.savingProvider()"
+    (stripeSaveRequested)="onStripeSave($event)"
+    (providerToggleRequested)="onProviderToggle($event)"></app-payment-method-form>
+
+  <!-- ---------------- Empresa ---------------- -->
+  <app-company-branding-form *ngIf="tab() === 'company'" [issuer]="store.issuer()" [branding]="store.branding()"
+    [saving]="store.savingCompany()" (saveRequested)="onCompanySave($event)"></app-company-branding-form>
+</div>
+
+<!-- Modales -->
+<app-invoice-form-panel [isOpen]="formOpen()" [customerResults]="store.customerResults()"
+  [customerSearching]="store.customerSearching()" [catalogResults]="store.catalogResults()"
+  [catalogSearching]="store.catalogSearching()" [saving]="store.creating()"
+  [hasIssuerProfile]="store.hasIssuerProfile()" (customerSearchChanged)="store.searchCustomers($event)"
+  (catalogSearchChanged)="store.searchCatalog($event)" (submitted)="onFormSubmit($event)"
+  (closed)="closeForm()"></app-invoice-form-panel>
+
+<app-invoice-detail-panel [invoice]="store.selectedInvoice()"
+  [busy]="store.busyInvoiceId() === store.selectedInvoice()?.id" (closed)="closeDetail()"
+  (issueRequested)="store.issue($event.id)" (pdfRequested)="store.openPdf($event)"
+  (recordPaymentRequested)="paymentTarget.set($event)" (receiptRequested)="receiptTarget.set($event)"
+  (copyLinkRequested)="copyLinkUrl($event)"
+  (refreshRequested)="store.refreshInvoice($event.id)"></app-invoice-detail-panel>
+
+<app-record-payment-dialog [invoice]="paymentTarget()"
+  [saving]="store.busyInvoiceId() === paymentTarget()?.id" (closed)="closePaymentDialog()"
+  (confirmed)="onPaymentConfirmed($event)"></app-record-payment-dialog>
+
+<app-receipt-dialog [invoice]="receiptTarget()" (closed)="closeReceipt()" (hashCopyRequested)="copyReceiptHash($event)"
+  (pdfRequested)="store.openPdf($event)"></app-receipt-dialog>

@@ -1,0 +1,117 @@
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+    <thead>
+      <tr>
+        <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
+        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Number</th>
+        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Created</th>
+        <th class="bg-brand-white px-4 py-3 text-right font-semibold text-gray-900">Total</th>
+        <th class="bg-brand-white px-4 py-3 text-right font-semibold text-gray-900">Paid</th>
+        <th class="bg-brand-white px-4 py-3 text-right font-semibold text-gray-900">Amount due</th>
+        <th class="rounded-r-2xl bg-brand-white px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let invoice of invoices; trackBy: trackByInvoiceId; let last = last" class="group">
+        <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
+            [ngClass]="statusChip(invoice.status)">
+            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(invoice.status)"></span>
+            {{ statusLabel(invoice.status) }}
+          </span>
+        </td>
+
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span class="font-mono text-xs font-medium"
+            [ngClass]="invoice.invoiceNumber ? 'text-gray-900' : 'text-gray-400'">
+            {{ numberLabel(invoice) }}
+          </span>
+        </td>
+
+        <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          {{ shortDate(invoice.createdAtUtc) }}
+        </td>
+
+        <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          {{ money(invoice.totalCents, invoice.currency) }}
+        </td>
+
+        <td class="px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span [ngClass]="invoice.amountPaidCents > 0 ? 'text-emerald-600 font-medium' : 'text-gray-400'">
+            {{ money(invoice.amountPaidCents, invoice.currency) }}
+          </span>
+        </td>
+
+        <td class="px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+          [class.border-gray-100]="!last">
+          <span [ngClass]="invoice.amountDueCents > 0 ? 'font-semibold text-gray-900' : 'text-gray-400'">
+            {{ money(invoice.amountDueCents, invoice.currency) }}
+          </span>
+        </td>
+
+        <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          <div class="relative inline-flex items-center gap-1" data-dropdown="invoice-menu">
+            <ion-icon *ngIf="busyInvoiceId === invoice.id" name="sync-outline"
+              class="animate-spin text-base text-gray-400"></ion-icon>
+
+            <button type="button" (click)="toggleMenu(invoice, $event)"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              aria-label="Invoice options">
+              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+            </button>
+
+            <div *ngIf="openMenuId() === invoice.id"
+              class="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-lg">
+              <button type="button" (click)="emit('details', invoice, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="eye-outline" class="text-base"></ion-icon>
+                View details
+              </button>
+
+              <button *ngIf="canIssue(invoice)" type="button" (click)="emit('issue', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-gray-50 transition-colors">
+                <ion-icon name="send-outline" class="text-base"></ion-icon>
+                Issue invoice
+              </button>
+
+              <button *ngIf="invoice.checkoutUrl" type="button" (click)="emit('copyLink', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="link-outline" class="text-base"></ion-icon>
+                Copy payment link
+              </button>
+
+              <button *ngIf="invoice.pdfFileId" type="button" (click)="emit('pdf', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                Open PDF
+              </button>
+
+              <button *ngIf="canRecordPayment(invoice)" type="button" (click)="emit('recordPayment', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="cash-outline" class="text-base"></ion-icon>
+                Record payment
+              </button>
+
+              <button *ngIf="invoice.receiptNumber" type="button" (click)="emit('receipt', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="receipt-outline" class="text-base"></ion-icon>
+                View receipt
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="invoices.length === 0" class="px-4 py-10 text-center">
+    <ion-icon name="receipt-outline" class="text-3xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">{{ emptyText }}</p>
+  </div>
+</div>

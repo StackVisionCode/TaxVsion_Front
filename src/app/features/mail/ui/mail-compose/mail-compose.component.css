@@ -41,3 +41,44 @@
     transform: none;
   }
 }
+
+/* Cuerpo enriquecido. Un contenteditable no tiene placeholder propio, y lo que
+   se escribe dentro (o entra por pegado/imagen) es DOM creado a mano: no lleva
+   el atributo de scoping de Angular, así que igual que en el panel de lectura
+   hace falta `::ng-deep` acotado al host para que el reset de Tailwind no deje
+   listas, enlaces e imágenes sin estilo. Los colores leen las variables de
+   marca que escribe ThemeService. */
+.rich-body.is-empty::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--color-gray-400-rgb, 156 163 175));
+  pointer-events: none;
+}
+
+:host ::ng-deep .rich-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin: 0.25rem 0;
+}
+
+:host ::ng-deep .rich-body ul,
+:host ::ng-deep .rich-body ol {
+  margin: 0 0 0.5rem 1.25rem;
+  list-style: revert;
+}
+
+:host ::ng-deep .rich-body p {
+  margin: 0 0 0.5rem;
+}
+
+:host ::ng-deep .rich-body a {
+  color: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  text-decoration: underline;
+}
+
+:host ::ng-deep .rich-body blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgb(var(--color-gray-200-rgb, 229 231 235));
+  color: rgb(var(--color-gray-500-rgb, 107 114 128));
+}

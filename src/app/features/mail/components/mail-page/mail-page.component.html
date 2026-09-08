@@ -244,26 +244,35 @@
       </div>
 
       <!-- Cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un customer.
-           Typeahead server-side (no un <select> con tope de 200): escala a cualquier cantidad. -->
+           El rail solo muestra la fila del cliente activo; al pulsarla aparece el typeahead
+           server-side (no un <select> con tope de 200) y se repliega al elegir. -->
       <div class="mt-5">
-        <label for="mailCustomer" class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Client
-        </label>
-        <div class="relative mt-2">
+        <button *ngIf="!customerPickerOpen()" type="button" (click)="openCustomerPicker()"
+          class="flex h-10 w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-left transition-colors hover:bg-gray-50">
+          <ion-icon name="person-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+          <span class="min-w-0 flex-1 truncate text-sm"
+            [ngClass]="store.selectedCustomerName() ? 'text-gray-700' : 'text-gray-500'">
+            {{ store.selectedCustomerName() || 'Select a client' }}
+          </span>
+          <ion-icon name="chevron-down-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
+        </button>
+
+        <div *ngIf="customerPickerOpen()" class="relative">
           <ion-icon name="search-outline" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
-          <input id="mailCustomer" type="text" name="mailCustomerSearch" autocomplete="off"
-            [ngModel]="store.customerQuery()" (ngModelChange)="onCustomerQuery($event)"
-            (focus)="onCustomerFocus()" (blur)="closeCustomerPickerSoon()"
+          <input #customerInput id="mailCustomer" type="text" name="mailCustomerSearch" autocomplete="off"
+            aria-label="Search a client" [ngModel]="store.customerQuery()" (ngModelChange)="onCustomerQuery($event)"
+            (blur)="closeCustomerPickerSoon()" (keydown.escape)="closeCustomerPicker()"
             [placeholder]="store.selectedCustomerName() || 'Search a client…'"
             class="h-10 w-full rounded-full border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder-gray-500 focus:border-gray-300 focus:outline-none transition-colors" />
 
           <!-- Dropdown de resultados (server-side) -->
-          <div *ngIf="customerPickerOpen() && (store.customerResults().length > 0 || store.customerSearchLoading())"
+          <div *ngIf="store.customerResults().length > 0 || store.customerSearchLoading()"
             class="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
             <div *ngIf="store.customerSearchLoading()" class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
               <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
             </div>
-            <button *ngFor="let customer of store.customerResults()" type="button" (click)="pickCustomer(customer)"
+            <button *ngFor="let customer of store.customerResults()" type="button"
+              (mousedown)="$event.preventDefault()" (click)="pickCustomer(customer)"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
               [ngClass]="customer.id === store.selectedCustomerId() ? 'text-brand-bold font-semibold' : 'text-gray-700'">
               <span class="truncate">{{ customer.displayName }}</span>
@@ -271,10 +280,6 @@
             </button>
           </div>
         </div>
-
-        <p *ngIf="store.selectedCustomerName() as name" class="mt-1.5 px-1 text-xs text-gray-500">
-          Viewing <span class="font-medium text-gray-700">{{ name }}</span>
-        </p>
       </div>
 
       <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->
@@ -304,7 +309,9 @@
     <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col">
       <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
         [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
-        [customerName]="selectedCustomerName()" (closed)="closeCompose()" (discarded)="discardCompose()"
+        [customerName]="selectedCustomerName()" [recipientSuggestions]="store.recipientResults()"
+        [recipientSearching]="store.recipientSearchLoading()" (recipientSearchRequested)="searchRecipients($event)"
+        (closed)="closeCompose()" (discarded)="discardCompose()"
         (sendRequested)="sendCompose($event)"></app-mail-compose>
       <ng-template #readingView>
         <app-mail-reading-pane class="flex-1 min-h-0" [thread]="store.selectedThread()"

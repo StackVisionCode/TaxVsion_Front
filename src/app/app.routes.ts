@@ -166,13 +166,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/dashboard/dashboard.routes').then(m => m.DASHBOARD_ROUTES),
       },
       {
-        // Apartado de facturación en vivo: métodos de pago + crear/emitir/cobrar facturas (backend real).
+        // Facturación del tenant: facturas (Billing), links de pago y proveedor de cobro
+        // (PaymentClient) y datos de la empresa que se estampan en el PDF (Billing + Documents).
         path: 'billing',
-        loadComponent: () =>
-          import('./features/billing-live/components/billing-page/billing-page.component').then(
-            m => m.BillingPageComponent
-          ),
-        title: 'Facturación',
+        loadChildren: () => import('./features/billing/billing.routes').then(m => m.BILLING_ROUTES),
       },
       {
         path: 'plans',
@@ -237,8 +234,8 @@ export const routes: Routes = [
         loadChildren: () => import('./features/meetings/meetings.routes').then(m => m.MEETINGS_ROUTES),
       },
       {
-        // La facturación real vive en /billing (features/billing-live); la vieja página mock
-        // de invoices se retiró — se conserva la URL por links guardados.
+        // La facturación vive en /billing (features/billing); la vieja página mock de invoices
+        // se retiró — se conserva la URL por links guardados.
         path: 'invoices',
         redirectTo: 'billing',
       },

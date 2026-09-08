@@ -128,3 +128,58 @@
     transform: translate(-50%, -50%);
   }
 }
+
+/* Notas e imágenes del lienzo. Se arrastran, así que el cursor lo dice. */
+.wf-annotation {
+  cursor: grab;
+  touch-action: none;
+}
+.wf-annotation:active {
+  cursor: grabbing;
+}
+/* La seleccionada se levanta por encima de las demás para que su barra no quede debajo. */
+.wf-annotation--active {
+  z-index: 5;
+}
+/* Escribiendo dentro de la nota el cursor vuelve a ser de texto. */
+.wf-annotation textarea {
+  cursor: text;
+}
+
+/* Con la herramienta de nota activa, el lienzo indica que el clic COLOCA algo. */
+.wf-viewport--place {
+  cursor: copy;
+}
+
+/* Cursores ajenos: la punta va en la coordenada exacta, y no capturan el ratón. */
+.wf-cursor {
+  transform-origin: 0 0;
+  z-index: 20;
+  will-change: transform;
+}
+
+/* Con una herramienta de trazo activa el lienzo dice que el arrastre DIBUJA. */
+.wf-viewport--draw {
+  cursor: crosshair;
+}
+.wf-viewport--erase {
+  cursor: not-allowed;
+}
+
+/* Trazos, flechas y marcos: el trazo fino es difícil de acertar, así que la zona de
+   clic se ensancha sin engordar el dibujo. */
+.wf-ink {
+  cursor: grab;
+  stroke-linecap: round;
+}
+.wf-ink:active {
+  cursor: grabbing;
+}
+.wf-ink > * {
+  pointer-events: stroke;
+  stroke-width: inherit;
+}
+.wf-ink--active > * {
+  filter: drop-shadow(0 0 0 rgb(var(--color-indigo-600-rgb, 30 70 107)));
+  outline: none;
+}

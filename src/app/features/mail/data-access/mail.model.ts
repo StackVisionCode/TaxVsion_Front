@@ -355,8 +355,9 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * El textarea del composer es texto plano, pero SendDraft exige HtmlBody (además de Subject
- * y ≥1 To). Se serializa el texto escapado con <br> por salto de línea — sin inventar markup.
+ * Texto plano → HtmlBody. SendDraft exige HtmlBody (además de Subject y ≥1 To), así que la
+ * respuesta rápida —que sí es un textarea— tiene que serializarse: se escapa y se pone un
+ * <br> por salto de línea, sin inventar markup. El composer grande ya produce html propio.
  */
 export function plainTextToHtml(text: string): string {
   const escaped = text
@@ -365,6 +366,96 @@ export function plainTextToHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
   return `<p>${escaped.replace(/\r?\n/g, '<br>')}</p>`;
+}
+
+/** Etiquetas que separan bloques: cada apertura y cada cierre corta línea. */
+const BLOCK_TAGS = new Set([
+  'P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+  'UL', 'OL', 'LI', 'TR', 'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'PRE', 'TABLE',
+]);
+
+/**
+ * Html → texto plano, para el `textBody` del draft: lo que leen los clientes de correo que
+ * no pintan html, y lo que se indexa en muchas bandejas.
+ *
+ * Lo hace el PARSER del navegador, no una tanda de expresiones regulares. Con regex había
+ * dos fallos de verdad, ambos visibles en el correo que recibe el destinatario:
+ *
+ *  1. Doble decodificación. Se resolvía `&amp;` y DESPUÉS `&lt;`, así que escribir
+ *     literalmente `&lt;` llegaba como `<`. El parser decodifica una sola vez y ya.
+ *  2. Líneas pegadas. Solo cortaban las etiquetas de CIERRE, y el contenteditable deja la
+ *     primera línea suelta y mete las siguientes en `<div>`: `uno<div>dos</div>` salía como
+ *     "unodos". Ahora corta también la apertura del bloque.
+ *
+ * `DOMParser` crea un documento INERTE: no ejecuta scripts ni descarga imágenes, cosa que
+ * `innerHTML` sobre un div sí podría hacer.
+ */
+export function htmlToPlainText(html: string | null | undefined): string {
+  const source = (html ?? '').trim();
+  if (!source) {
+    return '';
+  }
+  const parsed = new DOMParser().parseFromString(source, 'text/html');
+  const out: string[] = [];
+  collectText(parsed.body, out);
+  return (
+    out
+      .join('')
+      // Los límites de bloque van marcados y no como '\n' directo: entre dos bloques
+      // seguidos hay DOS (el cierre de uno y la apertura del otro) y son una sola línea.
+      // Un <br> sí escribe '\n' de verdad, así que dos <br> siguen valiendo dos saltos.
+      .replace(/\u0000+/g, '\n')
+      // `&nbsp;` llega como espacio duro: en texto plano es un espacio normal.
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
+}
+
+/** Marca de límite de bloque; se colapsa al final (ver `htmlToPlainText`). */
+const BLOCK_BREAK = '\u0000';
+
+function collectText(node: Node, out: string[]): void {
+  for (const child of Array.from(node.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      out.push(child.textContent ?? '');
+      continue;
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      continue;
+    }
+    const element = child as Element;
+    const tag = element.tagName.toUpperCase();
+
+    // El contenido de script/style NO es texto del mensaje: sin esto el CSS de un correo
+    // pegado acababa dentro del cuerpo plano.
+    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'HEAD') {
+      continue;
+    }
+    if (tag === 'BR') {
+      out.push('\n');
+      continue;
+    }
+    // Una imagen no tiene texto: se anuncia por su alt para no dejar un hueco mudo.
+    if (tag === 'IMG') {
+      const alt = element.getAttribute('alt')?.trim();
+      out.push(alt ? `[${alt}]` : '[image]');
+      continue;
+    }
+
+    const isBlock = BLOCK_TAGS.has(tag);
+    if (isBlock) {
+      out.push(BLOCK_BREAK);
+    }
+    if (tag === 'LI') {
+      out.push('\u2022 ');
+    }
+    collectText(element, out);
+    if (isBlock) {
+      out.push(BLOCK_BREAK);
+    }
+  }
 }
 
 /** "a@b.com, C <c@d.com>" → entradas para el autosave. Ignora vacíos. */

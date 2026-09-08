@@ -1,10 +1,26 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { toApiError } from '@core/models/api-error.model';
-import { BillingLiveService } from '../../billing-live/data-access/billing-live.service';
-import { InvoiceSummary } from '../../billing-live/data-access/billing-live.model';
 
 /** Meses que pinta el gráfico de ingresos del dashboard. */
 const MONTHS_IN_CHART = 6;
+
+/** Facturas que se piden por llamada. El backend cae a 50 si se manda 0 o menos. */
+const INVOICES_TAKE = 200;
+
+/**
+ * Subset de `InvoiceSummaryResponse` que consumen los widgets. Se declara acá, y no se importa de
+ * `features/billing`, porque las features no se importan entre sí (ARCHITECTURE.md): el dashboard
+ * habla con `GET /billing/invoices` por su cuenta.
+ */
+interface DashboardInvoice {
+  status: string;
+  currency: string;
+  amountDueCents: number;
+  amountPaidCents: number;
+  paidAtUtc?: string | null;
+}
 
 /** Un mes del gráfico: importe ya cobrado en ese mes, en centavos. */
 export interface MonthlyRevenueBucket {
@@ -32,11 +48,9 @@ export function formatCents(cents: number, currency: string): string {
  * Estado compartido de facturas para el dashboard.
  *
  * Billing NO tiene endpoint de resumen/analytics (no existe
- * `/billing/invoices/summary` en el backend), y `billing-live` tampoco tiene
- * store: la página de facturación guarda las facturas en signals locales del
- * componente. Como el hero y el gráfico de ingresos necesitan los mismos
- * datos, este store hace UNA sola llamada a `GET /billing/invoices` y expone
- * las agregaciones ya calculadas client-side.
+ * `/billing/invoices/summary` en el backend). Como el hero y el gráfico de
+ * ingresos necesitan los mismos datos, este store hace UNA sola llamada a
+ * `GET /billing/invoices` y expone las agregaciones ya calculadas client-side.
  *
  * Todo lo que se expone se puede derivar de verdad del contrato de
  * `InvoiceSummary`. En particular NO hay "Overdue": `InvoiceSummary` no trae
@@ -47,9 +61,10 @@ export function formatCents(cents: number, currency: string): string {
  */
 @Injectable({ providedIn: 'root' })
 export class DashboardInvoicesStore {
-  private readonly service = inject(BillingLiveService);
+  private readonly http = inject(HttpClient);
+  private readonly api = inject(ApiConfigService);
 
-  private readonly _invoices = signal<InvoiceSummary[]>([]);
+  private readonly _invoices = signal<DashboardInvoice[]>([]);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
   private loaded = false;
@@ -154,7 +169,7 @@ export class DashboardInvoicesStore {
   readonly isEmpty = computed(() => !this._loading() && !this._error() && this._invoices().length === 0);
 
   /**
-   * GET /billing/invoices (array completo, el endpoint no pagina). Idempotente:
+   * GET /billing/invoices (array plano recortado por `take`, el endpoint no pagina). Idempotente:
    * varios widgets pueden llamarlo en el mismo render sin duplicar la petición.
    */
   load(force = false): void {
@@ -163,7 +178,8 @@ export class DashboardInvoicesStore {
     }
     this._loading.set(true);
     this._error.set(null);
-    this.service.listInvoices().subscribe({
+    const params = new HttpParams().set('take', INVOICES_TAKE);
+    this.http.get<DashboardInvoice[]>(this.api.tenantUrl('/billing/invoices'), { params }).subscribe({
       next: invoices => {
         this._invoices.set(invoices ?? []);
         this.loaded = true;

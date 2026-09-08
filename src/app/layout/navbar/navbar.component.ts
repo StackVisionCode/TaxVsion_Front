@@ -7,10 +7,14 @@ import { AuthService } from '@core/auth/auth.service';
 import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { AppNotification, NotificationType } from '@features/notifications/ui/notification-list/notification-list.component';
 import {
+  needsAttention,
   notificationIcon,
   notificationIconBg,
   notificationIconText,
 } from '@features/notifications/data-access/notifications.model';
+
+/** Pestañas de la campana. No hay "Mentions": este producto no genera menciones. */
+export type NotificationTab = 'all' | 'unread' | 'alerts';
 
 /**
  * Visual port of the production navbar. El usuario del menú viene de
@@ -88,8 +92,40 @@ export class NavbarComponent {
   // Notificaciones REALES (Communication): feed corto de la campana + conteo en vivo.
   readonly notifications = this.notificationsStore.recent;
   readonly notificationCount = this.notificationsStore.unreadCount;
-  readonly hasNotifications = computed(() => this.notifications().length > 0);
   readonly hasUnread = computed(() => this.notificationCount() > 0);
+
+  /**
+   * Pestañas de la campana. Filtran EN LOCAL el mismo feed corto que ya está cargado: son
+   * para encontrar algo de un vistazo, no para paginar — para eso está `/notifications`.
+   */
+  readonly notificationTab = signal<NotificationTab>('all');
+  readonly notificationTabs: ReadonlyArray<{ id: NotificationTab; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'unread', label: 'Unread' },
+    { id: 'alerts', label: 'Alerts' },
+  ];
+
+  readonly visibleNotifications = computed(() => {
+    const list = this.notifications();
+    switch (this.notificationTab()) {
+      case 'unread':
+        return list.filter(n => !n.isRead);
+      case 'alerts':
+        return list.filter(n => needsAttention(n.type));
+      default:
+        return list;
+    }
+  });
+
+  /** Cuántas hay en cada pestaña, para el contador que va junto a su nombre. */
+  readonly notificationTabCounts = computed(() => {
+    const list = this.notifications();
+    return {
+      all: list.length,
+      unread: list.filter(n => !n.isRead).length,
+      alerts: list.filter(n => needsAttention(n.type)).length,
+    } satisfies Record<NotificationTab, number>;
+  });
 
   // Static customer directory used for the local search demo
   private readonly customers: NavbarCustomer[] = [
@@ -237,6 +273,27 @@ export class NavbarComponent {
   toggleNotifications(): void {
     this.isNotificationsOpen.update(open => !open);
     this.isUserMenuOpen.set(false);
+    // Abrir siempre arranca en "All": si la última vez quedó en Alerts, reabrir mostraría
+    // una lista vacía y parecería que no hay nada.
+    if (this.isNotificationsOpen()) {
+      this.notificationTab.set('all');
+    }
+  }
+
+  selectNotificationTab(tab: NotificationTab): void {
+    this.notificationTab.set(tab);
+  }
+
+  /** Texto del vacío según la pestaña: un vacío tiene que decir de qué está vacío. */
+  emptyNotificationsMessage(): string {
+    switch (this.notificationTab()) {
+      case 'unread':
+        return 'Nothing unread.';
+      case 'alerts':
+        return 'No alerts right now.';
+      default:
+        return 'Nothing here yet.';
+    }
   }
 
   notificationIcon(type: NotificationType): string {

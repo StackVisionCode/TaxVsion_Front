@@ -4,7 +4,11 @@ import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest, OwnerType, isFilePending } from '@core/cloud-storage/cloud-storage.model';
-import { DocumentsClientSummary, DocumentsClientsService } from './documents-clients.service';
+import {
+  DocumentsClientStatusFilter,
+  DocumentsClientSummary,
+  DocumentsClientsService,
+} from './documents-clients.service';
 import { DocumentsService } from './documents.service';
 import {
   CreateShareLinkRequest,
@@ -25,6 +29,10 @@ import {
   isUserFacingFolderType,
 } from './documents.model';
 
+/** Filas por página del selector de clientes. Cabe en pantalla sin scroll interno. */
+const CLIENTS_PAGE_SIZE = 12;
+/** Espera antes de buscar clientes: la búsqueda es del servidor, no se lanza por tecla. */
+const CLIENT_SEARCH_DEBOUNCE_MS = 300;
 /** Cuántas veces se re-consulta el estado de un archivo recién subido antes de dejar de pollear. */
 const MAX_STATUS_POLLS = 8;
 const STATUS_POLL_INTERVAL_MS = 3000;
@@ -50,16 +58,29 @@ export class DocumentsStore {
   /** Se navega por carpetas (office/client) solo en esas dos secciones. */
   readonly isBrowsing = computed(() => this._context().section === 'office' || this._context().section === 'client');
 
-  // ---------- Lista de clientes (dentro del navegador) ----------
+  // ---------- Selector de clientes (pantalla propia, paginado server-side) ----------
   private readonly _clients = signal<DocumentsClientSummary[]>([]);
   private readonly _clientsTotal = signal(0);
   private readonly _clientSearch = signal('');
   private readonly _clientsLoading = signal(false);
+  private readonly _clientsPage = signal(1);
+  private readonly _clientsStatus = signal<DocumentsClientStatusFilter>('NotArchived');
+  private clientSearchDebounce: ReturnType<typeof setTimeout> | null = null;
 
   readonly clients = this._clients.asReadonly();
   readonly clientsTotal = this._clientsTotal.asReadonly();
   readonly clientSearch = this._clientSearch.asReadonly();
   readonly clientsLoading = this._clientsLoading.asReadonly();
+  readonly clientsPage = this._clientsPage.asReadonly();
+  readonly clientsStatus = this._clientsStatus.asReadonly();
+
+  readonly clientsPageCount = computed(() =>
+    Math.max(1, Math.ceil(this._clientsTotal() / CLIENTS_PAGE_SIZE)),
+  );
+  /** Hay algo que la búsqueda o el filtro están escondiendo. */
+  readonly clientsFiltered = computed(
+    () => this._clientSearch().trim().length > 0 || this._clientsStatus() !== 'NotArchived',
+  );
 
   // ---------- Navegación de carpetas ----------
   private readonly _breadcrumbs = signal<FolderResponse[]>([]);
@@ -184,30 +205,93 @@ export class DocumentsStore {
 
   // ================= Clientes =================
 
+  /**
+   * Buscar o cambiar de filtro vuelve SIEMPRE a la página 1: si no, se busca algo y se
+   * aterriza en una página que ya no existe para ese resultado, y parece que no hay nada.
+   *
+   * La búsqueda va con retardo porque es server-side: sin él, escribir "Enger" son cinco
+   * peticiones y la última en salir no tiene por qué ser la última en volver.
+   */
   setClientSearch(term: string): void {
     this._clientSearch.set(term);
+    this._clientsPage.set(1);
+    if (this.clientSearchDebounce !== null) {
+      clearTimeout(this.clientSearchDebounce);
+    }
+    this.clientSearchDebounce = setTimeout(() => {
+      this.clientSearchDebounce = null;
+      this.refreshClients();
+    }, CLIENT_SEARCH_DEBOUNCE_MS);
+  }
+
+  setClientsStatus(status: DocumentsClientStatusFilter): void {
+    this._clientsStatus.set(status);
+    this._clientsPage.set(1);
+    this.refreshClientsNow();
+  }
+
+  setClientsPage(page: number): void {
+    const clamped = Math.min(Math.max(1, page), this.clientsPageCount());
+    if (clamped === this._clientsPage()) {
+      return;
+    }
+    this._clientsPage.set(clamped);
+    this.refreshClientsNow();
+  }
+
+  clearClientFilters(): void {
+    this._clientSearch.set('');
+    this._clientsStatus.set('NotArchived');
+    this._clientsPage.set(1);
+    this.refreshClientsNow();
+  }
+
+  /** Recarga inmediata: cancela un debounce de búsqueda pendiente para no pisar el resultado. */
+  private refreshClientsNow(): void {
+    if (this.clientSearchDebounce !== null) {
+      clearTimeout(this.clientSearchDebounce);
+      this.clientSearchDebounce = null;
+    }
     this.refreshClients();
   }
 
   refreshClients(): void {
     this._clientsLoading.set(true);
-    this.clientsService.search(this._clientSearch()).subscribe({
-      next: result => {
-        this._clients.set(result.items);
-        this._clientsTotal.set(result.totalCount);
-        this._clientsLoading.set(false);
-      },
-      error: err => {
-        this._clientsLoading.set(false);
-        this.toast.error(toUserMessage(err));
-      },
-    });
+    this.clientsService
+      .search({
+        term: this._clientSearch(),
+        status: this._clientsStatus(),
+        page: this._clientsPage(),
+        size: CLIENTS_PAGE_SIZE,
+      })
+      .subscribe({
+        next: result => {
+          this._clients.set(result.items);
+          this._clientsTotal.set(result.totalCount);
+          this._clientsLoading.set(false);
+        },
+        error: err => {
+          this._clientsLoading.set(false);
+          this.toast.error(toUserMessage(err));
+        },
+      });
   }
 
   // ================= Cambio de contexto =================
 
   openOffice(): void {
     this.setContext({ section: 'office', clientId: null, clientName: null });
+  }
+
+  /**
+   * Abre el SELECTOR de clientes a pantalla completa. Conserva el cliente activo en el
+   * contexto para que volver atrás sin elegir a nadie no pierda dónde estabas.
+   */
+  openClients(): void {
+    const current = this._context();
+    this._context.set({ ...current, section: 'clients' });
+    this.clearNavigation();
+    this.refreshClients();
   }
 
   openClient(client: DocumentsClientSummary): void {
