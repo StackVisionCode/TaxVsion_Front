@@ -1,5 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Socket, io } from 'socket.io-client';
+// `import type` a propósito: es la ÚNICA referencia estática que queda a socket.io-client,
+// y tiene que borrarse en compilación para que la librería no vuelva al bundle inicial. El
+// valor (`io`) se trae con un import dinámico en `open()`.
+import type { Socket } from 'socket.io-client';
 import { Observable, Subject, filter, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { TokenService } from '@core/auth/token.service';
@@ -26,6 +29,10 @@ export class CommunicationRealtimeService {
   private readonly tokenService = inject(TokenService);
 
   private socket: Socket | null = null;
+  /** Hay una apertura asíncrona en curso (descarga del módulo + handshake). */
+  private opening = false;
+  /** Se incrementa en cada disconnect(): descarta aperturas que quedaron en vuelo. */
+  private generation = 0;
 
   /** true mientras el transporte Socket.IO está conectado. */
   readonly connected = signal(false);
@@ -45,6 +52,11 @@ export class CommunicationRealtimeService {
   private hasConnectedOnce = false;
 
   connect(): void {
+    // Una apertura ya en vuelo (ver `open`): sin esto, dos connect() seguidos abrirían dos
+    // sockets, porque durante la descarga del módulo `this.socket` todavía es null.
+    if (this.opening) {
+      return;
+    }
     // Guard por EXISTENCIA, no por `connected`: el shell y el chat store llaman a
     // connect() a veces en el mismo tick, y durante la ventana previa a conectar el
     // socket existe pero `connected` es false — guardar por `connected` abriría un
@@ -63,25 +75,55 @@ export class CommunicationRealtimeService {
     if (!this.tokenService.getAccessToken()) {
       return;
     }
-    this.socket = io(this.api.tenantBase(), {
-      path: '/communication/socket.io',
-      // WebSocket primero; polling solo de fallback. El gateway ya proxya el
-      // upgrade WS (UseWebSockets en YARP), así que el WS —conexión persistente—
-      // es el transporte estable: no sufre el buffering del long-poll que rompía
-      // el ciclo ping/pong detrás de Cloudflare (ping timeout en bucle).
-      transports: ['websocket', 'polling'],
-      // Callback, NO objeto fijo: socket.io lo invoca en CADA intento de conexión, así
-      // que las reconexiones mandan el token vigente. Con `auth: { token }` el token
-      // quedaba congelado en el del primer connect y, tras un refresh (o al volver de una
-      // pestaña en segundo plano con el token ya vencido), cada reintento reenviaba el
-      // viejo: bucle de reconexión rechazada del que no se salía.
-      auth: cb => cb({ token: this.tokenService.getAccessToken() ?? '' }),
-      withCredentials: true,
-    });
-    this.bind(this.socket);
+    this.opening = true;
+    void this.open(++this.generation);
+  }
+
+  /**
+   * Abre el socket de verdad. `socket.io-client` se importa BAJO DEMANDA: el shell se
+   * importa estáticamente desde app.routes, así que con un import estático la librería
+   * viajaba en el bundle inicial y la pagaba hasta quien solo abría el login, que no tiene
+   * tiempo real ninguno.
+   *
+   * Como ahora hay una ventana asíncrona entre `connect()` y el socket, se lleva un número
+   * de generación: `disconnect()` lo incrementa, así que una apertura que estaba en vuelo
+   * se descarta en vez de resucitar un socket que ya nadie quiere.
+   */
+  private async open(generation: number): Promise<void> {
+    try {
+      const { io } = await import('socket.io-client');
+      if (generation !== this.generation || !this.tokenService.getAccessToken()) {
+        return;
+      }
+      this.socket = io(this.api.tenantBase(), {
+        path: '/communication/socket.io',
+        // WebSocket primero; polling solo de fallback. El gateway ya proxya el
+        // upgrade WS (UseWebSockets en YARP), así que el WS —conexión persistente—
+        // es el transporte estable: no sufre el buffering del long-poll que rompía
+        // el ciclo ping/pong detrás de Cloudflare (ping timeout en bucle).
+        transports: ['websocket', 'polling'],
+        // Callback, NO objeto fijo: socket.io lo invoca en CADA intento de conexión, así
+        // que las reconexiones mandan el token vigente. Con `auth: { token }` el token
+        // quedaba congelado en el del primer connect y, tras un refresh (o al volver de una
+        // pestaña en segundo plano con el token ya vencido), cada reintento reenviaba el
+        // viejo: bucle de reconexión rechazada del que no se salía.
+        auth: cb => cb({ token: this.tokenService.getAccessToken() ?? '' }),
+        withCredentials: true,
+      });
+      this.bind(this.socket);
+    } catch {
+      // Falló la descarga del módulo (red, deploy nuevo): se deja sin socket y el próximo
+      // connect() —el del foco de la pestaña, por ejemplo— reintenta.
+    } finally {
+      if (generation === this.generation) {
+        this.opening = false;
+      }
+    }
   }
 
   disconnect(): void {
+    // Invalida cualquier apertura en vuelo antes de soltar el estado.
+    this.generation++;
     this.socket?.disconnect();
     this.dispose();
   }
@@ -110,6 +152,9 @@ export class CommunicationRealtimeService {
     this.connected.set(false);
     this.seenEventIds.clear();
     this.hasConnectedOnce = false;
+    // Si había una apertura en vuelo, su generación ya quedó invalidada y su `finally` no
+    // va a tocar este flag: se limpia aquí para no dejar connect() bloqueado.
+    this.opening = false;
   }
 
   /** Observable filtrado por nombre de evento, ya con el payload desenvuelto. */
