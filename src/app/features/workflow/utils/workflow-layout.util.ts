@@ -148,20 +148,30 @@ function rankSteps(steps: WorkflowStep[], connections: WorkflowConnection[]): Ma
   return rank;
 }
 
-/** Hilo ortogonal con codos redondeados; el radio se acota al espacio real. */
+/**
+ * Hilo ortogonal con codos redondeados; el radio se acota al espacio real.
+ *
+ * Los dos tramos verticales tienen que acortarse HACIA su propio sentido de avance. El
+ * signo vertical (`dirY`) no estaba: se restaba el radio siempre como si el hilo bajara,
+ * así que en un hilo que sube —una carta conectada a otra que está más arriba, algo normal
+ * cuando el usuario mueve las cartas a mano— cada tramo se pasaba `radius` de largo y el
+ * codo lo hacía volver. Eso dibujaba un muñón recto asomando por fuera de cada esquina, que
+ * es lo que se veía como "líneas cortadas".
+ */
 function connectorPath(fromX: number, fromY: number, toX: number, toY: number): string {
   if (Math.abs(fromX - toX) < 1) {
     return `M ${fromX} ${fromY} L ${toX} ${toY}`;
   }
   const midY = fromY + (toY - fromY) / 2;
-  const dir = toX > fromX ? 1 : -1;
+  const dirX = toX > fromX ? 1 : -1;
+  const dirY = toY > fromY ? 1 : -1;
   const radius = Math.min(ELBOW, Math.abs(toX - fromX) / 2, Math.abs(toY - fromY) / 2);
   return [
     `M ${fromX} ${fromY}`,
-    `L ${fromX} ${midY - radius}`,
-    `Q ${fromX} ${midY} ${fromX + radius * dir} ${midY}`,
-    `L ${toX - radius * dir} ${midY}`,
-    `Q ${toX} ${midY} ${toX} ${midY + radius}`,
+    `L ${fromX} ${midY - radius * dirY}`,
+    `Q ${fromX} ${midY} ${fromX + radius * dirX} ${midY}`,
+    `L ${toX - radius * dirX} ${midY}`,
+    `Q ${toX} ${midY} ${toX} ${midY + radius * dirY}`,
     `L ${toX} ${toY}`,
   ].join(' ');
 }

@@ -190,3 +190,47 @@ describe('layoutWorkflow', () => {
     expect(layout.width).toBeGreaterThan(NODE_WIDTH);
   });
 });
+
+/**
+ * El hilo es ortogonal: baja (o sube), cruza en horizontal y sigue. Su Y nunca
+ * puede retroceder — si lo hace es que un tramo se pasó del codo y volvió, que es
+ * exactamente el muñón recto que asomaba por fuera de las esquinas.
+ */
+function verticalSteps(path: string): number[] {
+  const numbers = path.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  return numbers.filter((_, i) => i % 2 === 1);
+}
+
+describe('connectorPath', () => {
+  it('un hilo que BAJA avanza siempre hacia abajo', () => {
+    const layout = layoutWorkflow(
+      [step('a', 'send-email', { x: 0, y: 0 }), step('b', 'send-email', { x: 600, y: 900 })],
+      [link('l1', 'a', 'b')],
+    );
+
+    const ys = verticalSteps(layout.connectors[0].path);
+    expect(ys).toEqual([...ys].sort((p, q) => p - q));
+  });
+
+  it('un hilo que SUBE no se pasa del codo y vuelve', () => {
+    // El bug: al acortar los tramos verticales se restaba el radio siempre como si el
+    // hilo bajara. En uno que sube, cada tramo se pasaba `radius` de largo y el codo lo
+    // hacía retroceder, dibujando un muñón recto asomando por fuera de cada esquina.
+    const layout = layoutWorkflow(
+      [step('a', 'send-email', { x: 0, y: 900 }), step('b', 'send-email', { x: 600, y: 0 })],
+      [link('l1', 'a', 'b')],
+    );
+
+    const ys = verticalSteps(layout.connectors[0].path);
+    expect(ys).toEqual([...ys].sort((p, q) => q - p));
+  });
+
+  it('un hilo recto entre cartas alineadas no inventa codos', () => {
+    const layout = layoutWorkflow(
+      [step('a', 'send-email', { x: 0, y: 0 }), step('b', 'send-email', { x: 0, y: 400 })],
+      [link('l1', 'a', 'b')],
+    );
+
+    expect(layout.connectors[0].path).not.toContain('Q');
+  });
+});
