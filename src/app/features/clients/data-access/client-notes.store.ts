@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
@@ -77,7 +78,13 @@ export class ClientNotesStore {
     this._actionError.set(null);
   }
 
-  /** Carga (o recarga) las notas del cliente indicado. */
+  /**
+   * La pestaña se destruye y se recrea al cambiar de tab, así que esto se llamaba en cada
+   * ida y vuelta y repetía el listado. El gate distingue por cliente y por antigüedad.
+   */
+  private readonly gate = new FetchGate();
+
+  /** Carga las notas del cliente indicado (usa la caché si siguen frescas). */
   load(clientId: string): void {
     if (clientId !== this.clientId) {
       this.clientId = clientId;
@@ -85,11 +92,21 @@ export class ClientNotesStore {
       this._actionError.set(null);
     }
     this.loadUserNamesOnce();
-    this.refresh();
+    if (this.gate.shouldFetch(clientId)) {
+      this.doRefresh();
+    }
   }
 
+  /** Recarga forzada: tras crear/editar/borrar una nota. Siempre va al backend. */
   refresh(): void {
+    if (this.gate.shouldFetch(this.clientId, true)) {
+      this.doRefresh();
+    }
+  }
+
+  private doRefresh(): void {
     if (!this.clientId) {
+      this.gate.settle(false);
       return;
     }
     this._loading.set(true);
@@ -98,10 +115,12 @@ export class ClientNotesStore {
       next: result => {
         this._raw.set(result.items);
         this._loading.set(false);
+        this.gate.settle(true);
       },
       error: err => {
         this._error.set(toApiError(err).message);
         this._loading.set(false);
+        this.gate.settle(false);
       },
     });
   }

@@ -6,6 +6,7 @@ import { environment } from '@env/environment';
 import { CentralLoginService } from '@core/auth/central-login.service';
 import { AuthService } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
+import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 
 /**
  * Aterrizaje del login central en el subdominio de la oficina: canjea el vale (?ticket=) por
@@ -25,6 +26,7 @@ export class AuthContinuePageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly takeover = inject(SessionTakeoverService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly prefetch = inject(RoutePrefetchService);
 
   readonly failed = signal(false);
 
@@ -34,6 +36,11 @@ export class AuthContinuePageComponent implements OnInit {
       this.failed.set(true);
       return;
     }
+
+    // Esta pantalla SIEMPRE termina en el dashboard (o en returnUrl), así que el chunk se
+    // baja mientras el canje del vale está en vuelo, en vez de después. Es tiempo de red
+    // que ya estábamos gastando esperando al backend.
+    void this.prefetch.warmDashboard();
 
     this.centralLogin
       .exchangeTicket(ticket)

@@ -6,6 +6,12 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
+# Precompresión para `gzip_static` (ver nginx.conf): se paga UNA vez en el build en lugar
+# de en cada request. -k conserva el original, que nginx necesita para los clientes que no
+# mandan `Accept-Encoding: gzip`; -9 porque el coste es de build, no de runtime.
+RUN find /app/dist/TaxVsion_Front/browser \
+      -type f \( -name '*.js' -o -name '*.css' -o -name '*.mjs' -o -name '*.svg' -o -name '*.json' \) \
+      -size +1k -exec gzip -9 -k {} +
 
 # Stage 2 — servir el estático con nginx (imagen chica, sólo archivos).
 FROM nginx:alpine

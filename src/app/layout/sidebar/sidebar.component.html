@@ -85,6 +85,7 @@
               type="button"
               (click)="handleMenuClick($event, item)"
               (mouseenter)="onMenuItemMouseEnter($event, item)"
+              (focus)="onMenuItemFocus(item)"
               (mouseleave)="onMenuItemMouseLeave(item)"
               [disabled]="!isClickable()"
               class="relative flex items-center rounded-full cursor-pointer transition-colors duration-200"

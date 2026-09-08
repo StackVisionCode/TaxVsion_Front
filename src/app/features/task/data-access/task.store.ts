@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, concatMap, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
 import { TaskService } from './task.service';
 import {
@@ -54,7 +55,13 @@ export class TaskStore {
   private readonly _filterCustomer = signal<string | null>(null);
   private readonly _filterTaxYear = signal<number | null>(null);
   private searchDebounce: ReturnType<typeof setTimeout> | null = null;
-  private initialized = false;
+  /**
+   * Antes era un `initialized = true` para SIEMPRE: entrar por segunda vez a Tasks era
+   * instantáneo, pero el tablero se quedaba con los datos de la primera visita de toda la
+   * sesión. Con un gate por tiempo se conserva lo bueno (volver enseguida no repite nada)
+   * y se pierde lo malo (el tablero se refresca al minuto).
+   */
+  private readonly initGate = new FetchGate(60_000);
 
   // ---------- Catálogos para nombres/pickers ----------
   private readonly _clients = signal<TaskClientSummary[]>([]);
@@ -103,10 +110,13 @@ export class TaskStore {
 
   /** Carga inicial idempotente: tablero + catálogos de nombres. */
   init(): void {
-    if (this.initialized) {
+    if (!this.initGate.shouldFetch()) {
       return;
     }
-    this.initialized = true;
+    // Orquestación fire-and-forget: se cierra el gate en cuanto se despachan las cargas,
+    // porque cada una maneja su propio error y su propio signal de loading. Lo que evita el
+    // gate es la avalancha repetida, no el fallo individual de una de ellas.
+    this.initGate.settle(true);
     this.registerCurrentUserName();
     this.loadClients();
     this.loadUserNames();

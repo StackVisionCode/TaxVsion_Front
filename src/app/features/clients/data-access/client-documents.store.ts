@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { map, of, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FetchGate } from '@core/data/fetch-gate';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse, InitiateUploadRequest, isFilePending } from '@core/cloud-storage/cloud-storage.model';
@@ -49,16 +50,33 @@ export class ClientDocumentsStore {
     return this._busyIds().has(id);
   }
 
+  /**
+   * La pestaña se destruye y se recrea al cambiar de tab, así que `load()` se llamaba en
+   * cada ida y vuelta y repetía el listado completo. El gate distingue por cliente y por
+   * antigüedad; `refresh()` sigue siendo el camino forzado para el botón y las mutaciones.
+   */
+  private readonly gate = new FetchGate();
+
   load(customerId: string): void {
     if (customerId !== this.customerId) {
       this.customerId = customerId;
       this._raw.set([]);
     }
-    this.refresh();
+    if (this.gate.shouldFetch(customerId)) {
+      this.doRefresh();
+    }
   }
 
+  /** Recarga forzada: botón de la vista y tras subir/borrar. Siempre va al backend. */
   refresh(): void {
+    if (this.gate.shouldFetch(this.customerId, true)) {
+      this.doRefresh();
+    }
+  }
+
+  private doRefresh(): void {
     if (!this.customerId) {
+      this.gate.settle(false);
       return;
     }
     this._loading.set(true);
@@ -67,10 +85,12 @@ export class ClientDocumentsStore {
       next: files => {
         this._raw.set(files);
         this._loading.set(false);
+        this.gate.settle(true);
       },
       error: err => {
         this._error.set(toApiError(err).message);
         this._loading.set(false);
+        this.gate.settle(false);
       },
     });
   }

@@ -17,6 +17,11 @@ export function provideAuthInitializer(): EnvironmentProviders {
     if (!tokenService.isAuthenticated()) {
       return;
     }
+    // El gate de Términos lo va a pedir el authGuard inmediatamente después. Se arranca YA,
+    // en paralelo con /auth/me, y el guard se engancha a la MISMA request memoizada
+    // (AuthService.termsStatus) en vez de abrir una segunda en serie: eso es un round-trip
+    // menos antes de pintar el shell. No se espera aquí a propósito — no debe bloquear.
+    auth.termsStatus().subscribe({ error: () => {} });
     return auth.me().pipe(catchError(() => of(null)));
   });
 }

@@ -4,6 +4,7 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   ElementRef,
   EventEmitter,
+  Injector,
   Input,
   OnDestroy,
   OnInit,
@@ -11,6 +12,7 @@ import {
   QueryList,
   ViewChild,
   ViewChildren,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -22,6 +24,7 @@ import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import { ChatStore } from '@features/chat/data-access/chat.store';
 
 /**
@@ -50,6 +53,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly router = inject(Router);
   private readonly branding = inject(TenantBrandingService);
   private readonly chatStore = inject(ChatStore);
+  private readonly injector = inject(Injector);
+  private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly destroy$ = new Subject<void>();
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
@@ -124,6 +129,15 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   ]);
 
   ngOnInit(): void {
+    // La sidebar arranca YA en su estado final. Antes se expandía en un setTimeout DESPUÉS
+    // del primer render, así que en cada carga se veía colapsada y "saltaba" a ancha.
+    // `isMobile` es un @Input, y los inputs ya están resueltos cuando corre ngOnInit.
+    const expanded = !this.isMobile;
+    if (this.isExpanded() !== expanded) {
+      this.isExpanded.set(expanded);
+      this.sidebarStateChange.emit(expanded);
+    }
+
     this.updateActiveState(this.router.url);
 
     this.router.events
@@ -138,19 +152,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // On desktop, start expanded once the layout has settled.
-    setTimeout(() => {
-      if (!this.isMobile && !this.isExpanded()) {
-        this.isExpanded.set(true);
-        this.sidebarStateChange.emit(true);
-      }
-      this.syncIndicator();
-      // The expand toggle above changes each row's width/padding classes;
-      // Angular needs its own render tick before getBoundingClientRect()
-      // reflects that, so re-measure once more right after it settles
-      // (same reasoning as the toggleSidebar() re-sync below).
-      setTimeout(() => this.syncIndicator(), 220);
-    });
+    // Una sola medición, después del render real. Antes había dos setTimeout anidados
+    // (+220 ms) porque el estado expandido se aplicaba tarde y cambiaba el ancho de las
+    // filas; ahora el ancho ya es el definitivo en el primer render y basta con medir una
+    // vez, sin la ventana en la que el pill quedaba fuera de sitio.
+    afterNextRender(() => this.syncIndicator(), { injector: this.injector });
 
     // Re-sync if the menu list itself ever changes shape.
     this.itemButtons?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => this.syncIndicator());
@@ -175,7 +181,27 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     return true;
   }
 
+  /**
+   * Mismo prefetch por teclado: llegar a un ítem con Tab es tan buena señal de intención
+   * como el hover, y la navegación accesible no debería pagar más lento que la del mouse.
+   */
+  onMenuItemFocus(item: MenuItem): void {
+    this.prefetchRoute(item);
+  }
+
+  private prefetchRoute(item: MenuItem): void {
+    if (item.route) {
+      this.preloadStrategy.prefetchPath(item.route);
+    }
+  }
+
   onMenuItemMouseEnter(event: MouseEvent, item: MenuItem): void {
+    // Intención de navegar: se precarga el chunk de la sección mientras el cursor viaja
+    // hasta el clic (200-400 ms de regalo). Va ANTES del early-return del tooltip, que solo
+    // aplica al sidebar colapsado. Solo hace algo con las secciones excluidas del preloading
+    // pausado (signature, meetings, checkout); el resto ya está en memoria para entonces.
+    this.prefetchRoute(item);
+
     if (this.isExpanded()) return;
 
     const target = event.currentTarget as HTMLElement;
