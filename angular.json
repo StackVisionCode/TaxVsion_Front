@@ -49,8 +49,18 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "720kB",
+                  "maximumError": "900kB"
+                },
+                {
+                  "type": "anyScript",
+                  "maximumWarning": "450kB",
+                  "maximumError": "600kB"
+                },
+                {
+                  "type": "all",
+                  "maximumWarning": "4MB",
+                  "maximumError": "5MB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -58,6 +68,7 @@
                   "maximumError": "8kB"
                 }
               ],
+              "namedChunks": true,
               "outputHashing": "all",
               "fileReplacements": [
                 {
@@ -69,6 +80,11 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
+              "sourceMap": true
+            },
+            "analyze": {
+              "statsJson": true,
+              "namedChunks": true,
               "sourceMap": true
             }
           },

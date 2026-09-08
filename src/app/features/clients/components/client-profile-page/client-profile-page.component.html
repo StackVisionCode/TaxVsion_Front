@@ -132,11 +132,25 @@
     </div>
   </div>
 
-  <!-- Tab content -->
-  <ng-container [ngSwitch]="activeTab()">
-    <app-client-profile-overview *ngSwitchCase="'overview'" [client]="c"></app-client-profile-overview>
+  <!--
+    Contenido de la pestaña activa.
 
-    <div *ngSwitchCase="'info'" class="flex flex-col gap-6">
+    Overview e Info van sin diferir: son las dos que más se abren y las que reciben el
+    objeto completo, así que entrar a un cliente no debe esperar por ningún chunk. Las
+    otras 11 se cargan la primera vez que se abren — antes las 15 pestañas viajaban en el
+    chunk del perfil aunque solo miraras Overview.
+
+    El `@if` de dentro de cada `@defer` es OBLIGATORIO y no es redundante: un
+    `@defer (when …)` NO vuelve al placeholder cuando la condición pasa a false, así que
+    sin él la pestaña quedaría montada para siempre. Con él se conserva el destruir/recrear
+    que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
+  -->
+  @if (activeTab() === 'overview') {
+    <app-client-profile-overview [client]="c"></app-client-profile-overview>
+  }
+
+  @if (activeTab() === 'info') {
+    <div class="flex flex-col gap-6">
       <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
         [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
         (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
@@ -145,61 +159,159 @@
         [canEditFiscal]="canEditFiscal()" (revealTaxId)="handleRevealTaxId($event)"
         (editFiscal)="openFiscalForm()"></app-client-profile-info>
     </div>
+  }
 
-    <div *ngSwitchCase="'work'" class="flex flex-col gap-6">
-      <app-client-profile-work [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-work>
-      <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
-    </div>
-
-    <div *ngSwitchCase="'documents'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-documents [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-documents>
-    </div>
-
-    <div *ngSwitchCase="'invoices'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-invoices [clientId]="c.id"></app-client-profile-invoices>
-    </div>
-
-    <div *ngSwitchCase="'notes'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
-    </div>
-
-    <div *ngSwitchCase="'communication'" class="flex flex-col gap-6">
-      <app-client-chat-card
-        [customerId]="c.id"
-        [email]="c.email"
-        [displayName]="c.displayName"
-      ></app-client-chat-card>
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
+  @defer (when activeTab() === 'work'; prefetch on idle) {
+    @if (activeTab() === 'work') {
+      <div class="flex flex-col gap-6">
+        <app-client-profile-work [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-work>
+        <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
       </div>
-    </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'work') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+    }
+  }
 
-    <app-client-profile-calls *ngSwitchCase="'calls'" [clientId]="c.id"></app-client-profile-calls>
+  @defer (when activeTab() === 'documents'; prefetch on idle) {
+    @if (activeTab() === 'documents') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-documents [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-documents>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'documents') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+    }
+  }
 
-    <div *ngSwitchCase="'bank'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
-    </div>
+  @defer (when activeTab() === 'invoices'; prefetch on idle) {
+    @if (activeTab() === 'invoices') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-invoices [clientId]="c.id"></app-client-profile-invoices>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'invoices') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+    }
+  }
 
-    <app-client-profile-family *ngSwitchCase="'family'" [client]="familyClient()" [saving]="savingRelation()"
-      [saveError]="relationError()" [sessionOnly]="relationsAreSessionOnly()"
-      (saveRelation)="handleSaveRelation($event)"
-      (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
+  @defer (when activeTab() === 'notes'; prefetch on idle) {
+    @if (activeTab() === 'notes') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'notes') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
 
-    <div *ngSwitchCase="'reminders'" class="bg-white rounded-[28px] p-6">
-      <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
-    </div>
+  @defer (when activeTab() === 'communication'; prefetch on idle) {
+    @if (activeTab() === 'communication') {
+      <div class="flex flex-col gap-6">
+        <app-client-chat-card
+          [customerId]="c.id"
+          [email]="c.email"
+          [displayName]="c.displayName"
+        ></app-client-chat-card>
+        <div class="bg-white rounded-[28px] p-6">
+          <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
+        </div>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'communication') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
 
-    <app-client-profile-mileage *ngSwitchCase="'mileage'" [clientId]="c.id"></app-client-profile-mileage>
+  @defer (when activeTab() === 'calls'; prefetch on idle) {
+    @if (activeTab() === 'calls') {
+      <app-client-profile-calls [clientId]="c.id"></app-client-profile-calls>
+    }
+  } @placeholder {
+    @if (activeTab() === 'calls') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
 
-    <app-client-profile-portal *ngSwitchCase="'portal'" [clientId]="c.id" [clientEmail]="c.email"
-      [clientName]="c.displayName"></app-client-profile-portal>
-  </ng-container>
+  @defer (when activeTab() === 'bank'; prefetch on idle) {
+    @if (activeTab() === 'bank') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'bank') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+    }
+  }
 
+  @defer (when activeTab() === 'family'; prefetch on idle) {
+    @if (activeTab() === 'family') {
+      <app-client-profile-family [client]="familyClient()" [saving]="savingRelation()"
+        [saveError]="relationError()" [sessionOnly]="relationsAreSessionOnly()"
+        (saveRelation)="handleSaveRelation($event)"
+        (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
+    }
+  } @placeholder {
+    @if (activeTab() === 'family') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+    }
+  }
+
+  @defer (when activeTab() === 'reminders'; prefetch on idle) {
+    @if (activeTab() === 'reminders') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'reminders') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+    }
+  }
+
+  @defer (when activeTab() === 'mileage'; prefetch on idle) {
+    @if (activeTab() === 'mileage') {
+      <app-client-profile-mileage [clientId]="c.id"></app-client-profile-mileage>
+    }
+  } @placeholder {
+    @if (activeTab() === 'mileage') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+    }
+  }
+
+  @defer (when activeTab() === 'portal'; prefetch on idle) {
+    @if (activeTab() === 'portal') {
+      <app-client-profile-portal [clientId]="c.id" [clientEmail]="c.email"
+        [clientName]="c.displayName"></app-client-profile-portal>
+    }
+  } @placeholder {
+    @if (activeTab() === 'portal') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+    }
+  }
+
+  <!--
+    Los dos paneles se montaban siempre, aunque nadie los abriera nunca. Aquí NO hace falta
+    el `@if` de dentro que sí llevan las pestañas: cada panel gestiona su propia visibilidad
+    con `[isOpen]`, así que una vez cargado se queda montado y se comporta exactamente como
+    antes. Lo que se evita es traer su código a quien solo viene a mirar el cliente.
+  -->
   <!-- Edit client -->
-  <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="editClientItem()" (closed)="closeEditPanel()"
-    (saved)="handleClientSaved($event)"></app-client-form-panel>
+  @defer (when isEditPanelOpen(); prefetch on idle) {
+    <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="editClientItem()" (closed)="closeEditPanel()"
+      (saved)="handleClientSaved($event)"></app-client-form-panel>
+  }
 
   <!-- Tax profile form -->
-  <app-client-fiscal-form [isOpen]="isFiscalFormOpen()" [existing]="c.fiscalProfile" [clientKind]="c.type"
-    [saving]="savingFiscal()" (save)="handleSaveFiscal($event)" (closed)="closeFiscalForm()"></app-client-fiscal-form>
+  @defer (when isFiscalFormOpen(); prefetch on idle) {
+    <app-client-fiscal-form [isOpen]="isFiscalFormOpen()" [existing]="c.fiscalProfile" [clientKind]="c.type"
+      [saving]="savingFiscal()" (save)="handleSaveFiscal($event)" (closed)="closeFiscalForm()"></app-client-fiscal-form>
+  }
 </div>

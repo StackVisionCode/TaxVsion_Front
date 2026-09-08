@@ -205,6 +205,11 @@ export class AuthService {
     this._pendingMfa.set(null);
     this._mustEnrollMfa.set(false);
     this.refreshInFlight = null;
+    // El gate de Términos es POR USUARIO: si no se limpia, el siguiente que entre en este
+    // navegador hereda el "ya aceptado" del anterior (y, con la memoización, hasta su
+    // respuesta cacheada) y se saltaría la pantalla de aceptación.
+    this._termsAccepted.set(false);
+    this.termsStatus$ = null;
     // El slug recordado es parte de la sesión: sin esto, el siguiente usuario de este
     // navegador seguiría apuntando a la oficina anterior y su login fallaría con
     // "credenciales inválidas" sin explicación. Si el host identifica una oficina,
@@ -223,14 +228,44 @@ export class AuthService {
   private readonly _termsAccepted = signal(false);
   readonly termsAccepted = this._termsAccepted.asReadonly();
 
+  /** Request memoizada del gate de Términos (ver `termsStatus`). */
+  private termsStatus$: Observable<TermsAcceptanceStatusResponse> | null = null;
+
+  /**
+   * Estado del gate de Términos, memoizado EN VIVO. Antes el app-initializer resolvía
+   * /auth/me y solo después el authGuard abría esta segunda ida y vuelta, en serie: dos
+   * round-trips antes de pintar el shell. Ahora el initializer la arranca en paralelo y el
+   * guard se engancha a la MISMA request en vuelo.
+   *
+   * Un fallo descarta la caché: si no, un error de red dejaría el gate roto toda la sesión.
+   */
   termsStatus(): Observable<TermsAcceptanceStatusResponse> {
-    return this.http.get<TermsAcceptanceStatusResponse>(`${this.base}/auth/tenant/terms/status`);
+    this.termsStatus$ ??= this.http
+      .get<TermsAcceptanceStatusResponse>(`${this.base}/auth/tenant/terms/status`)
+      .pipe(
+        tap(status => {
+          if (status.accepted) {
+            this._termsAccepted.set(true);
+          }
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+        catchError(err => {
+          this.termsStatus$ = null;
+          return throwError(() => err);
+        }),
+      );
+    return this.termsStatus$;
   }
 
   acceptTerms(): Observable<TermsAcceptanceResponse> {
-    return this.http
-      .post<TermsAcceptanceResponse>(`${this.base}/auth/tenant/terms/accept`, {})
-      .pipe(tap(() => this._termsAccepted.set(true)));
+    return this.http.post<TermsAcceptanceResponse>(`${this.base}/auth/tenant/terms/accept`, {}).pipe(
+      tap(() => {
+        this._termsAccepted.set(true);
+        // La respuesta memoizada dice `accepted: false` y acaba de quedar obsoleta: sin esto,
+        // quien volviera a consultar el estado leería el "no aceptado" viejo de la caché.
+        this.termsStatus$ = null;
+      }),
+    );
   }
 
   markTermsAccepted(): void {

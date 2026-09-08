@@ -33,6 +33,7 @@ import { ClientPermissions } from '../../data-access/client-permissions';
 import { SetCustomerFiscalProfileRequest } from '../../data-access/clients.model';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
 export type ClientProfileTabId =
@@ -147,6 +148,7 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
     ClientProfileContactDetailsComponent,
     ClientFiscalFormComponent,
     ClientFormPanelComponent,
+    SkeletonComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-page.component.html',

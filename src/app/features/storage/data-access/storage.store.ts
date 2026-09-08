@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { EMPTY, Observable, catchError, expand, forkJoin, map, of, reduce, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FetchGate } from '@core/data/fetch-gate';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 import { StorageService } from './storage.service';
@@ -162,28 +163,51 @@ export class StorageStore {
 
   // ---------- Cargas ----------
 
+  /**
+   * Guardas de caché. `loadGroups` es la más cara de toda la app: pagina archivos con
+   * `expand`, o sea hasta 5 peticiones EN SERIE, más la papelera — y el widget del
+   * dashboard la disparaba entera en cada montaje.
+   */
+  private readonly usageGate = new FetchGate();
+  private readonly groupsGate = new FetchGate();
+  private readonly sharesGate = new FetchGate();
+
+  /**
+   * Entrada a la página de Storage: SIEMPRE va al backend. Es la pantalla donde el usuario
+   * viene a ver sus archivos tal como están ahora (puede acabar de subir uno desde
+   * Documents), así que aquí la caché sobra. Los gates existen para el widget del
+   * dashboard, que llama a `loadUsage`/`loadGroups` sueltos y es solo un resumen.
+   */
   loadAll(): void {
-    this.loadUsage();
-    this.loadGroups();
-    this.loadShares();
+    this.loadUsage(true);
+    this.loadGroups(true);
+    this.loadShares(true);
   }
 
-  loadUsage(): void {
+  loadUsage(force = false): void {
+    if (!this.usageGate.shouldFetch(null, force)) {
+      return;
+    }
     this._usageLoading.set(true);
     this._usageError.set(null);
     this.service.getUsage().subscribe({
       next: usage => {
         this._usage.set(usage);
         this._usageLoading.set(false);
+        this.usageGate.settle(true);
       },
       error: err => {
         this._usageError.set(toApiError(err).message);
         this._usageLoading.set(false);
+        this.usageGate.settle(false);
       },
     });
   }
 
-  loadGroups(): void {
+  loadGroups(force = false): void {
+    if (!this.groupsGate.shouldFetch(null, force)) {
+      return;
+    }
     this._groupsLoading.set(true);
     this._groupsError.set(null);
     forkJoin({
@@ -195,15 +219,20 @@ export class StorageStore {
         this._files.set(files);
         this._trash.set(trash);
         this._groupsLoading.set(false);
+        this.groupsGate.settle(true);
       },
       error: err => {
         this._groupsError.set(toApiError(err).message);
         this._groupsLoading.set(false);
+        this.groupsGate.settle(false);
       },
     });
   }
 
-  loadShares(): void {
+  loadShares(force = false): void {
+    if (!this.sharesGate.shouldFetch(null, force)) {
+      return;
+    }
     this._sharesLoading.set(true);
     this._sharesError.set(null);
     this.fetchPaged((skip, take) => this.service.listSharedWithMe(skip, take), SHARES_MAX_PAGES)
@@ -212,10 +241,12 @@ export class StorageStore {
         next: items => {
           this._shares.set(items);
           this._sharesLoading.set(false);
+          this.sharesGate.settle(true);
         },
         error: err => {
           this._sharesError.set(toApiError(err).message);
           this._sharesLoading.set(false);
+          this.sharesGate.settle(false);
         },
       });
   }

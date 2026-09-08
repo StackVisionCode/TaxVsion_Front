@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, afterNextRender, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
@@ -27,6 +27,12 @@ export class App {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
+    // Retira el splash estático de index.html en cuanto hay algo pintado. Existe porque
+    // provideAuthInitializer bloquea el bootstrap con GET /auth/me: sin él, cada recarga
+    // completa muestra un blanco de un round-trip. Se quita desde acá (y no dejando que
+    // Angular limpie el host) para no depender del orden de montaje.
+    afterNextRender(() => document.getElementById('app-splash')?.remove());
+
     // El usuario eligió mantener la sesión → intentar refresh; si falla, cerrar sesión.
     this.sessionExpiry.sessionExtended$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.auth.refresh().subscribe({

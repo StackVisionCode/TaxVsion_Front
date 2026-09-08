@@ -5,8 +5,12 @@
    fila de stats (guard en onRouteActivate), sus propias tarjetas reciben el
    sabor en vez del contenedor, imitando el tratamiento por-widget ya usado
    en el Dashboard. */
+/* `both` es deliberado y NO se cambia por `forwards`: sin `backwards` el elemento se
+   pintaría visible durante su animation-delay y saltaría a opacity:0 al arrancar el
+   keyframe — un parpadeo peor que el propio retraso. Lo que se recortó son los tiempos
+   (ver MAX_STAGGER_ITEMS / STAGGER_STEP_MS en el .ts). */
 .stagger-enter {
-  animation-duration: 320ms;
+  animation-duration: 240ms;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   animation-fill-mode: both;
 }
@@ -49,10 +53,34 @@
 /* --- sabor 5: pop juguetón con leve giro --- */
 .stagger-enter[data-stagger-flavor="5"] {
   animation-name: stagger-pop-rotate;
-  animation-duration: 380ms;
+  animation-duration: 260ms;
   animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes stagger-pop-rotate {
   from { opacity: 0; transform: scale(0.88) rotate(-2deg); }
   to { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* Barra de progreso de navegación: solo se monta si la navegación pasa de 120 ms
+   (ver NAV_PROGRESS_DELAY_MS). Es indeterminada a propósito — el router no expone
+   progreso real de descarga del chunk. */
+.nav-progress__bar {
+  animation: nav-progress-slide 900ms ease-in-out infinite;
+}
+@keyframes nav-progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/* Accesibilidad: con `prefers-reduced-motion: reduce` la página entra completa de una
+   vez y la barra se queda quieta. El .ts además ni aplica las clases de stagger. */
+@media (prefers-reduced-motion: reduce) {
+  .stagger-enter {
+    animation: none !important;
+  }
+  .nav-progress__bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
 }
