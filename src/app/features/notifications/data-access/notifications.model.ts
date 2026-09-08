@@ -145,41 +145,34 @@ export function notificationIcon(type: NotificationType): string {
   }
 }
 
-/** Color de fondo del círculo del icono por tipo. */
-export function notificationIconBg(type: NotificationType): string {
-  switch (type) {
-    case 'customer_created':
-    case 'customer_updated':
-    case 'customer_assigned':
-      return 'bg-indigo-100';
-    case 'payment_received':
-    case 'invoice_generated':
-      return 'bg-emerald-500';
-    case 'document_signed':
-    case 'document_uploaded':
-      return 'bg-brand-bold';
-    case 'session_expiring':
-    case 'subscription_expiring':
-      return 'bg-orange-500';
-    case 'payment_failed':
-    case 'system_alert':
-      return 'bg-red-500';
-    default:
-      return 'bg-gray-200';
-  }
+/**
+ * Necesita atención: algo falló, caducó o está por caducar. Es el único eje por el que la
+ * campana distingue una notificación de otra — y el que alimenta la pestaña "Alerts".
+ */
+export function needsAttention(type: NotificationType): boolean {
+  return (
+    type === 'system_alert' ||
+    type === 'payment_failed' ||
+    type === 'session_expiring' ||
+    type === 'subscription_expiring'
+  );
 }
 
-/** Color del icono (oscuro sobre pasteles, blanco sobre sólidos). */
+/**
+ * Fondo del círculo del icono.
+ *
+ * DOS registros, no siete: neutro para todo y rojo para lo que reclama atención. Antes
+ * cada tipo traía su propio color saturado, así que una lista de avisos rutinarios —"tu
+ * archivo terminó de procesarse"— se veía como una fila de alarmas y el rojo dejaba de
+ * significar nada. Con dos registros, el color vuelve a ser información.
+ */
+export function notificationIconBg(type: NotificationType): string {
+  return needsAttention(type) ? 'bg-red-50' : 'bg-gray-100';
+}
+
+/** Color del glifo, en el mismo par de registros que el fondo. */
 export function notificationIconText(type: NotificationType): string {
-  switch (type) {
-    case 'customer_created':
-    case 'customer_updated':
-    case 'customer_assigned':
-    case 'general':
-      return 'text-gray-700';
-    default:
-      return 'text-white';
-  }
+  return needsAttention(type) ? 'text-red-600' : 'text-gray-500';
 }
 
 /** DTO del backend → modelo de la lista (leída = readAtUtc !== null). */
