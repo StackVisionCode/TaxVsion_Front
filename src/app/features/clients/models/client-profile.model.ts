@@ -1,3 +1,12 @@
+import type {
+  AddressResponse,
+  ContactPointResponse,
+  CustomerFiscalProfileResponse,
+  CustomerLanguage,
+  PreferredChannel,
+  RelationResponse,
+} from '../data-access/clients.model';
+
 export type ClientProfileType = 'individual' | 'company';
 
 /**
@@ -26,23 +35,26 @@ export interface ClientProfileCompanyDetails {
   principalBusinessActivity?: string;
 }
 
+/**
+ * Vista de solo-lectura derivada de `relations[]` (tab Info, resumen).
+ * `ssnOrItin` NO existe en `RelationResponse` — el backend no expone perfil
+ * fiscal de una relación en el detalle del cliente (solo
+ * `PUT /relations/{id}/fiscal-profile`, sin GET enmascarado equivalente
+ * documentado); se deja fuera del resumen en vez de inventarlo.
+ */
 export interface ClientDependent {
   name: string;
   relationship: string;
-  /** ISO date string (YYYY-MM-DD). */
+  /** ISO date string (YYYY-MM-DD), o '' si el backend no la trae. */
   dateOfBirth: string;
-  ssnOrItin?: string;
 }
 
 export interface ClientSpouse {
   name: string;
-  ssnOrItin: string;
-  /** ISO date string (YYYY-MM-DD). */
+  /** ISO date string (YYYY-MM-DD), o '' si el backend no la trae. */
   dateOfBirth: string;
   phone?: string;
   email?: string;
-  /** ISO date string (YYYY-MM-DD). */
-  createdAt?: string;
 }
 
 export interface ClientProfile {
@@ -52,12 +64,24 @@ export interface ClientProfile {
   displayName: string;
   email: string;
   phone: string;
-  address: string;
+  /** Idioma y canal preferido reales (GET /customers/{id}). */
+  language: CustomerLanguage;
+  preferredChannel: PreferredChannel;
   isActive: boolean;
   /** ISO date string (YYYY-MM-DD). */
   createdAt: string;
   individual?: ClientProfileIndividualDetails;
   company?: ClientProfileCompanyDetails;
-  dependents?: ClientDependent[];
+  /** Direcciones reales de GET /customers/{id} (companion doc §3.2). */
+  addresses: AddressResponse[];
+  /** Contactos reales de GET /customers/{id}. */
+  contactPoints: ContactPointResponse[];
+  /** Relaciones reales (cónyuge/dependientes/etc.) — fuente de verdad de la tab Family. */
+  relations: RelationResponse[];
+  /** Perfil fiscal enmascarado, o null si nunca se configuró. */
+  fiscalProfile: CustomerFiscalProfileResponse | null;
+  /** Derivado de `relations` (relationshipKind !== 'Spouse') — solo para el resumen de la tab Info. */
+  dependents: ClientDependent[];
+  /** Derivado de `relations` (la única relación con relationshipKind === 'Spouse', si hay). */
   spouse?: ClientSpouse;
 }

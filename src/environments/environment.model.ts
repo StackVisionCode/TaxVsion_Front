@@ -33,4 +33,10 @@ export interface Environment {
    * cómodo en desarrollo para no saltar a un sitio externo.
    */
   landingUrl: string;
+  /**
+   * Solo DEV: origen del SPA del portal del cliente (otra app, otro puerto), para que el login
+   * central de `/client` pueda redirigir al canje del portal. En prod no se usa: el portal vive en
+   * `https://<slug>.baseDomain/portal`. Vacío/omitido = el redirect de portal se queda same-origin.
+   */
+  portalDevUrl?: string;
 }

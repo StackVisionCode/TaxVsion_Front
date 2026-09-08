@@ -1,0 +1,18 @@
+.field-err {
+  animation: err-in 160ms ease both;
+}
+@keyframes err-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-err {
+    animation: none;
+  }
+}

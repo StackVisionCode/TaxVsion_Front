@@ -1,14 +1,35 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
+import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { TokenService } from '@core/auth/token.service';
-import { ApiConfigService } from '@core/config/api-config.service';
+import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
-import { PlanChoice, PlanPickerModalComponent } from '../../ui/plan-picker-modal/plan-picker-modal.component';
+import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
+import {
+  PlanChoice,
+  PlanPickerModalComponent,
+} from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
 type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
 
@@ -31,9 +52,35 @@ export class LoginPageComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
+  private readonly takeover = inject(SessionTakeoverService);
   private readonly tokenService = inject(TokenService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(ApiConfigService);
+  private readonly branding = inject(TenantBrandingService);
+  private readonly prefetch = inject(RoutePrefetchService);
+
+  /**
+   * Duraciones de la coreografía de salida. Antes eran 500 + 1400 + 400 = 2300 ms FIJOS
+   * que no esperaban ningún dato: el loader era puro relleno. Ahora el loader dura lo que
+   * dure el trabajo REAL (perfil + código del dashboard), acotado por arriba y por abajo.
+   */
+  private static readonly SINK_MS = 180;
+  /** Piso: por debajo de esto el loader parpadearía en vez de leerse. */
+  private static readonly MIN_LOADER_MS = 320;
+  /** Techo: un backend lento no debe dejar al usuario mirando el loader. */
+  private static readonly MAX_LOADER_MS = 2000;
+  private static readonly FADE_MS = 160;
+
+  /**
+   * Estamos en el subdominio de una oficina (manfer.taxproffice.com) y no en el apex/app.
+   * Sign-up y "encuentra tu oficina" son acciones de sistema (viven en app.<baseDomain>): en una
+   * oficina concreta no tienen sentido y se ocultan. Se mira el HOST, no el slug guardado.
+   */
+  readonly isOfficeSubdomain = tenantSlugFromHost() !== null;
+
+  /** Logo del tenant (o null → cae al asterisco de marca). Se llena tras el fetch pre-login. */
+  readonly logoUrl = this.branding.logoUrl;
+  readonly showLogoFallback = signal(false);
 
   constructor() {
     // En prod el tenant se resuelve por el subdominio: el slug llega por ?office=<slug>
@@ -44,6 +91,10 @@ export class LoginPageComponent {
     if (office) {
       this.api.setSlug(office);
     }
+
+    // Marca pre-login: en el subdominio de una oficina, pinta el tema/logo/favicon de ESA oficina
+    // antes de autenticar (endpoint anónimo). Sin slug (app.*) no hace nada → marca del sistema.
+    this.branding.applyForSurface('Crm');
   }
 
   form: FormGroup = this.fb.group({
@@ -102,7 +153,7 @@ export class LoginPageComponent {
   }
 
   togglePasswordVisibility(): void {
-    this.showPassword.update(v => !v);
+    this.showPassword.update((v) => !v);
   }
 
   onTyping(): void {
@@ -136,24 +187,42 @@ export class LoginPageComponent {
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: outcome => this.handleOutcome(outcome),
-        error: err => this.handleError(err),
+        next: (outcome) => this.handleOutcome(outcome),
+        error: (err) => this.handleError(err),
       });
   }
 
   private handleOutcome(outcome: LoginOutcome): void {
     switch (outcome.kind) {
-      case 'authenticated':
-        // Hidratar el usuario de sesión (GET /auth/me) antes de entrar al shell —
-        // corre durante la animación de salida, así el perfil ya está cargado.
-        this.auth.me().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
-        void this.playExitSequence();
+      case 'authenticated': {
+        // El trabajo REAL que hay que tener listo antes de entrar al shell: el perfil de
+        // sesión (GET /auth/me, que el navbar y el shell leen) y el CÓDIGO del dashboard.
+        // Arrancan los dos YA, en paralelo, y la coreografía de salida dura lo que duren
+        // ellos — no 2300 ms de setTimeout. Al llegar al router, el chunk del dashboard ya
+        // está en memoria, así que desaparece también su waterfall de carga.
+        const ready = Promise.allSettled([
+          firstValueFrom(this.auth.me()),
+          this.prefetch.warmDashboard(),
+        ]);
+        void this.playExitSequence(ready);
         break;
+      }
       case 'mfa-required':
         void this.router.navigate(['/login/verify']);
         break;
       case 'mfa-setup-required':
         void this.router.navigate(['/login/setup-mfa']);
+        break;
+      case 'takeover-required':
+        // Sesión única: ya hay sesión activa. El interstitial (modal root) toma el control.
+        this.phase.set('idle');
+        this.takeover.prompt(outcome.ticket);
+        break;
+      case 'wrong-portal':
+        // Un cliente intentó entrar al CRM. Aviso neutral (sin revelar cliente/staff) y sin tocar su
+        // sesión. No se redirige a propósito: el destino delataría el tipo de cuenta.
+        this.phase.set('idle');
+        this.formError.set("You can't sign in here.");
         break;
     }
   }
@@ -192,14 +261,36 @@ export class LoginPageComponent {
     }
   }
 
-  /** Coreografía de salida: la tarjeta se hunde, el loader aparece y se navega. */
-  private async playExitSequence(): Promise<void> {
+  /**
+   * Coreografía de salida gobernada por el trabajo real, no por el reloj: la tarjeta se
+   * hunde, el loader acompaña a `ready` (perfil + chunk del dashboard) y se navega.
+   *
+   * `MIN_LOADER_MS` evita el parpadeo cuando todo resuelve en 80 ms; `MAX_LOADER_MS` evita
+   * quedarse mirando el loader si /auth/me no responde — el shell tolera `currentUser()`
+   * nulo (`app-shell.component.ts` lo lee con `?.`), que es además lo que pasaba antes,
+   * cuando `me()` era fire-and-forget y nadie esperaba su resultado.
+   */
+  private async playExitSequence(ready: Promise<unknown>): Promise<void> {
+    const reduced = prefersReducedMotion();
+
     this.phase.set('sinking');
-    await this.delay(500);
+    if (!reduced) {
+      await this.delay(LoginPageComponent.SINK_MS);
+    }
     this.phase.set('loading');
-    await this.delay(1400);
+
+    const startedAt = performance.now();
+    await Promise.race([ready, this.delay(LoginPageComponent.MAX_LOADER_MS)]);
+
+    const elapsed = performance.now() - startedAt;
+    if (elapsed < LoginPageComponent.MIN_LOADER_MS) {
+      await this.delay(LoginPageComponent.MIN_LOADER_MS - elapsed);
+    }
+
     this.phase.set('fading');
-    await this.delay(400);
+    if (!reduced) {
+      await this.delay(LoginPageComponent.FADE_MS);
+    }
     await this.router.navigateByUrl(this.returnUrl());
   }
 
@@ -212,6 +303,6 @@ export class LoginPageComponent {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

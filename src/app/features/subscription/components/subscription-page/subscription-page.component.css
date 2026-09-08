@@ -1,0 +1,106 @@
+/*
+ * Animaciones de la sección Subscription, con el patrón del repo: keyframes
+ * propios (no @angular/animations), 260ms y escalonado por nth-child.
+ */
+
+@keyframes sub-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sub-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sub-head {
+  animation: sub-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.sub-card {
+  animation: sub-rise 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.sub-card:nth-of-type(1) {
+  animation-delay: 40ms;
+}
+
+.sub-card:nth-of-type(2) {
+  animation-delay: 80ms;
+}
+
+.sub-card:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+
+.sub-card:nth-of-type(4) {
+  animation-delay: 160ms;
+}
+
+/* Filas de tabla/lista: entran escalonadas al paginar o filtrar. */
+.sub-row {
+  animation: sub-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.sub-row:nth-child(1) {
+  animation-delay: 25ms;
+}
+
+.sub-row:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.sub-row:nth-child(3) {
+  animation-delay: 75ms;
+}
+
+.sub-row:nth-child(4) {
+  animation-delay: 100ms;
+}
+
+.sub-row:nth-child(5) {
+  animation-delay: 125ms;
+}
+
+.sub-row:nth-child(6) {
+  animation-delay: 150ms;
+}
+
+.sub-row:nth-child(7) {
+  animation-delay: 175ms;
+}
+
+.sub-row:nth-child(8) {
+  animation-delay: 200ms;
+}
+
+.sub-form {
+  animation: sub-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * Los keyframes usan `both`, así que hay que anular la animación ENTERA:
+ * acortarla dejaría el contenido congelado en el `from` (opacity: 0) y la
+ * pantalla se vería vacía para quien pide menos movimiento.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sub-head,
+  .sub-card,
+  .sub-row,
+  .sub-form {
+    animation: none;
+    animation-delay: 0ms;
+  }
+}

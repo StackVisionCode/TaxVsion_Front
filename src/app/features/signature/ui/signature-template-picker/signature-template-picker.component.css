@@ -1,0 +1,53 @@
+/*
+ * Entrada escalonada, con el patrón del resto del módulo de firma:
+ * keyframes propios, 260ms y delay por nth-child.
+ */
+
+@keyframes tpl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tpl-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tpl-card {
+  animation: tpl-rise 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.tpl-row {
+  animation: tpl-slide 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.tpl-row:nth-child(1) { animation-delay: 30ms; }
+.tpl-row:nth-child(2) { animation-delay: 60ms; }
+.tpl-row:nth-child(3) { animation-delay: 90ms; }
+.tpl-row:nth-child(4) { animation-delay: 120ms; }
+.tpl-row:nth-child(5) { animation-delay: 150ms; }
+.tpl-row:nth-child(6) { animation-delay: 180ms; }
+
+/*
+ * Los keyframes usan `both`, así que se anula la animación ENTERA: acortarla
+ * dejaría las tarjetas y las filas congeladas en `opacity: 0`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .tpl-card,
+  .tpl-row {
+    animation: none;
+    animation-delay: 0ms;
+  }
+}

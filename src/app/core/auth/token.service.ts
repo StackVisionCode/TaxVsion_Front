@@ -58,6 +58,16 @@ export class TokenService {
     return this._accessToken();
   }
 
+  /** Segundos que le quedan al access token (0 si no hay token o ya expiró). Para el aviso de sesión. */
+  getAccessTokenRemainingSeconds(): number {
+    const token = this._accessToken();
+    const exp = this._expiresAt();
+    if (!token || exp === null) {
+      return 0;
+    }
+    return Math.floor((exp - Date.now()) / 1000);
+  }
+
   getRefreshToken(): string | null {
     return read(REFRESH_KEY);
   }

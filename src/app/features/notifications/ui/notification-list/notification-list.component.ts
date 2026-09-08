@@ -107,13 +107,13 @@ export class NotificationListComponent {
       case 'customer_created':
       case 'customer_updated':
       case 'customer_assigned':
-        return 'bg-[#CFE2F7]';
+        return 'bg-indigo-100';
       case 'payment_received':
       case 'invoice_generated':
         return 'bg-emerald-500';
       case 'document_signed':
       case 'document_uploaded':
-        return 'bg-[#1E466B]';
+        return 'bg-brand-bold';
       case 'session_expiring':
       case 'subscription_expiring':
         return 'bg-orange-500';
@@ -121,7 +121,7 @@ export class NotificationListComponent {
       case 'system_alert':
         return 'bg-red-500';
       case 'general':
-        return 'bg-[#E7EAEE]';
+        return 'bg-gray-200';
     }
   }
 

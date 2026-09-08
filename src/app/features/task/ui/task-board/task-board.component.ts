@@ -7,6 +7,7 @@ import {
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
 import { ApiTaskPriority, TASK_COLUMNS, TaskItem, TaskStatus } from '../../data-access/task.model';
+import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
 
 /**
  * Tablero Kanban del módulo Task (estilo "Aether"): 4 columnas fijas (Not
@@ -30,10 +31,17 @@ import { ApiTaskPriority, TASK_COLUMNS, TaskItem, TaskStatus } from '../../data-
 })
 export class TaskBoardComponent implements OnChanges {
   @Input() tasks: TaskItem[] = [];
+  /** Renombres de columna por tenant (label del catálogo). null = nombres por defecto. */
+  @Input() labelOverrides: ReadonlyMap<TaskStatus, string> | null = null;
   @Output() taskOpened = new EventEmitter<TaskItem>();
   @Output() statusChanged = new EventEmitter<{ id: string; status: TaskStatus }>();
 
   readonly columns = TASK_COLUMNS;
+
+  /** Nombre de la columna: el label del tenant si lo definió, si no el por defecto. */
+  columnLabel(column: { id: TaskStatus; label: string }): string {
+    return this.labelOverrides?.get(column.id) ?? column.label;
+  }
 
   /** Ids de los cdkDropList para conectarlos entre sí (drag entre columnas). */
   readonly dropListIds = TASK_COLUMNS.map(column => `task-col-${column.id}`);
@@ -116,32 +124,11 @@ export class TaskBoardComponent implements OnChanges {
   }
 
   formatDue(dueDate: string): string {
-    if (!dueDate) {
-      return 'No due date';
-    }
-    const due = new Date(`${dueDate}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays < -1) return `${Math.abs(diffDays)} days ago`;
-    return `In ${diffDays} days`;
+    return formatRelativeDue(dueDate);
   }
 
   priorityChipClass(priority: ApiTaskPriority): string {
-    switch (priority) {
-      case 'Urgent':
-        return 'border-red-200 text-red-500';
-      case 'High':
-        return 'border-orange-200 text-orange-500';
-      case 'Normal':
-        return 'border-amber-200 text-amber-600';
-      case 'Low':
-        return 'border-emerald-200 text-emerald-600';
-    }
+    return priorityChipClass(priority);
   }
 
   trackByTaskId(_index: number, task: TaskItem): string {

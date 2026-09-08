@@ -110,7 +110,7 @@
   <div class="mt-5">
     <textarea rows="4" placeholder="Write your broadcast message..." [ngModel]="broadcastText()" name="broadcastText"
       (ngModelChange)="broadcastText.set($event)" [attr.maxlength]="bodyMaxLength"
-      class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+      class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
   </div>
 
   <div *ngIf="broadcastError() as err"

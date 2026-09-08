@@ -8,7 +8,14 @@ import {
   ApiSignatureRequestStatus,
   SignatureCategory,
   SignatureFieldKind,
+  SignerLanguage,
+  SignerVerificationMethod,
+  PreparerSessionState,
+  SetPreparerBody,
   SignatureRequestDetail,
+  SignatureTemplateDetail,
+  SlotBinding,
+  TemplateSummary,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -30,6 +37,12 @@ export interface WizardSignerDraft {
   localId: string;
   fullName: string;
   email: string;
+  /** Idioma de los correos al firmante ('Es' | 'En'). */
+  language: SignerLanguage;
+  /** Teléfono para OTP por SMS/WhatsApp; null si no aplica. */
+  phone: string | null;
+  /** OTP requerido antes de firmar (derivado del canal); undefined = sin OTP. */
+  verificationMethod?: SignerVerificationMethod;
 }
 
 /** Campo ya en coordenadas normalizadas [0..1], origen arriba-izquierda (convención FieldPosition del backend). */
@@ -230,6 +243,191 @@ export class SignatureStore {
     return this.service.extendExpiration(requestId, additionalHours).pipe(tap(() => this.refreshAfterAction()));
   }
 
+  /**
+   * PIN del preparador: lo fija el staff y el firmante lo teclea en su paso de
+   * verificación. Se refresca la lista porque el detalle expone
+   * `requiresPractitionerPin` / `practitionerPinSetAtUtc` y la UI los muestra.
+   */
+  setPractitionerPin(requestId: string, pin: string): Observable<void> {
+    return this.service.setPractitionerPin(requestId, pin).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  clearPractitionerPin(requestId: string): Observable<void> {
+    return this.service.clearPractitionerPin(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * Preparador guardado en ESTA sesión, por solicitud.
+   *
+   * `SignatureRequestResponse` no devuelve el preparador ni `IsPreparerSigned`,
+   * así que sin esto el formulario salía vacío cada vez y no había forma de
+   * saber si ya se había guardado algo o firmado. Se conserva la respuesta de
+   * la propia escritura —que es lo que quedó en el servidor— para poder
+   * precargar y mostrar el estado mientras dure la sesión.
+   */
+  private readonly _preparers = signal<Record<string, PreparerSessionState>>({});
+  readonly preparers = this._preparers.asReadonly();
+
+  preparerFor(requestId: string): PreparerSessionState | null {
+    return this._preparers()[requestId] ?? null;
+  }
+
+  private patchPreparer(requestId: string, patch: Partial<PreparerSessionState>): void {
+    this._preparers.update(all => {
+      const current = all[requestId] ?? { info: null, signed: false };
+      return { ...all, [requestId]: { ...current, ...patch } };
+    });
+  }
+
+  setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
+    return this.service.setPreparer(requestId, body).pipe(tap(() => this.patchPreparer(requestId, { info: body })));
+  }
+
+  clearPreparer(requestId: string): Observable<void> {
+    return this.service
+      .clearPreparer(requestId)
+      .pipe(tap(() => this.patchPreparer(requestId, { info: null, signed: false })));
+  }
+
+  signAsPreparer(requestId: string): Observable<void> {
+    return this.service.signAsPreparer(requestId).pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
+  }
+
+  // ---------- Plantillas ----------
+
+  readonly templates = signal<TemplateSummary[]>([]);
+  readonly templatesLoading = signal(false);
+  readonly templatesError = signal<string | null>(null);
+
+  /**
+   * Solo las publicadas: un molde en Draft todavía se está armando y sus slots
+   * o campos pueden estar incompletos, así que instanciarlo daría una solicitud
+   * a medias.
+   */
+  loadTemplates(): void {
+    this.templatesLoading.set(true);
+    this.templatesError.set(null);
+    this.service.listTemplates('Published').subscribe({
+      next: result => {
+        this.templates.set(result.items ?? []);
+        this.templatesLoading.set(false);
+      },
+      error: err => {
+        this.templatesError.set(toApiError(err).message);
+        this.templatesLoading.set(false);
+      },
+    });
+  }
+
+  getTemplate(templateId: string): Observable<SignatureTemplateDetail> {
+    return this.service.getTemplate(templateId);
+  }
+
+  /**
+   * Crea la solicitud desde el molde. El PDF pasa por el mismo preflight y la
+   * misma cadena de CloudStorage que el wizard normal — la plantilla aporta el
+   * layout de campos y los settings, nunca el documento.
+   *
+   * Queda en Draft a propósito: el staff revisa y envía desde la lista, igual
+   * que una solicitud creada a mano (Draft→Ready sigue dependiendo del scan).
+   */
+  instantiateTemplate(
+    templateId: string,
+    file: File,
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+  ): Observable<SignatureRequestDetail> {
+    return this.service.validateDocument(file).pipe(
+      switchMap(validation => {
+        if (!validation.isAcceptable) {
+          // `issues` son objetos {code, message}, no strings (la guía dice string[]).
+          throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
+        }
+        return this.service.uploadOriginalDocument(file, validation.validationRecordId);
+      }),
+      switchMap(originalFileId =>
+        this.service.instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride }),
+      ),
+      tap(() => this.refreshAfterAction()),
+    );
+  }
+
+  /**
+   * Igual que {@link instantiateTemplate} pero reusando un PDF ya existente de la oficina
+   * (su `originalFileId` de CloudStorage): no valida ni vuelve a subir. El Create promueve
+   * Draft→Ready leyendo la proyección local, porque el archivo ya está `Available`.
+   */
+  instantiateTemplateWithFileId(
+    templateId: string,
+    originalFileId: string,
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+  ): Observable<SignatureRequestDetail> {
+    return this.service
+      .instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride })
+      .pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /**
+   * Envía una solicitud Ready (Ready → InProgress): dispara las invitaciones a los
+   * firmantes. Lo usa el detalle para las solicitudes creadas desde plantilla, que quedan
+   * en Ready sin enviarse. El wizard normal ya envía al final de {@link sendWizard}.
+   */
+  sendRequest(requestId: string): Observable<void> {
+    return this.service.send(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
+  getRequestUi(requestId: string): Observable<SignatureRequest> {
+    return this.service.getById(requestId).pipe(map(detailToUiRequest));
+  }
+
+  /**
+   * Instancia desde plantilla (subiendo un archivo o reusando uno de la oficina) y la ENVÍA en
+   * cuanto el documento queda Ready — todo en una sola acción, como el wizard normal. Reporta la
+   * fase para el loading. Si el archivo sigue en escaneo cuando se agota el poll, la solicitud
+   * queda creada (Draft/Ready) y se devuelve `sent: false` para que el usuario la mande con el
+   * botón (no se pierde nada). El barrido de reconciliación del backend también la rescata.
+   */
+  async instantiateTemplateAndSend(
+    templateId: string,
+    source: { file: File } | { fileId: string },
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+    onPhase?: (phase: 'creating' | 'preparing' | 'sending') => void,
+  ): Promise<{ detail: SignatureRequestDetail; sent: boolean }> {
+    onPhase?.('creating');
+    const detail =
+      'fileId' in source
+        ? await firstValueFrom(
+            this.instantiateTemplateWithFileId(templateId, source.fileId, slotBindings, descriptionOverride),
+          )
+        : await firstValueFrom(this.instantiateTemplate(templateId, source.file, slotBindings, descriptionOverride));
+
+    try {
+      onPhase?.('preparing');
+      await this.waitUntilReady(detail.id);
+      onPhase?.('sending');
+      await firstValueFrom(this.service.send(detail.id));
+      this.refreshAfterAction();
+      return { detail, sent: true };
+    } catch (err) {
+      // Sigue en scan (SendNotReadyError) o el send falló: la request quedó creada. Se refresca y
+      // se deja al usuario el botón de enviar.
+      this.refreshAfterAction();
+      if (err instanceof SendNotReadyError) {
+        return { detail, sent: false };
+      }
+      throw new Error(toApiError(err).message);
+    }
+  }
+
+  /** Reset a la primera página + refresh: para mostrar la solicitud recién creada (orden CreatedAt DESC). */
+  reloadTop(): void {
+    this._page.set(1);
+    this.refresh();
+  }
+
   resendSigner(requestId: string, signerId: string): Observable<void> {
     return this.service.resendSignerInvitation(requestId, signerId);
   }
@@ -327,7 +525,13 @@ export class SignatureStore {
           continue;
         }
         const created = await firstValueFrom(
-          this.service.addSigner(requestId, { email: signer.email, fullName: signer.fullName }),
+          this.service.addSigner(requestId, {
+            email: signer.email,
+            fullName: signer.fullName,
+            language: signer.language,
+            phoneNumber: signer.phone,
+            verificationMethod: signer.verificationMethod,
+          }),
         );
         state.signerIdByLocal[signer.localId] = created.id;
       }

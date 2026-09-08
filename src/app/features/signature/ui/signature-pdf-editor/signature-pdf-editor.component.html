@@ -82,7 +82,7 @@
       </div>
 
       <!-- Hint mientras no hay campos -->
-      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] leading-snug text-gray-500">
+      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] leading-snug text-gray-500">
         <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
         Place at least one field on the document to continue.
       </p>
@@ -124,7 +124,7 @@
     </div>
 
     <!-- Superficie del documento (scroll interno) -->
-    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-[#FAFAFA] p-6">
+    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-brand-white p-6">
       <!-- Skeleton mientras renderiza -->
       <div *ngIf="loading()" class="mx-auto w-fit">
         <div class="h-[560px] w-[440px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
@@ -249,7 +249,7 @@
 
       <div class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
         <!-- Documento -->
-        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-[#FAFAFA] p-2.5">
+        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-brand-white p-2.5">
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" [ngClass]="docCircle(d.kind)">
             <ion-icon [name]="docIcon(d.kind)" class="text-sm text-gray-700"></ion-icon>
           </span>
@@ -295,7 +295,7 @@
         </div>
 
         <!-- Readiness -->
-        <div class="space-y-1.5 rounded-xl bg-[#FAFAFA] p-2.5">
+        <div class="space-y-1.5 rounded-xl bg-brand-white p-2.5">
           <p class="flex items-center gap-1.5 text-[11px]"
             [ngClass]="pages().length > 0 && !loadError() ? 'text-emerald-600' : 'text-orange-500'">
             <ion-icon [name]="pages().length > 0 && !loadError() ? 'checkmark-circle' : 'alert-circle-outline'" class="text-sm"></ion-icon>
@@ -357,6 +357,28 @@
           [ngClass]="draftChannel() === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>
           {{ channelMeta[ch].label }}
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="draftChannelNeedsPhone()">
+      <label class="mb-1 block text-xs font-medium text-gray-600">Phone number</label>
+      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <ion-icon name="call-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
+        <input type="tel" name="draftPhone" placeholder="+1 786 555 0123"
+          [ngModel]="draftPhone()" (ngModelChange)="draftPhone.set($event)" (keydown.enter)="confirmAddSigner()"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+      <p class="mt-1 text-[11px] text-gray-400">Required to deliver the code by {{ channelMeta[draftChannel()].label }}.</p>
+    </div>
+
+    <div>
+      <label class="mb-1 block text-xs font-medium text-gray-600">Email language</label>
+      <div class="flex flex-wrap gap-1.5">
+        <button *ngFor="let lang of languageOptions" type="button" (click)="draftLanguage.set(lang.value)"
+          class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+          [ngClass]="draftLanguage() === lang.value ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
+          {{ lang.label }}
         </button>
       </div>
     </div>

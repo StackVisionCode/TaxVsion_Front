@@ -2,14 +2,53 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>TaxVsionFront</title>
+  <title>TaxProffice</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta name="theme-color" content="#1E466B">
+
+  <!-- Favicons / PWA — servidos desde public/ (angular.json assets → raíz). base href /:
+       SVG nítido + .ico e PNGs de respaldo + apple-touch + manifest. -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <!-- ionicons se registra desde main.ts (ionicons/loader); los SVG se sirven
        de /ionicons/ como asset local — sin CDN externo ni <script> aquí. -->
+
+  <!-- Estilos del splash, INLINE a propósito: tienen que pintar antes de que llegue
+       cualquier CSS, que es justo el momento que este splash cubre. -->
+  <style>
+    #app-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fafafa;
+    }
+    #app-splash span {
+      color: #1E466B;
+      font: 700 3rem/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      animation: app-splash-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes app-splash-pulse {
+      0%, 100% { opacity: .35; }
+      50% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #app-splash span { animation: none; opacity: .7; }
+    }
+  </style>
 </head>
 <body>
+  <!-- Splash de arranque: provideAuthInitializer bloquea el bootstrap con GET /auth/me,
+       así que sin esto una recarga completa deja la pantalla en blanco durante un
+       round-trip entero. Lo retira `App` en su primer render (ver app.ts). -->
+  <div id="app-splash"><span>*</span></div>
   <app-root></app-root>
 </body>
 </html>

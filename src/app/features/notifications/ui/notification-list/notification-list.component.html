@@ -2,7 +2,7 @@
   <div *ngFor="let notification of notifications; trackBy: trackByNotificationId"
     (click)="onRowClick(notification)"
     class="group relative flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50"
-    [ngClass]="notification.isRead ? 'bg-white' : 'bg-[#FAFAFA]'">
+    [ngClass]="notification.isRead ? 'bg-white' : 'bg-brand-white'">
 
     <!-- Icon circle -->
     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"

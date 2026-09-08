@@ -24,9 +24,11 @@ type Phase = 'confirming' | 'done' | 'error' | 'no-token';
  * Mismo criterio que los demás recorridos públicos: `HttpBackend` (sin interceptores),
  * base derivada del host y `defer` para que los fallos viajen por el Observable.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-confirm-email-page',
-  imports: [CommonModule, RouterLink, AuthShellComponent],
+  imports: [BrandLogoComponent, CommonModule, RouterLink, AuthShellComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './confirm-email-page.component.html',
 })

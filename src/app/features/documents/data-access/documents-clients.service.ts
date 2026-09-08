@@ -30,7 +30,9 @@ export class DocumentsClientsService {
   }
 
   search(term: string): Observable<PagedResult<DocumentsClientSummary>> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', 50);
+    // Lista para el rail del navegador: página chica + búsqueda server-side (escala a miles
+    // de clientes sin volcar todo en el sidebar). El total real viaja en `totalCount`.
+    let params = new HttpParams().set('status', 'NotArchived').set('size', 25);
     if (term.trim()) {
       params = params.set('term', term.trim());
     }

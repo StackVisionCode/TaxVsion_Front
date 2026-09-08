@@ -1,0 +1,77 @@
+<div class="share-bg flex min-h-screen w-full items-center justify-center px-4 py-10">
+  <div class="share-card w-full max-w-md rounded-3xl bg-white p-7 shadow-xl ring-1 ring-gray-100 sm:p-9">
+    <!-- Marca de la oficina (con cascada a la del sistema). -->
+    <div class="mb-7 flex items-center justify-center">
+      <app-brand-logo logoClass="h-10 max-w-[190px] object-contain" fallbackClass="text-brand-bold text-3xl font-bold leading-none" />
+    </div>
+
+    @switch (state()) {
+      @case ('loading') {
+        <div class="flex flex-col items-center gap-3 py-8 text-gray-400">
+          <span class="share-spinner"></span>
+          <p class="text-sm">Opening the shared document…</p>
+        </div>
+      }
+
+      @case ('ready') {
+        <div class="flex flex-col items-center text-center">
+          <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-indigo-50 text-brand-bold">
+            <ion-icon [name]="fileIcon(meta()?.contentType)" class="text-3xl"></ion-icon>
+          </span>
+          <h1 class="text-lg font-bold text-gray-900 [text-wrap:balance]">{{ meta()?.fileName }}</h1>
+          <div class="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-gray-400">
+            @if (meta()?.sizeBytes != null) { <span>{{ formatSize(meta()?.sizeBytes) }}</span> }
+            @if (formatExpiry(meta()?.expiresAt); as exp) { <span aria-hidden="true">·</span><span>{{ exp }}</span> }
+          </div>
+
+          <button type="button" (click)="open()"
+            class="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold">
+            <ion-icon [name]="isViewOnly() ? 'eye-outline' : 'download-outline'" class="text-base"></ion-icon>
+            {{ isViewOnly() ? 'View document' : 'Download document' }}
+          </button>
+
+          <p class="mt-4 flex items-center gap-1.5 text-xs text-gray-400">
+            <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
+            Shared securely with a link that expires.
+          </p>
+        </div>
+      }
+
+      @case ('password') {
+        <form class="flex flex-col items-center text-center" (ngSubmit)="submitPassword()">
+          <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+            <ion-icon name="lock-closed-outline" class="text-3xl"></ion-icon>
+          </span>
+          <h1 class="text-lg font-bold text-gray-900">This document is protected</h1>
+          <p class="mt-1.5 max-w-xs text-sm text-gray-500">Enter the password the office shared with you to continue.</p>
+
+          <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event); passwordError.set(false)"
+            name="password" autocomplete="off" placeholder="Password" aria-label="Password"
+            class="mt-6 w-full rounded-xl border bg-white px-4 py-3 text-center text-sm outline-none transition-colors focus:ring-2 focus:ring-brand-bold/20"
+            [class]="passwordError() ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-brand-bold'" />
+          @if (passwordError()) {
+            <p class="mt-2 text-xs font-medium text-red-500">That password didn’t match. Try again.</p>
+          }
+
+          <button type="submit" [disabled]="!password().trim() || submitting()"
+            class="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
+            @if (submitting()) { <span class="share-spinner share-spinner-sm"></span> Checking… }
+            @else { <ion-icon name="lock-open-outline" class="text-base"></ion-icon> Unlock document }
+          </button>
+        </form>
+      }
+
+      @case ('unavailable') {
+        <div class="flex flex-col items-center py-4 text-center">
+          <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-gray-100 text-gray-400">
+            <ion-icon name="link-outline" class="text-3xl"></ion-icon>
+          </span>
+          <h1 class="text-lg font-bold text-gray-900">This link is no longer available</h1>
+          <p class="mt-1.5 max-w-xs text-sm text-gray-500">
+            It may have expired or been turned off. Please ask the office to send you a new link.
+          </p>
+        </div>
+      }
+    }
+  </div>
+</div>

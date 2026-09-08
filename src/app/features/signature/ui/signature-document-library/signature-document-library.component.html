@@ -1,0 +1,56 @@
+<div class="flex flex-col">
+  <!-- Buscador -->
+  <div class="mb-2 flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 focus-within:border-brand-bold transition-colors">
+    <ion-icon name="search-outline" class="text-sm text-gray-400"></ion-icon>
+    <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)"
+      placeholder="Search office PDFs by name"
+      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    <button *ngIf="search()" type="button" (click)="search.set('')" class="text-gray-300 hover:text-gray-600 transition-colors">
+      <ion-icon name="close-circle" class="text-sm"></ion-icon>
+    </button>
+  </div>
+
+  <!-- Chip opcional: acotar a los PDF del cliente elegido -->
+  <div *ngIf="hasClientFilter()" class="mb-2 flex items-center gap-2">
+    <button type="button" (click)="toggleClientFilter()"
+      class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors"
+      [ngClass]="onlyThisClient() ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
+      <ion-icon name="person-outline" class="text-xs"></ion-icon>
+      This client only
+    </button>
+    <span class="text-[11px] text-gray-400">{{ onlyThisClient() ? 'Showing this client’s PDFs' : 'Showing all office PDFs' }}</span>
+  </div>
+
+  <p *ngIf="error()" class="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ error() }}</p>
+
+  <!-- Loading -->
+  <div *ngIf="loading()" class="flex items-center justify-center py-10">
+    <div class="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
+  </div>
+
+  <!-- Lista -->
+  <div *ngIf="!loading()" class="max-h-64 overflow-y-auto rounded-2xl border border-gray-100">
+    <button *ngFor="let file of pdfs()" type="button" (click)="pick(file)"
+      class="flex w-full items-center gap-3 border-b border-gray-50 px-3 py-2.5 text-left transition-colors last:border-b-0"
+      [ngClass]="selectedId() === file.id ? 'bg-brand-white' : 'hover:bg-gray-50'">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-orange-500">
+        <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium text-gray-800">{{ file.originalName }}</span>
+        <span class="block text-[11px] text-gray-400">
+          {{ formatBytes(file.sizeBytes) }} · {{ shortDate(file.createdAtUtc) }}
+          <span *ngIf="file.taxYear"> · {{ file.taxYear }}</span>
+        </span>
+      </span>
+      <ion-icon *ngIf="selectedId() === file.id" name="checkmark-circle" class="shrink-0 text-lg text-brand-bold"></ion-icon>
+    </button>
+
+    <!-- Empty -->
+    <div *ngIf="pdfs().length === 0" class="flex flex-col items-center justify-center px-4 py-10 text-center">
+      <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-xs font-medium text-gray-500">No matching PDFs in the office yet</p>
+      <p class="mt-0.5 max-w-xs text-[11px] text-gray-400">Only scanned, available PDFs appear here. Upload a new one instead.</p>
+    </div>
+  </div>
+</div>

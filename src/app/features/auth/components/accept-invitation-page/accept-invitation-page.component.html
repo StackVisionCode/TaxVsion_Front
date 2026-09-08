@@ -1,7 +1,7 @@
 <app-auth-shell panelEyebrow="You've been invited" panelHeading="Join your team and start working from one place">
   <!-- Enlace sin token: no hay nada que canjear -->
   @if (!hasToken()) {
-    <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+    <app-brand-logo />
     <h1 class="mt-4 text-3xl font-bold text-gray-900">Invitation link is incomplete</h1>
     <p class="mt-2 text-sm text-gray-500">
       This link is missing its invitation code. Open the link from your invitation email exactly as you
@@ -25,7 +25,7 @@
       Sign in
     </button>
   } @else {
-    <span class="text-indigo-600 text-3xl font-bold leading-none">*</span>
+    <app-brand-logo />
     <h1 class="mt-4 text-3xl font-bold text-gray-900">Accept your invitation</h1>
     <p class="mt-2 text-sm text-gray-500">
       Choose a password to finish setting up your account.

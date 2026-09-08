@@ -1,0 +1,47 @@
+/* Los bloques de la tarjeta se remontan al cambiar el estado de MFA (@if), así
+   que la entrada se re-dispara sola; las filas entran escalonadas por nth-child
+   (idioma signature-wizard: keyframes propios, sin @angular/animations). */
+.mfa-block {
+  animation: mfa-block-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mfa-row {
+  animation: mfa-row-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mfa-list .mfa-row:nth-child(1) { animation-delay: 40ms; }
+.mfa-list .mfa-row:nth-child(2) { animation-delay: 80ms; }
+.mfa-list .mfa-row:nth-child(3) { animation-delay: 120ms; }
+.mfa-list .mfa-row:nth-child(4) { animation-delay: 160ms; }
+.mfa-list .mfa-row:nth-child(5) { animation-delay: 200ms; }
+.mfa-list .mfa-row:nth-child(n + 6) { animation-delay: 240ms; }
+
+@keyframes mfa-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mfa-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accesibilidad: quien pide menos movimiento ve la tarjeta ya colocada. */
+@media (prefers-reduced-motion: reduce) {
+  .mfa-block,
+  .mfa-row {
+    animation: none;
+  }
+}

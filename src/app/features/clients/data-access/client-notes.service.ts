@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { PagedResult } from './clients.model';
 import {
+  AttachFileToNoteRequest,
   ChangeNoteVisibilityRequest,
   CLIENT_NOTE_TARGET_TYPE,
   CreateNoteRequest,
@@ -81,6 +82,19 @@ export class ClientNotesService {
   /** DELETE /notes/{id} — borrado lógico (status `Deleted`); responde 204 y la nota deja de listarse. */
   remove(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${id}`);
+  }
+
+  /**
+   * POST /notes/{id}/attachments — enlaza un archivo YA subido a CloudStorage a la nota (perm
+   * `notes.manage` + SOLO el autor). Devuelve la nota completa con el adjunto en `Pending`.
+   */
+  attach(noteId: string, req: AttachFileToNoteRequest): Observable<NoteResponse> {
+    return this.http.post<NoteResponse>(`${this.base}/${noteId}/attachments`, req);
+  }
+
+  /** DELETE /notes/{id}/attachments/{fileId} — desvincula un adjunto (autor + `notes.manage`). */
+  detach(noteId: string, cloudStorageFileId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${noteId}/attachments/${cloudStorageFileId}`);
   }
 
   /**

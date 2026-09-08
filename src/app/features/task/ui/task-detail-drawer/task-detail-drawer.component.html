@@ -1,0 +1,291 @@
+@if (task) {
+  <!-- Backdrop -->
+  <div class="drawer-backdrop fixed inset-0 z-40 bg-black/30" (click)="close()"></div>
+
+  <!-- Panel -->
+  <aside class="drawer-panel fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl"
+    role="dialog" aria-modal="true" [attr.aria-label]="'Task detail: ' + task.title">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-3 border-b border-gray-100 p-6">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [ngClass]="statusColor(task.apiStatus)">{{ statusLabel(task.apiStatus) }}</span>
+          <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
+          @if (task.isBlocked) {
+            <span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-600"
+              [attr.title]="'Blocked by ' + blockerIds().length + ' task(s)'">
+              <ion-icon name="lock-closed-outline"></ion-icon>
+              Blocked{{ blockerIds().length ? ' by ' + blockerIds().length : '' }}
+            </span>
+          }
+          @if (detail()?.dueIsStatutory) {
+            <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+              <ion-icon name="shield-checkmark-outline"></ion-icon>
+              Statutory
+            </span>
+          }
+        </div>
+        <h2 class="mt-2 text-lg font-bold text-gray-900">{{ task.title }}</h2>
+      </div>
+      <button type="button" (click)="close()" aria-label="Close"
+        class="shrink-0 flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+        <ion-icon name="close-outline" class="text-xl"></ion-icon>
+      </button>
+    </div>
+
+    <!-- Body (scroll) -->
+    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      @if (loading()) {
+        <div class="flex flex-col gap-3 animate-pulse">
+          <div class="h-4 w-2/3 rounded-full bg-gray-200"></div>
+          <div class="h-3 w-full rounded-full bg-gray-100"></div>
+          <div class="h-3 w-1/2 rounded-full bg-gray-100"></div>
+        </div>
+      }
+
+      @if (error()) {
+        <p class="text-sm text-red-600">{{ error() }}</p>
+      }
+
+      <!-- Description -->
+      @if (task.description) {
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Description</h3>
+          <p class="mt-1 whitespace-pre-line text-sm text-gray-700">{{ task.description }}</p>
+        </section>
+      }
+
+      <!-- Key facts -->
+      <section class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
+          <p class="mt-0.5 text-sm text-gray-800">{{ task.client || '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Tax year</p>
+          <p class="mt-0.5 text-sm text-gray-800">{{ task.taxYear ?? '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Assignee</p>
+          <div class="mt-0.5 flex items-center gap-2">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+              [ngClass]="task.assigneeColor">{{ task.assigneeInitials }}</span>
+            <span class="text-sm text-gray-800">{{ task.assigneeName }}</span>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Due</p>
+          <p class="mt-0.5 text-sm text-gray-800">{{ dateOnly(detail()?.dueAtUtc ?? null) || '—' }}</p>
+        </div>
+      </section>
+
+      <!-- Waiting on client -->
+      @if (detail()?.expectedItems) {
+        <section class="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-amber-700">Waiting on client</h3>
+          <p class="mt-1 text-sm text-gray-700">{{ detail()?.expectedItems }}</p>
+          @if (detail()?.clientDueAtUtc) {
+            <p class="mt-1 text-xs text-amber-700">Client due: {{ dateOnly(detail()!.clientDueAtUtc) }}</p>
+          }
+        </section>
+      }
+
+      <!-- Metadata rail -->
+      @if (detail(); as d) {
+        <section class="rounded-2xl bg-gray-50 p-4 grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+          <div>
+            <p class="text-xs text-gray-400">Estimated</p>
+            <p class="text-gray-800">{{ d.estimatedHours != null ? d.estimatedHours + ' h' : '—' }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Logged</p>
+            <p class="text-gray-800">{{ d.actualHours }} h</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Open subtasks</p>
+            <p class="text-gray-800">{{ d.openSubtaskCount }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Blockers</p>
+            <p class="text-gray-800">{{ d.openBlockerCount }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Created</p>
+            <p class="text-gray-800">{{ dateOnly(d.createdAtUtc) }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Started</p>
+            <p class="text-gray-800">{{ dateOnly(d.startedAtUtc) || '—' }}</p>
+          </div>
+          @if (d.completedAtUtc) {
+            <div>
+              <p class="text-xs text-gray-400">Completed</p>
+              <p class="text-gray-800">{{ dateOnly(d.completedAtUtc) }}</p>
+            </div>
+          }
+          @if (d.parentTaskId) {
+            <div>
+              <p class="text-xs text-gray-400">Subtask depth</p>
+              <p class="text-gray-800">{{ d.depth }}</p>
+            </div>
+          }
+        </section>
+      }
+
+      <!-- Subtasks -->
+      <section class="flex flex-col gap-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Subtasks @if (subtasks().length) { <span class="text-gray-300">· {{ subtasks().length }}</span> }
+        </h3>
+        @if (subtasksLoading()) {
+          <div class="h-8 rounded-xl bg-gray-100 animate-pulse"></div>
+        } @else {
+          @for (sub of subtasks(); track sub.id) {
+            <label class="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-gray-50 transition-colors cursor-pointer">
+              <input type="checkbox" [checked]="sub.done" (change)="toggleSubtask(sub)"
+                class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
+              <span class="text-sm" [class.text-gray-400]="sub.done" [class.line-through]="sub.done"
+                [class.text-gray-800]="!sub.done">{{ sub.title }}</span>
+            </label>
+          }
+          <div class="flex items-center gap-2 pt-1">
+            <input type="text" [ngModel]="newSubtaskTitle()" (ngModelChange)="newSubtaskTitle.set($event)"
+              (keyup.enter)="addSubtask()" placeholder="Add a subtask…"
+              class="h-9 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+            <button type="button" (click)="addSubtask()" [disabled]="!newSubtaskTitle().trim() || addingSubtask()"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors"
+              aria-label="Add subtask">
+              <ion-icon name="add-outline" class="text-base"></ion-icon>
+            </button>
+          </div>
+          @if (detail() && detail()!.openSubtaskCount > 0) {
+            <p class="text-xs text-gray-400">This task can't be completed while it has open subtasks.</p>
+          }
+        }
+      </section>
+
+      <!-- Dependencies -->
+      <section class="flex flex-col gap-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Blocked by</h3>
+        @for (b of blockers(); track b.id) {
+          <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3 py-2">
+            <span class="min-w-0 truncate text-sm text-gray-700">
+              <ion-icon name="lock-closed-outline" class="align-middle text-gray-400"></ion-icon>
+              {{ b.title }}
+            </span>
+            <button type="button" (click)="removeDependency(b.id)" aria-label="Remove blocker"
+              class="shrink-0 text-gray-300 hover:text-red-500 transition-colors">
+              <ion-icon name="close-outline"></ion-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="text-xs text-gray-400">No blockers. This task can start freely.</p>
+        }
+        <!-- Add blocker (search) -->
+        <div class="relative">
+          <input type="text" [ngModel]="depSearch()" (ngModelChange)="onDepSearch($event)"
+            placeholder="Add a blocker — search tasks…"
+            class="h-9 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+          @if (depResults().length > 0) {
+            <ul class="absolute z-10 mt-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+              @for (r of depResults(); track r.id) {
+                <li>
+                  <button type="button" (click)="addDependency(r.id)"
+                    class="w-full truncate px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    {{ r.title }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+
+      <!-- Attachments -->
+      <section class="flex flex-col gap-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Attachments @if (attachments().length) { <span class="text-gray-300">· {{ attachments().length }}</span> }
+        </h3>
+        @if (attachmentsLoading()) {
+          <div class="h-9 rounded-xl bg-gray-100 animate-pulse"></div>
+        } @else {
+          @for (att of attachments(); track att.fileId) {
+            <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3 py-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <ion-icon name="document-outline" class="shrink-0 text-gray-400"></ion-icon>
+                <div class="min-w-0">
+                  <p class="truncate text-sm text-gray-700">{{ att.displayName }}</p>
+                  <p class="text-xs text-gray-400">
+                    {{ attachmentSize(att.sizeBytes) }} ·
+                    <span [ngClass]="attachmentStatusColor(att.status)">{{ attachmentStatusLabel(att.status) }}</span>
+                  </p>
+                </div>
+              </div>
+              <button type="button" (click)="removeAttachment(att.fileId)" aria-label="Remove attachment"
+                class="shrink-0 text-gray-300 hover:text-red-500 transition-colors">
+                <ion-icon name="close-outline"></ion-icon>
+              </button>
+            </div>
+          } @empty {
+            <p class="text-xs text-gray-400">No attachments yet.</p>
+          }
+          <div class="relative">
+            <input type="file" (change)="uploadAttachment($event)" [disabled]="uploadingAttachment()"
+              class="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-10" />
+            <button type="button" [disabled]="uploadingAttachment()"
+              class="w-full flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              @if (uploadingAttachment()) {
+                <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div>
+                <span>Uploading…</span>
+              } @else {
+                <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+                <span>Attach a file</span>
+              }
+            </button>
+          </div>
+        }
+      </section>
+
+      <!-- Time tracking -->
+      <section class="flex flex-col gap-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Time</h3>
+        <div class="flex items-center justify-between rounded-2xl bg-gray-50 p-4">
+          <div class="text-sm">
+            <p class="text-gray-800">{{ formatMinutes(loggedMinutes()) }} logged</p>
+            @if (detail()?.estimatedHours != null) {
+              <p class="text-xs text-gray-400">of {{ detail()!.estimatedHours }}h estimated</p>
+            }
+          </div>
+          <button type="button" (click)="toggleTimer()" [disabled]="timerBusy()"
+            class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+            [ngClass]="myRunningTimer() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-brand-bold text-white hover:bg-brand-ink'">
+            @if (timerBusy()) {
+              <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div>
+            } @else {
+              <ion-icon [name]="myRunningTimer() ? 'stop-outline' : 'play-outline'" class="text-base"></ion-icon>
+            }
+            <span>{{ myRunningTimer() ? 'Stop timer' : 'Start timer' }}</span>
+          </button>
+        </div>
+        @if (myRunningTimer()) {
+          <p class="flex items-center gap-1.5 text-xs text-emerald-600">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse motion-reduce:animate-none"></span>
+            Timer running since {{ dateTime(myRunningTimer()!.startedAtUtc) }}
+          </p>
+        }
+      </section>
+    </div>
+
+    <!-- Footer -->
+    <div class="border-t border-gray-100 p-4">
+      <button type="button" (click)="edit()"
+        class="w-full flex items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="create-outline" class="text-base"></ion-icon>
+        Edit details
+      </button>
+    </div>
+  </aside>
+}

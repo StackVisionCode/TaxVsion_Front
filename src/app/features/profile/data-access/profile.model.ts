@@ -61,8 +61,12 @@ export function toUtcIso(value: string): string {
   return /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`;
 }
 
-/** Etiqueta legible del dispositivo: deviceName si existe, si no se deriva del user-agent. */
-export function sessionDeviceLabel(session: UserSession): string {
+/**
+ * Etiqueta legible del dispositivo: deviceName si existe, si no se deriva del
+ * user-agent. Acepta cualquier objeto con esos dos campos para poder reusarse
+ * con los dispositivos de confianza de MFA (que no traen deviceName).
+ */
+export function sessionDeviceLabel(session: Pick<UserSession, 'deviceName' | 'userAgent'>): string {
   const named = session.deviceName?.trim();
   if (named) {
     return named;
@@ -97,6 +101,6 @@ export function sessionDeviceLabel(session: UserSession): string {
 }
 
 /** true si el user-agent parece un dispositivo móvil (para elegir icono). */
-export function sessionIsMobile(session: UserSession): boolean {
+export function sessionIsMobile(session: Pick<UserSession, 'userAgent'>): boolean {
   return /iPhone|iPad|iPod|Android|Mobile/.test(session.userAgent ?? '');
 }

@@ -10,6 +10,16 @@ export const CLIENTS_ROUTES: Routes = [
     title: 'Clients',
   },
   {
+    // Va ANTES de ':id' a propósito: el router de Angular resuelve por orden y, si no,
+    // '/clients/import' entraría al perfil de cliente con id = "import".
+    path: 'import',
+    loadComponent: () =>
+      import('./components/client-import-page/client-import-page.component').then(
+        m => m.ClientImportPageComponent,
+      ),
+    title: 'Import Clients',
+  },
+  {
     path: ':id',
     loadComponent: () =>
       import('./components/client-profile-page/client-profile-page.component').then(

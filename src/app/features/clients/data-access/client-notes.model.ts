@@ -37,7 +37,15 @@ export type NoteColorKind = 'Default' | 'Important' | 'FollowUp' | 'Idea' | 'War
 export type NoteStatus = 'Active' | 'Archived' | 'Deleted';
 
 /** Espejo de NoteAttachment.Status (se serializa con `.ToString()`, no como enum tipado). */
-export type NoteAttachmentStatus = 'Pending' | 'Available' | 'Rejected';
+export type NoteAttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+
+/** Body de POST /notes/{id}/attachments — enlaza un fileId ya subido a CloudStorage (Caso B). */
+export interface AttachFileToNoteRequest {
+  cloudStorageFileId: string;
+  displayName: string;
+  contentType: string;
+  sizeBytes: number;
+}
 
 /** Target de las notas de esta pestaña: siempre el cliente del perfil. */
 export const CLIENT_NOTE_TARGET_TYPE: NoteTargetType = 'Customer';
@@ -204,8 +212,12 @@ export function toClientNoteCard(
   userNames: ReadonlyMap<string, string>,
   currentUserId: string | null,
   hasViewAll: boolean,
+  // Una nota recién creada la escribió el usuario actual por definición: se marca propia en el
+  // alta optimista para que sus controles (editar/pin/adjuntar) salgan al instante, sin depender
+  // de que `currentUser()` ya haya resuelto en ese milisegundo. El listado real la sobrescribe.
+  forceMine = false,
 ): ClientNoteCard {
-  const isMine = currentUserId !== null && note.createdByUserId === currentUserId;
+  const isMine = forceMine || (currentUserId !== null && note.createdByUserId === currentUserId);
   const authorName = isMine ? 'You' : userNames.get(note.createdByUserId) ?? 'Team member';
   const colorKind = note.colorKind ?? 'Default';
   return {

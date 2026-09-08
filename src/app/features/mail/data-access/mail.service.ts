@@ -7,6 +7,8 @@ import {
   AttachmentDownloadUrlResult,
   AttachmentSummary,
   AutoSaveDraftRequest,
+  ConnectManualAccountRequest,
+  ConnectManualAccountResult,
   DownloadAttachmentResult,
   DraftDetail,
   DraftListItem,
@@ -15,6 +17,8 @@ import {
   MailCustomerSummary,
   MessageBody,
   MessageSummary,
+  SentMessageListItem,
+  TrashItem,
   PagedResult,
   SendDraftResult,
   StartReplyResult,
@@ -48,14 +52,35 @@ export class MailService {
     return this.http.get<MailAccount[]>(`${this.connectors}/accounts`);
   }
 
-  /** El resultado NO se consume por fetch: hay que redirigir el navegador a authorizationUrl. */
+  /**
+   * El resultado NO se consume por fetch: hay que redirigir el navegador a authorizationUrl. Se manda
+   * `returnUrl` (origen de ESTE subdominio del tenant) para que el callback de OAuth devuelva el
+   * navegador acá — donde el usuario está logueado — y no a un dominio central fijo.
+   */
   initiateOAuthConnect(providerCode: 'Gmail' | 'Graph'): Observable<InitiateOAuthConnectResult> {
-    return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, { providerCode });
+    return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, {
+      providerCode,
+      returnUrl: window.location.origin,
+    });
   }
 
-  /** Reintenta el watch de una cuenta en estado Error. 204. */
+  /**
+   * Alta de buzón por IMAP+SMTP (sin OAuth). Síncrono: el backend valida conectividad real contra
+   * ambos servidores y aplica el guard de identidad (emailAddress debe ser el email de login) antes
+   * de responder 200. Devuelve la cuenta creada — no hay redirección.
+   */
+  connectManualAccount(body: ConnectManualAccountRequest): Observable<ConnectManualAccountResult> {
+    return this.http.post<ConnectManualAccountResult>(`${this.connectors}/accounts/manual`, body);
+  }
+
+  /** Reintenta el watch/subscription de una cuenta (Draft/Connected/Error). 204. */
   reauthAccount(accountId: string): Observable<void> {
     return this.http.post<void>(`${this.connectors}/accounts/${accountId}/reauth`, {});
+  }
+
+  /** Desconecta la cuenta (deja de sincronizar). 204. */
+  disconnectAccount(accountId: string): Observable<void> {
+    return this.http.delete<void>(`${this.connectors}/accounts/${accountId}`);
   }
 
   // ---------- Customer: picker de cliente ----------
@@ -78,6 +103,12 @@ export class MailService {
     );
   }
 
+  /** Carpeta "Sent": mensajes ya enviados del cliente, más reciente primero. */
+  listSent(customerId: string, page: number, size: number): Observable<PagedResult<SentMessageListItem>> {
+    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+    return this.http.get<PagedResult<SentMessageListItem>>(`${this.correspondence}/sent`, { params });
+  }
+
   /** Inbound + outbound mezclados, cronológico ascendente (más viejo primero). */
   listThreadMessages(threadId: string, page: number, size: number): Observable<PagedResult<MessageSummary>> {
     const params = new HttpParams().set('page', page).set('size', size);
@@ -87,9 +118,51 @@ export class MailService {
     );
   }
 
-  /** Archiva el hilo completo (no hay unarchive ni delete en el backend). 204. */
+  /** Archiva el hilo completo (marca leído). 204. */
   archiveThread(threadId: string): Observable<void> {
     return this.http.post<void>(`${this.correspondence}/threads/${threadId}/archive`, {});
+  }
+
+  /** Desarchiva el hilo (Archived → Active). 204. */
+  unarchiveThread(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/unarchive`, {});
+  }
+
+  /** Papelera unificada (entrantes + enviados borrados) del cliente. */
+  listTrash(customerId: string, page: number, size: number): Observable<PagedResult<TrashItem>> {
+    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+    return this.http.get<PagedResult<TrashItem>>(`${this.correspondence}/trash`, { params });
+  }
+
+  // ---------- Soft-delete: entrantes ----------
+  trashMessage(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/trash`, {});
+  }
+  restoreMessage(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/restore`, {});
+  }
+  purgeMessage(messageId: string): Observable<void> {
+    return this.http.delete<void>(`${this.correspondence}/messages/${messageId}`);
+  }
+
+  // ---------- Soft-delete: enviados ----------
+  trashSent(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/sent/${messageId}/trash`, {});
+  }
+  restoreSent(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/sent/${messageId}/restore`, {});
+  }
+  purgeSent(messageId: string): Observable<void> {
+    return this.http.delete<void>(`${this.correspondence}/sent/${messageId}`);
+  }
+
+  /** Marca TODO el hilo como leído / no-leído (estado compartido por el tenant). 204. */
+  markThreadRead(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/read`, {});
+  }
+
+  markThreadUnread(threadId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/threads/${threadId}/unread`, {});
   }
 
   // ---------- Correspondence: mensajes (solo inbound) ----------
@@ -101,6 +174,15 @@ export class MailService {
 
   listMessageAttachments(messageId: string): Observable<AttachmentSummary[]> {
     return this.http.get<AttachmentSummary[]>(`${this.correspondence}/messages/${messageId}/attachments`);
+  }
+
+  /** Marca un mensaje inbound como leído / no-leído (estado compartido por el tenant). 204. */
+  markMessageRead(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/read`, {});
+  }
+
+  markMessageUnread(messageId: string): Observable<void> {
+    return this.http.post<void>(`${this.correspondence}/messages/${messageId}/unread`, {});
   }
 
   /** Dispara la descarga bajo demanda hacia CloudStorage. Idempotente. */

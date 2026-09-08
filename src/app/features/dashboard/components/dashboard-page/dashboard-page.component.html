@@ -5,42 +5,137 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" [class.edit-mode]="layout.editMode()" cdkDropList
     cdkDropListOrientation="mixed" [cdkDropListData]="layout.widgets()" (cdkDropListDropped)="onDrop($event)">
-    <div *ngFor="let widget of layout.widgets(); trackBy: trackById" class="widget-cell relative"
-      [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }" [attr.data-widget-id]="widget.id" cdkDrag
-      [cdkDragDisabled]="!layout.editMode()">
-      <!-- Placeholder mientras se arrastra: hueco suave del mismo tamaño -->
-      <div *cdkDragPlaceholder
-        class="h-full min-h-32 rounded-[28px] border-2 border-dashed border-[#D7E3EF] bg-white/50"></div>
 
-      <!-- Handle visual en modo edición -->
-      <span *ngIf="layout.editMode()"
-        class="drag-handle absolute -top-2 -right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-md ring-1 ring-gray-200 pointer-events-none">
-        <ion-icon name="reorder-three-outline" class="text-lg"></ion-icon>
-      </span>
+    @for (widget of layout.widgets(); track widget.id) {
+      <div class="widget-cell relative" [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }"
+        [attr.data-widget-id]="widget.id" cdkDrag [cdkDragDisabled]="!layout.editMode()">
+        <!-- Placeholder mientras se arrastra: hueco del mismo tamaño, en el color
+             de marca para que se lea como "aquí cae" y no como un widget roto -->
+        <div *cdkDragPlaceholder
+          class="drop-slot h-full min-h-32 rounded-[28px] border-2 border-dashed bg-white/50"></div>
 
-      <ng-container [ngSwitch]="widget.id">
-        <app-dashboard-hero *ngSwitchCase="'hero'" [userName]="userName()"></app-dashboard-hero>
+        <!-- Handle visual en modo edición -->
+        @if (layout.editMode()) {
+          <span
+            class="drag-handle absolute -top-2 -right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-md ring-1 ring-gray-200 pointer-events-none">
+            <ion-icon name="reorder-three-outline" class="text-lg"></ion-icon>
+          </span>
+        }
 
-        <div *ngSwitchCase="'side-stack'" class="flex flex-col gap-4 h-full">
-          <app-dashboard-pro-banner></app-dashboard-pro-banner>
-        </div>
+        <!--
+          El wrapper con cdkDrag queda FUERA de los @defer a propósito: la lista de drop del
+          CDK sigue viendo siempre las 13 celdas, así que el modo edición funciona igual
+          aunque un widget todavía no se haya renderizado (arrastra su placeholder).
 
-        <div *ngSwitchCase="'analytics-stack'" class="flex flex-col gap-6 h-full">
-          <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
-          <app-dashboard-performance-table></app-dashboard-performance-table>
-        </div>
+          Hero y side-stack van sin diferir: son lo primero que se ve (el LCP de la página),
+          y diferirlos empeoraría la métrica en vez de mejorarla. El resto se monta al entrar
+          en pantalla — con eso el dashboard pasa de disparar ~18-20 peticiones de golpe al
+          abrirse a ~5-6. `prefetch on idle` baja el código en ratos ociosos, así que al
+          hacer scroll el widget aparece ya: se difiere el TRABAJO, no la descarga.
+        -->
+        @switch (widget.id) {
+          @case ('hero') {
+            <app-dashboard-hero [userName]="userName()"></app-dashboard-hero>
+          }
 
-        <app-dashboard-tasks *ngSwitchCase="'tasks'"></app-dashboard-tasks>
-        <app-dashboard-mini-calendar *ngSwitchCase="'mini-calendar'"></app-dashboard-mini-calendar>
-        <app-dashboard-recent-chats *ngSwitchCase="'recent-chats'"></app-dashboard-recent-chats>
-        <app-dashboard-recent-activity *ngSwitchCase="'recent-activity'"></app-dashboard-recent-activity>
-        <app-dashboard-video-calls *ngSwitchCase="'video-calls'"></app-dashboard-video-calls>
-        <app-dashboard-invoices-chart *ngSwitchCase="'invoices-chart'"></app-dashboard-invoices-chart>
-        <app-dashboard-storage-usage *ngSwitchCase="'storage-usage'"></app-dashboard-storage-usage>
-        <app-dashboard-signed-documents *ngSwitchCase="'signed-documents'"></app-dashboard-signed-documents>
-        <app-dashboard-monthly-clients *ngSwitchCase="'monthly-clients'"></app-dashboard-monthly-clients>
-        <app-dashboard-notes *ngSwitchCase="'notes'"></app-dashboard-notes>
-      </ng-container>
-    </div>
+          @case ('side-stack') {
+            <div class="flex flex-col gap-4 h-full">
+              <app-dashboard-pro-banner></app-dashboard-pro-banner>
+            </div>
+          }
+
+          @case ('analytics-stack') {
+            @defer (on viewport; prefetch on idle) {
+              <div class="flex flex-col gap-6 h-full">
+                <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
+                <app-dashboard-performance-table></app-dashboard-performance-table>
+              </div>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="24rem" [rows]="6" />
+            }
+          }
+
+          @case ('tasks') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-tasks></app-dashboard-tasks>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="5" />
+            }
+          }
+
+          @case ('mini-calendar') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-mini-calendar></app-dashboard-mini-calendar>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="20rem" [rows]="4" />
+            }
+          }
+
+          @case ('recent-chats') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-recent-chats></app-dashboard-recent-chats>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="5" />
+            }
+          }
+
+          @case ('recent-activity') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-recent-activity></app-dashboard-recent-activity>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="5" />
+            }
+          }
+
+          @case ('video-calls') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-video-calls></app-dashboard-video-calls>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="16rem" [rows]="4" />
+            }
+          }
+
+          @case ('invoices-chart') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-invoices-chart></app-dashboard-invoices-chart>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="4" />
+            }
+          }
+
+          @case ('storage-usage') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-storage-usage></app-dashboard-storage-usage>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="16rem" [rows]="4" />
+            }
+          }
+
+          @case ('signed-documents') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-signed-documents></app-dashboard-signed-documents>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="16rem" [rows]="4" />
+            }
+          }
+
+          @case ('monthly-clients') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-monthly-clients></app-dashboard-monthly-clients>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="4" />
+            }
+          }
+
+          @case ('notes') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-notes></app-dashboard-notes>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="18rem" [rows]="4" />
+            }
+          }
+        }
+      </div>
+    }
   </div>
 </div>

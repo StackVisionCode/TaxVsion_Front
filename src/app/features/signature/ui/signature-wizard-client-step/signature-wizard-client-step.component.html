@@ -81,7 +81,7 @@
   <aside class="hidden self-start lg:sticky lg:top-4 lg:block">
     <!-- *ngFor + trackBy por id: al cambiar la selección se recrea el nodo y re-dispara la animación -->
     <div *ngFor="let client of selectedAsList(); trackBy: trackClient"
-      class="client-detail rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+      class="client-detail rounded-2xl border border-gray-100 bg-brand-white p-5">
       <div class="flex flex-col items-center text-center">
         <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
           [ngClass]="avatar(seedIndex(client))">{{ initials(client.displayName) }}</span>

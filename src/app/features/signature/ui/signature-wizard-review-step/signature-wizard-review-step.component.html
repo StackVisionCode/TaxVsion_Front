@@ -1,6 +1,6 @@
 <div class="review-grid grid gap-4 lg:grid-cols-2">
   <!-- Cliente -->
-  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+  <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
     <div *ngIf="client as c" class="mt-3 flex items-center gap-3">
       <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-bold text-sm font-bold text-white">
@@ -19,7 +19,7 @@
   </div>
 
   <!-- Documento -->
-  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+  <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Document</p>
     <div *ngIf="document as d" class="mt-3 flex items-center gap-3">
       <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" [ngClass]="circle(d.kind)">
@@ -38,7 +38,7 @@
   </div>
 
   <!-- Firmantes y campos -->
-  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+  <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Signers &amp; fields</p>
       <span class="rounded-full bg-brand-bold px-2.5 py-0.5 text-[10px] font-semibold text-white">
@@ -80,7 +80,7 @@
   </div>
 
   <!-- Detalles del envío -->
-  <div class="review-card rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+  <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Request details</p>
 
     <div class="mt-3 space-y-3">

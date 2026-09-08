@@ -3,18 +3,38 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
+  AddDependencyRequest,
   ApiTaskStatus,
   AssignTaskRequest,
   CancelTaskRequest,
+  CreateSubtaskRequest,
   ChangeTaskDueRequest,
   ChangeTaskPriorityRequest,
   CreateTaskRequest,
   EmployeeDirectoryEntry,
   PagedResult,
   TaskBoardApiResponse,
+  TaskCalendarEntry,
+  ApplyTaskTemplateRequest,
+  SaveTaskTemplateAttachmentsRequest,
+  SaveTaskTemplateRequest,
+  SetTaskTemplateActiveRequest,
+  TaskAttachmentResponse,
+  TaskAttachmentUpsertRequest,
   TaskClientSummary,
+  TaskTemplateResponse,
+  TemplateApplicationResponse,
+  TaskDependencyGraphResponse,
+  CreateTaskSeriesRequest,
+  SeriesStatus,
+  TaskLabelResponse,
   TaskResponse,
+  TaskSeriesResponse,
+  TaskTaxonomiesResponse,
+  UpsertTaskLabelRequest,
+  TaskTimerResponse,
   TaskUserSummary,
+  StartTimerRequest,
   UpdateTaskDetailsRequest,
   WaitOnClientRequest,
 } from './task.model';
@@ -22,6 +42,9 @@ import {
 interface SearchTasksParams {
   q?: string;
   status?: ApiTaskStatus;
+  assigneeUserId?: string;
+  customerId?: string;
+  taxYear?: number;
   page?: number;
   size?: number;
 }
@@ -58,6 +81,15 @@ export class TaskService {
     if (params.status) {
       query = query.set('status', params.status);
     }
+    if (params.assigneeUserId) {
+      query = query.set('assigneeUserId', params.assigneeUserId);
+    }
+    if (params.customerId) {
+      query = query.set('customerId', params.customerId);
+    }
+    if (params.taxYear) {
+      query = query.set('taxYear', params.taxYear);
+    }
     if (params.page) {
       query = query.set('page', params.page);
     }
@@ -67,10 +99,161 @@ export class TaskService {
     return this.http.get<PagedResult<TaskResponse>>(`${this.base}/search`, { params: query });
   }
 
+  /** GET /tasks/calendar — tareas con fecha en el rango (requiere from/to; tope 500, sin paginación). */
+  calendar(fromUtc: string, toUtc: string, assigneeUserId?: string): Observable<TaskCalendarEntry[]> {
+    let params = new HttpParams().set('fromUtc', fromUtc).set('toUtc', toUtc);
+    if (assigneeUserId) {
+      params = params.set('assigneeUserId', assigneeUserId);
+    }
+    return this.http.get<TaskCalendarEntry[]>(`${this.base}/calendar`, { params });
+  }
+
   // ---------- CRUD ----------
 
   getById(id: string): Observable<TaskResponse> {
     return this.http.get<TaskResponse>(`${this.base}/${id}`);
+  }
+
+  /** GET /tasks/{id}/graph — grafo de dependencias aguas arriba (para el badge "Bloqueada por N"). */
+  graph(id: string): Observable<TaskDependencyGraphResponse> {
+    return this.http.get<TaskDependencyGraphResponse>(`${this.base}/${id}/graph`);
+  }
+
+  // ---------- Subtareas + dependencias (F4) ----------
+
+  /** GET /tasks/{id}/subtasks — hijas directas, paginado. */
+  subtasks(id: string, page = 1, size = 100): Observable<PagedResult<TaskResponse>> {
+    const params = new HttpParams().set('page', page).set('size', size);
+    return this.http.get<PagedResult<TaskResponse>>(`${this.base}/${id}/subtasks`, { params });
+  }
+
+  createSubtask(id: string, req: CreateSubtaskRequest): Observable<TaskResponse> {
+    return this.http.post<TaskResponse>(`${this.base}/${id}/subtasks`, req);
+  }
+
+  addDependency(id: string, req: AddDependencyRequest): Observable<void> {
+    return this.http.post<void>(`${this.base}/${id}/dependencies`, req);
+  }
+
+  removeDependency(id: string, dependsOnTaskId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}/dependencies/${dependsOnTaskId}`);
+  }
+
+  // ---------- Adjuntos (F5) — el byte va a CloudStorage; aquí solo el fileId ----------
+
+  attachments(taskId: string, includeDescendants = false): Observable<TaskAttachmentResponse[]> {
+    const params = new HttpParams().set('includeDescendants', includeDescendants);
+    return this.http.get<TaskAttachmentResponse[]>(`${this.base}/${taskId}/attachments`, { params });
+  }
+
+  /** Vincular un archivo YA escaneado (nace Available). */
+  linkAttachment(taskId: string, req: TaskAttachmentUpsertRequest): Observable<TaskAttachmentResponse> {
+    return this.http.post<TaskAttachmentResponse>(`${this.base}/${taskId}/attachments/link`, req);
+  }
+
+  /** "Upload" (JSON, NO multipart): registra el fileId; nace Pending hasta el veredicto del escaneo. */
+  uploadAttachment(taskId: string, req: TaskAttachmentUpsertRequest): Observable<TaskAttachmentResponse> {
+    return this.http.post<TaskAttachmentResponse>(`${this.base}/${taskId}/attachments`, req);
+  }
+
+  deleteAttachment(taskId: string, fileId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${taskId}/attachments/${fileId}`);
+  }
+
+  // ---------- Plantillas fiscales (F8) ----------
+
+  listTemplates(onlyActive = true): Observable<TaskTemplateResponse[]> {
+    const params = new HttpParams().set('onlyActive', onlyActive);
+    return this.http.get<TaskTemplateResponse[]>(`${this.base}/templates`, { params });
+  }
+
+  /** Siembra el catálogo estándar (1040 / 1040-ES / 941). Idempotente por nombre. */
+  installStandardTemplates(): Observable<TaskTemplateResponse[]> {
+    return this.http.post<TaskTemplateResponse[]>(`${this.base}/templates/install-standard`, {});
+  }
+
+  applyTemplate(templateId: string, req: ApplyTaskTemplateRequest): Observable<TemplateApplicationResponse> {
+    return this.http.post<TemplateApplicationResponse>(`${this.base}/templates/${templateId}/apply`, req);
+  }
+
+  getTemplate(templateId: string): Observable<TaskTemplateResponse> {
+    return this.http.get<TaskTemplateResponse>(`${this.base}/templates/${templateId}`);
+  }
+
+  createTemplate(req: SaveTaskTemplateRequest): Observable<TaskTemplateResponse> {
+    return this.http.post<TaskTemplateResponse>(`${this.base}/templates`, req);
+  }
+
+  updateTemplate(templateId: string, req: SaveTaskTemplateRequest): Observable<TaskTemplateResponse> {
+    return this.http.put<TaskTemplateResponse>(`${this.base}/templates/${templateId}`, req);
+  }
+
+  setTemplateActive(templateId: string, req: SetTaskTemplateActiveRequest): Observable<void> {
+    return this.http.post<void>(`${this.base}/templates/${templateId}/active`, req);
+  }
+
+  /** PUT /tasks/templates/{id}/attachments — reemplaza el set de archivos de referencia (byte en CloudStorage). */
+  setTemplateAttachments(templateId: string, req: SaveTaskTemplateAttachmentsRequest): Observable<TaskTemplateResponse> {
+    return this.http.put<TaskTemplateResponse>(`${this.base}/templates/${templateId}/attachments`, req);
+  }
+
+  // ---------- Timers (F10) ----------
+
+  timers(taskId: string): Observable<TaskTimerResponse[]> {
+    return this.http.get<TaskTimerResponse[]>(`${this.base}/${taskId}/timers`);
+  }
+
+  startTimer(taskId: string, req: StartTimerRequest): Observable<TaskTimerResponse> {
+    return this.http.post<TaskTimerResponse>(`${this.base}/${taskId}/timer/start`, req);
+  }
+
+  stopTimer(taskId: string, timerId: string): Observable<TaskTimerResponse> {
+    return this.http.post<TaskTimerResponse>(`${this.base}/${taskId}/timer/${timerId}/stop`, {});
+  }
+
+  // ---------- Series / recurrencia (F9) ----------
+
+  createSeries(req: CreateTaskSeriesRequest): Observable<TaskSeriesResponse> {
+    return this.http.post<TaskSeriesResponse>(`${this.base}/series`, req);
+  }
+
+  listSeries(status?: SeriesStatus): Observable<TaskSeriesResponse[]> {
+    let params = new HttpParams();
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.http.get<TaskSeriesResponse[]>(`${this.base}/series`, { params });
+  }
+
+  pauseSeries(id: string): Observable<TaskSeriesResponse> {
+    return this.http.post<TaskSeriesResponse>(`${this.base}/series/${id}/pause`, {});
+  }
+
+  resumeSeries(id: string): Observable<TaskSeriesResponse> {
+    return this.http.post<TaskSeriesResponse>(`${this.base}/series/${id}/resume`, {});
+  }
+
+  endSeries(id: string): Observable<TaskSeriesResponse> {
+    return this.http.post<TaskSeriesResponse>(`${this.base}/series/${id}/end`, {});
+  }
+
+  // ---------- Etiquetas / taxonomías (F11) ----------
+
+  /** GET /tasks/taxonomies — estados/prioridades del server + labels del tenant (renombran estados). */
+  taxonomies(): Observable<TaskTaxonomiesResponse> {
+    return this.http.get<TaskTaxonomiesResponse>(`${this.base}/taxonomies`);
+  }
+
+  createLabel(req: UpsertTaskLabelRequest): Observable<TaskLabelResponse> {
+    return this.http.post<TaskLabelResponse>(`${this.base}/labels`, req);
+  }
+
+  updateLabel(id: string, req: UpsertTaskLabelRequest): Observable<TaskLabelResponse> {
+    return this.http.put<TaskLabelResponse>(`${this.base}/labels/${id}`, req);
+  }
+
+  deleteLabel(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/labels/${id}`);
   }
 
   create(req: CreateTaskRequest): Observable<TaskResponse> {

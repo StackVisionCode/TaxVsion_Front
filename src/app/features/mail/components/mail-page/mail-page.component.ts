@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -6,8 +6,16 @@ import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/m
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
 import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-reading-pane.component';
 import { ComposeDraftPayload, MailComposeComponent } from '../../ui/mail-compose/mail-compose.component';
+import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-connect-manual.component';
 import { MailFolderId, MailStore } from '../../data-access/mail.store';
-import { avatarColorFor, formatMailTime, initialsFor } from '../../data-access/mail.model';
+import {
+  ConnectManualAccountRequest,
+  MailAccountStatus,
+  MailCustomerSummary,
+  avatarColorFor,
+  formatMailTime,
+  initialsFor,
+} from '../../data-access/mail.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -34,18 +42,22 @@ import { avatarColorFor, formatMailTime, initialsFor } from '../../data-access/m
     MailListComponent,
     MailReadingPaneComponent,
     MailComposeComponent,
+    MailConnectManualComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
   styleUrl: './mail-page.component.css',
 })
-export class MailPageComponent implements OnInit {
+export class MailPageComponent implements OnInit, OnDestroy {
   readonly store = inject(MailStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   /** Draft resaltado en el listado mientras el composer lo carga (GET /drafts/{id} es async). */
   readonly selectedDraftId = signal<string | null>(null);
+
+  /** Enviado resaltado en la carpeta Sent (un reply abre el hilo real, cuyo id != messageId). */
+  readonly selectedSentId = signal<string | null>(null);
 
   /**
    * Resultado del callback OAuth de Connectors. El backend no vuelve a una ruta propia:
@@ -55,13 +67,36 @@ export class MailPageComponent implements OnInit {
   readonly connectResult = signal<{ ok: boolean; text: string } | null>(null);
 
   ngOnInit(): void {
-    // Idempotente: cuentas de buzón + clientes; si ya hay ambos, dispara hilos y drafts.
+    // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
     this.store.init();
     this.consumeOAuthCallback();
   }
 
+  ngOnDestroy(): void {
+    // Cierra el socket realtime de correo entrante al salir del módulo.
+    this.store.teardown();
+  }
+
   dismissConnectResult(): void {
     this.connectResult.set(null);
+  }
+
+  /** Traduce el slug de error del callback (query `connectors_error`) a un mensaje claro en inglés. */
+  private mailboxErrorMessage(code: string | null): string {
+    switch (code) {
+      case 'identity_mismatch':
+        return 'You can only connect your own mailbox. Sign in to the provider with the same email you use here, then try again.';
+      case 'identity_unknown':
+        return "We couldn't verify your account email. Please sign in again and retry.";
+      case 'already_connected':
+        return 'This mailbox is already connected. Disconnect it first to reconnect.';
+      case 'consent_incomplete':
+        return 'The provider did not grant offline access. Try again and approve all the requested permissions.';
+      case 'invalid_state':
+        return 'The connection link expired. Please start the connection again.';
+      default:
+        return 'Could not connect the mailbox. Please try again.';
+    }
   }
 
   /**
@@ -88,7 +123,7 @@ export class MailPageComponent implements OnInit {
           : { ok: false, text: 'Admin consent was denied.' },
       );
     } else {
-      this.connectResult.set({ ok: false, text: `Could not connect the mailbox (${error}).` });
+      this.connectResult.set({ ok: false, text: this.mailboxErrorMessage(error) });
     }
 
     void this.router.navigate([], {
@@ -103,15 +138,30 @@ export class MailPageComponent implements OnInit {
   readonly folders = computed<MailFolder[]>(() => [
     {
       id: 'conversations',
+      // El badge cuenta conversaciones CON no-leídos (baja al abrir/marcar leído, desaparece en 0),
+      // no el total de hilos — así refleja "cuántas te faltan por leer", estilo cliente de correo.
       label: 'Conversations',
       icon: 'chatbubbles-outline',
-      count: this.store.activeThreads().length,
+      count: this.store.activeThreads().filter(thread => thread.unreadCount > 0).length,
+    },
+    {
+      // Enviados del cliente. Sin badge: no hay "no-leídos" en lo que uno mismo envió.
+      id: 'sent',
+      label: 'Sent',
+      icon: 'paper-plane-outline',
+      count: 0,
     },
     {
       id: 'archived',
       label: 'Archived',
       icon: 'archive-outline',
       count: this.store.archivedThreads().length,
+    },
+    {
+      id: 'trash',
+      label: 'Trash',
+      icon: 'trash-outline',
+      count: 0,
     },
     {
       // Drafts sí trae totalCount del servidor; los hilos se cuentan sobre lo cargado.
@@ -135,6 +185,36 @@ export class MailPageComponent implements OnInit {
         time: formatMailTime(draft.updatedAtUtc),
         // El estado sólo se muestra cuando NO es el normal (Sending/Failed/Sent).
         badge: draft.status === 'Draft' ? null : draft.status,
+        unreadCount: 0,
+      }));
+    }
+
+    if (this.store.activeFolderId() === 'trash') {
+      return this.store.trash().map(item => ({
+        id: item.messageId,
+        initials: initialsFor(item.subject || 'Trash'),
+        avatarColor: avatarColorFor(item.subject || item.messageId),
+        title: item.subject || '(No subject)',
+        subtitle: `${item.kind === 'Sent' ? 'To' : 'From'} ${item.counterparty}`,
+        time: formatMailTime(item.deletedAtUtc),
+        badge: item.kind,
+        unreadCount: 0,
+        attachmentCount: item.hasAttachments ? item.attachmentCount : 0,
+      }));
+    }
+
+    if (this.store.activeFolderId() === 'sent') {
+      return this.store.sent().map(item => ({
+        id: item.messageId,
+        initials: initialsFor(item.subject || 'Sent'),
+        avatarColor: avatarColorFor(item.subject || item.messageId),
+        title: item.subject || '(No subject)',
+        // Muestra el destinatario; el clip 📎 lo pinta la lista con attachmentCount.
+        subtitle: item.toAddresses.length > 0 ? `To ${item.toAddresses.join(', ')}` : 'Sent message',
+        time: formatMailTime(item.sentAtUtc),
+        badge: item.isReply ? 'Reply' : null,
+        unreadCount: 0,
+        attachmentCount: item.hasAttachments ? item.attachmentCount : 0,
       }));
     }
 
@@ -149,24 +229,59 @@ export class MailPageComponent implements OnInit {
       subtitle: `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
       time: formatMailTime(thread.lastMessageAtUtc),
       badge: null,
+      unreadCount: thread.unreadCount,
     }));
   });
 
-  readonly listLoading = computed(() =>
-    this.store.activeFolderId() === 'drafts' ? this.store.draftsLoading() : this.store.threadsLoading(),
-  );
+  readonly listLoading = computed(() => {
+    switch (this.store.activeFolderId()) {
+      case 'drafts':
+        return this.store.draftsLoading();
+      case 'sent':
+        return this.store.sentLoading();
+      case 'trash':
+        return this.store.trashLoading();
+      default:
+        return this.store.threadsLoading();
+    }
+  });
 
-  readonly listError = computed(() =>
-    this.store.activeFolderId() === 'drafts' ? this.store.draftsError() : this.store.threadsError(),
-  );
+  readonly listError = computed(() => {
+    switch (this.store.activeFolderId()) {
+      case 'drafts':
+        return this.store.draftsError();
+      case 'sent':
+        return this.store.sentError();
+      case 'trash':
+        return this.store.trashError();
+      default:
+        return this.store.threadsError();
+    }
+  });
 
-  readonly listHasMore = computed(() =>
-    this.store.activeFolderId() === 'drafts' ? this.store.draftsHasMore() : this.store.threadsHasMore(),
-  );
+  readonly listHasMore = computed(() => {
+    switch (this.store.activeFolderId()) {
+      case 'drafts':
+        return this.store.draftsHasMore();
+      case 'sent':
+        return this.store.sentHasMore();
+      case 'trash':
+        return this.store.trashHasMore();
+      default:
+        return this.store.threadsHasMore();
+    }
+  });
 
-  readonly selectedRowId = computed(() =>
-    this.store.activeFolderId() === 'drafts' ? this.selectedDraftId() : this.store.selectedThreadId(),
-  );
+  readonly selectedRowId = computed(() => {
+    switch (this.store.activeFolderId()) {
+      case 'drafts':
+        return this.selectedDraftId();
+      case 'sent':
+        return this.selectedSentId();
+      default:
+        return this.store.selectedThreadId();
+    }
+  });
 
   /** Estados vacíos honestos: distinguen "falta elegir cliente" de "no hay nada". */
   readonly listEmptyText = computed(() => {
@@ -179,6 +294,10 @@ export class MailPageComponent implements OnInit {
     switch (this.store.activeFolderId()) {
       case 'drafts':
         return 'No drafts for this client';
+      case 'sent':
+        return 'No sent messages for this client yet';
+      case 'trash':
+        return 'Trash is empty';
       case 'archived':
         return 'No archived conversations for this client';
       default:
@@ -186,10 +305,32 @@ export class MailPageComponent implements OnInit {
     }
   });
 
-  readonly selectedCustomerName = computed(
-    () =>
-      this.store.customers().find(customer => customer.id === this.store.selectedCustomerId())?.displayName ?? null,
-  );
+  readonly selectedCustomerName = computed(() => this.store.selectedCustomerName());
+
+  // ---------- Typeahead de clientes ----------
+
+  /** Abre/cierra el dropdown de resultados del buscador de clientes. */
+  readonly customerPickerOpen = signal(false);
+
+  onCustomerQuery(term: string): void {
+    this.store.onCustomerQueryChange(term);
+    this.customerPickerOpen.set(true);
+  }
+
+  onCustomerFocus(): void {
+    this.customerPickerOpen.set(true);
+    this.store.openCustomerSearch();
+  }
+
+  /** Cierra con un pequeño delay para que el click en un resultado alcance a registrarse antes del blur. */
+  closeCustomerPickerSoon(): void {
+    setTimeout(() => this.customerPickerOpen.set(false), 150);
+  }
+
+  pickCustomer(customer: MailCustomerSummary): void {
+    this.store.pickCustomer(customer);
+    this.customerPickerOpen.set(false);
+  }
 
   /** Redactar exige cuenta de buzón utilizable + cliente (el draft cuelga de ambos). */
   readonly canCompose = computed(() => !!this.store.activeAccountId() && !!this.store.selectedCustomerId());
@@ -198,6 +339,7 @@ export class MailPageComponent implements OnInit {
 
   selectCustomer(customerId: string): void {
     this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
     this.store.selectCustomer(customerId);
   }
 
@@ -205,17 +347,72 @@ export class MailPageComponent implements OnInit {
     this.store.setActiveAccount(accountId);
   }
 
+  /** Muestra/oculta el formulario de alta manual IMAP/SMTP en la pantalla de conexión. */
+  readonly showManualForm = signal(false);
+
+  /**
+   * Qué opciones de conexión ofrecer según el proveedor detectado del email de login. Como el guard
+   * obliga a que el buzón sea ese mismo email, solo tiene sentido el proveedor de su dominio:
+   * gmail.com → solo Gmail; outlook/hotmail → solo Microsoft; dominio propio (Unknown) → ambos, porque
+   * no se puede saber si es Google Workspace o M365; yahoo/icloud/zoho (Imap) → ninguno OAuth, solo manual.
+   */
+  readonly showGmailOption = computed(() => {
+    const p = this.store.providerDetection().provider;
+    return p === 'Gmail' || p === 'Unknown';
+  });
+  readonly showGraphOption = computed(() => {
+    const p = this.store.providerDetection().provider;
+    return p === 'Graph' || p === 'Unknown';
+  });
+  readonly showOAuthOptions = computed(() => this.showGmailOption() || this.showGraphOption());
+
   connectMailbox(provider: 'Gmail' | 'Graph'): void {
     // El store redirige la pestaña completa al consentimiento del proveedor.
     this.store.connectMailbox(provider);
+  }
+
+  toggleManualForm(): void {
+    this.store.clearManualError();
+    this.showManualForm.update(open => !open);
+  }
+
+  submitManualConnect(body: ConnectManualAccountRequest): void {
+    this.store.connectManualAccount(body, () => {
+      // Éxito: la cuenta ya existe y hasMailbox() pasa a true → la bandeja aparece sola.
+      this.showManualForm.set(false);
+      this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
+    });
   }
 
   reauthAccount(accountId: string): void {
     this.store.reauthAccount(accountId);
   }
 
+  disconnectAccount(accountId: string): void {
+    this.store.disconnectAccount(accountId);
+  }
+
   reloadAccounts(): void {
     this.store.reloadAccounts();
+  }
+
+  /** Panel de gestión de buzones (reauth / desconectar / agregar) accesible desde la bandeja. */
+  readonly showMailboxManager = signal(false);
+
+  toggleMailboxManager(): void {
+    this.store.clearManualError();
+    this.showManualForm.set(false);
+    this.showMailboxManager.update(open => !open);
+  }
+
+  /** Reauth sirve para cuentas con token pero sin watch activo (Draft/Connected/Error), no para Active/Disconnected. */
+  canReauth(status: MailAccountStatus): boolean {
+    return status === 'Draft' || status === 'Connected' || status === 'Error';
+  }
+
+  /** Se puede desconectar cualquier cuenta que no esté ya desconectada. */
+  canDisconnect(status: MailAccountStatus): boolean {
+    return status !== 'Disconnected';
   }
 
   retryBoot(): void {
@@ -226,17 +423,34 @@ export class MailPageComponent implements OnInit {
 
   selectFolder(folderId: string): void {
     this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
     this.store.selectFolder(folderId as MailFolderId);
   }
 
   selectRow(id: string): void {
+    // La papelera no abre lectura: cada fila tiene sus botones Restore / Delete.
+    if (this.store.activeFolderId() === 'trash') {
+      return;
+    }
     if (this.store.activeFolderId() === 'drafts') {
       // Un draft no se "lee": se retoma en el composer (GET /drafts/{id}).
       this.selectedDraftId.set(id);
+      this.selectedSentId.set(null);
       this.store.openDraft(id);
       return;
     }
+    if (this.store.activeFolderId() === 'sent') {
+      const item = this.store.sent().find(row => row.messageId === id);
+      if (!item) {
+        return;
+      }
+      this.selectedDraftId.set(null);
+      this.selectedSentId.set(id);
+      this.store.openSentMessage(item);
+      return;
+    }
     this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
     this.store.selectThread(id);
   }
 
@@ -276,6 +490,36 @@ export class MailPageComponent implements OnInit {
 
   archiveThread(): void {
     this.store.archiveSelectedThread();
+  }
+
+  unarchiveThread(): void {
+    this.store.unarchiveSelectedThread();
+  }
+
+  trashMessage(messageId: string): void {
+    this.store.trashOpenMessage(messageId);
+  }
+
+  restoreTrash(id: string): void {
+    const item = this.store.trash().find(t => t.messageId === id);
+    if (item) {
+      this.store.restoreTrashItem(item);
+    }
+  }
+
+  purgeTrash(id: string): void {
+    const item = this.store.trash().find(t => t.messageId === id);
+    if (item) {
+      this.store.purgeTrashItem(item);
+    }
+  }
+
+  toggleMessageRead(event: { messageId: string; isRead: boolean }): void {
+    this.store.setMessageRead(event.messageId, event.isRead);
+  }
+
+  setThreadRead(isRead: boolean): void {
+    this.store.setThreadRead(isRead);
   }
 
   // ---------- Reply ----------

@@ -1,0 +1,37 @@
+<div class="flex min-h-screen items-center justify-center bg-brand-white px-4 py-10">
+  <div class="w-full max-w-md rounded-[28px] bg-white p-8 text-center shadow-sm">
+    <!-- Marca del tenant + sello seguro -->
+    <div class="mb-6 flex items-center justify-center gap-2">
+      <app-brand-logo
+        logoClass="h-8 max-w-[150px] object-contain"
+        fallbackClass="text-indigo-600 text-2xl font-bold leading-none"
+      ></app-brand-logo>
+      <span class="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+        <ion-icon name="shield-checkmark-outline" class="text-[10px]"></ion-icon>
+        Secure
+      </span>
+    </div>
+
+    <!-- Icono de estado -->
+    <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+      [ngClass]="state() === 'error' ? 'bg-red-50' : 'bg-indigo-50'">
+      <span *ngIf="state() === 'downloading'" class="h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></span>
+      <ion-icon *ngIf="state() === 'ready'" name="cloud-download-outline" class="text-3xl text-indigo-600"></ion-icon>
+      <ion-icon *ngIf="state() === 'error'" name="link-outline" class="text-3xl text-red-500"></ion-icon>
+    </div>
+
+    <h1 class="text-xl font-bold text-gray-900">{{ heading() }}</h1>
+    <p class="mx-auto mt-2 max-w-xs text-sm text-gray-500">{{ message() }}</p>
+
+    <!-- Botón de descarga (manual o reintento) -->
+    <a *ngIf="fallbackUrl() as url" [href]="url"
+      class="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+      <ion-icon name="download-outline" class="text-base"></ion-icon>
+      {{ state() === 'ready' ? 'Download document' : 'Download didn’t start? Tap here' }}
+    </a>
+
+    <p class="mt-5 text-[11px] text-gray-400">
+      This is a secure link tied to your email. Keep it private and don’t forward it.
+    </p>
+  </div>
+</div>

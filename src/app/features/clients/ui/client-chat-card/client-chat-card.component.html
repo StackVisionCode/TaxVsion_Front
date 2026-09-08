@@ -1,0 +1,47 @@
+<!-- no-access: sin permiso de chat, no se muestra nada (no se afirma un estado no verificable). -->
+<div *ngIf="state() !== 'no-access'" class="bg-white rounded-[28px] p-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-4 min-w-0">
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-brand-bold">
+        <ion-icon name="chatbubble-ellipses-outline" class="text-lg"></ion-icon>
+      </span>
+      <div class="min-w-0">
+        <h2 class="text-xl font-bold text-gray-900">Chat</h2>
+
+        <!-- loading -->
+        <p *ngIf="state() === 'loading'" class="mt-0.5 text-sm text-gray-400">Checking chat availability…</p>
+
+        <!-- chattable -->
+        <p *ngIf="state() === 'chattable'" class="mt-0.5 flex items-center gap-1.5 text-sm text-emerald-600">
+          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+          Portal activated · {{ firstName() }} can be messaged directly
+        </p>
+
+        <!-- not-activated: no chateable (sin portalUserId en Communication). No afirma el estado del
+             portal en Auth — puede estar activo pero aún no enlazado a mensajería (consistencia eventual). -->
+        <p *ngIf="state() === 'not-activated'" class="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">
+          <span class="h-2 w-2 rounded-full bg-gray-300"></span>
+          Not reachable in chat yet — needs an active portal account linked to messaging
+        </p>
+      </div>
+    </div>
+
+    <button
+      *ngIf="state() === 'chattable'"
+      type="button"
+      (click)="openChat()"
+      class="inline-flex shrink-0 items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold"
+    >
+      <ion-icon name="chatbubbles-outline" class="text-base"></ion-icon>
+      Open chat
+    </button>
+
+    <span
+      *ngIf="state() === 'not-activated'"
+      class="inline-flex shrink-0 items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-400"
+    >
+      <ion-icon name="lock-closed-outline" class="text-base"></ion-icon>
+      Chat unavailable
+    </span>
+  </div>
+</div>

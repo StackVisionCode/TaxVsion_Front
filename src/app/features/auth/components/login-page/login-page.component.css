@@ -82,11 +82,11 @@
 }
 
 .loader-dot:nth-child(odd)::after {
-  background-color: #1E466B;
+  background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
 }
 
 .loader-dot:nth-child(even)::after {
-  background-color: #67BAF4;
+  background-color: rgb(var(--color-orange-500-rgb, 103 186 244));
 }
 
 .loader-dot:nth-child(1) { transform: rotate(0deg) translateY(-36px); }

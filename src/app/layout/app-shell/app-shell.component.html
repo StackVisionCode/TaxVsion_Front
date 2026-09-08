@@ -1,6 +1,6 @@
 <!-- Fondo fijo al viewport: se pinta una vez y solo se compone al scrollear
      (evita el re-pintado del gradiente en cada frame que causaba lag). -->
-<div class="fixed inset-0 -z-10 bg-gradient-to-br from-[#F1F6FB] via-[#FAFAFA] to-[#F1F6FB]" aria-hidden="true"></div>
+<div class="fixed inset-0 -z-10 bg-gradient-to-br from-brand-surface via-brand-white to-brand-surface" aria-hidden="true"></div>
 
 <div class="min-h-screen flex gap-4 p-4">
   <!-- Floating sidebar card (reaches the top, rounded) -->
@@ -10,9 +10,23 @@
   <div class="flex-1 min-w-0 flex flex-col">
     <app-navbar></app-navbar>
     <main class="relative min-w-0 flex-1">
+      <!-- Señal de que se está cambiando de sección. Aparece solo si la navegación pasa de
+           120 ms: antes no había NADA entre el clic en el sidebar y el pintado. -->
+      @if (navigating()) {
+        <div class="nav-progress absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-full bg-brand-surface-strong"
+          role="status" aria-label="Loading page">
+          <span class="nav-progress__bar block h-full w-1/3 bg-brand-bold"></span>
+        </div>
+      }
       <div #routeContent class="min-h-full flex flex-col">
         <router-outlet (activate)="onRouteActivate()"></router-outlet>
       </div>
     </main>
   </div>
 </div>
+
+<!-- Toasts globales (una sola instancia para toda la app autenticada). -->
+<app-toast-host></app-toast-host>
+
+<!-- Overlay global de llamada 1:1 (entrante/saliente/en curso, en cualquier página). -->
+<app-call-overlay></app-call-overlay>

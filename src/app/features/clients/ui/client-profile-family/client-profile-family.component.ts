@@ -12,94 +12,117 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ClientDependent, ClientProfile, ClientSpouse } from '../../models/client-profile.model';
+import { ClientProfile } from '../../models/client-profile.model';
+import { AddRelationRequest, RelationResponse, RelationPurpose } from '../../data-access/clients.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 
-const RELATIONSHIPS = ['Daughter', 'Son', 'Spouse', 'Parent', 'Other'];
+const RELATIONSHIPS = ['Spouse', 'Child', 'Parent', 'Other'];
 const PAGE_SIZE = 6;
 
+export interface SaveRelationPayload {
+  /** null = alta nueva; con valor = edición de esa relación. */
+  id: string | null;
+  req: AddRelationRequest;
+}
+
 /**
- * Pestaña "Family" del perfil de cliente (dependents + spouse): puerto
- * visual/estructural de las páginas legacy `cuenta-dependents`/
- * `cuenta-spouses` combinadas en una sola pestaña (spouse es 0-o-1 por
- * cliente, dependents es una lista). Ambos mini-formularios viven inline en
- * este componente (dos `app-modal`), replicando el patrón de dos-modos de
- * `client-form-panel`. Estado 100% local: se reinicializa en ngOnChanges
- * cada vez que cambia el `client` recibido (sin persistencia real).
+ * Pestaña "Family" del perfil de cliente, cableada contra
+ * `/customers/{id}/relations` — las **escrituras** son reales
+ * (POST/PATCH/DELETE existen y funcionan).
+ *
+ * ⚠️ La **lectura** no: verificado contra el backend (2026-08-28) no hay
+ * `GET` de relaciones, y `GET /customers/{id}` devuelve `CustomerResponse`,
+ * que son solo escalares. Por eso el contenedor conserva en memoria lo
+ * guardado en la sesión y pasa `sessionOnly` para que la UI lo diga en vez
+ * de aparentar una lista persistida: recargar la página vacía la lista
+ * aunque los datos sí quedaron en el servidor.
+ *
+ * `RelationResponse` NO separa first/last name (solo `displayName`), así que
+ * al editar se pre-completa partiendo el nombre por el primer espacio — el
+ * usuario puede corregirlo si el split no calzó (ver `fillFormFrom`).
+ *
+ * Presentacional puro (regla del repo: `ui/*` nunca inyecta el store): el
+ * HTTP lo dispara el contenedor (`client-profile-page`) vía los
+ * `@Output()`; esta pestaña solo deriva spouse/dependents de
+ * `client.relations` para mostrarlos y vuelve a derivarlos cuando el padre
+ * refresca `client` tras guardar/borrar.
  */
 @Component({
   selector: 'app-client-profile-family',
   imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, PaginationComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-family.component.html',
+  styleUrl: './client-profile-family.component.css',
 })
 export class ClientProfileFamilyComponent implements OnChanges {
   @Input() client: ClientProfile | null = null;
+  @Input() saving = false;
+  @Input() saveError: string | null = null;
+  /** true = lo listado solo vive en memoria porque el backend no expone lectura de relaciones. */
+  @Input() sessionOnly = false;
+
+  @Output() saveRelation = new EventEmitter<SaveRelationPayload>();
+  @Output() deleteRelation = new EventEmitter<string>();
 
   readonly relationships = RELATIONSHIPS;
   readonly pageSize = PAGE_SIZE;
 
-  readonly dependents = signal<ClientDependent[]>([]);
-  readonly spouse = signal<ClientSpouse | null>(null);
+  readonly dependents = signal<RelationResponse[]>([]);
+  readonly spouse = signal<RelationResponse | null>(null);
 
   readonly search = signal('');
   readonly currentPage = signal(1);
 
-  readonly visibleDependents = computed<ClientDependent[]>(() => {
+  readonly visibleDependents = computed<RelationResponse[]>(() => {
     const query = this.search().trim().toLowerCase();
     if (!query) {
       return this.dependents();
     }
     return this.dependents().filter(
-      dependent => dependent.name.toLowerCase().includes(query) || dependent.relationship.toLowerCase().includes(query),
+      dependent =>
+        dependent.displayName.toLowerCase().includes(query) || dependent.relationshipKind.toLowerCase().includes(query),
     );
   });
 
-  readonly pagedDependents = computed<ClientDependent[]>(() => {
+  readonly pagedDependents = computed<RelationResponse[]>(() => {
     const start = (this.currentPage() - 1) * PAGE_SIZE;
     return this.visibleDependents().slice(start, start + PAGE_SIZE);
   });
 
-  // Dependent form
-  readonly isDependentModalOpen = signal(false);
-  readonly editingDependentIndex = signal<number | null>(null);
-  readonly depName = signal('');
-  readonly depRelationship = signal(RELATIONSHIPS[0]);
-  readonly depDateOfBirth = signal('');
-  readonly depSsnOrItin = signal('');
+  // ---------- Form (compartido dependent/spouse — ambos son `relations`) ----------
+  readonly isFormOpen = signal(false);
+  readonly editingId = signal<string | null>(null);
+  readonly formMode = signal<'dependent' | 'spouse'>('dependent');
+  readonly firstName = signal('');
+  readonly lastName = signal('');
+  readonly relationshipKind = signal(RELATIONSHIPS[0]);
+  readonly dateOfBirth = signal('');
+  readonly primaryEmail = signal('');
+  readonly primaryPhone = signal('');
   readonly isRelationshipOpen = signal(false);
-  readonly pendingDeleteDependentIndex = signal<number | null>(null);
 
-  readonly canSaveDependent = computed(() => this.depName().trim().length > 0);
+  readonly pendingDeleteId = signal<string | null>(null);
+  readonly pendingDeleteName = signal('');
 
-  // Spouse form
-  readonly isSpouseModalOpen = signal(false);
-  readonly spName = signal('');
-  readonly spSsnOrItin = signal('');
-  readonly spDateOfBirth = signal('');
-  readonly spPhone = signal('');
-  readonly spEmail = signal('');
-  readonly pendingDeleteSpouse = signal(false);
-
-  readonly canSaveSpouse = computed(() => this.spName().trim().length > 0);
-
-  readonly pendingDeleteDependentMessage = computed(() => {
-    const index = this.pendingDeleteDependentIndex();
-    if (index === null) {
-      return '';
-    }
-    const dependent = this.dependents()[index];
-    return dependent ? `You're about to remove ${dependent.name} as a dependent. This can't be undone.` : '';
-  });
+  readonly canSave = computed(() => this.firstName().trim().length > 0 && this.lastName().trim().length > 0);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['client']) {
-      this.dependents.set([...(this.client?.dependents ?? [])]);
-      this.spouse.set(this.client?.spouse ?? null);
+      const relations = this.client?.relations ?? [];
+      const spouseRelation = relations.find(r => r.relationshipKind === 'Spouse') ?? null;
+      this.spouse.set(spouseRelation);
+      this.dependents.set(relations.filter(r => r.id !== spouseRelation?.id));
       this.search.set('');
       this.currentPage.set(1);
+      // Un guardado exitoso del padre cierra el form y limpia el pending-delete
+      // (ver comentario en submitForm/confirmDelete): si seguían abiertos acá
+      // es que la mutación recién terminó y el padre refrescó `client`.
+      if (!this.saving) {
+        this.isFormOpen.set(false);
+        this.pendingDeleteId.set(null);
+      }
     }
   }
 
@@ -111,7 +134,7 @@ export class ClientProfileFamilyComponent implements OnChanges {
     }
   }
 
-  age(dateOfBirth: string): number | null {
+  age(dateOfBirth: string | null | undefined): number | null {
     if (!dateOfBirth) {
       return null;
     }
@@ -123,14 +146,6 @@ export class ClientProfileFamilyComponent implements OnChanges {
       age--;
     }
     return age;
-  }
-
-  maskSsn(ssnOrItin?: string): string {
-    if (!ssnOrItin) {
-      return '—';
-    }
-    const last4 = ssnOrItin.slice(-4);
-    return `•••-••-${last4}`;
   }
 
   initials(name: string): string {
@@ -146,83 +161,28 @@ export class ClientProfileFamilyComponent implements OnChanges {
   // --- Dependent actions ---
 
   openAddDependent(): void {
-    this.editingDependentIndex.set(null);
-    this.depName.set('');
-    this.depRelationship.set(RELATIONSHIPS[0]);
-    this.depDateOfBirth.set('');
-    this.depSsnOrItin.set('');
-    this.isDependentModalOpen.set(true);
+    this.formMode.set('dependent');
+    this.resetForm(RELATIONSHIPS[1]);
+    this.isFormOpen.set(true);
   }
 
-  openEditDependent(index: number): void {
-    const dependent = this.dependents()[index];
-    if (!dependent) {
-      return;
-    }
-    this.editingDependentIndex.set(index);
-    this.depName.set(dependent.name);
-    this.depRelationship.set(dependent.relationship);
-    this.depDateOfBirth.set(dependent.dateOfBirth);
-    this.depSsnOrItin.set(dependent.ssnOrItin ?? '');
-    this.isDependentModalOpen.set(true);
+  openEditDependent(relation: RelationResponse): void {
+    this.formMode.set('dependent');
+    this.fillFormFrom(relation);
+    this.isFormOpen.set(true);
   }
 
-  closeDependentModal(): void {
-    this.isDependentModalOpen.set(false);
-    this.editingDependentIndex.set(null);
-  }
-
-  toggleRelationshipDropdown(): void {
-    this.isRelationshipOpen.update(open => !open);
-  }
-
-  selectRelationship(relationship: string): void {
-    this.depRelationship.set(relationship);
-    this.isRelationshipOpen.set(false);
-  }
-
-  saveDependent(): void {
-    if (!this.canSaveDependent()) {
-      return;
-    }
-    const dependent: ClientDependent = {
-      name: this.depName().trim(),
-      relationship: this.depRelationship(),
-      dateOfBirth: this.depDateOfBirth(),
-      ssnOrItin: this.depSsnOrItin().trim() || undefined,
-    };
-    const index = this.editingDependentIndex();
-    this.dependents.update(list => {
-      if (index === null) {
-        return [...list, dependent];
-      }
-      return list.map((item, i) => (i === index ? dependent : item));
-    });
-    this.closeDependentModal();
-  }
-
-  requestDeleteDependent(index: number): void {
-    this.pendingDeleteDependentIndex.set(index);
-  }
-
-  confirmDeleteDependent(): void {
-    const index = this.pendingDeleteDependentIndex();
-    if (index === null) {
-      return;
-    }
-    this.dependents.update(list => list.filter((_, i) => i !== index));
-    this.pendingDeleteDependentIndex.set(null);
+  requestDeleteDependent(relation: RelationResponse): void {
+    this.pendingDeleteId.set(relation.id);
+    this.pendingDeleteName.set(relation.displayName);
   }
 
   // --- Spouse actions ---
 
   openAddSpouse(): void {
-    this.spName.set('');
-    this.spSsnOrItin.set('');
-    this.spDateOfBirth.set('');
-    this.spPhone.set('');
-    this.spEmail.set('');
-    this.isSpouseModalOpen.set(true);
+    this.formMode.set('spouse');
+    this.resetForm('Spouse');
+    this.isFormOpen.set(true);
   }
 
   openEditSpouse(): void {
@@ -230,41 +190,83 @@ export class ClientProfileFamilyComponent implements OnChanges {
     if (!spouse) {
       return;
     }
-    this.spName.set(spouse.name);
-    this.spSsnOrItin.set(spouse.ssnOrItin);
-    this.spDateOfBirth.set(spouse.dateOfBirth);
-    this.spPhone.set(spouse.phone ?? '');
-    this.spEmail.set(spouse.email ?? '');
-    this.isSpouseModalOpen.set(true);
-  }
-
-  closeSpouseModal(): void {
-    this.isSpouseModalOpen.set(false);
-  }
-
-  saveSpouse(): void {
-    if (!this.canSaveSpouse()) {
-      return;
-    }
-    const existing = this.spouse();
-    const spouse: ClientSpouse = {
-      name: this.spName().trim(),
-      ssnOrItin: this.spSsnOrItin().trim(),
-      dateOfBirth: this.spDateOfBirth(),
-      phone: this.spPhone().trim() || undefined,
-      email: this.spEmail().trim() || undefined,
-      createdAt: existing?.createdAt ?? new Date().toISOString().slice(0, 10),
-    };
-    this.spouse.set(spouse);
-    this.closeSpouseModal();
+    this.formMode.set('spouse');
+    this.fillFormFrom(spouse);
+    this.isFormOpen.set(true);
   }
 
   requestDeleteSpouse(): void {
-    this.pendingDeleteSpouse.set(true);
+    const spouse = this.spouse();
+    if (!spouse) {
+      return;
+    }
+    this.pendingDeleteId.set(spouse.id);
+    this.pendingDeleteName.set(spouse.displayName);
   }
 
-  confirmDeleteSpouse(): void {
-    this.spouse.set(null);
-    this.pendingDeleteSpouse.set(false);
+  // --- Form compartido ---
+
+  private resetForm(relationshipKind: string): void {
+    this.editingId.set(null);
+    this.firstName.set('');
+    this.lastName.set('');
+    this.relationshipKind.set(relationshipKind);
+    this.dateOfBirth.set('');
+    this.primaryEmail.set('');
+    this.primaryPhone.set('');
+  }
+
+  /** `RelationResponse` no separa first/last — se parte `displayName` en el primer espacio como mejor esfuerzo. */
+  private fillFormFrom(relation: RelationResponse): void {
+    this.editingId.set(relation.id);
+    const spaceIndex = relation.displayName.indexOf(' ');
+    this.firstName.set(spaceIndex === -1 ? relation.displayName : relation.displayName.slice(0, spaceIndex));
+    this.lastName.set(spaceIndex === -1 ? '' : relation.displayName.slice(spaceIndex + 1));
+    this.relationshipKind.set(relation.relationshipKind);
+    this.dateOfBirth.set(relation.dateOfBirth ?? '');
+    this.primaryEmail.set(relation.primaryEmail ?? '');
+    this.primaryPhone.set(relation.primaryPhone ?? '');
+  }
+
+  closeForm(): void {
+    this.isFormOpen.set(false);
+  }
+
+  toggleRelationshipDropdown(): void {
+    this.isRelationshipOpen.update(open => !open);
+  }
+
+  selectRelationship(kind: string): void {
+    this.relationshipKind.set(kind);
+    this.isRelationshipOpen.set(false);
+  }
+
+  submitForm(): void {
+    if (!this.canSave()) {
+      return;
+    }
+    const kind = this.relationshipKind();
+    const purposes = kind === 'Spouse' ? RelationPurpose.TaxHouseholdMember : RelationPurpose.Dependent;
+    const req: AddRelationRequest = {
+      relationshipKind: kind,
+      purposes,
+      firstName: this.firstName().trim(),
+      lastName: this.lastName().trim(),
+      dateOfBirth: this.dateOfBirth() || null,
+      primaryEmail: this.primaryEmail().trim() || null,
+      primaryPhone: this.primaryPhone().trim() || null,
+    };
+    this.saveRelation.emit({ id: this.editingId(), req });
+  }
+
+  confirmDelete(): void {
+    const id = this.pendingDeleteId();
+    if (id) {
+      this.deleteRelation.emit(id);
+    }
+  }
+
+  cancelDelete(): void {
+    this.pendingDeleteId.set(null);
   }
 }

@@ -87,11 +87,11 @@ export const STORAGE_CATEGORIES: StorageCategory[] = ['Documents', 'Images', 'Vi
 
 /** Colores/íconos por grupo — misma paleta de acentos que el diseño original. */
 export const CATEGORY_META: Record<string, { icon: string; color: string }> = {
-  Documents: { icon: 'document-text-outline', color: '#1E466B' },
-  Images: { icon: 'image-outline', color: '#67BAF4' },
-  'Video & Audio': { icon: 'videocam-outline', color: '#3275B3' },
-  Others: { icon: 'ellipsis-horizontal-circle-outline', color: '#A8C6E0' },
-  Trash: { icon: 'trash-outline', color: '#7A8794' },
+  Documents: { icon: 'document-text-outline', color: 'rgb(var(--color-indigo-600-rgb, 30 70 107))' },
+  Images: { icon: 'image-outline', color: 'rgb(var(--color-orange-500-rgb, 103 186 244))' },
+  'Video & Audio': { icon: 'videocam-outline', color: 'rgb(var(--color-indigo-500-rgb, 54 114 169))' },
+  Others: { icon: 'ellipsis-horizontal-circle-outline', color: 'rgb(var(--color-indigo-300-rgb, 136 174 210))' },
+  Trash: { icon: 'trash-outline', color: 'rgb(var(--color-gray-500-rgb, 107 114 128))' },
 };
 
 const DOCUMENT_EXTENSIONS = new Set([

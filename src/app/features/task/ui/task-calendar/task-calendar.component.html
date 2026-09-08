@@ -1,0 +1,55 @@
+<div class="flex flex-col gap-4">
+  <!-- Toolbar -->
+  <div class="flex items-center justify-between">
+    <h3 class="text-base font-bold text-gray-900">{{ monthLabel() }}</h3>
+    <div class="flex items-center gap-1">
+      <button type="button" (click)="today()"
+        class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">Today</button>
+      <button type="button" (click)="prevMonth()" aria-label="Previous month"
+        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+      <button type="button" (click)="nextMonth()" aria-label="Next month"
+        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Weekday header -->
+  <div class="grid grid-cols-7 gap-px text-center text-xs font-semibold uppercase tracking-wide text-gray-400">
+    @for (wd of weekdays; track wd) { <div class="py-1">{{ wd }}</div> }
+  </div>
+
+  <!-- Grid -->
+  <div class="grid grid-cols-7 gap-px overflow-hidden rounded-2xl border border-gray-100 bg-gray-100"
+    [class.opacity-60]="loading()">
+    @for (week of weeks(); track $index) {
+      @for (day of week; track day.iso) {
+        <div class="min-h-[92px] bg-white p-1.5 flex flex-col gap-1" [class.bg-gray-50]="!day.inMonth">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium"
+              [class.text-gray-300]="!day.inMonth" [class.text-gray-500]="day.inMonth && !day.isToday">
+              <span *ngIf="day.isToday" class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold text-white">{{ day.date.getDate() }}</span>
+              <span *ngIf="!day.isToday">{{ day.date.getDate() }}</span>
+            </span>
+          </div>
+          <div class="flex flex-col gap-0.5">
+            @for (entry of day.entries.slice(0, 3); track entry.id) {
+              <button type="button" (click)="open(entry)"
+                class="flex items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] hover:bg-gray-50 transition-colors"
+                [class.bg-red-50]="isOverdue(entry)">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" [ngClass]="priorityDot(entry.priority)"></span>
+                @if (entry.isStatutory) { <ion-icon name="shield-checkmark-outline" class="shrink-0 text-purple-400 text-[10px]"></ion-icon> }
+                <span class="truncate" [class.text-red-600]="isOverdue(entry)" [class.text-gray-700]="!isOverdue(entry)">{{ entry.title }}</span>
+              </button>
+            }
+            @if (day.entries.length > 3) {
+              <span class="px-1 text-[10px] text-gray-400">+{{ day.entries.length - 3 }} more</span>
+            }
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>

@@ -1,19 +1,19 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
   <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+    <div class="rounded-[24px] bg-indigo-50 p-5">
       <p class="text-sm text-gray-600">Total services</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.total() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Active</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeCount() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+    <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Avg. price</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">${{ avgPrice() }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Categories</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.categories().length }}</p>
     </div>
@@ -95,7 +95,7 @@
 
     <!-- Toggle Active (solo edición: los ítems nuevos nacen activos en el backend) -->
     <div *ngIf="editingService()"
-      class="flex items-center justify-between rounded-2xl border border-gray-100 bg-[#FAFAFA] px-4 py-3">
+      class="flex items-center justify-between rounded-2xl border border-gray-100 bg-brand-white px-4 py-3">
       <div>
         <p class="text-sm font-medium text-gray-900">{{ newActive() ? 'Active' : 'Inactive' }}</p>
         <p class="text-xs text-gray-500">Inactive entries stay hidden from billing</p>

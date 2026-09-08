@@ -1,62 +1,197 @@
 <div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
   <!-- Conversation rail -->
-  <div class="bg-white rounded-[28px] p-5 lg:col-span-1">
+  <div class="bg-white rounded-[28px] p-5 lg:col-span-1 flex flex-col min-h-0">
     <div class="flex items-start justify-between gap-2 px-1">
       <div>
         <h2 class="text-xl font-bold text-gray-900">Chat</h2>
-        <p class="mt-1 text-sm text-gray-500">Team conversations</p>
+        <p class="mt-1 text-sm text-gray-500">Message clients and your team</p>
       </div>
-      <button type="button" (click)="openNewConversation()" aria-label="New chat"
+      <button *ngIf="canCreateGroups()" type="button" (click)="openNewConversation()" aria-label="New group"
+        title="New group"
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="add-outline" class="text-lg"></ion-icon>
       </button>
     </div>
 
-    <p *ngIf="loading()" class="mt-2 px-1 text-xs text-gray-400">Loading conversations…</p>
-    <p *ngIf="loadError()" class="mt-2 px-1 text-xs text-red-600">{{ loadError() }}</p>
-
-    <div class="mt-4">
-      <app-chat-conversation-list [conversations]="conversations()" [selectedId]="activeConversationId()"
-        (conversationSelected)="selectConversation($event)"></app-chat-conversation-list>
+    <!-- Tabs: Chats / Clients / Team -->
+    <div class="mt-4 flex items-center rounded-full bg-gray-100 p-1 text-sm">
+      <button type="button" (click)="switchRailTab('chats')"
+        class="flex-1 rounded-full py-1.5 font-medium transition-colors"
+        [ngClass]="railTab() === 'chats' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'">Chats</button>
+      <button type="button" (click)="switchRailTab('clients')"
+        class="flex-1 rounded-full py-1.5 font-medium transition-colors"
+        [ngClass]="railTab() === 'clients' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'">Clients</button>
+      <button type="button" (click)="switchRailTab('team')"
+        class="flex-1 rounded-full py-1.5 font-medium transition-colors"
+        [ngClass]="railTab() === 'team' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'">Team</button>
     </div>
+
+    <!-- CHATS -->
+    <ng-container *ngIf="railTab() === 'chats'">
+      <p *ngIf="loading()" class="mt-3 px-1 text-xs text-gray-400">Loading conversations…</p>
+      <p *ngIf="loadError()" class="mt-3 px-1 text-xs text-red-600">{{ loadError() }}</p>
+      <div class="mt-4 flex-1 min-h-0 overflow-y-auto">
+        <app-chat-conversation-list [conversations]="conversations()" [selectedId]="activeConversationId()"
+          (conversationSelected)="selectConversation($event)"></app-chat-conversation-list>
+      </div>
+    </ng-container>
+
+    <!-- CLIENTS / TEAM directory -->
+    <ng-container *ngIf="railTab() !== 'chats'">
+      <div class="mt-3 relative">
+        <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <ion-icon name="search-outline" class="absolute left-4 text-base text-gray-400 pointer-events-none"></ion-icon>
+          <input type="text" [placeholder]="railTab() === 'clients' ? 'Search clients…' : 'Search teammates…'"
+            [ngModel]="railSearch()" (ngModelChange)="onRailSearch($event)"
+            class="w-full h-full bg-transparent pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+      </div>
+
+      <p *ngIf="newConversationError()" class="mt-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600">
+        {{ newConversationError() }}
+      </p>
+
+      <div class="mt-3 flex-1 min-h-0 overflow-y-auto flex flex-col gap-1">
+        <!-- Clients -->
+        <ng-container *ngIf="railTab() === 'clients'">
+          <ng-container *ngFor="let entry of customerResults()">
+            <button *ngIf="entry.portalUserId" type="button" (click)="onRailSelectCustomer(entry)" [disabled]="creatingConversation()"
+              class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-xs font-bold text-white">{{ initials(entry.displayName) }}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
+                <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+              </span>
+            </button>
+            <div *ngIf="!entry.portalUserId" class="flex items-center gap-3 rounded-2xl px-3 py-2.5 opacity-60"
+              title="This client hasn't activated their portal yet, so they can't be messaged.">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-300 text-xs font-bold text-white">{{ initials(entry.displayName) }}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-gray-700">{{ entry.displayName }}</span>
+                <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+              </span>
+              <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-500">Portal not activated</span>
+            </div>
+          </ng-container>
+          <p *ngIf="!employeeSearchLoading() && customerResults().length === 0" class="px-3 py-8 text-center text-sm text-gray-400">
+            {{ railSearch().trim() ? 'No clients found' : 'Type a name to find a client' }}
+          </p>
+        </ng-container>
+
+        <!-- Team -->
+        <ng-container *ngIf="railTab() === 'team'">
+          <button *ngFor="let entry of employeeResults()" type="button" (click)="onRailSelectEmployee(entry)" [disabled]="creatingConversation()"
+            class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-xs font-bold text-white">{{ initials(entry.displayName) }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
+              <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+            </span>
+          </button>
+          <p *ngIf="!employeeSearchLoading() && employeeResults().length === 0" class="px-3 py-8 text-center text-sm text-gray-400">
+            {{ railSearch().trim() ? 'No teammates found' : 'Type a name to find a teammate' }}
+          </p>
+        </ng-container>
+
+        <p *ngIf="employeeSearchLoading()" class="px-3 py-3 text-center text-sm text-gray-400">Searching…</p>
+      </div>
+    </ng-container>
   </div>
 
   <!-- Thread card -->
-  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem]">
+  <!-- min-h-[32rem] en móvil (sin fila acotada) pero lg:min-h-0 para que el grid-item respete la fila
+       minmax(0,1fr): sin esto la columna crece a todo el contenido, el hilo nunca acota su alto y
+       scrollea la PÁGINA en vez del contenedor (por eso no bajaba solo al último mensaje). -->
+  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem] lg:min-h-0">
+    <!-- Empty state: no conversation selected yet -->
+    <div *ngIf="!hasActiveConversation()" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10">
+      <span class="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-bold/10 text-brand-bold">
+        <span class="absolute inline-flex h-full w-full rounded-3xl bg-brand-bold/10 motion-safe:animate-ping"></span>
+        <ion-icon name="chatbubbles-outline" class="relative text-4xl"></ion-icon>
+      </span>
+      <h2 class="mt-6 text-xl font-bold text-gray-900">Your conversations live here</h2>
+      <p class="mt-2 max-w-sm text-sm text-gray-500">
+        Pick a client or a teammate from the list to start chatting. New messages arrive here in real time.
+      </p>
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button type="button" (click)="switchRailTab('clients')"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="people-outline" class="text-base"></ion-icon>
+          Message a client
+        </button>
+        <button type="button" (click)="switchRailTab('team')"
+          class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          <ion-icon name="briefcase-outline" class="text-base"></ion-icon>
+          Message a teammate
+        </button>
+        <button *ngIf="canCreateGroups()" type="button" (click)="openNewConversation()"
+          class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          New group
+        </button>
+      </div>
+    </div>
+
+    <!-- Active conversation -->
+    <ng-container *ngIf="hasActiveConversation()">
     <!-- Thread header -->
     <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
       <div class="relative shrink-0">
         <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
           [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
-        <span *ngIf="activeConversation.online" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+        <span *ngIf="showPresenceDot" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-white"
+          [ngClass]="presenceDotClass" [attr.aria-label]="presenceLabel" [attr.title]="presenceLabel"></span>
       </div>
       <div>
-        <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
-        <span class="flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
-          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-          {{ activeConversation.online ? 'Online' : 'Offline' }}
+        <div class="flex items-center gap-2">
+          <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
+          <span *ngIf="isActiveSupport"
+            class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
+        </div>
+        <span class="flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
+          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>
+          {{ presenceLabel }}
         </span>
       </div>
 
+      <button *ngIf="canCallActiveConversation" type="button" (click)="startAudioCall()"
+        [disabled]="callButtonsDisabled" [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start audio call'"
+        class="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
+        <ion-icon name="call-outline" class="text-base"></ion-icon>
+      </button>
+
+      <button *ngIf="canVideoCallActiveConversation" type="button" (click)="startVideoCall()"
+        [class.ml-auto]="!canCallActiveConversation" [disabled]="callButtonsDisabled"
+        [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start video call'"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
+        <ion-icon name="videocam-outline" class="text-base"></ion-icon>
+      </button>
+
       <button type="button" (click)="openInfo()"
-        class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        [class.ml-auto]="!canCallActiveConversation && !canVideoCallActiveConversation"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
         <ion-icon name="information-circle-outline" class="text-base text-gray-400"></ion-icon>
         Info
       </button>
     </div>
 
-    <!-- Thread -->
-    <div class="flex-1 overflow-y-auto py-4">
+    <!-- Thread (el propio thread es el contenedor scrollable) -->
+    <div class="flex-1 min-h-0">
       <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
-        [otherAvatarColor]="activeConversation.avatarColor"
-        (attachmentClicked)="onAttachmentClicked($event)"></app-chat-thread>
+        [otherAvatarColor]="activeConversation.avatarColor" [conversationId]="activeConversation.id"
+        [typingName]="activeConversation.typingName" [recordingName]="activeConversation.recordingName"
+        [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
+        (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
+        (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"></app-chat-thread>
     </div>
 
     <!-- Composer -->
     <div class="pt-4 border-t border-gray-100">
       <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
-        (attach)="onAttach($event)"></app-chat-composer>
+        (attach)="onAttach($event)" (typing)="onTyping($event)"
+        (sendVoiceNote)="onSendVoiceNote($event)" (recording)="onRecording($event)"></app-chat-composer>
     </div>
+    </ng-container>
   </div>
 </div>
 
@@ -66,9 +201,9 @@
     <span class="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
       [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
     <p class="mt-3 text-base font-bold text-gray-900">{{ activeConversation.name }}</p>
-    <span class="mt-1 flex items-center gap-1.5 text-xs" [ngClass]="activeConversation.online ? 'text-emerald-600' : 'text-gray-400'">
-      <span class="h-1.5 w-1.5 rounded-full" [ngClass]="activeConversation.online ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-      {{ activeConversation.online ? 'Online' : 'Offline' }}
+    <span class="mt-1 flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
+      <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>
+      {{ presenceLabel }}
     </span>
   </div>
 
@@ -77,7 +212,7 @@
     <div class="mt-2 flex flex-col gap-2">
       <button *ngFor="let file of sharedAttachments" type="button" (click)="onAttachmentClicked(file.fileId)"
         class="flex items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50 transition-colors">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CFE2F7]">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
           <ion-icon name="document-outline" class="text-base text-gray-700"></ion-icon>
         </span>
         <span class="min-w-0">
@@ -93,8 +228,13 @@
   </div>
 </app-modal>
 
+<app-confirm-dialog [isOpen]="isDeleteConfirmOpen()" heading="Delete message"
+  message="This message will be removed for everyone in the conversation. This can't be undone." confirmLabel="Delete"
+  (confirmed)="confirmDelete()" (cancelled)="cancelDelete()"></app-confirm-dialog>
+
 <app-new-conversation-modal [isOpen]="isNewConversationOpen()" [employees]="employeeResults()"
-  [searching]="employeeSearchLoading()" [error]="employeeSearchError()" [creationError]="newConversationError()"
-  [canCreateGroups]="canCreateGroups()" [creating]="creatingConversation()" (closed)="closeNewConversation()"
-  (searchChanged)="onEmployeeSearch($event)" (directSelected)="onDirectSelected($event)"
+  [customers]="customerResults()" [searching]="employeeSearchLoading()" [error]="employeeSearchError()"
+  [creationError]="newConversationError()" [canCreateGroups]="canCreateGroups()" [creating]="creatingConversation()"
+  (closed)="closeNewConversation()" (searchChanged)="onDirectorySearch($event)"
+  (customerSelected)="onCustomerSelected($event)" (directSelected)="onDirectSelected($event)"
   (groupCreateRequested)="onGroupCreateRequested($event)"></app-new-conversation-modal>

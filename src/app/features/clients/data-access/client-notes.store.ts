@@ -1,7 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { ClientNotesService } from './client-notes.service';
 import {
   ClientNoteCard,
@@ -11,6 +14,10 @@ import {
   NoteVisibility,
   toClientNoteCard,
 } from './client-notes.model';
+
+/** Cuántas veces se recarga la lista tras adjuntar, buscando el flip Pending→Available (scan async). */
+const ATTACH_POLLS = 6;
+const ATTACH_POLL_INTERVAL_MS = 3000;
 
 /** Permiso de gobernanza de Notes: habilita archivar/restaurar/borrar notas ajenas (nunca editarlas). */
 const NOTES_VIEW_ALL = 'notes.view_all';
@@ -31,6 +38,7 @@ const NOTES_VIEW_ALL = 'notes.view_all';
 export class ClientNotesStore {
   private readonly service = inject(ClientNotesService);
   private readonly auth = inject(AuthService);
+  private readonly cloud = inject(CloudStorageUploadService);
 
   private clientId = '';
   private userNamesLoaded = false;
@@ -41,6 +49,8 @@ export class ClientNotesStore {
   private readonly _actionError = signal<string | null>(null);
   private readonly _busyIds = signal<ReadonlySet<string>>(new Set());
   private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
+  /** Ids de notas creadas en esta sesión: propias con certeza, aunque `currentUser()` tarde. */
+  private readonly _optimisticMineIds = signal<ReadonlySet<string>>(new Set());
 
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
@@ -54,7 +64,8 @@ export class ClientNotesStore {
     const names = this._userNames();
     const me = this.currentUserId();
     const viewAll = this.hasViewAll();
-    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll));
+    const mine = this._optimisticMineIds();
+    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll, mine.has(note.id)));
   });
 
   readonly total = computed(() => this._raw().length);
@@ -67,7 +78,13 @@ export class ClientNotesStore {
     this._actionError.set(null);
   }
 
-  /** Carga (o recarga) las notas del cliente indicado. */
+  /**
+   * La pestaña se destruye y se recrea al cambiar de tab, así que esto se llamaba en cada
+   * ida y vuelta y repetía el listado. El gate distingue por cliente y por antigüedad.
+   */
+  private readonly gate = new FetchGate();
+
+  /** Carga las notas del cliente indicado (usa la caché si siguen frescas). */
   load(clientId: string): void {
     if (clientId !== this.clientId) {
       this.clientId = clientId;
@@ -75,11 +92,21 @@ export class ClientNotesStore {
       this._actionError.set(null);
     }
     this.loadUserNamesOnce();
-    this.refresh();
+    if (this.gate.shouldFetch(clientId)) {
+      this.doRefresh();
+    }
   }
 
+  /** Recarga forzada: tras crear/editar/borrar una nota. Siempre va al backend. */
   refresh(): void {
+    if (this.gate.shouldFetch(this.clientId, true)) {
+      this.doRefresh();
+    }
+  }
+
+  private doRefresh(): void {
     if (!this.clientId) {
+      this.gate.settle(false);
       return;
     }
     this._loading.set(true);
@@ -88,10 +115,12 @@ export class ClientNotesStore {
       next: result => {
         this._raw.set(result.items);
         this._loading.set(false);
+        this.gate.settle(true);
       },
       error: err => {
         this._error.set(toApiError(err).message);
         this._loading.set(false);
+        this.gate.settle(false);
       },
     });
   }
@@ -109,7 +138,10 @@ export class ClientNotesStore {
         colorKind: colorKind === 'Default' ? null : colorKind,
       })
       .pipe(
-        tap(created => this._raw.update(list => [created, ...list])),
+        tap(created => {
+          this._optimisticMineIds.update(ids => new Set(ids).add(created.id));
+          this._raw.update(list => [created, ...list]);
+        }),
         map(() => undefined),
       );
   }
@@ -153,6 +185,116 @@ export class ClientNotesStore {
         this.markBusy(id, false);
       },
     });
+  }
+
+  // ---------- Adjuntos (solo el autor) ----------
+
+  /**
+   * Sube el archivo a CloudStorage (presigned) y lo enlaza a la nota. El adjunto queda `Pending`
+   * hasta que el escaneo lo marca `Available` (evento async) — se sondea la lista para reflejarlo.
+   * OwnerType=Customer/OwnerId=cliente para co-ubicarlo; la nota se enlaza por `fileId`.
+   */
+  attachFile(noteId: string, file: File): void {
+    this.markBusy(noteId, true);
+    const contentType = file.type || 'application/octet-stream';
+    const request: InitiateUploadRequest = {
+      originalName: file.name,
+      contentType,
+      sizeBytes: file.size,
+      ownerType: 'Customer',
+      ownerId: this.clientId,
+      // `Other`: un adjunto de nota NO es un documento fiscal, así que no exige tax year
+      // (los buckets Documents/Receipts/Invoices sí lo piden — FolderTypeRules.RequiresYear).
+      folderType: 'Other',
+      taxYear: null,
+    };
+    this.cloud
+      .initiateUpload(request)
+      .pipe(
+        switchMap(initiated =>
+          this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
+            // Se crea el link (attach → NoteAttachment en Pending) ANTES de `complete`. `complete`
+            // dispara el escaneo → `cloudstorage.file.available` → el consumer de Notes busca la fila
+            // por CloudStorageFileId para marcarla Available. Si `complete` fuera primero, ese evento
+            // podía llegar (~100ms) antes de que la fila existiera y el adjunto quedaba atascado en
+            // "Scanning". Con attach primero la fila ya está cuando el evento llega (Notes no tiene
+            // client de CloudStorage para auto-sanarse en lectura, así que el orden es la garantía).
+            switchMap(() =>
+              this.service.attach(noteId, {
+                cloudStorageFileId: initiated.fileId,
+                displayName: file.name,
+                contentType,
+                sizeBytes: file.size,
+              }),
+            ),
+            switchMap(updated => this.cloud.completeUpload(initiated.fileId).pipe(map(() => updated))),
+          ),
+        ),
+      )
+      .subscribe({
+        next: updated => {
+          this.replace(updated);
+          this.markBusy(noteId, false);
+          this.pollAttachments(ATTACH_POLLS);
+        },
+        error: err => {
+          this._actionError.set(toApiError(err).message);
+          this.markBusy(noteId, false);
+        },
+      });
+  }
+
+  /** DELETE del adjunto (204) + recarga para reflejar el cambio. */
+  detachAttachment(noteId: string, fileId: string): void {
+    this.markBusy(noteId, true);
+    this.service.detach(noteId, fileId).subscribe({
+      next: () => {
+        this.markBusy(noteId, false);
+        this.refresh();
+      },
+      error: err => {
+        this._actionError.set(toApiError(err).message);
+        this.markBusy(noteId, false);
+      },
+    });
+  }
+
+  /** Descarga un adjunto por su fileId de CloudStorage (URL presignada). */
+  downloadAttachment(fileId: string): void {
+    this.cloud.getDownloadUrl(fileId).subscribe({
+      next: res => this.triggerDownload(res.downloadUrl),
+      error: err => this._actionError.set(toApiError(err).message),
+    });
+  }
+
+  private pollAttachments(attemptsLeft: number): void {
+    if (attemptsLeft <= 0 || !this.clientId) {
+      return;
+    }
+    const hasPending = this._raw().some(note => note.attachments.some(a => a.status === 'Pending'));
+    if (!hasPending) {
+      return;
+    }
+    setTimeout(() => {
+      this.service.listByClient(this.clientId).subscribe({
+        next: result => {
+          this._raw.set(result.items);
+          this.pollAttachments(attemptsLeft - 1);
+        },
+        error: () => {
+          // Best-effort: si un poll falla, se deja de intentar.
+        },
+      });
+    }, ATTACH_POLL_INTERVAL_MS);
+  }
+
+  private triggerDownload(url: string): void {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   // ---------- Internos ----------

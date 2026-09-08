@@ -25,6 +25,7 @@ export class MeetingListComponent {
   /** Id del meeting con una acción en curso: deshabilita sus botones. */
   @Input() busyId: string | null = null;
   @Output() manage = new EventEmitter<MeetingItem>();
+  @Output() join = new EventEmitter<MeetingItem>();
   @Output() cancelMeeting = new EventEmitter<MeetingItem>();
   @Output() startMeeting = new EventEmitter<MeetingItem>();
   @Output() endMeeting = new EventEmitter<MeetingItem>();
@@ -112,6 +113,11 @@ export class MeetingListComponent {
   onStartClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
     this.startMeeting.emit(meeting);
+  }
+
+  onJoinClick(meeting: MeetingItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.join.emit(meeting);
   }
 
   onEndClick(meeting: MeetingItem, event: MouseEvent): void {

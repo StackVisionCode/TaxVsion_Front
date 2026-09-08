@@ -1,0 +1,70 @@
+<div class="overflow-hidden rounded-2xl border border-gray-100">
+  <!-- Header (sortable) -->
+  <div class="hidden grid-cols-[auto,1fr,10rem,8rem,7rem] items-center gap-3 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400 sm:grid">
+    <span class="w-5"></span>
+    <button type="button" (click)="setSort('title')" class="flex items-center gap-1 text-left hover:text-gray-600 transition-colors">
+      Task
+      @if (sortKey() === 'title') { <ion-icon [name]="sortAsc() ? 'arrow-up-outline' : 'arrow-down-outline'"></ion-icon> }
+    </button>
+    <span>Assignee</span>
+    <button type="button" (click)="setSort('due')" class="flex items-center gap-1 text-left hover:text-gray-600 transition-colors">
+      Due
+      @if (sortKey() === 'due') { <ion-icon [name]="sortAsc() ? 'arrow-up-outline' : 'arrow-down-outline'"></ion-icon> }
+    </button>
+    <button type="button" (click)="setSort('priority')" class="flex items-center gap-1 text-left hover:text-gray-600 transition-colors">
+      Priority
+      @if (sortKey() === 'priority') { <ion-icon [name]="sortAsc() ? 'arrow-up-outline' : 'arrow-down-outline'"></ion-icon> }
+    </button>
+  </div>
+
+  <!-- Rows -->
+  <ul class="divide-y divide-gray-100">
+    @for (task of sorted(); track trackById($index, task)) {
+      <li (click)="open(task)"
+        class="tl-row grid cursor-pointer grid-cols-[auto,1fr] items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors sm:grid-cols-[auto,1fr,10rem,8rem,7rem]">
+        <!-- Complete checkbox -->
+        <input type="checkbox" [checked]="task.status === 'completed'" (click)="toggleComplete(task, $event)"
+          class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold"
+          [attr.aria-label]="task.status === 'completed' ? 'Reopen task' : 'Complete task'" />
+
+        <!-- Title + meta -->
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="truncate text-sm font-medium text-gray-800" [class.line-through]="task.status === 'completed'"
+              [class.text-gray-400]="task.status === 'completed'">{{ task.title }}</p>
+            @if (task.isBlocked) {
+              <ion-icon name="lock-closed-outline" class="shrink-0 text-red-400" title="Blocked"></ion-icon>
+            }
+            @if (task.dueIsStatutory) {
+              <ion-icon name="shield-checkmark-outline" class="shrink-0 text-purple-400" title="Statutory"></ion-icon>
+            }
+          </div>
+          @if (task.client) {
+            <p class="truncate text-xs text-gray-400">{{ task.client }}</p>
+          }
+          <!-- Mobile meta -->
+          <div class="mt-1 flex items-center gap-2 sm:hidden">
+            <span class="text-xs" [class.text-red-500]="isOverdue(task)" [class.text-gray-400]="!isOverdue(task)">{{ formatDue(task.dueDate) }}</span>
+            <span class="rounded-full border px-2 py-0.5 text-[10px] font-medium" [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
+          </div>
+        </div>
+
+        <!-- Assignee (desktop) -->
+        <div class="hidden items-center gap-2 sm:flex">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white" [ngClass]="task.assigneeColor">{{ task.assigneeInitials }}</span>
+          <span class="truncate text-sm text-gray-600">{{ task.assigneeName }}</span>
+        </div>
+
+        <!-- Due (desktop) -->
+        <span class="hidden text-sm sm:block" [class.text-red-500]="isOverdue(task)" [class.text-gray-600]="!isOverdue(task)">{{ formatDue(task.dueDate) }}</span>
+
+        <!-- Priority (desktop) -->
+        <span class="hidden sm:block">
+          <span class="rounded-full border px-2.5 py-0.5 text-xs font-medium" [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
+        </span>
+      </li>
+    } @empty {
+      <li class="px-4 py-10 text-center text-sm text-gray-400">No tasks to show.</li>
+    }
+  </ul>
+</div>

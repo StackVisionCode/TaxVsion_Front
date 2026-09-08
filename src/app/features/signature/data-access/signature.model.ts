@@ -1,4 +1,4 @@
-import { FieldType, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
+import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
 
 /**
@@ -159,7 +159,179 @@ export interface SignatureAnalyticsSummary {
   rejectionRate: number;
 }
 
+// ---------- Plantillas de firma ----------
+
+/** Draft = aún se edita; Published = usable; Archived = fuera de circulación. */
+export type SignatureTemplateStatus = 'Draft' | 'Published' | 'Archived';
+
+/** Fila de GET /signature/templates. */
+export interface TemplateSummary {
+  id: string;
+  title: string;
+  category: SignatureCategory;
+  status: SignatureTemplateStatus;
+  /** Cuántos firmantes por rol define el molde: hay que atar uno concreto a cada uno. */
+  slotCount: number;
+  fieldCount: number;
+  createdAtUtc: string;
+  publishedAtUtc: string | null;
+}
+
+export interface TemplateListResult {
+  items: TemplateSummary[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Rol de firmante del molde (p. ej. "Client", "Spouse", "Preparer"). */
+export interface TemplateSlotResponse {
+  id: string;
+  order: number;
+  role: string;
+  defaultLanguage: string;
+  /** OTP que heredará el firmante al instanciar; null = sin OTP. */
+  requiredVerificationMethod?: SignerVerificationMethod | null;
+}
+
+export interface TemplateFieldResponse {
+  id: string;
+  slotOrder: number;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+  isRequired: boolean;
+}
+
+/** GET /signature/templates/{id} — el molde completo, con sus slots y campos. */
+export interface SignatureTemplateDetail {
+  id: string;
+  title: string;
+  description: string | null;
+  category: SignatureCategory;
+  status: SignatureTemplateStatus;
+  defaultTokenExpirationHours: number;
+  requiresSequentialSigning: boolean;
+  requiresConsent: boolean;
+  generateCertificate: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  publishedAtUtc: string | null;
+  slots: TemplateSlotResponse[];
+  fields: TemplateFieldResponse[];
+}
+
+/** Ata un firmante real a un rol del molde. */
+export interface SlotBinding {
+  slotOrder: number;
+  email: string;
+  fullName: string;
+  /** Obligatorio si el rol exige OTP por SMS/WhatsApp; si no, opcional. */
+  phoneNumber?: string | null;
+}
+
+/**
+ * POST /signature/templates/{id}/instantiate.
+ * El PDF ya tiene que estar subido a CloudStorage: la plantilla aporta el
+ * layout de campos y los settings, no el documento.
+ */
+export interface InstantiateTemplateBody {
+  originalFileId: string;
+  slotBindings: SlotBinding[];
+  descriptionOverride: string | null;
+}
+
+// ---------- Autoría de plantillas (staff) ----------
+
+/** POST /signature/templates. */
+export interface CreateTemplateBody {
+  title: string;
+  description?: string | null;
+  category: SignatureCategory;
+  defaultTokenExpirationHours: number;
+  requiresSequentialSigning: boolean;
+  requiresConsent: boolean;
+  generateCertificate: boolean;
+}
+
+/** PUT /signature/templates/{id}/metadata. */
+export interface UpdateTemplateMetadataBody {
+  title: string;
+  description?: string | null;
+  category: SignatureCategory;
+}
+
+/** PUT /signature/templates/{id}/defaults. */
+export interface UpdateTemplateDefaultsBody {
+  defaultTokenExpirationHours: number;
+  requiresSequentialSigning: boolean;
+  requiresConsent: boolean;
+  generateCertificate: boolean;
+}
+
+/** POST /signature/templates/{id}/slots. `defaultLanguage` = 'Es' | 'En'. */
+export interface AddTemplateSlotBody {
+  role: string;
+  defaultLanguage: SignerLanguage;
+  /** OTP requerido para este rol; omitido/null = sin OTP. */
+  requiredVerificationMethod?: SignerVerificationMethod | null;
+}
+
+/** Respuesta 201 de POST slots — el backend asigna el `order`. */
+export interface TemplateSlotCreatedResponse {
+  id: string;
+  order: number;
+  role: string;
+  defaultLanguage: string;
+  requiredVerificationMethod?: SignerVerificationMethod | null;
+}
+
+/** POST /signature/templates/{id}/fields. Coordenadas normalizadas [0..1], origen arriba-izquierda. */
+export interface PlaceTemplateFieldBody {
+  slotOrder: number;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label?: string | null;
+  isRequired: boolean;
+}
+
+/** Respuesta 201 de POST fields. */
+export interface TemplateFieldCreatedResponse {
+  id: string;
+  slotOrder: number;
+}
+
 // ---------- Cuerpos de request ----------
+
+/**
+ * PUT /signature/requests/{id}/preparer — identidad del preparador (Form 8879 §V).
+ * Espejo de `SetPreparerBody(string PtinOrEfin, string DisplayName, string? TitleLabel)`.
+ */
+export interface SetPreparerBody {
+  ptinOrEfin: string;
+  displayName: string;
+  titleLabel: string | null;
+}
+
+/**
+ * Lo que se sabe del preparador de una solicitud DENTRO de esta sesión.
+ *
+ * El backend no lo devuelve en el detalle, así que es lo último que este
+ * navegador escribió: sirve para precargar el formulario y no repreguntar,
+ * pero se pierde al recargar y no refleja lo que otro usuario haya cambiado.
+ */
+export interface PreparerSessionState {
+  info: SetPreparerBody | null;
+  signed: boolean;
+}
 
 export interface CreateSignatureRequestBody {
   title: string;
@@ -172,9 +344,50 @@ export interface CreateSignatureRequestBody {
   generateCertificate: boolean;
 }
 
+/** Idioma de los correos al firmante (backend Signer.Language). */
+export type SignerLanguage = 'Es' | 'En';
+
+/**
+ * Método de verificación de identidad que el firmante debe completar antes de firmar
+ * (backend SignerVerificationMethod). Solo los canales OTP que el CRM ofrece; el PIN es
+ * un gate aparte a nivel de la solicitud y 'app' no tiene entrega para firmantes públicos.
+ */
+export type SignerVerificationMethod = 'SmsOtp' | 'EmailOtp' | 'WhatsAppOtp';
+
+/** Canales que sí exigen teléfono para poder entregar el OTP (SMS/WhatsApp). */
+const PHONE_CHANNELS: ReadonlySet<VerificationChannel> = new Set<VerificationChannel>(['sms', 'whatsapp']);
+
+/**
+ * Mapea el canal elegido en el wizard al método de verificación del backend.
+ * 'app' → undefined: no hay entrega push para firmantes públicos, así que no se exige OTP.
+ */
+export function channelToVerificationMethod(channel: VerificationChannel): SignerVerificationMethod | undefined {
+  switch (channel) {
+    case 'email':
+      return 'EmailOtp';
+    case 'sms':
+      return 'SmsOtp';
+    case 'whatsapp':
+      return 'WhatsAppOtp';
+    case 'app':
+      return undefined;
+  }
+}
+
+/** true si el canal necesita teléfono para entregar el código (SMS/WhatsApp). */
+export function channelRequiresPhone(channel: VerificationChannel): boolean {
+  return PHONE_CHANNELS.has(channel);
+}
+
 export interface AddSignerBody {
   email: string;
   fullName: string;
+  /** E.164 recomendado; obligatorio si el método es SMS/WhatsApp (si no, el OTP no se puede entregar). */
+  phoneNumber?: string | null;
+  /** 'Es' | 'En'. Opcional; el backend cae a 'En' si no se envía. */
+  language?: SignerLanguage;
+  /** OTP requerido antes de firmar; omitido = sin verificación adicional. */
+  verificationMethod?: SignerVerificationMethod | null;
 }
 
 /** Coordenadas normalizadas [0..1], origen arriba-izquierda; page 1-based (FieldPosition del dominio). */
@@ -288,6 +501,8 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     originalFileId: detail.originalFileId,
     sealedFileId: detail.sealedFileId,
     certificateFileId: detail.certificateFileId,
+    requiresPractitionerPin: detail.requiresPractitionerPin,
+    practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   ElementRef,
   EventEmitter,
+  Injector,
   Input,
   OnDestroy,
   OnInit,
@@ -11,6 +12,9 @@ import {
   QueryList,
   ViewChild,
   ViewChildren,
+  afterNextRender,
+  computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -19,6 +23,9 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
+import { ChatStore } from '@features/chat/data-access/chat.store';
 
 /**
  * Visual port of the production sidebar. Role/permission-based menu
@@ -44,7 +51,52 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChildren('itemButton') private itemButtons?: QueryList<ElementRef<HTMLElement>>;
 
   private readonly router = inject(Router);
+  private readonly branding = inject(TenantBrandingService);
+  private readonly chatStore = inject(ChatStore);
+  private readonly injector = inject(Injector);
+  private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly destroy$ = new Subject<void>();
+
+  /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
+  private readonly chatBadgeEffect = effect(() => {
+    const unread = this.chatStore.totalUnread();
+    this.menuItems.update(items =>
+      items.map(item => (item.route === '/chat' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
+    );
+  });
+
+  /** Logo del tenant (o null → cae al asterisco de marca). */
+  readonly logoUrl = this.branding.logoUrl;
+  protected readonly showLogoFallback = signal(false);
+
+  /**
+   * Marca del sidebar colapsado (ancho 64px). Se prefiere el favicon: es el
+   * asset cuadrado del tenant y aguanta el tamaño chico sin verse borroso,
+   * mientras que un logo horizontal encogido a 40px queda diminuto. Si el
+   * tenant no subió favicon se usa el logo, y recién sin ninguno de los dos
+   * queda el asterisco de siempre.
+   */
+  protected readonly collapsedMarkUrl = computed(() => {
+    const favicon = this.faviconFailed() ? null : this.branding.faviconUrl();
+    return favicon ?? this.branding.logoUrl();
+  });
+  /** El favicon no cargó (p. ej. un .ico que el navegador no pinta en un <img>). */
+  private readonly faviconFailed = signal(false);
+  /** Ya no queda ninguna imagen que probar: se muestra el asterisco. */
+  protected readonly showMarkFallback = signal(false);
+
+  /**
+   * Fallback encadenado favicon → logo → asterisco. Sin el paso intermedio, un
+   * favicon que el navegador no sabe pintar dejaría el asterisco aunque el
+   * tenant tenga un logo perfectamente válido.
+   */
+  protected onMarkError(): void {
+    if (!this.faviconFailed() && this.branding.faviconUrl() && this.branding.logoUrl()) {
+      this.faviconFailed.set(true);
+      return;
+    }
+    this.showMarkFallback.set(true);
+  }
   private bodyTooltipEl: HTMLDivElement | null = null;
 
   readonly isExpanded = signal(false);
@@ -71,10 +123,21 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Support', icon: 'headset-outline', route: '/support' },
     { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns' },
     { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', isSpecial: true },
+    { label: 'Workflow', icon: 'git-network-outline', route: '/workflow' },
+    { label: 'Subscription', icon: 'card-outline', route: '/subscription' },
     { label: 'Settings', icon: 'settings-outline', route: '/settings' },
   ]);
 
   ngOnInit(): void {
+    // La sidebar arranca YA en su estado final. Antes se expandía en un setTimeout DESPUÉS
+    // del primer render, así que en cada carga se veía colapsada y "saltaba" a ancha.
+    // `isMobile` es un @Input, y los inputs ya están resueltos cuando corre ngOnInit.
+    const expanded = !this.isMobile;
+    if (this.isExpanded() !== expanded) {
+      this.isExpanded.set(expanded);
+      this.sidebarStateChange.emit(expanded);
+    }
+
     this.updateActiveState(this.router.url);
 
     this.router.events
@@ -89,19 +152,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // On desktop, start expanded once the layout has settled.
-    setTimeout(() => {
-      if (!this.isMobile && !this.isExpanded()) {
-        this.isExpanded.set(true);
-        this.sidebarStateChange.emit(true);
-      }
-      this.syncIndicator();
-      // The expand toggle above changes each row's width/padding classes;
-      // Angular needs its own render tick before getBoundingClientRect()
-      // reflects that, so re-measure once more right after it settles
-      // (same reasoning as the toggleSidebar() re-sync below).
-      setTimeout(() => this.syncIndicator(), 220);
-    });
+    // Una sola medición, después del render real. Antes había dos setTimeout anidados
+    // (+220 ms) porque el estado expandido se aplicaba tarde y cambiaba el ancho de las
+    // filas; ahora el ancho ya es el definitivo en el primer render y basta con medir una
+    // vez, sin la ventana en la que el pill quedaba fuera de sitio.
+    afterNextRender(() => this.syncIndicator(), { injector: this.injector });
 
     // Re-sync if the menu list itself ever changes shape.
     this.itemButtons?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => this.syncIndicator());
@@ -126,7 +181,27 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     return true;
   }
 
+  /**
+   * Mismo prefetch por teclado: llegar a un ítem con Tab es tan buena señal de intención
+   * como el hover, y la navegación accesible no debería pagar más lento que la del mouse.
+   */
+  onMenuItemFocus(item: MenuItem): void {
+    this.prefetchRoute(item);
+  }
+
+  private prefetchRoute(item: MenuItem): void {
+    if (item.route) {
+      this.preloadStrategy.prefetchPath(item.route);
+    }
+  }
+
   onMenuItemMouseEnter(event: MouseEvent, item: MenuItem): void {
+    // Intención de navegar: se precarga el chunk de la sección mientras el cursor viaja
+    // hasta el clic (200-400 ms de regalo). Va ANTES del early-return del tooltip, que solo
+    // aplica al sidebar colapsado. Solo hace algo con las secciones excluidas del preloading
+    // pausado (signature, meetings, checkout); el resto ya está en memoria para entonces.
+    this.prefetchRoute(item);
+
     if (this.isExpanded()) return;
 
     const target = event.currentTarget as HTMLElement;
@@ -139,7 +214,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.bodyTooltipEl.setAttribute('role', 'tooltip');
       Object.assign(this.bodyTooltipEl.style, {
         position: 'fixed',
-        backgroundColor: '#111827',
+        backgroundColor: 'rgb(var(--color-gray-900-rgb, 13 13 13))',
         color: '#fff',
         padding: '6px 12px',
         borderRadius: '9999px',
@@ -148,8 +223,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
         pointerEvents: 'none',
         whiteSpace: 'nowrap',
         zIndex: String(2147483647),
-        boxShadow:
-          '0 10px 15px -3px rgba(17,24,39,0.25), 0 4px 6px -4px rgba(17,24,39,0.2)',
+        boxShadow: '0 10px 15px -3px rgba(17,24,39,0.25), 0 4px 6px -4px rgba(17,24,39,0.2)',
         transition: 'opacity 150ms ease, transform 150ms ease',
       } as CSSStyleDeclaration);
       document.body.appendChild(this.bodyTooltipEl);

@@ -12,7 +12,7 @@ import { Product, ProductStatus, StockBadge, stockLevel } from '../../data-acces
 
 /**
  * Tabla de productos (patrón "Aether", igual que invoice-table): header en
- * píldora `bg-[#FAFAFA]` con extremos redondeados, columnas Product (nombre +
+ * píldora `bg-brand-white` con extremos redondeados, columnas Product (nombre +
  * SKU) / Category (chip) / Price / Stock (cantidad + chip de nivel) / Status /
  * acciones, y un menú fantasma "..." por fila con Edit / Adjust stock (stepper
  * inline +/-) / Delete. Los datos vienen del join Catalog+Inventory que arma el

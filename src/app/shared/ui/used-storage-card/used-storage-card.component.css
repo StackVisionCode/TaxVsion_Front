@@ -44,3 +44,14 @@
 .legend-row:nth-child(3) { animation-delay: 320ms; }
 .legend-row:nth-child(4) { animation-delay: 420ms; }
 .legend-row:nth-child(5) { animation-delay: 520ms; }
+
+/* Ambas animaciones usan `both` desde `opacity: 0`, así que hay que anularlas
+   enteras: acortarlas dejaría el donut y la leyenda invisibles. El conteo del
+   número central se salta en el componente (ver `animateCounter`). */
+@media (prefers-reduced-motion: reduce) {
+  .donut-dot,
+  .legend-row {
+    animation: none;
+    animation-delay: 0ms;
+  }
+}

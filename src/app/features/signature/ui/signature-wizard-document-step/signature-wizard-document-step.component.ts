@@ -1,9 +1,12 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { FileResponse, formatBytes as formatFileBytes } from '@core/cloud-storage/cloud-storage.model';
 import { WizardDocKind, WizardDocument } from '../signature-request-panel/signature-wizard.model';
 import { formatBytes, kindChip, kindCircle, kindIcon } from '../signature-request-panel/signature-wizard.presenter';
+import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
 import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 
@@ -11,6 +14,9 @@ const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /** Fase del pipeline preflight → CloudStorage del documento elegido. */
 type UploadPhase = 'idle' | 'validating' | 'uploading' | 'ready' | 'rejected' | 'failed';
+
+/** Origen del documento: subir uno nuevo o reusar un PDF ya existente en la oficina. */
+type DocSource = 'upload' | 'library';
 
 /**
  * Paso 2 del wizard: subir el PDF a firmar (click o drag & drop). Al elegir un
@@ -22,17 +28,22 @@ type UploadPhase = 'idle' | 'validating' | 'uploading' | 'ready' | 'rejected' | 
  */
 @Component({
   selector: 'app-signature-wizard-document-step',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SignatureDocumentLibraryComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-document-step.component.html',
   styleUrl: './signature-wizard-document-step.component.css',
 })
 export class SignatureWizardDocumentStepComponent {
   @Input() selectedId: string | null = null;
+  /** Cliente elegido en el paso 1: acota la librería a sus PDF (opcional). */
+  @Input() clientId: string | null = null;
   @Output() documentSelected = new EventEmitter<WizardDocument>();
   @Output() documentCleared = new EventEmitter<void>();
 
   private readonly store = inject(SignatureStore);
+
+  /** Origen del documento: subir o reusar de la oficina. */
+  readonly docSource = signal<DocSource>('upload');
 
   readonly phase = signal<UploadPhase>('idle');
   readonly issues = signal<DocumentValidationIssue[]>([]);
@@ -108,6 +119,67 @@ export class SignatureWizardDocumentStepComponent {
     this.uploadError.set('');
     this.phase.set('idle');
     this.documentCleared.emit();
+  }
+
+  setDocSource(source: DocSource): void {
+    if (this.isBusy()) {
+      return;
+    }
+    this.docSource.set(source);
+    this.uploadError.set('');
+    this.removeUpload();
+  }
+
+  /**
+   * Reusar un PDF existente de la oficina: NO se vuelve a subir. Se baja el archivo solo
+   * para renderizarlo en el editor de campos (paso 3) y se conserva su `fileId`, que sirve
+   * directo como `originalFileId` — el Create promueve Draft→Ready leyendo la proyección.
+   */
+  async onLibraryPicked(file: FileResponse): Promise<void> {
+    if (this.isBusy()) {
+      return;
+    }
+    const token = ++this.pipelineToken;
+    this.uploadError.set('');
+    this.issues.set([]);
+    this.validation.set(null);
+    this.uploaded.set(null);
+    this.documentCleared.emit();
+    this.phase.set('uploading');
+    try {
+      const url = await firstValueFrom(this.store.getDownloadUrl(file.id));
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`download failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      if (token !== this.pipelineToken) {
+        return;
+      }
+      const doc: WizardDocument = {
+        id: file.id,
+        name: file.originalName,
+        kind: 'pdf',
+        size: formatFileBytes(file.sizeBytes),
+        date: new Date(file.createdAtUtc).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        blob,
+        fileId: file.id,
+        pageCount: null,
+      };
+      this.uploaded.set(doc);
+      this.phase.set('ready');
+      this.documentSelected.emit(doc);
+    } catch {
+      if (token !== this.pipelineToken) {
+        return;
+      }
+      this.uploadError.set('Could not load that PDF from the office library. Try another one or upload it.');
+      this.phase.set('failed');
+    }
   }
 
   /** Validación local + preflight backend + subida a CloudStorage. */

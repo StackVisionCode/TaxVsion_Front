@@ -41,6 +41,7 @@ export class SupportTicketListComponent {
   @Input() reopenError: string | null = null;
 
   @Output() reopenTicket = new EventEmitter<string>();
+  @Output() openConversation = new EventEmitter<SupportTicket>();
   @Output() pageChange = new EventEmitter<number>();
   @Output() retry = new EventEmitter<void>();
 

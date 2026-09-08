@@ -12,15 +12,15 @@
 }
 
 .revenue-bar--light {
-  background-color: #67BAF4;
+  background-color: rgb(var(--color-orange-500-rgb, 103 186 244));
 }
 
 .revenue-bar--lighter {
-  background-color: #D7E3EF;
+  background-color: rgb(var(--color-indigo-200-rgb, 176 201 223));
 }
 
 .revenue-bar--vivid {
-  background-color: #1E466B;
+  background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
 }
 
 .revenue-bar--medium {
@@ -30,5 +30,5 @@
 /* Mes sin cobros: se pinta un tope apagado en lugar de una barra con altura,
    para que un mes en cero no parezca un mes con ingresos pequeños. */
 .revenue-bar--empty {
-  background-color: #EEF3F8;
+  background-color: rgb(var(--color-indigo-50-rgb, 245 247 250));
 }

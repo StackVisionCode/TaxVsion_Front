@@ -1,18 +1,19 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ThemeService } from '@core/theme/theme.service';
 import {
-  LOGO_ALLOWED_CONTENT_TYPES,
-  LOGO_MAX_SIZE_BYTES,
+  ASSET_ALLOWED_CONTENT_TYPES,
+  ASSET_MAX_SIZE_BYTES,
+  BRAND_SURFACES,
+  BrandSurface,
 } from '../../data-access/company-settings.model';
 import { CompanySettingsStore } from '../../data-access/company-settings.store';
 
 /**
- * Página del módulo Company Settings (estilo "Aether"): identidad legal de la firma
- * persistida en Billing (GET/PUT /billing/issuer-profile — nombre, EIN→taxId, dirección,
- * contacto) más el branding del tenant (logo y paleta de colores vía /tenants/{id}/...).
- * Los campos que el backend no almacena (brand, business structure, descripción) se
- * quitaron del formulario para no simular persistencia.
+ * Página del módulo Company Settings: identidad legal de la firma (Billing) + marca del tenant
+ * (TenantBrands, superficie CRM): colores primary/accent, logo y favicon. Los pickers de color
+ * aplican el tema EN VIVO (ThemeService) mientras se arrastran, y se persisten al guardar.
  */
 @Component({
   selector: 'app-company-settings-page',
@@ -22,8 +23,17 @@ import { CompanySettingsStore } from '../../data-access/company-settings.store';
 })
 export class CompanySettingsPageComponent {
   readonly store = inject(CompanySettingsStore);
+  private readonly theme = inject(ThemeService);
 
-  readonly logoMaxSizeKb = Math.round(LOGO_MAX_SIZE_BYTES / 1024);
+  readonly assetMaxSizeKb = Math.round(ASSET_MAX_SIZE_BYTES / 1024);
+
+  /** Superficies configurables (CRM / Portal del cliente) para el selector. */
+  readonly surfaces = BRAND_SURFACES;
+
+  /** Cambia la superficie de marca a editar (recarga su logo/favicon/colores). */
+  selectSurface(surface: BrandSurface): void {
+    this.store.setSurface(surface);
+  }
 
   // --- Formulario del perfil (espejo editable de store.profile) ---
   readonly companyName = signal('');
@@ -37,14 +47,12 @@ export class CompanySettingsPageComponent {
   readonly zip = signal('');
   readonly country = signal('US');
 
-  // --- Formulario de colores (espejo editable de store.colors) ---
-  readonly primaryColor = signal('#111827');
-  readonly accentColor = signal('#4f46e5');
-  readonly backgroundColor = signal('#ffffff');
-  readonly textColor = signal('#111827');
+  // --- Formulario de colores (2 tokens tematizables) ---
+  readonly primaryColor = signal('#1e466b');
+  readonly accentColor = signal('#67baf4');
 
-  /** Error de validación local del archivo de logo (tipo/tamaño), previo a tocar el backend. */
-  readonly logoFileError = signal<string | null>(null);
+  /** Error de validación local del archivo (tipo/tamaño), previo a tocar el backend. */
+  readonly assetFileError = signal<string | null>(null);
 
   readonly toast = signal<string | null>(null);
   private toastTimer?: ReturnType<typeof setTimeout>;
@@ -78,8 +86,6 @@ export class CompanySettingsPageComponent {
       }
       this.primaryColor.set(c.primaryColor);
       this.accentColor.set(c.accentColor);
-      this.backgroundColor.set(c.backgroundColor);
-      this.textColor.set(c.textColor);
     });
   }
 
@@ -116,41 +122,25 @@ export class CompanySettingsPageComponent {
       });
   }
 
-  onLogoSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // permite reseleccionar el mismo archivo
-    if (!file) {
-      return;
+  // --- Colores ---
+
+  /**
+   * Preview en vivo mientras se arrastra el picker (aún no persiste). Solo se aplica al tema de esta
+   * app cuando se edita la superficie CRM; editando el Portal, el picker muestra el color pero no
+   * recolorea el CRM (esa marca es de otra superficie).
+   */
+  onPrimaryChange(hex: string): void {
+    this.primaryColor.set(hex);
+    if (this.store.surface() === 'Crm') {
+      this.theme.setPrimaryColor(hex, { persist: false });
     }
-    this.logoFileError.set(null);
-    if (!LOGO_ALLOWED_CONTENT_TYPES.includes(file.type)) {
-      this.logoFileError.set('Logo must be a PNG, JPEG or SVG image.');
-      return;
-    }
-    if (file.size > LOGO_MAX_SIZE_BYTES) {
-      this.logoFileError.set(`Logo must be at most ${this.logoMaxSizeKb} KB.`);
-      return;
-    }
-    this.store.uploadLogo(file).subscribe({
-      next: () => this.showToast('Logo uploaded'),
-      error: () => {
-        /* el mensaje ya quedó en store.logoError */
-      },
-    });
   }
 
-  removeLogo(): void {
-    if (this.store.logoBusy() || !this.store.logo()) {
-      return;
+  onAccentChange(hex: string): void {
+    this.accentColor.set(hex);
+    if (this.store.surface() === 'Crm') {
+      this.theme.setSecondaryColor(hex, { persist: false });
     }
-    this.logoFileError.set(null);
-    this.store.removeLogo().subscribe({
-      next: () => this.showToast('Logo removed'),
-      error: () => {
-        /* el mensaje ya quedó en store.logoError */
-      },
-    });
   }
 
   get canSaveColors(): boolean {
@@ -162,12 +152,7 @@ export class CompanySettingsPageComponent {
       return;
     }
     this.store
-      .saveColors({
-        primaryColor: this.primaryColor(),
-        accentColor: this.accentColor(),
-        backgroundColor: this.backgroundColor(),
-        textColor: this.textColor(),
-      })
+      .saveColors({ primary: this.primaryColor(), accent: this.accentColor() })
       .subscribe({
         next: () => this.showToast('Brand colors saved'),
         error: () => {
@@ -184,6 +169,45 @@ export class CompanySettingsPageComponent {
       next: () => this.showToast('Brand colors reset to default'),
       error: () => {
         /* el mensaje ya quedó en store.colorsError */
+      },
+    });
+  }
+
+  // --- Assets (logo + favicon, mismo flujo) ---
+
+  onAssetSelected(event: Event, key: 'logo' | 'favicon'): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // permite reseleccionar el mismo archivo
+    if (!file) {
+      return;
+    }
+    this.assetFileError.set(null);
+    if (!ASSET_ALLOWED_CONTENT_TYPES.includes(file.type)) {
+      this.assetFileError.set('Image must be a PNG, JPEG or SVG.');
+      return;
+    }
+    if (file.size > ASSET_MAX_SIZE_BYTES) {
+      this.assetFileError.set(`Image must be at most ${this.assetMaxSizeKb} KB.`);
+      return;
+    }
+    this.store.uploadAsset(key, file).subscribe({
+      next: () => this.showToast(key === 'logo' ? 'Logo uploaded' : 'Favicon uploaded'),
+      error: () => {
+        /* el mensaje ya quedó en store.assetError */
+      },
+    });
+  }
+
+  removeAsset(key: 'logo' | 'favicon'): void {
+    if (this.store.assetBusy()) {
+      return;
+    }
+    this.assetFileError.set(null);
+    this.store.removeAsset(key).subscribe({
+      next: () => this.showToast(key === 'logo' ? 'Logo removed' : 'Favicon removed'),
+      error: () => {
+        /* el mensaje ya quedó en store.assetError */
       },
     });
   }

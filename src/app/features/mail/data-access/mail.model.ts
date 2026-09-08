@@ -58,6 +58,32 @@ export interface InitiateOAuthConnectResult {
   authorizationUrl: string;
 }
 
+/**
+ * POST /connectors/accounts/manual — alta de buzón por IMAP+SMTP (sin OAuth). Espejo de
+ * ConnectManualAccountRequest. El backend valida conectividad real contra ambos servidores antes
+ * de persistir, y exige que `emailAddress` sea el email de login del usuario (guard de identidad).
+ */
+export interface ConnectManualAccountRequest {
+  emailAddress: string;
+  displayName: string | null;
+  imapHost: string;
+  imapPort: number;
+  imapUseSsl: boolean;
+  imapUsername: string;
+  imapPassword: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUseStartTls: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
+}
+
+/** POST /connectors/accounts/manual — a diferencia de OAuth NO redirige: la cuenta queda creada al 200. */
+export interface ConnectManualAccountResult {
+  accountId: string;
+  emailAddress: string;
+}
+
 /** Cuenta utilizable para leer/enviar (Draft/Disconnected no sirven; Error se reautoriza). */
 export function isUsableAccount(account: MailAccount): boolean {
   return account.status === 'Connected' || account.status === 'Active';
@@ -76,6 +102,8 @@ export interface ThreadSummary {
   messageCount: number;
   firstMessageAtUtc: string;
   lastMessageAtUtc: string;
+  /** Correos inbound no leídos del hilo (estado compartido por el tenant). 0 = todo leído. */
+  unreadCount: number;
 }
 
 /** Espejo de MessageDirection: Inbound = recibido por el tenant, Outbound = draft ya enviado. */
@@ -102,7 +130,14 @@ export interface MessageSummary {
   hasAttachments: boolean;
   attachmentCount: number;
   bodyStatus: MessageBodyStatus | null;
+  /** Estado leído/no-leído compartido por el tenant. En outbound siempre true (no hay nada que leer). */
+  isRead: boolean;
+  /** Veredicto de autenticación del remitente. Solo inbound; null en outbound. */
+  senderTrust: SenderTrust | null;
 }
+
+/** Veredicto de autenticación del remitente (el front lo traduce a lenguaje simple). */
+export type SenderTrust = 'Verified' | 'Unverified' | 'Unknown';
 
 /** GET /correspondence/messages/{id}/body — pedido en vivo a Connectors, nunca persistido. */
 export interface MessageBody {
@@ -112,7 +147,7 @@ export interface MessageBody {
 }
 
 /** Espejo de AttachmentDownloadStatus (descarga bajo demanda hacia CloudStorage). */
-export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed';
+export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed' | 'Blocked';
 
 /** Fila de GET /correspondence/messages/{id}/attachments — metadata, cero bytes. */
 export interface AttachmentSummary {
@@ -144,6 +179,22 @@ export interface AttachmentDownloadUrlResult {
 /** Espejo de DraftStatus. `Sending` dura lo que la llamada síncrona a Postmaster. */
 export type DraftStatus = 'Draft' | 'Sending' | 'Sent' | 'Failed' | 'Discarded';
 
+/**
+ * Fila de la carpeta "Sent" (GET /correspondence/sent?customerId=): un mensaje ya enviado.
+ * `emailThreadId` null = envío nuevo (compose) sin hilo → el front lo abre como mensaje suelto;
+ * no-null = reply → abre el hilo completo. El body se pide con GET /drafts/{id} al abrirlo.
+ */
+export interface SentMessageListItem {
+  messageId: string;
+  emailThreadId: string | null;
+  subject: string;
+  toAddresses: string[];
+  isReply: boolean;
+  sentAtUtc: string;
+  hasAttachments: boolean;
+  attachmentCount: number;
+}
+
 /** Fila lean de GET /correspondence/drafts?customerId= ("retomar un autoguardado"). */
 export interface DraftListItem {
   draftId: string;
@@ -159,6 +210,18 @@ export interface DraftRecipientSummary {
   address: string;
   type: 'To' | 'Cc' | 'Bcc';
   displayName: string | null;
+}
+
+/** Fila de la papelera (GET /correspondence/trash) — entrante o enviado borrado. */
+export interface TrashItem {
+  messageId: string;
+  kind: 'Incoming' | 'Sent';
+  emailThreadId: string | null;
+  subject: string;
+  counterparty: string;
+  deletedAtUtc: string;
+  hasAttachments: boolean;
+  attachmentCount: number;
 }
 
 /** Adjunto ya referenciado en el draft (el binario vive en CloudStorage). */

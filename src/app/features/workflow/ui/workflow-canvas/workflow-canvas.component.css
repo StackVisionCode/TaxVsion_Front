@@ -1,0 +1,130 @@
+/* Retícula de puntos del lienzo, como en el diseño. Sin hex: sale de la rampa
+   de grises, que ThemeService tiñe con el hue de la marca del tenant. */
+.wf-viewport {
+  background-image: radial-gradient(rgb(var(--color-gray-300-rgb, 209 213 219) / 0.55) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.wf-viewport--pan {
+  cursor: grab;
+  /* El pan no debe seleccionar texto de los nodos por el camino. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wf-viewport--pan:active {
+  cursor: grabbing;
+}
+
+/* El trazo de los hilos usa la misma rampa tematizable. */
+.wf-edge {
+  stroke: rgb(var(--color-gray-400-rgb, 156 163 175));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: stroke 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Zona de clic: un trazo ancho y transparente. Sin esto acertar una línea de
+   1.5px con el ratón es cuestión de suerte. */
+.wf-edge-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  cursor: pointer;
+}
+
+.wf-edge--selected {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2.5;
+}
+
+/* Estados de la simulación del Preview sobre los hilos. */
+.wf-edge--run-active {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2.5;
+  stroke-dasharray: 8 6;
+  animation: wf-edge-flow 700ms linear infinite;
+}
+
+.wf-edge--run-traversed {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2;
+}
+
+.wf-edge--run-skipped {
+  opacity: 0.22;
+}
+
+@keyframes wf-edge-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+/* El hilo que se está tirando: discontinuo, para que se lea como "en curso". */
+.wf-edge--pending {
+  stroke: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+/* Puerto de salida. Crece al pasar por encima para que sea fácil de agarrar. */
+.wf-port {
+  background-color: rgb(var(--color-gray-400-rgb, 156 163 175));
+  cursor: crosshair;
+  touch-action: none;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), background-color 160ms;
+}
+
+.wf-port:hover {
+  background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  transform: translate(-50%, -50%) scale(1.5);
+}
+
+@keyframes wf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wf-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.wf-pill,
+.wf-plus {
+  animation: wf-pop-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.wf-end {
+  animation: wf-fade-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * `wf-pill` y `wf-plus` llevan su centrado DENTRO del keyframe (translate -50%),
+ * así que aquí no basta con `animation: none`: hay que reponer el transform o
+ * quedarían descolocados respecto al conector.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .wf-end,
+  .wf-edge--run-active {
+    animation: none;
+  }
+
+  .wf-pill,
+  .wf-plus {
+    animation: none;
+    transform: translate(-50%, -50%);
+  }
+}

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
@@ -7,6 +7,7 @@ import {
   FileResponse,
   InitiateUploadRequest,
   InitiatedUploadResponse,
+  OwnerType,
 } from './cloud-storage.model';
 
 /**
@@ -48,6 +49,22 @@ export class CloudStorageUploadService {
 
   getFile(fileId: string): Observable<FileResponse> {
     return this.http.get<FileResponse>(`${this.base}/files/${fileId}`);
+  }
+
+  /**
+   * GET /storage/files — listado plano de archivos, más recientes primero. Para staff se
+   * puede acotar a UN dueño (`ownerType`/`ownerId`, ej. todos los de un customer cross-carpeta);
+   * un actor de portal ignora ese filtro y solo ve lo suyo. `take` va acotado 1..100 por el backend.
+   */
+  listFiles(skip = 0, take = 100, ownerType?: OwnerType, ownerId?: string | null): Observable<FileResponse[]> {
+    let params = new HttpParams().set('skip', skip).set('take', take);
+    if (ownerType) {
+      params = params.set('ownerType', ownerType);
+    }
+    if (ownerId) {
+      params = params.set('ownerId', ownerId);
+    }
+    return this.http.get<FileResponse[]>(`${this.base}/files`, { params });
   }
 
   getDownloadUrl(fileId: string): Observable<DownloadUrlResponse> {

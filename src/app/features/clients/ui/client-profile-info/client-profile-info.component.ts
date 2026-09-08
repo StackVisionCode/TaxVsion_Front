@@ -1,12 +1,13 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 
 /**
  * Tab "Info" del perfil de cliente: grilla de dos columnas con tarjetas de
- * contacto, detalle personal (individual) o de negocio (company),
- * dependientes y cónyuge. Todo derivado del @Input client; sin
- * servicios/HTTP, solo formateo/masking local.
+ * contacto (direcciones reales), detalle personal (individual) o de negocio
+ * (company) con el identificador fiscal enmascarado + reveal auditado,
+ * dependientes y cónyuge (derivados de `relations[]`). Presentacional puro —
+ * el HTTP del reveal lo dispara el contenedor (`client-profile-page`).
  */
 @Component({
   selector: 'app-client-profile-info',
@@ -16,17 +17,28 @@ import { ClientProfile } from '../../models/client-profile.model';
 })
 export class ClientProfileInfoComponent {
   @Input() client!: ClientProfile;
+  @Input() revealedTaxId: string | null = null;
+  @Input() revealingTaxId = false;
+  /** true = el usuario puede crear/editar el perfil fiscal (customers.manage + admin). */
+  @Input() canEditFiscal = false;
 
-  maskTail(value: string | undefined, visibleDigits = 4): string {
-    if (!value) {
-      return '—';
-    }
-    const digitsOnly = value.replace(/\D/g, '');
-    if (digitsOnly.length <= visibleDigits) {
-      return value;
-    }
-    const tail = digitsOnly.slice(-visibleDigits);
-    return `•••-••-${tail}`;
+  @Output() revealTaxId = new EventEmitter<string>();
+  @Output() editFiscal = new EventEmitter<void>();
+
+  /** Confirmación de un paso antes de revelar: el reveal queda registrado en el backend. */
+  readonly confirmingReveal = signal(false);
+
+  requestReveal(): void {
+    this.confirmingReveal.set(true);
+  }
+
+  cancelReveal(): void {
+    this.confirmingReveal.set(false);
+  }
+
+  doReveal(customerId: string): void {
+    this.confirmingReveal.set(false);
+    this.revealTaxId.emit(customerId);
   }
 
   formatDate(iso: string | undefined): string {

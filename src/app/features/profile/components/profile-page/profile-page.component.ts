@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { ProfileStore } from '../../data-access/profile.store';
+import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two-step-verification.component';
 import {
   PASSWORD_MIN_LENGTH,
   UserSession,
@@ -28,13 +29,16 @@ interface Toast {
  * - Contraseña: POST /auth/password/change (revoca las demás sesiones).
  * - Email/teléfono: flujos request → código → confirm de CredentialsController.
  * - Sesiones: GET/DELETE /auth/sessions (revocar una o todas menos la actual).
+ * - Verificación en dos pasos: sección propia (`app-two-step-verification`)
+ *   sobre /auth/mfa/* — estado, alta TOTP, desactivar, regenerar códigos y
+ *   dispositivos de confianza.
  *
  * La foto de avatar es solo una vista previa local: el backend aún no expone un
  * endpoint para subirla.
  */
 @Component({
   selector: 'app-profile-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TwoStepVerificationComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
 })

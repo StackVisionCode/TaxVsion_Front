@@ -1,0 +1,20 @@
+.cr-row {
+  animation: cr-row-in 200ms ease both;
+}
+
+@keyframes cr-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-row {
+    animation: none;
+  }
+}

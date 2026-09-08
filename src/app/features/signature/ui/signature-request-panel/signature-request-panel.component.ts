@@ -21,6 +21,7 @@ import {
   TOKEN_EXPIRATION_DEFAULT_HOURS,
   TOKEN_EXPIRATION_MAX_HOURS,
   TOKEN_EXPIRATION_MIN_HOURS,
+  channelToVerificationMethod,
   fieldTypeToKind,
 } from '../../data-access/signature.model';
 import {
@@ -245,6 +246,9 @@ export class SignatureRequestPanelComponent {
         localId: signer.id,
         fullName: signer.name,
         email: signer.email,
+        language: signer.language,
+        phone: signer.phone.trim() || null,
+        verificationMethod: channelToVerificationMethod(signer.channel),
       })),
       fields: this.normalizedFieldsSnapshot().map(field => ({
         localId: field.localId,

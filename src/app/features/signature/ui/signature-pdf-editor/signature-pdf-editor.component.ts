@@ -23,6 +23,7 @@ import {
   WizardDocKind,
   WizardDocument,
 } from '../signature-request-panel/signature-wizard.model';
+import { SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
 import { PageMetrics, PdfRect, screenRectToPdf } from '../signature-request-panel/signature-coords.util';
 import {
   ALL_CHANNELS,
@@ -50,7 +51,7 @@ const ZOOM_STEP = 0.2;
 const SIGNER_PALETTE = [
   { bg: 'bg-indigo-500', border: 'border-indigo-500', text: 'text-indigo-600' },
   { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-orange-600' },
-  { bg: 'bg-[#1E466B]', border: 'border-[#1E466B]', text: 'text-[#1E466B]' },
+  { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-brand-bold' },
   { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-600' },
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-gray-900' },
 ];
@@ -154,8 +155,19 @@ export class SignaturePdfEditorComponent implements OnChanges {
   readonly draftClientId = signal('');
   readonly draftName = signal('');
   readonly draftEmail = signal('');
+  readonly draftPhone = signal('');
   readonly draftChannel = signal<VerificationChannel>('email');
+  readonly draftLanguage = signal<SignerLanguage>('En');
   readonly draftError = signal('');
+
+  /** El canal elegido exige teléfono (SMS/WhatsApp): controla la visibilidad del campo. */
+  readonly draftChannelNeedsPhone = computed(() => channelRequiresPhone(this.draftChannel()));
+
+  /** Opciones del selector de idioma del firmante (correos). */
+  readonly languageOptions: ReadonlyArray<{ value: SignerLanguage; label: string }> = [
+    { value: 'En', label: 'English' },
+    { value: 'Es', label: 'Español' },
+  ];
 
   readonly activeSignerName = computed(
     () => this.signers().find(s => s.id === this.activeSignerId())?.name ?? '—',
@@ -210,7 +222,9 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.draftClientId.set('');
     this.draftName.set('');
     this.draftEmail.set('');
+    this.draftPhone.set('');
     this.draftChannel.set('email');
+    this.draftLanguage.set('En');
     this.draftError.set('');
     this.isAddSignerOpen.set(true);
   }
@@ -226,6 +240,7 @@ export class SignaturePdfEditorComponent implements OnChanges {
     if (client) {
       this.draftName.set(client.displayName);
       this.draftEmail.set(client.email);
+      this.draftPhone.set(client.phone ?? '');
     }
   }
 
@@ -240,10 +255,19 @@ export class SignaturePdfEditorComponent implements OnChanges {
       this.draftError.set('Enter a valid email address.');
       return;
     }
+    const phone = this.draftPhone().trim();
+    // SMS/WhatsApp no pueden entregar el código sin teléfono (el backend responde NoDeliveryAddress).
+    if (this.draftChannelNeedsPhone() && phone.length < 7) {
+      this.draftError.set('Enter a phone number for SMS/WhatsApp verification.');
+      return;
+    }
     const id = `signer-${this.seq++}`;
     this.signers.update(list => {
       const color = SIGNER_PALETTE[list.length % SIGNER_PALETTE.length].bg;
-      return [...list, { id, name, email, color, channel: this.draftChannel() }];
+      return [
+        ...list,
+        { id, name, email, color, channel: this.draftChannel(), phone, language: this.draftLanguage() },
+      ];
     });
     this.activeSignerId.set(id);
     this.closeAddSigner();
@@ -311,6 +335,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
         email: client.email,
         color: SIGNER_PALETTE[0].bg,
         channel: 'email',
+        phone: client.phone ?? '',
+        language: 'En',
       };
       return [clientSigner, ...extras];
     });

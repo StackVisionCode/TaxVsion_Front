@@ -10,8 +10,13 @@ import {
   LoginRequest,
   LoginResponse,
   MeResponse,
+  MfaVerifyResponse,
   RefreshRequest,
   ResetPasswordRequest,
+  TakeoverSessionRequest,
+  TermsAcceptanceResponse,
+  TermsAcceptanceStatusResponse,
+  TermsVersionResponse,
 } from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 
@@ -19,7 +24,13 @@ import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 export type LoginOutcome =
   | { kind: 'authenticated' }
   | { kind: 'mfa-required'; methods: MfaMethodType[] }
-  | { kind: 'mfa-setup-required' };
+  | { kind: 'mfa-setup-required' }
+  // Sesión única: ya hay una sesión activa. El componente muestra el interstitial y, si el usuario
+  // confirma, llama a takeover(ticket) para cerrar la anterior y completar el ingreso.
+  | { kind: 'takeover-required'; ticket: string }
+  // Superficie equivocada: un cliente (CustomerPortal) intentó entrar al CRM de staff. Se rechaza
+  // sin tocar su sesión; el componente muestra un aviso neutral.
+  | { kind: 'wrong-portal' };
 
 /**
  * Servicio de autenticación transversal. Orquesta el login (incluido MFA),
@@ -83,19 +94,40 @@ export class AuthService {
     );
   }
 
-  verifyMfa(req: VerifyMfaRequest): Observable<void> {
+  verifyMfa(req: VerifyMfaRequest): Observable<LoginOutcome> {
     if (environment.authMock) {
       return defer(() => {
         this.applyMockSession();
-        return of(void 0);
+        return of<LoginOutcome>({ kind: 'authenticated' });
       });
     }
-    return defer(() => this.http.post<AuthTokens>(`${this.base}/auth/mfa/verify`, req)).pipe(
-      tap(tokens => {
-        this.tokenService.setSession(tokens);
-        this._pendingMfa.set(null);
+    return defer(() => this.http.post<MfaVerifyResponse>(`${this.base}/auth/mfa/verify`, req)).pipe(
+      map(res => {
+        // Sesión única: el 2.º factor pasó, pero ya hay sesión activa → confirmar takeover, sin tokens.
+        if (res.takeoverRequired && res.takeoverTicket) {
+          return { kind: 'takeover-required', ticket: res.takeoverTicket } satisfies LoginOutcome;
+        }
+        if (res.tokens) {
+          this.tokenService.setSession(res.tokens);
+          this._pendingMfa.set(null);
+          return { kind: 'authenticated' } satisfies LoginOutcome;
+        }
+        throw new Error('Respuesta de verificación MFA inesperada del servidor.');
       }),
-      map(() => void 0),
+    );
+  }
+
+  /** Sesión única: confirma el takeover. Canjea el vale, cierra la sesión anterior y establece la nueva. */
+  takeover(ticket: string): Observable<LoginOutcome> {
+    if (environment.authMock) {
+      return defer(() => {
+        this.applyMockSession();
+        return of<LoginOutcome>({ kind: 'authenticated' });
+      });
+    }
+    const body: TakeoverSessionRequest = { ticket };
+    return defer(() => this.http.post<LoginResponse>(`${this.base}/auth/session/takeover`, body)).pipe(
+      map(res => this.handleLoginResponse(res)),
     );
   }
 
@@ -173,6 +205,11 @@ export class AuthService {
     this._pendingMfa.set(null);
     this._mustEnrollMfa.set(false);
     this.refreshInFlight = null;
+    // El gate de Términos es POR USUARIO: si no se limpia, el siguiente que entre en este
+    // navegador hereda el "ya aceptado" del anterior (y, con la memoización, hasta su
+    // respuesta cacheada) y se saltaría la pantalla de aceptación.
+    this._termsAccepted.set(false);
+    this.termsStatus$ = null;
     // El slug recordado es parte de la sesión: sin esto, el siguiente usuario de este
     // navegador seguiría apuntando a la oficina anterior y su login fallaría con
     // "credenciales inválidas" sin explicación. Si el host identifica una oficina,
@@ -185,7 +222,97 @@ export class AuthService {
     this._mustEnrollMfa.set(false);
   }
 
+  // ---------- Términos (ToS/AUP) ----------
+
+  /** Cacheado por sesión: una vez aceptado, el authGuard no re-chequea en cada navegación. */
+  private readonly _termsAccepted = signal(false);
+  readonly termsAccepted = this._termsAccepted.asReadonly();
+
+  /** Request memoizada del gate de Términos (ver `termsStatus`). */
+  private termsStatus$: Observable<TermsAcceptanceStatusResponse> | null = null;
+
+  /**
+   * Estado del gate de Términos, memoizado EN VIVO. Antes el app-initializer resolvía
+   * /auth/me y solo después el authGuard abría esta segunda ida y vuelta, en serie: dos
+   * round-trips antes de pintar el shell. Ahora el initializer la arranca en paralelo y el
+   * guard se engancha a la MISMA request en vuelo.
+   *
+   * Un fallo descarta la caché: si no, un error de red dejaría el gate roto toda la sesión.
+   */
+  termsStatus(): Observable<TermsAcceptanceStatusResponse> {
+    this.termsStatus$ ??= this.http
+      .get<TermsAcceptanceStatusResponse>(`${this.base}/auth/tenant/terms/status`)
+      .pipe(
+        tap(status => {
+          if (status.accepted) {
+            this._termsAccepted.set(true);
+          }
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+        catchError(err => {
+          this.termsStatus$ = null;
+          return throwError(() => err);
+        }),
+      );
+    return this.termsStatus$;
+  }
+
+  acceptTerms(): Observable<TermsAcceptanceResponse> {
+    return this.http.post<TermsAcceptanceResponse>(`${this.base}/auth/tenant/terms/accept`, {}).pipe(
+      tap(() => {
+        this._termsAccepted.set(true);
+        // La respuesta memoizada dice `accepted: false` y acaba de quedar obsoleta: sin esto,
+        // quien volviera a consultar el estado leería el "no aceptado" viejo de la caché.
+        this.termsStatus$ = null;
+      }),
+    );
+  }
+
+  markTermsAccepted(): void {
+    this._termsAccepted.set(true);
+  }
+
+  /** Documento legal vigente (recurso de plataforma, anónimo, en el host de sistema). */
+  currentTermsVersion(kind: 'TermsOfService' | 'PrivacyPolicy', locale = 'en-US'): Observable<TermsVersionResponse> {
+    const params = new URLSearchParams({ kind, locale });
+    return this.http.get<TermsVersionResponse>(`${this.api.systemBase()}/auth/onboarding/terms/current?${params}`);
+  }
+
+  /** URL pública del documento legal renderizado (HTML), para abrirlo en una pestaña. */
+  termsContentUrl(termsVersionId: string): string {
+    return `${this.api.systemBase()}/auth/onboarding/terms/${termsVersionId}/content`;
+  }
+
+  /**
+   * Contenido HTML del documento legal, para RENDERIZARLO inline en el front (no abrir la API cruda
+   * en otra pestaña). Anónimo, host de sistema, `responseType: 'text'` porque el endpoint responde
+   * `text/html`. El HTML es contenido propio de la plataforma (subido por un Platform Admin); igual
+   * se sanea en el componente antes de pintarlo.
+   */
+  termsContent(termsVersionId: string): Observable<string> {
+    return this.http.get(this.termsContentUrl(termsVersionId), { responseType: 'text' });
+  }
+
+  /**
+   * Marca que el usuario debe enrolar MFA. Lo usa el canje del login central (from-ticket) cuando
+   * la política exige segundo factor pero aún no hay método: así el authGuard lo desvía al setup,
+   * igual que el desenlace `mfa-setup-required` del login directo.
+   */
+  requireMfaEnrollment(): void {
+    this._mustEnrollMfa.set(true);
+  }
+
   private handleLoginResponse(res: LoginResponse): LoginOutcome {
+    // Superficie equivocada: el CRM es solo para staff. Un cliente se rechaza ANTES de tocar la
+    // sesión — sin takeover (no se le revoca la del portal) y sin persistir tokens.
+    if (res.actorType === 'CustomerPortal') {
+      return { kind: 'wrong-portal' };
+    }
+    // Sesión única: ya hay una sesión activa. Sin tokens todavía — el componente muestra el
+    // interstitial y confirma con takeover(ticket).
+    if (res.takeoverRequired && res.takeoverTicket) {
+      return { kind: 'takeover-required', ticket: res.takeoverTicket };
+    }
     if (res.mfaRequired && res.loginTicket) {
       const methods = (res.mfaMethods ?? []) as MfaMethodType[];
       this._pendingMfa.set({

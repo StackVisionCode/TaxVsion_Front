@@ -18,9 +18,11 @@ const MIN_PASSWORD_LENGTH = 12;
  * lo tiene. Sin token en la URL (link roto/copiado mal) se muestra un error
  * directo en vez del formulario.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-reset-password-page',
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './reset-password-page.component.html',
   styleUrl: './reset-password-page.component.css',

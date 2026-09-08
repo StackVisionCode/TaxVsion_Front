@@ -8,13 +8,36 @@
       class="flex items-center px-4 pt-5 pb-4"
       [ngClass]="{ 'justify-between': isExpanded(), 'justify-center': !isExpanded() }"
     >
-      <div class="flex items-center gap-2 select-none">
-        <span class="text-indigo-600 text-2xl font-bold leading-none">*</span>
-        <span
-          *ngIf="isExpanded()"
-          class="text-gray-900 text-sm font-bold tracking-widest"
-          >TAXPRO OFFICE</span
-        >
+      <div class="flex items-center gap-2 select-none min-w-0 overflow-hidden">
+        <!-- Expandido: logo grande del tenant (o del sistema por cascada); si no viene ninguno, el
+             nombre de marca. Colapsado (w-16): solo el asterisco, que es lo único que cabe. -->
+        <ng-container *ngIf="isExpanded(); else collapsedMark">
+          <img
+            *ngIf="logoUrl() && !showLogoFallback(); else expandedFallback"
+            [src]="logoUrl()"
+            alt="Logo"
+            class="h-10 max-w-[180px] object-contain"
+            (error)="showLogoFallback.set(true)"
+          />
+          <ng-template #expandedFallback>
+            <span class="text-gray-900 text-sm font-bold tracking-widest">TAXPROFFICE</span>
+          </ng-template>
+        </ng-container>
+        <!-- Colapsado (w-16): la marca del tenant reducida (favicon, o el logo
+             si no hay favicon) en un cuadro de 40px con object-contain, que la
+             escala sin recortarla ni deformarla. Sin marca, el asterisco. -->
+        <ng-template #collapsedMark>
+          <img
+            *ngIf="collapsedMarkUrl() && !showMarkFallback(); else collapsedFallback"
+            [src]="collapsedMarkUrl()"
+            alt="Logo"
+            class="h-10 w-10 shrink-0 object-contain"
+            (error)="onMarkError()"
+          />
+          <ng-template #collapsedFallback>
+            <span class="text-brand-bold text-2xl font-bold leading-none">*</span>
+          </ng-template>
+        </ng-template>
       </div>
 
       <!-- Collapse toggle (inline with brand when expanded) -->
@@ -55,16 +78,14 @@
           [style.height.px]="indicatorHeight()"
         ></div>
 
-        <div
-          *ngFor="let item of menuItems(); trackBy: trackByIndex"
-          class="relative"
-        >
+        <div *ngFor="let item of menuItems(); trackBy: trackByIndex" class="relative">
           <ng-container *ngIf="canShowItem(item)">
             <button
               #itemButton
               type="button"
               (click)="handleMenuClick($event, item)"
               (mouseenter)="onMenuItemMouseEnter($event, item)"
+              (focus)="onMenuItemFocus(item)"
               (mouseleave)="onMenuItemMouseLeave(item)"
               [disabled]="!isClickable()"
               class="relative flex items-center rounded-full cursor-pointer transition-colors duration-200"
@@ -78,7 +99,10 @@
               <ion-icon
                 [name]="item.icon"
                 class="text-lg shrink-0 pointer-events-none"
-                [ngClass]="[item.isActive ? 'text-white' : 'text-gray-500', item.isActive ? 'icon-pop' : '']"
+                [ngClass]="[
+                  item.isActive ? 'text-white' : 'text-gray-500',
+                  item.isActive ? 'icon-pop' : '',
+                ]"
               ></ion-icon>
 
               <span
@@ -88,15 +112,15 @@
                 {{ item.label }}
               </span>
 
-              <!-- Notification badge -->
+              <!-- Unread count badge (p. ej. chat) -->
               <span
                 *ngIf="item.badge"
-                class="absolute rounded-full bg-emerald-500 border-2 border-white pointer-events-none"
+                class="pointer-events-none absolute flex items-center justify-center rounded-full bg-orange-500 font-bold leading-none text-white ring-2 ring-white"
                 [ngClass]="{
-                  'top-0.5 right-0.5 h-2.5 w-2.5': !isExpanded(),
-                  'top-2 right-3 h-2 w-2': isExpanded(),
+                  'top-0 right-0 h-[16px] min-w-[16px] px-1 text-[9px]': !isExpanded(),
+                  'top-1.5 right-2.5 h-[18px] min-w-[18px] px-1 text-[10px]': isExpanded(),
                 }"
-              ></span>
+              >{{ item.badge > 9 ? '9+' : item.badge }}</span>
             </button>
           </ng-container>
         </div>

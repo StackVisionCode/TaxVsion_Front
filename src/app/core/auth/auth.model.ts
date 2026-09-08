@@ -21,7 +21,7 @@ export interface AuthTokens {
   deviceToken?: string | null;
 }
 
-/** LoginResponse polimórfica: tokens, o reto MFA, o enrolamiento requerido. */
+/** LoginResponse polimórfica: tokens, o reto MFA, o enrolamiento requerido, o takeover de sesión única. */
 export interface LoginResponse {
   mfaRequired: boolean;
   mfaSetupRequired: boolean;
@@ -29,6 +29,26 @@ export interface LoginResponse {
   loginTicket: string | null;
   mfaMethods: string[] | null;
   ticketExpiresInSeconds: number | null;
+  /** Sesión única: ya hay una sesión activa. Sin tokens todavía — el front confirma con el vale. */
+  takeoverRequired?: boolean;
+  takeoverTicket?: string | null;
+  takeoverTicketExpiresInSeconds?: number | null;
+  /** Actor del usuario — para rechazar temprano un login en la superficie equivocada (cliente en el CRM). */
+  actorType?: string | null;
+}
+
+/** MfaVerifyResponse: tokens tras el 2.º factor, o vale de takeover de sesión única. */
+export interface MfaVerifyResponse {
+  tokens: AuthTokens | null;
+  takeoverRequired?: boolean;
+  takeoverTicket?: string | null;
+  takeoverTicketExpiresInSeconds?: number | null;
+}
+
+/** Cuerpo de POST /auth/session/takeover. Canjea el vale, revoca las sesiones anteriores y emite la nueva. */
+export interface TakeoverSessionRequest {
+  ticket: string;
+  deviceName?: string | null;
 }
 
 /** Cuerpo de POST /auth/refresh. */
@@ -56,6 +76,32 @@ export interface Tenant {
   id: string;
   name: string;
   subDomain: string;
+}
+
+/** GET /auth/tenant/terms/status. */
+export interface TermsAcceptanceStatusResponse {
+  accepted: boolean;
+  currentVersion: string;
+  acceptedVersion: string | null;
+  acceptedAtUtc: string | null;
+}
+
+/** POST /auth/tenant/terms/accept. */
+export interface TermsAcceptanceResponse {
+  termsVersion: string;
+  acceptedAtUtc: string;
+}
+
+/** GET /auth/onboarding/terms/current — versión vigente de un documento legal (ToS/Privacy). */
+export interface TermsVersionResponse {
+  termsVersionId: string;
+  kind: string;
+  version: string;
+  contentUri: string | null;
+  contentHash: string | null;
+  locale: string;
+  effectiveFromUtc: string;
+  effectiveUntilUtc: string | null;
 }
 
 export interface Plan {

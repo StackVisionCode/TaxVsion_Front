@@ -12,15 +12,15 @@
 }
 
 .trend-bar--light {
-  background-color: #67BAF4;
+  background-color: rgb(var(--color-orange-500-rgb, 103 186 244));
 }
 
 .trend-bar--lighter {
-  background-color: #D7E3EF;
+  background-color: rgb(var(--color-indigo-200-rgb, 176 201 223));
 }
 
 .trend-bar--vivid {
-  background-color: #1E466B;
+  background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
 }
 
 .trend-bar--medium {

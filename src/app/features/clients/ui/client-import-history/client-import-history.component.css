@@ -1,0 +1,56 @@
+/* Entrada del bloque de historial + escalonado por fila (keyframes propios: el proyecto no
+   usa @angular/animations). */
+.import-history {
+  animation: history-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes history-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.history-row {
+  animation: history-row-in 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.history-row:nth-child(1) { animation-delay: 0ms; }
+.history-row:nth-child(2) { animation-delay: 40ms; }
+.history-row:nth-child(3) { animation-delay: 80ms; }
+.history-row:nth-child(4) { animation-delay: 120ms; }
+.history-row:nth-child(5) { animation-delay: 160ms; }
+.history-row:nth-child(6) { animation-delay: 200ms; }
+.history-row:nth-child(7) { animation-delay: 240ms; }
+.history-row:nth-child(n + 8) { animation-delay: 280ms; }
+
+@keyframes history-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accesibilidad: con `prefers-reduced-motion: reduce` la tabla se pinta ya montada.
+   Los keyframes usan `both`, así que anular la animación entera es obligatorio: acortarla
+   dejaría las filas fijadas en su estado inicial (opacity: 0). */
+@media (prefers-reduced-motion: reduce) {
+  .import-history,
+  .history-row {
+    animation: none;
+  }
+
+  /* `animate-spin` es una utilidad global de Tailwind: se anula con !important porque el
+     orden entre la hoja de Tailwind y los estilos del componente no está garantizado. */
+  .import-history .animate-spin {
+    animation: none !important;
+  }
+}

@@ -19,4 +19,7 @@ export const environment: Environment = {
   // Vacío en dev: el alta se queda dentro de la app (/onboarding) en vez de saltar
   // al sitio público. Poner la URL del landing si se quiere probar ese salto.
   landingUrl: '',
+  // DEV: correr el portal del cliente en este origen (ng serve --port 4300) para probar el
+  // login central cliente end-to-end. En prod se ignora.
+  portalDevUrl: 'http://localhost:4300',
 };

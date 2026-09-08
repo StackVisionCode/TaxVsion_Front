@@ -1,0 +1,152 @@
+<app-modal [isOpen]="isOpen" [heading]="view() === 'create' ? 'New recurring series' : 'Recurring series'"
+  subheading="Templates that auto-generate tasks on a schedule" size="lg" (closed)="close()">
+
+  @if (view() === 'list') {
+    <div class="flex flex-col gap-3">
+      <div class="flex items-center justify-end">
+        <button type="button" (click)="startCreate()"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          <span>New series</span>
+        </button>
+      </div>
+
+      @if (loading()) {
+        <div class="flex flex-col gap-2">
+          @for (i of [1, 2, 3]; track i) { <div class="h-16 rounded-2xl bg-gray-100 animate-pulse"></div> }
+        </div>
+      } @else if (series().length === 0) {
+        <div class="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+            <ion-icon name="repeat-outline" class="text-2xl"></ion-icon>
+          </span>
+          <p class="text-sm text-gray-500 max-w-xs">No recurring series yet. Create one, or apply a recurring template (like 1040-ES or 941).</p>
+        </div>
+      } @else {
+        @for (s of series(); track trackById($index, s)) {
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 p-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="truncate text-sm font-semibold text-gray-900">{{ s.title }}</p>
+                <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" [ngClass]="statusColor(s.status)">{{ s.status }}</span>
+              </div>
+              <p class="truncate text-xs text-gray-400">{{ s.rule }}</p>
+              <p class="text-xs text-gray-400">{{ s.generatedCount }} generated@if (s.skippedOccurrences) { · {{ s.skippedOccurrences }} skipped }</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-1">
+              @if (s.status === 'Active') {
+                <button type="button" (click)="pause(s)" [disabled]="busyId() === s.id" aria-label="Pause series"
+                  class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40 transition-colors"><ion-icon name="pause-outline"></ion-icon></button>
+              }
+              @if (s.status === 'Paused') {
+                <button type="button" (click)="resume(s)" [disabled]="busyId() === s.id" aria-label="Resume series"
+                  class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40 transition-colors"><ion-icon name="play-outline"></ion-icon></button>
+              }
+              @if (s.status !== 'Ended') {
+                <button type="button" (click)="end(s)" [disabled]="busyId() === s.id" aria-label="End series"
+                  class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 disabled:opacity-40 transition-colors"><ion-icon name="stop-outline"></ion-icon></button>
+              }
+            </div>
+          </div>
+        }
+      }
+    </div>
+  } @else {
+    <!-- Create -->
+    <div class="flex flex-col gap-4">
+      <button type="button" (click)="backToList()" class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <ion-icon name="chevron-back-outline"></ion-icon> Series
+      </button>
+
+      <div>
+        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Title</label>
+        <input type="text" [ngModel]="cTitle()" (ngModelChange)="cTitle.set($event)" placeholder="e.g. Quarterly payroll filing"
+          class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Priority</label>
+          <select [ngModel]="cPriority()" (ngModelChange)="cPriority.set($event)"
+            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+            @for (p of priorities; track p) { <option [ngValue]="p">{{ p }}</option> }
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Anchor (first due)</label>
+          <input type="date" [ngModel]="cAnchor()" (ngModelChange)="cAnchor.set($event)"
+            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- Recurrence builder -->
+      <div class="rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          @for (f of ['monthly', 'quarterly', 'yearly', 'custom']; track f) {
+            <button type="button" (click)="cFreq.set($any(f))"
+              class="rounded-full px-3 py-1 text-sm font-medium transition-colors"
+              [ngClass]="cFreq() === f ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
+              {{ f | titlecase }}
+            </button>
+          }
+        </div>
+
+        @if (cFreq() !== 'custom') {
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Day of month</label>
+              <input type="number" min="1" max="31" [ngModel]="cDay()" (ngModelChange)="cDay.set(+$event)"
+                class="h-10 w-24 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+            </div>
+            @if (cFreq() === 'yearly') {
+              <div>
+                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Month</label>
+                <select [ngModel]="cMonth()" (ngModelChange)="cMonth.set(+$event)"
+                  class="h-10 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+                  @for (m of months; track m.v) { <option [ngValue]="m.v">{{ m.n }}</option> }
+                </select>
+              </div>
+            }
+          </div>
+        } @else {
+          <div>
+            <label class="mb-0.5 block text-[10px] uppercase text-gray-400">RRULE (RFC 5545)</label>
+            <input type="text" [ngModel]="cCustomRule()" (ngModelChange)="cCustomRule.set($event)"
+              placeholder="FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=31"
+              class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
+          </div>
+        }
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex-1">
+            <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Mode</label>
+            <select [ngModel]="cMode()" (ngModelChange)="cMode.set($event)"
+              class="h-10 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+              <option value="FixedSchedule">Fixed schedule</option>
+              <option value="AfterCompletion">After completion</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-gray-600 pt-4">
+            <input type="checkbox" [ngModel]="cStatutory()" (ngModelChange)="cStatutory.set($event)"
+              class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
+            Statutory
+          </label>
+        </div>
+
+        <p class="rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs text-gray-500 break-all">{{ builtRule() || '—' }}</p>
+      </div>
+
+      @if (cError()) { <p class="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ cError() }}</p> }
+
+      <div class="flex items-center justify-end gap-2">
+        <button type="button" (click)="backToList()"
+          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+        <button type="button" (click)="create()" [disabled]="!canCreate()"
+          class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
+          @if (cSaving()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          <span>Create series</span>
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>

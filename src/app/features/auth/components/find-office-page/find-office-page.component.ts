@@ -20,9 +20,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * correo los links de las oficinas del usuario; cada link trae ?office=<slug>, que el
  * login lee para pegarle al subdominio correcto.
  */
+import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+
 @Component({
   selector: 'app-find-office-page',
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './find-office-page.component.html',
   styleUrl: './find-office-page.component.css',

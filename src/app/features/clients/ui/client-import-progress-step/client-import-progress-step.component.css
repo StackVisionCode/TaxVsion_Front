@@ -1,0 +1,61 @@
+/* Entrada escalonada de los bloques del paso (keyframes propios: el proyecto no usa
+   @angular/animations). */
+.import-progress .progress-block {
+  animation: progress-block-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.import-progress .progress-block:nth-child(1) { animation-delay: 0ms; }
+.import-progress .progress-block:nth-child(2) { animation-delay: 60ms; }
+.import-progress .progress-block:nth-child(3) { animation-delay: 120ms; }
+.import-progress .progress-block:nth-child(n + 4) { animation-delay: 180ms; }
+
+@keyframes progress-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* La barra crece suave entre sondeos (2s) en vez de saltar de golpe. */
+.progress-fill {
+  transition: width 420ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Sin totalRows todavía no hay porcentaje real: barra indeterminada en vez de un 0% fijo
+   que se lee como "colgado". */
+.progress-indeterminate {
+  animation: progress-sweep 1400ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Accesibilidad: sin movimiento, la barra indeterminada queda quieta al inicio y los
+   bloques aparecen ya montados. El progreso real se sigue leyendo por el texto
+   "X of Y rows processed", que no depende de la animación. */
+@media (prefers-reduced-motion: reduce) {
+  .import-progress .progress-block,
+  .progress-indeterminate {
+    animation: none;
+  }
+
+  .progress-fill {
+    transition: none;
+  }
+
+  /* `animate-spin` es una utilidad global de Tailwind: se anula con !important porque el
+     orden entre la hoja de Tailwind y los estilos del componente no está garantizado. */
+  .import-progress .animate-spin {
+    animation: none !important;
+  }
+}

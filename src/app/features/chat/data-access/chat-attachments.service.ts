@@ -25,6 +25,29 @@ export class ChatAttachmentsService {
       folderType: 'Other',
       taxYear: null,
     };
+    return this.upload(request, file);
+  }
+
+  /**
+   * Sube una nota de voz a la carpeta navegable "Voice Notes" del TENANT (owner Tenant/ownerId=null),
+   * no a la conversación — así el staff la ve como una sola carpeta en el gestor (decisión A). El CRM
+   * sube directo a CloudStorage (el staff puede crear files Tenant-owned); el Portal va mediado por
+   * Communication, que hace el mismo ruteo por content-type. `file.type` debe ser audio/webm|audio/mp4.
+   */
+  uploadVoiceNote(file: File): Observable<string> {
+    const request: InitiateUploadRequest = {
+      originalName: file.name,
+      contentType: file.type || 'audio/webm',
+      sizeBytes: file.size,
+      ownerType: 'Tenant',
+      ownerId: null,
+      folderType: 'VoiceNotes',
+      taxYear: null,
+    };
+    return this.upload(request, file);
+  }
+
+  private upload(request: InitiateUploadRequest, file: File): Observable<string> {
     return this.cloudStorage.initiateUpload(request).pipe(
       switchMap(initiated =>
         this.cloudStorage.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(

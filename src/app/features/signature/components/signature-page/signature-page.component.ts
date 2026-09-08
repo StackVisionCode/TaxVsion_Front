@@ -1,13 +1,17 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
+import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
+import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
   TOKEN_EXPIRATION_MAX_HOURS,
@@ -51,12 +55,14 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
     SignatureCreatorComponent,
     PaginationComponent,
     ModalComponent,
+    SignatureTemplatePickerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
@@ -71,6 +77,8 @@ export class SignaturePageComponent {
 
   /** Generador de firmas (adaptado del CRM legado): modal + firma propia del preparador. */
   readonly isCreatorOpen = signal(false);
+  /** Modal para crear la solicitud a partir de una plantilla guardada. */
+  readonly isTemplatePickerOpen = signal(false);
   readonly mySignature = signal<CreatedSignature | null>(null);
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
@@ -83,8 +91,24 @@ export class SignaturePageComponent {
   readonly cancelReason = signal('');
   readonly extendTarget = signal<SignatureRequest | null>(null);
   readonly extendHours = signal(72);
+  /** Solicitud cuyo PIN del preparador se está fijando o quitando. */
+  readonly pinTarget = signal<SignatureRequest | null>(null);
+  readonly pinValue = signal('');
+  /** Misma regla que el dominio (4–10 dígitos), reutilizada del modelo público. */
+  readonly isPinValid = computed(() => isValidPractitionerPin(this.pinValue()));
+
+  /** Solicitud cuyo preparador (Form 8879 §V) se está editando. */
+  readonly preparerTarget = signal<SignatureRequest | null>(null);
+  readonly preparerPtin = signal('');
+  readonly preparerName = signal('');
+  readonly preparerTitle = signal('');
+  readonly isPreparerValid = computed(
+    () => this.preparerPtin().trim().length > 0 && this.preparerName().trim().length > 0,
+  );
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
+  /** Envío de una solicitud Ready desde el detalle (Ready → InProgress). */
+  readonly sendingRequest = signal(false);
 
   readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
   readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
@@ -153,6 +177,28 @@ export class SignaturePageComponent {
     this.isPanelOpen.set(false);
   }
 
+  openTemplatePicker(): void {
+    this.isTemplatePickerOpen.set(true);
+  }
+
+  closeTemplatePicker(): void {
+    this.isTemplatePickerOpen.set(false);
+  }
+
+  /**
+   * La plantilla creó (y normalmente envió) la solicitud. Si el documento seguía en escaneo
+   * quedó como borrador para enviar desde la lista. Se recarga la tabla al tope.
+   */
+  handleTemplateInstantiated(result: { detail: { title: string }; sent: boolean }): void {
+    this.closeTemplatePicker();
+    this.store.reloadTop();
+    this.showToast(
+      result.sent
+        ? `Sent to signers — "${result.detail.title}"`
+        : `Saved as draft — "${result.detail.title}" is still scanning; send it from the list`,
+    );
+  }
+
   openCreator(): void {
     this.isCreatorOpen.set(true);
   }
@@ -161,15 +207,25 @@ export class SignaturePageComponent {
     this.isCreatorOpen.set(false);
   }
 
+  /**
+   * La imagen se queda SOLO en memoria de esta pantalla.
+   *
+   * Ningún endpoint de Signature acepta un binario de firma: `SetPreparerBody`
+   * son tres strings y `preparer/sign` va sin body, así que no hay dónde
+   * enviarla. Decir "saved" prometía una persistencia que no existe — se pierde
+   * al recargar. Tampoco se guarda en localStorage a propósito: una firma
+   * manuscrita es un dato sensible y ahí la leería cualquier script de la página.
+   */
   handleSignatureCreated(signature: CreatedSignature): void {
     this.mySignature.set(signature);
     this.closeCreator();
-    this.showToast('Signature saved');
+    this.showToast('Signature ready — kept on this screen only, not stored on the server');
   }
 
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */
   handleSent(): void {
     this.closePanel();
+    this.store.reloadTop();
     this.showToast('Signature request sent — signers were notified by email');
   }
 
@@ -179,6 +235,38 @@ export class SignaturePageComponent {
 
   closePreview(): void {
     this.previewRequest.set(null);
+  }
+
+  /**
+   * Envía una solicitud Ready (típicamente creada desde plantilla): Ready → InProgress,
+   * que dispara las invitaciones. Refresca el preview con el nuevo estado.
+   */
+  sendRequest(request: SignatureRequest): void {
+    if (this.sendingRequest()) {
+      return;
+    }
+    this.sendingRequest.set(true);
+    this.store.sendRequest(request.id).subscribe({
+      next: () => {
+        this.store.getRequestUi(request.id).subscribe({
+          next: updated => {
+            if (this.previewRequest()?.id === request.id) {
+              this.previewRequest.set(updated);
+            }
+            this.sendingRequest.set(false);
+            this.showToast('Signature request sent — signers were notified by email');
+          },
+          error: () => {
+            this.sendingRequest.set(false);
+            this.showToast('Sent — reopen the request to see the latest status');
+          },
+        });
+      },
+      error: err => {
+        this.sendingRequest.set(false);
+        this.showToast(toApiError(err).message);
+      },
+    });
   }
 
   // ---------- Reenvíos ----------
@@ -231,6 +319,132 @@ export class SignaturePageComponent {
           this.previewRequest.set(null);
         }
         this.showToast(`Signature request "${target.documentName}" canceled`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- PIN del preparador ----------
+
+  openPinModal(request: SignatureRequest): void {
+    this.pinValue.set('');
+    this.actionError.set('');
+    this.pinTarget.set(request);
+  }
+
+  closePinModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.pinTarget.set(null);
+  }
+
+  confirmSetPin(): void {
+    const target = this.pinTarget();
+    if (!target || this.actionBusy() || !this.isPinValid()) {
+      return;
+    }
+    this.runPinAction(this.store.setPractitionerPin(target.id, this.pinValue().trim()), target, 'PIN set for');
+  }
+
+  /** Quita el PIN: la solicitud deja de exigir verificación por PIN al firmar. */
+  confirmClearPin(): void {
+    const target = this.pinTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPinAction(this.store.clearPractitionerPin(target.id), target, 'PIN removed from');
+  }
+
+  private runPinAction(action: Observable<void>, target: SignatureRequest, verb: string): void {
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    action.subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.pinTarget.set(null);
+        this.showToast(`${verb} "${target.documentName}"`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Preparador (Form 8879 §V) ----------
+
+  /**
+   * Precarga lo guardado en ESTA sesión. El detalle del backend no devuelve el
+   * preparador, así que es lo último que este navegador escribió: evita
+   * retipearlo todo para cambiar un campo, y al recargar la página vuelve a
+   * quedar vacío (la UI lo advierte).
+   */
+  openPreparerModal(request: SignatureRequest): void {
+    const known = this.store.preparerFor(request.id);
+    this.preparerPtin.set(known?.info?.ptinOrEfin ?? '');
+    this.preparerName.set(known?.info?.displayName ?? '');
+    this.preparerTitle.set(known?.info?.titleLabel ?? '');
+    this.actionError.set('');
+    this.preparerTarget.set(request);
+  }
+
+  /** Lo que sabemos del preparador de la solicitud abierta (solo esta sesión). */
+  readonly preparerState = computed(() => {
+    const target = this.preparerTarget();
+    return target ? this.store.preparerFor(target.id) : null;
+  });
+
+  closePreparerModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.preparerTarget.set(null);
+  }
+
+  confirmSetPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy() || !this.isPreparerValid()) {
+      return;
+    }
+    this.runPreparerAction(
+      this.store.setPreparer(target.id, {
+        ptinOrEfin: this.preparerPtin().trim(),
+        displayName: this.preparerName().trim(),
+        titleLabel: this.preparerTitle().trim() || null,
+      }),
+      target,
+      'Preparer saved on',
+    );
+  }
+
+  confirmClearPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPreparerAction(this.store.clearPreparer(target.id), target, 'Preparer removed from');
+  }
+
+  confirmSignAsPreparer(): void {
+    const target = this.preparerTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.runPreparerAction(this.store.signAsPreparer(target.id), target, 'Signed as preparer on');
+  }
+
+  private runPreparerAction(action: Observable<void>, target: SignatureRequest, verb: string): void {
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    action.subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.preparerTarget.set(null);
+        this.showToast(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);

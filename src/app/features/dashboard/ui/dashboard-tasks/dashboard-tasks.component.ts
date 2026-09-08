@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from '@core/auth/auth.service';
 import { TaskStore } from '../../../task/data-access/task.store';
 import { ApiTaskPriority, TaskItem } from '../../../task/data-access/task.model';
+import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
 import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
 
 type TaskFilter = 'All' | 'My Tasks' | 'Overdue';
@@ -119,38 +120,13 @@ export class DashboardTasksComponent implements OnInit {
     return task.dueDate < this.todayIso();
   }
 
-  /** "Today" / "Tomorrow" / "3 days ago"… a partir del `dueDate` YYYY-MM-DD real. */
+  /** "Today" / "Tomorrow" / "3 days ago"… — helper compartido (`@core/tasks/task-format`). */
   formatDue(dueDate: string): string {
-    if (!dueDate) {
-      return 'No due date';
-    }
-    const due = new Date(`${dueDate}T00:00:00`);
-    if (Number.isNaN(due.getTime())) {
-      return 'No due date';
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays < -1) return `${Math.abs(diffDays)} days ago`;
-    return `In ${diffDays} days`;
+    return formatRelativeDue(dueDate);
   }
 
-  /** El backend usa Normal donde el diseño decía Medium; se respeta el enum real. */
   priorityChipClass(priority: ApiTaskPriority): string {
-    switch (priority) {
-      case 'Urgent':
-        return 'border-red-200 text-red-500';
-      case 'High':
-        return 'border-orange-200 text-orange-500';
-      case 'Normal':
-        return 'border-amber-200 text-amber-600';
-      case 'Low':
-        return 'border-gray-200 text-gray-500';
-    }
+    return priorityChipClass(priority);
   }
 
   private todayIso(): string {

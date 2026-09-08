@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ThemeService } from '@core/theme/theme.service';
+import { PublicSharingSettingComponent } from '../public-sharing-setting/public-sharing-setting.component';
 
 /**
  * Un campo con persistencia real. Hoy el único caso son los colores del tema,
@@ -72,18 +73,9 @@ const PANELS: Record<string, PanelConfig> = {
       routerLink: '/company/settings',
     },
     fields: [
-      {
-        kind: 'color',
-        key: 'primaryColor',
-        label: 'Primary color',
-        description: 'Main accent used for buttons, links and highlights. Applied instantly, remembered in this browser.',
-      },
-      {
-        kind: 'color',
-        key: 'secondaryColor',
-        label: 'Secondary color',
-        description: 'Complementary accent used across icons and badges. Applied instantly, remembered in this browser.',
-      },
+      // Los colores de marca se configuran a nivel de tenant en /company/settings (permiso
+      // branding.manage), no por navegador. El picker localStorage viejo se retiró para no tener
+      // dos fuentes de verdad en conflicto — ver TenantBrands.
       { kind: 'pending', key: 'timezone', control: 'select', label: 'Default timezone', description: 'Will set the timezone used for due dates and reminders' },
       { kind: 'pending', key: 'compactSidebar', control: 'toggle', label: 'Compact sidebar by default', description: 'Will start every session with the sidebar collapsed' },
     ],
@@ -144,7 +136,7 @@ const PANELS: Record<string, PanelConfig> = {
  */
 @Component({
   selector: 'app-settings-panel',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './settings-panel.component.html',
 })

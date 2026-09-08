@@ -8,8 +8,10 @@
       <!-- Header: marca + chip seguro -->
       <div class="border-b border-gray-100 px-6 pb-4 pt-6">
         <div class="mb-4 flex items-center justify-center gap-2">
-          <span class="text-2xl font-bold leading-none text-indigo-600">*</span>
-          <span class="text-sm font-bold text-gray-900">TaxPro Office</span>
+          <app-brand-logo
+            logoClass="h-8 max-w-[150px] object-contain"
+            fallbackClass="text-indigo-600 text-2xl font-bold leading-none"
+          ></app-brand-logo>
           <span class="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
             <ion-icon name="shield-checkmark-outline" class="text-[10px]"></ion-icon>
             Secure
@@ -58,7 +60,7 @@
             </span>
             <h1 class="mt-4 text-xl font-bold text-gray-900">{{ dead.title }}</h1>
             <p class="mt-2 text-sm text-gray-500">{{ dead.detail }}</p>
-            <p class="mt-4 rounded-2xl bg-[#FAFAFA] px-4 py-3 text-[11px] text-gray-400">
+            <p class="mt-4 rounded-2xl bg-brand-white px-4 py-3 text-[11px] text-gray-400">
               Reference code: <span class="font-mono">{{ loadError()?.code }}</span>
             </p>
           </div>
@@ -87,7 +89,7 @@
             We let the office know you don't want to sign. No signature was applied and this link is now closed.
           </p>
           <p *ngIf="declineReasonEcho()"
-            class="mt-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-4 py-3 text-left text-sm italic text-gray-600">
+            class="mt-4 rounded-2xl border border-gray-100 bg-brand-white px-4 py-3 text-left text-sm italic text-gray-600">
             “{{ declineReasonEcho() }}”
           </p>
         </div>
@@ -98,7 +100,7 @@
             <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
               [ngClass]="{
                 'bg-emerald-50 text-emerald-500': block.tone === 'success',
-                'bg-[#FAFAFA] text-gray-400': block.tone === 'neutral',
+                'bg-brand-white text-gray-400': block.tone === 'neutral',
                 'bg-orange-50 text-orange-500': block.tone === 'warning',
                 'bg-red-50 text-red-500': block.tone === 'danger'
               }">
@@ -119,13 +121,13 @@
               <div *ngIf="stepId() === 'welcome'" class="step-content">
                 <h1 class="text-xl font-bold text-gray-900">Hi, {{ firstName() }} 👋</h1>
                 <p class="mt-1.5 text-sm text-gray-500">
-                  <span class="font-semibold text-gray-700">TaxPro Office</span> asked you to sign a document.
+                  <span class="font-semibold text-gray-700">Your tax office</span> asked you to sign a document.
                   It takes less than two minutes.
                 </p>
 
                 <div class="welcome-meta mt-4 space-y-2 rounded-2xl border border-gray-100 p-3">
                   <div class="meta-row flex items-center gap-3">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E8F1FB]">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50">
                       <ion-icon name="document-text-outline" class="text-base text-gray-700"></ion-icon>
                     </span>
                     <span class="min-w-0">
@@ -134,7 +136,7 @@
                     </span>
                   </div>
                   <div class="meta-row flex items-center gap-3 border-t border-gray-100 pt-2">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#CFE2F7]">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
                       <ion-icon name="time-outline" class="text-base text-gray-700"></ion-icon>
                     </span>
                     <span class="min-w-0">
@@ -143,7 +145,7 @@
                     </span>
                   </div>
                   <div class="meta-row flex items-center gap-3 border-t border-gray-100 pt-2">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#DDE9F5]">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
                       <ion-icon name="person-outline" class="text-base text-gray-700"></ion-icon>
                     </span>
                     <span class="min-w-0">
@@ -155,26 +157,26 @@
                 </div>
 
                 <div class="mt-3 grid grid-cols-2 gap-2">
-                  <span class="flex items-center gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] text-gray-500">
+                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="lock-closed-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
                     Encrypted connection
                   </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] text-gray-500">
+                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="finger-print-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
                     Single-use secure link
                   </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] text-gray-500">
+                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="timer-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
                     Tamper-proof audit trail
                   </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-[#FAFAFA] px-2.5 py-2 text-[11px] text-gray-500">
+                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="location-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
                     IP &amp; device recorded
                   </span>
                 </div>
 
                 <p *ngIf="ctx.requiresSequentialSigning"
-                  class="mt-3 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-3 py-2 text-[11px] leading-snug text-gray-500">
+                  class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
                   <ion-icon name="people-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
                   This document is signed in order. You are signer number {{ ctx.order }}.
                 </p>
@@ -187,7 +189,7 @@
                   The law (ESIGN &amp; UETA) requires your consent to use an electronic signature. Read and accept to continue.
                 </p>
 
-                <div class="mt-4 max-h-44 overflow-y-auto rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm leading-relaxed text-gray-600">
+                <div class="mt-4 max-h-44 overflow-y-auto rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm leading-relaxed text-gray-600">
                   <p class="font-semibold text-gray-900">Electronic signature consent</p>
                   <p class="mt-2">
                     I agree to sign this document electronically. I understand my electronic signature is as
@@ -237,9 +239,48 @@
                   Too many attempts. This link unlocks again at {{ pinLockedUntilLabel() }}.
                 </p>
 
-                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-3 py-2 text-[11px] leading-snug text-gray-500">
+                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
                   <ion-icon name="call-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
                   The PIN never travels by email. If you don't have it, call the office that sent you this document.
+                </p>
+              </div>
+
+              <!-- PASO: Verificación por OTP (solo si requiredVerificationMethod y no completado) -->
+              <div *ngIf="stepId() === 'verify-otp'" class="step-content">
+                <h1 class="text-xl font-bold text-gray-900">Verify it's really you</h1>
+                <p class="mt-1.5 text-sm text-gray-500">
+                  We'll send a 6-digit code to {{ otpDestinationHint() }}. Enter it below to unlock signing.
+                </p>
+
+                <!-- Antes de enviar el primer código -->
+                <div *ngIf="!otpIssued()" class="mt-5">
+                  <button type="button" (click)="sendOtp()" [disabled]="busy()"
+                    class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+                    <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+                    Send my code by {{ otpChannelLabel() }}
+                  </button>
+                </div>
+
+                <!-- Tras enviar: input del código + reenvío con cooldown -->
+                <div *ngIf="otpIssued()" class="mt-5">
+                  <label for="otp" class="mb-1 block text-xs font-medium text-gray-600">6-digit code</label>
+                  <input id="otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                    [ngModel]="otpCode()" (ngModelChange)="otpCode.set($event)"
+                    placeholder="• • • • • •"
+                    class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-xl font-bold tracking-[0.4em] text-gray-900 transition-colors placeholder:tracking-normal placeholder:text-gray-300 focus:border-brand-bold focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
+                  <div class="mt-2 flex items-center justify-between text-[11px] text-gray-400">
+                    <span class="truncate">Sent to {{ otpDestinationHint() }}</span>
+                    <button type="button" (click)="sendOtp()" [disabled]="!canResendOtp() || busy()"
+                      class="shrink-0 font-medium text-brand-bold underline underline-offset-2 disabled:text-gray-300 disabled:no-underline">
+                      <span *ngIf="canResendOtp()">Resend code</span>
+                      <span *ngIf="!canResendOtp()">Resend in {{ otpResendIn() }}s</span>
+                    </button>
+                  </div>
+                </div>
+
+                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
+                  <ion-icon name="shield-checkmark-outline" class="mt-px shrink-0 text-xs text-emerald-500"></ion-icon>
+                  This extra step protects your document. The code expires in a few minutes.
                 </p>
               </div>
 
@@ -255,7 +296,7 @@
                   <span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5">{{ categoryLabel() }}</span>
                 </div>
                 <div class="rounded-b-2xl border border-t-0 border-gray-100 p-3">
-                  <p *ngIf="ctx.description" class="rounded-xl bg-[#FAFAFA] px-3 py-2 text-xs leading-snug text-gray-600">
+                  <p *ngIf="ctx.description" class="rounded-xl bg-brand-white px-3 py-2 text-xs leading-snug text-gray-600">
                     {{ ctx.description }}
                   </p>
 
@@ -291,7 +332,7 @@
                   </ul>
                 </div>
 
-                <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-3 py-2 text-[11px] leading-snug text-gray-500">
+                <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
                   <ion-icon name="checkmark-circle-outline" class="mt-px shrink-0 text-xs text-emerald-500"></ion-icon>
                   <span *ngIf="requiredFieldCount() > 0">
                     <span class="font-semibold">{{ requiredFieldCount() }}</span> of these fields are required.
@@ -316,7 +357,7 @@
                   Type your full legal name exactly as the office wrote it. That typed name is your signature.
                 </p>
 
-                <div class="mt-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] px-4 py-3">
+                <div class="mt-4 rounded-2xl border border-gray-100 bg-brand-white px-4 py-3">
                   <p class="text-[11px] uppercase tracking-wide text-gray-400">Name on the document</p>
                   <p class="text-sm font-semibold text-gray-900">{{ ctx.signerFullName }}</p>
                 </div>
@@ -341,7 +382,7 @@
 
                 <p class="mt-2 text-right text-[11px] text-gray-400">Date, time, IP and device are recorded</p>
 
-                <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-[#FAFAFA] px-3 py-2 text-[11px] leading-snug text-gray-500">
+                <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
                   <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
                   Drawing or uploading an image of your signature isn't available on a public link — those
                   methods need to store a file in the office's vault.
@@ -359,11 +400,41 @@
                 <span class="done-check mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
                   <ion-icon name="checkmark" class="text-4xl"></ion-icon>
                 </span>
-                <h1 class="mt-4 text-xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  Your signature was recorded.
-                  <span *ngIf="ctx.requestStatus === 'Completed'">Everyone has signed — the office is sealing the final PDF now.</span>
-                  <span *ngIf="ctx.requestStatus !== 'Completed'">We'll email you a copy once the remaining signers finish.</span>
+                <h1 class="mt-4 text-2xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
+                <p class="mt-1 text-sm font-medium text-emerald-600">Your signature was recorded successfully.</p>
+
+                <!-- Resumen de lo firmado -->
+                <div class="mt-5 rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
+                  <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
+                      <ion-icon name="document-text-outline" class="text-lg"></ion-icon>
+                    </span>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-semibold text-gray-900">{{ ctx.title }}</p>
+                      <p class="text-[11px] text-gray-400">Signed as {{ ctx.signerFullName }}</p>
+                    </div>
+                    <span class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
+                      <ion-icon name="shield-checkmark" class="text-[11px]"></ion-icon>Signed
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Qué sigue -->
+                <div class="mt-3 flex items-start gap-2 rounded-2xl border border-gray-100 px-4 py-3 text-left text-xs leading-snug text-gray-600">
+                  <ion-icon name="mail-outline" class="mt-0.5 shrink-0 text-base text-brand-bold"></ion-icon>
+                  <span *ngIf="ctx.requestStatus === 'Completed'">
+                    <span class="font-semibold text-gray-800">Everyone has signed.</span>
+                    The office is sealing the final PDF now — we'll email you a copy with a secure download link. No further action is needed.
+                  </span>
+                  <span *ngIf="ctx.requestStatus !== 'Completed'">
+                    <span class="font-semibold text-gray-800">You're done.</span>
+                    We'll email you a copy of the signed document once the remaining signers finish. No further action is needed.
+                  </span>
+                </div>
+
+                <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                  <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
+                  You can safely close this window.
                 </p>
 
                 <div class="mt-5">
@@ -402,7 +473,7 @@
           </button>
         </div>
         <p class="mt-3 text-center text-[11px] text-gray-400">
-          Step {{ stepNumber() }} of {{ stepCount() }} · Secured by TaxPro Office
+          Step {{ stepNumber() }} of {{ stepCount() }} · Secure electronic signature
         </p>
       </div>
     </div>
@@ -415,7 +486,7 @@
   público NO expone sealedFileId/certificateFileId y CloudStorage exige sesión.
 -->
 <ng-template #receipt>
-  <div class="rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-left">
+  <div class="rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
     <p class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
       <span class="flex items-center gap-1.5">
         <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>

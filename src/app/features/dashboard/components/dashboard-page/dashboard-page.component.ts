@@ -19,6 +19,7 @@ import { DashboardSignedDocumentsComponent } from '../../ui/dashboard-signed-doc
 import { DashboardMonthlyClientsComponent } from '../../ui/dashboard-monthly-clients/dashboard-monthly-clients.component';
 import { DashboardNotesComponent } from '../../ui/dashboard-notes/dashboard-notes.component';
 import { DashboardFiltersComponent } from '../../ui/dashboard-filters/dashboard-filters.component';
+import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 
 /**
  * Página del dashboard al estilo de la referencia "Aether". Los widgets se
@@ -53,6 +54,7 @@ import { DashboardFiltersComponent } from '../../ui/dashboard-filters/dashboard-
     DashboardMonthlyClientsComponent,
     DashboardNotesComponent,
     DashboardFiltersComponent,
+    SkeletonComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-page.component.html',
@@ -66,9 +68,5 @@ export class DashboardPageComponent {
 
   onDrop(event: CdkDragDrop<DashboardWidgetConfig[]>): void {
     this.layout.move(event.previousIndex, event.currentIndex);
-  }
-
-  trackById(_index: number, widget: DashboardWidgetConfig): string {
-    return widget.id;
   }
 }

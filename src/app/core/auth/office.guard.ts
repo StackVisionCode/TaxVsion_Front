@@ -1,8 +1,8 @@
 import { inject } from '@angular/core';
-import { CanActivateFn } from '@angular/router';
+import { CanActivateFn, Router } from '@angular/router';
 import { of, catchError, map, tap } from 'rxjs';
-import { environment } from '@env/environment';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { environment } from '@env/environment';
 import { TenantResolutionService } from './tenant-resolution.service';
 
 const OFFICE_OK_PREFIX = 'office_ok:';
@@ -31,17 +31,14 @@ export const officeGuard: CanActivateFn = () => {
     return true;
   }
 
+  const router = inject(Router);
   return inject(TenantResolutionService)
     .officeExists()
     .pipe(
       tap(exists => exists && writeOfficeOk(slug)),
-      map(exists => {
-        if (exists) {
-          return true;
-        }
-        window.location.href = `https://app.${environment.baseDomain}/find-office`;
-        return false;
-      }),
+      // Subdominio no registrado (lo bloquea el TenantHostGuard del Gateway): mensaje plano local,
+      // sin redirigir a app/find-office ni exponer el cuerpo/status del error de la API.
+      map(exists => (exists ? true : router.createUrlTree(['/office-unavailable']))),
       catchError(() => of(true)),
     );
 };

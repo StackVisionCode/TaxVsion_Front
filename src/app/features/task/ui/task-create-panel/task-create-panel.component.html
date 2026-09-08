@@ -12,7 +12,7 @@
       <!-- Description -->
       <textarea rows="3" placeholder="Description" [ngModel]="description()" name="description"
         (ngModelChange)="description.set($event)"
-        class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+        class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
 
       <!-- Client (picker sobre GET /customers: el backend guarda customerId) -->
       <div class="relative" data-dropdown="task-client">
@@ -100,7 +100,7 @@
       <div *ngIf="status() === 'waiting'" class="flex flex-col gap-1">
         <textarea rows="2" placeholder="What are you waiting for from the client? (required)"
           [ngModel]="expectedItems()" name="expectedItems" (ngModelChange)="expectedItems.set($event)"
-          class="w-full resize-none rounded-2xl border border-gray-100 bg-[#FAFAFA] p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
+          class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
         <p class="px-2 text-xs text-gray-400">
           "Waiting on Client" also requires a client selected — they get notified about the requested items.
         </p>

@@ -1,25 +1,46 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, concatMap, forkJoin, map, of, retry, throwError, timer } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  catchError,
+  concatMap,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  retry,
+  switchMap,
+  throwError,
+  timer,
+} from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { AuthService } from '@core/auth/auth.service';
 import { MailService } from './mail.service';
+import { MailSocketService } from './mail-socket.service';
 import {
   AttachFileToDraftRequest,
   AttachmentSummary,
+  ConnectManualAccountRequest,
+  DraftAttachmentSummary,
   DraftDetail,
   DraftListItem,
   MailAccount,
   MailCustomerSummary,
   MessageSummary,
+  SentMessageListItem,
   ThreadSummary,
+  TrashItem,
   isUsableAccount,
   parseRecipients,
   plainTextToHtml,
 } from './mail.model';
+import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
-export type MailFolderId = 'conversations' | 'archived' | 'drafts';
+export type MailFolderId = 'conversations' | 'sent' | 'archived' | 'drafts' | 'trash';
 
 /** Lote de hilos/drafts por página del listado. */
 const LIST_PAGE_SIZE = 50;
@@ -105,6 +126,15 @@ const EMPTY_COMPOSE: ComposeState = {
 export class MailStore {
   private readonly service = inject(MailService);
   private readonly uploads = inject(CloudStorageUploadService);
+  private readonly auth = inject(AuthService);
+  private readonly mailSocket = inject(MailSocketService);
+
+  // ---------- Identidad del usuario (guía la conexión de buzón) ----------
+
+  /** Email de login del usuario — el buzón conectado DEBE ser este (guard de identidad del backend). */
+  readonly loginEmail = computed(() => this.auth.currentUser()?.email ?? null);
+  /** Proveedor inferido del dominio del email de login, para recomendar OAuth vs IMAP/SMTP manual. */
+  readonly providerDetection = computed<ProviderDetection>(() => detectProvider(this.loginEmail()));
 
   // ---------- Bootstrap: cuentas de buzón + clientes ----------
 
@@ -123,7 +153,28 @@ export class MailStore {
   readonly usableAccounts = computed(() => this._accounts().filter(isUsableAccount));
   /** Cuentas caídas (watch/OAuth roto) — se ofrecen para reautorizar. */
   readonly errorAccounts = computed(() => this._accounts().filter(account => account.status === 'Error'));
+  /**
+   * Cuentas que necesitan acción para sincronizar de verdad: `Error` (watch/OAuth roto) o `Connected`
+   * (el connect llegó pero el watch NUNCA se armó — p. ej. el 403 del topic de Pub/Sub — así que se
+   * puede leer/enviar pero NO llega correo entrante). `Active` = watch OK, no aparece acá.
+   */
+  readonly attentionAccounts = computed(() =>
+    this._accounts().filter(account => account.status === 'Error' || account.status === 'Connected'),
+  );
   readonly hasMailbox = computed(() => this.usableAccounts().length > 0);
+
+  /**
+   * ¿El email de login ya tiene un buzón utilizable? Como el guard de identidad obliga a que el buzón
+   * sea el propio email de login, esto significa "no queda nada por conectar": la pantalla de gestión
+   * debe ocultar el hero de conexión (Connect Gmail/M365) y mostrar solo el estado + desconectar.
+   */
+  readonly loginMailboxConnected = computed(() => {
+    const email = this.loginEmail()?.trim().toLowerCase();
+    if (!email) {
+      return false;
+    }
+    return this.usableAccounts().some(account => account.emailAddress.trim().toLowerCase() === email);
+  });
 
   private readonly _activeAccountId = signal<string | null>(null);
   readonly activeAccountId = this._activeAccountId.asReadonly();
@@ -136,10 +187,20 @@ export class MailStore {
   private readonly _connectBusy = signal<'Gmail' | 'Graph' | null>(null);
   private readonly _connectError = signal<string | null>(null);
   private readonly _reauthBusyId = signal<string | null>(null);
+  private readonly _disconnectBusyId = signal<string | null>(null);
 
   readonly connectBusy = this._connectBusy.asReadonly();
   readonly connectError = this._connectError.asReadonly();
   readonly reauthBusyId = this._reauthBusyId.asReadonly();
+  readonly disconnectBusyId = this._disconnectBusyId.asReadonly();
+
+  // ---------- Conectar buzón manual (IMAP/SMTP, sin redirect) ----------
+
+  private readonly _manualConnecting = signal(false);
+  private readonly _manualError = signal<string | null>(null);
+
+  readonly manualConnecting = this._manualConnecting.asReadonly();
+  readonly manualError = this._manualError.asReadonly();
 
   // ---------- Selección de cliente y carpeta ----------
 
@@ -148,6 +209,20 @@ export class MailStore {
 
   readonly selectedCustomerId = this._selectedCustomerId.asReadonly();
   readonly activeFolderId = this._activeFolderId.asReadonly();
+
+  // ---------- Typeahead de clientes (reemplaza el <select> que cargaba máx 200) ----------
+  // El backend acepta `term`, así que la búsqueda es server-side: escala a cualquier cantidad de
+  // clientes sin traerlos todos al DOM. `_customers` (boot) queda solo para el nombre por defecto.
+  private readonly _customerQuery = signal('');
+  private readonly _selectedCustomerName = signal<string | null>(null);
+  private readonly _customerResults = signal<MailCustomerSummary[]>([]);
+  private readonly _customerSearchLoading = signal(false);
+  private readonly _customerSearch$ = new Subject<string>();
+
+  readonly customerQuery = this._customerQuery.asReadonly();
+  readonly selectedCustomerName = this._selectedCustomerName.asReadonly();
+  readonly customerResults = this._customerResults.asReadonly();
+  readonly customerSearchLoading = this._customerSearchLoading.asReadonly();
 
   // ---------- Hilos del cliente seleccionado ----------
 
@@ -181,6 +256,39 @@ export class MailStore {
   readonly draftsHasMore = this._draftsHasMore.asReadonly();
   readonly draftsTotal = this._draftsTotal.asReadonly();
 
+  // ---------- Enviados (carpeta Sent) del cliente seleccionado ----------
+
+  private readonly _sent = signal<SentMessageListItem[]>([]);
+  private readonly _sentLoading = signal(false);
+  private readonly _sentError = signal<string | null>(null);
+  private readonly _sentPage = signal(1);
+  private readonly _sentHasMore = signal(false);
+
+  readonly sent = this._sent.asReadonly();
+  readonly sentLoading = this._sentLoading.asReadonly();
+  readonly sentError = this._sentError.asReadonly();
+  readonly sentHasMore = this._sentHasMore.asReadonly();
+
+  // ---------- Papelera del cliente ----------
+
+  private readonly _trash = signal<TrashItem[]>([]);
+  private readonly _trashLoading = signal(false);
+  private readonly _trashError = signal<string | null>(null);
+  private readonly _trashPage = signal(1);
+  private readonly _trashHasMore = signal(false);
+
+  readonly trash = this._trash.asReadonly();
+  readonly trashLoading = this._trashLoading.asReadonly();
+  readonly trashError = this._trashError.asReadonly();
+  readonly trashHasMore = this._trashHasMore.asReadonly();
+
+  /**
+   * Vista de UN mensaje enviado SIN hilo (compose nuevo: `EmailThreadId` null en el backend). Se
+   * inyecta como "hilo sintético" de un solo mensaje para reusar el reading-pane sin ensuciar la
+   * lista real de hilos. Los replies (con hilo) NO usan esto: abren su hilo real.
+   */
+  private readonly _syntheticThread = signal<ThreadSummary | null>(null);
+
   // ---------- Hilo seleccionado + mensajes ----------
 
   private readonly _selectedThreadId = signal<string | null>(null);
@@ -205,7 +313,10 @@ export class MailStore {
   readonly archiving = this._archiving.asReadonly();
 
   readonly selectedThread = computed(
-    () => this._threads().find(thread => thread.threadId === this._selectedThreadId()) ?? null,
+    () =>
+      this._syntheticThread() ??
+      this._threads().find(thread => thread.threadId === this._selectedThreadId()) ??
+      null,
   );
 
   // ---------- Reply / compose / toast ----------
@@ -221,13 +332,84 @@ export class MailStore {
 
   // ---------- Bootstrap ----------
 
-  /** Carga inicial idempotente: cuentas de buzón + picker de clientes. */
+  /**
+   * Carga inicial idempotente: cuentas de buzón + picker de clientes. El store es singleton (root),
+   * así que la SUSCRIPCIÓN a `mail.incoming` se hace una sola vez; el socket sí se (re)conecta en cada
+   * entrada al módulo (el componente lo cierra en ngOnDestroy), por eso `connect()` corre siempre.
+   */
   init(): void {
+    this.mailSocket.connect();
     if (this.initialized) {
       return;
     }
     this.initialized = true;
+    this.subscribeIncomingMailRealtime();
+    this.wireCustomerSearch();
     this.refreshBoot();
+  }
+
+  /** Búsqueda de clientes server-side, debounced. Cancela la anterior (switchMap) y traga errores. */
+  private wireCustomerSearch(): void {
+    this._customerSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap(term => {
+          this._customerSearchLoading.set(true);
+          return this.service.searchCustomers(term).pipe(
+            map(result => result.items),
+            catchError(() => of<MailCustomerSummary[]>([])),
+          );
+        }),
+      )
+      .subscribe(items => {
+        this._customerResults.set(items);
+        this._customerSearchLoading.set(false);
+      });
+  }
+
+  /** Cambió el texto del buscador de clientes (dispara la búsqueda debounced). */
+  onCustomerQueryChange(term: string): void {
+    this._customerQuery.set(term);
+    this._customerSearch$.next(term.trim());
+  }
+
+  /** Al enfocar sin texto: muestra los primeros resultados (término vacío = top N del backend). */
+  openCustomerSearch(): void {
+    if (this._customerResults().length === 0) {
+      this._customerSearch$.next('');
+    }
+  }
+
+  /** Elige un cliente del typeahead: fija id + nombre, limpia el buscador y carga sus hilos. */
+  pickCustomer(customer: MailCustomerSummary): void {
+    this._selectedCustomerName.set(customer.displayName);
+    this._customerQuery.set('');
+    this._customerResults.set([]);
+    this.selectCustomer(customer.id);
+  }
+
+  /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
+  teardown(): void {
+    this.mailSocket.disconnect();
+  }
+
+  /**
+   * Escucha `mail.incoming` de Communication (una sola suscripción, persiste con el store singleton):
+   * si el correo entrante es del cliente seleccionado recarga sus hilos (el correo nuevo aparece SIN
+   * recargar la página y sube el badge de no-leídos); si además está abierto ese mismo hilo, recarga
+   * sus mensajes. Para otros clientes no hace nada: sus hilos se cargan frescos al seleccionarlos.
+   */
+  private subscribeIncomingMailRealtime(): void {
+    this.mailSocket.incomingEmail$.subscribe(evt => {
+      if (evt.customerId !== this._selectedCustomerId()) {
+        return;
+      }
+      this.loadThreads(true);
+      if (evt.emailThreadId === this._selectedThreadId()) {
+        this.loadMessages(true);
+      }
+    });
   }
 
   refreshBoot(): void {
@@ -248,6 +430,7 @@ export class MailStore {
         }
         if (!this._selectedCustomerId() && customers.items.length > 0) {
           this._selectedCustomerId.set(customers.items[0].id);
+          this._selectedCustomerName.set(customers.items[0].displayName);
         }
         if (this._selectedCustomerId() && usable.length > 0) {
           this.loadThreads(true);
@@ -306,7 +489,36 @@ export class MailStore {
     });
   }
 
-  /** Reintenta el watch de una cuenta en Error (POST /connectors/accounts/{id}/reauth). */
+  /**
+   * Alta de buzón por IMAP/SMTP (POST /connectors/accounts/manual). Síncrono: al 200 la cuenta ya
+   * existe y quedó validada contra ambos servidores. Recarga cuentas (flip a hasMailbox) y avisa al
+   * caller para cerrar el formulario. Los errores de conectividad / identidad vienen legibles del backend.
+   */
+  connectManualAccount(body: ConnectManualAccountRequest, onSuccess?: () => void): void {
+    if (this._manualConnecting()) {
+      return;
+    }
+    this._manualConnecting.set(true);
+    this._manualError.set(null);
+    this.service.connectManualAccount(body).subscribe({
+      next: () => {
+        this._manualConnecting.set(false);
+        this.reloadAccounts();
+        onSuccess?.();
+      },
+      error: err => {
+        this._manualError.set(toApiError(err).message);
+        this._manualConnecting.set(false);
+      },
+    });
+  }
+
+  /** Limpia el error del alta manual (al cerrar/reabrir el formulario). */
+  clearManualError(): void {
+    this._manualError.set(null);
+  }
+
+  /** Reintenta el watch/subscription de una cuenta (POST /connectors/accounts/{id}/reauth). */
   reauthAccount(accountId: string): void {
     if (this._reauthBusyId()) {
       return;
@@ -325,6 +537,26 @@ export class MailStore {
     });
   }
 
+  /** Desconecta una cuenta (DELETE /connectors/accounts/{id}) y recarga la lista. */
+  disconnectAccount(accountId: string): void {
+    if (this._disconnectBusyId()) {
+      return;
+    }
+    this._disconnectBusyId.set(accountId);
+    this._connectError.set(null);
+    this.service.disconnectAccount(accountId).subscribe({
+      next: () => {
+        this._disconnectBusyId.set(null);
+        // Si era la cuenta activa, reloadAccounts reasigna a otra usable (o null → pantalla de conectar).
+        this.reloadAccounts();
+      },
+      error: err => {
+        this._connectError.set(toApiError(err).message);
+        this._disconnectBusyId.set(null);
+      },
+    });
+  }
+
   // ---------- Selección ----------
 
   selectCustomer(customerId: string): void {
@@ -335,6 +567,9 @@ export class MailStore {
     this.clearThreadSelection();
     this.closeComposeSilently();
     this._activeFolderId.set('conversations');
+    // Sent/Trash son de otro cliente ahora: se vacían para recargarse perezoso.
+    this._sent.set([]);
+    this._trash.set([]);
     this.loadThreads(true);
     this.loadDrafts(true);
   }
@@ -343,6 +578,13 @@ export class MailStore {
     this._activeFolderId.set(folderId);
     this.clearThreadSelection();
     this.closeComposeSilently();
+    // Carga perezosa al entrar (una vez); las demás ya vienen del boot.
+    if (folderId === 'sent' && this._sent().length === 0 && !this._sentLoading()) {
+      this.loadSent(true);
+    }
+    if (folderId === 'trash' && this._trash().length === 0 && !this._trashLoading()) {
+      this.loadTrash(true);
+    }
   }
 
   // ---------- Hilos ----------
@@ -400,20 +642,185 @@ export class MailStore {
     });
   }
 
+  // ---------- Enviados (Sent) ----------
+
+  loadSent(reset: boolean): void {
+    const customerId = this._selectedCustomerId();
+    if (!customerId) {
+      return;
+    }
+    const page = reset ? 1 : this._sentPage() + 1;
+    this._sentLoading.set(true);
+    this._sentError.set(null);
+    if (reset) {
+      this._sent.set([]);
+    }
+    this.service.listSent(customerId, page, LIST_PAGE_SIZE).subscribe({
+      next: result => {
+        this._sent.update(list => (reset ? result.items : [...list, ...result.items]));
+        this._sentPage.set(result.page);
+        this._sentHasMore.set(result.hasMore);
+        this._sentLoading.set(false);
+      },
+      error: err => {
+        this._sentError.set(toApiError(err).message);
+        this._sentLoading.set(false);
+      },
+    });
+  }
+
+  // ---------- Papelera ----------
+
+  loadTrash(reset: boolean): void {
+    const customerId = this._selectedCustomerId();
+    if (!customerId) {
+      return;
+    }
+    const page = reset ? 1 : this._trashPage() + 1;
+    this._trashLoading.set(true);
+    this._trashError.set(null);
+    if (reset) {
+      this._trash.set([]);
+    }
+    this.service.listTrash(customerId, page, LIST_PAGE_SIZE).subscribe({
+      next: result => {
+        this._trash.update(list => (reset ? result.items : [...list, ...result.items]));
+        this._trashPage.set(result.page);
+        this._trashHasMore.set(result.hasMore);
+        this._trashLoading.set(false);
+      },
+      error: err => {
+        this._trashError.set(toApiError(err).message);
+        this._trashLoading.set(false);
+      },
+    });
+  }
+
+  /** Restaura un ítem de la papelera a su carpeta original. */
+  restoreTrashItem(item: TrashItem): void {
+    const req$ = item.kind === 'Incoming' ? this.service.restoreMessage(item.messageId) : this.service.restoreSent(item.messageId);
+    req$.subscribe({
+      next: () => {
+        this._trash.update(list => list.filter(t => t.messageId !== item.messageId));
+        this.loadThreads(true);
+        this._sent.set([]);
+      },
+      error: err => this._trashError.set(toApiError(err).message),
+    });
+  }
+
+  /** Borra permanentemente un ítem de la papelera. */
+  purgeTrashItem(item: TrashItem): void {
+    const req$ = item.kind === 'Incoming' ? this.service.purgeMessage(item.messageId) : this.service.purgeSent(item.messageId);
+    req$.subscribe({
+      next: () => this._trash.update(list => list.filter(t => t.messageId !== item.messageId)),
+      error: err => this._trashError.set(toApiError(err).message),
+    });
+  }
+
+  /** Manda un mensaje (abierto en el reading-pane) a la papelera. */
+  trashOpenMessage(messageId: string): void {
+    const message = this._messages().find(m => m.messageId === messageId);
+    if (!message) {
+      return;
+    }
+    const threadId = this._selectedThreadId();
+    const req$ = message.direction === 'Outbound' ? this.service.trashSent(messageId) : this.service.trashMessage(messageId);
+    req$.subscribe({
+      next: () => {
+        this._messages.update(list => list.filter(m => m.messageId !== messageId));
+        if (this._messages().length === 0) {
+          // Hilo sin mensajes visibles: sacarlo de la lista y cerrar.
+          this._threads.update(list => list.filter(t => t.threadId !== threadId));
+          this.clearThreadSelection();
+        } else if (message.direction === 'Inbound') {
+          // Reflejar el conteo del hilo abierto sin recargar la lista (evita el flicker).
+          this._threads.update(list =>
+            list.map(t => (t.threadId === threadId ? { ...t, messageCount: Math.max(0, t.messageCount - 1) } : t)),
+          );
+        }
+        this._sent.set([]);
+      },
+      error: err => this._messagesError.set(toApiError(err).message),
+    });
+  }
+
+  /**
+   * Abre un mensaje enviado desde la carpeta Sent. Reply (con hilo) → abre el hilo real. Compose
+   * nuevo (sin hilo) → hilo sintético de un solo mensaje saliente para reusar el reading-pane; se
+   * auto-expande para pedir el body (GET /drafts/{id}) y sus adjuntos.
+   */
+  openSentMessage(item: SentMessageListItem): void {
+    if (item.emailThreadId) {
+      this.selectThread(item.emailThreadId);
+      return;
+    }
+    this._syntheticThread.set({
+      threadId: `sent:${item.messageId}`,
+      subject: item.subject,
+      status: 'Active',
+      messageCount: 1,
+      firstMessageAtUtc: item.sentAtUtc,
+      lastMessageAtUtc: item.sentAtUtc,
+      unreadCount: 0,
+    });
+    this._selectedThreadId.set(`sent:${item.messageId}`);
+    this._messages.set([this.sentItemToMessage(item)]);
+    this._messagesError.set(null);
+    this._messagesHasMore.set(false);
+    this._bodies.set(new Map());
+    this._attachments.set(new Map());
+    this.expandMessage(item.messageId);
+  }
+
+  private sentItemToMessage(item: SentMessageListItem): MessageSummary {
+    return {
+      messageId: item.messageId,
+      direction: 'Outbound',
+      from: null,
+      fromDisplayName: null,
+      subject: item.subject,
+      snippet: null,
+      toAddresses: item.toAddresses,
+      occurredAtUtc: item.sentAtUtc,
+      hasAttachments: item.hasAttachments,
+      attachmentCount: item.attachmentCount,
+      bodyStatus: null,
+      isRead: true,
+      senderTrust: null,
+    };
+  }
+
   /** "Load more" del listado central, según la carpeta activa. */
   loadMoreList(): void {
-    if (this._activeFolderId() === 'drafts') {
-      this.loadDrafts(false);
-    } else {
-      this.loadThreads(false);
+    switch (this._activeFolderId()) {
+      case 'drafts':
+        this.loadDrafts(false);
+        break;
+      case 'sent':
+        this.loadSent(false);
+        break;
+      case 'trash':
+        this.loadTrash(false);
+        break;
+      default:
+        this.loadThreads(false);
     }
   }
 
   retryList(): void {
-    if (this._activeFolderId() === 'drafts') {
-      this.loadDrafts(true);
-    } else {
-      this.loadThreads(true);
+    switch (this._activeFolderId()) {
+      case 'drafts':
+        this.loadDrafts(true);
+        break;
+      case 'sent':
+        this.loadSent(true);
+        break;
+      case 'trash':
+        this.loadTrash(true);
+        break;
+      default:
+        this.loadThreads(true);
     }
   }
 
@@ -421,15 +828,17 @@ export class MailStore {
 
   selectThread(threadId: string): void {
     this.closeComposeSilently();
-    if (threadId === this._selectedThreadId()) {
+    if (threadId === this._selectedThreadId() && !this._syntheticThread()) {
       return;
     }
+    this._syntheticThread.set(null); // abrir un hilo real descarta la vista suelta de un enviado
     this._selectedThreadId.set(threadId);
     this.resetThreadDetail();
     this.loadMessages(true);
   }
 
   private clearThreadSelection(): void {
+    this._syntheticThread.set(null);
     this._selectedThreadId.set(null);
     this.resetThreadDetail();
   }
@@ -447,7 +856,9 @@ export class MailStore {
 
   loadMessages(reset: boolean): void {
     const threadId = this._selectedThreadId();
-    if (!threadId) {
+    // El hilo sintético de un enviado suelto (`sent:{id}`) no existe en el backend: sus mensajes se
+    // inyectaron en openSentMessage, no se piden por HTTP.
+    if (!threadId || threadId.startsWith('sent:')) {
       return;
     }
     const page = reset ? 1 : this._messagesPage() + 1;
@@ -509,23 +920,70 @@ export class MailStore {
       return;
     }
     this.updateBody(messageId, { loading: true, error: null, html: null, text: null });
-    const body$: Observable<{ html: string | null; text: string | null }> =
-      message.direction === 'Inbound'
-        ? this.service.getMessageBody(messageId).pipe(map(body => ({ html: body.htmlBody, text: body.textBody })))
-        : this.service.getDraft(messageId).pipe(map(draft => ({ html: draft.htmlBody, text: draft.textBody })));
-    body$.subscribe({
+
+    // Outbound: el "mensaje" es un Draft enviado — body Y adjuntos vienen de GET /drafts/{id}.
+    if (message.direction === 'Outbound') {
+      this.service.getDraft(messageId).subscribe({
+        next: draft => {
+          this.updateBody(messageId, { loading: false, error: null, html: draft.htmlBody, text: draft.textBody });
+          this.setOutboundAttachments(messageId, draft.attachments);
+        },
+        error: err => {
+          this.updateBody(messageId, { loading: false, error: toApiError(err).message, html: null, text: null });
+        },
+      });
+      return;
+    }
+
+    // Inbound: GET /messages/{id}/body (en vivo desde el buzón externo).
+    this.service.getMessageBody(messageId).subscribe({
       next: body => {
-        this.updateBody(messageId, { loading: false, error: null, html: body.html, text: body.text });
+        this.updateBody(messageId, { loading: false, error: null, html: body.htmlBody, text: body.textBody });
         // El backend marca BodyReady al servir el body: reflejarlo local (apaga el punto "nunca abierto").
-        if (message.direction === 'Inbound' && message.bodyStatus === 'BodyPending') {
+        if (message.bodyStatus === 'BodyPending') {
           this._messages.update(list =>
             list.map(item => (item.messageId === messageId ? { ...item, bodyStatus: 'BodyReady' } : item)),
           );
+        }
+        // Abrir el cuerpo marca el correo como leído en el backend (GetMessageBodyHandler): reflejar
+        // local para que baje el contador de no-leídos del hilo sin recargar el listado.
+        if (!message.isRead) {
+          this.applyMessageReadLocal(messageId, true);
         }
       },
       error: err => {
         this.updateBody(messageId, { loading: false, error: toApiError(err).message, html: null, text: null });
       },
+    });
+  }
+
+  /**
+   * Adjuntos de un mensaje SALIENTE (draft enviado): ya viven en CloudStorage, así que se pintan con
+   * estado `Downloaded` y la key = fileId. La descarga usa la URL presignada de CloudStorage
+   * (ver downloadAttachment), no el flujo de descarga bajo demanda de los entrantes.
+   */
+  private setOutboundAttachments(messageId: string, attachments: DraftAttachmentSummary[]): void {
+    if (attachments.length === 0) {
+      return;
+    }
+    this._attachments.update(current => {
+      const next = new Map(current);
+      next.set(messageId, {
+        loading: false,
+        error: null,
+        items: attachments.map(a => ({
+          attachmentId: a.fileId,
+          filename: a.filename,
+          contentType: a.contentType,
+          sizeBytes: a.sizeBytes,
+          isInline: false,
+          downloadStatus: 'Downloaded' as const,
+          cloudStorageFileId: a.fileId,
+          busy: false,
+          error: null,
+        })),
+      });
+      return next;
     });
   }
 
@@ -584,6 +1042,23 @@ export class MailStore {
       return;
     }
     this.patchAttachment(messageId, attachmentId, { busy: true, error: null });
+
+    // Saliente: el binario ya está en CloudStorage (attachmentId == fileId) — URL presignada directa,
+    // sin el flujo de descarga bajo demanda de los entrantes.
+    const message = this._messages().find(m => m.messageId === messageId);
+    if (message?.direction === 'Outbound') {
+      this.uploads.getDownloadUrl(attachmentId).subscribe({
+        next: result => {
+          this.patchAttachment(messageId, attachmentId, { busy: false });
+          this.triggerDownload(result.downloadUrl);
+        },
+        error: err => {
+          this.patchAttachment(messageId, attachmentId, { busy: false, error: toApiError(err).message });
+        },
+      });
+      return;
+    }
+
     const url$ =
       item.downloadStatus === 'Downloaded'
         ? this.service.getAttachmentDownloadUrl(messageId, attachmentId)
@@ -593,12 +1068,34 @@ export class MailStore {
     url$.subscribe({
       next: result => {
         this.patchAttachment(messageId, attachmentId, { busy: false, downloadStatus: 'Downloaded' });
-        window.open(result.downloadUrl, '_blank', 'noopener');
+        this.triggerDownload(result.downloadUrl);
       },
       error: err => {
-        this.patchAttachment(messageId, attachmentId, { busy: false, error: toApiError(err).message });
+        const apiError = toApiError(err);
+        // El escaneo lo bloqueó: reflejar el estado, sin mensaje de error genérico.
+        if (apiError.code === 'IncomingEmailAttachment.Blocked') {
+          this.patchAttachment(messageId, attachmentId, { busy: false, downloadStatus: 'Blocked', error: null });
+          return;
+        }
+        this.patchAttachment(messageId, attachmentId, { busy: false, error: apiError.message });
       },
     });
+  }
+
+  /**
+   * Dispara la descarga directa de la URL presignada sin abrir una pestaña (que expondría la URL).
+   * CloudStorage sirve el archivo con `content-disposition: attachment`, así que el click en un anchor
+   * oculto baja el archivo con su nombre real y NO navega ni deja una pestaña en blanco.
+   */
+  private triggerDownload(url: string): void {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.rel = 'noopener';
+    anchor.download = ''; // hint local; el download real lo fuerza el content-disposition del server
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   private waitForDownloadUrl(messageId: string, attachmentId: string) {
@@ -651,8 +1148,11 @@ export class MailStore {
     this.service.archiveThread(threadId).subscribe({
       next: () => {
         this._archiving.set(false);
+        // Archivar marca leído en el backend: reflejar unreadCount 0 local.
         this._threads.update(list =>
-          list.map(thread => (thread.threadId === threadId ? { ...thread, status: 'Archived' } : thread)),
+          list.map(thread =>
+            thread.threadId === threadId ? { ...thread, status: 'Archived', unreadCount: 0 } : thread,
+          ),
         );
         this.clearThreadSelection();
       },
@@ -661,6 +1161,116 @@ export class MailStore {
         this._messagesError.set(toApiError(err).message);
       },
     });
+  }
+
+  /** Desarchiva el hilo abierto (Archived → Active). */
+  unarchiveSelectedThread(): void {
+    const threadId = this._selectedThreadId();
+    if (!threadId || this._archiving()) {
+      return;
+    }
+    this._archiving.set(true);
+    this.service.unarchiveThread(threadId).subscribe({
+      next: () => {
+        this._archiving.set(false);
+        this._threads.update(list =>
+          list.map(thread => (thread.threadId === threadId ? { ...thread, status: 'Active' } : thread)),
+        );
+        this.clearThreadSelection();
+      },
+      error: err => {
+        this._archiving.set(false);
+        this._messagesError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  // ---------- Leído / no leído ----------
+
+  /**
+   * Marca UN mensaje inbound como leído/no-leído. Optimista: refleja local de inmediato (el
+   * contador de no-leídos del hilo baja/sube al toque) y revierte si el backend falla.
+   */
+  setMessageRead(messageId: string, isRead: boolean): void {
+    const message = this._messages().find(item => item.messageId === messageId);
+    if (!message || message.direction !== 'Inbound' || message.isRead === isRead) {
+      return;
+    }
+    this.applyMessageReadLocal(messageId, isRead);
+    const request$ = isRead ? this.service.markMessageRead(messageId) : this.service.markMessageUnread(messageId);
+    request$.subscribe({
+      error: err => {
+        this.applyMessageReadLocal(messageId, !isRead); // revertir
+        this._messagesError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Marca TODO el hilo abierto como leído/no-leído. Optimista con reversión ante fallo. */
+  setThreadRead(isRead: boolean): void {
+    const threadId = this._selectedThreadId();
+    if (!threadId) {
+      return;
+    }
+    const previousMessages = this._messages();
+    const previousThreads = this._threads();
+    this._messages.update(list =>
+      list.map(item => (item.direction === 'Inbound' ? { ...item, isRead } : item)),
+    );
+    this._threads.update(list =>
+      list.map(thread =>
+        thread.threadId === threadId
+          ? { ...thread, unreadCount: isRead ? 0 : this.inboundCountOf(threadId) }
+          : thread,
+      ),
+    );
+    const request$ = isRead ? this.service.markThreadRead(threadId) : this.service.markThreadUnread(threadId);
+    request$.subscribe({
+      error: err => {
+        this._messages.set(previousMessages);
+        this._threads.set(previousThreads);
+        this._messagesError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  /** No-leídos totales del cliente activo (para el badge de la carpeta Conversations). */
+  readonly unreadTotal = computed(() =>
+    this._threads()
+      .filter(thread => thread.status === 'Active')
+      .reduce((sum, thread) => sum + thread.unreadCount, 0),
+  );
+
+  /** Actualiza isRead de un mensaje en memoria y ajusta el unreadCount del hilo abierto por el delta. */
+  private applyMessageReadLocal(messageId: string, isRead: boolean): void {
+    const threadId = this._selectedThreadId();
+    let delta = 0;
+    this._messages.update(list =>
+      list.map(item => {
+        if (item.messageId !== messageId || item.isRead === isRead) {
+          return item;
+        }
+        delta = isRead ? -1 : 1;
+        return { ...item, isRead };
+      }),
+    );
+    if (delta !== 0 && threadId) {
+      this._threads.update(list =>
+        list.map(thread =>
+          thread.threadId === threadId
+            ? { ...thread, unreadCount: Math.max(0, thread.unreadCount + delta) }
+            : thread,
+        ),
+      );
+    }
+  }
+
+  /** Mensajes inbound cargados del hilo — mejor esfuerzo para el optimista de "marcar todo no-leído". */
+  private inboundCountOf(threadId: string): number {
+    if (this._selectedThreadId() !== threadId) {
+      return 0;
+    }
+    return this._messages().filter(item => item.direction === 'Inbound').length;
   }
 
   // ---------- Reply inline ----------
@@ -789,10 +1399,11 @@ export class MailStore {
   }
 
   /**
-   * Cadena real de envío: (create draft si es nuevo) → quitar adjuntos removidos → subir cada
-   * archivo a CloudStorage (initiate → POST presignado → complete) y referenciarlo en el draft →
-   * autosave (subject/body/to/cc) → send síncrono vía Postmaster. Si algo falla, el draft queda
-   * autoguardado en la carpeta Drafts y el error se muestra en el composer.
+   * Cadena real de envío: (create draft si es nuevo) → autosave (subject/body/to/cc) → quitar
+   * adjuntos removidos → subir cada archivo a CloudStorage (initiate → POST presignado → complete)
+   * y referenciarlo en el draft → send síncrono vía Postmaster. El autosave del contenido va PRIMERO
+   * a propósito: si la subida de un adjunto falla, el draft queda en Drafts con su asunto/cuerpo/
+   * destinatarios intactos (no vacío) para retomarlo, y el error se muestra en el composer.
    */
   sendCompose(payload: ComposeSendPayload): void {
     const state = this._compose();
@@ -807,8 +1418,6 @@ export class MailStore {
 
     draftId$
       .pipe(
-        concatMap(draftId => this.removeAttachmentsChain(draftId, payload.removedFileIds)),
-        concatMap(draftId => this.uploadAndAttachChain(draftId, payload)),
         concatMap(draftId =>
           this.service
             .autoSaveDraft(draftId, {
@@ -820,6 +1429,8 @@ export class MailStore {
             })
             .pipe(map(() => draftId)),
         ),
+        concatMap(draftId => this.removeAttachmentsChain(draftId, payload.removedFileIds)),
+        concatMap(draftId => this.uploadAndAttachChain(draftId, payload)),
         concatMap(draftId => this.service.sendDraft(draftId)),
       )
       .subscribe({
@@ -867,7 +1478,9 @@ export class MailStore {
         ownerType: 'Customer',
         ownerId: customerId,
         folderType: 'EmailOutgoing',
-        taxYear: null,
+        // EmailOutgoing particiona por año (RequiresYear en CloudStorage), igual que EmailIncoming
+        // usa el año de recepción — acá el saliente se sube al enviar, así que va el año actual.
+        taxYear: new Date().getFullYear(),
       })
       .pipe(
         concatMap(init =>

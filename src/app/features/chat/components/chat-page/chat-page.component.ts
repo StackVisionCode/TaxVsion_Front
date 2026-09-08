@@ -1,12 +1,29 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
-import { ChatThreadComponent, ChatMessage } from '../../ui/chat-thread/chat-thread.component';
+import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
-import { GroupCreateRequest, NewConversationModalComponent } from '../../ui/new-conversation-modal/new-conversation-modal.component';
+import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ActiveCallService } from '@core/communication/active-call.service';
+import {
+  DirectorySearch,
+  GroupCreateRequest,
+  NewConversationModalComponent,
+} from '../../ui/new-conversation-modal/new-conversation-modal.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { EmployeeDirectoryEntry } from '../../data-access/chat.model';
+import {
+  CustomerDirectoryEntry,
+  EmployeeDirectoryEntry,
+  presenceDotClass,
+  presenceLabel,
+  presenceTextClass,
+} from '../../data-access/chat.model';
 import { ChatStore } from '../../data-access/chat.store';
+import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 
 /**
  * Página del módulo Chat (estilo "Aether"): mensajería interna de equipo,
@@ -20,11 +37,13 @@ import { ChatStore } from '../../data-access/chat.store';
   selector: 'app-chat-page',
   imports: [
     CommonModule,
+    FormsModule,
     ChatConversationListComponent,
     ChatThreadComponent,
     ChatComposerComponent,
     ModalComponent,
     NewConversationModalComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
@@ -32,6 +51,13 @@ import { ChatStore } from '../../data-access/chat.store';
 })
 export class ChatPageComponent {
   private readonly store = inject(ChatStore);
+  private readonly activeCall = inject(ActiveCallService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly canStartAudioCall = this.store.canStartAudioCall;
+  readonly canStartVideoCall = this.store.canStartVideoCall;
+  readonly callPhase = this.activeCall.phase;
 
   readonly conversations = this.store.conversations;
   readonly loading = this.store.loading;
@@ -39,10 +65,26 @@ export class ChatPageComponent {
   readonly activeConversationId = computed(() => this.store.activeConversationId() ?? '');
   readonly uploadingAttachment = this.store.uploadingAttachment;
 
+  /** True solo cuando hay una conversación real seleccionada — controla el thread vs. el empty state. */
+  readonly hasActiveConversation = computed(() => {
+    const id = this.store.activeConversationId();
+    return !!id && this.conversations().some(conv => conv.id === id);
+  });
+
   readonly isInfoOpen = signal(false);
   readonly isNewConversationOpen = signal(false);
 
+  /** Tab del rail izquierdo: conversaciones, o directorio de clientes/equipo (estilo WhatsApp). */
+  readonly railTab = signal<'chats' | 'clients' | 'team'>('chats');
+  readonly railSearch = signal('');
+  private railSearchDebounce: ReturnType<typeof setTimeout> | undefined;
+
+  readonly loadingOlder = this.store.loadingOlder;
+  private readonly pendingDeleteId = signal<string | null>(null);
+  readonly isDeleteConfirmOpen = computed(() => this.pendingDeleteId() !== null);
+
   readonly employeeResults = this.store.employeeResults;
+  readonly customerResults = this.store.customerResults;
   readonly employeeSearchLoading = this.store.employeeSearchLoading;
   readonly employeeSearchError = this.store.employeeSearchError;
   readonly newConversationError = this.store.newConversationError;
@@ -50,7 +92,97 @@ export class ChatPageComponent {
   readonly canCreateGroups = this.store.canCreateGroups;
 
   constructor() {
-    this.store.load();
+    // Deep-link opcional `?conversation=<id>` (p. ej. desde un ticket de Support): abre esa.
+    const preferId = this.route.snapshot.queryParamMap.get('conversation');
+    this.store.load(preferId ?? undefined);
+    // Si el param cambia estando ya en la página, enfocá la nueva conversación.
+    this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const id = params.get('conversation');
+      if (id && id !== this.store.activeConversationId()) {
+        this.store.focusConversation(id);
+      }
+    });
+
+    // Deep-link `?startCustomer&startUser&name` desde el perfil de cliente (tab Communication):
+    // inicia (o reabre) el 1:1 con ese cliente. Espera a que el socket conecte para no chocar con
+    // `Socket.NotConnected`; el guard `started` corta el seguimiento tras disparar una sola vez.
+    const startUser = this.route.snapshot.queryParamMap.get('startUser');
+    const startCustomer = this.route.snapshot.queryParamMap.get('startCustomer');
+    const startName = this.route.snapshot.queryParamMap.get('name');
+    if (startUser && startCustomer) {
+      let started = false;
+      effect(() => {
+        if (started || !this.store.connected()) {
+          return;
+        }
+        started = true;
+        void this.store.startDirectWithCustomer({
+          customerId: startCustomer,
+          displayName: startName ?? 'Client',
+          email: '',
+          isActive: true,
+          portalUserId: startUser,
+        });
+      });
+    }
+  }
+
+  get isActiveSupport(): boolean {
+    return this.activeConversation.kind === 'Support';
+  }
+
+  /** Es un 1:1 llamable (Direct/Support con par conocido). */
+  private get isCallableConversation(): boolean {
+    const conv = this.activeConversation;
+    return !!conv.peerUserId && (conv.kind === 'Direct' || conv.kind === 'Support');
+  }
+
+  get canCallActiveConversation(): boolean {
+    return this.isCallableConversation && this.canStartAudioCall();
+  }
+
+  get canVideoCallActiveConversation(): boolean {
+    return this.isCallableConversation && this.canStartVideoCall();
+  }
+
+  /**
+   * Motivo por el que NO se puede llamar ahora (null = se puede). Deshabilita el botón cuando ya
+   * estoy en una llamada, o cuando el par está offline (llamada eterna sin respuesta) o ya en otra
+   * llamada. Solo `Online` es llamable; la presencia se refresca al abrir el hilo y al reconectar.
+   */
+  get callDisabledReason(): string | null {
+    if (this.callPhase() !== 'idle') {
+      return 'You are already on a call';
+    }
+    const conv = this.activeConversation;
+    const who = conv.name || 'This contact';
+    if (conv.presence === 'Busy') {
+      return `${who} is currently on a call`;
+    }
+    if (conv.presence !== 'Online') {
+      return `${who} is offline`;
+    }
+    return null;
+  }
+
+  get callButtonsDisabled(): boolean {
+    return this.callDisabledReason !== null;
+  }
+
+  startAudioCall(): void {
+    this.startCall('Audio');
+  }
+
+  startVideoCall(): void {
+    this.startCall('Video');
+  }
+
+  private startCall(kind: 'Audio' | 'Video'): void {
+    const conv = this.activeConversation;
+    if (!conv.peerUserId) {
+      return;
+    }
+    void this.activeCall.startCall(conv.peerUserId, conv.name, kind, conv.id);
   }
 
   get activeConversation() {
@@ -58,8 +190,14 @@ export class ChatPageComponent {
       this.conversations().find(conv => conv.id === this.store.activeConversationId()) ?? {
         id: '',
         name: '',
+        kind: 'Direct' as const,
+        peerUserId: null,
         avatarColor: 'bg-brand-bold',
-        online: false,
+        presence: 'Offline' as const,
+        busyReason: null,
+        typingName: null,
+        recordingName: null,
+        hasMoreHistory: false,
         unread: 0,
         messages: [] as ChatMessage[],
       }
@@ -91,12 +229,104 @@ export class ChatPageComponent {
     void this.store.sendMessage(text);
   }
 
+  onTyping(isTyping: boolean): void {
+    this.store.notifyTyping(isTyping);
+  }
+
+  // Presencia del participante activo (etiqueta/colores accesibles, no solo color).
+  get presenceLabel(): string {
+    return presenceLabel(this.activeConversation.presence, this.activeConversation.busyReason);
+  }
+
+  get presenceDotClass(): string {
+    return presenceDotClass(this.activeConversation.presence);
+  }
+
+  get presenceTextClass(): string {
+    return presenceTextClass(this.activeConversation.presence);
+  }
+
+  get showPresenceDot(): boolean {
+    return this.activeConversation.presence !== 'Offline';
+  }
+
   onAttach(file: File): void {
     void this.store.sendAttachment(file);
   }
 
+  onSendVoiceNote(recorded: RecordedVoiceNote): void {
+    void this.store.sendVoiceNote(recorded);
+  }
+
+  onRecording(isRecording: boolean): void {
+    this.store.notifyRecording(isRecording);
+  }
+
   onAttachmentClicked(fileId: string): void {
     this.store.downloadAttachment(fileId);
+  }
+
+  onLoadOlder(): void {
+    this.store.loadOlderMessages();
+  }
+
+  onEditSubmitted(edit: MessageEdit): void {
+    void this.store.editMessage(edit.id, edit.text);
+  }
+
+  onDeleteRequested(messageId: string): void {
+    this.pendingDeleteId.set(messageId);
+  }
+
+  confirmDelete(): void {
+    const id = this.pendingDeleteId();
+    if (id) {
+      void this.store.deleteMessage(id);
+    }
+    this.pendingDeleteId.set(null);
+  }
+
+  cancelDelete(): void {
+    this.pendingDeleteId.set(null);
+  }
+
+  // ---------- Rail directorio (Clients / Team) ----------
+
+  switchRailTab(tab: 'chats' | 'clients' | 'team'): void {
+    if (this.railTab() === tab) {
+      return;
+    }
+    this.railTab.set(tab);
+    this.railSearch.set('');
+    clearTimeout(this.railSearchDebounce);
+    this.store.resetNewConversationState();
+  }
+
+  onRailSearch(term: string): void {
+    this.railSearch.set(term);
+    clearTimeout(this.railSearchDebounce);
+    const tab = this.railTab();
+    this.railSearchDebounce = setTimeout(() => {
+      if (tab === 'clients') {
+        this.store.searchCustomers(term);
+      } else if (tab === 'team') {
+        this.store.searchEmployees(term);
+      }
+    }, 300);
+  }
+
+  async onRailSelectCustomer(entry: CustomerDirectoryEntry): Promise<void> {
+    const ok = await this.store.startDirectWithCustomer(entry);
+    if (ok) {
+      this.switchRailTab('chats');
+    }
+  }
+
+  async onRailSelectEmployee(entry: EmployeeDirectoryEntry): Promise<void> {
+    const ok = await this.store.startDirectConversation(entry);
+    if (ok) {
+      this.switchRailTab('chats');
+    }
   }
 
   openNewConversation(): void {
@@ -108,12 +338,23 @@ export class ChatPageComponent {
     this.isNewConversationOpen.set(false);
   }
 
-  onEmployeeSearch(term: string): void {
-    this.store.searchEmployees(term);
+  onDirectorySearch(search: DirectorySearch): void {
+    if (search.audience === 'clients') {
+      this.store.searchCustomers(search.term);
+    } else {
+      this.store.searchEmployees(search.term);
+    }
   }
 
   async onDirectSelected(entry: EmployeeDirectoryEntry): Promise<void> {
     const ok = await this.store.startDirectConversation(entry);
+    if (ok) {
+      this.isNewConversationOpen.set(false);
+    }
+  }
+
+  async onCustomerSelected(entry: CustomerDirectoryEntry): Promise<void> {
+    const ok = await this.store.startDirectWithCustomer(entry);
     if (ok) {
       this.isNewConversationOpen.set(false);
     }

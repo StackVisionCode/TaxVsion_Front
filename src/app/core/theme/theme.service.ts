@@ -38,6 +38,27 @@ const LIGHTNESS_CURVE = 0.8;
  */
 const MAX_SATURATION_DROP = 0.35;
 
+/**
+ * Rampa base de los neutros (los mismos fallbacks del `gray` en tailwind.config.js: default de
+ * Tailwind 50-800 + Jet Black en 900). applyNeutrals conserva la LUMINOSIDAD de cada shade y solo
+ * gira su hue hacia el primary a baja saturación → tinte sutil de marca con el contraste preservado.
+ */
+const NEUTRAL_BASE: Record<number, string> = {
+  50: '#f9fafb',
+  100: '#f3f4f6',
+  200: '#e5e7eb',
+  300: '#d1d5db',
+  400: '#9ca3af',
+  500: '#6b7280',
+  600: '#4b5563',
+  700: '#374151',
+  800: '#1f2937',
+  900: '#0d0d0d',
+};
+
+/** Saturación del tinte de neutros (%). Sutil a propósito: un tinte fuerte se ve sucio y arriesga contraste. */
+const NEUTRAL_TINT_SATURATION = 8;
+
 interface ColorChannel {
   cssPrefix: 'indigo' | 'orange';
   storageKey: string;
@@ -118,6 +139,43 @@ export class ThemeService {
     this.setSecondaryColor(SECONDARY.defaultHex);
   }
 
+  /**
+   * Aplica la marca resuelta del tenant (TenantBrands): primary → canal indigo,
+   * accent → canal orange. Persiste en localStorage como CACHE DE ARRANQUE para
+   * evitar el flash de color equivocado en la próxima carga (la fuente de verdad es
+   * la API; localStorage solo adelanta el pintado). Un hex inválido se ignora en
+   * `applyChannel`, así que un branding incompleto nunca deja la app sin color.
+   */
+  applyBranding(colors: { primary?: string | null; accent?: string | null }): void {
+    if (colors.primary) {
+      this.setPrimaryColor(colors.primary);
+    }
+    if (colors.accent) {
+      this.setSecondaryColor(colors.accent);
+    }
+  }
+
+  /**
+   * Tiñe los neutros (gray-*) con el HUE del primary conservando la LUMINOSIDAD de cada shade de
+   * hoy — solo gira el matiz a baja saturación. Al no mover la luminosidad, el contraste texto/fondo
+   * se preserva por construcción (ver el test de contraste). Un hex inválido se ignora. Se dispara
+   * solo desde el canal primary (los neutros siguen al primary, no al accent).
+   */
+  applyNeutrals(primaryHex: string): void {
+    const normalized = normalizeHex(primaryHex);
+    if (!normalized) {
+      return;
+    }
+    const hue = hexToHsl(normalized).h;
+    Object.entries(NEUTRAL_BASE).forEach(([shade, baseHex]) => {
+      const { l } = hexToHsl(baseHex);
+      // En los extremos (casi blanco / casi negro) se tiñe aún menos para que no se ensucien.
+      const saturation = l > 92 || l < 12 ? NEUTRAL_TINT_SATURATION / 2 : NEUTRAL_TINT_SATURATION;
+      const tinted = hslToHex({ h: hue, s: saturation, l });
+      applyCssVar(`--color-gray-${shade}-rgb`, hexToRgbTriplet(tinted));
+    });
+  }
+
   private applyChannel(
     channel: ColorChannel,
     hex: string,
@@ -135,6 +193,10 @@ export class ThemeService {
       // Triplete RGB sin comas: es el formato que espera rgb(var(...) / <alpha-value>) en tailwind.config.js.
       applyCssVar(`--color-${channel.cssPrefix}-${shade}-rgb`, hexToRgbTriplet(shadeHex));
     });
+    // Los neutros siguen al primary: al cambiarlo, se re-tiñe la escala de grises.
+    if (channel === PRIMARY) {
+      this.applyNeutrals(normalized);
+    }
     target.set(normalized);
     if (options.persist !== false) {
       write(channel.storageKey, normalized);

@@ -27,7 +27,8 @@ export type FolderType =
   | 'Backups'
   | 'Templates'
   | 'Branding'
-  | 'Other';
+  | 'Other'
+  | 'VoiceNotes';
 
 /** Espejo de TaxVision.CloudStorage.Domain.Files.FileStatus. */
 export type FileStatus =
@@ -65,7 +66,8 @@ export interface InitiateUploadRequest {
   contentType: string;
   sizeBytes: number;
   ownerType: OwnerType;
-  ownerId: string;
+  // null para owner Tenant (oficina). Debe ir null, NO "" — el backend lo bindea a Guid?.
+  ownerId: string | null;
   folderType: FolderType;
   taxYear: number | null;
 }

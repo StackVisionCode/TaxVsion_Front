@@ -72,7 +72,7 @@
   <!-- Subject preview: el GET no devuelve el HTML de la campaña, solo mostramos la plantilla -->
   <div class="mt-6">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Email preview</p>
-    <div class="mt-2 rounded-2xl border border-gray-100 bg-[#FAFAFA] p-5">
+    <div class="mt-2 rounded-2xl border border-gray-100 bg-brand-white p-5">
       <div class="flex items-center gap-2" [ngClass]="camp.templateSubject ? 'border-b border-gray-200 pb-3' : ''">
         <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500">
           <ion-icon name="mail-outline" class="text-sm text-white"></ion-icon>
@@ -91,23 +91,23 @@
 
   <!-- Metrics -->
   <div class="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
-    <div class="rounded-[24px] bg-[#E8F1FB] p-5">
+    <div class="rounded-[24px] bg-indigo-50 p-5">
       <p class="text-sm text-gray-600">Recipients</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ camp.recipients | number }}</p>
     </div>
-    <div class="rounded-[24px] bg-[#CFE2F7] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Sent</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ camp.delivered | number }}</p>
       <p class="mt-1 text-xs text-gray-500">
         {{ deliveredRate(camp).toFixed(0) }}% of recipients<span *ngIf="camp.failed > 0"> · {{ camp.failed | number }} failed</span>
       </p>
     </div>
-    <div class="rounded-[24px] bg-[#E7EAEE] p-5">
+    <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Opened</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ camp.opened | number }}</p>
       <p class="mt-1 text-xs text-gray-500">{{ openedRate(camp).toFixed(0) }}% of sent</p>
     </div>
-    <div class="rounded-[24px] bg-[#DDE9F5] p-5">
+    <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Clicked</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ camp.clicked | number }}</p>
       <p class="mt-1 text-xs text-gray-500">{{ clickedRate(camp).toFixed(0) }}% of opened</p>
