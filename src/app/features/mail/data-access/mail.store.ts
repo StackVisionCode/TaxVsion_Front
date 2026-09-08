@@ -101,7 +101,10 @@ export interface ComposeSendPayload {
   to: string;
   cc: string;
   subject: string;
-  body: string;
+  /** Cuerpo enriquecido tal cual lo dejó el editor: es lo que viaja como HtmlBody. */
+  bodyHtml: string;
+  /** Mismo cuerpo degradado a texto, para el TextBody del draft. */
+  bodyText: string;
   files: File[];
   /** fileIds de adjuntos ya persistidos en el draft que el usuario quitó. */
   removedFileIds: string[];
@@ -224,6 +227,17 @@ export class MailStore {
   readonly customerResults = this._customerResults.asReadonly();
   readonly customerSearchLoading = this._customerSearchLoading.asReadonly();
 
+  // ---------- Autocompletar destinatarios del composer (To/Cc) ----------
+  // Stream aparte del anterior: el del rail fija el cliente DUEÑO del hilo, mientras que este
+  // solo sugiere direcciones para escribir. Compartirlo haría que escribir en To cambiara la
+  // bandeja que se está viendo.
+  private readonly _recipientResults = signal<MailCustomerSummary[]>([]);
+  private readonly _recipientSearchLoading = signal(false);
+  private readonly _recipientSearch$ = new Subject<string>();
+
+  readonly recipientResults = this._recipientResults.asReadonly();
+  readonly recipientSearchLoading = this._recipientSearchLoading.asReadonly();
+
   // ---------- Hilos del cliente seleccionado ----------
 
   private readonly _threads = signal<ThreadSummary[]>([]);
@@ -345,6 +359,7 @@ export class MailStore {
     this.initialized = true;
     this.subscribeIncomingMailRealtime();
     this.wireCustomerSearch();
+    this.wireRecipientSearch();
     this.refreshBoot();
   }
 
@@ -372,6 +387,31 @@ export class MailStore {
   onCustomerQueryChange(term: string): void {
     this._customerQuery.set(term);
     this._customerSearch$.next(term.trim());
+  }
+
+  /** Mismo mecanismo que el buscador del rail, pero alimentando el autocompletar de To/Cc. */
+  private wireRecipientSearch(): void {
+    this._recipientSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap(term => {
+          this._recipientSearchLoading.set(true);
+          return this.service.searchCustomers(term).pipe(
+            map(result => result.items),
+            catchError(() => of<MailCustomerSummary[]>([])),
+          );
+        }),
+      )
+      .subscribe(items => {
+        this._recipientResults.set(items);
+        this._recipientSearchLoading.set(false);
+      });
+  }
+
+  /** El composer pide sugerencias para el destinatario que se está tecleando. */
+  searchRecipients(term: string): void {
+    this._recipientSearch$.next(term.trim());
   }
 
   /** Al enfocar sin texto: muestra los primeros resultados (término vacío = top N del backend). */
@@ -1422,8 +1462,8 @@ export class MailStore {
           this.service
             .autoSaveDraft(draftId, {
               subject: payload.subject.trim(),
-              htmlBody: plainTextToHtml(payload.body),
-              textBody: payload.body,
+              htmlBody: payload.bodyHtml,
+              textBody: payload.bodyText,
               to: parseRecipients(payload.to),
               cc: parseRecipients(payload.cc),
             })
