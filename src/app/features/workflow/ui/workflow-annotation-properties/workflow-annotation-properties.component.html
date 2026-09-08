@@ -1,0 +1,84 @@
+<section class="flex h-full flex-col overflow-y-auto rounded-[28px] bg-white p-5" aria-label="Annotation properties">
+  <header class="flex items-baseline gap-2">
+    <h2 class="text-sm font-bold text-gray-900">Properties</h2>
+    <span class="text-xs text-gray-400">{{ label() }}</span>
+  </header>
+
+  <!-- Tinta: trazos, flechas, texto y marcos. -->
+  @if (supports().ink) {
+    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Color</p>
+    <div class="mt-2 grid grid-cols-6 gap-2">
+      @for (ink of inkColors; track ink) {
+        <button type="button" (click)="setInk(ink)" [style.background]="ink"
+          class="h-7 w-7 rounded-full ring-offset-2 transition-shadow"
+          [class.ring-2]="annotation().stroke === ink" [class.ring-gray-900]="annotation().stroke === ink"
+          [attr.aria-label]="'Ink ' + ink" [attr.aria-pressed]="annotation().stroke === ink"></button>
+      }
+    </div>
+  }
+
+  <!-- Color de papel: solo la nota. -->
+  @if (supports().color) {
+    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Paper</p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      @for (color of noteColors; track color) {
+        <button type="button" (click)="setNoteColor(color)"
+          class="h-7 w-7 rounded-full border ring-offset-2 transition-shadow" [ngClass]="noteClasses(color)"
+          [class.ring-2]="annotation().color === color" [class.ring-gray-900]="annotation().color === color"
+          [attr.aria-label]="'Paper ' + color" [attr.aria-pressed]="annotation().color === color"></button>
+      }
+    </div>
+  }
+
+  <!-- Opacidad: cualquier cosa que se pinte encima del diagrama. -->
+  @if (supports().opacity) {
+    <div class="mt-5 flex items-baseline justify-between">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Opacity</p>
+      <span class="text-xs tabular-nums text-gray-500">{{ opacityPercent() }}%</span>
+    </div>
+    <input type="range" min="10" max="100" step="5" [value]="opacityPercent()" (input)="onOpacity($event)"
+      aria-label="Opacity" class="mt-2 w-full accent-brand-bold" />
+  }
+
+  <!-- Tamaño: grosor de trazo, o cuerpo de letra en el texto. -->
+  @if (supports().size) {
+    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+      {{ annotation().kind === 'text' ? 'Text size' : 'Stroke' }}
+    </p>
+    <div class="mt-2 grid grid-cols-4 gap-1.5">
+      @for (size of sizes; track size) {
+        <button type="button" (click)="setSize(size)"
+          class="rounded-xl border py-1.5 text-xs font-semibold transition-colors"
+          [class]="annotation().size === size
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 text-gray-600 hover:bg-gray-50'"
+          [attr.aria-pressed]="annotation().size === size">
+          {{ size }}
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Tipografía: solo el texto suelto. Cada botón se pinta con SU familia. -->
+  @if (supports().textStyle) {
+    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Style</p>
+    <div class="mt-2 grid grid-cols-4 gap-1.5">
+      @for (style of textStyles; track style) {
+        <button type="button" (click)="setTextStyle(style)" [style.font-family]="fontFamily(style)"
+          class="rounded-xl border py-1.5 text-base transition-colors"
+          [class]="annotation().textStyle === style
+            ? 'border-brand-bold bg-brand-surface text-brand-ink'
+            : 'border-gray-200 text-gray-600 hover:bg-gray-50'"
+          [attr.aria-label]="'Style ' + style" [attr.aria-pressed]="annotation().textStyle === style">
+          Aa
+        </button>
+      }
+    </div>
+  }
+
+  <button type="button" (click)="remove.emit()"
+    class="mt-auto flex items-center justify-center gap-1.5 rounded-full border border-red-100 bg-red-50 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100">
+    <ion-icon name="trash-outline" class="text-base"></ion-icon>
+    Delete
+  </button>
+</section>

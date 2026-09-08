@@ -5,7 +5,9 @@ import {
   WorkflowCollaboratorRole,
   WorkflowConnection,
   WorkflowDataField,
+  WorkflowAnnotationKind,
   WorkflowDoc,
+  WorkflowInkSize,
   WorkflowNoteColor,
   WorkflowStep,
   WorkflowStepTypeId,
@@ -412,6 +414,7 @@ export class WorkflowStore {
           height: 180,
           text: '',
           color,
+          opacity: 1,
         },
       ],
     }));
@@ -436,6 +439,132 @@ export class WorkflowStore {
           height: Math.round(height * scale),
           src,
           alt,
+          opacity: 1,
+        },
+      ],
+    }));
+    return id;
+  }
+
+  /**
+   * Trazo a mano. Llega con los puntos ya en coordenadas del lienzo; aquí se calcula su
+   * caja y se pasan a RELATIVOS, que es lo que hace que moverlo sea solo cambiar x/y.
+   */
+  addDrawing(points: readonly number[], stroke: string, size: WorkflowInkSize): string | null {
+    if (points.length < 4) {
+      // Un solo punto no es un trazo: un clic suelto con el lápiz no debe dejar basura.
+      return null;
+    }
+    const xs = points.filter((_, i) => i % 2 === 0);
+    const ys = points.filter((_, i) => i % 2 === 1);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const id = newId('draw');
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'draw',
+          x: Math.round(minX),
+          y: Math.round(minY),
+          width: Math.round(Math.max(...xs) - minX),
+          height: Math.round(Math.max(...ys) - minY),
+          points: points.map((value, i) => Math.round(value - (i % 2 === 0 ? minX : minY))),
+          stroke,
+          size,
+          opacity: 1,
+        },
+      ],
+    }));
+    return id;
+  }
+
+  /** Flecha: `x`/`y` es el origen y `width`/`height` el desplazamiento hasta la punta. */
+  addArrow(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    stroke: string,
+    size: WorkflowInkSize,
+  ): string | null {
+    if (Math.hypot(toX - fromX, toY - fromY) < 12) {
+      return null;
+    }
+    const id = newId('arrow');
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'arrow',
+          x: Math.round(fromX),
+          y: Math.round(fromY),
+          width: Math.round(toX - fromX),
+          height: Math.round(toY - fromY),
+          stroke,
+          size,
+          opacity: 1,
+        },
+      ],
+    }));
+    return id;
+  }
+
+  addText(x: number, y: number, stroke: string, size: WorkflowInkSize): string {
+    const id = newId('text');
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'text',
+          x: Math.max(0, Math.round(x)),
+          y: Math.max(0, Math.round(y)),
+          width: 260,
+          height: 60,
+          text: '',
+          stroke,
+          size,
+          opacity: 1,
+          textStyle: 'sans',
+        },
+      ],
+    }));
+    return id;
+  }
+
+  /** Marco rectangular para agrupar visualmente parte del diagrama. */
+  addRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    stroke: string,
+    size: WorkflowInkSize,
+  ): string | null {
+    if (Math.abs(width) < 12 || Math.abs(height) < 12) {
+      return null;
+    }
+    const id = newId('rect');
+    this.commit(doc => ({
+      ...doc,
+      annotations: [
+        ...doc.annotations,
+        {
+          id,
+          kind: 'rect',
+          x: Math.max(0, Math.round(Math.min(x, x + width))),
+          y: Math.max(0, Math.round(Math.min(y, y + height))),
+          width: Math.round(Math.abs(width)),
+          height: Math.round(Math.abs(height)),
+          stroke,
+          size,
+          opacity: 1,
         },
       ],
     }));

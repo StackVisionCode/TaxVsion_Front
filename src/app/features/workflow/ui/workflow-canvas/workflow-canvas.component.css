@@ -157,3 +157,29 @@
   z-index: 20;
   will-change: transform;
 }
+
+/* Con una herramienta de trazo activa el lienzo dice que el arrastre DIBUJA. */
+.wf-viewport--draw {
+  cursor: crosshair;
+}
+.wf-viewport--erase {
+  cursor: not-allowed;
+}
+
+/* Trazos, flechas y marcos: el trazo fino es difícil de acertar, así que la zona de
+   clic se ensancha sin engordar el dibujo. */
+.wf-ink {
+  cursor: grab;
+  stroke-linecap: round;
+}
+.wf-ink:active {
+  cursor: grabbing;
+}
+.wf-ink > * {
+  pointer-events: stroke;
+  stroke-width: inherit;
+}
+.wf-ink--active > * {
+  filter: drop-shadow(0 0 0 rgb(var(--color-indigo-600-rgb, 30 70 107)));
+  outline: none;
+}

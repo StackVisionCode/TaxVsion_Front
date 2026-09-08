@@ -25,6 +25,7 @@ import {
 import { WorkflowStore } from '../../data-access/workflow.store';
 import { WorkflowPreviewService } from '../../data-access/workflow-preview.service';
 import { WorkflowPresenceService } from '../../data-access/workflow-presence.service';
+import { WorkflowAnnotationPropertiesComponent } from '../../ui/workflow-annotation-properties/workflow-annotation-properties.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ImageTooLargeError, prepareImage } from '../../utils/workflow-image.util';
 import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
@@ -54,6 +55,7 @@ type WorkflowTab = 'builder' | 'debugger';
     ConfirmDialogComponent,
     WorkflowCanvasComponent,
     WorkflowStepPaletteComponent,
+    WorkflowAnnotationPropertiesComponent,
     WorkflowStepConfigComponent,
     WorkflowCollaboratorAvatarsComponent,
     WorkflowShareModalComponent,
@@ -68,6 +70,30 @@ export class WorkflowPageComponent implements OnDestroy {
   readonly preview = inject(WorkflowPreviewService);
   readonly presence = inject(WorkflowPresenceService);
   private readonly toast = inject(ToastService);
+
+  /** Objeto del lienzo seleccionado: manda sobre el panel de configuración del paso. */
+  readonly selectedAnnotationId = signal<string | null>(null);
+  readonly selectedAnnotation = computed(() => {
+    const id = this.selectedAnnotationId();
+    return id ? (this.store.annotations().find(a => a.id === id) ?? null) : null;
+  });
+
+  /**
+   * Lo recién creado queda seleccionado. Sin esto colocabas una nota y el panel seguía
+   * enseñando las propiedades del objeto anterior, así que había que volver a hacer clic
+   * sobre lo que acabas de poner para poder ajustarlo.
+   */
+  onAnnotationCreated(id: string | null): void {
+    if (id) {
+      this.selectedAnnotationId.set(id);
+    }
+  }
+
+  /** Borrar deja el panel sin objeto: si no, quedaría abierto sobre algo que ya no existe. */
+  onRemoveAnnotation(id: string): void {
+    this.store.removeAnnotation(id);
+    this.selectedAnnotationId.set(null);
+  }
 
   @ViewChild('imageInput') private imageInput?: ElementRef<HTMLInputElement>;
   /** Dónde cae la imagen que se está eligiendo, fijado al abrir el selector. */

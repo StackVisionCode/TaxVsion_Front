@@ -8,11 +8,21 @@ import {
   OnDestroy,
   Output,
   ViewChild,
+  computed,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Connector, OpenEnd, PositionedNode, WorkflowLayout } from '../../utils/workflow-layout.util';
-import { WorkflowAnnotation, WorkflowNoteColor, NOTE_COLORS, noteColorClasses } from '../../data-access/workflow.model';
+import {
+  INK_COLORS,
+  INK_SIZES,
+  WorkflowAnnotation,
+  WorkflowInkSize,
+  fontFamilyFor,
+  fontSizeFor,
+  noteColorClasses,
+  strokeWidthFor,
+} from '../../data-access/workflow.model';
 import { PeerCursor } from '../../data-access/workflow-presence.service';
 import { PreviewEdgeStatus, PreviewStepView } from '../../data-access/workflow-preview.service';
 import { WorkflowNodeComponent } from '../workflow-node/workflow-node.component';
@@ -35,8 +45,23 @@ export interface PendingLink {
   toY: number;
 }
 
-/** `note` deja el lienzo a la espera de un clic para colocar la nota. */
-export type CanvasTool = 'select' | 'pan' | 'note';
+/**
+ * Herramientas del lienzo. Todas menos `select`/`pan` quedan a la espera de un gesto sobre
+ * el lienzo: un clic (`note`, `text`) o un arrastre (`draw`, `arrow`, `rect`).
+ */
+export type CanvasTool = 'select' | 'pan' | 'note' | 'text' | 'draw' | 'arrow' | 'rect' | 'eraser';
+
+/** Trazo o forma que se está dibujando ahora mismo, todavía sin confirmar. */
+interface SketchState {
+  pointerId: number;
+  tool: 'draw' | 'arrow' | 'rect';
+  startX: number;
+  startY: number;
+  /** Solo para `draw`: puntos absolutos del lienzo, aplanados. */
+  points: number[];
+  currentX: number;
+  currentY: number;
+}
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2;
@@ -134,6 +159,16 @@ export class WorkflowCanvasComponent implements OnDestroy {
   @Output() moveAnnotationLive = new EventEmitter<{ id: string; x: number; y: number }>();
   /** Mi cursor, en coordenadas del lienzo, para que lo vean los demás. */
   @Output() cursorMoved = new EventEmitter<{ x: number; y: number }>();
+  @Output() addText = new EventEmitter<{ x: number; y: number; stroke: string; size: WorkflowInkSize }>();
+  @Output() addDrawing = new EventEmitter<{ points: number[]; stroke: string; size: WorkflowInkSize }>();
+  @Output() addArrow = new EventEmitter<{
+    fromX: number; fromY: number; toX: number; toY: number; stroke: string; size: WorkflowInkSize;
+  }>();
+  @Output() addRect = new EventEmitter<{
+    x: number; y: number; width: number; height: number; stroke: string; size: WorkflowInkSize;
+  }>();
+  /** Qué anotación está seleccionada, para que la página abra Propiedades. */
+  @Output() annotationSelected = new EventEmitter<string | null>();
 
   /** Notas e imágenes sueltas del documento. */
   @Input() annotations: readonly WorkflowAnnotation[] = [];
@@ -151,12 +186,63 @@ export class WorkflowCanvasComponent implements OnDestroy {
   private nodeDrag: NodeDragState | null = null;
   private annotationDrag: AnnotationDragState | null = null;
 
-  /** Anotación seleccionada: la que enseña su barra de color/borrado. */
+  /** Anotación seleccionada: la que enseña su barra y llena el panel de Propiedades. */
   readonly activeAnnotationId = signal<string | null>(null);
   /** Nota que se está escribiendo (no se arrastra mientras se escribe). */
   readonly editingAnnotationId = signal<string | null>(null);
-  readonly noteColors = NOTE_COLORS;
   noteClasses = noteColorClasses;
+  toPath = pointsToPath;
+  strokeWidth = strokeWidthFor;
+  fontSize = fontSizeFor;
+  fontFamily = fontFamilyFor;
+
+  /** Tinta y grosor con los que se crea lo siguiente. Se ajustan luego en Propiedades. */
+  readonly inkColors = INK_COLORS;
+  readonly inkSizes = INK_SIZES;
+  readonly ink = signal<string>(INK_COLORS[0]);
+  readonly inkSize = signal<WorkflowInkSize>('M');
+  /** Se muestra la paleta solo con una herramienta de trazo activa. */
+  readonly showInkBar = computed(() => {
+    const tool = this.tool();
+    return tool === 'draw' || tool === 'arrow' || tool === 'rect' || tool === 'text';
+  });
+
+  /** Las que son cajas (nota, texto, imagen): van como divs posicionados. */
+  boxAnnotations(): WorkflowAnnotation[] {
+    return this.annotations.filter(a => a.kind === 'note' || a.kind === 'text' || a.kind === 'image');
+  }
+
+  /** Las que son formas: van al SVG, con coordenadas absolutas del lienzo. */
+  inkAnnotations(): WorkflowAnnotation[] {
+    return this.annotations.filter(a => a.kind === 'draw' || a.kind === 'arrow' || a.kind === 'rect');
+  }
+
+  /** Cada flecha necesita su propio marker: el color de la punta es el suyo. */
+  arrowAnnotations(): WorkflowAnnotation[] {
+    return this.annotations.filter(a => a.kind === 'arrow');
+  }
+
+  /** Herramientas de anotación, en el orden de la barra. */
+  readonly drawTools: ReadonlyArray<{ id: CanvasTool; icon: string; label: string }> = [
+    { id: 'draw', icon: 'brush-outline', label: 'Draw' },
+    { id: 'arrow', icon: 'arrow-forward-outline', label: 'Arrow' },
+    { id: 'rect', icon: 'square-outline', label: 'Frame' },
+    { id: 'text', icon: 'text-outline', label: 'Text' },
+    { id: 'note', icon: 'reader-outline', label: 'Sticky note' },
+    { id: 'eraser', icon: 'trash-bin-outline', label: 'Erase' },
+  ];
+
+  min = Math.min;
+  abs = Math.abs;
+
+  /** Boceto en curso (trazo, flecha o marco), para pintarlo mientras se arrastra. */
+  readonly sketch = signal<SketchState | null>(null);
+
+  /** Path del trazo en curso — el mismo formato que el ya confirmado. */
+  readonly sketchPath = computed(() => {
+    const current = this.sketch();
+    return current && current.tool === 'draw' ? pointsToPath(current.points) : '';
+  });
 
   /**
    * Throttle a un frame.
@@ -259,6 +345,55 @@ export class WorkflowCanvasComponent implements OnDestroy {
     this.moveStepStart.emit();
   }
 
+  /**
+   * Arranca un trazo, una flecha o un marco. Se engancha en el `pointerdown` del lienzo,
+   * ANTES que el pan: con una herramienta de dibujo activa, arrastrar dibuja, no desplaza.
+   */
+  startSketch(event: PointerEvent): boolean {
+    const tool = this.tool();
+    if (tool !== 'draw' && tool !== 'arrow' && tool !== 'rect') {
+      return false;
+    }
+    const point = this.toCanvas(event.clientX, event.clientY);
+    this.sketch.set({
+      pointerId: event.pointerId,
+      tool,
+      startX: point.x,
+      startY: point.y,
+      points: [point.x, point.y],
+      currentX: point.x,
+      currentY: point.y,
+    });
+    return true;
+  }
+
+  /** Cierra el gesto y lo manda al store. Un gesto demasiado corto se descarta allí. */
+  private endSketch(): void {
+    const current = this.sketch();
+    this.sketch.set(null);
+    if (!current) {
+      return;
+    }
+    const stroke = this.ink();
+    const size = this.inkSize();
+    if (current.tool === 'draw') {
+      this.addDrawing.emit({ points: current.points, stroke, size });
+    } else if (current.tool === 'arrow') {
+      this.addArrow.emit({
+        fromX: current.startX, fromY: current.startY,
+        toX: current.currentX, toY: current.currentY, stroke, size,
+      });
+    } else {
+      this.addRect.emit({
+        x: current.startX, y: current.startY,
+        width: current.currentX - current.startX,
+        height: current.currentY - current.startY,
+        stroke, size,
+      });
+    }
+    // La herramienta se queda activa: dibujar suele venir en tandas.
+  }
+
   /** Arrastre de una nota o imagen. Con la mano activa manda el pan; escribiendo, no se mueve. */
   startAnnotationDrag(event: PointerEvent, annotation: WorkflowAnnotation): void {
     if (this.tool() === 'pan' || this.editingAnnotationId() === annotation.id) {
@@ -274,7 +409,7 @@ export class WorkflowCanvasComponent implements OnDestroy {
       offsetY: point.y - annotation.y,
       moved: false,
     };
-    this.activeAnnotationId.set(annotation.id);
+    this.selectAnnotation(annotation.id);
     this.moveStepStart.emit();
   }
 
@@ -283,15 +418,45 @@ export class WorkflowCanvasComponent implements OnDestroy {
    * se espera de una herramienta de colocar; con `select` solo deselecciona.
    */
   onCanvasClick(event: MouseEvent): void {
-    if (this.tool() === 'note') {
+    const tool = this.tool();
+    if (tool === 'note') {
       const point = this.toCanvas(event.clientX, event.clientY);
       // Se centra en el cursor, como el drop del catálogo.
       this.addNote.emit({ x: point.x - 110, y: point.y - 90 });
       this.tool.set('select');
       return;
     }
-    this.activeAnnotationId.set(null);
+    if (tool === 'text') {
+      const point = this.toCanvas(event.clientX, event.clientY);
+      this.addText.emit({ x: point.x, y: point.y - 16, stroke: this.ink(), size: this.inkSize() });
+      this.tool.set('select');
+      return;
+    }
+    this.selectAnnotation(null);
     this.editingAnnotationId.set(null);
+  }
+
+  /** Punto único de selección: mantiene el panel y el lienzo diciendo lo mismo. */
+  selectAnnotation(id: string | null): void {
+    this.activeAnnotationId.set(id);
+    this.annotationSelected.emit(id);
+  }
+
+  /**
+   * Clic sobre una anotación. Con la goma borra; si no, la selecciona para el panel de
+   * propiedades. Un arrastre recién terminado no cuenta como clic.
+   */
+  onAnnotationClick(event: MouseEvent, annotation: WorkflowAnnotation): void {
+    event.stopPropagation();
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
+    if (this.tool() === 'eraser') {
+      this.removeAnnotation.emit(annotation.id);
+      return;
+    }
+    this.selectAnnotation(annotation.id);
   }
 
   /** Coloca la imagen en el centro de lo que se está viendo, no en una esquina cualquiera. */
@@ -319,10 +484,6 @@ export class WorkflowCanvasComponent implements OnDestroy {
   onNoteInput(annotation: WorkflowAnnotation, event: Event): void {
     const text = (event.target as HTMLTextAreaElement).value;
     this.updateAnnotation.emit({ id: annotation.id, patch: { text } });
-  }
-
-  setNoteColor(annotation: WorkflowAnnotation, color: WorkflowNoteColor): void {
-    this.updateAnnotation.emit({ id: annotation.id, patch: { color } });
   }
 
   trackAnnotation = (_index: number, annotation: WorkflowAnnotation): string => annotation.id;
@@ -401,6 +562,12 @@ export class WorkflowCanvasComponent implements OnDestroy {
   // ---------- Pan con la herramienta mano ----------
 
   startPan(event: PointerEvent): void {
+    // Con una herramienta de dibujo activa, arrastrar DIBUJA. Se comprueba antes que el
+    // pan porque ambos nacen del mismo pointerdown sobre el lienzo.
+    if (this.startSketch(event)) {
+      event.preventDefault();
+      return;
+    }
     if (this.tool() !== 'pan') {
       return;
     }
@@ -423,6 +590,20 @@ export class WorkflowCanvasComponent implements OnDestroy {
   onPointerMove(event: PointerEvent): void {
     // Mi cursor se publica SIEMPRE, se esté arrastrando algo o no: es lo que ven los demás.
     this.publishCursor(event.clientX, event.clientY);
+
+    const sketch = this.sketch();
+    if (sketch && event.pointerId === sketch.pointerId) {
+      const { clientX, clientY } = event;
+      this.scheduleFrame(() => {
+        const point = this.toCanvas(clientX, clientY);
+        this.sketch.set(
+          sketch.tool === 'draw'
+            ? { ...sketch, points: [...sketch.points, point.x, point.y], currentX: point.x, currentY: point.y }
+            : { ...sketch, currentX: point.x, currentY: point.y },
+        );
+      });
+      return;
+    }
 
     const annotation = this.annotationDrag;
     if (annotation && event.pointerId === annotation.pointerId) {
@@ -477,6 +658,10 @@ export class WorkflowCanvasComponent implements OnDestroy {
       this.pendingLink.set(null);
       this.linkPointerId = null;
       this.cancelFrame();
+    }
+    if (this.sketch()) {
+      this.cancelFrame();
+      this.endSketch();
     }
     if (this.annotationDrag) {
       this.cancelFrame();
@@ -583,4 +768,16 @@ export class WorkflowCanvasComponent implements OnDestroy {
     this.pendingLink.set(null);
     this.linkPointerId = null;
   }
+}
+
+/** Puntos aplanados → path SVG. Formato compartido por el trazo en curso y el guardado. */
+export function pointsToPath(points: readonly number[]): string {
+  if (points.length < 4) {
+    return '';
+  }
+  const parts: string[] = [`M ${points[0]} ${points[1]}`];
+  for (let i = 2; i < points.length; i += 2) {
+    parts.push(`L ${points[i]} ${points[i + 1]}`);
+  }
+  return parts.join(' ');
 }

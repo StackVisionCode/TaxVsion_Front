@@ -121,11 +121,16 @@
         [stepPreview]="preview.status() === 'idle' ? null : preview.stepStates()"
         [edgePreview]="preview.status() === 'idle' ? null : preview.edgeStates()"
         [annotations]="store.annotations()" [peers]="presence.peers()"
-        (addNote)="store.addNote($event.x, $event.y)" (pickImage)="onPickImage($event)"
+        (addNote)="onAnnotationCreated(store.addNote($event.x, $event.y))" (pickImage)="onPickImage($event)"
         (updateAnnotation)="store.updateAnnotation($event.id, $event.patch)"
         (removeAnnotation)="store.removeAnnotation($event)"
         (moveAnnotationLive)="store.moveAnnotationLive($event.id, $event.x, $event.y)"
-        (cursorMoved)="presence.publish($event.x, $event.y)"></app-workflow-canvas>
+        (cursorMoved)="presence.publish($event.x, $event.y)"
+        (annotationSelected)="selectedAnnotationId.set($event)"
+        (addText)="onAnnotationCreated(store.addText($event.x, $event.y, $event.stroke, $event.size))"
+        (addDrawing)="onAnnotationCreated(store.addDrawing($event.points, $event.stroke, $event.size))"
+        (addArrow)="onAnnotationCreated(store.addArrow($event.fromX, $event.fromY, $event.toX, $event.toY, $event.stroke, $event.size))"
+        (addRect)="onAnnotationCreated(store.addRect($event.x, $event.y, $event.width, $event.height, $event.stroke, $event.size))"></app-workflow-canvas>
 
     <!-- El aviso de que se acabó el sitio en el navegador. Antes esto fallaba callado y el
          diagrama dejaba de guardarse sin que nadie se enterara. -->
@@ -163,9 +168,16 @@
     </section>
 
     <!-- Configuración -->
+    <!-- Una sola columna derecha: o se está editando un PASO o un objeto del lienzo, nunca
+         las dos cosas. Seleccionar una anotación manda, porque es lo último que se tocó. -->
     <aside class="wf-side hidden shrink-0 xl:block" [style.width.px]="320">
-      <app-workflow-step-config [step]="store.selectedStep()" [availableFields]="store.selectedAvailableFields()"
-        [missingFields]="store.selectedMissingInputs()" (save)="onSaveStep($event)"></app-workflow-step-config>
+      <app-workflow-annotation-properties *ngIf="selectedAnnotation() as annotation; else stepConfig"
+        [annotation]="annotation" (patch)="store.updateAnnotation(annotation.id, $event)"
+        (remove)="onRemoveAnnotation(annotation.id)"></app-workflow-annotation-properties>
+      <ng-template #stepConfig>
+        <app-workflow-step-config [step]="store.selectedStep()" [availableFields]="store.selectedAvailableFields()"
+          [missingFields]="store.selectedMissingInputs()" (save)="onSaveStep($event)"></app-workflow-step-config>
+      </ng-template>
     </aside>
   </div>
 </div>

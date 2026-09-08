@@ -1,7 +1,9 @@
 <div class="relative h-full w-full overflow-hidden rounded-[28px] bg-brand-white">
   <!-- viewport: el pan es scroll nativo -->
   <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
-    [class.wf-viewport--place]="tool() === 'note'" (click)="onCanvasClick($event)"
+    [class.wf-viewport--place]="tool() === 'note' || tool() === 'text'"
+    [class.wf-viewport--draw]="tool() === 'draw' || tool() === 'arrow' || tool() === 'rect'"
+    [class.wf-viewport--erase]="tool() === 'eraser'" (click)="onCanvasClick($event)"
     (pointerdown)="startPan($event)" (dragover)="allowDrop($event)" (drop)="onDrop($event)">
 
     <!-- sizer: reserva el área desplazable ya escalada -->
@@ -11,14 +13,68 @@
       <div class="wf-stage absolute left-0 top-0 origin-top-left" [style.width.px]="layout.width"
         [style.height.px]="layout.height" [style.transform]="'scale(' + zoom() + ')'">
 
-        <!-- Notas e imágenes, DEBAJO de todo lo demás: son anotaciones sobre el diagrama,
-             así que no deben taparlo ni robarle el clic a una carta. -->
-        <div *ngFor="let annotation of annotations; trackBy: trackAnnotation"
+        <!-- Anotaciones DEBAJO de todo lo demás: se dibujan sobre el diagrama, así que no
+             deben taparlo ni robarle el clic a una carta.
+
+             Dos capas por geometría, no por capricho: nota / imagen / texto son cajas y van
+             como divs posicionados; trazo / flecha / marco son formas y van en un SVG con
+             coordenadas absolutas — una flecha tiene delta NEGATIVO y no cabe en una caja. -->
+        <svg class="absolute left-0 top-0 overflow-visible" [attr.width]="layout.width"
+          [attr.height]="layout.height">
+          <defs>
+            <marker *ngFor="let annotation of arrowAnnotations(); trackBy: trackAnnotation"
+              [attr.id]="'wf-arrow-' + annotation.id" markerWidth="6" markerHeight="6" refX="4.6" refY="3"
+              orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L6,3 L0,6 z" [attr.fill]="annotation.stroke"></path>
+            </marker>
+          </defs>
+
+          <g *ngFor="let annotation of inkAnnotations(); trackBy: trackAnnotation"
+            class="wf-ink" [class.wf-ink--active]="annotation.id === activeAnnotationId()"
+            [attr.opacity]="annotation.opacity ?? 1"
+            (pointerdown)="startAnnotationDrag($event, annotation)"
+            (click)="onAnnotationClick($event, annotation)">
+            <ng-container [ngSwitch]="annotation.kind">
+              <path *ngSwitchCase="'draw'" [attr.d]="toPath(annotation.points ?? [])"
+                [attr.transform]="'translate(' + annotation.x + ',' + annotation.y + ')'"
+                [attr.stroke]="annotation.stroke" [attr.stroke-width]="strokeWidth(annotation.size)"
+                fill="none" stroke-linecap="round" stroke-linejoin="round" />
+
+              <line *ngSwitchCase="'arrow'" [attr.x1]="annotation.x" [attr.y1]="annotation.y"
+                [attr.x2]="annotation.x + annotation.width" [attr.y2]="annotation.y + annotation.height"
+                [attr.stroke]="annotation.stroke" [attr.stroke-width]="strokeWidth(annotation.size)"
+                stroke-linecap="round" [attr.marker-end]="'url(#wf-arrow-' + annotation.id + ')'" />
+
+              <rect *ngSwitchCase="'rect'" [attr.x]="annotation.x" [attr.y]="annotation.y"
+                [attr.width]="annotation.width" [attr.height]="annotation.height" rx="14"
+                [attr.stroke]="annotation.stroke" [attr.stroke-width]="strokeWidth(annotation.size)"
+                fill="none" />
+            </ng-container>
+          </g>
+
+          <!-- Lo que se está dibujando ahora mismo, aún sin confirmar. -->
+          <ng-container *ngIf="sketch() as current">
+            <path *ngIf="current.tool === 'draw'" [attr.d]="sketchPath()" [attr.stroke]="ink()"
+              [attr.stroke-width]="strokeWidth(inkSize())" fill="none" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <line *ngIf="current.tool === 'arrow'" [attr.x1]="current.startX" [attr.y1]="current.startY"
+              [attr.x2]="current.currentX" [attr.y2]="current.currentY" [attr.stroke]="ink()"
+              [attr.stroke-width]="strokeWidth(inkSize())" stroke-linecap="round" />
+            <rect *ngIf="current.tool === 'rect'" [attr.x]="min(current.startX, current.currentX)"
+              [attr.y]="min(current.startY, current.currentY)"
+              [attr.width]="abs(current.currentX - current.startX)"
+              [attr.height]="abs(current.currentY - current.startY)" rx="14" [attr.stroke]="ink()"
+              [attr.stroke-width]="strokeWidth(inkSize())" fill="none" stroke-dasharray="6 4" />
+          </ng-container>
+        </svg>
+
+        <div *ngFor="let annotation of boxAnnotations(); trackBy: trackAnnotation"
           class="wf-annotation absolute" [style.left.px]="annotation.x" [style.top.px]="annotation.y"
           [style.width.px]="annotation.width" [style.height.px]="annotation.height"
+          [style.opacity]="annotation.opacity ?? 1"
           [class.wf-annotation--active]="annotation.id === activeAnnotationId()"
           (pointerdown)="startAnnotationDrag($event, annotation)"
-          (click)="$event.stopPropagation(); activeAnnotationId.set(annotation.id)">
+          (click)="onAnnotationClick($event, annotation)">
 
           <ng-container [ngSwitch]="annotation.kind">
             <!-- Nota: se escribe en el sitio, sin abrir ningún panel. -->
@@ -31,21 +87,25 @@
                 class="h-full w-full resize-none border-0 bg-transparent text-sm leading-6 outline-none placeholder:opacity-50"></textarea>
             </div>
 
+            <!-- Texto suelto: sin papel ni marco, solo la letra sobre el lienzo. -->
+            <textarea *ngSwitchCase="'text'" [value]="annotation.text ?? ''"
+              (input)="onNoteInput(annotation, $event)"
+              (focus)="editingAnnotationId.set(annotation.id)" (blur)="editingAnnotationId.set(null)"
+              placeholder="Type…" aria-label="Text"
+              [style.color]="annotation.stroke" [style.font-size.px]="fontSize(annotation.size)"
+              [style.font-family]="fontFamily(annotation.textStyle)"
+              class="h-full w-full resize-none border-0 bg-transparent font-semibold leading-tight outline-none placeholder:opacity-40"></textarea>
+
             <img *ngSwitchCase="'image'" [src]="annotation.src" [alt]="annotation.alt || 'Canvas image'"
               draggable="false"
               class="pointer-events-none h-full w-full rounded-[14px] border border-gray-200 bg-white object-cover shadow-sm" />
           </ng-container>
 
-          <!-- Barra de la anotación seleccionada: color (solo notas) y borrar. -->
+          <!-- Borrado rápido de la seleccionada. El resto de ajustes están en Propiedades:
+               tenerlos también aquí serían dos sitios que decidir lo mismo. -->
           <div *ngIf="annotation.id === activeAnnotationId()"
             class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-md"
             (pointerdown)="$event.stopPropagation()">
-            <ng-container *ngIf="annotation.kind === 'note'">
-              <button *ngFor="let color of noteColors" type="button" (click)="setNoteColor(annotation, color)"
-                class="h-4 w-4 rounded-full border" [ngClass]="noteClasses(color)"
-                [attr.aria-label]="'Use ' + color + ' note'"></button>
-              <span class="mx-0.5 h-4 w-px bg-gray-200"></span>
-            </ng-container>
             <button type="button" (click)="removeAnnotation.emit(annotation.id)"
               class="grid h-6 w-6 place-items-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
               aria-label="Delete annotation">
@@ -150,6 +210,25 @@
     </div>
   </div>
 
+  <!-- Tinta y grosor de lo PRÓXIMO que se dibuje. Solo con una herramienta de trazo
+       activa: fuera de ese momento no decide nada y sería ruido permanente. -->
+  <div *ngIf="showInkBar()"
+    class="absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-2 shadow-lg">
+    <div class="flex items-center gap-1.5">
+      <button *ngFor="let color of inkColors" type="button" (click)="ink.set(color)" [style.background]="color"
+        class="h-5 w-5 rounded-full ring-offset-2 transition-shadow"
+        [class.ring-2]="ink() === color" [class.ring-gray-900]="ink() === color"
+        [attr.aria-label]="'Ink ' + color" [attr.aria-pressed]="ink() === color"></button>
+    </div>
+    <span class="h-5 w-px bg-gray-200"></span>
+    <div class="flex items-center gap-1">
+      <button *ngFor="let size of inkSizes" type="button" (click)="inkSize.set(size)"
+        class="h-6 min-w-6 rounded-full px-1.5 text-[11px] font-bold transition-colors"
+        [ngClass]="inkSize() === size ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'"
+        [attr.aria-pressed]="inkSize() === size">{{ size }}</button>
+    </div>
+  </div>
+
   <!-- Barra de herramientas flotante -->
   <div
     class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-lg">
@@ -164,14 +243,15 @@
       <ion-icon name="hand-left-outline" class="text-base"></ion-icon>
     </button>
     <span class="mx-1 h-5 w-px bg-gray-200"></span>
-    <!-- Anotar: la nota se coloca donde se haga clic; la imagen entra en el centro de lo
-         que se está viendo, que es donde el usuario está mirando. -->
-    <button type="button" (click)="tool.set(tool() === 'note' ? 'select' : 'note')" aria-label="Add note"
+    <!-- Anotar y dibujar. Las de trazo se quedan activas (se dibuja en tandas); las de
+         colocar vuelven a `select` en cuanto sueltan su objeto. -->
+    <button *ngFor="let item of drawTools" type="button" (click)="tool.set(tool() === item.id ? 'select' : item.id)"
+      [attr.aria-label]="item.label" [attr.aria-pressed]="tool() === item.id" [title]="item.label"
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-      [ngClass]="tool() === 'note' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-      <ion-icon name="reader-outline" class="text-base"></ion-icon>
+      [ngClass]="tool() === item.id ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      <ion-icon [name]="item.icon" class="text-base"></ion-icon>
     </button>
-    <button type="button" (click)="requestImage()" aria-label="Add image"
+    <button type="button" (click)="requestImage()" aria-label="Add image" title="Add image"
       class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
       <ion-icon name="image-outline" class="text-base"></ion-icon>
     </button>
