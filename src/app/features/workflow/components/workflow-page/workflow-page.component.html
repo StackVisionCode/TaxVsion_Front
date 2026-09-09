@@ -14,7 +14,11 @@
     </button>
 
     <div class="flex min-w-0 items-center gap-2">
-      <span class="text-sm text-gray-400">My Projects</span>
+      <!-- Antes era un <span> muerto: no había adónde volver porque no existía la lista. -->
+      <button type="button" (click)="backToList()"
+        class="rounded-lg px-1 text-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
+        My Projects
+      </button>
       <span class="text-sm text-gray-300">/</span>
 
       <input *ngIf="editingName(); else nameLabel" type="text" [ngModel]="store.name()"
@@ -72,9 +76,13 @@
   <!-- ============ Cuerpo ============ -->
   <div class="flex min-h-0 flex-1 gap-4">
     <!-- Paleta -->
-    <aside class="wf-side shrink-0" [style.width.px]="260">
+    <!-- El ancho lo manda la paleta: plegada solo ocupa su columna de iconos y el lienzo
+         se queda con el resto. Antes eran 260px fijos, así que plegarla dejaba un hueco
+         vacío en vez de darle sitio al diagrama. -->
+    <aside class="wf-side shrink-0" [style.width.px]="paletteCollapsed() ? 64 : 260">
       <app-workflow-step-palette [awaitingInsert]="pendingInsert() !== null"
-        (addStep)="onAddStep($event)"></app-workflow-step-palette>
+        (addStep)="onAddStep($event)"
+        (collapsedChange)="paletteCollapsed.set($event)"></app-workflow-step-palette>
     </aside>
 
     <!-- Canvas -->

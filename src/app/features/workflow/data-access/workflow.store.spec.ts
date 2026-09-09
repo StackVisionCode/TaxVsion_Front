@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { WorkflowStore } from './workflow.store';
+import { WorkflowLibraryService } from './workflow-library.service';
 
 /**
  * El store es hoy la única "persistencia" del módulo: no hay backend de
@@ -7,14 +8,29 @@ import { WorkflowStore } from './workflow.store';
  * perder el documento al recargar, perderlo al migrar de formato, o dejar el
  * grafo en un estado que el layout no sabe dibujar.
  */
+/**
+ * Store con un workflow NUEVO abierto. El store ya no carga solo un documento fijo al
+ * construirse: la pantalla le dice cuál abrir, porque ahora hay una biblioteca.
+ */
+function freshStore(): WorkflowStore {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [WorkflowStore, WorkflowLibraryService] });
+  const created = TestBed.inject(WorkflowStore);
+  created.openNew();
+  return created;
+}
+
+/** Store que abre un documento ya guardado en la biblioteca, por su id. */
+function storeOpening(id: string): WorkflowStore {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [WorkflowStore, WorkflowLibraryService] });
+  const created = TestBed.inject(WorkflowStore);
+  created.open(id);
+  return created;
+}
+
 describe('WorkflowStore', () => {
   let store: WorkflowStore;
-
-  function freshStore(): WorkflowStore {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [WorkflowStore] });
-    return TestBed.inject(WorkflowStore);
-  }
 
   beforeEach(() => {
     localStorage.clear();
@@ -133,7 +149,8 @@ describe('WorkflowStore', () => {
       }),
     );
 
-    const revived = freshStore();
+    // La biblioteca migra la clave vieja al construirse; después se abre por su id.
+    const revived = storeOpening('wf');
 
     expect(revived.name()).toBe('Legacy');
     expect(revived.steps().length).toBe(2);
@@ -155,7 +172,7 @@ describe('WorkflowStore', () => {
       }),
     );
 
-    expect(freshStore().connections()).toEqual([]);
+    expect(storeOpening('wf').connections()).toEqual([]);
   });
 
   it('con basura guardada vuelve al ejemplo en vez de romper la pantalla', () => {
@@ -167,7 +184,8 @@ describe('WorkflowStore', () => {
     store.rename('My automation');
     const id = store.addStep('delay', null);
 
-    const revived = freshStore();
+    // Reabrir el MISMO documento, no crear otro: es lo que hace la tabla al pulsarlo.
+    const revived = storeOpening(store.doc().id);
     expect(revived.name()).toBe('My automation');
     expect(revived.steps().some(step => step.id === id)).toBe(true);
   });
@@ -181,7 +199,7 @@ describe('WorkflowStore', () => {
     expect(store.collaborators().length).toBe(1);
     expect(store.collaborators()[0].role).toBe('owner');
 
-    const revived = freshStore();
+    const revived = storeOpening(store.doc().id);
     expect(revived.collaborators().length).toBe(1);
   });
 
@@ -272,7 +290,7 @@ describe('WorkflowStore', () => {
 
 describe('anotaciones del lienzo', () => {
   it('coloca una nota, la guarda en el documento y se puede deshacer', () => {
-    const store = new WorkflowStore();
+    const store = freshStore();
     const before = store.annotations().length;
 
     const id = store.addNote(300, 200, 'purple');
@@ -286,7 +304,7 @@ describe('anotaciones del lienzo', () => {
   });
 
   it('nunca coloca en negativo: el lienzo empieza en 0,0 y lo de fuera sale recortado', () => {
-    const store = new WorkflowStore();
+    const store = freshStore();
     const id = store.addNote(-500, -40);
     const note = store.annotations().find(a => a.id === id)!;
     expect(note.x).toBe(0);
@@ -294,7 +312,7 @@ describe('anotaciones del lienzo', () => {
   });
 
   it('acota el tamaño de dibujo de una imagen grande sin deformarla', () => {
-    const store = new WorkflowStore();
+    const store = freshStore();
     const id = store.addImage('data:image/png;base64,AAA', 0, 0, 1400, 700);
     const image = store.annotations().find(a => a.id === id)!;
 
@@ -304,7 +322,7 @@ describe('anotaciones del lienzo', () => {
   });
 
   it('editar y borrar una nota queda reflejado en el documento', () => {
-    const store = new WorkflowStore();
+    const store = freshStore();
     const id = store.addNote(10, 10);
 
     store.updateAnnotation(id, { text: 'Revisar el trigger' });

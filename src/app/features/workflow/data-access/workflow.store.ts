@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { WorkflowLibraryService, newWorkflowId } from './workflow-library.service';
 import {
   WorkflowAnnotation,
   WorkflowCollaborator,
@@ -21,7 +22,6 @@ import {
   stepTypeOrFallback,
 } from './workflow.model';
 
-const STORAGE_KEY = 'tvf.workflow.v1';
 /** Cuántos estados atrás se pueden deshacer. */
 const HISTORY_LIMIT = 50;
 
@@ -120,7 +120,14 @@ interface LegacyDoc {
  */
 @Injectable()
 export class WorkflowStore {
-  private readonly _doc = signal<WorkflowDoc>(this.loadDoc());
+  private readonly library = inject(WorkflowLibraryService);
+
+  /**
+   * Documento abierto. Arranca vacío: la ruta llama a `open(id)` con el workflow que se
+   * eligió en la tabla, o a `openNew()`. Antes se cargaba UNO fijo aquí mismo, que es lo
+   * que hacía que solo pudiera existir un workflow en todo el navegador.
+   */
+  private readonly _doc = signal<WorkflowDoc>(emptyDoc());
   private readonly _selectedId = signal<string | null>(null);
   private readonly _selectedConnectionId = signal<string | null>(null);
   /** Último motivo por el que se rechazó un hilo, para poder explicarlo. */
@@ -684,57 +691,66 @@ export class WorkflowStore {
    * vivía en `parentId`/`branch` dentro de cada paso. Sin esto, todo el que ya
    * tuviera un workflow guardado lo perdería.
    */
-  private loadDoc(): WorkflowDoc {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return sampleDoc();
-      }
-      const parsed = JSON.parse(raw) as LegacyDoc;
-      if (!parsed?.steps?.length) {
-        return sampleDoc();
-      }
-
-      const steps: WorkflowStep[] = parsed.steps.map(({ parentId: _p, branch: _b, ...step }) => step);
-      const ids = new Set(steps.map(step => step.id));
-
-      const connections: WorkflowConnection[] = parsed.connections
-        ? parsed.connections.filter(c => ids.has(c.fromStepId) && ids.has(c.toStepId))
-        : parsed.steps
-            .filter(step => step.parentId && ids.has(step.parentId))
-            .map((step, index) => ({
-              id: `c-migrated-${index}`,
-              fromStepId: step.parentId as string,
-              // La rama del hijo era, en la práctica, el puerto del padre.
-              fromPort: step.branch ?? 'main',
-              toStepId: step.id,
-            }));
-
-      return {
-        id: parsed.id ?? 'wf-local',
-        name: parsed.name ?? 'Untitled workflow',
-        steps,
-        connections,
-        // Docs anteriores a las notas/imágenes o a los colaboradores: lista vacía, nunca reventar.
-        annotations: parsed.annotations ?? [],
-        collaborators: parsed.collaborators ?? [],
-        updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
-      };
-    } catch {
-      return sampleDoc();
+  /**
+   * Abre un workflow de la biblioteca. Si el id no existe (enlace viejo, documento
+   * borrado en otra pestaña) devuelve false y la pantalla manda de vuelta a la tabla, en
+   * vez de dejar un lienzo en blanco que parece un workflow vacío.
+   */
+  open(id: string): boolean {
+    const stored = this.library.read(id);
+    if (!stored) {
+      return false;
     }
+    this.resetHistory();
+    this._doc.set(normalizeDoc(stored));
+    return true;
   }
 
   /**
-   * Punto de integración futuro con backend: PUT del workflow.
+   * Crea uno nuevo con el flujo de ejemplo y lo deja abierto. Devuelve su id.
    *
-   * El fallo ya NO se traga en silencio. Con notas e imágenes en el documento, quedarse
-   * sin cuota de `localStorage` es un caso real, y antes el editor seguía como si nada
-   * mientras dejaba de guardar TODO — se perdía el diagrama entero sin un solo aviso.
+   * El nombre NO se hereda del ejemplo: si no, cada workflow nuevo nacía llamado
+   * "Crossville Workflow" y la tabla se llenaba de filas idénticas imposibles de
+   * distinguir. Se numera a partir de los que ya hay.
    */
+  openNew(): string {
+    const doc = {
+      ...sampleDoc(),
+      id: newWorkflowId(),
+      name: this.nextUntitledName(),
+      updatedAtIso: new Date().toISOString(),
+    };
+    this.resetHistory();
+    this._doc.set(doc);
+    this.saveDoc(doc);
+    return doc.id;
+  }
+
+  /** "Untitled workflow", y si ya existe, el siguiente número libre. */
+  private nextUntitledName(): string {
+    const taken = new Set(this.library.items().map(item => item.name));
+    const base = 'Untitled workflow';
+    if (!taken.has(base)) {
+      return base;
+    }
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) {
+      n++;
+    }
+    return `${base} ${n}`;
+  }
+
+  private resetHistory(): void {
+    this._past.set([]);
+    this._future.set([]);
+    this._selectedId.set(null);
+    this._selectedConnectionId.set(null);
+    this._connectionError.set(null);
+  }
+
   private saveDoc(doc: WorkflowDoc): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+      this.library.write(doc);
       this._saveError.set(null);
     } catch {
       this._saveError.set(
@@ -742,4 +758,52 @@ export class WorkflowStore {
       );
     }
   }
+}
+
+/** Documento en blanco: lo que hay antes de abrir uno de la biblioteca. */
+function emptyDoc(): WorkflowDoc {
+  return {
+    id: '',
+    name: '',
+    steps: [],
+    connections: [],
+    annotations: [],
+    collaborators: [],
+    updatedAtIso: new Date().toISOString(),
+  };
+}
+
+/**
+ * Pone al día un documento guardado.
+ *
+ * Migra el formato anterior, en el que los hilos no existían y la estructura vivía en
+ * `parentId`/`branch` dentro de cada paso, y rellena los campos que se añadieron después
+ * (anotaciones, colaboradores). Sin esto, quien ya tuviera un workflow guardado lo
+ * perdería al abrirlo.
+ */
+function normalizeDoc(parsed: LegacyDoc): WorkflowDoc {
+  const steps: WorkflowStep[] = (parsed.steps ?? []).map(({ parentId: _p, branch: _b, ...step }) => step);
+  const ids = new Set(steps.map(step => step.id));
+
+  const connections: WorkflowConnection[] = parsed.connections
+    ? parsed.connections.filter(c => ids.has(c.fromStepId) && ids.has(c.toStepId))
+    : (parsed.steps ?? [])
+        .filter(step => step.parentId && ids.has(step.parentId))
+        .map((step, index) => ({
+          id: `c-migrated-${index}`,
+          fromStepId: step.parentId as string,
+          // La rama del hijo era, en la práctica, el puerto del padre.
+          fromPort: step.branch ?? 'main',
+          toStepId: step.id,
+        }));
+
+  return {
+    id: parsed.id ?? newWorkflowId(),
+    name: parsed.name ?? 'Untitled workflow',
+    steps,
+    connections,
+    annotations: parsed.annotations ?? [],
+    collaborators: parsed.collaborators ?? [],
+    updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),
+  };
 }
