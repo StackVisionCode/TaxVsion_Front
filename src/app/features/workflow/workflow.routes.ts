@@ -4,9 +4,19 @@ import { WorkflowPreviewService } from './data-access/workflow-preview.service';
 
 export const WORKFLOW_ROUTES: Routes = [
   {
+    // Portada: los workflows guardados, en tabla. El builder ya no es la primera
+    // pantalla del módulo — antes lo era porque solo existía un documento.
     path: '',
-    // El store se provee en la ruta (convención del repo): su estado vive
-    // mientras dure la pantalla y se descarta al salir.
+    providers: [WorkflowStore, WorkflowPreviewService],
+    loadComponent: () =>
+      import('./components/workflow-list-page/workflow-list-page.component').then(
+        m => m.WorkflowListPageComponent,
+      ),
+    title: 'Workflows',
+  },
+  {
+    // El id en la URL hace que un workflow se pueda compartir y recargar sin perderlo.
+    path: ':id',
     providers: [WorkflowStore, WorkflowPreviewService],
     loadComponent: () =>
       import('./components/workflow-page/workflow-page.component').then(m => m.WorkflowPageComponent),

@@ -25,6 +25,7 @@ import {
 import { WorkflowStore } from '../../data-access/workflow.store';
 import { WorkflowPreviewService } from '../../data-access/workflow-preview.service';
 import { WorkflowPresenceService } from '../../data-access/workflow-presence.service';
+import { ActivatedRoute, Router } from '@angular/router';
 import { WorkflowAnnotationPropertiesComponent } from '../../ui/workflow-annotation-properties/workflow-annotation-properties.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ImageTooLargeError, prepareImage } from '../../utils/workflow-image.util';
@@ -70,6 +71,8 @@ export class WorkflowPageComponent implements OnDestroy {
   readonly preview = inject(WorkflowPreviewService);
   readonly presence = inject(WorkflowPresenceService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** La paleta de pasos está plegada: el aside se estrecha y el lienzo se ensancha. */
   readonly paletteCollapsed = signal(false);
@@ -106,6 +109,10 @@ export class WorkflowPageComponent implements OnDestroy {
     this.presence.leave();
   }
 
+  backToList(): void {
+    void this.router.navigate(['/workflow']);
+  }
+
   /** Abre el selector de archivo. El punto se guarda ahora: al volver ya no se sabe. */
   onPickImage(point: { x: number; y: number }): void {
     this.imageDropPoint = point;
@@ -140,6 +147,15 @@ export class WorkflowPageComponent implements OnDestroy {
   }
 
   constructor() {
+    // El workflow que se abre lo dice la URL. Si el id no existe (enlace viejo, borrado
+    // desde otra pestaña) se vuelve a la tabla en vez de dejar un lienzo en blanco que
+    // parecería un workflow vacío.
+    const id = this.route.snapshot.paramMap.get('id') ?? '';
+    if (!this.store.open(id)) {
+      void this.router.navigate(['/workflow']);
+      return;
+    }
+
     // Cursores en vivo de quien esté en el mismo documento.
     this.presence.join(this.store.doc().id);
 

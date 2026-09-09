@@ -1,0 +1,99 @@
+<div class="flex min-h-0 flex-1 flex-col gap-4">
+  <header class="flex flex-wrap items-center gap-3 rounded-[28px] bg-white px-5 py-4">
+    <div class="min-w-0">
+      <h1 class="text-xl font-bold tracking-tight text-gray-900">Workflows</h1>
+      <p class="mt-0.5 text-xs text-gray-500">Open one to keep building, or start a new one.</p>
+    </div>
+
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <div class="flex min-w-56 items-center gap-2 rounded-full border border-gray-200 px-3.5 py-2">
+        <ion-icon name="search-outline" class="text-sm text-gray-400"></ion-icon>
+        <input type="text" [value]="search()" (input)="search.set($any($event.target).value)"
+          placeholder="Search workflows" aria-label="Search workflows"
+          class="w-full border-0 bg-transparent text-sm outline-none placeholder:text-gray-400" />
+      </div>
+      <button type="button" (click)="create()"
+        class="flex items-center gap-1.5 rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        New workflow
+      </button>
+    </div>
+  </header>
+
+  <section class="min-h-0 flex-1 overflow-y-auto rounded-[28px] bg-white p-5">
+    @if (items().length === 0) {
+      <div class="flex flex-col items-center gap-2 py-20 text-center text-gray-500">
+        <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400">
+          <ion-icon name="git-network-outline" class="text-2xl"></ion-icon>
+        </span>
+        <h2 class="text-sm font-bold text-gray-900">
+          {{ filtering() ? 'No workflow matches that name.' : 'No workflows yet.' }}
+        </h2>
+        @if (filtering()) {
+          <button type="button" (click)="search.set('')"
+            class="mt-1 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50">
+            Clear search
+          </button>
+        } @else {
+          <p class="max-w-xs text-sm">Start one and it will show up here.</p>
+        }
+      </div>
+    } @else {
+      <table class="w-full border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <th scope="col" class="pb-2.5 pl-2 font-semibold">Name</th>
+            <th scope="col" class="pb-2.5 font-semibold">Steps</th>
+            <th scope="col" class="hidden pb-2.5 font-semibold sm:table-cell">Notes</th>
+            <th scope="col" class="hidden pb-2.5 font-semibold md:table-cell">People</th>
+            <th scope="col" class="pb-2.5 font-semibold">Edited</th>
+            <th scope="col" class="pb-2.5 pr-2"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr (click)="open(item)" tabindex="0" (keydown.enter)="open(item)"
+              class="group cursor-pointer border-b border-gray-50 transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none">
+              <td class="py-3 pl-2">
+                <span class="flex items-center gap-2.5">
+                  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-brand-surface text-brand-ink">
+                    <ion-icon name="git-network-outline" class="text-base"></ion-icon>
+                  </span>
+                  <span class="truncate font-semibold text-gray-900">{{ item.name }}</span>
+                </span>
+              </td>
+              <td class="py-3 tabular-nums text-gray-600">{{ item.stepCount }}</td>
+              <td class="hidden py-3 tabular-nums text-gray-600 sm:table-cell">{{ item.annotationCount }}</td>
+              <td class="hidden py-3 tabular-nums text-gray-600 md:table-cell">{{ item.collaboratorCount }}</td>
+              <td class="py-3 text-gray-500">{{ updatedLabel(item.updatedAtIso) }}</td>
+              <td class="py-3 pr-2">
+                <!-- Aparecen al pasar por encima para que la tabla se lea limpia, pero
+                     siguen siendo alcanzables con teclado (focus-within las muestra). -->
+                <span class="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <button type="button" (click)="duplicate(item, $event)" title="Duplicate"
+                    [attr.aria-label]="'Duplicate ' + item.name"
+                    class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
+                    <ion-icon name="copy-outline" class="text-base"></ion-icon>
+                  </button>
+                  <button type="button" (click)="askDelete(item, $event)" title="Delete"
+                    [attr.aria-label]="'Delete ' + item.name"
+                    class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                    <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                  </button>
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <p class="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
+        {{ items().length }} of {{ total() }} workflows · saved in this browser
+      </p>
+    }
+  </section>
+</div>
+
+<app-confirm-dialog [isOpen]="pendingDelete() !== null" heading="Delete workflow"
+  [message]="'This removes ' + (pendingDelete()?.name ?? '') + ' and everything on its canvas. It is only saved in this browser, so it cannot be recovered.'"
+  confirmLabel="Delete" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>

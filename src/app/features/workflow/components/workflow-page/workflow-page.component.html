@@ -14,7 +14,11 @@
     </button>
 
     <div class="flex min-w-0 items-center gap-2">
-      <span class="text-sm text-gray-400">My Projects</span>
+      <!-- Antes era un <span> muerto: no había adónde volver porque no existía la lista. -->
+      <button type="button" (click)="backToList()"
+        class="rounded-lg px-1 text-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
+        My Projects
+      </button>
       <span class="text-sm text-gray-300">/</span>
 
       <input *ngIf="editingName(); else nameLabel" type="text" [ngModel]="store.name()"
