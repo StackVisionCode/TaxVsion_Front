@@ -20,7 +20,9 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'company', title: 'Company', description: 'Legal name, EIN, address, logo and brand colors', icon: 'business-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/company/settings' },
   { id: 'accounts', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
-  { id: 'invoices', title: 'Invoices', description: 'Currency, taxes and payment reminders', icon: 'receipt-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
+  // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO
+  // se duplica acá — vive en Company (arriba). Reusa el BillingStore de la feature billing.
+  { id: 'invoices', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
   { id: 'mail', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500' },
   { id: 'signature-templates', title: 'Signature templates', description: 'Reusable signer roles and field layouts', icon: 'documents-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/signature/templates' },

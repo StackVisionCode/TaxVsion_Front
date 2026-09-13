@@ -484,6 +484,17 @@ export class BillingStore {
       });
   }
 
+  /** Elimina por completo la config de un proveedor (para corregir un alta errónea). */
+  deleteProvider(config: PaymentConfig): void {
+    this.service.deleteProvider(config.providerCode).subscribe({
+      next: () => {
+        this.toast.success(`${config.providerCode} removed.`);
+        this.loadPaymentConfigs();
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
+  }
+
   /** Edita solo la URL/endpoint de un proveedor ya configurado. */
   saveProviderUrl(providerCode: string, apiBaseUrl: string): void {
     this.service.updateProviderUrl(providerCode, apiBaseUrl.trim() || null).subscribe({

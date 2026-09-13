@@ -42,6 +42,7 @@ export class PaymentMethodFormComponent {
 
   @Output() providerSaveRequested = new EventEmitter<ProviderCredentials>();
   @Output() providerToggleRequested = new EventEmitter<PaymentConfig>();
+  @Output() providerDeleteRequested = new EventEmitter<PaymentConfig>();
   @Output() urlSaveRequested = new EventEmitter<ProviderUrlEdit>();
 
   readonly providers = PAYMENT_PROVIDERS;
@@ -100,6 +101,12 @@ export class PaymentMethodFormComponent {
   saveEditUrl(config: PaymentConfig): void {
     this.urlSaveRequested.emit({ providerCode: config.providerCode, apiBaseUrl: this.editingUrlValue() });
     this.cancelEditUrl();
+  }
+
+  confirmDelete(config: PaymentConfig): void {
+    if (confirm(`Remove the ${config.providerCode} provider? You can add it again afterwards.`)) {
+      this.providerDeleteRequested.emit(config);
+    }
   }
 
   trackByConfigId(_index: number, config: PaymentConfig): string {

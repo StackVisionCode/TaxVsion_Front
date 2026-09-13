@@ -179,6 +179,11 @@ export class BillingService {
     return this.http.post(`${this.base}/payments-client/config/${provider}/deactivate`, { reason });
   }
 
+  /** `DELETE /payments-client/config/{provider}` — elimina la config por completo (corregir un alta errónea). */
+  deleteProvider(provider: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/payments-client/config/${provider}`);
+  }
+
   // ---------- Links de pago ----------
 
   /**

@@ -9,6 +9,6 @@ export const BILLING_ROUTES: Routes = [
     providers: [BillingStore],
     loadComponent: () =>
       import('./components/billing-page/billing-page.component').then(m => m.BillingPageComponent),
-    title: 'Invoices',
+    title: 'Billing',
   },
 ];
