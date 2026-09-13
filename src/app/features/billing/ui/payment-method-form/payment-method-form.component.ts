@@ -1,24 +1,33 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PaymentConfig } from '../../data-access/billing.model';
+import { PAYMENT_PROVIDERS, PaymentConfig } from '../../data-access/billing.model';
 
-/** Claves de Stripe que pide el alta. */
-export interface StripeCredentials {
+/** Credenciales genéricas que pide el alta de un proveedor de cobro. */
+export interface ProviderCredentials {
+  providerCode: string;
+  mode: string;
   publishableKey: string;
   secretKey: string;
   webhookSecret: string;
   statementDescriptor: string;
+  apiBaseUrl: string;
+}
+
+/** Edición de la URL de un proveedor ya configurado. */
+export interface ProviderUrlEdit {
+  providerCode: string;
+  apiBaseUrl: string;
 }
 
 /**
- * Configuración del proveedor de cobro del tenant (`/payments-client/config`).
+ * Configuración del proveedor de cobro del tenant (`/payments-client/config`), multi-proveedor.
  *
- * Solo Stripe: PaymentClient no implementa otros proveedores, a diferencia del CRM legado, que
- * tenía pestañas de IntelliPay y PayPal apuntando a otro sistema. El alta son tres llamadas
+ * El tenant elige el proveedor y (opcionalmente) su URL/endpoint. El alta son tres llamadas
  * encadenadas (crear config → guardar secretos → activar) porque así lo exige el servicio; la
- * secret key y el webhook secret se mandan una vez y el backend no los devuelve nunca más:
- * el listado solo dice si están puestos (`hasSecretKey` / `hasWebhookSecret`).
+ * secret key y el webhook secret se mandan una vez y el backend no los devuelve nunca más (el
+ * listado solo dice si están puestos). OJO: solo Stripe tiene adapter que cobra hoy; el resto se
+ * puede configurar pero aún no procesa pagos.
  */
 @Component({
   selector: 'app-payment-method-form',
@@ -31,27 +40,44 @@ export class PaymentMethodFormComponent {
   @Input() loading = false;
   @Input() saving = false;
 
-  @Output() stripeSaveRequested = new EventEmitter<StripeCredentials>();
+  @Output() providerSaveRequested = new EventEmitter<ProviderCredentials>();
   @Output() providerToggleRequested = new EventEmitter<PaymentConfig>();
+  @Output() urlSaveRequested = new EventEmitter<ProviderUrlEdit>();
 
+  readonly providers = PAYMENT_PROVIDERS;
+
+  readonly providerCode = signal('Stripe');
   readonly publishableKey = signal('');
   readonly secretKey = signal('');
   readonly webhookSecret = signal('');
   readonly statementDescriptor = signal('TAXVISION');
+  readonly apiBaseUrl = signal('');
+
+  /** Estado de la edición inline de URL por fila: providerCode en edición + valor tipeado. */
+  readonly editingUrlFor = signal<string | null>(null);
+  readonly editingUrlValue = signal('');
 
   get canSave(): boolean {
-    return !this.saving && this.publishableKey().trim().length > 0 && this.secretKey().trim().length > 0;
+    return (
+      !this.saving &&
+      this.providerCode().trim().length > 0 &&
+      this.publishableKey().trim().length > 0 &&
+      this.secretKey().trim().length > 0
+    );
   }
 
   save(): void {
     if (!this.canSave) {
       return;
     }
-    this.stripeSaveRequested.emit({
+    this.providerSaveRequested.emit({
+      providerCode: this.providerCode(),
+      mode: 'DirectApiKeys',
       publishableKey: this.publishableKey(),
       secretKey: this.secretKey(),
       webhookSecret: this.webhookSecret(),
       statementDescriptor: this.statementDescriptor(),
+      apiBaseUrl: this.apiBaseUrl(),
     });
   }
 
@@ -59,6 +85,21 @@ export class PaymentMethodFormComponent {
   clearSecrets(): void {
     this.secretKey.set('');
     this.webhookSecret.set('');
+  }
+
+  startEditUrl(config: PaymentConfig): void {
+    this.editingUrlFor.set(config.providerCode);
+    this.editingUrlValue.set(config.apiBaseUrl ?? '');
+  }
+
+  cancelEditUrl(): void {
+    this.editingUrlFor.set(null);
+    this.editingUrlValue.set('');
+  }
+
+  saveEditUrl(config: PaymentConfig): void {
+    this.urlSaveRequested.emit({ providerCode: config.providerCode, apiBaseUrl: this.editingUrlValue() });
+    this.cancelEditUrl();
   }
 
   trackByConfigId(_index: number, config: PaymentConfig): string {

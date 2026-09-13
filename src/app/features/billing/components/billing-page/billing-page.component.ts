@@ -15,7 +15,11 @@ import {
   CreatePaymentLinkForm,
   PaymentLinksPanelComponent,
 } from '../../ui/payment-links-panel/payment-links-panel.component';
-import { PaymentMethodFormComponent, StripeCredentials } from '../../ui/payment-method-form/payment-method-form.component';
+import {
+  PaymentMethodFormComponent,
+  ProviderCredentials,
+  ProviderUrlEdit,
+} from '../../ui/payment-method-form/payment-method-form.component';
 import { CompanyBrandingFormComponent } from '../../ui/company-branding-form/company-branding-form.component';
 import { BillingStore, InvoiceStatusFilter, TAKE_OPTIONS } from '../../data-access/billing.store';
 import {
@@ -223,12 +227,16 @@ export class BillingPageComponent implements OnInit {
 
   // ---------- Proveedor ----------
 
-  onStripeSave(credentials: StripeCredentials): void {
-    this.store.saveStripe(credentials, () => undefined);
+  onProviderSave(credentials: ProviderCredentials): void {
+    this.store.saveProvider(credentials, () => undefined);
   }
 
   onProviderToggle(config: PaymentConfig): void {
     this.store.toggleProvider(config);
+  }
+
+  onProviderUrlSave(edit: ProviderUrlEdit): void {
+    this.store.saveProviderUrl(edit.providerCode, edit.apiBaseUrl);
   }
 
   // ---------- Empresa ----------

@@ -157,8 +157,9 @@
   <!-- ---------------- Proveedor de cobro ---------------- -->
   <app-payment-method-form *ngIf="tab() === 'methods'" [configs]="store.paymentConfigs()"
     [loading]="store.configsLoading()" [saving]="store.savingProvider()"
-    (stripeSaveRequested)="onStripeSave($event)"
-    (providerToggleRequested)="onProviderToggle($event)"></app-payment-method-form>
+    (providerSaveRequested)="onProviderSave($event)"
+    (providerToggleRequested)="onProviderToggle($event)"
+    (urlSaveRequested)="onProviderUrlSave($event)"></app-payment-method-form>
 
   <!-- ---------------- Empresa ---------------- -->
   <app-company-branding-form *ngIf="tab() === 'company'" [issuer]="store.issuer()" [branding]="store.branding()"

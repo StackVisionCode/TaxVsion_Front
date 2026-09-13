@@ -1,10 +1,11 @@
 <div class="flex flex-col gap-6">
   <!-- Proveedores ya configurados -->
   <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Payment provider</h2>
+    <h2 class="text-xl font-bold text-gray-900">Payment providers</h2>
     <p class="mt-1 text-sm text-gray-500">
-      Invoices are collected online through your own Stripe account. Without an active provider you can still issue
-      invoices and record offline payments, but they won't get a payment link.
+      Invoices are collected online through your own payment providers. You can configure more than one and
+      enable each independently. Without an active provider you can still issue invoices and record offline
+      payments, but they won't get a payment link.
     </p>
 
     <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-gray-400">
@@ -15,47 +16,95 @@
     <div *ngIf="!loading && configs.length === 0"
       class="mt-5 flex items-start gap-3 rounded-2xl border border-gray-100 px-4 py-3">
       <ion-icon name="card-outline" class="mt-0.5 shrink-0 text-base text-gray-400"></ion-icon>
-      <p class="text-sm text-gray-500">No provider connected yet. Add your Stripe keys below.</p>
+      <p class="text-sm text-gray-500">No provider connected yet. Add one below.</p>
     </div>
 
     <div *ngIf="configs.length > 0" class="mt-5 flex flex-col gap-2">
       <div *ngFor="let config of configs; trackBy: trackByConfigId"
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
-        <div class="min-w-0">
-          <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
-            {{ config.providerCode }}
-            <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
-              [ngClass]="config.isActive
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : 'border-gray-200 bg-gray-50 text-gray-500'">
-              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="config.isActive ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-              {{ config.isActive ? 'Active' : 'Inactive' }}
-            </span>
-          </p>
-          <p class="mt-0.5 truncate text-xs text-gray-400">
-            {{ config.mode }} · {{ config.statementDescriptor }}
-            <span *ngIf="!config.hasSecretKey" class="text-amber-600">· secret key missing</span>
-            <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="text-amber-600">
-              · webhook secret missing
-            </span>
-          </p>
+        class="flex flex-col gap-2 rounded-2xl border border-gray-100 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
+              {{ config.providerCode }}
+              <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
+                [ngClass]="config.isActive
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-500'">
+                <span class="h-1.5 w-1.5 rounded-full"
+                  [ngClass]="config.isActive ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+                {{ config.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </p>
+            <p class="mt-0.5 truncate text-xs text-gray-400">
+              {{ config.mode }} · {{ config.statementDescriptor }}
+              <span *ngIf="!config.hasSecretKey" class="text-amber-600">· secret key missing</span>
+              <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="text-amber-600">
+                · webhook secret missing
+              </span>
+            </p>
+            <p class="mt-0.5 truncate text-xs text-gray-400">
+              URL: <span class="text-gray-500">{{ config.apiBaseUrl || 'default' }}</span>
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" (click)="startEditUrl(config)"
+              class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              Edit URL
+            </button>
+            <button type="button" (click)="providerToggleRequested.emit(config)"
+              class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              {{ config.isActive ? 'Deactivate' : 'Activate' }}
+            </button>
+          </div>
         </div>
-        <button type="button" (click)="providerToggleRequested.emit(config)"
-          class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-          {{ config.isActive ? 'Deactivate' : 'Activate' }}
-        </button>
+
+        <!-- Edición inline de la URL -->
+        <div *ngIf="editingUrlFor() === config.providerCode"
+          class="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-2">
+          <input type="text" name="editUrl" placeholder="https://api.mi-proveedor.com"
+            [ngModel]="editingUrlValue()" (ngModelChange)="editingUrlValue.set($event)"
+            class="h-10 min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+          <button type="button" (click)="saveEditUrl(config)"
+            class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink transition-colors">
+            Save
+          </button>
+          <button type="button" (click)="cancelEditUrl()"
+            class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Alta de Stripe -->
+  <!-- Alta de un proveedor -->
   <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Connect Stripe</h2>
+    <h2 class="text-xl font-bold text-gray-900">Connect a provider</h2>
     <p class="mt-1 text-sm text-gray-500">
-      Saving these keys creates the configuration, stores the secrets and activates the provider in one go.
+      Saving creates the configuration, stores the secrets and activates the provider in one go. Only Stripe
+      processes payments today; other providers can be configured but won't charge yet.
     </p>
 
     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div>
+        <label for="providerCode" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Provider
+        </label>
+        <select id="providerCode" name="providerCode" [disabled]="saving" [ngModel]="providerCode()"
+          (ngModelChange)="providerCode.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          <option *ngFor="let p of providers" [value]="p.code">{{ p.name }}</option>
+        </select>
+      </div>
+      <div>
+        <label for="apiBaseUrl" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          API URL / endpoint (optional)
+        </label>
+        <input id="apiBaseUrl" type="text" name="apiBaseUrl" placeholder="https://api.mi-proveedor.com"
+          [disabled]="saving" [ngModel]="apiBaseUrl()" (ngModelChange)="apiBaseUrl.set($event)"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-gray-400">Leave empty to use the provider's default endpoint (e.g. Stripe).</p>
+      </div>
       <div>
         <label for="publishableKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           Publishable key
@@ -77,7 +126,7 @@
         <input id="webhookSecret" type="password" name="webhookSecret" placeholder="whsec_…" autocomplete="off"
           [disabled]="saving" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-gray-400">Needed for Stripe to confirm payments back to us.</p>
+        <p class="mt-1.5 text-xs text-gray-400">Needed for the provider to confirm payments back to us.</p>
       </div>
       <div>
         <label for="statementDescriptor" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
