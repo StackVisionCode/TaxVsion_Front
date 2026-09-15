@@ -156,7 +156,33 @@ export interface PaymentConfig {
   statementDescriptor: string;
   isActive: boolean;
   settledAtUtc?: string | null;
+  /** URL/endpoint del proveedor, editable. Null = default del adapter (Stripe no la necesita). */
+  apiBaseUrl?: string | null;
 }
+
+/**
+ * Proveedores de pago que el tenant puede configurar (espejo de `PaymentProviderCode` del backend).
+ * OJO: hoy solo **Stripe** tiene adapter que procesa cobros de verdad; los demás se pueden configurar
+ * (guardar claves + URL) pero aún no cobran hasta que exista su adapter (Fase 2).
+ */
+export const PAYMENT_PROVIDERS: { code: string; name: string }[] = [
+  { code: 'Stripe', name: 'Stripe' },
+  { code: 'Intellipay', name: 'IntelliPay' },
+  { code: 'PayPal', name: 'PayPal' },
+  { code: 'Braintree', name: 'Braintree' },
+  { code: 'Adyen', name: 'Adyen' },
+  { code: 'Square', name: 'Square' },
+  { code: 'Klarna', name: 'Klarna' },
+  { code: 'MercadoPago', name: 'MercadoPago' },
+  { code: 'GoCardless', name: 'GoCardless' },
+  { code: 'Razorpay', name: 'Razorpay' },
+  { code: 'AuthorizeNet', name: 'Authorize.Net' },
+  { code: 'Chargebee', name: 'Chargebee' },
+  { code: 'Paddle', name: 'Paddle' },
+  { code: 'WeChatPay', name: 'WeChat Pay' },
+  { code: 'Alipay', name: 'Alipay' },
+  { code: 'Manual', name: 'Manual' },
+];
 
 // ---------- PaymentClient: links de pago ----------
 
