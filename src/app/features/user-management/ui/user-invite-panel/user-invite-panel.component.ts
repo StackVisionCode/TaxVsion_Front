@@ -47,12 +47,24 @@ export class UserInvitePanelComponent implements OnChanges {
   /** Emite el email del miembro invitado/editado tras un guardado exitoso. */
   @Output() saved = new EventEmitter<string>();
 
-  readonly roleOptions = this.store.roles;
   readonly limits = this.store.limits;
 
   readonly email = signal('');
   readonly actorType = signal<StaffActorType>('TenantEmployee');
   readonly selectedRoleIds = signal<string[]>([]);
+
+  /**
+   * Roles ofrecibles para el actor type elegido: el backend marca `assignableActorTypes` por rol y
+   * acá se filtra para no ofrecer p.ej. el rol "Customer Portal" a un empleado/admin (el backend lo
+   * rechazaría con Role.NotAssignableToActorType). Si el rol no trae el dato (backend viejo) no se
+   * filtra — fallback seguro.
+   */
+  readonly roleOptions = computed(() => {
+    const actorType = this.actorType();
+    return this.store
+      .roles()
+      .filter(role => role.assignableActorTypes.length === 0 || role.assignableActorTypes.includes(actorType));
+  });
 
   readonly isRoleOpen = signal(false);
   readonly isSaving = signal(false);
@@ -140,6 +152,9 @@ export class UserInvitePanelComponent implements OnChanges {
 
   setActorType(actorType: StaffActorType): void {
     this.actorType.set(actorType);
+    // Al cambiar el actor type, soltar los roles ya seleccionados que dejaron de ser asignables.
+    const stillValid = new Set(this.roleOptions().map(role => role.id));
+    this.selectedRoleIds.update(ids => ids.filter(id => stillValid.has(id)));
   }
 
   /** Descripción del rol: la propia, o los módulos que cubren sus permisos, o el conteo de permisos. */
