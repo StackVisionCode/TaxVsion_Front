@@ -433,34 +433,47 @@ export class BillingStore {
   }
 
   /**
-   * Alta de Stripe en tres pasos encadenados, que es como lo exige PaymentClient: crear la config
-   * (clave pública), guardar los secretos y recién ahí activar.
+   * Alta de un proveedor en tres pasos encadenados, que es como lo exige PaymentClient: crear la
+   * config (clave pública + URL opcional), guardar los secretos y recién ahí activar. Multi-proveedor:
+   * el `providerCode` sale del formulario. OJO: solo Stripe tiene adapter que cobra hoy; los demás
+   * quedan configurados/activos pero no procesan pagos hasta su adapter (Fase 2).
    */
-  saveStripe(
-    input: { publishableKey: string; secretKey: string; webhookSecret: string; statementDescriptor: string },
+  saveProvider(
+    input: {
+      providerCode: string;
+      mode: string;
+      publishableKey: string;
+      secretKey: string;
+      webhookSecret: string;
+      statementDescriptor: string;
+      apiBaseUrl: string;
+    },
     onDone: () => void,
   ): void {
+    const provider = input.providerCode.trim() || 'Stripe';
+    const apiBaseUrl = input.apiBaseUrl.trim() || null;
     this._savingProvider.set(true);
     this.service
       .createPaymentConfig({
-        providerCode: 'Stripe',
-        mode: 'DirectApiKeys',
+        providerCode: provider,
+        mode: input.mode.trim() || 'DirectApiKeys',
         publishableKey: input.publishableKey.trim(),
         statementDescriptor: input.statementDescriptor.trim() || 'TAXVISION',
+        apiBaseUrl,
       })
       .pipe(
         switchMap(() =>
-          this.service.setPaymentSecrets('Stripe', {
+          this.service.setPaymentSecrets(provider, {
             secretKey: input.secretKey.trim(),
             webhookSecret: input.webhookSecret.trim() || 'whsec_placeholder',
           }),
         ),
-        switchMap(() => this.service.activateProvider('Stripe')),
+        switchMap(() => this.service.activateProvider(provider)),
       )
       .subscribe({
         next: () => {
           this._savingProvider.set(false);
-          this.toast.success('Stripe connected and activated.');
+          this.toast.success(`${provider} connected and activated.`);
           onDone();
           this.loadPaymentConfigs();
         },
@@ -469,6 +482,28 @@ export class BillingStore {
           this.toast.error(toUserMessage(err));
         },
       });
+  }
+
+  /** Elimina por completo la config de un proveedor (para corregir un alta errónea). */
+  deleteProvider(config: PaymentConfig): void {
+    this.service.deleteProvider(config.providerCode).subscribe({
+      next: () => {
+        this.toast.success(`${config.providerCode} removed.`);
+        this.loadPaymentConfigs();
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
+  }
+
+  /** Edita solo la URL/endpoint de un proveedor ya configurado. */
+  saveProviderUrl(providerCode: string, apiBaseUrl: string): void {
+    this.service.updateProviderUrl(providerCode, apiBaseUrl.trim() || null).subscribe({
+      next: () => {
+        this.toast.success('Provider URL updated.');
+        this.loadPaymentConfigs();
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
   }
 
   toggleProvider(config: PaymentConfig): void {

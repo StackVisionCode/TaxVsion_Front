@@ -157,6 +157,7 @@ export class BillingService {
     mode: string;
     publishableKey: string;
     statementDescriptor: string;
+    apiBaseUrl?: string | null;
   }): Observable<string> {
     return this.http.post<string>(`${this.base}/payments-client/config`, body);
   }
@@ -165,12 +166,22 @@ export class BillingService {
     return this.http.put(`${this.base}/payments-client/config/${provider}/secrets`, body);
   }
 
+  /** `PUT /payments-client/config/{provider}/url` — edita la URL/endpoint del proveedor. */
+  updateProviderUrl(provider: string, apiBaseUrl: string | null): Observable<unknown> {
+    return this.http.put(`${this.base}/payments-client/config/${provider}/url`, { apiBaseUrl });
+  }
+
   activateProvider(provider: string): Observable<unknown> {
     return this.http.post(`${this.base}/payments-client/config/${provider}/activate`, {});
   }
 
   deactivateProvider(provider: string, reason: string): Observable<unknown> {
     return this.http.post(`${this.base}/payments-client/config/${provider}/deactivate`, { reason });
+  }
+
+  /** `DELETE /payments-client/config/{provider}` — elimina la config por completo (corregir un alta errónea). */
+  deleteProvider(provider: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/payments-client/config/${provider}`);
   }
 
   // ---------- Links de pago ----------

@@ -32,7 +32,7 @@
       <div class="icon warn">!</div>
       <h1>No se pudo cobrar</h1>
       <p class="muted">{{ errorMessage() }}</p>
-      <button class="btn-secondary" (click)="retry()" *ngIf="stripeMethod()">Reintentar</button>
+      <button class="btn-secondary" (click)="retry()" *ngIf="selectedMethod()">Reintentar</button>
     </ng-container>
 
     <!-- Formulario de pago -->
@@ -41,21 +41,51 @@
       <p class="amount">{{ amountLabel() }}</p>
       <p class="ref muted" *ngIf="checkout()?.purposeExternalReferenceId as ref">Factura {{ ref }}</p>
 
+      <!-- Selector de proveedor (solo si hay más de uno) -->
+      <div class="methods" *ngIf="methods().length > 1">
+        <button type="button" class="method-chip" *ngFor="let m of methods()"
+          [class.method-chip--active]="m.providerCode === selectedMethod()?.providerCode"
+          [disabled]="phase() === 'paying'" (click)="selectMethod(m.providerCode)">
+          {{ m.displayName || m.providerCode }}
+        </button>
+      </div>
+
       <label class="field-label">Email para el recibo (opcional)</label>
       <input class="input" type="email" placeholder="cliente@correo.com"
              [ngModel]="receiptEmail()" (ngModelChange)="receiptEmail.set($event)"
              [disabled]="phase() === 'paying'" />
 
-      <label class="field-label">Tarjeta</label>
-      <div id="card-element" class="card-element"></div>
-      <p class="card-err" *ngIf="cardError()">{{ cardError() }}</p>
+      <!-- Stripe: Card Element -->
+      <ng-container *ngIf="isStripeSelected()">
+        <label class="field-label">Tarjeta</label>
+        <div id="card-element" class="card-element"></div>
+        <p class="card-err" *ngIf="cardError()">{{ cardError() }}</p>
 
-      <button class="btn-primary" (click)="pay()" [disabled]="phase() === 'paying'">
-        {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
-      </button>
-      <p class="test-hint muted">Prueba: tarjeta 4242 4242 4242 4242, fecha futura, cualquier CVC.</p>
+        <button class="btn-primary" (click)="pay()" [disabled]="phase() === 'paying'">
+          {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
+        </button>
+        <p class="test-hint muted">Prueba: tarjeta 4242 4242 4242 4242, fecha futura, cualquier CVC.</p>
+      </ng-container>
+
+      <!-- PayPal: Buttons (crear + aprobar orden; el server hace el capture) -->
+      <ng-container *ngIf="isPayPalSelected()">
+        <label class="field-label">PayPal</label>
+        <div id="paypal-buttons" [class.paying]="phase() === 'paying'"></div>
+        <p class="test-hint muted" *ngIf="phase() === 'paying'">Confirmando el pago con PayPal…</p>
+        <p class="test-hint muted" *ngIf="phase() === 'ready'">
+          Serás redirigido a PayPal para aprobar el pago de {{ amountLabel() }}.
+        </p>
+      </ng-container>
+
+      <!-- Otros proveedores: aún sin flujo de pago en el frontend -->
+      <ng-container *ngIf="!isSupportedSelected()">
+        <p class="muted">
+          {{ selectedMethod()?.displayName || selectedMethod()?.providerCode }} aún no está disponible para
+          pagar en línea. Elegí otro método o contactá al comercio.
+        </p>
+      </ng-container>
     </ng-container>
 
-    <p class="powered muted">Pago seguro procesado por Stripe · TaxVision</p>
+    <p class="powered muted">Pago seguro · TaxVision</p>
   </div>
 </div>

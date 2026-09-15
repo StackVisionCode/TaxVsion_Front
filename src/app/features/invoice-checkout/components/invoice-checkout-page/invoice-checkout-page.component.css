@@ -141,6 +141,47 @@ h1 {
   color: #b54708;
 }
 
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.method-chip {
+  flex: 1 1 auto;
+  min-width: 96px;
+  background: #fff;
+  color: #344054;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.method-chip--active {
+  background: #eef2ff;
+  color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.method-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#paypal-buttons {
+  margin-top: 16px;
+  min-height: 45px;
+}
+
+#paypal-buttons.paying {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .powered {
   margin-top: 24px;
   font-size: 0.75rem;

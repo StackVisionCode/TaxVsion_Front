@@ -11,16 +11,6 @@
       [ngClass]="tab() === 'links' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
       Payment links
     </button>
-    <button type="button" (click)="selectTab('methods')"
-      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-      [ngClass]="tab() === 'methods' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      Payment provider
-    </button>
-    <button type="button" (click)="selectTab('company')"
-      class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-      [ngClass]="tab() === 'company' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      Company
-    </button>
   </div>
 
   <!-- ---------------- Facturas ---------------- -->
@@ -59,10 +49,10 @@
         <p class="text-sm text-amber-800">
           Your company details are not set, so invoices will be issued without them.
         </p>
-        <button type="button" (click)="selectTab('company')"
+        <a routerLink="/company/settings"
           class="shrink-0 text-sm font-semibold text-amber-800 hover:text-amber-950 transition-colors">
           Set them up
-        </button>
+        </a>
       </div>
 
       <!-- Pestañas de estado -->
@@ -153,16 +143,6 @@
     (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
     (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
-
-  <!-- ---------------- Proveedor de cobro ---------------- -->
-  <app-payment-method-form *ngIf="tab() === 'methods'" [configs]="store.paymentConfigs()"
-    [loading]="store.configsLoading()" [saving]="store.savingProvider()"
-    (stripeSaveRequested)="onStripeSave($event)"
-    (providerToggleRequested)="onProviderToggle($event)"></app-payment-method-form>
-
-  <!-- ---------------- Empresa ---------------- -->
-  <app-company-branding-form *ngIf="tab() === 'company'" [issuer]="store.issuer()" [branding]="store.branding()"
-    [saving]="store.savingCompany()" (saveRequested)="onCompanySave($event)"></app-company-branding-form>
 </div>
 
 <!-- Modales -->

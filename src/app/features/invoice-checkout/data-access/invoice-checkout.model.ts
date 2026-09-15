@@ -4,6 +4,8 @@ export interface InvoiceCheckoutMethod {
   displayName: string;
   statementDescriptor: string;
   publishableKey: string;
+  /** URL/endpoint del proveedor (para gateways no-Stripe). Null = default del adapter. */
+  apiBaseUrl?: string | null;
 }
 
 /** Datos públicos del checkout de una factura (sin login; el token es la prueba de posesión). */
