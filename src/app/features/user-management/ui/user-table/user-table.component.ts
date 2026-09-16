@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { actorTypeLabel } from '../../data-access/user-management.model';
 
 export type MemberStatus = 'active' | 'invited' | 'suspended';
 
@@ -80,6 +81,28 @@ export class UserTableComponent {
   roleChip(roleName: string): string {
     const hash = roleName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return ROLE_CHIP_PALETTE[hash % ROLE_CHIP_PALETTE.length];
+  }
+
+  /** Etiqueta del actor type (nivel de acceso, no un rol): "Admin" / "Employee" / "Client portal". */
+  actorTypeLabel(actorType: string): string {
+    return actorTypeLabel(actorType);
+  }
+
+  /**
+   * Badge fijo del actor type — estilo sólido, distinto de los chips de rol (bordeados y de color por
+   * hash), para que el nivel de acceso no se confunda con los roles asignables.
+   */
+  actorTypeBadge(actorType: string): string {
+    switch (actorType) {
+      case 'TenantAdmin':
+        return 'bg-brand-bold text-white';
+      case 'CustomerPortal':
+        return 'bg-sky-100 text-sky-700';
+      case 'PlatformAdmin':
+        return 'bg-brand-ink text-white';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
   }
 
   statusLabel(status: MemberStatus): string {

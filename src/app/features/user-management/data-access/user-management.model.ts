@@ -75,6 +75,12 @@ export interface RoleSummary {
   isSystem: boolean;
   isActive: boolean;
   permissionCodes: string[];
+  /**
+   * Actor types del tenant a los que el rol es asignable (el backend lo deriva de los permisos del
+   * rol). El picker de staff filtra por acá para no ofrecer roles que el backend rechazaría. Puede
+   * venir vacío si el backend es viejo → tratar "vacío" como "no filtrar" (fallback seguro).
+   */
+  assignableActorTypes: UserActorType[];
 }
 
 /** GET /auth/permissions (PermissionResponse) — catálogo global, no por tenant. */
@@ -173,8 +179,9 @@ export function userToTeamMember(user: UserSummary): TeamMember {
 }
 
 /**
- * Fila de la tabla desde GET /auth/invitations (status Pending). El backend no devuelve
- * los roles de la invitación, así que el chip muestra el actor type invitado.
+ * Fila de la tabla desde GET /auth/invitations (status Pending). El backend no devuelve los roles de
+ * la invitación; el actor type se muestra con su propio badge (no como chip de rol), así que aquí
+ * `roleNames` queda vacío.
  */
 export function invitationToTeamMember(invitation: InvitationSummary): TeamMember {
   const name = deriveNameFromEmail(invitation.email);
@@ -185,7 +192,7 @@ export function invitationToTeamMember(invitation: InvitationSummary): TeamMembe
     initials: deriveInitials(name),
     avatarColor: pickAvatarColor(invitation.email),
     email: invitation.email,
-    roleNames: [actorTypeLabel(invitation.actorType)],
+    roleNames: [],
     actorType: invitation.actorType,
     status: 'invited',
     activity: `Invited ${formatDate(invitation.lastSentAtUtc ?? invitation.createdAtUtc)} · expires ${formatDate(invitation.expiresAtUtc)}`,
