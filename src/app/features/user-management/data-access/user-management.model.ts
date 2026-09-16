@@ -75,6 +75,12 @@ export interface RoleSummary {
   isSystem: boolean;
   isActive: boolean;
   permissionCodes: string[];
+  /**
+   * Actor types del tenant a los que el rol es asignable (el backend lo deriva de los permisos del
+   * rol). El picker de staff filtra por acá para no ofrecer roles que el backend rechazaría. Puede
+   * venir vacío si el backend es viejo → tratar "vacío" como "no filtrar" (fallback seguro).
+   */
+  assignableActorTypes: UserActorType[];
 }
 
 /** GET /auth/permissions (PermissionResponse) — catálogo global, no por tenant. */
@@ -102,6 +108,48 @@ export interface TenantLimits {
 /** Body de PUT /auth/users/{id}/roles (AssignRolesRequest). Reemplaza el set completo de roles. */
 export interface AssignRolesRequest {
   roleIds: string[];
+}
+
+// ---------- Per-user permission overrides (the RBAC deny layer) ----------
+
+/**
+ * One role-granted permission the admin can toggle for a user, from
+ * GET /auth/users/{id}/effective-access. `permissionId` is what the override PUT takes; `denied` true
+ * means the permission is currently blocked for this user (an OFF toggle) even though a role grants it.
+ */
+export interface UserAccessPermission {
+  permissionId: string;
+  code: string;
+  module: string;
+  description: string;
+  denied: boolean;
+}
+
+/** The target's role-granted permissions for one module, so the drawer can render a module accordion. */
+export interface UserAccessModule {
+  module: string;
+  permissions: UserAccessPermission[];
+}
+
+/**
+ * GET /auth/users/{id}/effective-access (UserEffectiveAccessResponse) — everything the "Edit access"
+ * drawer needs in one call. Only role-granted permissions appear (a deny on a permission no role grants
+ * is inert and omitted); to GRANT a permission you assign a role, not this call.
+ */
+export interface UserEffectiveAccess {
+  userId: string;
+  actorType: string;
+  roles: string[];
+  modules: UserAccessModule[];
+  permissionsVersion: number;
+}
+
+/**
+ * Body of PUT /auth/users/{id}/permission-overrides (SetPermissionOverridesRequest). Deny-only,
+ * replace-set: the given ids fully replace the previous deny set; an empty array clears every override.
+ */
+export interface SetPermissionOverridesRequest {
+  deniedPermissionIds: string[];
 }
 
 // ---------- Adaptadores backend -> TeamMember (shape de la UI existente) ----------
@@ -173,8 +221,9 @@ export function userToTeamMember(user: UserSummary): TeamMember {
 }
 
 /**
- * Fila de la tabla desde GET /auth/invitations (status Pending). El backend no devuelve
- * los roles de la invitación, así que el chip muestra el actor type invitado.
+ * Fila de la tabla desde GET /auth/invitations (status Pending). El backend no devuelve los roles de
+ * la invitación; el actor type se muestra con su propio badge (no como chip de rol), así que aquí
+ * `roleNames` queda vacío.
  */
 export function invitationToTeamMember(invitation: InvitationSummary): TeamMember {
   const name = deriveNameFromEmail(invitation.email);
@@ -185,7 +234,7 @@ export function invitationToTeamMember(invitation: InvitationSummary): TeamMembe
     initials: deriveInitials(name),
     avatarColor: pickAvatarColor(invitation.email),
     email: invitation.email,
-    roleNames: [actorTypeLabel(invitation.actorType)],
+    roleNames: [],
     actorType: invitation.actorType,
     status: 'invited',
     activity: `Invited ${formatDate(invitation.lastSentAtUtc ?? invitation.createdAtUtc)} · expires ${formatDate(invitation.expiresAtUtc)}`,

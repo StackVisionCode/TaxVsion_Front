@@ -9,6 +9,7 @@ import {
   BillingCustomerSummary,
   EMPTY_ISSUER_PROFILE,
   InvoiceBranding,
+  InvoiceDetail,
   InvoiceLineDraft,
   InvoiceStatus,
   InvoiceSummary,
@@ -373,6 +374,163 @@ export class BillingStore {
       },
       error: err => {
         this._creating.set(false);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  // ---------- Editar / eliminar / anular ----------
+
+  private readonly _editingDetail = signal<InvoiceDetail | null>(null);
+  readonly editingDetail = this._editingDetail.asReadonly();
+  private readonly _loadingDetail = signal(false);
+  readonly loadingDetail = this._loadingDetail.asReadonly();
+
+  /** Trae el detalle (cliente + líneas) y, si es editable, invoca `onReady` para abrir el formulario. */
+  beginEdit(invoiceId: string, onReady: () => void): void {
+    this._loadingDetail.set(true);
+    this.service.getInvoiceDetail(invoiceId).subscribe({
+      next: detail => {
+        this._loadingDetail.set(false);
+        if (!detail.isEditable) {
+          this.toast.info('This invoice can no longer be edited.');
+          return;
+        }
+        this._editingDetail.set(detail);
+        onReady();
+      },
+      error: err => {
+        this._loadingDetail.set(false);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  clearEditing(): void {
+    this._editingDetail.set(null);
+  }
+
+  // Stock disponible por catalogItemId, para avisar en el formulario (number = disponible rastreado;
+  // null = sin límite: servicio, no rastreado, sin permiso o sin nivel). El bloqueo real es al emitir.
+  private readonly _stockByItem = signal<Record<string, number | null>>({});
+  readonly stockByItem = this._stockByItem.asReadonly();
+  private readonly _stockLoading = new Set<string>();
+
+  /** Consulta (una sola vez) el stock de un producto del catálogo para el aviso del formulario. */
+  lookupStock(catalogItemId: string): void {
+    if (!catalogItemId || catalogItemId in this._stockByItem() || this._stockLoading.has(catalogItemId)) {
+      return;
+    }
+    this._stockLoading.add(catalogItemId);
+    this.service.getStockLevel(catalogItemId).subscribe(level => {
+      this._stockLoading.delete(catalogItemId);
+      this._stockByItem.update(map => ({
+        ...map,
+        [catalogItemId]: level && level.isTracked ? level.quantityOnHand : null,
+      }));
+    });
+  }
+
+  /** Guarda los cambios de una factura editable (borrador o emitida sin pagos). */
+  updateInvoice(
+    invoiceId: string,
+    customer: BillingCustomerSummary,
+    customerTaxId: string,
+    currency: string,
+    lines: InvoiceLineDraft[],
+    notes: string,
+    onDone: () => void,
+  ): void {
+    this._creating.set(true);
+    this.service.updateInvoice(invoiceId, customer, customerTaxId, currency, lines, notes).subscribe({
+      next: () => {
+        this._creating.set(false);
+        this._editingDetail.set(null);
+        onDone();
+        this.toast.success('Invoice updated.');
+        this.refreshInvoice(invoiceId);
+        this.loadInvoices(true);
+      },
+      error: err => {
+        this._creating.set(false);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  /** Borra (soft) un BORRADOR. */
+  deleteInvoice(invoiceId: string): void {
+    this._busyInvoiceId.set(invoiceId);
+    this.service.deleteInvoice(invoiceId).subscribe({
+      next: () => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Draft deleted.');
+        this._selectedInvoice.set(null);
+        this.loadInvoices(true);
+      },
+      error: err => {
+        this._busyInvoiceId.set(null);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  /**
+   * Envía la factura al cliente por correo con el PDF adjunto. El email del cliente sale del detalle
+   * (el listado no lo trae); requiere que el PDF ya esté generado (factura emitida).
+   */
+  sendInvoiceToClient(invoice: InvoiceSummary): void {
+    if (!invoice.pdfFileId) {
+      this.toast.info('The invoice PDF is still being generated. Refresh in a moment.');
+      return;
+    }
+    this._busyInvoiceId.set(invoice.id);
+    this.service.getInvoiceDetail(invoice.id).subscribe({
+      next: detail => {
+        const email = detail.customer.email?.trim();
+        if (!email) {
+          this._busyInvoiceId.set(null);
+          this.toast.error('This client has no email on file.');
+          return;
+        }
+        this.service
+          .sendInvoiceEmail({
+            invoiceNumber: invoice.invoiceNumber ?? null,
+            email,
+            name: detail.customer.name,
+            pdfFileId: invoice.pdfFileId!,
+            checkoutUrl: invoice.checkoutUrl,
+          })
+          .subscribe({
+            next: () => {
+              this._busyInvoiceId.set(null);
+              this.toast.success(`Invoice sent to ${email}.`);
+            },
+            error: err => {
+              this._busyInvoiceId.set(null);
+              this.toast.error(toUserMessage(err));
+            },
+          });
+      },
+      error: err => {
+        this._busyInvoiceId.set(null);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  /** Anula una factura emitida/pagada y repone el stock descontado. */
+  voidInvoice(invoiceId: string, reason: string | null): void {
+    this._busyInvoiceId.set(invoiceId);
+    this.service.voidInvoice(invoiceId, reason).subscribe({
+      next: () => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Invoice voided and stock restored.');
+        this.refreshInvoice(invoiceId);
+        this.loadInvoices(true);
+      },
+      error: err => {
+        this._busyInvoiceId.set(null);
         this.toast.error(toUserMessage(err));
       },
     });

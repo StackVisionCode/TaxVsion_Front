@@ -132,6 +132,7 @@ export class InventoryStore {
         costAmount: null,
         costCurrency: null,
         unit: null,
+        taxRateBasisPoints: 0,
         trackInventory: true,
         imageUrl: null,
         attributes: null,
@@ -207,6 +208,8 @@ export class InventoryStore {
             barcode: latest.barcode,
             categoryId: form.categoryId,
             unit: latest.unit,
+            // Ecoar el impuesto actual: sin esto, editar desde Inventory lo resetearía a 0.
+            taxRateBasisPoints: latest.taxRateBasisPoints ?? 0,
             imageUrl: latest.imageUrl,
             attributes: null,
           }),

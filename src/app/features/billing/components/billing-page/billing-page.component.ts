@@ -12,6 +12,7 @@ import {
   RecordPaymentRequest,
 } from '../../ui/record-payment-dialog/record-payment-dialog.component';
 import { ReceiptDialogComponent } from '../../ui/receipt-dialog/receipt-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import {
   CreatePaymentLinkForm,
   PaymentLinksPanelComponent,
@@ -52,6 +53,7 @@ type BillingTab = 'invoices' | 'links';
     RecordPaymentDialogComponent,
     ReceiptDialogComponent,
     PaymentLinksPanelComponent,
+    ConfirmDialogComponent,
     RouterLink,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -68,6 +70,9 @@ export class BillingPageComponent implements OnInit {
   readonly formOpen = signal(false);
   readonly paymentTarget = signal<InvoiceSummary | null>(null);
   readonly receiptTarget = signal<InvoiceSummary | null>(null);
+  /** Confirmaciones in-app (no `confirm()`/`prompt()` nativos: los bloquean algunos navegadores). */
+  readonly deleteTarget = signal<InvoiceSummary | null>(null);
+  readonly voidTarget = signal<InvoiceSummary | null>(null);
 
   ngOnInit(): void {
     this.store.init();
@@ -108,6 +113,18 @@ export class BillingPageComponent implements OnInit {
       case 'issue':
         this.store.issue(invoice.id);
         break;
+      case 'edit':
+        this.store.beginEdit(invoice.id, () => this.formOpen.set(true));
+        break;
+      case 'send':
+        this.store.sendInvoiceToClient(invoice);
+        break;
+      case 'delete':
+        this.deleteTarget.set(invoice);
+        break;
+      case 'void':
+        this.voidTarget.set(invoice);
+        break;
       case 'copyLink':
         if (invoice.checkoutUrl) {
           this.store.copyToClipboard(invoice.checkoutUrl, 'Payment link copied.');
@@ -146,14 +163,30 @@ export class BillingPageComponent implements OnInit {
   // ---------- Crear ----------
 
   openForm(): void {
+    // Alta: asegurarse de no arrastrar un detalle de una edición anterior.
+    this.store.clearEditing();
     this.formOpen.set(true);
   }
 
   closeForm(): void {
     this.formOpen.set(false);
+    this.store.clearEditing();
   }
 
   onFormSubmit(submit: InvoiceFormSubmit): void {
+    const editing = this.store.editingDetail();
+    if (editing) {
+      this.store.updateInvoice(
+        editing.id,
+        submit.customer,
+        submit.customerTaxId,
+        submit.currency,
+        submit.lines,
+        submit.notes,
+        () => this.formOpen.set(false),
+      );
+      return;
+    }
     this.store.createInvoice(
       submit.customer,
       submit.customerTaxId,
@@ -169,6 +202,24 @@ export class BillingPageComponent implements OnInit {
 
   closeDetail(): void {
     this.store.selectInvoice(null);
+  }
+
+  // ---------- Borrar / anular (confirmación in-app) ----------
+
+  confirmDelete(): void {
+    const invoice = this.deleteTarget();
+    if (invoice) {
+      this.store.deleteInvoice(invoice.id);
+    }
+    this.deleteTarget.set(null);
+  }
+
+  confirmVoid(): void {
+    const invoice = this.voidTarget();
+    if (invoice) {
+      this.store.voidInvoice(invoice.id, null);
+    }
+    this.voidTarget.set(null);
   }
 
   // ---------- Cobro manual ----------

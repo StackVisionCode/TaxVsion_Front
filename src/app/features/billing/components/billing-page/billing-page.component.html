@@ -146,12 +146,14 @@
 </div>
 
 <!-- Modales -->
-<app-invoice-form-panel [isOpen]="formOpen()" [customerResults]="store.customerResults()"
+<app-invoice-form-panel [isOpen]="formOpen()" [editing]="store.editingDetail()"
+  [customerResults]="store.customerResults()"
   [customerSearching]="store.customerSearching()" [catalogResults]="store.catalogResults()"
   [catalogSearching]="store.catalogSearching()" [saving]="store.creating()"
-  [hasIssuerProfile]="store.hasIssuerProfile()" (customerSearchChanged)="store.searchCustomers($event)"
-  (catalogSearchChanged)="store.searchCatalog($event)" (submitted)="onFormSubmit($event)"
-  (closed)="closeForm()"></app-invoice-form-panel>
+  [hasIssuerProfile]="store.hasIssuerProfile()" [stockByItem]="store.stockByItem()"
+  (customerSearchChanged)="store.searchCustomers($event)"
+  (catalogSearchChanged)="store.searchCatalog($event)" (stockLookupRequested)="store.lookupStock($event)"
+  (submitted)="onFormSubmit($event)" (closed)="closeForm()"></app-invoice-form-panel>
 
 <app-invoice-detail-panel [invoice]="store.selectedInvoice()"
   [busy]="store.busyInvoiceId() === store.selectedInvoice()?.id" (closed)="closeDetail()"
@@ -166,3 +168,13 @@
 
 <app-receipt-dialog [invoice]="receiptTarget()" (closed)="closeReceipt()" (hashCopyRequested)="copyReceiptHash($event)"
   (pdfRequested)="store.openPdf($event)"></app-receipt-dialog>
+
+<!-- Borrar borrador: confirmación in-app (no confirm() nativo) -->
+<app-confirm-dialog [isOpen]="deleteTarget() !== null" heading="Delete draft invoice"
+  message="This draft will be permanently removed. This cannot be undone." confirmLabel="Delete"
+  (confirmed)="confirmDelete()" (cancelled)="deleteTarget.set(null)"></app-confirm-dialog>
+
+<!-- Anular factura emitida: confirmación in-app -->
+<app-confirm-dialog [isOpen]="voidTarget() !== null" heading="Void invoice"
+  message="The invoice will be marked as voided and any stock discounted on issue will be restored."
+  confirmLabel="Void invoice" (confirmed)="confirmVoid()" (cancelled)="voidTarget.set(null)"></app-confirm-dialog>

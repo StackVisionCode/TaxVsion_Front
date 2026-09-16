@@ -37,6 +37,8 @@ export interface CatalogItemDto {
   price: MoneyDto;
   cost: MoneyDto | null;
   unit: string | null;
+  /** Tasa de impuesto por defecto del ítem, en puntos básicos (825 = 8.25%). 0 = sin impuesto. */
+  taxRateBasisPoints: number;
   trackInventory: boolean;
   isActive: boolean;
   imageUrl: string | null;
@@ -85,6 +87,7 @@ export interface CreateCatalogItemRequest {
   costAmount: number | null;
   costCurrency: string | null;
   unit: string | null;
+  taxRateBasisPoints: number;
   trackInventory: boolean;
   imageUrl: string | null;
   attributes: CatalogAttributeRequest[] | null;
@@ -101,6 +104,7 @@ export interface UpdateCatalogItemRequest {
   barcode: string | null;
   categoryId: string;
   unit: string | null;
+  taxRateBasisPoints: number;
   imageUrl: string | null;
   attributes: CatalogAttributeRequest[] | null;
 }
@@ -147,6 +151,8 @@ export interface CatalogEntry {
   kind: CatalogItemKind;
   price: number;
   currency: string;
+  /** Tasa de impuesto por defecto del ítem, en % (para prellenar el editor y mostrarla). */
+  taxRatePercent: number;
   /** isActive del backend (no existe "draft" en el contrato). */
   status: CatalogEntryStatus;
 }
@@ -155,6 +161,8 @@ export interface CatalogEntry {
 export interface CatalogFormValue {
   name: string;
   price: number;
+  /** Tasa de impuesto por defecto del ítem, en % (8.25 = 8.25%). La factura la toma al agregarlo. */
+  taxRatePercent: number;
   categoryId: string;
   /** Solo se aplica al crear: el kind es inmutable en el backend. */
   kind: CatalogItemKind;
@@ -175,6 +183,7 @@ export function toCatalogEntry(
     kind: item.kind,
     price: item.price.amount,
     currency: item.price.currency,
+    taxRatePercent: (item.taxRateBasisPoints ?? 0) / 100,
     status: item.isActive ? 'active' : 'inactive',
   };
 }

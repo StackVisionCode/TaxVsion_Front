@@ -89,6 +89,8 @@ export interface CatalogItemSummary {
   price: MoneyDto;
   cost: MoneyDto | null;
   unit: string | null;
+  /** Tasa de impuesto del ítem, en puntos básicos (825 = 8.25%). Se muestra y se ecoa al editar. */
+  taxRateBasisPoints: number;
   trackInventory: boolean;
   isActive: boolean;
   imageUrl: string | null;
@@ -121,6 +123,7 @@ export interface CreateCatalogItemRequest {
   costAmount: number | null;
   costCurrency: string | null;
   unit: string | null;
+  taxRateBasisPoints: number;
   trackInventory: boolean;
   imageUrl: string | null;
   attributes: null;
@@ -133,6 +136,7 @@ export interface UpdateCatalogItemRequest {
   barcode: string | null;
   categoryId: string;
   unit: string | null;
+  taxRateBasisPoints: number;
   imageUrl: string | null;
   attributes: null;
 }
@@ -179,6 +183,8 @@ export interface Product {
   category: string;
   price: number;
   currency: string;
+  /** Tasa de impuesto del producto, en % (para mostrarla en la tabla). */
+  taxRatePercent: number;
   stockQuantity: number;
   /** minLevel del backend (la UI lo llama "Low at"). */
   lowStockThreshold: number;
@@ -235,6 +241,7 @@ export function toProduct(
     category: categoryNameById.get(item.categoryId) ?? 'Uncategorized',
     price: item.price.amount,
     currency: item.price.currency,
+    taxRatePercent: (item.taxRateBasisPoints ?? 0) / 100,
     // Sin fila de stock aún (ningún movimiento registrado) la cantidad real es 0.
     stockQuantity: stock?.quantityOnHand ?? 0,
     lowStockThreshold: stock?.minLevel ?? 0,

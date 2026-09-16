@@ -104,6 +104,56 @@ export interface CreateInvoiceRequest {
   issuer: null;
 }
 
+/** Espejo de `InvoiceDetailResponse` — lectura RICA (cliente + líneas) para prellenar la edición. */
+export interface InvoiceDetailCustomer {
+  customerId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  taxId: string | null;
+}
+
+export interface InvoiceDetailLine {
+  description: string;
+  quantity: number;
+  unitAmountCents: number;
+  taxBasisPoints: number;
+  catalogItemId: string | null;
+}
+
+export interface InvoiceDetail {
+  id: string;
+  invoiceNumber: string | null;
+  status: InvoiceStatus;
+  currency: string;
+  notes: string | null;
+  customer: InvoiceDetailCustomer;
+  lines: InvoiceDetailLine[];
+  subtotalCents: number;
+  taxTotalCents: number;
+  totalCents: number;
+  amountPaidCents: number;
+  /** Una factura editable: borrador, o emitida/enviada sin pagos. */
+  isEditable: boolean;
+  /** Anulable: emitida/enviada/parcial/pagada (se repone el stock). */
+  isVoidable: boolean;
+  /** Borrable (soft): solo borradores. */
+  isDeletable: boolean;
+}
+
+/** Cuerpo de `PUT /billing/invoices/{id}` — igual que crear, sin emisor (no se edita). */
+export interface UpdateInvoiceRequest {
+  customer: InvoiceCustomerInput;
+  currency: string;
+  lines: InvoiceLineInput[];
+  notes: string | null;
+}
+
+/** Cuerpo de `POST /billing/invoices/{id}/void`. */
+export interface VoidInvoiceRequest {
+  reason: string | null;
+}
+
 // ---------- Billing: perfil del emisor ----------
 
 /** Espejo de `IssuerProfileResponse` / `UpsertIssuerProfileRequest`. Solo `name` es obligatorio. */
@@ -266,6 +316,8 @@ export interface BillingCatalogItem {
   sku: string | null;
   kind: 'Product' | 'Service';
   price: { amount: number; currency: string };
+  /** Tasa de impuesto por defecto del ítem, en puntos básicos (825 = 8.25%). La línea la toma al agregarlo. */
+  taxRateBasisPoints: number;
   isActive: boolean;
 }
 
@@ -290,10 +342,26 @@ export interface InvoiceLineDraft {
   taxPercent: number;
   /** Se fija cuando la línea se rellenó desde el catálogo; null si se escribió a mano. */
   catalogItemId: string | null;
+  /**
+   * Tipo del ítem de catálogo del que salió la línea. `Service` es **incontable**: no lleva
+   * unidades, su cantidad queda fija en 1 y la UI oculta el campo. `Product` lleva cantidad
+   * editable. `null` = línea escrita a mano (se trata como contable, cantidad editable).
+   */
+  kind: 'Product' | 'Service' | null;
 }
 
 export function emptyLine(): InvoiceLineDraft {
-  return { description: '', quantity: 1, unitAmount: 0, taxPercent: 0, catalogItemId: null };
+  return { description: '', quantity: 1, unitAmount: 0, taxPercent: 0, catalogItemId: null, kind: null };
+}
+
+/** Una línea es "vacía" si no se tocó: sin descripción, sin ítem de catálogo y sin precio. */
+export function isEmptyLine(line: InvoiceLineDraft): boolean {
+  return line.description.trim().length === 0 && !line.catalogItemId && !line.unitAmount;
+}
+
+/** Un servicio es incontable: su cantidad siempre es 1 y no se edita. */
+export function isCountable(line: InvoiceLineDraft): boolean {
+  return line.kind !== 'Service';
 }
 
 // ---------- Helpers de dinero ----------

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map, of } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
   BillingCatalogItem,
@@ -10,7 +10,9 @@ import {
   CreateInvoiceResult,
   CreatePaymentLinkResult,
   InvoiceBranding,
+  InvoiceDetail,
   InvoiceLineDraft,
+  InvoiceLineInput,
   InvoiceSummary,
   IssueInvoiceResult,
   IssuerProfile,
@@ -79,22 +81,78 @@ export class BillingService {
         billing: null,
       },
       currency,
-      lines: lines.map(line => ({
-        description: line.description.trim(),
-        quantity: Math.max(1, Math.trunc(line.quantity || 0)),
-        unitAmountCents: toCents(line.unitAmount),
-        taxBasisPoints: toBasisPoints(line.taxPercent),
-        catalogItemId: line.catalogItemId,
-      })),
+      lines: this.toLineInputs(lines),
       notes: notes.trim() || null,
       issuer: null,
     };
     return this.http.post<CreateInvoiceResult>(`${this.base}/billing/invoices`, body);
   }
 
+  /** `GET /billing/invoices/{id}/detail` — cliente + líneas para prellenar la edición. */
+  getInvoiceDetail(invoiceId: string): Observable<InvoiceDetail> {
+    return this.http.get<InvoiceDetail>(`${this.base}/billing/invoices/${invoiceId}/detail`);
+  }
+
+  /** `PUT /billing/invoices/{id}` — edita borrador o emitida sin pagos (recalcula, reconcilia stock). */
+  updateInvoice(
+    invoiceId: string,
+    customer: BillingCustomerSummary,
+    customerTaxId: string,
+    currency: string,
+    lines: InvoiceLineDraft[],
+    notes: string,
+  ): Observable<void> {
+    const body = {
+      customer: {
+        customerId: customer.id,
+        name: customer.displayName,
+        email: customer.primaryEmail || null,
+        phone: customer.primaryPhone,
+        taxId: customerTaxId.trim() || null,
+        billing: null,
+      },
+      currency,
+      lines: this.toLineInputs(lines),
+      notes: notes.trim() || null,
+    };
+    return this.http.put<void>(`${this.base}/billing/invoices/${invoiceId}`, body);
+  }
+
+  /** `DELETE /billing/invoices/{id}` — borra (soft) un BORRADOR. Emitida/pagada → usar void. */
+  deleteInvoice(invoiceId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/billing/invoices/${invoiceId}`);
+  }
+
+  /** `POST /billing/invoices/{id}/void` — anula una emitida/pagada y repone el stock. */
+  voidInvoice(invoiceId: string, reason: string | null): Observable<void> {
+    return this.http.post<void>(`${this.base}/billing/invoices/${invoiceId}/void`, { reason });
+  }
+
+  /** Convierte líneas de la UI (dólares y %) al contrato (centavos y puntos básicos). */
+  private toLineInputs(lines: InvoiceLineDraft[]): InvoiceLineInput[] {
+    return lines.map(line => ({
+      description: line.description.trim(),
+      quantity: Math.max(1, Math.trunc(line.quantity || 0)),
+      unitAmountCents: toCents(line.unitAmount),
+      taxBasisPoints: toBasisPoints(line.taxPercent),
+      catalogItemId: line.catalogItemId,
+    }));
+  }
+
   /** `POST .../issue` — asigna el número definitivo y dispara link de cobro + PDF (asíncronos). */
   issueInvoice(invoiceId: string): Observable<IssueInvoiceResult> {
     return this.http.post<IssueInvoiceResult>(`${this.base}/billing/invoices/${invoiceId}/issue`, {});
+  }
+
+  /**
+   * `GET /inventory/stock/{catalogItemId}` — para avisar en el formulario cuando la cantidad supera el
+   * stock disponible (el bloqueo real es al emitir). Devuelve `null` ante 404 (sin nivel), 403 (sin
+   * permiso de inventario) o cualquier error: en esos casos no se muestra aviso.
+   */
+  getStockLevel(catalogItemId: string): Observable<{ quantityOnHand: number; isTracked: boolean } | null> {
+    return this.http
+      .get<{ quantityOnHand: number; isTracked: boolean }>(`${this.base}/inventory/stock/${catalogItemId}`)
+      .pipe(catchError(() => of(null)));
   }
 
   /**
@@ -244,6 +302,39 @@ export class BillingService {
     return this.http
       .get<CatalogPage<BillingCatalogItem>>(`${this.base}/catalog/items`, { params })
       .pipe(map(result => result.items ?? []));
+  }
+
+  /**
+   * `POST /notifications/email/send` — envía la factura al cliente por correo con el PDF adjunto
+   * (`attachmentFileIds` son ids de CloudStorage, = `pdfFileId`). Es asíncrono (202): el servicio de
+   * correo lo entrega fuera del request. Usa el JWT del usuario (permiso `notification.email.send`).
+   */
+  sendInvoiceEmail(input: {
+    invoiceNumber: string | null;
+    email: string;
+    name: string | null;
+    pdfFileId: string;
+    checkoutUrl?: string | null;
+  }): Observable<void> {
+    const number = input.invoiceNumber ?? '';
+    const payLink = input.checkoutUrl
+      ? `<p>You can pay online here: <a href="${input.checkoutUrl}">${input.checkoutUrl}</a></p>`
+      : '';
+    const body = {
+      subject: `Invoice ${number}`.trim(),
+      htmlBody:
+        `<p>Hello ${input.name ?? ''},</p>` +
+        `<p>Please find attached your invoice ${number}.</p>` +
+        payLink +
+        `<p>Thank you.</p>`,
+      textBody:
+        `Please find attached your invoice ${number}.` +
+        (input.checkoutUrl ? ` Pay online: ${input.checkoutUrl}` : ''),
+      priority: 'Normal',
+      recipients: [{ address: input.email, kind: 'To', name: input.name }],
+      attachmentFileIds: [input.pdfFileId],
+    };
+    return this.http.post<void>(`${this.base}/notifications/email/send`, body);
   }
 
   /** URL temporal de descarga del PDF en CloudStorage. */

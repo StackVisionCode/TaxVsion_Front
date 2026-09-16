@@ -19,7 +19,17 @@ import {
 } from '../../data-access/billing.model';
 
 /** Acción elegida en el menú de una fila. */
-export type InvoiceAction = 'details' | 'issue' | 'copyLink' | 'pdf' | 'recordPayment' | 'receipt';
+export type InvoiceAction =
+  | 'details'
+  | 'issue'
+  | 'edit'
+  | 'send'
+  | 'delete'
+  | 'void'
+  | 'copyLink'
+  | 'pdf'
+  | 'recordPayment'
+  | 'receipt';
 
 /**
  * Tabla de facturas (mismo patrón que product-table/client-table: cabecera en píldora
@@ -100,5 +110,25 @@ export class InvoiceTableComponent {
   /** Cobrar a mano solo tiene sentido mientras quede saldo y la factura esté emitida. */
   canRecordPayment(invoice: InvoiceSummary): boolean {
     return invoice.status !== 'Draft' && invoice.status !== 'Voided' && invoice.amountDueCents > 0;
+  }
+
+  /** Libertad total: se edita cualquier factura salvo una anulada. */
+  canEdit(invoice: InvoiceSummary): boolean {
+    return invoice.status !== 'Voided';
+  }
+
+  /** Enviar al cliente por correo: la factura debe estar emitida (con PDF) y no anulada. */
+  canSend(invoice: InvoiceSummary): boolean {
+    return invoice.status !== 'Draft' && invoice.status !== 'Voided' && !!invoice.pdfFileId;
+  }
+
+  /** Borrable (soft): solo borradores. Una emitida se anula, no se borra. */
+  canDelete(invoice: InvoiceSummary): boolean {
+    return invoice.status === 'Draft';
+  }
+
+  /** Anulable: emitida/enviada/parcial/pagada (repone el stock descontado al emitir). */
+  canVoid(invoice: InvoiceSummary): boolean {
+    return invoice.status !== 'Draft' && invoice.status !== 'Voided';
   }
 }

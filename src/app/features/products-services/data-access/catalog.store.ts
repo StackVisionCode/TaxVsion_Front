@@ -106,6 +106,7 @@ export class CatalogStore {
         costAmount: null,
         costCurrency: null,
         unit: null,
+        taxRateBasisPoints: Math.round((form.taxRatePercent || 0) * 100),
         trackInventory: form.kind === 'Product',
         imageUrl: null,
         attributes: null,
@@ -133,8 +134,13 @@ export class CatalogStore {
 
     let stream: Observable<CatalogItemDto> = of(baseline);
     const name = form.name.trim();
+    const taxBps = Math.round((form.taxRatePercent || 0) * 100);
 
-    if (name !== baseline.name || form.categoryId !== baseline.categoryId) {
+    if (
+      name !== baseline.name ||
+      form.categoryId !== baseline.categoryId ||
+      taxBps !== baseline.taxRateBasisPoints
+    ) {
       stream = stream.pipe(
         concatMap(latest =>
           this.api.updateItem(latest.id, {
@@ -143,6 +149,7 @@ export class CatalogStore {
             barcode: latest.barcode,
             categoryId: form.categoryId,
             unit: latest.unit,
+            taxRateBasisPoints: taxBps,
             imageUrl: latest.imageUrl,
             attributes: null,
           }),

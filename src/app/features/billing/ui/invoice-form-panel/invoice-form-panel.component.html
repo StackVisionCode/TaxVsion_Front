@@ -1,5 +1,6 @@
-<app-modal [isOpen]="isOpen" heading="New invoice"
-  subheading="Billing has no edit endpoint — check the details before saving" size="2xl" (closed)="close()">
+<app-modal [isOpen]="isOpen" [heading]="isEditing ? 'Edit invoice' : 'New invoice'"
+  [subheading]="isEditing ? 'Editing recalculates totals; an issued invoice also reconciles stock and the payment link' : 'Check the details before saving'"
+  size="2xl" (closed)="close()">
   <div class="mt-5">
     <!-- Sin emisor guardado el PDF sale sin los datos de la firma -->
     <div *ngIf="!hasIssuerProfile"
@@ -100,7 +101,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let line of lines(); let i = index">
+          <tr *ngFor="let line of lines(); let i = index; trackBy: trackByIndex">
             <td class="px-3 py-2 align-top">
               <div class="flex items-center gap-1.5">
                 <input type="text" [name]="'lineDescription' + i" placeholder="Description" [disabled]="saving"
@@ -114,9 +115,23 @@
               <p *ngIf="line.catalogItemId" class="mt-1 pl-3 text-[11px] text-gray-400">Linked to a catalog item</p>
             </td>
             <td class="px-3 py-2 align-top">
-              <input type="number" min="1" step="1" [name]="'lineQuantity' + i" [disabled]="saving"
-                [ngModel]="line.quantity" (ngModelChange)="updateLine(i, { quantity: $event })"
+              <!-- Producto / línea manual: cantidad editable -->
+              <input *ngIf="isCountable(line)" type="number" min="1" step="1" [name]="'lineQuantity' + i"
+                [disabled]="saving" [ngModel]="line.quantity" (ngModelChange)="updateLine(i, { quantity: $event })"
+                [class.border-amber-300]="stockShortfall(line) !== null"
                 class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
+              <!-- Aviso: la cantidad supera el stock disponible (no bloquea; el bloqueo es al emitir) -->
+              <p *ngIf="stockShortfall(line) !== null"
+                class="mt-1 text-right text-[11px] font-medium text-amber-600"
+                title="Blocked only when you issue the invoice">
+                Only {{ stockShortfall(line) }} in stock
+              </p>
+              <!-- Servicio: incontable, sin unidades — la cantidad queda fija en 1 -->
+              <div *ngIf="!isCountable(line)"
+                class="flex h-10 items-center justify-end rounded-full border border-dashed border-gray-200 bg-gray-50 px-3 text-right text-sm text-gray-400"
+                title="A service has no units — it is billed once">
+                —
+              </div>
             </td>
             <td class="px-3 py-2 align-top">
               <input type="number" min="0" step="0.01" [name]="'lineUnitAmount' + i" [disabled]="saving"
@@ -178,11 +193,19 @@
         Cancel
       </button>
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" (click)="submit(false)" [disabled]="!canSubmit()"
+        <!-- Edición: un solo botón de guardar cambios -->
+        <button *ngIf="isEditing" type="button" (click)="submit(false)" [disabled]="!canSubmit()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+          <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
+            [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+          {{ saving ? 'Saving…' : 'Save changes' }}
+        </button>
+        <!-- Alta: guardar borrador o guardar y emitir -->
+        <button *ngIf="!isEditing" type="button" (click)="submit(false)" [disabled]="!canSubmit()"
           class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
           Save as draft
         </button>
-        <button type="button" (click)="submit(true)" [disabled]="!canSubmit()"
+        <button *ngIf="!isEditing" type="button" (click)="submit(true)" [disabled]="!canSubmit()"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
           <ion-icon [name]="saving ? 'sync-outline' : 'send-outline'" class="text-base"
             [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>

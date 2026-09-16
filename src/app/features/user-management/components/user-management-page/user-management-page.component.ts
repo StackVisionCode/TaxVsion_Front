@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
+import { EditAccessDrawerComponent } from '../../ui/edit-access-drawer/edit-access-drawer.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { UserManagementStore } from '../../data-access/user-management.store';
@@ -30,6 +31,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     FormsModule,
     UserTableComponent,
     UserInvitePanelComponent,
+    EditAccessDrawerComponent,
     PaginationComponent,
     ConfirmDialogComponent,
   ],
@@ -51,6 +53,7 @@ export class UserManagementPageComponent {
   readonly invitationsError = this.store.invitationsError;
 
   readonly limits = this.store.limits;
+  readonly permissions = this.store.permissions;
   readonly currentUserId = this.store.currentUserId;
   readonly pageSize = this.store.pageSize;
 
@@ -60,6 +63,9 @@ export class UserManagementPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
   readonly pendingCancel = signal<TeamMember | null>(null);
+
+  /** The member whose "Edit access" drawer is open (null = closed). */
+  readonly accessMember = signal<TeamMember | null>(null);
 
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -137,6 +143,27 @@ export class UserManagementPageComponent {
   closePanel(): void {
     this.isPanelOpen.set(false);
     this.editingMember.set(null);
+  }
+
+  /** "Edit access" (menú de la fila) abre el drawer de permisos de ese miembro. */
+  openAccessDrawer(member: TeamMember): void {
+    this.accessMember.set(member);
+  }
+
+  closeAccessDrawer(): void {
+    this.accessMember.set(null);
+  }
+
+  /** El drawer ya hizo el PUT de overrides y quedó limpio — acá solo toast + cierre. */
+  handleAccessSaved(): void {
+    this.showToast('Access updated');
+    this.closeAccessDrawer();
+  }
+
+  /** "Manage roles" desde el drawer delega en el panel de edición de roles existente (asignación rápida). */
+  handleManageRoles(member: TeamMember): void {
+    this.closeAccessDrawer();
+    this.openEditPanel(member);
   }
 
   /** El panel ya hizo el POST/PUT real y actualizó el store — acá solo toast + cierre. */
