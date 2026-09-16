@@ -46,6 +46,16 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   'ShareLink.PublicSharingDisabled':
     "Public links are turned off by your firm's security settings.",
 
+  // Billing → Inventory (descuento de stock al emitir la factura)
+  'inventory.insufficientStock':
+    "There isn't enough stock to issue this invoice. Adjust the product's inventory and try again.",
+  'Billing.Inventory.Unreachable':
+    "We couldn't check inventory just now, so the invoice wasn't issued. Please try again in a moment.",
+  'Billing.Inventory.CommitFailed':
+    "We couldn't check inventory just now, so the invoice wasn't issued. Please try again in a moment.",
+  'Billing.Inventory.TokenFailed':
+    "We couldn't check inventory just now, so the invoice wasn't issued. Please try again in a moment.",
+
   // Genéricos transversales
   'Auth.Forbidden': "You don't have permission to do that.",
   'RateLimit.Exceeded': "You're going a bit fast. Please wait a moment and try again.",

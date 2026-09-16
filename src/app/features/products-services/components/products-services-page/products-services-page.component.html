@@ -37,8 +37,27 @@
     </div>
   </div>
 
+  <!-- Pestañas por tipo: separa Productos y Servicios (cada uno conserva sus categorías) -->
+  <div *ngIf="!store.loading() && !store.error()" class="mb-4 flex flex-wrap items-center gap-2">
+    <button type="button" (click)="kindFilter.set('all')"
+      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="kindFilter() === 'all' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      All <span class="ml-1 opacity-70">{{ store.entries().length }}</span>
+    </button>
+    <button type="button" (click)="kindFilter.set('Product')"
+      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="kindFilter() === 'Product' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Products <span class="ml-1 opacity-70">{{ productCount() }}</span>
+    </button>
+    <button type="button" (click)="kindFilter.set('Service')"
+      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      [ngClass]="kindFilter() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+      Services <span class="ml-1 opacity-70">{{ serviceCount() }}</span>
+    </button>
+  </div>
+
   <!-- Catalog -->
-  <app-service-catalog *ngIf="!store.loading() && !store.error()" [services]="store.entries()"
+  <app-service-catalog *ngIf="!store.loading() && !store.error()" [services]="filteredEntries()"
     [categories]="store.categoryNames()" (addService)="openAddPanel()"
     (editService)="openEditPanel($event)"></app-service-catalog>
 </div>
@@ -57,6 +76,14 @@
       <span class="pl-4 text-sm text-gray-400">$</span>
       <input type="number" placeholder="Price" [ngModel]="newPrice()" (ngModelChange)="newPrice.set($event)"
         class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+    </div>
+
+    <!-- Tax por defecto del ítem (%). La factura lo toma al agregarlo; 0 = sin impuesto. -->
+    <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+      <input type="number" min="0" max="100" step="0.01" placeholder="Tax rate" [ngModel]="newTaxPercent()"
+        (ngModelChange)="newTaxPercent.set($event)"
+        class="w-full h-full bg-transparent pl-4 pr-1 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      <span class="pr-4 text-sm text-gray-400">% tax</span>
     </div>
 
     <!-- Kind: inmutable tras crear (el backend no tiene endpoint para cambiarlo) -->

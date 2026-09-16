@@ -117,6 +117,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Documents', icon: 'document-text-outline', route: '/documents' },
     { label: 'Billing', icon: 'receipt-outline', route: '/billing' },
     { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services' },
+    { label: 'Inventory', icon: 'cube-outline', route: '/inventory' },
     { label: 'Signature', icon: 'create-outline', route: '/signature' },
     { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat' },
     { label: 'Meetings', icon: 'videocam-outline', route: '/meetings' },

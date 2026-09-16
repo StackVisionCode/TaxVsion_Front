@@ -80,6 +80,18 @@
                 Issue invoice
               </button>
 
+              <button *ngIf="canEdit(invoice)" type="button" (click)="emit('edit', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+                Edit invoice
+              </button>
+
+              <button *ngIf="canSend(invoice)" type="button" (click)="emit('send', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="mail-outline" class="text-base"></ion-icon>
+                Send to client
+              </button>
+
               <button *ngIf="invoice.checkoutUrl" type="button" (click)="emit('copyLink', invoice, $event)"
                 class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="link-outline" class="text-base"></ion-icon>
@@ -102,6 +114,18 @@
                 class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="receipt-outline" class="text-base"></ion-icon>
                 View receipt
+              </button>
+
+              <button *ngIf="canVoid(invoice)" type="button" (click)="emit('void', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors">
+                <ion-icon name="ban-outline" class="text-base"></ion-icon>
+                Void invoice
+              </button>
+
+              <button *ngIf="canDelete(invoice)" type="button" (click)="emit('delete', invoice, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                Delete draft
               </button>
             </div>
           </div>

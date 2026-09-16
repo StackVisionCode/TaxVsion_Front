@@ -25,6 +25,17 @@ export class ProductsServicesPageComponent implements OnInit {
 
   // ---------- Stats (sobre el lote cargado; el total viene del servidor) ----------
 
+  // ---------- Filtro por tipo (pestañas Products / Services) ----------
+
+  readonly kindFilter = signal<'all' | 'Product' | 'Service'>('all');
+  readonly productCount = computed(() => this.store.entries().filter(e => e.kind === 'Product').length);
+  readonly serviceCount = computed(() => this.store.entries().filter(e => e.kind === 'Service').length);
+  readonly filteredEntries = computed(() => {
+    const kind = this.kindFilter();
+    const entries = this.store.entries();
+    return kind === 'all' ? entries : entries.filter(e => e.kind === kind);
+  });
+
   readonly activeCount = computed(() => this.store.entries().filter(s => s.status === 'active').length);
   readonly avgPrice = computed(() => {
     const services = this.store.entries();
@@ -38,6 +49,8 @@ export class ProductsServicesPageComponent implements OnInit {
   readonly editingService = signal<CatalogEntry | null>(null);
   readonly newName = signal('');
   readonly newPrice = signal<number | null>(null);
+  /** Tasa de impuesto por defecto del ítem, en % (0 = sin impuesto). La factura la toma al agregarlo. */
+  readonly newTaxPercent = signal<number>(0);
   readonly newCategoryId = signal('');
   /** Kind solo editable al crear: el backend no permite cambiar el tipo de un ítem. */
   readonly newKind = signal<CatalogItemKind>('Service');
@@ -65,6 +78,7 @@ export class ProductsServicesPageComponent implements OnInit {
     this.editingService.set(null);
     this.newKind.set('Service');
     this.newActive.set(true);
+    this.newTaxPercent.set(0);
     // Preselecciona la primera categoría para no obligar un click extra.
     this.newCategoryId.set(this.store.categories()[0]?.id ?? '');
     this.isAddOpen.set(true);
@@ -74,6 +88,7 @@ export class ProductsServicesPageComponent implements OnInit {
     this.editingService.set(service);
     this.newName.set(service.name);
     this.newPrice.set(service.price);
+    this.newTaxPercent.set(service.taxRatePercent);
     this.newCategoryId.set(service.categoryId);
     this.newKind.set(service.kind);
     this.newActive.set(service.status === 'active');
@@ -85,6 +100,7 @@ export class ProductsServicesPageComponent implements OnInit {
     this.editingService.set(null);
     this.newName.set('');
     this.newPrice.set(null);
+    this.newTaxPercent.set(0);
     this.newCategoryId.set('');
     this.newKind.set('Service');
     this.newActive.set(true);
@@ -120,6 +136,7 @@ export class ProductsServicesPageComponent implements OnInit {
     const form: CatalogFormValue = {
       name: this.newName().trim(),
       price: this.newPrice()!,
+      taxRatePercent: this.newTaxPercent() || 0,
       categoryId: this.newCategoryId(),
       kind: this.newKind(),
       isActive: this.newActive(),
