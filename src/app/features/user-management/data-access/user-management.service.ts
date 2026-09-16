@@ -11,7 +11,9 @@ import {
   PagedResult,
   PermissionInfo,
   RoleSummary,
+  SetPermissionOverridesRequest,
   TenantLimits,
+  UserEffectiveAccess,
   UserSummary,
 } from './user-management.model';
 
@@ -116,5 +118,22 @@ export class UserManagementService {
   /** GET /auth/tenants/limits — plan, asientos usados/disponibles e invitaciones restantes. */
   getTenantLimits(): Observable<TenantLimits> {
     return this.http.get<TenantLimits>(`${this.base}/tenants/limits`);
+  }
+
+  /**
+   * GET /auth/users/{id}/effective-access — the user's role-granted permissions grouped by module,
+   * each flagged if currently denied. Feeds the "Edit access" drawer. Requires permission roles.manage.
+   */
+  getEffectiveAccess(userId: string): Observable<UserEffectiveAccess> {
+    return this.http.get<UserEffectiveAccess>(`${this.base}/users/${userId}/effective-access`);
+  }
+
+  /**
+   * PUT /auth/users/{id}/permission-overrides — 204 No Content. Deny-only, replace-set: `deniedPermissionIds`
+   * fully replaces the user's deny set (an empty array clears every override). Requires permission roles.manage.
+   */
+  setPermissionOverrides(userId: string, deniedPermissionIds: string[]): Observable<void> {
+    const body: SetPermissionOverridesRequest = { deniedPermissionIds };
+    return this.http.put<void>(`${this.base}/users/${userId}/permission-overrides`, body);
   }
 }
