@@ -13,9 +13,14 @@ import {
   PagedResult,
   PurchaseAddOnRequest,
   PurchaseSeatsRequest,
+  ProviderCustomer,
   ReassignSeatRequest,
   ReleaseSeatRequest,
+  SeatCheckoutStatusResponse,
+  SeatQuoteResponse,
   SeatResponse,
+  StartSeatCheckoutRequest,
+  StartSeatCheckoutResponse,
 } from './subscription.model';
 
 /**
@@ -55,9 +60,33 @@ export class SubscriptionService {
     return this.http.get<PagedResult<SeatResponse>>(`${this.base}/seats`, { params });
   }
 
-  /** 201 con la lista de ids creados (uno por asiento comprado). */
+  /**
+   * Cotización server-authoritative (precio unitario + prorrateo a hoy) para comprar `quantity` asientos
+   * de un tipo. El precio nunca se calcula en el cliente: sale del catálogo global + período de la base.
+   */
+  getSeatQuote(seatType: string, quantity: number): Observable<SeatQuoteResponse> {
+    const params = new HttpParams().set('seatType', seatType).set('quantity', quantity);
+    return this.http.get<SeatQuoteResponse>(`${this.base}/seats/quote`, { params });
+  }
+
+  /** 201 con la lista de ids creados (uno por asiento comprado). Cobro OFF-SESSION del método en archivo. */
   purchaseSeats(req: PurchaseSeatsRequest): Observable<string[]> {
     return this.http.post<string[]>(`${this.base}/seats/purchase`, req);
+  }
+
+  /** Compra por HOSTED-CHECKOUT (redirect): devuelve la URL del provider a la que navegar. */
+  startSeatCheckout(req: StartSeatCheckoutRequest): Observable<StartSeatCheckoutResponse> {
+    return this.http.post<StartSeatCheckoutResponse>(`${this.base}/seats/checkout`, req);
+  }
+
+  /** Estado de una intención de checkout — se poll-ea al volver del redirect. */
+  getSeatCheckoutStatus(intentId: string): Observable<SeatCheckoutStatusResponse> {
+    return this.http.get<SeatCheckoutStatusResponse>(`${this.base}/seats/checkout/${intentId}`);
+  }
+
+  /** Método de pago del tenant para un provider (para decidir off-session vs redirect). 404 = sin tarjeta. */
+  getProviderCustomer(provider: string): Observable<ProviderCustomer> {
+    return this.http.get<ProviderCustomer>(`${this.base}/payments-app/provider-customers/${provider}`);
   }
 
   assignSeat(id: string, req: AssignSeatRequest): Observable<void> {

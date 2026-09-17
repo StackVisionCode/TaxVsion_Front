@@ -83,6 +83,81 @@ export interface ReassignSeatRequest {
   reason: string | null;
 }
 
+/**
+ * Respuesta de `GET /seats/quote` — espejo de `SeatQuoteResponse` (backend). Montos en centavos
+ * (enteros). `proratedUnitAmountCents` es lo que se cobra HOY por asiento (prorrateado a lo que resta del
+ * período vigente); `unitAmountCents` es el precio de período completo de cada renovación. El precio
+ * SIEMPRE lo calcula el backend — el cliente nunca lo computa.
+ */
+export interface SeatQuoteResponse {
+  seatType: string;
+  quantity: number;
+  billingCycle: string;
+  unitAmountCents: number;
+  proratedUnitAmountCents: number;
+  proratedTotalCents: number;
+  currency: string;
+  currentPeriodEndUtc: string;
+}
+
+/**
+ * Resultado de iniciar una compra de asientos. `charged` = cobro off-session del método en archivo;
+ * `redirect` = hosted-checkout (Stripe/PayPal) para cuando el tenant no tenga método en archivo.
+ */
+export type SeatPurchaseOutcome =
+  | { status: 'charged'; seatIds: string[] }
+  | { status: 'redirect'; url: string; intentId: string };
+
+/** Cuerpo de `POST /seats/checkout` (compra por redirect). */
+export interface StartSeatCheckoutRequest {
+  seatType: string;
+  quantity: number;
+  autoRenew: boolean;
+  payerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  provider?: string;
+  method?: string;
+}
+
+/** Respuesta de `POST /seats/checkout` — la URL a la que redirigir. */
+export interface StartSeatCheckoutResponse {
+  seatPurchaseIntentId: string;
+  checkoutUrl: string;
+  paymentId: string;
+  expiresAtUtc: string;
+}
+
+/** Estado de una intención de checkout (`GET /seats/checkout/{id}`). El front lo poll-ea al volver del
+ *  redirect hasta ver `Provisioned` (éxito) o `Failed`. */
+export interface SeatCheckoutStatusResponse {
+  seatPurchaseIntentId: string;
+  status: string; // Pending | Paid | Provisioned | Failed
+  seatType: string;
+  quantity: number;
+  proratedTotalCents: number;
+  currency: string;
+  checkoutUrl: string | null;
+}
+
+/** Método de pago guardado del tenant — espejo de `SavedPaymentMethodResponse` (PaymentApp). */
+export interface SavedPaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  isDefault: boolean;
+}
+
+/** `GET /payments-app/provider-customers/{provider}` — para saber si hay tarjeta en archivo. 404 = ninguna. */
+export interface ProviderCustomer {
+  id: string;
+  providerCode: string;
+  email: string;
+  savedMethods: SavedPaymentMethod[];
+}
+
 // ---------- Add-ons ----------
 
 export interface AddOnDefinitionResponse {

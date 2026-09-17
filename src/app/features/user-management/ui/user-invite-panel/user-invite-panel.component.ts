@@ -46,6 +46,8 @@ export class UserInvitePanelComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
   /** Emite el email del miembro invitado/editado tras un guardado exitoso. */
   @Output() saved = new EventEmitter<string>();
+  /** Pide abrir el modal de compra de asientos (cuando no quedan asientos disponibles). */
+  @Output() buySeats = new EventEmitter<void>();
 
   readonly limits = this.store.limits;
 
