@@ -24,6 +24,8 @@ import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
+import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
+import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
 import { ChatStore } from '@features/chat/data-access/chat.store';
@@ -40,7 +42,14 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, NavbarComponent, SidebarComponent, ToastHostComponent, CallOverlayComponent],
+  imports: [
+    RouterOutlet,
+    NavbarComponent,
+    SidebarComponent,
+    ToastHostComponent,
+    CallOverlayComponent,
+    SubscriptionBannerComponent,
+  ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',
 })
@@ -55,6 +64,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly subscriptionStatus = inject(SubscriptionStatusStore);
 
   protected readonly isSidebarExpanded = signal(true);
 
@@ -92,6 +102,11 @@ export class AppShellComponent implements OnInit, OnDestroy {
     if (tenantId) {
       this.branding.applyForTenant(tenantId, 'Crm');
     }
+
+    // Ciclo de vida de la suscripción (Expiración/Dunning, Fase 5): carga el estado para el banner global
+    // y, si volvemos de un hosted-checkout de renovación, retoma el poll de la intención pendiente.
+    this.subscriptionStatus.load();
+    this.subscriptionStatus.resumePendingRenewCheckout();
 
     // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,

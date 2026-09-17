@@ -56,6 +56,16 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   'Billing.Inventory.TokenFailed':
     "We couldn't check inventory just now, so the invoice wasn't issued. Please try again in a moment.",
 
+  // Suscripción — ciclo de vida (Expiración/Dunning)
+  'Auth.SubscriptionInactive':
+    "Your firm's subscription is inactive. Renew it to restore access for your team.",
+  'Subscription.CannotSelfServiceRenew':
+    "This subscription can't be renewed right now.",
+  'Subscription.RenewalCheckout.ProviderError':
+    "We couldn't start the payment. Please try again in a moment.",
+  'Subscription.RenewalCheckout.Unavailable':
+    'The payment service is temporarily unavailable. Please try again shortly.',
+
   // Genéricos transversales
   'Auth.Forbidden': "You don't have permission to do that.",
   'RateLimit.Exceeded': "You're going a bit fast. Please wait a moment and try again.",

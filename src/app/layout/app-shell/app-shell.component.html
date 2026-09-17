@@ -9,6 +9,8 @@
   <!-- Right column: transparent top bar + routed content -->
   <div class="flex-1 min-w-0 flex flex-col">
     <app-navbar></app-navbar>
+    <!-- Banner global del ciclo de vida de la suscripción (Expiración/Dunning). Se auto-oculta si está OK. -->
+    <app-subscription-banner></app-subscription-banner>
     <main class="relative min-w-0 flex-1">
       <!-- Señal de que se está cambiando de sección. Aparece solo si la navegación pasa de
            120 ms: antes no había NADA entre el clic en el sidebar y el pintado. -->
