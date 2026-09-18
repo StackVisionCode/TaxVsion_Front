@@ -110,8 +110,8 @@ export class MeetingRtcService {
   sfuConnectTransport(meetingId: string, transportId: string, dtlsParameters: MsTypes.DtlsParameters): Promise<unknown> {
     return this.emitOrThrow('meeting.sfu.connect_transport', { meetingId, transportId, dtlsParameters });
   }
-  sfuProduce(meetingId: string, transportId: string, kind: MsTypes.MediaKind, rtpParameters: MsTypes.RtpParameters): Promise<{ producerId: string }> {
-    return this.emitOrThrow('meeting.sfu.produce', { meetingId, transportId, kind, rtpParameters });
+  sfuProduce(meetingId: string, transportId: string, kind: MsTypes.MediaKind, rtpParameters: MsTypes.RtpParameters, source: 'camera' | 'screen' = 'camera'): Promise<{ producerId: string }> {
+    return this.emitOrThrow('meeting.sfu.produce', { meetingId, transportId, kind, rtpParameters, source });
   }
   sfuConsume(meetingId: string, transportId: string, producerId: string, rtpCapabilities: MsTypes.RtpCapabilities): Promise<SfuConsumerParams> {
     return this.emitOrThrow('meeting.sfu.consume', { meetingId, transportId, producerId, rtpCapabilities });

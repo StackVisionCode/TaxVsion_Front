@@ -146,9 +146,10 @@ export class ChatPageComponent {
   }
 
   /**
-   * Motivo por el que NO se puede llamar ahora (null = se puede). Deshabilita el botón cuando ya
-   * estoy en una llamada, o cuando el par está offline (llamada eterna sin respuesta) o ya en otra
-   * llamada. Solo `Online` es llamable; la presencia se refresca al abrir el hilo y al reconectar.
+   * Motivo por el que NO se puede llamar ahora (null = se puede). Deshabilita el botón solo cuando YO ya
+   * estoy en una llamada, o cuando el par está en OTRA llamada (Busy). Ya NO se exige que el par esté
+   * Online: se permite llamar aunque esté offline — si no contesta / no está conectado, el backend marca
+   * la llamada como MissedCall y el caller ve "Could not reach {name}" (queda en el historial de ambos).
    */
   get callDisabledReason(): string | null {
     if (this.callPhase() !== 'idle') {
@@ -158,9 +159,6 @@ export class ChatPageComponent {
     const who = conv.name || 'This contact';
     if (conv.presence === 'Busy') {
       return `${who} is currently on a call`;
-    }
-    if (conv.presence !== 'Online') {
-      return `${who} is offline`;
     }
     return null;
   }

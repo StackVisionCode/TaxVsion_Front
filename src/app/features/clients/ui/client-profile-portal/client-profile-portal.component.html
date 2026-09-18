@@ -40,13 +40,21 @@
 
         <!-- Acciones -->
         <div class="flex flex-wrap items-center gap-2">
-          <!-- No invitado / expirado → invitar -->
-          <button *ngIf="(access().status === 'not-invited' || access().status === 'expired') && canInvite()"
+          <!-- No invitado / expirado → invitar (salvo que el email YA sea usuario de portal del tenant) -->
+          <button *ngIf="(access().status === 'not-invited' || access().status === 'expired') && canInvite() && !store.emailInUse()"
             type="button" (click)="invite()" [disabled]="busy()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
             <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
             {{ busy() ? 'Sending…' : 'Send portal invitation' }}
           </button>
+
+          <!-- El email ya tiene acceso de portal (usuario existente por email, no ligado a este cliente):
+               invitar sería un no-op silencioso, así que se avisa en vez de ofrecer el botón. -->
+          <span *ngIf="(access().status === 'not-invited' || access().status === 'expired') && store.emailInUse()"
+            class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
+            <ion-icon name="shield-checkmark-outline" class="text-base"></ion-icon>
+            Already has portal access
+          </span>
 
           <!-- Pendiente → reenviar / cancelar -->
           <ng-container *ngIf="access().status === 'pending' && canManageInvites()">

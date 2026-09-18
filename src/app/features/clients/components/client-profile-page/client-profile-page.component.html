@@ -231,7 +231,7 @@
 
   @defer (when activeTab() === 'calls'; prefetch on idle) {
     @if (activeTab() === 'calls') {
-      <app-client-profile-calls [clientId]="c.id"></app-client-profile-calls>
+      <app-client-profile-calls [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-calls>
     }
   } @placeholder {
     @if (activeTab() === 'calls') {

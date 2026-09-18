@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { PermissionService } from '@core/auth/permission.service';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
@@ -75,7 +76,24 @@ export class ClientProfilePortalComponent implements OnChanges {
   // ---------- Acciones ----------
 
   invite(): void {
-    this.run(this.store.invite(), 'Portal invitation sent');
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    this.store.invite().subscribe({
+      next: outcome => {
+        this.busy.set(false);
+        if (outcome === 'already-has-access') {
+          this.toast.info('This client already has portal access.');
+        } else {
+          this.toast.success('Portal invitation sent');
+        }
+      },
+      error: err => {
+        this.busy.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
   }
 
   resend(): void {
@@ -129,7 +147,7 @@ export class ClientProfilePortalComponent implements OnChanges {
     }
   }
 
-  private run(action: ReturnType<ClientPortalStore['invite']>, successMessage: string): void {
+  private run(action: Observable<unknown>, successMessage: string): void {
     if (this.busy()) {
       return;
     }

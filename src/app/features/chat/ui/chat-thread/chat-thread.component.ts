@@ -20,6 +20,8 @@ import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player
 export interface ChatMessage {
   id: string;
   senderId: 'me' | 'them';
+  /** Evento del sistema (p.ej. "Missed call", "Call ended 2:34") — se pinta centrado, no como burbuja. */
+  isSystem?: boolean;
   text?: string;
   attachment?: { name: string; size: string; fileId: string };
   /** Nota de voz: player en vez de tarjeta de archivo. */

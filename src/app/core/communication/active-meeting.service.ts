@@ -25,25 +25,38 @@ export interface MeetingChatMessage {
   isMine: boolean;
 }
 
-/** Un peer remoto y su MediaStream (mesh). */
+/**
+ * Un peer remoto con DOS streams separados: cámara y pantalla. Un participante puede enviar ambos a la
+ * vez (Zoom-style), así que se mantienen aparte para pintar la cámara en su tile y la pantalla en el
+ * escenario. `screenStream` puede estar "vacío" (placeholder negro) mientras el peer no comparte; la UI
+ * lo muestra solo cuando su flag `screenSharing` está activo.
+ */
 export interface MeetingPeer {
   userId: string;
-  stream: MediaStream;
+  cameraStream: MediaStream;
+  screenStream: MediaStream;
 }
 
 /**
  * Estado de negociación por peer (perfect negotiation, patrón MDN). NO se bufferean candidatos a mano:
  * el `RTCPeerConnection` ya encola `addIceCandidate` detrás de `setRemoteDescription`; bufferear a mano
- * rompía el ICE con glare (`Unknown ufrag`). `videoSender` es un sender de video PERSISTENTE (transceiver
- * sendrecv) para prender/apagar/compartir vía `replaceTrack` sin renegociar (y apagar la cámara físicamente).
+ * rompía el ICE con glare (`Unknown ufrag`). `cameraSender`/`screenSender` son DOS senders de video
+ * PERSISTENTES (dos m-lines pre-creados) para prender/apagar cámara y compartir pantalla SIMULTÁNEAS vía
+ * `replaceTrack` sin renegociar (y apagar la cámara físicamente).
  */
 interface PeerConn {
   pc: RTCPeerConnection;
   isPolite: boolean;
+  /** joinOrder del participante con el que se armó este PC — para detectar un RE-JOIN (joinOrder nuevo)
+   * y recrear el PC stale en vez de reusarlo (idempotencia auto-sanadora en `connectToPeer`). */
+  joinOrder: number | undefined;
   makingOffer: boolean;
   ignoreOffer: boolean;
   isSettingRemoteAnswerPending: boolean;
-  videoSender: RTCRtpSender | null;
+  /** Sender de la CÁMARA (m-line de video pre-creado; replaceTrack para prender/apagar sin renegociar). */
+  cameraSender: RTCRtpSender | null;
+  /** Sender de la PANTALLA (2º m-line de video pre-creado; replaceTrack para compartir sin renegociar). */
+  screenSender: RTCRtpSender | null;
 }
 
 /**
@@ -80,6 +93,8 @@ export class ActiveMeetingService {
 
   // ---------- Media (mesh) ----------
   readonly localStream = signal<MediaStream | null>(null);
+  /** Mi pantalla mientras comparto (separada de la cámara), para el escenario local. */
+  readonly localScreenStream = signal<MediaStream | null>(null);
   readonly audioEnabled = signal(true);
   readonly videoEnabled = signal(true);
   readonly handRaised = signal(false);
@@ -120,9 +135,12 @@ export class ActiveMeetingService {
   /** Track de cámara (para restaurar tras compartir pantalla). */
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
-  /** Stream de una pista de video negra deshabilitada — mantiene vivo el m-line de video cuando no hay
+  /** Stream de una pista de video negra deshabilitada — mantiene vivo el m-line de CÁMARA cuando no hay
    * cámara, para que prender/compartir sea replaceTrack sin renegociar. Se crea una vez y se reusa. */
   private placeholderStream: MediaStream | null = null;
+  /** Igual que `placeholderStream` pero para el 2º m-line (PANTALLA): mantiene vivo el screenSender
+   * mientras NO comparto, para que empezar/parar share sea replaceTrack sin renegociar. */
+  private screenPlaceholderStream: MediaStream | null = null;
   private chatHistoryLoaded = false;
   private listenersBound = false;
 
@@ -154,7 +172,11 @@ export class ActiveMeetingService {
       if (p.status === 'Left' || p.status === 'Removed') {
         this.disconnectFromPeer(p.userId);
       } else if (p.status === 'Joined') {
-        this.connectToPeer(p.userId);
+        // `connectToPeer` es auto-sanador: si ya hay un PC vivo con el MISMO joinOrder no hace nada
+        // (un media_status trae el mismo joinOrder → no resetea el PC en cada toggle); si el PC está
+        // muerto o el joinOrder es NUEVO (re-join), lo descarta y rearma. Así el re-join reconecta aunque
+        // el otro lado conservara un PC stale (que no ofertaba → tile no se refrescaba, sin error visible).
+        this.connectToPeer(p.userId, p.joinOrder);
       }
     });
 
@@ -232,7 +254,7 @@ export class ActiveMeetingService {
       if (dto.state === 'Recording') {
         this.startRecordingTimer();
         if (this.isRecordingRequester()) {
-          const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.stream)];
+          const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.cameraStream)];
           this.recording.start(...streams);
         }
       } else {
@@ -447,61 +469,107 @@ export class ActiveMeetingService {
       return;
     }
     const myId = this.myUserId();
-    participants.filter(p => p.status === 'Joined' && p.userId !== myId).forEach(p => this.connectToPeer(p.userId));
+    participants.filter(p => p.status === 'Joined' && p.userId !== myId).forEach(p => this.connectToPeer(p.userId, p.joinOrder));
     const present = new Set(participants.map(p => p.userId));
     [...this.peerConns.keys()].filter(id => !present.has(id)).forEach(id => this.disconnectFromPeer(id));
   }
 
   // ---------- Mesh WebRTC (perfect negotiation por peer) ----------
 
-  private connectToPeer(peerUserId: string): void {
-    if (this.peerConns.has(peerUserId)) {
-      return; // idempotente
-    }
+  /**
+   * Idempotente y AUTO-SANADOR: si ya hay un PC vivo con el mismo joinOrder no hace nada; si el PC está
+   * muerto (failed/closed/disconnected) o el joinOrder es NUEVO (el peer RE-ENTRÓ con PeerConnections
+   * frescas), descarta el PC stale y rearma. Sin esto, el otro lado se quedaba con un PC viejo que ya no
+   * ofertaba → el re-join no reconectaba y NO salía ningún error (silencioso).
+   */
+  private connectToPeer(peerUserId: string, joinOrder?: number): void {
     const myId = this.myUserId();
     if (!myId || peerUserId === myId) {
       return;
     }
+    const existing = this.peerConns.get(peerUserId);
+    if (existing) {
+      // 'disconnected' puede recuperarse solo → NO se recrea por eso; el re-join se detecta por joinOrder.
+      const dead = existing.pc.connectionState === 'failed' || existing.pc.connectionState === 'closed';
+      // joinOrder nuevo = re-join. Si alguno es undefined (PC creado por una señal antes de conocerlo) no
+      // se fuerza el rearmado: solo se refina el dato. Solo un cambio ENTRE dos valores definidos rearma.
+      // Rearma SOLO si el joinOrder entrante es MAYOR (re-join real; joinOrder es monótono creciente). Antes
+      // cualquier diferencia rearmaba y la carrera leave+join entregaba eventos stale con joinOrder VIEJO
+      // intercalados con el nuevo → recreaba el PC en bucle (thrashing). Un joinOrder menor se ignora.
+      const rejoined = joinOrder !== undefined && existing.joinOrder !== undefined && joinOrder > existing.joinOrder;
+      if (!dead && !rejoined) {
+        if (existing.joinOrder === undefined && joinOrder !== undefined) {
+          existing.joinOrder = joinOrder;
+        }
+        return; // PC vivo y vigente → nada que hacer
+      }
+      this.disconnectFromPeer(peerUserId); // stale (muerto o re-join) → recrear limpio
+    }
     const pc = new RTCPeerConnection({ iceServers: this.iceServers as RTCIceServer[] });
-    // Polite/impolite DETERMINISTA por userId: ambos lados calculan la misma relación,
-    // así el glare (los dos ofertan al agregar tracks) se resuelve sin doble-oferta.
+    // Polite/impolite DETERMINISTA por userId: ambos lados calculan la misma relación, así el glare (los
+    // dos ofertan al agregar tracks) se resuelve por perfect-negotiation sin romper la negociación.
     const conn: PeerConn = {
       pc,
       isPolite: myId < peerUserId,
+      joinOrder,
       makingOffer: false,
       ignoreOffer: false,
       isSettingRemoteAnswerPending: false,
-      videoSender: null,
+      cameraSender: null,
+      screenSender: null,
     };
     this.peerConns.set(peerUserId, conn);
 
-    const remote = new MediaStream();
+    // Dos streams remotos por peer: cámara (con el audio) y pantalla. Se pintan en tiles distintos.
+    const cameraStream = new MediaStream();
+    const screenStream = new MediaStream();
     this.peers.update(map => {
       const next = new Map(map);
-      next.set(peerUserId, { userId: peerUserId, stream: remote });
+      next.set(peerUserId, { userId: peerUserId, cameraStream, screenStream });
       return next;
     });
 
-    // Se agregan las pistas con addTrack (NO addTransceiver: dispara un bug de Chromium reciente,
-    // "BUNDLE codec collision for header extension id"). Se guarda el sender de video para poder
-    // prender/apagar/compartir con replaceTrack sin renegociar. Apagar la cámara = replaceTrack(null) +
-    // detener la pista (LED off). Si me conecto con la cámara apagada no hay sender aún → applyVideoTrack
-    // hace addTrack la primera vez (renegociación limpia de un solo lado; con el patrón MDN el ICE va bien).
-    const stream = this.localStream();
-    stream?.getTracks().forEach(track => {
-      const sender = pc.addTrack(track, stream);
-      if (track.kind === 'video') {
-        conn.videoSender = sender;
-      }
-    });
+    // ORDEN DETERMINISTA de m-lines en AMBOS peers: audio, cámara, pantalla. Así los m-lines se aparean por
+    // índice y la pantalla del remoto SIEMPRE cae en el screenSender (no en la cámara). addTrack (NO
+    // addTransceiver: dispara el bug "BUNDLE codec collision" de Chromium). El sender de cámara se guarda
+    // para prender/apagar con replaceTrack sin renegociar (apagar = detener la pista → LED off + placeholder).
+    const local = this.localStream();
+    local?.getAudioTracks().forEach(track => pc.addTrack(track, local));
+    const cameraTrack = local?.getVideoTracks()[0];
+    if (cameraTrack && local) {
+      conn.cameraSender = pc.addTrack(cameraTrack, local);
+    }
 
-    pc.ontrack = event => remote.addTrack(event.track);
+    // 2º m-line de video dedicado a la PANTALLA, pre-creado con placeholder (o con mi pantalla actual si
+    // YA estoy compartiendo → un late-joiner la recibe de inmediato). Pre-crearlo desde la oferta inicial
+    // hace que empezar/parar el share sea replaceTrack puro, SIN renegociar. try/catch por jsdom (tests).
+    try {
+      const screenTrack = this.screenTrack ?? this.ensureScreenPlaceholderTrack();
+      const screenOut = this.localScreenStream() ?? new MediaStream([screenTrack]);
+      conn.screenSender = pc.addTrack(screenTrack, screenOut);
+    } catch {
+      /* sin soporte de media (tests): sin screenSender */
+    }
+
+    // Clasificación cámara vs pantalla en el receptor SIN señalización extra ni carreras: se compara el
+    // sender de MI transceiver (cameraSender/screenSender) contra el del track entrante. El de la pantalla
+    // va al screenStream; cámara y audio al cameraStream (así suena en el tile de la persona).
+    pc.ontrack = event => {
+      if (conn.screenSender && event.transceiver.sender === conn.screenSender) {
+        screenStream.addTrack(event.track);
+      } else {
+        cameraStream.addTrack(event.track);
+      }
+    };
     pc.onicecandidate = event => {
       if (event.candidate) {
         this.rtc.signal(this.meetingId()!, peerUserId, 'ice', event.candidate.toJSON() as unknown as Record<string, unknown>);
       }
     };
     pc.onnegotiationneeded = async () => {
+      // Perfect-negotiation: AMBOS pueden ofertar; la colisión (glare) se resuelve en handleSignal por
+      // polite/impolite. Que ambos oferten es resiliente a que a un lado se le pierda el disparo de
+      // conexión (el otro igual arranca la negociación) — clave para que el re-join reconecte siempre.
       try {
         conn.makingOffer = true;
         await pc.setLocalDescription();
@@ -586,7 +654,7 @@ export class ActiveMeetingService {
       return;
     }
     const ok = await this.sfu.join(meetingId, this.localStream(), {
-      onRemoteStream: (userId, stream) => this.setSfuPeer(userId, stream),
+      onRemoteStream: (userId, source, stream) => this.setSfuPeer(userId, source, stream),
       onRemovePeer: userId => this.disconnectFromPeer(userId),
     });
     if (!ok) {
@@ -595,10 +663,14 @@ export class ActiveMeetingService {
     }
   }
 
-  private setSfuPeer(userId: string, stream: MediaStream): void {
+  /** Upsert de un stream SFU en el peer, en el slot correcto (cámara o pantalla), preservando el otro. */
+  private setSfuPeer(userId: string, source: 'camera' | 'screen', stream: MediaStream): void {
     this.peers.update(map => {
       const next = new Map(map);
-      next.set(userId, { userId, stream });
+      const existing = next.get(userId);
+      const cameraStream = source === 'camera' ? stream : (existing?.cameraStream ?? new MediaStream());
+      const screenStream = source === 'screen' ? stream : (existing?.screenStream ?? new MediaStream());
+      next.set(userId, { userId, cameraStream, screenStream });
       return next;
     });
   }
@@ -628,6 +700,28 @@ export class ActiveMeetingService {
     return track;
   }
 
+  /**
+   * Placeholder negro deshabilitado para el 2º m-line (PANTALLA): mantiene vivo el `screenSender` mientras
+   * NO comparto, para que empezar/parar el share sea `replaceTrack` sin renegociar. Track propio (distinto
+   * al de la cámara: una misma pista no puede ir en dos senders del mismo PeerConnection). Se crea una vez.
+   */
+  private ensureScreenPlaceholderTrack(): MediaStreamTrack {
+    const existing = this.screenPlaceholderStream?.getVideoTracks()[0];
+    if (existing && existing.readyState === 'live') {
+      return existing;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
+    this.screenPlaceholderStream = (
+      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
+    ).captureStream(1);
+    const track = this.screenPlaceholderStream.getVideoTracks()[0];
+    track.enabled = false;
+    return track;
+  }
+
   toggleAudio(): void {
     const enabled = !this.audioEnabled();
     this.audioEnabled.set(enabled);
@@ -639,36 +733,30 @@ export class ActiveMeetingService {
 
   async toggleVideo(): Promise<void> {
     const enabling = !this.videoEnabled();
-
-    // Compartiendo pantalla: la pista de "video" es la pantalla, no la cámara — el toggle solo cambia
-    // el flag (no toca la cámara ni el sender).
-    if (this.screenSharing()) {
-      this.videoEnabled.set(enabling);
-      this.publishMediaStatus();
-      return;
-    }
+    // La cámara es INDEPENDIENTE del screen share (cada uno tiene su propio sender): se puede prender/apagar
+    // la cámara mientras comparto pantalla y viceversa. Sin early-return de screenshare (antes no dejaba).
 
     if (!enabling) {
-      // Apagar de VERDAD: DETENER la pista de cámara apaga el hardware/LED de la PC (no basta `enabled=false`,
-      // que la deja adquirida). Se pone el placeholder negro (deshabilitado, no transmite) en el stream y en
-      // los peers con replaceTrack — mantiene el m-line de video vivo, así que NO hay renegociación.
-      const placeholder = this.ensurePlaceholderVideoTrack();
-      this.localStream()
-        ?.getVideoTracks()
-        .forEach(t => {
-          if (t !== placeholder) {
-            t.stop();
-          }
-        });
-      this.swapLocalVideoTrack(placeholder);
-      await this.applyVideoTrack(placeholder);
-      this.cameraTrack = null;
+      // Ocultar el video PRIMERO (muestra el avatar) para que no se vea el último frame CONGELADO de la
+      // pista al detenerla. Luego apagar de VERDAD: DETENER la pista de cámara apaga el hardware/LED (no
+      // basta `enabled=false`, que la deja adquirida). Placeholder negro (deshabilitado) en el stream local
+      // y en el cameraSender de cada peer con replaceTrack — mantiene el m-line vivo → SIN renegociación.
       this.videoEnabled.set(false);
       this.publishMediaStatus();
+      let placeholder: MediaStreamTrack | null = null;
+      try {
+        placeholder = this.ensurePlaceholderVideoTrack();
+      } catch {
+        /* jsdom (tests): sin placeholder */
+      }
+      this.cameraTrack?.stop();
+      this.cameraTrack = null;
+      this.swapLocalVideoTrack(placeholder);
+      await this.applyCameraTrack(placeholder);
       return;
     }
 
-    // Encender: adquirir la cámara y publicarla con replaceTrack sobre el sender persistente (sin renegociar).
+    // Encender: adquirir la cámara y publicarla con replaceTrack sobre el cameraSender persistente (sin renegociar).
     let cam: MediaStream;
     try {
       cam = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -679,7 +767,7 @@ export class ActiveMeetingService {
     const track = cam.getVideoTracks()[0] ?? null;
     if (track) {
       this.cameraTrack = track;
-      await this.applyVideoTrack(track);
+      await this.applyCameraTrack(track);
       this.swapLocalVideoTrack(track);
     }
     this.videoEnabled.set(true);
@@ -732,10 +820,9 @@ export class ActiveMeetingService {
       return;
     }
     this.screenTrack = track;
-    await this.applyVideoTrack(track); // a cada peer (mesh) o al producer (SFU), sin renegociar
-    // Y en el localStream: así el PiP local muestra la pantalla y los peers NUEVOS también la reciben.
-    this.swapLocalVideoTrack(track);
-    track.onended = () => void this.stopScreenShare();
+    this.localScreenStream.set(display); // escenario local (separado de la cámara)
+    await this.applyScreenTrack(track); // al screenSender de cada peer (o producer 'screen' en SFU), sin renegociar
+    track.onended = () => void this.stopScreenShare(); // botón nativo "Dejar de compartir"
     this.screenSharing.set(true);
     this.publishMediaStatus();
   }
@@ -746,29 +833,47 @@ export class ActiveMeetingService {
     }
     this.screenTrack?.stop();
     this.screenTrack = null;
-    // Restaurar la cámara si estaba encendida; si no, el placeholder (mantiene el m-line vivo).
-    const restore = this.cameraTrack ?? this.ensurePlaceholderVideoTrack();
-    await this.applyVideoTrack(restore);
-    this.swapLocalVideoTrack(restore);
+    this.localScreenStream.set(null);
+    // Volver el screenSender al placeholder (conserva el m-line, sin renegociar). NO toca la cámara.
+    let placeholder: MediaStreamTrack | null = null;
+    try {
+      placeholder = this.ensureScreenPlaceholderTrack();
+    } catch {
+      /* jsdom (tests): sin placeholder */
+    }
+    await this.applyScreenTrack(placeholder);
     this.screenSharing.set(false);
     this.publishMediaStatus();
   }
 
-  /** Aplica el track de video actual (cámara/pantalla) a los peers: mesh = replaceTrack por peer; SFU = producer. */
-  private async applyVideoTrack(track: MediaStreamTrack | null): Promise<void> {
+  /** Aplica el track de CÁMARA a los peers: mesh = replaceTrack en cameraSender; SFU = producer 'camera'. */
+  private async applyCameraTrack(track: MediaStreamTrack | null): Promise<void> {
     if (this.strategy() === 'Sfu') {
-      await this.sfu.replaceVideoTrack(track);
+      await this.sfu.replaceVideoTrack('camera', track);
       return;
     }
-    // Con sender de video ya creado: replaceTrack (prender/apagar/compartir SIN renegociar). `track=null`
-    // corta la cámara; un track nuevo prende o comparte pantalla. Si aún no hay sender (me conecté con la
-    // cámara apagada), addTrack la primera vez — renegociación limpia de un solo lado.
     const stream = this.localStream();
     for (const conn of this.peerConns.values()) {
-      if (conn.videoSender) {
-        await conn.videoSender.replaceTrack(track);
+      if (conn.cameraSender) {
+        await conn.cameraSender.replaceTrack(track);
       } else if (track && stream) {
-        conn.videoSender = conn.pc.addTrack(track, stream);
+        conn.cameraSender = conn.pc.addTrack(track, stream);
+      }
+    }
+  }
+
+  /** Aplica el track de PANTALLA a los peers: mesh = replaceTrack en screenSender; SFU = producer 'screen'. */
+  private async applyScreenTrack(track: MediaStreamTrack | null): Promise<void> {
+    if (this.strategy() === 'Sfu') {
+      await this.sfu.replaceVideoTrack('screen', track);
+      return;
+    }
+    for (const conn of this.peerConns.values()) {
+      if (conn.screenSender) {
+        await conn.screenSender.replaceTrack(track); // real al compartir, placeholder al parar (sin renegociar)
+      } else if (track) {
+        const out = this.localScreenStream() ?? new MediaStream([track]);
+        conn.screenSender = conn.pc.addTrack(track, out);
       }
     }
   }
@@ -974,17 +1079,18 @@ export class ActiveMeetingService {
       }
       pendingBlob = await this.recording.stop();
     }
+    // Reset LOCAL SINCRÓNICO (phase→'idle' YA). Antes se hacía `await rtc.leave()` y LUEGO reset(), así
+    // que phase quedaba en 'joined' unos ms; si el usuario le daba a Join enseguida, el guard de join()
+    // (`if phase !== 'idle' return`) descartaba ese Join en silencio y el reset() tardío lo sacaba ("la
+    // primera me saca; a la segunda sí"). Reseteando sync, al re-entrar phase ya es 'idle' → entra a la
+    // primera y no queda ningún reset en vuelo que lo eche. El aviso de leave al backend va en background.
+    this.reset();
     if (meetingId) {
-      try {
-        await this.rtc.leave(meetingId);
-      } catch {
-        /* noop */
+      void this.rtc.leave(meetingId).catch(() => undefined);
+      if (pendingBlob) {
+        void this.uploadAndAttach(meetingId, pendingBlob);
       }
     }
-    if (pendingBlob && meetingId) {
-      void this.uploadAndAttach(meetingId, pendingBlob);
-    }
-    this.reset();
   }
 
   /**
@@ -1000,8 +1106,9 @@ export class ActiveMeetingService {
     this.peers.set(new Map());
     this.screenTrack?.stop();
     this.screenTrack = null;
-    // cameraTrack puede estar FUERA del localStream (durante screenshare se guarda aparte para
-    // restaurar) — detenerla explícitamente, no solo nulificarla, o la cámara queda encendida.
+    this.localScreenStream()?.getTracks().forEach(t => t.stop());
+    this.localScreenStream.set(null);
+    // cameraTrack puede estar FUERA del localStream — detenerla explícitamente o la cámara queda encendida.
     this.cameraTrack?.stop();
     this.cameraTrack = null;
     this.localStream()
@@ -1010,6 +1117,8 @@ export class ActiveMeetingService {
     this.localStream.set(null);
     this.placeholderStream?.getTracks().forEach(t => t.stop());
     this.placeholderStream = null;
+    this.screenPlaceholderStream?.getTracks().forEach(t => t.stop());
+    this.screenPlaceholderStream = null;
     this.screenSharing.set(false);
   }
 

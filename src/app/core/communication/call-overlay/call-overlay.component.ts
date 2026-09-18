@@ -27,9 +27,14 @@ export class CallOverlayComponent implements OnDestroy {
   readonly audioEnabled = this.call.audioEnabled;
   readonly videoEnabled = this.call.videoEnabled;
   readonly screenSharing = this.call.screenSharing;
-  readonly peerVideoActive = this.call.peerVideoActive;
+  readonly peerCameraOn = this.call.peerCameraOn;
+  readonly peerScreenSharing = this.call.peerScreenSharing;
   readonly localStream = this.call.localStream;
-  readonly remoteStream = this.call.remoteStream;
+  readonly localScreenStream = this.call.localScreenStream;
+  readonly remoteCameraStream = this.call.remoteCameraStream;
+  readonly remoteScreenStream = this.call.remoteScreenStream;
+  /** El par envía ALGÚN video (cámara o pantalla). */
+  readonly peerVideoActive = computed(() => this.peerCameraOn() || this.peerScreenSharing());
   readonly recordingState = this.call.recordingState;
   readonly recordingElapsedLabel = this.call.recordingElapsedLabel;
   readonly recordingConsentFrom = this.call.recordingConsentFrom;
@@ -89,8 +94,19 @@ export class CallOverlayComponent implements OnDestroy {
       (this.isVideo() || this.screenSharing() || this.peerVideoActive()) &&
       (this.isConnecting() || this.isActive()),
   );
-  /** Placeholder (avatar) en el stage remoto cuando el par NO envía video. */
-  readonly showRemotePlaceholder = computed(() => this.isConnecting() || (this.isActive() && !this.peerVideoActive()));
+  /** Pantalla activa en el escenario: la del par tiene prioridad; si no, la mía si comparto. null = nadie. */
+  readonly activeScreenStream = computed(() =>
+    this.peerScreenSharing() ? this.remoteScreenStream() : this.screenSharing() ? this.localScreenStream() : null,
+  );
+  readonly isScreenStage = computed(() => !!this.activeScreenStream());
+  /** Stream del escenario principal: la PANTALLA si alguien comparte, si no la CÁMARA del par. */
+  readonly stageStream = computed(() => (this.isScreenStage() ? this.activeScreenStream() : this.remoteCameraStream()));
+  /** Mostrar la cámara del par como PiP secundario cuando en el escenario hay una pantalla. */
+  readonly showPeerCameraPip = computed(() => this.isScreenStage() && this.peerCameraOn());
+  /** Placeholder (avatar) en el stage cuando el par NO envía cámara NI pantalla. */
+  readonly showRemotePlaceholder = computed(
+    () => this.isConnecting() || (this.isActive() && !this.peerCameraOn() && !this.peerScreenSharing()),
+  );
   /** "Turn on video" en una llamada de audio activa (upgrade), solo con permiso de videollamada. */
   readonly canUpgradeToVideo = computed(
     () =>
@@ -160,7 +176,7 @@ export class CallOverlayComponent implements OnDestroy {
   }
 
   toggleVideo(): void {
-    this.call.toggleVideo();
+    void this.call.toggleVideo();
   }
 
   upgrade(): void {

@@ -46,6 +46,14 @@ export class MeetingsPageComponent implements OnInit {
   readonly activeRoomMeeting = signal<MeetingItem | null>(null);
   readonly toastMessage = signal<string | null>(null);
 
+  /**
+   * La sala se muestra solo mientras hay un meeting ACTIVO. Cuando la fase vuelve a 'idle' (salí, me
+   * sacaron o el join falló) se oculta y volvemos a la lista. Sin esto el `<app-meeting-room>` quedaba
+   * montado con phase='idle' y el template no tiene rama para 'idle' → tarjeta en BLANCO que obligaba a
+   * refrescar (pasaba tras salir, porque `reset()` pone 'idle' por caminos que no limpian activeRoomMeeting).
+   */
+  readonly showRoom = computed(() => !!this.activeRoomMeeting() && this.activeMeeting.phase() !== 'idle');
+
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
