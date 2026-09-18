@@ -12,9 +12,9 @@ import { MeetingSfuService } from './meeting-sfu.service';
 import { CallsService } from './calls.service';
 import { CallRecordingService } from './call-recording.service';
 import { IceServer } from './call.model';
-import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingStrategy } from './meeting.model';
+import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
 
-export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'joined' | 'unsupported' | 'ended';
+export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | 'joined' | 'unsupported' | 'ended';
 
 /** Mensaje del chat del meeting, ya en shape de vista. */
 export interface MeetingChatMessage {
@@ -31,13 +31,19 @@ export interface MeetingPeer {
   stream: MediaStream;
 }
 
-/** Estado de negociación por peer (perfect negotiation + buffer de ICE). */
+/**
+ * Estado de negociación por peer (perfect negotiation, patrón MDN). NO se bufferean candidatos a mano:
+ * el `RTCPeerConnection` ya encola `addIceCandidate` detrás de `setRemoteDescription`; bufferear a mano
+ * rompía el ICE con glare (`Unknown ufrag`). `videoSender` es un sender de video PERSISTENTE (transceiver
+ * sendrecv) para prender/apagar/compartir vía `replaceTrack` sin renegociar (y apagar la cámara físicamente).
+ */
 interface PeerConn {
   pc: RTCPeerConnection;
   isPolite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
-  pendingCandidates: RTCIceCandidateInit[];
+  isSettingRemoteAnswerPending: boolean;
+  videoSender: RTCRtpSender | null;
 }
 
 /**
@@ -114,6 +120,9 @@ export class ActiveMeetingService {
   /** Track de cámara (para restaurar tras compartir pantalla). */
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
+  /** Stream de una pista de video negra deshabilitada — mantiene vivo el m-line de video cuando no hay
+   * cámara, para que prender/compartir sea replaceTrack sin renegociar. Se crea una vez y se reusa. */
+  private placeholderStream: MediaStream | null = null;
   private chatHistoryLoaded = false;
   private listenersBound = false;
 
@@ -123,30 +132,10 @@ export class ActiveMeetingService {
     }
     this.listenersBound = true;
 
-    // El snapshot es la señal autoritativa de "ya estás dentro": trae strategy, participantes,
-    // tu rol y el conversationId. Acá se decide Mesh (soportado) vs SFU (no soportado aún).
-    this.rtc.onSnapshot().subscribe(snap => {
-      if (snap.meetingId !== this.meetingId()) {
-        return;
-      }
-      this.strategy.set(snap.strategy);
-      this.conversationId.set(snap.conversationId);
-      if (snap.conversationId && !this.chatHistoryLoaded) {
-        this.chatHistoryLoaded = true;
-        this.loadChatHistory(snap.conversationId);
-      }
-      this.yourRole.set(snap.yourRole);
-      this.isLocked.set(snap.isLocked);
-      this.participants.set(snap.participants);
-      this.phase.set('joined');
-
-      if (snap.strategy === 'Sfu') {
-        void this.startSfu(); // >4: media por mediasoup (no mesh)
-        return;
-      }
-      // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
-      this.reconcileMeshPeers(snap.participants);
-    });
+    // El backend NO emite `meeting.snapshot` para el join directo (el snapshot llega inline en el
+    // ack del join → lo aplica `join()`); este evento solo se emite al ADMITIR desde la sala de
+    // espera. Se deja suscrito para esa transición waiting→joined y como fallback idempotente.
+    this.rtc.onSnapshot().subscribe(snap => this.applySnapshot(snap));
 
     // Reconnect transparente del socket (churn del tunnel): si seguimos dentro de un meeting, re-unir
     // la room `m:` para no perder participantes/controles/señalización. La media mesh sigue viva; solo
@@ -208,6 +197,7 @@ export class ActiveMeetingService {
       this.isLocked.set(dto.isLocked);
       if (dto.status === 'Ended' || dto.status === 'Cancelled') {
         this.phase.set('ended');
+        this.stopLocalMedia(); // apagar cámara/mic al terminar el meeting (no se llega por leave())
       }
     });
 
@@ -269,6 +259,7 @@ export class ActiveMeetingService {
       }
       this.errorMessage.set('The host declined your request to join.');
       this.phase.set('ended');
+      this.stopLocalMedia();
     });
 
     this.rtc.onCancelled().subscribe(dto => {
@@ -277,7 +268,36 @@ export class ActiveMeetingService {
       }
       this.errorMessage.set('This meeting was cancelled.');
       this.phase.set('ended');
+      this.stopLocalMedia();
     });
+  }
+
+  /**
+   * Aplica el snapshot autoritativo de "ya estás dentro" (strategy, participantes, rol, conversationId):
+   * llega inline en el ack del join directo, o por el evento `meeting.snapshot` al ser admitido desde la
+   * sala de espera. Idempotente (el snapshot del admit re-concilia la lista). Decide Mesh vs SFU (no soportado).
+   */
+  private applySnapshot(snap: MeetingSnapshotDto): void {
+    if (snap.meetingId !== this.meetingId()) {
+      return;
+    }
+    this.strategy.set(snap.strategy);
+    this.conversationId.set(snap.conversationId);
+    if (snap.conversationId && !this.chatHistoryLoaded) {
+      this.chatHistoryLoaded = true;
+      this.loadChatHistory(snap.conversationId);
+    }
+    this.yourRole.set(snap.yourRole);
+    this.isLocked.set(snap.isLocked);
+    this.participants.set(snap.participants);
+    this.phase.set('joined');
+
+    if (snap.strategy === 'Sfu') {
+      void this.startSfu(); // >4: media por mediasoup (no mesh)
+      return;
+    }
+    // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
+    this.reconcileMeshPeers(snap.participants);
   }
 
   /** Upsert/baja de un participante según el contrato real (`status`). */
@@ -314,28 +334,86 @@ export class ActiveMeetingService {
       this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     }
 
-    // A diferencia de una llamada 1:1, si falla getUserMedia igual entrás al meeting
-    // (podés ver/oír a los demás); tu tile muestra el avatar.
+    // Media: cámara+mic; si la cámara está ocupada (típico en pruebas locales con 2 pestañas) se cae a
+    // solo-audio; y SIEMPRE se asegura una pista de video (placeholder negro deshabilitado) para que el
+    // m-line de video exista desde el join, creado UNA sola vez. Así prender cámara / compartir pantalla
+    // es un replaceTrack SIN renegociar — evita el bug de Chromium "BUNDLE codec collision for header
+    // extension id" y el screen-share remoto que no llegaba (porque creaba el m-line de video tarde).
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      this.localStream.set(stream);
-      this.cameraTrack = stream.getVideoTracks()[0] ?? null;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     } catch {
-      this.errorMessage.set('Could not access your camera/microphone.');
-      this.videoEnabled.set(false);
-      this.audioEnabled.set(false);
-    }
-
-    try {
-      const ack = await this.rtc.join(meetingId);
-      if (ack.requiresAdmission) {
-        this.phase.set('waiting');
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.videoEnabled.set(false);
+      } catch {
+        this.videoEnabled.set(false);
+        this.audioEnabled.set(false);
+        this.errorMessage.set('Could not access your camera/microphone.');
       }
-      // Si no requiere admisión, el `meeting.snapshot` (que llega enseguida) pone 'joined'/'unsupported'.
-    } catch {
+    }
+    this.cameraTrack = stream?.getVideoTracks()[0] ?? null;
+    if (!this.cameraTrack) {
+      // Placeholder negro para tener el m-line de video aunque no haya cámara (creado una vez). En un
+      // entorno sin soporte de media (jsdom en tests) canvas.captureStream/MediaStream no existen → se
+      // ignora y se sigue sin video, igual que antes.
+      try {
+        const placeholder = this.ensurePlaceholderVideoTrack();
+        if (stream) {
+          stream.addTrack(placeholder);
+        } else {
+          stream = new MediaStream([placeholder]);
+        }
+      } catch {
+        /* sin soporte de media (tests): sin placeholder */
+      }
+      this.videoEnabled.set(false);
+    }
+    this.localStream.set(stream);
+
+    await this.attemptJoin();
+  }
+
+  /**
+   * Un intento de `meeting.join` (con o sin passcode). Si el meeting exige passcode y no se dio / es
+   * incorrecto, el backend responde `Meeting.InvalidPasscode`: en vez de tirar un error genérico, se
+   * pasa a la fase `passcode` para que el room muestre el prompt y el usuario reintente con el código.
+   */
+  private async attemptJoin(passcode?: string): Promise<void> {
+    const meetingId = this.meetingId();
+    if (!meetingId) {
+      return;
+    }
+    this.phase.set('joining');
+    try {
+      const ack = await this.rtc.join(meetingId, passcode ? { passcode } : undefined);
+      this.errorMessage.set(null);
+      if (ack.requiresAdmission) {
+        // Al admitirnos, el backend emite `meeting.snapshot` → applySnapshot pone 'joined'/'unsupported'.
+        this.phase.set('waiting');
+      } else {
+        // Join directo: el snapshot NO llega por evento, viene inline en el ack. Sin esto el CRM
+        // quedaba colgado en 'joining' esperando un `meeting.snapshot` que nunca se emitía.
+        this.applySnapshot(ack.snapshot);
+      }
+    } catch (err) {
+      if ((err as { code?: string }).code === 'Meeting.InvalidPasscode') {
+        this.errorMessage.set(passcode ? 'Wrong passcode. Please try again.' : null);
+        this.phase.set('passcode');
+        return;
+      }
       this.errorMessage.set('Could not join the meeting.');
       this.reset();
     }
+  }
+
+  /** El usuario ingresó el passcode en el prompt: reintentar el join con él. */
+  async submitPasscode(passcode: string): Promise<void> {
+    const code = passcode.trim();
+    if (!code || this.phase() !== 'passcode') {
+      return;
+    }
+    await this.attemptJoin(code);
   }
 
   /**
@@ -387,7 +465,14 @@ export class ActiveMeetingService {
     const pc = new RTCPeerConnection({ iceServers: this.iceServers as RTCIceServer[] });
     // Polite/impolite DETERMINISTA por userId: ambos lados calculan la misma relación,
     // así el glare (los dos ofertan al agregar tracks) se resuelve sin doble-oferta.
-    const conn: PeerConn = { pc, isPolite: myId < peerUserId, makingOffer: false, ignoreOffer: false, pendingCandidates: [] };
+    const conn: PeerConn = {
+      pc,
+      isPolite: myId < peerUserId,
+      makingOffer: false,
+      ignoreOffer: false,
+      isSettingRemoteAnswerPending: false,
+      videoSender: null,
+    };
     this.peerConns.set(peerUserId, conn);
 
     const remote = new MediaStream();
@@ -397,9 +482,18 @@ export class ActiveMeetingService {
       return next;
     });
 
-    this.localStream()
-      ?.getTracks()
-      .forEach(track => pc.addTrack(track, this.localStream()!));
+    // Se agregan las pistas con addTrack (NO addTransceiver: dispara un bug de Chromium reciente,
+    // "BUNDLE codec collision for header extension id"). Se guarda el sender de video para poder
+    // prender/apagar/compartir con replaceTrack sin renegociar. Apagar la cámara = replaceTrack(null) +
+    // detener la pista (LED off). Si me conecto con la cámara apagada no hay sender aún → applyVideoTrack
+    // hace addTrack la primera vez (renegociación limpia de un solo lado; con el patrón MDN el ICE va bien).
+    const stream = this.localStream();
+    stream?.getTracks().forEach(track => {
+      const sender = pc.addTrack(track, stream);
+      if (track.kind === 'video') {
+        conn.videoSender = sender;
+      }
+    });
 
     pc.ontrack = event => remote.addTrack(event.track);
     pc.onicecandidate = event => {
@@ -435,43 +529,39 @@ export class ActiveMeetingService {
     }
     const pc = conn.pc;
     try {
-      if (kind === 'offer') {
-        const offerCollision = conn.makingOffer || pc.signalingState !== 'stable';
+      if (kind === 'offer' || kind === 'answer') {
+        const description = data as RTCSessionDescriptionInit;
+        // Colisión de ofertas (glare), patrón MDN: el impolite ignora el offer entrante; el polite lo
+        // acepta (rollback implícito). `isSettingRemoteAnswerPending` cubre la ventana async entre
+        // aceptar un answer y que quede aplicado, para no marcar colisión de más.
+        const readyForOffer =
+          !conn.makingOffer && (pc.signalingState === 'stable' || conn.isSettingRemoteAnswerPending);
+        const offerCollision = kind === 'offer' && !readyForOffer;
         conn.ignoreOffer = !conn.isPolite && offerCollision;
         if (conn.ignoreOffer) {
           return;
         }
-        await pc.setRemoteDescription(data as RTCSessionDescriptionInit);
-        await this.flushPendingCandidates(conn);
-        await pc.setLocalDescription();
-        this.rtc.signal(this.meetingId()!, fromPeerUserId, 'answer', pc.localDescription as unknown as Record<string, unknown>);
-      } else if (kind === 'answer') {
-        await pc.setRemoteDescription(data as RTCSessionDescriptionInit);
-        await this.flushPendingCandidates(conn);
+        conn.isSettingRemoteAnswerPending = kind === 'answer';
+        await pc.setRemoteDescription(description);
+        conn.isSettingRemoteAnswerPending = false;
+        if (kind === 'offer') {
+          await pc.setLocalDescription();
+          this.rtc.signal(this.meetingId()!, fromPeerUserId, 'answer', pc.localDescription as unknown as Record<string, unknown>);
+        }
       } else if (kind === 'ice') {
-        const candidate = data as RTCIceCandidateInit;
-        if (pc.remoteDescription) {
-          await pc.addIceCandidate(candidate);
-        } else {
-          conn.pendingCandidates.push(candidate); // llegó antes del remote description
+        // SIN buffer manual: el RTCPeerConnection encola addIceCandidate detrás de setRemoteDescription.
+        // Los errores acá son INOFENSIVOS y esperados con glare: candidatos de una generación de oferta
+        // vieja/ignorada ("Unknown ufrag") o que llegan antes de que ese lado tenga remoteDescription
+        // (offer ignorado → "remote description was null"). Los candidatos de la generación buena SÍ se
+        // aplican y el ICE completa — se ignoran en silencio para no ensuciar la consola ni alarmar.
+        try {
+          await pc.addIceCandidate(data as RTCIceCandidateInit);
+        } catch {
+          /* candidato obsoleto por glare — inofensivo */
         }
       }
     } catch (err) {
-      if (!conn.ignoreOffer) {
-        console.error('[ActiveMeeting] signal handling error:', err);
-      }
-    }
-  }
-
-  private async flushPendingCandidates(conn: PeerConn): Promise<void> {
-    const pending = conn.pendingCandidates;
-    conn.pendingCandidates = [];
-    for (const candidate of pending) {
-      try {
-        await conn.pc.addIceCandidate(candidate);
-      } catch (err) {
-        console.error('[ActiveMeeting] buffered ICE candidate error:', err);
-      }
+      console.error('[ActiveMeeting] signal handling error:', err);
     }
   }
 
@@ -515,6 +605,29 @@ export class ActiveMeetingService {
 
   // ---------- Controles de media ----------
 
+  /**
+   * Pista de video "vacía": un canvas 2×2 negro capturado a 1 fps y DESHABILITADO (no transmite). Sirve
+   * para que el m-line/sender de video exista aunque no haya cámara, y así prender la cámara o compartir
+   * pantalla sea un `replaceTrack` (sin crear el m-line tarde, que disparaba el bug de Chromium y dejaba
+   * el screen share sin llegar al remoto). Se crea una vez y se reusa.
+   */
+  private ensurePlaceholderVideoTrack(): MediaStreamTrack {
+    const existing = this.placeholderStream?.getVideoTracks()[0];
+    if (existing && existing.readyState === 'live') {
+      return existing;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
+    this.placeholderStream = (
+      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
+    ).captureStream(1);
+    const track = this.placeholderStream.getVideoTracks()[0];
+    track.enabled = false;
+    return track;
+  }
+
   toggleAudio(): void {
     const enabled = !this.audioEnabled();
     this.audioEnabled.set(enabled);
@@ -526,28 +639,50 @@ export class ActiveMeetingService {
 
   async toggleVideo(): Promise<void> {
     const enabling = !this.videoEnabled();
-    // Encender cuando NO hay pista de video (entré con la cámara apagada / denegada, o nunca la publiqué):
-    // adquirir la cámara y publicarla ahora — sin esto, `enabled=true` no llegaba a los remotos.
-    const hasVideoTrack = (this.localStream()?.getVideoTracks().length ?? 0) > 0;
-    if (enabling && !hasVideoTrack && !this.screenSharing()) {
-      let cam: MediaStream;
-      try {
-        cam = await navigator.mediaDevices.getUserMedia({ video: true });
-      } catch {
-        this.videoEnabled.set(false); // sin permiso: no marcar como encendida
-        return;
-      }
-      const track = cam.getVideoTracks()[0] ?? null;
-      if (track) {
-        this.cameraTrack = track;
-        await this.applyVideoTrack(track); // SFU: crea/replace producer; mesh: addTrack+renegocia
-        this.swapLocalVideoTrack(track);
-      }
+
+    // Compartiendo pantalla: la pista de "video" es la pantalla, no la cámara — el toggle solo cambia
+    // el flag (no toca la cámara ni el sender).
+    if (this.screenSharing()) {
+      this.videoEnabled.set(enabling);
+      this.publishMediaStatus();
+      return;
     }
-    this.videoEnabled.set(enabling);
-    this.localStream()
-      ?.getVideoTracks()
-      .forEach(t => (t.enabled = enabling));
+
+    if (!enabling) {
+      // Apagar de VERDAD: DETENER la pista de cámara apaga el hardware/LED de la PC (no basta `enabled=false`,
+      // que la deja adquirida). Se pone el placeholder negro (deshabilitado, no transmite) en el stream y en
+      // los peers con replaceTrack — mantiene el m-line de video vivo, así que NO hay renegociación.
+      const placeholder = this.ensurePlaceholderVideoTrack();
+      this.localStream()
+        ?.getVideoTracks()
+        .forEach(t => {
+          if (t !== placeholder) {
+            t.stop();
+          }
+        });
+      this.swapLocalVideoTrack(placeholder);
+      await this.applyVideoTrack(placeholder);
+      this.cameraTrack = null;
+      this.videoEnabled.set(false);
+      this.publishMediaStatus();
+      return;
+    }
+
+    // Encender: adquirir la cámara y publicarla con replaceTrack sobre el sender persistente (sin renegociar).
+    let cam: MediaStream;
+    try {
+      cam = await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch {
+      this.videoEnabled.set(false); // sin permiso: no marcar como encendida
+      return;
+    }
+    const track = cam.getVideoTracks()[0] ?? null;
+    if (track) {
+      this.cameraTrack = track;
+      await this.applyVideoTrack(track);
+      this.swapLocalVideoTrack(track);
+    }
+    this.videoEnabled.set(true);
     this.publishMediaStatus();
   }
 
@@ -611,8 +746,10 @@ export class ActiveMeetingService {
     }
     this.screenTrack?.stop();
     this.screenTrack = null;
-    await this.applyVideoTrack(this.cameraTrack ?? null); // restaurar cámara (o cortar) en mesh/SFU
-    this.swapLocalVideoTrack(this.cameraTrack ?? null);
+    // Restaurar la cámara si estaba encendida; si no, el placeholder (mantiene el m-line vivo).
+    const restore = this.cameraTrack ?? this.ensurePlaceholderVideoTrack();
+    await this.applyVideoTrack(restore);
+    this.swapLocalVideoTrack(restore);
     this.screenSharing.set(false);
     this.publishMediaStatus();
   }
@@ -623,14 +760,15 @@ export class ActiveMeetingService {
       await this.sfu.replaceVideoTrack(track);
       return;
     }
+    // Con sender de video ya creado: replaceTrack (prender/apagar/compartir SIN renegociar). `track=null`
+    // corta la cámara; un track nuevo prende o comparte pantalla. Si aún no hay sender (me conecté con la
+    // cámara apagada), addTrack la primera vez — renegociación limpia de un solo lado.
+    const stream = this.localStream();
     for (const conn of this.peerConns.values()) {
-      const sender = conn.pc.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) {
-        await sender.replaceTrack(track);
-      } else if (track) {
-        // No había m-line de video con este peer (me uní sin cámara): agregar la pista dispara
-        // onnegotiationneeded → renegocia por perfect-negotiation, así el remoto la recibe.
-        conn.pc.addTrack(track);
+      if (conn.videoSender) {
+        await conn.videoSender.replaceTrack(track);
+      } else if (track && stream) {
+        conn.videoSender = conn.pc.addTrack(track, stream);
       }
     }
   }
@@ -849,24 +987,39 @@ export class ActiveMeetingService {
     this.reset();
   }
 
-  private reset(): void {
-    // Fin abrupto (meeting terminó, me sacaron) mientras grababa: rescatar lo grabado.
-    this.finalizeRecordingBackground();
+  /**
+   * Apaga la cámara/micrófono (libera el hardware) + cierra los peer connections/SFU, SIN tocar el
+   * resto del estado ni la fase. Se llama cuando el meeting termina por EVENTO (Ended/Cancelled/Denied)
+   * para que la cámara no quede encendida mientras se muestra la pantalla de "terminado" — antes el CRM
+   * solo ponía phase='ended' y la cámara seguía prendida. `reset()` lo repite al cerrar del todo (idempotente).
+   */
+  private stopLocalMedia(): void {
     this.sfu.leave();
     this.peerConns.forEach(conn => conn.pc.close());
     this.peerConns.clear();
     this.peers.set(new Map());
-    this.chatMessages.set([]);
-    this.chatHistoryLoaded = false;
     this.screenTrack?.stop();
     this.screenTrack = null;
+    // cameraTrack puede estar FUERA del localStream (durante screenshare se guarda aparte para
+    // restaurar) — detenerla explícitamente, no solo nulificarla, o la cámara queda encendida.
+    this.cameraTrack?.stop();
     this.cameraTrack = null;
     this.localStream()
       ?.getTracks()
       .forEach(t => t.stop());
     this.localStream.set(null);
-    this.iceServers = [];
+    this.placeholderStream?.getTracks().forEach(t => t.stop());
+    this.placeholderStream = null;
     this.screenSharing.set(false);
+  }
+
+  private reset(): void {
+    // Fin abrupto (meeting terminó, me sacaron) mientras grababa: rescatar lo grabado.
+    this.finalizeRecordingBackground();
+    this.stopLocalMedia();
+    this.chatMessages.set([]);
+    this.chatHistoryLoaded = false;
+    this.iceServers = [];
     this.phase.set('idle');
     this.meetingId.set(null);
     this.meetingTitle.set('');

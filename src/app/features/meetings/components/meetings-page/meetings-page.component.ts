@@ -47,39 +47,20 @@ export class MeetingsPageComponent implements OnInit {
   readonly toastMessage = signal<string | null>(null);
 
   ngOnInit(): void {
+    this.store.bindRealtime();
     this.store.loadScope('upcoming');
+    this.store.loadStats();
   }
 
   // ---------- Stats (sobre lo cargado del scope actual) ----------
 
-  readonly todayCount = computed(() => {
-    const now = new Date();
-    return this.store
-      .upcoming()
-      .filter(meeting => meeting.status === 'upcoming' || meeting.status === 'live')
-      .filter(meeting => {
-        if (meeting.status === 'live') {
-          return true;
-        }
-        return !!meeting.scheduledAt && new Date(meeting.scheduledAt).toDateString() === now.toDateString();
-      }).length;
-  });
-
-  readonly thisWeekCount = computed(() => {
-    const weekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
-    return this.store
-      .upcoming()
-      .filter(
-        meeting =>
-          meeting.status === 'live' ||
-          (!!meeting.scheduledAt && new Date(meeting.scheduledAt).getTime() <= weekFromNow),
-      ).length;
-  });
-
-  readonly liveNowCount = computed(() => this.store.upcoming().filter(meeting => meeting.status === 'live').length);
-
-  /** Transcripts disponibles en el historial cargado (reemplaza al "recordings" del mock). */
-  readonly transcriptsCount = computed(() => this.store.past().filter(meeting => !!meeting.transcriptFileId).length);
+  // Contadores reales del backend (GET /meetings/stats): cuentan sobre TODOS los meetings del usuario,
+  // no la página cargada en el cliente — antes "Transcripts" siempre daba 0 (la pestaña "past" era lazy)
+  // y el resto contaba solo la primera página de "upcoming".
+  readonly todayCount = computed(() => this.store.stats().today);
+  readonly thisWeekCount = computed(() => this.store.stats().thisWeek);
+  readonly liveNowCount = computed(() => this.store.stats().liveNow);
+  readonly transcriptsCount = computed(() => this.store.stats().transcriptsAvailable);
 
   // ---------- Listado ----------
 

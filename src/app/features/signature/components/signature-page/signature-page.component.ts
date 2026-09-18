@@ -139,8 +139,10 @@ export class SignaturePageComponent {
     return stats ? `${Math.round(stats.completionRate * 100)}%` : '—';
   });
 
-  statValue(value: number | undefined): string {
-    return value === undefined ? '—' : this.formatNumber(value);
+  statValue(value: number | undefined | null): string {
+    // `== null` cubre null Y undefined: el backend puede devolver un stat en null (no solo ausente),
+    // y formatNumber reventaba con "Cannot read properties of null (reading 'toLocaleString')".
+    return value == null ? '—' : this.formatNumber(value);
   }
 
   filterLabel(filter: SignatureStatusFilter): string {

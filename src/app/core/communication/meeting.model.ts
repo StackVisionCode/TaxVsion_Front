@@ -89,9 +89,18 @@ export interface SfuRemoteProducer {
   kind: 'audio' | 'video';
 }
 
-/** Ack de meeting.join — `requiresAdmission` decide sala de espera vs entrar directo. */
+/**
+ * Ack de meeting.join. `requiresAdmission` decide sala de espera vs entrar directo.
+ * Para el join DIRECTO (sin admisión) el backend NO emite el evento `meeting.snapshot`:
+ * el snapshot autoritativo (participantes, rol, estrategia, conversationId) viene INLINE
+ * acá, así que el cliente debe aplicarlo del ack. El evento solo se emite al ADMITIR
+ * desde la sala de espera. `iceServers` se incluye por paridad con el backend/Portal
+ * (el CRM autenticado igual puede seguir usando el fetch HTTP de ICE).
+ */
 export interface MeetingJoinAck {
   requiresAdmission: boolean;
+  snapshot: MeetingSnapshotDto;
+  iceServers?: { iceServers: { urls: string | string[]; username?: string; credential?: string }[]; expiresAtUtc: string };
 }
 
 export interface MeetingJoinOptions {

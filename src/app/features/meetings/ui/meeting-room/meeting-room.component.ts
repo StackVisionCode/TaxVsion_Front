@@ -87,6 +87,13 @@ export class MeetingRoomComponent {
     this.spotlightUserId.update(cur => (cur === userId ? null : userId));
   }
 
+  /** Passcode que el usuario tipea cuando el meeting lo exige (fase 'passcode'). */
+  readonly passcodeDraft = signal('');
+
+  submitPasscode(): void {
+    void this.meeting.submitPasscode(this.passcodeDraft());
+  }
+
   // ---------- Chat del meeting ----------
   readonly chatOpen = signal(false);
   readonly chatUnread = signal(0);

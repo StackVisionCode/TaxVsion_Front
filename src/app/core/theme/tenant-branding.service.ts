@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of, tap } from 'rxjs';
+import { catchError, of, retry, tap } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ThemeService } from './theme.service';
 
@@ -130,10 +130,26 @@ export class TenantBrandingService {
     this.http
       .get<BrandResponse>(url)
       .pipe(
+        // El shell dispara esto en cuanto /me resuelve; si el token o el gateway todavía no están
+        // listos, un fallo transitorio dejaba el logo/iniciales colgados hasta recargar. Un par de
+        // reintentos con espera cubre esa ventana sin castigar el caso feliz (fallback total abajo).
+        retry({ count: 2, delay: 1200 }),
         tap((brand) => this.applyBrand(brand)),
         catchError(() => of(null)),
       )
       .subscribe();
+  }
+
+  /**
+   * Limpia la marca del tenant al cerrar sesión. Sin esto, el logo/favicon y los colores cacheados
+   * del usuario saliente sobreviven en este navegador (los stores providedIn:'root' no se reinician
+   * entre logins de la misma pestaña) y sangran en la sesión siguiente hasta recargar a mano. Vuelve
+   * al look del sistema por defecto; la próxima sesión re-aplica su propia marca.
+   */
+  reset(): void {
+    this._logoUrl.set(null);
+    this._faviconUrl.set(null);
+    this.theme.resetToDefaults();
   }
 
   private applyBrand(brand: BrandResponse): void {

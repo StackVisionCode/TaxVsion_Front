@@ -203,7 +203,10 @@ export class MeetingRtcService {
   private async emitOrThrow<T>(event: string, payload: object): Promise<T> {
     const ack = (await this.realtime.emitAck<T>(event, payload)) as SocketAck<T>;
     if (!ack.ok) {
-      throw new Error(ack.message || ack.code);
+      // Se conserva el `code` para que el llamante distinga casos (p.ej. Meeting.InvalidPasscode → pedir passcode).
+      const err = new Error(ack.message || ack.code) as Error & { code?: string };
+      err.code = ack.code;
+      throw err;
     }
     return ack.value;
   }

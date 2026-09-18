@@ -20,6 +20,33 @@
     </button>
   </div>
 
+  <!-- Passcode: el meeting exige código para entrar -->
+  <div *ngIf="phase() === 'passcode'" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+    <span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
+      <ion-icon name="lock-closed-outline" class="text-3xl"></ion-icon>
+    </span>
+    <div class="max-w-sm">
+      <p class="text-base font-bold text-gray-900">This meeting is protected</p>
+      <p class="mt-1 text-sm text-gray-500">Enter the passcode to join.</p>
+    </div>
+    <form (ngSubmit)="submitPasscode()" class="flex w-full max-w-xs flex-col items-center gap-2">
+      <input type="password" autocomplete="off" placeholder="Passcode" [ngModel]="passcodeDraft()"
+        (ngModelChange)="passcodeDraft.set($event)" name="passcode" maxlength="120"
+        class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-center text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+      <p *ngIf="errorMessage()" class="text-xs font-medium text-red-600">{{ errorMessage() }}</p>
+      <div class="mt-1 flex items-center gap-2">
+        <button type="button" (click)="leave()"
+          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+        <button type="submit" [disabled]="!passcodeDraft().trim()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+          Join
+        </button>
+      </div>
+    </form>
+  </div>
+
   <!-- Unsupported (SFU / >4 participants) -->
   <div *ngIf="phase() === 'unsupported'" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
     <span class="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
@@ -137,8 +164,8 @@
           [class.ring-2]="spotlightUserId() === p.userId"
           [class.ring-brand-bold]="spotlightUserId() === p.userId">
           <video [srcObject]="streamFor(p.userId)" autoplay playsinline
-            class="h-full w-full rounded-2xl object-cover" [class.hidden]="!p.videoEnabled || !streamFor(p.userId)"></video>
-          <div *ngIf="!p.videoEnabled || !streamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
+            class="h-full w-full rounded-2xl object-cover" [class.hidden]="(!p.videoEnabled && !p.screenSharing) || !streamFor(p.userId)"></video>
+          <div *ngIf="(!p.videoEnabled && !p.screenSharing) || !streamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
             <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
               [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
           </div>

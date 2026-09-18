@@ -1,16 +1,30 @@
 <app-auth-shell panelEyebrow="You've been invited" panelHeading="Join your team and start working from one place">
-  <!-- Enlace sin token: no hay nada que canjear -->
-  @if (!hasToken()) {
+  @if (phase() === 'validating') {
+    <!-- Validando el token contra el backend antes de mostrar nada -->
+    <span class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+      <span class="w-5 h-5 border-2 border-gray-300 border-t-brand-bold rounded-full animate-spin"></span>
+    </span>
+    <h1 class="mt-4 text-3xl font-bold text-gray-900">Checking your invitation…</h1>
+    <p class="mt-2 text-sm text-gray-500">Just a moment while we confirm your invitation link.</p>
+  } @else if (phase() === 'invalid') {
+    <!-- Token ya usado / vencido / cancelado / inválido: nunca se muestra el formulario -->
     <app-brand-logo />
-    <h1 class="mt-4 text-3xl font-bold text-gray-900">Invitation link is incomplete</h1>
-    <p class="mt-2 text-sm text-gray-500">
-      This link is missing its invitation code. Open the link from your invitation email exactly as you
-      received it, or ask your office to send a new invitation.
-    </p>
-    <a routerLink="/login"
-      class="mt-8 inline-flex w-full items-center justify-center py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
-      Go to sign in
-    </a>
+    <span class="mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+      <ion-icon name="alert-outline" class="text-2xl text-amber-600"></ion-icon>
+    </span>
+    <h1 class="mt-4 text-3xl font-bold text-gray-900">This invitation is no longer available</h1>
+    <p class="mt-2 text-sm text-gray-500">{{ invalidMessage() }}</p>
+    @if (showSignIn()) {
+      <button type="button" (click)="goToLogin()"
+        class="mt-8 w-full py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
+        Sign in
+      </button>
+    } @else {
+      <a routerLink="/login"
+        class="mt-8 inline-flex w-full items-center justify-center py-3 rounded-xl bg-brand-bold text-white text-sm font-semibold hover:bg-brand-ink transition-colors">
+        Go to sign in
+      </a>
+    }
   } @else if (phase() === 'done') {
     <!-- Cuenta creada: el backend ya la dejó activa dentro de la oficina que invitó -->
     <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">

@@ -20,6 +20,23 @@ export interface AcceptedInvitationUser {
   lastName: string;
 }
 
+/** Oficina real a la que pertenece el token (para pintar su branding, no el del subdominio de la URL). */
+export interface InvitationTenantBrand {
+  id: string;
+  name: string;
+  subDomain: string;
+}
+
+/** Respuesta de GET /auth/invitations/validate — estado del token ANTES de mostrar el formulario. */
+export interface InvitationValidation {
+  /** 'Pending' | 'Accepted' | 'Cancelled' | 'Expired' | 'Invalid'. */
+  status: string;
+  email: string | null;
+  /** 'TenantEmployee' | 'TenantAdmin' | 'CustomerPortal' | … — decide adónde va el "Sign in". */
+  actorType: string | null;
+  tenant: InvitationTenantBrand | null;
+}
+
 /**
  * Canje de una invitación de equipo (`POST /auth/invitations/accept`, `[AllowAnonymous]`).
  *
@@ -57,5 +74,15 @@ export class InvitationService {
   /** 200 con el usuario creado, o 400 `Auth.InvalidInvitation` si el token no sirve. */
   accept(body: AcceptInvitationRequest): Observable<AcceptedInvitationUser> {
     return defer(() => this.http.post<AcceptedInvitationUser>(`${this.base}/accept`, body));
+  }
+
+  /**
+   * Valida el token ANTES de mostrar el formulario (anónimo, solo lectura): dice si la invitación sigue
+   * hábil y a qué oficina pertenece, para pintar el branding correcto y bloquear el formulario si ya se usó.
+   */
+  validate(token: string): Observable<InvitationValidation> {
+    return defer(() =>
+      this.http.get<InvitationValidation>(`${this.base}/validate`, { params: { token } }),
+    );
   }
 }

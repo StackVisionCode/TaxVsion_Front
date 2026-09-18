@@ -4,6 +4,7 @@ import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, thr
 import { environment } from '@env/environment';
 import { TokenService } from './token.service';
 import { ApiConfigService } from '../config/api-config.service';
+import { TenantBrandingService } from '../theme/tenant-branding.service';
 import {
   AuthTokens,
   ForgotPasswordRequest,
@@ -44,6 +45,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly tokenService = inject(TokenService);
   private readonly api = inject(ApiConfigService);
+  private readonly branding = inject(TenantBrandingService);
   /**
    * Base de los endpoints de Auth: la oficina resuelta (`https://<slug>.baseDomain`).
    *
@@ -215,6 +217,10 @@ export class AuthService {
     // "credenciales inválidas" sin explicación. Si el host identifica una oficina,
     // clearSlug() la conserva.
     this.api.clearSlug();
+    // La marca (logo/favicon/colores) es POR TENANT y queda cacheada en señales y en localStorage:
+    // sin limpiarla, el siguiente usuario de esta pestaña hereda el logo/color de la oficina anterior
+    // hasta recargar. Vuelve al look del sistema; el shell re-aplica la marca real tras el próximo /me.
+    this.branding.reset();
   }
 
   /** El componente de enrolamiento llama a esto tras confirmar el TOTP. */
