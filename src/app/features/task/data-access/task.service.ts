@@ -329,8 +329,9 @@ export class TaskService {
     return this.http.get<PagedResult<TaskClientSummary>>(this.api.tenantUrl('/customers'), { params });
   }
 
-  /** GET /auth/users — nombres de asignados. Best-effort: sin permiso users.view devuelve 403. */
-  listUsers(size = 200): Observable<PagedResult<TaskUserSummary>> {
+  /** GET /auth/users — nombres de asignados. Best-effort: sin permiso users.view devuelve 403.
+   *  size topado en 100: el backend valida `size between 1 and 100` y devolvía 400 con 200. */
+  listUsers(size = 100): Observable<PagedResult<TaskUserSummary>> {
     const params = new HttpParams().set('page', 1).set('size', size);
     return this.http.get<PagedResult<TaskUserSummary>>(this.api.tenantUrl('/auth/users'), { params });
   }

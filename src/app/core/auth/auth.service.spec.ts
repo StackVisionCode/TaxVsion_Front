@@ -1,9 +1,11 @@
+import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { environment } from '@env/environment';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
+import { TenantBrandingService } from '../theme/tenant-branding.service';
 import { LoginRequest, LoginResponse } from './auth.model';
 
 describe('AuthService', () => {
@@ -97,6 +99,21 @@ describe('AuthService', () => {
     service.logout().subscribe();
     expect(tokenService.isAuthenticated()).toBe(false);
     expect(service.currentUser()).toBeNull();
+  });
+
+  /**
+   * Regresión (bleed de marca entre sesiones): el logout debe soltar la marca del tenant, o el
+   * logo/favicon/colores del usuario saliente sobreviven en esta pestaña hasta recargar a mano.
+   */
+  it('logout resetea la marca del tenant', () => {
+    environment.authMock = true;
+    const branding = TestBed.inject(TenantBrandingService);
+    const resetSpy = vi.spyOn(branding, 'reset');
+    service.login(credentials).subscribe();
+
+    service.logout().subscribe();
+
+    expect(resetSpy).toHaveBeenCalled();
   });
 
   /**

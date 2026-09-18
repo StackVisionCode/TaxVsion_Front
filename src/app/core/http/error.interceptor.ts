@@ -1,6 +1,5 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Router } from '@angular/router';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
@@ -18,7 +17,6 @@ const ANON_AUTH_ENDPOINTS = ['/auth/login', '/auth/refresh', '/auth/mfa/verify']
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const tokenService = inject(TokenService);
-  const router = inject(Router);
   const subscriptionStatus = inject(SubscriptionStatusStore);
 
   const isAnonAuthEndpoint = ANON_AUTH_ENDPOINTS.some(path => req.url.includes(path));
@@ -43,7 +41,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         ),
         catchError(refreshErr => {
           auth.logoutLocal();
-          void router.navigateByUrl('/login');
+          // Recarga dura: la sesión murió (el refresh falló). Un reload completo, además de llevar a
+          // /login, destruye los stores providedIn:'root' para que el próximo usuario de esta pestaña
+          // no herede datos del saliente (ver navbar.logout).
+          window.location.assign('/login');
           return throwError(() => refreshErr);
         }),
       );

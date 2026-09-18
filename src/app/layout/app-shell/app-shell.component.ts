@@ -7,6 +7,7 @@ import {
   OnInit,
   ViewChild,
   afterNextRender,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -95,12 +96,30 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   @ViewChild('routeContent') private routeContentRef?: ElementRef<HTMLElement>;
 
+  /** Último tenant al que ya se le aplicó la marca, para no re-pedirla en cada emisión de currentUser. */
+  private lastBrandedTenantId: string | null = null;
+
+  constructor() {
+    // Marca del tenant ya autenticado: pinta tema/logo/favicon por su tenantId (endpoint autenticado,
+    // funciona en dev sin subdominio). Va en un effect y NO en ngOnInit porque el shell puede montar
+    // antes de que /me resuelva (o mientras reintenta): leer currentUser() una sola vez dejaba el logo
+    // y las iniciales colgados hasta recargar. El effect reacciona en cuanto el tenantId está disponible.
+    effect(() => {
+      const tenantId = this.auth.currentUser()?.tenant.id ?? null;
+      if (tenantId && tenantId !== this.lastBrandedTenantId) {
+        this.lastBrandedTenantId = tenantId;
+        this.branding.applyForTenant(tenantId, 'Crm');
+      }
+    });
+  }
+
   ngOnInit(): void {
-    // Marca del tenant ya autenticado: pinta tema/logo/favicon por su tenantId (endpoint
-    // autenticado, funciona en dev sin subdominio). Aditivo y con fallback total.
-    const tenantId = this.auth.currentUser()?.tenant.id;
-    if (tenantId) {
-      this.branding.applyForTenant(tenantId, 'Crm');
+    // Red de seguridad: si el shell monta SIN currentUser (el /auth/me del login no alcanzó a resolver,
+    // falló, o la navegación al shell ganó la carrera), se re-pide aquí — igual que hace el app-initializer
+    // en una recarga completa. Sin esto, el avatar quedaba sin iniciales y el sidebar sin logo hasta que el
+    // usuario recargaba a mano; ahora el effect de branding se dispara solo en cuanto currentUser llega.
+    if (!this.auth.currentUser()) {
+      this.auth.me().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ error: () => {} });
     }
 
     // Ciclo de vida de la suscripción (Expiración/Dunning, Fase 5): carga el estado para el banner global

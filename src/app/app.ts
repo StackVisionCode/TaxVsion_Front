@@ -1,6 +1,6 @@
 import { Component, DestroyRef, afterNextRender, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
 import { SessionExpiryService } from '@core/services/session-expiry.service';
 import { SessionExpiryModalComponent } from '@core/auth/session-expiry-modal.component';
@@ -22,7 +22,6 @@ export class App {
   protected readonly title = signal('TaxVsion_Front');
 
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
   private readonly sessionExpiry = inject(SessionExpiryService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -49,6 +48,8 @@ export class App {
 
   private forceLogout(): void {
     this.auth.logoutLocal();
-    void this.router.navigate(['/login'], { queryParams: { reason: 'session_expired' } });
+    // Recarga dura (no navegación SPA): la sesión expiró, así que además de ir a /login se destruyen
+    // los stores providedIn:'root' para que el próximo usuario de esta pestaña arranque limpio.
+    window.location.assign('/login?reason=session_expired');
   }
 }

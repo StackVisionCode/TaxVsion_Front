@@ -4,6 +4,7 @@ import { catchError } from 'rxjs/operators';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { MeetingsService } from './meetings.service';
 import {
   CreatedMeetingInvitation,
@@ -15,8 +16,11 @@ import {
   MeetingItem,
   MeetingListItemResponse,
   MeetingsScope,
+  MeetingStatsResponse,
   toMeetingItem,
 } from './meeting.model';
+
+const EMPTY_STATS: MeetingStatsResponse = { today: 0, thisWeek: 0, liveNow: 0, transcriptsAvailable: 0 };
 
 const PAGE_SIZE = 20;
 
@@ -56,10 +60,15 @@ export class MeetingsStore {
   private readonly service = inject(MeetingsService);
   private readonly auth = inject(AuthService);
   private readonly storage = inject(CloudStorageUploadService);
+  private readonly realtime = inject(CommunicationRealtimeService);
+  private realtimeBound = false;
 
   // ---------- Estado ----------
   private readonly _upcoming = signal<ScopeState>(EMPTY_SCOPE);
   private readonly _past = signal<ScopeState>(EMPTY_SCOPE);
+  private readonly _stats = signal<MeetingStatsResponse>(EMPTY_STATS);
+  /** Contadores reales del backend para las tarjetas (no dependen de la paginación del cliente). */
+  readonly stats = this._stats.asReadonly();
   private readonly _loading = signal(false);
   private readonly _loadingMore = signal(false);
   private readonly _error = signal<string | null>(null);
@@ -99,6 +108,61 @@ export class MeetingsStore {
 
   clearActionError(): void {
     this._actionError.set(null);
+  }
+
+  // ---------- Realtime ----------
+
+  /**
+   * Suscribe la lista a los avisos del socket compartido (idempotente): cuando me invitan a un
+   * meeting (`meeting.invited`) o el host arranca uno al que estoy invitado (`meeting.started`), y
+   * tras un reconnect del socket, refresca "upcoming" en silencio (sin spinner). Sin esto, un
+   * invitado no veía el meeting aparecer hasta recargar la página. Lo llama la página en ngOnInit.
+   */
+  bindRealtime(): void {
+    if (this.realtimeBound) {
+      return;
+    }
+    this.realtimeBound = true;
+    // Invitado o meeting iniciado → aparece/cambia en "upcoming".
+    this.realtime.on<{ meetingId: string }>('meeting.invited').subscribe(() => {
+      this.refreshScopeSilently('upcoming');
+      this.loadStats();
+    });
+    this.realtime.on<{ meetingId: string }>('meeting.started').subscribe(() => {
+      this.refreshScopeSilently('upcoming');
+      this.loadStats();
+    });
+    // Meeting terminado → sale de "upcoming" y entra a "past": refrescar ambos + contadores.
+    this.realtime.on<{ meetingId: string }>('meeting.ended').subscribe(() => {
+      this.refreshScopeSilently('upcoming');
+      this.refreshScopeSilently('past');
+      this.loadStats();
+    });
+    this.realtime.reconnected$.subscribe(() => {
+      this.refreshScopeSilently('upcoming');
+      this.refreshScopeSilently('past');
+      this.loadStats();
+    });
+  }
+
+  /** Carga los contadores reales del backend para las tarjetas (best-effort). */
+  loadStats(): void {
+    this.service.stats().subscribe({
+      next: stats => this._stats.set(stats),
+      error: () => undefined,
+    });
+  }
+
+  /** Re-lista la primera página de un scope YA cargado sin togglear el loading global (refresh de fondo). */
+  private refreshScopeSilently(scope: MeetingsScope): void {
+    const target = this.scopeSignal(scope);
+    if (!target().loaded) {
+      return;
+    }
+    this.service.list({ scope, page: 1, size: PAGE_SIZE }).subscribe({
+      next: result => target.set({ responses: result.items, page: 1, totalCount: result.totalCount, loaded: true }),
+      error: () => undefined, // best-effort: un refresh fallido no rompe la vista actual
+    });
   }
 
   // ---------- Carga ----------
@@ -159,6 +223,7 @@ export class MeetingsStore {
    */
   createMeeting(form: MeetingFormValue): Observable<MeetingCreationOutcome> {
     const invitees = form.invitees.map(toInviteeInput);
+    const passcode = form.passcode?.trim();
     return this.service
       .create({
         title: form.title.trim(),
@@ -169,6 +234,11 @@ export class MeetingsStore {
         ...(invitees.length > 0
           ? { maxParticipants: Math.min(100, Math.max(4, invitees.length + 2)) }
           : {}),
+        // SIEMPRE explícito: el default del backend es `true`, así que omitirlo cuando está en false
+        // dejaba la sala de espera encendida aunque el usuario la desmarcara.
+        requireWaitingRoom: form.requireWaitingRoom,
+        ...(passcode ? { passcode } : {}),
+        ...(form.recordingRequested ? { recordingRequested: true } : {}),
       })
       .pipe(
         switchMap(created =>
@@ -182,7 +252,10 @@ export class MeetingsStore {
                 })),
               ),
         ),
-        tap(() => this.loadScope('upcoming', true)),
+        tap(() => {
+          this.loadScope('upcoming', true);
+          this.loadStats();
+        }),
       );
   }
 
@@ -191,9 +264,10 @@ export class MeetingsStore {
   /** Host-only: Scheduled → Live. Parchea la fila localmente. */
   startMeeting(id: string): Observable<void> {
     return this.service.start(id).pipe(
-      tap(result =>
-        this.patchUpcoming(id, item => ({ ...item, status: 'Live', startedAtUtc: result.startedAtUtc })),
-      ),
+      tap(result => {
+        this.patchUpcoming(id, item => ({ ...item, status: 'Live', startedAtUtc: result.startedAtUtc }));
+        this.loadStats();
+      }),
       map(() => undefined),
     );
   }
@@ -201,14 +275,22 @@ export class MeetingsStore {
   /** Termina el meeting para todos; sale de "upcoming" y pasa al historial. */
   endMeeting(id: string): Observable<void> {
     return this.service.end(id).pipe(
-      tap(() => this.moveOutOfUpcoming(id)),
+      tap(() => {
+        this.moveOutOfUpcoming(id);
+        this.loadStats();
+      }),
       map(() => undefined),
     );
   }
 
   /** Host-only, solo Scheduled. El meeting cancelado pasa al historial. */
   cancelMeeting(id: string, reason?: string): Observable<void> {
-    return this.service.cancel(id, reason).pipe(tap(() => this.moveOutOfUpcoming(id)));
+    return this.service.cancel(id, reason).pipe(
+      tap(() => {
+        this.moveOutOfUpcoming(id);
+        this.loadStats();
+      }),
+    );
   }
 
   /** Host/cohost, solo Scheduled. null = des-agendar (instantáneo). */
@@ -273,11 +355,12 @@ export class MeetingsStore {
   }
 }
 
-/** El backend exige email o userId; customers van por email (customerId ≠ userId de Auth). */
+/** El backend resuelve el userId destino: employee por userId, customer por customerId, external por email. */
 function toInviteeInput(draft: MeetingInviteeDraft): MeetingInviteeInput {
   return {
     kind: draft.kind,
     ...(draft.userId ? { userId: draft.userId } : {}),
+    ...(draft.customerId ? { customerId: draft.customerId } : {}),
     ...(draft.email ? { email: draft.email } : {}),
     ...(draft.name ? { name: draft.name } : {}),
   };

@@ -76,6 +76,10 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   readonly description = signal('');
   readonly date = signal('');
   readonly time = signal('');
+  // ---------- Opciones de la reunión (solo al crear) ----------
+  readonly requireWaitingRoom = signal(false);
+  readonly passcode = signal('');
+  readonly recordingRequested = signal(false);
 
   // ---------- Picker de invitados ----------
   readonly inviteeSearch = signal('');
@@ -108,7 +112,10 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       // Re-agendar: fecha y hora completas, o ambas vacías (des-agendar).
       return hasDate === hasTime;
     }
-    return this.title().trim().length > 0 && hasDate === hasTime;
+    // El passcode es opcional pero el backend exige 4..120 si viene.
+    const pass = this.passcode().trim();
+    const passcodeOk = pass.length === 0 || (pass.length >= 4 && pass.length <= 120);
+    return this.title().trim().length > 0 && hasDate === hasTime && passcodeOk;
   });
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -156,9 +163,10 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     this.addInvitee({ kind: 'employee', userId: entry.userId, email: entry.email || null, name: entry.displayName });
   }
 
-  /** Customers van por email: su customerId no es un userId de Auth. */
-  addCustomer(entry: { displayName: string; email: string }): void {
-    this.addInvitee({ kind: 'customer', userId: null, email: entry.email, name: entry.displayName });
+  /** Customers: su customerId no es un userId de Auth, pero el backend lo resuelve a su userId de
+   * portal para que el meeting aparezca en su lista y le llegue el aviso realtime. */
+  addCustomer(entry: { customerId: string; displayName: string; email: string }): void {
+    this.addInvitee({ kind: 'customer', userId: null, customerId: entry.customerId, email: entry.email, name: entry.displayName });
   }
 
   addExternal(): void {
@@ -322,6 +330,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       description: this.description().trim(),
       scheduledForUtc,
       invitees: this.invitees(),
+      requireWaitingRoom: this.requireWaitingRoom(),
+      passcode: this.passcode().trim() || null,
+      recordingRequested: this.recordingRequested(),
     });
   }
 
@@ -344,6 +355,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       this.time.set('');
     }
     this.description.set('');
+    this.requireWaitingRoom.set(false);
+    this.passcode.set('');
+    this.recordingRequested.set(false);
     this.invitees.set([]);
     this.inviteeSearch.set('');
     this.inviteeResults.set({ employees: [], customers: [] });

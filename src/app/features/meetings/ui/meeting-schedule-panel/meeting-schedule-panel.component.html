@@ -141,6 +141,41 @@
         </span>
       </div>
 
+      <!-- Opciones de la reunión (solo al crear) -->
+      <div *ngIf="!isEditMode()" class="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Options</p>
+
+        <!-- Passcode opcional -->
+        <div class="h-10 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="Passcode (optional)" [ngModel]="passcode()" (ngModelChange)="passcode.set($event)"
+            maxlength="120" autocomplete="off"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <p *ngIf="passcode().trim() && passcode().trim().length < 4" class="-mt-1 px-1 text-xs text-amber-600">
+          Passcode must be at least 4 characters.
+        </p>
+
+        <!-- Sala de espera -->
+        <label class="flex cursor-pointer items-center justify-between gap-3">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium text-gray-800">Waiting room</span>
+            <span class="text-xs text-gray-400">Admit each participant before they join.</span>
+          </span>
+          <input type="checkbox" [ngModel]="requireWaitingRoom()" (ngModelChange)="requireWaitingRoom.set($event)"
+            class="h-4 w-4 accent-brand-bold" />
+        </label>
+
+        <!-- Grabación -->
+        <label class="flex cursor-pointer items-center justify-between gap-3">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium text-gray-800">Record meeting</span>
+            <span class="text-xs text-gray-400">Requests recording (participants must consent).</span>
+          </span>
+          <input type="checkbox" [ngModel]="recordingRequested()" (ngModelChange)="recordingRequested.set($event)"
+            class="h-4 w-4 accent-brand-bold" />
+        </label>
+      </div>
+
       <!-- Modo gestionar: enviar nuevas invitaciones + lista existente -->
       <ng-container *ngIf="isEditMode()">
         <button *ngIf="invitees().length > 0" type="button" (click)="sendInvitations()" [disabled]="invitationsBusy()"

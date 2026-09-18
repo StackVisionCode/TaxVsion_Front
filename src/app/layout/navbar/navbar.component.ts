@@ -263,7 +263,12 @@ export class NavbarComponent {
 
   logout(): void {
     this.isUserMenuOpen.set(false);
-    this.auth.logout().subscribe(() => this.router.navigate(['/login']));
+    // Recarga DURA en vez de navegación SPA: los stores providedIn:'root' (productos, billing,
+    // inventario, etc.) retienen los datos del usuario saliente y su flag `initialized` no se
+    // reinicia, así que sin recargar sangraban en la sesión siguiente de la misma pestaña (se veían
+    // datos del admin al entrar como empleado hasta refrescar). Un reload completo destruye todos los
+    // singletons y garantiza una sesión limpia. logoutLocal() ya se ejecutó dentro de auth.logout().
+    this.auth.logout().subscribe(() => window.location.assign('/login'));
   }
 
   // ==========================================
