@@ -34,6 +34,8 @@ export interface SmsMessageItemRequest {
   /** Destino E.164 (`+` y 7..15 dígitos); el backend normaliza espacios/guiones/paréntesis. */
   to: string;
   message: string;
+  /** Nombre del destinatario (snapshot) — el backend lo guarda para el log; null = no aportado. */
+  recipientName?: string | null;
   media: SmsMediaItemRequest[] | null;
   /**
    * OJO: si va null el backend DERIVA la clave de (tenant, customer, to, body, media),
@@ -108,6 +110,8 @@ export interface SmsMessageSummary {
   id: string;
   customerId: string;
   to: string;
+  /** Nombre del cliente al enviar (snapshot); null en mensajes antiguos/de sistema → cae al teléfono. */
+  recipientName: string | null;
   body: string;
   status: SmsApiStatus;
   /** Código canónico del backend cuando falló; el front lo traduce a lenguaje simple. */
@@ -129,6 +133,7 @@ export interface SmsMessageDetail {
   id: string;
   customerId: string;
   to: string;
+  recipientName: string | null;
   body: string;
   status: SmsApiStatus;
   failureCode: string | null;

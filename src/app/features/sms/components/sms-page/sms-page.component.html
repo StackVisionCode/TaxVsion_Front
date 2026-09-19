@@ -85,6 +85,7 @@
             [ngModel]="searchText()"
             (ngModelChange)="onSearch($event)"
             placeholder="Search client, phone or text…"
+            aria-label="Search messages by client, phone or text"
             class="w-40 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-gray-400 sm:w-56" />
         </div>
       </div>
@@ -107,11 +108,11 @@
           <table class="w-full border-collapse">
             <thead>
               <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                <th class="px-3 py-2.5">Client</th>
-                <th class="px-3 py-2.5">Phone</th>
-                <th class="px-3 py-2.5">Message</th>
-                <th class="px-3 py-2.5">Status</th>
-                <th class="px-3 py-2.5">Sent</th>
+                <th scope="col" class="px-3 py-2.5">Client</th>
+                <th scope="col" class="px-3 py-2.5">Phone</th>
+                <th scope="col" class="px-3 py-2.5">Message</th>
+                <th scope="col" class="px-3 py-2.5">Status</th>
+                <th scope="col" class="px-3 py-2.5">Sent</th>
               </tr>
             </thead>
             <tbody>
@@ -120,9 +121,9 @@
                   <td class="px-3 py-3">
                     <div class="flex items-center gap-2.5">
                       <span class="grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white {{ avatarColor(m.customerId) }}">
-                        {{ initials(m.to) }}
+                        {{ initials(clientName(m.recipientName, m.customerId, m.to)) }}
                       </span>
-                      <span class="font-medium text-gray-700 tabular-nums">{{ m.to }}</span>
+                      <span class="font-medium text-gray-700">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
                     </div>
                   </td>
                   <td class="px-3 py-3 tabular-nums text-gray-500">{{ m.to }}</td>
@@ -154,9 +155,9 @@
               <div class="flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2.5">
                   <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white {{ avatarColor(m.customerId) }}">
-                    {{ initials(m.to) }}
+                    {{ initials(clientName(m.recipientName, m.customerId, m.to)) }}
                   </span>
-                  <span class="truncate font-semibold text-gray-800 tabular-nums">{{ m.to }}</span>
+                  <span class="truncate font-semibold text-gray-800">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
                 </div>
                 <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {{ statusChip(m.status).chip }}">
                   <span class="h-1.5 w-1.5 rounded-full {{ statusChip(m.status).dot }}"></span>
@@ -188,7 +189,7 @@
           <svg viewBox="0 0 24 24" class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" stroke-linecap="round" />
           </svg>
-          <input type="text" [ngModel]="optSearchText()" (ngModelChange)="onOptSearch($event)" placeholder="Search phone…" class="w-40 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-gray-400 sm:w-56" />
+          <input type="text" [ngModel]="optSearchText()" (ngModelChange)="onOptSearch($event)" placeholder="Search phone…" aria-label="Search opt-outs by phone" class="w-40 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-gray-400 sm:w-56" />
         </div>
       </div>
 
@@ -201,10 +202,10 @@
           <table class="w-full border-collapse">
             <thead>
               <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                <th class="px-3 py-2.5">Phone</th>
-                <th class="px-3 py-2.5">Consent</th>
-                <th class="px-3 py-2.5">Updated</th>
-                @if (caps.canManage()) { <th class="px-3 py-2.5 text-right">Action</th> }
+                <th scope="col" class="px-3 py-2.5">Phone</th>
+                <th scope="col" class="px-3 py-2.5">Consent</th>
+                <th scope="col" class="px-3 py-2.5">Updated</th>
+                @if (caps.canManage()) { <th scope="col" class="px-3 py-2.5 text-right">Action</th> }
               </tr>
             </thead>
             <tbody>
@@ -249,7 +250,7 @@
         @for (r of composeRecipients(); track r.id) {
           <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 py-1 pl-2.5 pr-1 text-xs font-semibold text-brand-ink">
             {{ r.name }}
-            <button type="button" (click)="removeRecipient(r.id)" class="grid h-4 w-4 place-items-center rounded-full text-brand-ink hover:bg-indigo-100">×</button>
+            <button type="button" (click)="removeRecipient(r.id)" [attr.aria-label]="'Remove ' + r.name" class="grid h-4 w-4 place-items-center rounded-full text-brand-ink hover:bg-indigo-100">×</button>
           </span>
         }
       </div>
@@ -316,10 +317,14 @@
   <aside class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl">
     <div class="flex items-start justify-between border-b border-gray-100 px-6 py-5">
       <div>
-        <h4 class="text-base font-bold text-gray-900">Message</h4>
-        @if (detail(); as d) { <p class="mt-0.5 text-xs text-gray-400 tabular-nums">{{ d.to }}</p> }
+        @if (detail(); as d) {
+          <h4 class="text-base font-bold text-gray-900">{{ clientName(d.recipientName, d.customerId, d.to) }}</h4>
+          <p class="mt-0.5 text-xs text-gray-400 tabular-nums">{{ d.to }}</p>
+        } @else {
+          <h4 class="text-base font-bold text-gray-900">Message</h4>
+        }
       </div>
-      <button type="button" (click)="closeDetail()" class="grid h-8 w-8 place-items-center rounded-full text-gray-400 hover:bg-gray-100">×</button>
+      <button type="button" (click)="closeDetail()" aria-label="Close" class="grid h-8 w-8 place-items-center rounded-full text-gray-400 hover:bg-gray-100">×</button>
     </div>
     <div class="flex-1 overflow-auto px-6 py-5">
       @if (detailLoading()) {

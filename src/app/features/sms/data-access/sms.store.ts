@@ -30,10 +30,11 @@ export interface SmsSendSummary {
   failed: number;
 }
 
-/** Destinatario de un envío (cliente + teléfono ya E.164). */
+/** Destinatario de un envío (cliente + teléfono ya E.164 + nombre para el snapshot del log). */
 export interface SmsSendRecipient {
   customerId: string;
   to: string;
+  name: string;
 }
 
 /**
@@ -348,6 +349,7 @@ export class SmsStore {
           customerId: r.customerId,
           to: r.to,
           message: text,
+          recipientName: r.name,
           media: null,
           // UUID por click: sin él, el backend deduplica por (customer, to, body) y un reenvío no saldría.
           idempotencyKey: crypto.randomUUID(),

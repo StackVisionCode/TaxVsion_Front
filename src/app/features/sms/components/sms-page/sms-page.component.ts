@@ -104,9 +104,12 @@ export class SmsPageComponent implements OnInit {
     return map;
   });
 
-  /** Nombre del cliente para una fila; cae al teléfono si el cliente no está en la caché de contactos. */
-  clientName(customerId: string, phone: string): string {
-    return this.contactsById().get(customerId) ?? phone;
+  /**
+   * Nombre a mostrar para una fila: 1) el snapshot del mensaje (recipientName, semántica correcta del
+   * log); 2) la caché de contactos; 3) el teléfono. Así no dependemos de tener al cliente cacheado.
+   */
+  clientName(recipientName: string | null, customerId: string, phone: string): string {
+    return recipientName || this.contactsById().get(customerId) || phone;
   }
 
   ngOnInit(): void {
@@ -222,7 +225,7 @@ export class SmsPageComponent implements OnInit {
     this.composeError.set(null);
     this.store
       .send(
-        recipients.map(r => ({ customerId: r.id, to: r.phoneE164 as string })),
+        recipients.map(r => ({ customerId: r.id, to: r.phoneE164 as string, name: r.name })),
         body,
       )
       .subscribe({
