@@ -1,4 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { skip } from 'rxjs';
@@ -25,6 +35,11 @@ import {
 import { ChatStore } from '../../data-access/chat.store';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 
+/** Padding inferior del app-shell (`p-4`): el chat termina ahí, sin empujar la página. */
+const SHELL_BOTTOM_PADDING = 16;
+/** Alto mínimo usable (móvil apaisado): por debajo de esto sí se deja scrollear la página. */
+const MIN_CHAT_HEIGHT = 360;
+
 /**
  * Página del módulo Chat (estilo "Aether"): mensajería interna de equipo,
  * no el AI Assistant. Rail de conversaciones a la izquierda + hilo activo a
@@ -48,12 +63,24 @@ import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.servi
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
   styleUrl: './chat-page.component.css',
+  host: { '[style.height.px]': 'fillHeight()' },
 })
 export class ChatPageComponent {
   private readonly store = inject(ChatStore);
   private readonly activeCall = inject(ActiveCallService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /**
+   * Alto del chat = lo que queda del viewport VISIBLE debajo de su borde superior. Así la página no
+   * crece con los mensajes (solo scrollean la lista y el hilo) y, en el móvil, el composer queda
+   * encima del teclado (`visualViewport` se achica al abrirlo). null hasta medir por primera vez.
+   */
+  readonly fillHeight = signal<number | null>(null);
+
+  /** Por debajo de `lg` se ve un panel a la vez (maestro-detalle): la lista o la conversación. */
+  readonly mobilePane = signal<'list' | 'thread'>('list');
 
   readonly canStartAudioCall = this.store.canStartAudioCall;
   readonly canStartVideoCall = this.store.canStartVideoCall;
@@ -95,11 +122,16 @@ export class ChatPageComponent {
     // Deep-link opcional `?conversation=<id>` (p. ej. desde un ticket de Support): abre esa.
     const preferId = this.route.snapshot.queryParamMap.get('conversation');
     this.store.load(preferId ?? undefined);
+    if (preferId || this.route.snapshot.queryParamMap.get('startUser')) {
+      this.mobilePane.set('thread'); // un deep-link va directo a la conversación, también en el móvil
+    }
+    this.watchViewport();
     // Si el param cambia estando ya en la página, enfocá la nueva conversación.
     this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const id = params.get('conversation');
       if (id && id !== this.store.activeConversationId()) {
         this.store.focusConversation(id);
+        this.mobilePane.set('thread');
       }
     });
 
@@ -221,10 +253,47 @@ export class ChatPageComponent {
 
   selectConversation(id: string): void {
     this.store.selectConversation(id);
+    this.mobilePane.set('thread');
+  }
+
+  /** Móvil: vuelve de la conversación a la lista. */
+  showList(): void {
+    this.mobilePane.set('list');
+  }
+
+  /**
+   * Recalcula `fillHeight` al montar y cada vez que cambia el espacio: resize/rotación, teclado del
+   * móvil (`visualViewport`) o algo encima del chat que cambie de alto (p. ej. el banner de la
+   * suscripción, observado vía `body`). Si el valor no cambia, el signal no dispara nada.
+   */
+  private watchViewport(): void {
+    const measure = (): void => {
+      const el = this.host.nativeElement;
+      const viewport = window.visualViewport?.height ?? window.innerHeight;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      // 16px = padding inferior del shell (p-4). Mínimo usable en pantallas muy bajas (móvil apaisado).
+      this.fillHeight.set(Math.max(MIN_CHAT_HEIGHT, Math.floor(viewport - top - SHELL_BOTTOM_PADDING)));
+    };
+    afterNextRender(() => {
+      measure();
+      window.addEventListener('resize', measure);
+      window.visualViewport?.addEventListener('resize', measure);
+      const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => measure()) : null;
+      observer?.observe(document.body);
+      this.destroyRef.onDestroy(() => {
+        window.removeEventListener('resize', measure);
+        window.visualViewport?.removeEventListener('resize', measure);
+        observer?.disconnect();
+      });
+    });
   }
 
   sendMessage(text: string): void {
     void this.store.sendMessage(text);
+  }
+
+  onRetryMessage(tempId: string): void {
+    void this.store.retryMessage(tempId);
   }
 
   onTyping(isTyping: boolean): void {
@@ -317,6 +386,7 @@ export class ChatPageComponent {
     const ok = await this.store.startDirectWithCustomer(entry);
     if (ok) {
       this.switchRailTab('chats');
+      this.mobilePane.set('thread');
     }
   }
 
@@ -324,6 +394,7 @@ export class ChatPageComponent {
     const ok = await this.store.startDirectConversation(entry);
     if (ok) {
       this.switchRailTab('chats');
+      this.mobilePane.set('thread');
     }
   }
 
@@ -348,6 +419,7 @@ export class ChatPageComponent {
     const ok = await this.store.startDirectConversation(entry);
     if (ok) {
       this.isNewConversationOpen.set(false);
+      this.mobilePane.set('thread');
     }
   }
 
@@ -355,6 +427,7 @@ export class ChatPageComponent {
     const ok = await this.store.startDirectWithCustomer(entry);
     if (ok) {
       this.isNewConversationOpen.set(false);
+      this.mobilePane.set('thread');
     }
   }
 
@@ -362,6 +435,7 @@ export class ChatPageComponent {
     const ok = await this.store.createGroupConversation(request.title, request.members);
     if (ok) {
       this.isNewConversationOpen.set(false);
+      this.mobilePane.set('thread');
     }
   }
 

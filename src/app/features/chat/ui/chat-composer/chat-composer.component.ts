@@ -1,4 +1,16 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnDestroy, Output, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  EventEmitter,
+  Input,
+  OnDestroy,
+  Output,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RecordedVoiceNote, VoiceNoteRecorderService } from '@core/communication/voice-note-recorder.service';
@@ -29,6 +41,8 @@ export class ChatComposerComponent implements OnDestroy {
   /** true al empezar a grabar, false al parar/cancelar/enviar — para el indicador "grabando…". */
   @Output() recording = new EventEmitter<boolean>();
 
+  @ViewChild('draftInput') private draftInput?: ElementRef<HTMLTextAreaElement>;
+
   readonly recorder = inject(VoiceNoteRecorderService);
   readonly draft = signal('');
   /** Con texto se muestra enviar; sin texto, micrófono (patrón WhatsApp). */
@@ -37,6 +51,20 @@ export class ChatComposerComponent implements OnDestroy {
   onDraftChange(value: string): void {
     this.draft.set(value);
     this.typing.emit(value.trim().length > 0);
+    this.autoGrow();
+  }
+
+  /**
+   * Enter envía y Shift+Enter hace salto de línea (escritorio). En pantallas táctiles Enter es salto
+   * de línea y se envía con el botón (como WhatsApp). Mientras un IME compone (acentos, CJK) Enter
+   * confirma la composición, no envía.
+   */
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing || isCoarsePointer()) {
+      return;
+    }
+    event.preventDefault();
+    this.submit();
   }
 
   onBlur(): void {
@@ -51,6 +79,23 @@ export class ChatComposerComponent implements OnDestroy {
     this.send.emit(text);
     this.draft.set('');
     this.typing.emit(false);
+    // Vuelve a una línea y mantiene el foco para seguir escribiendo (no se deshabilita nunca el campo).
+    const el = this.draftInput?.nativeElement;
+    if (el) {
+      el.value = '';
+      this.autoGrow();
+      el.focus();
+    }
+  }
+
+  /** Alto según el contenido (tope en CSS con max-h-40; pasado eso scrollea por dentro). */
+  private autoGrow(): void {
+    const el = this.draftInput?.nativeElement;
+    if (!el) {
+      return;
+    }
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
   }
 
   onFileSelected(event: Event): void {
@@ -94,4 +139,9 @@ export class ChatComposerComponent implements OnDestroy {
       this.recording.emit(false);
     }
   }
+}
+
+/** Pantalla táctil sin mouse: ahí Enter inserta salto de línea y se envía con el botón. */
+function isCoarsePointer(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 }

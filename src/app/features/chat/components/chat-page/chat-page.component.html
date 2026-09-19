@@ -1,6 +1,12 @@
-<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)] gap-6">
+<!--
+  Alto fijo al viewport (lo calcula el componente): el chat NO debe hacer crecer la página. Solo
+  scrollean la lista de conversaciones y el hilo; cabecera y composer quedan siempre a la vista.
+  Por debajo de `lg` es maestro-detalle: se ve la lista O la conversación (con botón para volver).
+-->
+<div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-4 gap-4 lg:gap-6">
   <!-- Conversation rail -->
-  <div class="bg-white rounded-[28px] p-5 lg:col-span-1 flex flex-col min-h-0">
+  <div class="bg-white rounded-[28px] p-4 sm:p-5 lg:col-span-1 flex-col min-h-0"
+    [ngClass]="mobilePane() === 'thread' ? 'hidden lg:flex' : 'flex'">
     <div class="flex items-start justify-between gap-2 px-1">
       <div>
         <h2 class="text-xl font-bold text-gray-900">Chat</h2>
@@ -98,16 +104,14 @@
     </ng-container>
   </div>
 
-  <!-- Thread card -->
-  <!-- min-h-[32rem] en móvil (sin fila acotada) pero lg:min-h-0 para que el grid-item respete la fila
-       minmax(0,1fr): sin esto la columna crece a todo el contenido, el hilo nunca acota su alto y
-       scrollea la PÁGINA en vez del contenedor (por eso no bajaba solo al último mensaje). -->
-  <div class="bg-white rounded-[28px] p-6 lg:col-span-3 flex flex-col min-h-[32rem] lg:min-h-0">
+  <!-- Thread card: min-h-0 para que respete la fila minmax(0,1fr) y el hilo scrollee por dentro. -->
+  <div class="bg-white rounded-[28px] p-4 sm:p-6 lg:col-span-3 flex-col min-h-0"
+    [ngClass]="mobilePane() === 'list' ? 'hidden lg:flex' : 'flex'">
     <!-- Empty state: no conversation selected yet -->
     <div *ngIf="!hasActiveConversation()" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10">
-      <span class="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-bold/10 text-brand-bold">
-        <span class="absolute inline-flex h-full w-full rounded-3xl bg-brand-bold/10 motion-safe:animate-ping"></span>
-        <ion-icon name="chatbubbles-outline" class="relative text-4xl"></ion-icon>
+      <!-- Sin animación: el `animate-ping` en bucle parpadeaba todo el tiempo detrás del ícono. -->
+      <span class="flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-bold/10 text-brand-bold">
+        <ion-icon name="chatbubbles-outline" class="text-4xl"></ion-icon>
       </span>
       <h2 class="mt-6 text-xl font-bold text-gray-900">Your conversations live here</h2>
       <p class="mt-2 max-w-sm text-sm text-gray-500">
@@ -135,16 +139,20 @@
     <!-- Active conversation -->
     <ng-container *ngIf="hasActiveConversation()">
     <!-- Thread header -->
-    <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+    <div class="flex items-center gap-2 sm:gap-3 pb-3 sm:pb-4 border-b border-gray-100">
+      <button type="button" (click)="showList()" aria-label="Back to conversations"
+        class="lg:hidden -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+        <ion-icon name="arrow-back-outline" class="text-lg"></ion-icon>
+      </button>
       <div class="relative shrink-0">
         <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
           [ngClass]="activeConversation.avatarColor">{{ initials(activeConversation.name) }}</span>
         <span *ngIf="showPresenceDot" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-white"
           [ngClass]="presenceDotClass" [attr.aria-label]="presenceLabel" [attr.title]="presenceLabel"></span>
       </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <h2 class="text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
+      <div class="min-w-0">
+        <div class="flex min-w-0 items-center gap-2">
+          <h2 class="truncate text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
           <span *ngIf="isActiveSupport"
             class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
         </div>
@@ -156,22 +164,23 @@
 
       <button *ngIf="canCallActiveConversation" type="button" (click)="startAudioCall()"
         [disabled]="callButtonsDisabled" [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start audio call'"
-        class="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
+        class="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
         <ion-icon name="call-outline" class="text-base"></ion-icon>
       </button>
 
       <button *ngIf="canVideoCallActiveConversation" type="button" (click)="startVideoCall()"
         [class.ml-auto]="!canCallActiveConversation" [disabled]="callButtonsDisabled"
         [attr.title]="callDisabledReason" [attr.aria-label]="callDisabledReason || 'Start video call'"
-        class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-bold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors">
         <ion-icon name="videocam-outline" class="text-base"></ion-icon>
       </button>
 
       <button type="button" (click)="openInfo()"
         [class.ml-auto]="!canCallActiveConversation && !canVideoCallActiveConversation"
-        class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+        aria-label="Conversation info"
+        class="flex shrink-0 items-center gap-2 rounded-full border border-gray-200 px-3 sm:px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
         <ion-icon name="information-circle-outline" class="text-base text-gray-400"></ion-icon>
-        Info
+        <span class="hidden sm:inline">Info</span>
       </button>
     </div>
 
@@ -182,11 +191,12 @@
         [typingName]="activeConversation.typingName" [recordingName]="activeConversation.recordingName"
         [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
         (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
-        (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"></app-chat-thread>
+        (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"
+        (retryRequested)="onRetryMessage($event)"></app-chat-thread>
     </div>
 
     <!-- Composer -->
-    <div class="pt-4 border-t border-gray-100">
+    <div class="pt-3 sm:pt-4 border-t border-gray-100">
       <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
         (attach)="onAttach($event)" (typing)="onTyping($event)"
         (sendVoiceNote)="onSendVoiceNote($event)" (recording)="onRecording($event)"></app-chat-composer>

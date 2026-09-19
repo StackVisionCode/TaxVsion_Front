@@ -22,21 +22,25 @@
 </div>
 
 <ng-template #composer>
-  <form class="flex items-center gap-2" (ngSubmit)="submit()">
+  <!-- items-end: con varias líneas los botones quedan abajo, alineados con la última línea. -->
+  <form class="flex items-end gap-2" (ngSubmit)="submit()">
     <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
       class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
       <ion-icon [name]="uploading ? 'reload-outline' : 'attach-outline'" class="text-lg" [class.animate-spin]="uploading"></ion-icon>
       <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
     </label>
 
-    <div class="h-11 flex-1 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-      <input type="text" placeholder="Write a message..." [ngModel]="draft()" name="draft"
-        (ngModelChange)="onDraftChange($event)" (blur)="onBlur()"
-        class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+    <div class="min-h-11 flex-1 rounded-3xl border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
+      <!-- Crece con el texto hasta ~6 líneas y luego scrollea. Enter envía; Shift+Enter, salto de línea. -->
+      <textarea #draftInput rows="1" placeholder="Write a message..." [ngModel]="draft()" name="draft"
+        (ngModelChange)="onDraftChange($event)" (keydown)="onKeydown($event)" (blur)="onBlur()"
+        aria-label="Message"
+        class="block max-h-40 w-full resize-none overflow-y-auto bg-transparent px-4 py-2.5 text-sm leading-6 text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
     </div>
 
     <!-- Con texto: enviar. Sin texto: micrófono para grabar una nota de voz. -->
-    <button *ngIf="hasText()" type="submit"
+    <!-- pointerdown.preventDefault: tocar enviar no le quita el foco al textarea (en el móvil el teclado no se cierra). -->
+    <button *ngIf="hasText()" type="submit" (pointerdown)="$event.preventDefault()"
       class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors"
       aria-label="Send message">
       <ion-icon name="send-outline" class="text-base"></ion-icon>
