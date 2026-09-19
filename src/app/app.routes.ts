@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
+import { permissionGuard } from '@core/auth/permission.guard';
 
 /**
  * Convención de precarga (ver `PacedPreloadStrategy` en core/performance):
@@ -293,6 +294,7 @@ export const routes: Routes = [
       {
         path: 'sms',
         data: { preloadPriority: 'low' },
+        canActivate: [permissionGuard('sms.read')],
         loadChildren: () => import('./features/sms/sms.routes').then(m => m.SMS_ROUTES),
       },
       {

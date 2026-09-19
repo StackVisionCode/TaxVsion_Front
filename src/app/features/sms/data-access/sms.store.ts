@@ -1,271 +1,373 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
-import { toApiError } from '@core/models/api-error.model';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable, Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap } from 'rxjs';
+import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { SmsService } from './sms.service';
 import {
   SendSmsBatchResponse,
+  SetSmsConsentRequest,
   SmsContact,
-  SmsContactListItem,
-  SmsSendItemResult,
-  SmsThreadMessage,
-  apiStatusToUi,
-  timeLabel,
+  SmsMessageSummary,
+  SmsOptOutFilter,
+  SmsOptOutSummary,
+  SmsStats,
+  SmsStatusFilter,
   toSmsContact,
 } from './sms.model';
 
-/** Resumen de un broadcast para el toast de la página. */
-export interface SmsBroadcastSummary {
+/** Tamaños de página del selector "rows per page". */
+export const SMS_PAGE_SIZES = [10, 25, 50, 100] as const;
+const DEFAULT_SIZE = 25;
+
+/** Marca de origen que viaja en sourceContext (auditoría en los eventos del backend). */
+const SOURCE_CONTEXT = 'crm-sms';
+
+/** Resumen de un envío para el toast de la página. */
+export interface SmsSendSummary {
   requested: number;
   sent: number;
   suppressed: number;
   failed: number;
 }
 
-/** Marca de origen que viaja en sourceContext (auditoría en los eventos del backend). */
-const SOURCE_CONTEXT = 'crm-sms';
+/** Destinatario de un envío (cliente + teléfono ya E.164). */
+export interface SmsSendRecipient {
+  customerId: string;
+  to: string;
+}
 
 /**
- * Store del módulo SMS (Sms.Api vía /sms). providedIn: 'root' — una sola instancia
- * para la ruta del módulo.
+ * Store del módulo SMS (Sms.Api vía /sms). `providedIn: 'root'`.
  *
- * Diseño impuesto por el contrato: el backend NO tiene endpoints de lectura (ni
- * historial, ni hilos, ni mensajes entrantes), así que:
- *  - el rail no lista "conversaciones" sino CLIENTES (GET /customers, réplica mínima);
- *  - el hilo muestra únicamente lo enviado EN ESTA SESIÓN, construido con los
- *    resultados reales de POST /sms/messages — nunca datos inventados;
- *  - el estado del chip queda como lo devolvió el envío (no hay endpoint para
- *    refrescar el DLR que llega después por webhook).
+ * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&term&from&to&page&size`),
+ * mismo patrón que ClientsStore: señales de query → una canalización con `switchMap` que cancela la
+ * petición anterior. Las bajas (opt-outs) tienen su propia canalización. Las stats se piden aparte.
+ * Tras un envío o un cambio de consentimiento se re-sincroniza la vista sin recargar el navegador.
  */
 @Injectable({ providedIn: 'root' })
 export class SmsStore {
   private readonly service = inject(SmsService);
 
-  // ---------- Estado crudo ----------
+  // ---------- Listado de mensajes ----------
+  private readonly _customerId = signal<string | null>(null);
+  private readonly _status = signal<SmsStatusFilter>('All');
+  private readonly _term = signal('');
+  private readonly _page = signal(1);
+  private readonly _size = signal<number>(DEFAULT_SIZE);
+  private readonly _items = signal<SmsMessageSummary[]>([]);
+  private readonly _totalCount = signal(0);
+  private readonly _totalPages = signal(1);
+  private readonly _listLoading = signal(false);
+  private readonly _listError = signal<string | null>(null);
+  private readonly _listErrorKind = signal<'network' | 'error'>('error');
+
+  readonly customerId = this._customerId.asReadonly();
+  readonly status = this._status.asReadonly();
+  readonly term = this._term.asReadonly();
+  readonly page = this._page.asReadonly();
+  readonly size = this._size.asReadonly();
+  readonly items = this._items.asReadonly();
+  readonly totalCount = this._totalCount.asReadonly();
+  readonly totalPages = this._totalPages.asReadonly();
+  readonly listLoading = this._listLoading.asReadonly();
+  readonly listError = this._listError.asReadonly();
+  readonly listErrorKind = this._listErrorKind.asReadonly();
+
+  // ---------- Stats ----------
+  private readonly _stats = signal<SmsStats | null>(null);
+  readonly stats = this._stats.asReadonly();
+  /** Tasa de entrega sobre lo enviado (excluye suppressed/pending). 0 si no hay envíos. */
+  readonly deliveryRate = computed<number>(() => {
+    const s = this._stats();
+    if (!s) return 0;
+    const sent = s.accepted + s.delivered + s.failed + s.undeliverable;
+    return sent === 0 ? 0 : Math.round((s.delivered / sent) * 100);
+  });
+
+  // ---------- Opt-outs ----------
+  private readonly _optStatus = signal<SmsOptOutFilter>('All');
+  private readonly _optTerm = signal('');
+  private readonly _optPage = signal(1);
+  private readonly _optSize = signal<number>(DEFAULT_SIZE);
+  private readonly _optItems = signal<SmsOptOutSummary[]>([]);
+  private readonly _optTotalCount = signal(0);
+  private readonly _optTotalPages = signal(1);
+  private readonly _optLoading = signal(false);
+  private readonly _optError = signal<string | null>(null);
+
+  readonly optStatus = this._optStatus.asReadonly();
+  readonly optTerm = this._optTerm.asReadonly();
+  readonly optPage = this._optPage.asReadonly();
+  readonly optItems = this._optItems.asReadonly();
+  readonly optTotalCount = this._optTotalCount.asReadonly();
+  readonly optTotalPages = this._optTotalPages.asReadonly();
+  readonly optLoading = this._optLoading.asReadonly();
+  readonly optError = this._optError.asReadonly();
+
+  // ---------- Clientes (picker del compose) ----------
   private readonly _contacts = signal<SmsContact[]>([]);
-  private readonly _loading = signal(false);
-  private readonly _error = signal<string | null>(null);
-  /** Error transitorio de un envío: banner descartable, no rompe la bandeja. */
-  private readonly _actionError = signal<string | null>(null);
-  private readonly _activeContactId = signal<string | null>(null);
-  private readonly _sending = signal(false);
-  private readonly _broadcastSending = signal(false);
-  /** Mensajes de la sesión por cliente (solo salientes: no hay feed de entrantes). */
-  private readonly _sessionMessages = signal<ReadonlyMap<string, SmsThreadMessage[]>>(new Map());
-  private initialized = false;
-
-  readonly loading = this._loading.asReadonly();
-  readonly error = this._error.asReadonly();
-  readonly actionError = this._actionError.asReadonly();
-  readonly sending = this._sending.asReadonly();
-  readonly broadcastSending = this._broadcastSending.asReadonly();
-  readonly activeContactId = this._activeContactId.asReadonly();
-
+  private readonly _contactsLoaded = signal(false);
   readonly contacts = this._contacts.asReadonly();
-
-  /** Clientes a los que sí se puede textear (teléfono E.164 válido en la ficha). */
+  /** Solo clientes texteables (teléfono E.164 válido en la ficha). */
   readonly textableContacts = computed<SmsContact[]>(() =>
     this._contacts().filter(contact => contact.phoneE164 !== null),
   );
 
-  readonly activeContact = computed<SmsContact | null>(() => {
-    const id = this._activeContactId();
-    return this._contacts().find(contact => contact.id === id) ?? null;
-  });
+  // ---------- Picker del compose (búsqueda server-side, alcanza TODOS los clientes) ----------
+  private readonly _pickerResults = signal<SmsContact[]>([]);
+  readonly pickerResults = this._pickerResults.asReadonly();
+  private readonly pickerSearch$ = new Subject<string>();
 
-  /** Hilo del contacto activo (solo la sesión actual). */
-  readonly activeMessages = computed<SmsThreadMessage[]>(() => {
-    const id = this._activeContactId();
-    return id ? (this._sessionMessages().get(id) ?? []) : [];
-  });
+  private readonly _sending = signal(false);
+  readonly sending = this._sending.asReadonly();
 
-  /** Filas del rail: contacto + preview del último mensaje de la sesión. */
-  readonly contactItems = computed<SmsContactListItem[]>(() => {
-    const sessions = this._sessionMessages();
-    return this._contacts().map(contact => {
-      const messages = sessions.get(contact.id) ?? [];
-      const last = messages[messages.length - 1];
-      return {
-        ...contact,
-        preview: last?.text ?? (contact.phoneE164 ? 'No messages this session' : 'No phone on file'),
-        lastTime: last?.time ?? '',
-      };
-    });
-  });
+  private readonly load$ = new Subject<void>();
+  private readonly loadOpt$ = new Subject<void>();
+  private started = false;
+  private optStarted = false;
 
-  // ---------- Carga ----------
+  constructor() {
+    this.load$
+      .pipe(
+        tap(() => {
+          this._listLoading.set(true);
+          this._listError.set(null);
+        }),
+        switchMap(() =>
+          this.service
+            .listMessages({
+              customerId: this._customerId(),
+              status: this._status(),
+              term: this._term().trim() || undefined,
+              page: this._page(),
+              size: this._size(),
+            })
+            .pipe(
+              catchError(err => {
+                const apiError = toApiError(err);
+                this._listErrorKind.set(apiError.code === NETWORK_ERROR_CODE ? 'network' : 'error');
+                this._listError.set(apiError.message);
+                this._listLoading.set(false);
+                return of(null);
+              }),
+            ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this._items.set(result.items);
+        this._totalCount.set(result.totalCount);
+        this._totalPages.set(result.totalPages);
+        this._page.set(result.page);
+        this._listLoading.set(false);
+      });
 
-  /** Carga inicial idempotente del rail de clientes. */
-  init(): void {
-    if (this.initialized) {
-      return;
-    }
-    this.initialized = true;
-    this.loadContacts();
-  }
+    this.loadOpt$
+      .pipe(
+        tap(() => {
+          this._optLoading.set(true);
+          this._optError.set(null);
+        }),
+        switchMap(() =>
+          this.service
+            .listOptOuts({
+              status: this._optStatus(),
+              term: this._optTerm().trim() || undefined,
+              page: this._optPage(),
+              size: this._optSize(),
+            })
+            .pipe(
+              catchError(err => {
+                this._optError.set(toApiError(err).message);
+                this._optLoading.set(false);
+                return of(null);
+              }),
+            ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this._optItems.set(result.items);
+        this._optTotalCount.set(result.totalCount);
+        this._optTotalPages.set(result.totalPages);
+        this._optPage.set(result.page);
+        this._optLoading.set(false);
+      });
 
-  loadContacts(): void {
-    this._loading.set(true);
-    this._error.set(null);
-    this.service.listCustomers().subscribe({
-      next: result => {
-        const contacts = result.items
-          .map(toSmsContact)
-          .sort((a, b) => a.name.localeCompare(b.name));
-        this._contacts.set(contacts);
-        // Selección inicial: el primer cliente texteable (o el primero a secas).
-        if (!this._activeContactId() && contacts.length > 0) {
-          const first = contacts.find(contact => contact.phoneE164 !== null) ?? contacts[0];
-          this._activeContactId.set(first.id);
-        }
-        this._loading.set(false);
-      },
-      error: err => {
-        this._error.set(toApiError(err).message);
-        this._loading.set(false);
-      },
-    });
-  }
-
-  select(contactId: string): void {
-    this._activeContactId.set(contactId);
-  }
-
-  clearActionError(): void {
-    this._actionError.set(null);
-  }
-
-  // ---------- Envío individual ----------
-
-  /**
-   * Envía un texto al contacto activo. Optimista: la burbuja entra como "pending" y
-   * al volver el lote se reemplaza con el resultado REAL del item (Accepted/Failed/
-   * Suppressed…). Si el POST entero falla (red, 403 sin sms.send, 429 de cuota), la
-   * burbuja pasa a failed y el error normalizado va al banner descartable.
-   */
-  sendToActive(text: string): void {
-    const contact = this.activeContact();
-    const body = text.trim();
-    if (!contact || !contact.phoneE164 || !body || this._sending()) {
-      return;
-    }
-
-    const localId = `local-${crypto.randomUUID()}`;
-    this.appendMessage(contact.id, {
-      id: localId,
-      direction: 'outbound',
-      text: body,
-      time: timeLabel(),
-      status: 'pending',
-      errorCode: null,
-    });
-
-    this._sending.set(true);
-    this.service
-      .sendMessages({
-        messages: [
-          {
-            customerId: contact.id,
-            to: contact.phoneE164,
-            message: body,
-            media: null,
-            // UUID por click: sin él, el backend deduplica por (customer, to, body) y
-            // un reenvío intencional del mismo texto no saldría.
-            idempotencyKey: crypto.randomUUID(),
-            sourceContext: SOURCE_CONTEXT,
-          },
-        ],
-      })
-      .subscribe({
-        next: response => {
-          const result = response.results[0];
-          this.patchMessage(contact.id, localId, message => ({
-            ...message,
-            id: result?.messageId ?? localId,
-            status: result ? apiStatusToUi(result.status) : 'failed',
-            errorCode: result?.errorCode ?? null,
-          }));
-          if (result?.status === 'Suppressed') {
-            this._actionError.set(
-              `${contact.name} opted out of SMS (replied STOP) — the message was not sent.`,
-            );
-          } else if (result?.errorCode) {
-            this._actionError.set(`The message could not be sent (${result.errorCode}).`);
-          }
-          this._sending.set(false);
-        },
-        error: err => {
-          this.patchMessage(contact.id, localId, message => ({
-            ...message,
-            status: 'failed',
-            errorCode: toApiError(err).code,
-          }));
-          this._actionError.set(toApiError(err).message);
-          this._sending.set(false);
-        },
+    // Picker del compose: búsqueda server-side (debounce + switchMap cancela la anterior). Solo
+    // clientes texteables (con teléfono E.164 válido). Alcanza TODOS los clientes, no solo los 200 de
+    // la primera página.
+    this.pickerSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap(term =>
+          this.service.searchCustomers(term).pipe(catchError(() => of(null))),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this._pickerResults.set(
+          result.items.map(toSmsContact).filter(c => c.phoneE164 !== null),
+        );
       });
   }
 
-  // ---------- Broadcast ----------
+  // ---------- Mensajes ----------
+
+  /** Inicializa el listado desde el estado de la URL (idempotente) y dispara la primera carga. */
+  initList(query: { status?: SmsStatusFilter; term?: string; page?: number; size?: number }): void {
+    if (query.status !== undefined) this._status.set(query.status);
+    if (query.term !== undefined) this._term.set(query.term);
+    if (query.size !== undefined) this._size.set(query.size);
+    if (query.page !== undefined) this._page.set(query.page);
+    this.started = true;
+    this.load$.next();
+    this.loadStats();
+  }
+
+  setStatus(status: SmsStatusFilter): void {
+    this._status.set(status);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  setTerm(term: string): void {
+    this._term.set(term);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  setSize(size: number): void {
+    this._size.set(size);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  goToPage(page: number): void {
+    this._page.set(page);
+    this.load$.next();
+  }
+
+  setCustomer(customerId: string | null): void {
+    this._customerId.set(customerId);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  reloadList(): void {
+    if (this.started) this.load$.next();
+  }
+
+  loadStats(from?: string | null, to?: string | null): void {
+    this.service
+      .getStats(from, to)
+      .pipe(catchError(() => of(null)))
+      .subscribe(stats => {
+        if (stats) this._stats.set(stats);
+      });
+  }
+
+  getMessage(id: string) {
+    return this.service.getMessage(id);
+  }
+
+  // ---------- Opt-outs ----------
+
+  initOptOuts(): void {
+    this.optStarted = true;
+    this.loadOpt$.next();
+  }
+
+  setOptStatus(status: SmsOptOutFilter): void {
+    this._optStatus.set(status);
+    this._optPage.set(1);
+    this.loadOpt$.next();
+  }
+
+  setOptTerm(term: string): void {
+    this._optTerm.set(term);
+    this._optPage.set(1);
+    this.loadOpt$.next();
+  }
+
+  goToOptPage(page: number): void {
+    this._optPage.set(page);
+    this.loadOpt$.next();
+  }
+
+  reloadOptOuts(): void {
+    if (this.optStarted) this.loadOpt$.next();
+  }
+
+  /** Gestión manual del consentimiento (admin, `sms.manage`). Re-sincroniza la lista y las stats. */
+  setConsent(req: SetSmsConsentRequest): Observable<SmsOptOutSummary> {
+    return this.service.setConsent(req).pipe(
+      tap(() => {
+        this.reloadOptOuts();
+        this.loadStats();
+      }),
+    );
+  }
+
+  // ---------- Clientes (compose) ----------
+
+  /** Dispara la búsqueda server-side del picker (el pipeline la debouncea y cancela la anterior). */
+  searchPicker(term: string): void {
+    this.pickerSearch$.next(term);
+  }
+
+  loadContacts(): void {
+    if (this._contactsLoaded()) return;
+    this.service
+      .listCustomers()
+      .pipe(catchError(() => of(null)))
+      .subscribe(result => {
+        if (!result) return;
+        const contacts = result.items.map(toSmsContact).sort((a, b) => a.name.localeCompare(b.name));
+        this._contacts.set(contacts);
+        this._contactsLoaded.set(true);
+      });
+  }
+
+  // ---------- Envío (compose) ----------
 
   /**
-   * Un solo POST /sms/messages con un item por cliente texteable (el endpoint es de
-   * lote nativo, tope 1000 > nuestros 200 de página). Cada hilo de la sesión recibe
-   * su burbuja con el resultado real del item correspondiente (match por customerId).
+   * Un solo POST /sms/messages con un item por destinatario (endpoint de lote nativo). Los opted-out
+   * los suprime el backend (no se cobran). Tras responder, re-sincroniza el listado y las stats.
    */
-  sendBroadcast(text: string): Observable<SmsBroadcastSummary> {
-    const body = text.trim();
-    const recipients = this.textableContacts();
-    this._broadcastSending.set(true);
-
+  send(recipients: SmsSendRecipient[], body: string): Observable<SmsSendSummary> {
+    const text = body.trim();
+    this._sending.set(true);
     return this.service
       .sendMessages({
-        messages: recipients.map(contact => ({
-          customerId: contact.id,
-          to: contact.phoneE164 as string,
-          message: body,
+        messages: recipients.map(r => ({
+          customerId: r.customerId,
+          to: r.to,
+          message: text,
           media: null,
+          // UUID por click: sin él, el backend deduplica por (customer, to, body) y un reenvío no saldría.
           idempotencyKey: crypto.randomUUID(),
           sourceContext: SOURCE_CONTEXT,
         })),
       })
       .pipe(
         tap({
-          next: response => {
-            this.appendBroadcastResults(body, response);
-            this._broadcastSending.set(false);
+          next: () => {
+            this._sending.set(false);
+            this.reloadList();
+            this.loadStats();
           },
-          error: () => this._broadcastSending.set(false),
+          error: () => this._sending.set(false),
         }),
         map(response => this.summarize(recipients.length, response)),
       );
   }
 
-  private appendBroadcastResults(body: string, response: SendSmsBatchResponse): void {
-    const byCustomer = new Map<string, SmsSendItemResult>(
-      response.results.map(result => [result.customerId, result]),
-    );
-    const time = timeLabel();
-    this._sessionMessages.update(current => {
-      const next = new Map(current);
-      for (const [customerId, result] of byCustomer) {
-        const thread = next.get(customerId) ?? [];
-        next.set(customerId, [
-          ...thread,
-          {
-            id: result.messageId ?? `local-${crypto.randomUUID()}`,
-            direction: 'outbound',
-            text: body,
-            time,
-            status: apiStatusToUi(result.status),
-            errorCode: result.errorCode,
-          },
-        ]);
-      }
-      return next;
-    });
-  }
-
-  private summarize(requested: number, response: SendSmsBatchResponse): SmsBroadcastSummary {
+  private summarize(requested: number, response: SendSmsBatchResponse): SmsSendSummary {
     let sent = 0;
     let suppressed = 0;
     let failed = 0;
@@ -283,28 +385,5 @@ export class SmsStore {
       }
     }
     return { requested, sent, suppressed, failed };
-  }
-
-  // ---------- Helpers ----------
-
-  private appendMessage(contactId: string, message: SmsThreadMessage): void {
-    this._sessionMessages.update(current => {
-      const next = new Map(current);
-      next.set(contactId, [...(next.get(contactId) ?? []), message]);
-      return next;
-    });
-  }
-
-  private patchMessage(
-    contactId: string,
-    messageId: string,
-    patch: (message: SmsThreadMessage) => SmsThreadMessage,
-  ): void {
-    this._sessionMessages.update(current => {
-      const next = new Map(current);
-      const thread = next.get(contactId) ?? [];
-      next.set(contactId, thread.map(message => (message.id === messageId ? patch(message) : message)));
-      return next;
-    });
   }
 }
