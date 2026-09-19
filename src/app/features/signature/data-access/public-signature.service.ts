@@ -4,6 +4,7 @@ import { Observable, defer } from 'rxjs';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
 import {
+  AttachSignatureImageResponse,
   AuditChainVerificationResponse,
   IssueChallengeBody,
   PublicSignerView,
@@ -107,6 +108,20 @@ export class PublicSignatureService {
    */
   acceptConsent(token: string): Observable<void> {
     return this.http.post<void>(this.url(token, '/consent'), {});
+  }
+
+  /**
+   * POST /signature/public/{token}/signature-image — sube el PNG de la firma (dibujada,
+   * subida, o el nombre tecleado rasterizado) ANTES de `/sign`. Devuelve el `fileId` que
+   * luego viaja en `SubmitSignatureBody.signatureImageFileId`. Multipart; el backend valida
+   * que es un PNG acotado antes de tocar el almacenamiento y lo escanea de forma asíncrona.
+   */
+  attachSignatureImage(token: string, image: Blob): Observable<AttachSignatureImageResponse> {
+    const form = new FormData();
+    form.append('file', image, 'signature.png');
+    return defer(() =>
+      this.http.post<AttachSignatureImageResponse>(this.url(token, '/signature-image'), form),
+    );
   }
 
   /**

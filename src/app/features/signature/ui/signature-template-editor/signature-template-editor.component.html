@@ -84,11 +84,47 @@
           Require consent
           <input type="checkbox" [ngModel]="consent()" (ngModelChange)="consent.set($event)" class="accent-brand-bold" />
         </label>
-        <label class="flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
           Generate certificate
-          <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="certificate.set($event)" class="accent-brand-bold" />
+          <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="onCertificateToggle($event)" class="accent-brand-bold" />
         </label>
-        <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy()"
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          Email signed document to signers
+          <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" class="accent-brand-bold" />
+        </label>
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium"
+          [class.text-gray-600]="certificate()" [class.text-gray-300]="!certificate()">
+          Email certificate to signers
+          <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
+            [disabled]="!certificate()" class="accent-brand-bold" />
+        </label>
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          Auto-reminders
+          <input type="checkbox" [ngModel]="autoReminders()" (ngModelChange)="autoReminders.set($event)" class="accent-brand-bold" />
+        </label>
+        <label *ngIf="autoReminders()" class="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          Remind every (days)
+          <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" (ngModelChange)="setReminderIntervalDays(+$event)"
+            class="w-16 rounded-full border border-gray-200 px-2 py-1 text-center text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+        </label>
+
+        <!-- Practitioner PIN por defecto (Form 8879): las solicitudes desde esta plantilla lo heredan. -->
+        <div class="mt-2 border-t border-gray-100 pt-2">
+          <label class="block text-xs font-medium text-gray-700">Signing PIN <span class="text-gray-400">(optional)</span></label>
+          <span class="mb-1 block text-[10px] text-gray-400">
+            {{ requiresPractitionerPin() ? 'A PIN is set — requests from this template inherit it. Type a new one to replace it.' : '4–10 digits. Requests from this template will require it.' }}
+          </span>
+          <input type="text" inputmode="numeric" autocomplete="off" maxlength="10"
+            [ngModel]="templatePin()" (ngModelChange)="setTemplatePin($event)" [disabled]="!isDraft()"
+            [placeholder]="requiresPractitionerPin() ? '•••• (set)' : 'e.g. 1234'"
+            class="w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none disabled:bg-gray-50"
+            [class.border-gray-200]="!templatePinInvalid()" [class.border-red-300]="templatePinInvalid()" />
+          <span *ngIf="templatePinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
+          <button *ngIf="isDraft() && requiresPractitionerPin()" type="button" (click)="removeTemplatePin()" [disabled]="busy()"
+            class="mt-1 text-[10px] font-medium text-red-500 hover:underline disabled:opacity-50">Remove PIN</button>
+        </div>
+
+        <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy() || templatePinInvalid()"
           class="mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
           Save details
         </button>
@@ -192,11 +228,12 @@
           </button>
         </div>
         <div class="flex items-center gap-2">
-          <label class="cursor-pointer text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors">
-            <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" />
-            Upload sample PDF
+          <label class="cursor-pointer text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            [class.pointer-events-none]="savingBaseDoc()" [class.opacity-50]="savingBaseDoc()">
+            <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc()" />
+            {{ savingBaseDoc() ? 'Saving document…' : 'Upload document' }}
           </label>
-          <button *ngIf="pages().length && pages()[0].src" type="button" (click)="clearSample()"
+          <button *ngIf="pages().length && pages()[0].src" type="button" (click)="clearSample()" [disabled]="savingBaseDoc()"
             class="text-[11px] font-medium text-gray-400 hover:text-gray-700 transition-colors">Clear</button>
           <button *ngIf="isDraft()" type="button" (click)="saveLayout()" [disabled]="!layoutDirty() || busy()"
             class="rounded-full bg-brand-bold px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
@@ -206,6 +243,10 @@
       </div>
 
       <p *ngIf="pdfError()" class="px-3 pt-2 text-[11px] text-red-500">{{ pdfError() }}</p>
+      <p *ngIf="detail()?.baseDocumentFileId && !savingBaseDoc()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
+        <ion-icon name="checkmark-circle-outline" class="text-xs"></ion-icon>
+        Saved as this template's document — "from template" will reuse it.
+      </p>
 
       <!-- Guía cuando aún no hay roles: sin slot no se pueden colocar campos -->
       <div *ngIf="slots().length === 0" class="mx-3 mt-3 flex items-start gap-2 rounded-2xl bg-brand-white px-3 py-3 text-xs leading-snug text-gray-600">
@@ -235,8 +276,15 @@
               [ngClass]="[borderClass(field.slotOrder), textClass(field.slotOrder)]"
               [style.left.px]="field.x" [style.top.px]="field.y"
               [style.width.px]="field.width" [style.height.px]="field.height">
-              <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
-              <span class="truncate">{{ fieldLabel[field.type] }}</span>
+              <!-- Campo de texto: etiqueta editable inline (la ve el firmante como instrucción) -->
+              <input *ngIf="field.type === 'text'; else fieldBadge" type="text" [ngModel]="field.label || ''"
+                (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
+                placeholder="Field label" (pointerdown)="$event.stopPropagation()"
+                class="h-full w-full bg-transparent px-1 text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
+              <ng-template #fieldBadge>
+                <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
+                <span class="truncate">{{ fieldLabel[field.type] }}</span>
+              </ng-template>
 
               <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(field.localId)"
                 class="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity">

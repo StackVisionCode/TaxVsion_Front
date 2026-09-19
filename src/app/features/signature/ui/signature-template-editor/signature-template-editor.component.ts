@@ -61,6 +61,8 @@ interface TemplateFieldLocal {
   y: number;
   width: number;
   height: number;
+  /** Instrucción/etiqueta que verá el firmante (solo `text`). */
+  label?: string;
 }
 
 interface DragState {
@@ -146,6 +148,20 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   readonly sequential = signal(false);
   readonly consent = signal(true);
   readonly certificate = signal(true);
+  // Defaults de entrega/recordatorio que "from template" copia a la solicitud (mismos que la solicitud).
+  readonly sendSignedDocument = signal(true);
+  readonly sendCertificate = signal(false);
+  readonly autoReminders = signal(true);
+  readonly reminderIntervalHours = signal(48);
+  readonly reminderIntervalDays = computed(() => Math.max(1, Math.round(this.reminderIntervalHours() / 24)));
+  // Practitioner PIN por defecto de la plantilla (Form 8879). El hash no se expone: solo sabemos si HAY
+  // uno (`requiresPractitionerPin`). `templatePin` es el valor NUEVO a fijar (vacío = no cambiar).
+  readonly requiresPractitionerPin = signal(false);
+  readonly templatePin = signal('');
+  readonly templatePinInvalid = computed(() => {
+    const pin = this.templatePin();
+    return pin.length > 0 && pin.length < 4;
+  });
 
   // ---------- Slots ----------
   readonly newSlotRole = signal('');
@@ -182,6 +198,8 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   /** true cuando el layout local difiere de lo persistido (habilita "Save layout"). */
   readonly layoutDirty = signal(false);
   readonly pdfError = signal('');
+  /** P7: subiendo la muestra a CloudStorage para guardarla como documento base de la plantilla. */
+  readonly savingBaseDoc = signal(false);
 
   private drag: DragState | null = null;
   private seq = 0;
@@ -250,6 +268,12 @@ export class SignatureTemplateEditorComponent implements OnChanges {
     this.sequential.set(detail.requiresSequentialSigning);
     this.consent.set(detail.requiresConsent);
     this.certificate.set(detail.generateCertificate);
+    this.sendSignedDocument.set(detail.sendSignedDocumentToSigners);
+    this.sendCertificate.set(detail.sendCertificateToSigners);
+    this.autoReminders.set(detail.autoRemindersEnabled);
+    this.reminderIntervalHours.set(detail.reminderIntervalHours);
+    this.requiresPractitionerPin.set(detail.requiresPractitionerPin);
+    this.templatePin.set('');
     if (this.activeSlotOrder() === null || !detail.slots.some(s => s.order === this.activeSlotOrder())) {
       this.activeSlotOrder.set([...detail.slots].sort((a, b) => a.order - b.order)[0]?.order ?? null);
     }
@@ -273,6 +297,7 @@ export class SignatureTemplateEditorComponent implements OnChanges {
           y: f.y * page.height,
           width: f.width * page.width,
           height: f.height * page.height,
+          label: f.label ?? undefined,
         };
       }),
     );
@@ -307,11 +332,52 @@ export class SignatureTemplateEditorComponent implements OnChanges {
           requiresSequentialSigning: this.sequential(),
           requiresConsent: this.consent(),
           generateCertificate: this.certificate(),
+          sendSignedDocumentToSigners: this.sendSignedDocument(),
+          // El certificado solo se puede entregar si se genera (misma regla que el backend).
+          sendCertificateToSigners: this.certificate() && this.sendCertificate(),
+          autoRemindersEnabled: this.autoReminders(),
+          reminderIntervalHours: this.reminderIntervalHours(),
         }),
       );
+      // PIN nuevo (4–10 dígitos) → fijar/reemplazar. Vacío = no se toca el PIN existente.
+      const pin = this.templatePin();
+      if (pin.length >= 4) {
+        await firstValueFrom(this.service.setTemplatePractitionerPin(id, pin));
+      }
       await this.reload();
       this.changed.emit();
     });
+  }
+
+  setTemplatePin(value: string): void {
+    this.templatePin.set((value ?? '').replace(/\D/g, '').slice(0, 10));
+  }
+
+  /** Quita el Practitioner PIN por defecto de la plantilla (efecto inmediato). */
+  async removeTemplatePin(): Promise<void> {
+    const id = this.templateId;
+    if (!id || this.busy()) {
+      return;
+    }
+    await this.run('Removing PIN…', async () => {
+      await firstValueFrom(this.service.clearTemplatePractitionerPin(id));
+      this.templatePin.set('');
+      await this.reload();
+      this.changed.emit();
+    });
+  }
+
+  /** Al desactivar la generación del certificado, se fuerza a false la entrega del certificado. */
+  onCertificateToggle(enabled: boolean): void {
+    this.certificate.set(enabled);
+    if (!enabled) {
+      this.sendCertificate.set(false);
+    }
+  }
+
+  setReminderIntervalDays(days: number): void {
+    const clamped = Math.min(30, Math.max(1, Math.round(days) || 1));
+    this.reminderIntervalHours.set(clamped * 24);
   }
 
   // ------------------------------------------------------------------
@@ -436,13 +502,56 @@ export class SignatureTemplateEditorComponent implements OnChanges {
       this.pages.set(pages);
     } catch (err) {
       this.pdfError.set(`Could not render that PDF (${err instanceof Error ? err.message : String(err)}).`);
+      return;
+    }
+
+    // P7: además de la vista previa local, sube el PDF a CloudStorage y lo guarda como documento
+    // base de la plantilla, para que "from template" lo pre-seleccione sin re-subir.
+    const id = this.templateId;
+    if (!id) {
+      return;
+    }
+    this.savingBaseDoc.set(true);
+    try {
+      const validation = await firstValueFrom(this.service.validateDocument(file));
+      if (!validation.isAcceptable) {
+        this.pdfError.set(validation.issues[0]?.message ?? 'That PDF cannot be used as a base document.');
+        return;
+      }
+      const fileId = await firstValueFrom(
+        this.service.uploadOriginalDocument(file, validation.validationRecordId),
+      );
+      await firstValueFrom(this.service.setTemplateBaseDocument(id, fileId));
+      // Refleja el nuevo doc base sin recargar (rebuildSurface volvería a páginas en blanco).
+      this.detail.update(d => (d ? { ...d, baseDocumentFileId: fileId } : d));
+      this.changed.emit();
+    } catch (err) {
+      this.pdfError.set(toApiError(err).message);
+    } finally {
+      this.savingBaseDoc.set(false);
     }
   }
 
-  clearSample(): void {
+  async clearSample(): Promise<void> {
     const pages = blankPages(Math.max(1, ...this.fields().map(f => f.page)), BASE_SCALE);
     this.remapFieldsToPages(pages);
     this.pages.set(pages);
+
+    // P7: si había documento base, se quita también en el backend.
+    const id = this.templateId;
+    if (!id || !this.detail()?.baseDocumentFileId) {
+      return;
+    }
+    this.savingBaseDoc.set(true);
+    try {
+      await firstValueFrom(this.service.setTemplateBaseDocument(id, null));
+      this.detail.update(d => (d ? { ...d, baseDocumentFileId: null } : d));
+      this.changed.emit();
+    } catch (err) {
+      this.pdfError.set(toApiError(err).message);
+    } finally {
+      this.savingBaseDoc.set(false);
+    }
   }
 
   /** Reubica los campos existentes proporcionalmente al cambiar la superficie (px cambian de tamaño). */
@@ -495,6 +604,12 @@ export class SignatureTemplateEditorComponent implements OnChanges {
         height: size.h,
       },
     ]);
+    this.layoutDirty.set(true);
+  }
+
+  /** Etiqueta/instrucción de un campo de texto de la plantilla; el firmante la ve como placeholder. */
+  setFieldLabel(localId: string, label: string): void {
+    this.fields.update(list => list.map(f => (f.localId === localId ? { ...f, label } : f)));
     this.layoutDirty.set(true);
   }
 
@@ -621,7 +736,7 @@ export class SignatureTemplateEditorComponent implements OnChanges {
             y: field.y,
             width: field.width,
             height: field.height,
-            label: null,
+            label: field.label ?? null,
             isRequired: true,
           }),
         );
@@ -682,10 +797,10 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   // ------------------------------------------------------------------
 
   /** Campos en coordenadas normalizadas [0..1] (origen arriba-izquierda) para el backend. */
-  private buildNormalizedFields(): { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number }[] {
+  private buildNormalizedFields(): { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number; label?: string }[] {
     const clamp01 = (v: number): number => Math.min(Math.max(v, 0), 1);
     const round = (v: number): number => Math.round(v * 10000) / 10000;
-    const out: { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number }[] = [];
+    const out: { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number; label?: string }[] = [];
     for (const field of this.fields()) {
       const page = this.pages().find(p => p.page === field.page);
       if (!page || page.width <= 0 || page.height <= 0) {
@@ -704,7 +819,16 @@ export class SignatureTemplateEditorComponent implements OnChanges {
       if (width <= 0 || height <= 0) {
         continue;
       }
-      out.push({ slotOrder: field.slotOrder, type: field.type, page: field.page, x, y, width, height });
+      out.push({
+        slotOrder: field.slotOrder,
+        type: field.type,
+        page: field.page,
+        x,
+        y,
+        width,
+        height,
+        label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+      });
     }
     return out;
   }

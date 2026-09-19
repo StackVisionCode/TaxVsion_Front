@@ -93,6 +93,7 @@ export const CHANNEL_META: Record<VerificationChannel, { label: string; icon: st
   sms: { label: 'SMS', icon: 'chatbox-outline' },
   whatsapp: { label: 'WhatsApp', icon: 'logo-whatsapp' },
   app: { label: 'Auth app', icon: 'phone-portrait-outline' },
+  none: { label: 'No code', icon: 'remove-circle-outline' },
 };
 
 export const ALL_CHANNELS: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'app'];
@@ -101,10 +102,16 @@ export const ALL_CHANNELS: VerificationChannel[] = ['email', 'sms', 'whatsapp', 
 export function defaultRules(): RequestRules {
   return {
     sequential: true,
-    channels: ['email', 'sms'],
+    // Default Email-only (SMS off). Los canales de la request son el default que hereda cada firmante
+    // nuevo (ver defaultSignerChannel en el editor) — ya no son decorativos.
+    channels: ['email'],
     autoReminder: true,
+    reminderIntervalHours: 48, // cada 2 días
     certificate: true,
     includePreparerSignature: false,
+    sendSignedDocument: true,
+    sendCertificate: false,
+    signingPin: null,
   };
 }
 

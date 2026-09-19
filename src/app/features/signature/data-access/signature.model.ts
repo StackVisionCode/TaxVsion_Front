@@ -218,6 +218,14 @@ export interface SignatureTemplateDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  sendSignedDocumentToSigners: boolean;
+  sendCertificateToSigners: boolean;
+  autoRemindersEnabled: boolean;
+  reminderIntervalHours: number;
+  /** true si la plantilla tiene un Practitioner PIN por defecto (el hash nunca se expone). */
+  requiresPractitionerPin: boolean;
+  /** P7: documento base de la plantilla; si está, "from template" lo pre-selecciona. */
+  baseDocumentFileId: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   publishedAtUtc: string | null;
@@ -240,7 +248,8 @@ export interface SlotBinding {
  * layout de campos y los settings, no el documento.
  */
 export interface InstantiateTemplateBody {
-  originalFileId: string;
+  /** P7: opcional. Si se omite y la plantilla tiene documento base, el backend usa ese. */
+  originalFileId?: string | null;
   slotBindings: SlotBinding[];
   descriptionOverride: string | null;
 }
@@ -256,6 +265,13 @@ export interface CreateTemplateBody {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  /** Opcionales al crear (el backend aplica sus defaults); se configuran luego en los defaults del editor. */
+  sendSignedDocumentToSigners?: boolean;
+  sendCertificateToSigners?: boolean;
+  autoRemindersEnabled?: boolean;
+  reminderIntervalHours?: number;
+  /** P7: documento base opcional del que se crea la plantilla. */
+  baseDocumentFileId?: string | null;
 }
 
 /** PUT /signature/templates/{id}/metadata. */
@@ -271,6 +287,10 @@ export interface UpdateTemplateDefaultsBody {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  sendSignedDocumentToSigners: boolean;
+  sendCertificateToSigners: boolean;
+  autoRemindersEnabled: boolean;
+  reminderIntervalHours: number;
 }
 
 /** POST /signature/templates/{id}/slots. `defaultLanguage` = 'Es' | 'En'. */
@@ -342,6 +362,12 @@ export interface CreateSignatureRequestBody {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  /** P2: entregar el documento firmado / el certificado a los firmantes (el backend los fuerza a false sin permiso). */
+  sendSignedDocumentToSigners?: boolean;
+  sendCertificateToSigners?: boolean;
+  /** Recordatorios: on/off + intervalo (horas). null/omitido = usar el default del tenant. */
+  autoRemindersEnabled?: boolean | null;
+  reminderIntervalHours?: number | null;
 }
 
 /** Idioma de los correos al firmante (backend Signer.Language). */
@@ -370,6 +396,8 @@ export function channelToVerificationMethod(channel: VerificationChannel): Signe
     case 'whatsapp':
       return 'WhatsAppOtp';
     case 'app':
+    case 'none':
+      // Sin OTP: el firmante no recibe código. La seguridad la da el Practitioner PIN (si está) o nada.
       return undefined;
   }
 }

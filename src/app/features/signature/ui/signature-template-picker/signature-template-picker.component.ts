@@ -1,4 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
@@ -26,8 +28,8 @@ interface SlotDraft {
   verificationMethod?: SignerVerificationMethod | null;
 }
 
-/** Origen del documento: subir uno nuevo o reusar un PDF de la oficina. */
-type DocSource = 'upload' | 'library';
+/** Origen del documento: el documento base de la plantilla (P7), subir uno nuevo, o reusar un PDF de la oficina. */
+type DocSource = 'template' | 'upload' | 'library';
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -109,19 +111,39 @@ export class SignatureTemplatePickerComponent {
   readonly clientPickerSlot = signal<number | null>(null);
   readonly clientQuery = signal('');
 
-  readonly filteredClients = computed<WizardClient[]>(() => {
-    const term = this.clientQuery().trim().toLowerCase();
-    const list = this.customers();
-    if (!term) {
-      return list.slice(0, 8);
-    }
-    return list
-      .filter(c => c.displayName.toLowerCase().includes(term) || c.email.toLowerCase().includes(term))
-      .slice(0, 8);
-  });
+  // El texto lo resuelve el backend (typeahead server-side, ver constructor): busca sobre
+  // TODO el tenant, no sólo el lote precargado. Aquí sólo recortamos a los primeros 8 del
+  // dropdown; ya vienen filtrados por el término.
+  readonly filteredClients = computed<WizardClient[]>(() => this.customers().slice(0, 8));
 
-  /** true si hay documento válido (subido o de librería). */
-  readonly hasDocument = computed(() => (this.docSource() === 'upload' ? !!this.file() : !!this.libraryFile()));
+  constructor() {
+    // Typeahead server-side del buscador de clientes por rol: cada término (debounced)
+    // consulta el backend, que busca sobre TODO el tenant — así se encuentran clientes
+    // fuera del lote inicial precargado.
+    toObservable(this.clientQuery)
+      .pipe(
+        map(term => term.trim()),
+        debounceTime(250),
+        distinctUntilChanged(),
+        takeUntilDestroyed(),
+      )
+      .subscribe(term => this.store.queryCustomers(term));
+  }
+
+  /** true si la plantilla elegida trae un documento base (P7). */
+  readonly hasTemplateDocument = computed(() => !!this.selected()?.baseDocumentFileId);
+
+  /** true si hay documento válido: el de la plantilla, uno subido, o uno de librería. */
+  readonly hasDocument = computed(() => {
+    switch (this.docSource()) {
+      case 'template':
+        return this.hasTemplateDocument();
+      case 'upload':
+        return !!this.file();
+      case 'library':
+        return !!this.libraryFile();
+    }
+  });
 
   /** Hace falta el PDF y un firmante completo por cada rol; teléfono si el rol exige SMS/WhatsApp. */
   readonly canCreate = computed(
@@ -171,10 +193,11 @@ export class SignatureTemplatePickerComponent {
   setDocSource(source: DocSource): void {
     this.docSource.set(source);
     this.fileError.set('');
-    if (source === 'upload') {
-      this.libraryFile.set(null);
-    } else {
+    if (source !== 'upload') {
       this.file.set(null);
+    }
+    if (source !== 'library') {
+      this.libraryFile.set(null);
     }
   }
 
@@ -203,6 +226,8 @@ export class SignatureTemplatePickerComponent {
     this.store.getTemplate(template.id).subscribe({
       next: detail => {
         this.selected.set(detail);
+        // P7: si la plantilla trae documento base, se pre-selecciona; si no, se pide subir/elegir.
+        this.docSource.set(detail.baseDocumentFileId ? 'template' : 'upload');
         this.slots.set(
           [...detail.slots]
             .sort((a, b) => a.order - b.order)
@@ -284,8 +309,12 @@ export class SignatureTemplatePickerComponent {
     // Librería reusa el fileId (rápido); upload valida+sube. El botón queda deshabilitado y el
     // modal no se puede cerrar mientras procesa (close() chequea busy).
     const library = this.libraryFile();
-    const source: { file: File } | { fileId: string } =
-      this.docSource() === 'library' && library ? { fileId: library.id } : { file: this.file()! };
+    const source: { file: File } | { fileId: string } | { templateDoc: true } =
+      this.docSource() === 'template'
+        ? { templateDoc: true }
+        : this.docSource() === 'library' && library
+          ? { fileId: library.id }
+          : { file: this.file()! };
 
     try {
       const result = await this.store.instantiateTemplateAndSend(template.id, source, bindings, note, p =>
