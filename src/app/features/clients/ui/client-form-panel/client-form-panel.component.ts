@@ -139,6 +139,8 @@ export class ClientFormPanelComponent implements OnChanges {
       .pipe(map(list => list.map(a => ({ id: a.id, label: a.description, hint: a.naicsCode }))));
 
   readonly isStructureOpen = signal(false);
+  /** El usuario eligió una estructura en este formulario (en edición, la actual no se conoce). */
+  readonly structureTouched = signal(false);
   readonly isSaving = signal(false);
   readonly saveError = signal<string | null>(null);
   readonly attempted = signal(false);
@@ -231,6 +233,7 @@ export class ClientFormPanelComponent implements OnChanges {
 
   selectBusinessStructure(structure: BusinessStructure): void {
     this.businessStructure.set(structure);
+    this.structureTouched.set(true);
     this.isStructureOpen.set(false);
   }
 
@@ -459,10 +462,14 @@ export class ClientFormPanelComponent implements OnChanges {
 
   // ---------- Mappers ----------
 
+  /**
+   * En edición NO se manda identificador fiscal: el PUT de fiscal-profile reemplaza el perfil
+   * entero y borraba filing status, AGI y banco. El SSN/EIN se cambia desde "Tax profile".
+   */
   private buildOptions(): ClientSaveOptions {
     const type = this.clientType();
     return {
-      taxIdentifier: taxIdentifierDigits(type === 'individual' ? this.ssnOrItin() : this.ein()),
+      taxIdentifier: this.isEditMode() ? '' : taxIdentifierDigits(type === 'individual' ? this.ssnOrItin() : this.ein()),
       subjectKind: type === 'individual' ? 'Individual' : 'Business',
       isActive: this.isActive(),
     };
@@ -497,6 +504,11 @@ export class ClientFormPanelComponent implements OnChanges {
     };
   }
 
+  /**
+   * El detalle no devuelve la estructura de la empresa, así que en edición el form no la
+   * conoce: solo se envía si el usuario eligió una. En el PATCH, null = conservar la actual
+   * (antes se mandaba siempre el 'LLC' por defecto y pisaba la real).
+   */
   private buildUpdateRequest(): UpdateCustomerRequest {
     const shared: UpdateCustomerRequest = {
       language: this.language(),
@@ -517,7 +529,7 @@ export class ClientFormPanelComponent implements OnChanges {
     return {
       ...shared,
       legalName: this.businessName().trim(),
-      businessStructure: BUSINESS_STRUCTURE_TO_API[this.businessStructure()],
+      businessStructure: this.structureTouched() ? BUSINESS_STRUCTURE_TO_API[this.businessStructure()] : null,
       formationDate: serializeDateOnly(this.formationDate()),
       principalBusinessActivityId: this.businessActivityId(),
     };
@@ -543,6 +555,7 @@ export class ClientFormPanelComponent implements OnChanges {
     const client = this.client;
     this.saveError.set(null);
     this.isStructureOpen.set(false);
+    this.structureTouched.set(false);
     this.attempted.set(false);
     this.duplicate.set(null);
     this.confirmingOverwrite.set(false);

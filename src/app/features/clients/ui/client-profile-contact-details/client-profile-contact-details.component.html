@@ -26,7 +26,7 @@
             {{ a.line1 }}{{ a.line2 ? ', ' + a.line2 : '' }}, {{ a.city }}{{ a.region ? ', ' + a.region : '' }} {{ a.postalCode }} · {{ a.countryCode }}
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div class="flex shrink-0 items-center gap-1">
           <button type="button" (click)="openEditAddress(a)" aria-label="Edit address"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
@@ -74,7 +74,7 @@
             </span>
           </div>
         </div>
-        <div class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div class="flex shrink-0 items-center gap-1">
           <button type="button" (click)="openEditContact(cp)" aria-label="Edit contact"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>

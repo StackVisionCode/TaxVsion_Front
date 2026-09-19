@@ -11,8 +11,12 @@
     transform: translateY(0);
   }
 }
+.spouse-block {
+  animation: err-in 200ms ease both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .field-err {
+  .field-err,
+  .spouse-block {
     animation: none;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Animaciones de entrada de la pestaña Family, con el patrón del resto del
+ * Animaciones de entrada del hogar fiscal (pestaña Info), con el patrón del resto del
  * repo: keyframes propios (no @angular/animations), 260ms y escalonado por
  * nth-child para que las tarjetas entren en cascada en vez de a la vez.
  */

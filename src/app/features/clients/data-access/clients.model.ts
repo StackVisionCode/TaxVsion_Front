@@ -149,6 +149,22 @@ export interface CustomerFiscalProfileResponse {
   updatedByUserId: string;
 }
 
+/** Espejo de `TaxRelationshipRole` (Customer.Domain.Relations). */
+export type TaxRelationshipRole = 'Spouse' | 'Dependent' | 'Other';
+
+/**
+ * PUT /customers/{id}/relations/{relationId}/fiscal-profile (`SetRelationFiscalProfileRequest`).
+ * El identificador viaja en claro (el backend lo cifra y guarda el last4); `taxYear` entre 2000 y 2100.
+ * Solo se aceptan relaciones de cónyuge, dependiente o miembro del hogar fiscal.
+ */
+export interface SetRelationFiscalProfileRequest {
+  role: TaxRelationshipRole;
+  taxIdentifier: string;
+  taxYear: number;
+  qualifiesAsDependent: boolean;
+  livedWithTaxpayer: boolean;
+}
+
 export interface RevealedTaxIdentifierResponse {
   customerId: string;
   subjectKind: FiscalSubjectKind;

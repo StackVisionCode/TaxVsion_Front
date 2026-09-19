@@ -23,6 +23,7 @@ import {
   RelationResponse,
   RevealedTaxIdentifierResponse,
   SetCustomerFiscalProfileRequest,
+  SetRelationFiscalProfileRequest,
   UpdateCustomerRequest,
 } from './clients.model';
 
@@ -161,11 +162,21 @@ export class ClientsService {
     return this.http.post<RelationResponse>(`${this.base}/${customerId}/relations`, req);
   }
 
-  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<RelationResponse> {
-    return this.http.patch<RelationResponse>(`${this.base}/${customerId}/relations/${relationId}`, req);
+  /** PATCH responde 204 sin body (el backend no devuelve la relación actualizada). */
+  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<void> {
+    return this.http.patch<void>(`${this.base}/${customerId}/relations/${relationId}`, req);
   }
 
   deleteRelation(customerId: string, relationId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${customerId}/relations/${relationId}`);
+  }
+
+  /** Perfil fiscal de una relación (SSN del cónyuge/dependiente). Responde 200 con el last4. */
+  setRelationFiscalProfile(
+    customerId: string,
+    relationId: string,
+    req: SetRelationFiscalProfileRequest,
+  ): Observable<unknown> {
+    return this.http.put(`${this.base}/${customerId}/relations/${relationId}/fiscal-profile`, req);
   }
 }

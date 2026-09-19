@@ -157,7 +157,11 @@
         (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
       <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
         [canEditFiscal]="canEditFiscal()" (revealTaxId)="handleRevealTaxId($event)"
-        (editFiscal)="openFiscalForm()"></app-client-profile-info>
+        (editFiscal)="openFiscalForm()" (edit)="openEditPanel()"></app-client-profile-info>
+      <!-- Hogar fiscal (cónyuge + dependientes): vive en Info junto al resto de los datos del cliente -->
+      <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()"
+        (saveRelation)="handleSaveRelation($event)"
+        (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
     </div>
   }
 
@@ -251,19 +255,6 @@
     }
   }
 
-  @defer (when activeTab() === 'family'; prefetch on idle) {
-    @if (activeTab() === 'family') {
-      <app-client-profile-family [client]="familyClient()" [saving]="savingRelation()"
-        [saveError]="relationError()" [sessionOnly]="relationsAreSessionOnly()"
-        (saveRelation)="handleSaveRelation($event)"
-        (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
-    }
-  } @placeholder {
-    @if (activeTab() === 'family') {
-      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
-    }
-  }
-
   @defer (when activeTab() === 'reminders'; prefetch on idle) {
     @if (activeTab() === 'reminders') {
       <div class="bg-white rounded-[28px] p-6">
@@ -312,6 +303,6 @@
   <!-- Tax profile form -->
   @defer (when isFiscalFormOpen(); prefetch on idle) {
     <app-client-fiscal-form [isOpen]="isFiscalFormOpen()" [existing]="c.fiscalProfile" [clientKind]="c.type"
-      [saving]="savingFiscal()" (save)="handleSaveFiscal($event)" (closed)="closeFiscalForm()"></app-client-fiscal-form>
+      [spouse]="spouseRelation()" [saving]="savingFiscal()" (save)="handleSaveFiscal($event)" (closed)="closeFiscalForm()"></app-client-fiscal-form>
   }
 </div>
