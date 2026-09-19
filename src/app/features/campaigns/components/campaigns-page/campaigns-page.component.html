@@ -1,107 +1,576 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <ng-container *ngIf="!previewCampaign(); else previewView">
-    <!-- Stats row (derivadas de lo cargado del backend) -->
-    <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-indigo-50 p-5">
-        <p class="text-sm text-gray-600">Total campaigns</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalCampaigns()) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">Active now</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(activeNow()) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-gray-200 p-5">
-        <p class="text-sm text-gray-600">Total recipients reached</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatNumber(totalRecipientsReached()) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">Avg open rate</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatPercent(avgOpenRate()) }}</p>
-      </div>
+  <!-- ===== header ===== -->
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">Campaigns</h1>
+      <p class="mt-1 text-sm text-gray-500 max-w-2xl">
+        Define once, send to every channel. Campaigns <b>orchestrates</b> the audience and delivery — the channels deliver it.
+        No balances, no charges here.
+      </p>
+    </div>
+    <button
+      class="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+      (click)="openNew()">
+      <span class="text-lg leading-none">+</span> New campaign
+    </button>
+  </div>
+
+  <!-- ===== stats ===== -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="rounded-[24px] bg-white p-5">
+      <div class="text-sm text-gray-500">Active campaigns</div>
+      <div class="mt-3 text-3xl font-extrabold tracking-tight text-gray-900">{{ activeCount() }}</div>
+    </div>
+    <div class="rounded-[24px] bg-blue-50/60 p-5">
+      <div class="text-sm text-gray-500">Contact lists</div>
+      <div class="mt-3 text-3xl font-extrabold tracking-tight text-gray-900">{{ store.lists().length }}</div>
+    </div>
+    <div class="rounded-[24px] bg-white p-5">
+      <div class="text-sm text-gray-500">Sender profiles</div>
+      <div class="mt-3 text-3xl font-extrabold tracking-tight text-gray-900">{{ store.senders().length }}</div>
+    </div>
+    <div class="rounded-[24px] bg-blue-50/60 p-5">
+      <div class="text-sm text-gray-500">Audience (contacts)</div>
+      <div class="mt-3 text-3xl font-extrabold tracking-tight text-gray-900">{{ audienceSize() }}</div>
+    </div>
+  </div>
+
+  <!-- ===== main card ===== -->
+  <div class="rounded-[28px] bg-white p-6 flex flex-col gap-4">
+    <!-- tabs -->
+    <div class="flex flex-wrap items-center gap-1 rounded-full bg-gray-100 p-1 w-max max-w-full">
+      @for (t of ['campaigns','runs','audience','senders','schedules']; track t) {
+        <button
+          class="rounded-full px-4 py-2 text-sm font-semibold capitalize transition-colors"
+          [class]="tab() === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+          (click)="go($any(t))">{{ t }}</button>
+      }
     </div>
 
-    <!-- Campaigns card -->
-    <div class="bg-white rounded-[28px] p-6">
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">Campaigns</h2>
-          <p class="mt-1 text-sm text-gray-500">Send email campaigns to your client list</p>
+    <!-- ============ CAMPAIGNS ============ -->
+    @if (tab() === 'campaigns') {
+      <div class="flex flex-wrap items-center gap-2">
+        @for (s of statusChips; track s) {
+          <button
+            class="rounded-full border px-3.5 py-1.5 text-xs font-semibold capitalize transition-colors"
+            [class]="store.statusFilter() === s ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+            (click)="store.setStatusFilter(s)">{{ s === 'all' ? 'All' : s }}</button>
+        }
+        <input
+          class="ml-auto w-64 max-w-full rounded-full border border-gray-200 px-4 py-2 text-sm outline-none focus:border-blue-400"
+          placeholder="Search campaign…" (input)="store.setSearch($any($event.target).value)" />
+      </div>
+
+      @if (store.loading()) {
+        <div class="py-16 text-center text-sm text-gray-400">Loading campaigns…</div>
+      } @else if (store.error()) {
+        <div class="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{{ store.error() }}</div>
+      } @else if (store.campaigns().length === 0) {
+        <div class="py-16 text-center text-sm text-gray-400">No campaigns match this filter.</div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                <th class="py-2.5 px-3 font-semibold">Campaign</th>
+                <th class="py-2.5 px-3 font-semibold">Channels</th>
+                <th class="py-2.5 px-3 font-semibold">Status</th>
+                <th class="py-2.5 px-3 font-semibold">Updated</th>
+                <th class="py-2.5 px-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of store.campaigns(); track trackById($index, c)) {
+                <tr class="border-b border-gray-50 hover:bg-gray-50/70 cursor-pointer" (click)="pickCampaign(c)">
+                  <td class="py-3 px-3">
+                    <div class="font-semibold text-gray-900">{{ c.name }}</div>
+                    <div class="text-xs text-gray-400">{{ c.subject || 'No subject' }}</div>
+                  </td>
+                  <td class="py-3 px-3">
+                    <div class="flex flex-wrap gap-1.5">
+                      @for (ch of c.channels; track ch) {
+                        <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="channelClass(ch)">{{ ch }}</span>
+                      }
+                    </div>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="campaignStatusClass(c.status)">{{ c.status }}</span>
+                  </td>
+                  <td class="py-3 px-3 text-gray-400">{{ local(c.updatedAtUtc) | date: 'MMM d, HH:mm' }}</td>
+                  <td class="py-3 px-3 text-right" (click)="$event.stopPropagation()">
+                    @if (c.status !== 'Archived') {
+                      <div class="flex flex-wrap justify-end gap-1">
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSend(c)">Send</button>
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSchedule(c)">Schedule</button>
+                        @if (c.status === 'Draft') {
+                          <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditCampaign(c)">Edit</button>
+                          <button class="rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50" (click)="markReady(c)">Ready</button>
+                        } @else {
+                          <button class="rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50" (click)="revertToDraft(c)">Back to draft</button>
+                        }
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="archiveCampaign(c)">Archive</button>
+                        <button class="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="deleteCampaign(c)">Delete</button>
+                      </div>
+                    } @else {
+                      <div class="flex justify-end gap-1">
+                        <span class="self-center text-xs text-gray-400 mr-1">Archived</span>
+                        <button class="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="deleteCampaign(c)">Delete</button>
+                      </div>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
-        <button type="button" (click)="openCreatePanel()"
-          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          <ion-icon name="add-outline" class="text-base"></ion-icon>
-          New Campaign
-        </button>
-      </div>
+      }
+    }
 
-      <!-- Filter bar (filtros y búsqueda client-side: el listado no expone `term`) -->
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="activeFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          {{ filterLabel(option) }}
-        </button>
+    <!-- ============ RUNS ============ -->
+    @if (tab() === 'runs') {
+      @if (!selected()) {
+        <div class="py-16 text-center text-sm text-gray-400">Pick a campaign to see its runs.</div>
+      } @else {
+        <div class="text-sm text-gray-500">Runs of <b class="text-gray-800">{{ selected()!.name }}</b></div>
+        @if (store.runs().length === 0) {
+          <div class="py-12 text-center text-sm text-gray-400">No runs yet.</div>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                  <th class="py-2.5 px-3 font-semibold">Trigger</th>
+                  <th class="py-2.5 px-3 font-semibold">Outcome</th>
+                  <th class="py-2.5 px-3 font-semibold">Units (delivered / total)</th>
+                  <th class="py-2.5 px-3 font-semibold">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of store.runs(); track trackById($index, r)) {
+                  <tr class="border-b border-gray-50 hover:bg-gray-50/70 cursor-pointer" (click)="openRun(r)">
+                    <td class="py-3 px-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{{ r.triggerKind }}</span></td>
+                    <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="displayOutcome(r).cls">{{ displayOutcome(r).label }}</span></td>
+                    <td class="py-3 px-3">
+                      <div class="flex h-2 w-40 overflow-hidden rounded-full bg-gray-100">
+                        <i class="block h-full bg-green-500" [style.width.%]="pct(r.delivered, r.recipientCount)"></i>
+                        <i class="block h-full bg-blue-500" [style.width.%]="pct(r.accepted, r.recipientCount)"></i>
+                        <i class="block h-full bg-red-500" [style.width.%]="pct(r.failed, r.recipientCount)"></i>
+                        <i class="block h-full bg-amber-500" [style.width.%]="pct(r.skipped, r.recipientCount)"></i>
+                      </div>
+                      <div class="mt-1 text-xs text-gray-500"><b class="text-gray-700">{{ r.delivered }}</b>/{{ r.recipientCount }}
+                        @if (r.accepted) { <span class="text-blue-600"> · {{ r.accepted }} accepted</span> }
+                        @if (r.failed) { <span class="text-red-600"> · {{ r.failed }} failed</span> }
+                        @if (r.skipped) { <span class="text-amber-600"> · {{ r.skipped }} skipped</span> }
+                      </div>
+                    </td>
+                    <td class="py-3 px-3 text-gray-400">{{ local(r.createdAtUtc) | date: 'MMM d, HH:mm' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        <p class="text-xs text-gray-400">A run is one immutable execution. It closes over its frozen total; late carrier receipts reconcile a unit (Accepted → Delivered) without reopening the run.</p>
+      }
+    }
 
-        <div
-          class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-          <input type="text" placeholder="Search campaigns or templates" [ngModel]="search()" name="search"
-            (ngModelChange)="onSearchChange($event)"
-            class="h-full w-56 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+    <!-- ============ AUDIENCE ============ -->
+    @if (tab() === 'audience') {
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex rounded-full bg-gray-100 p-1">
+          <button class="rounded-full px-3.5 py-1.5 text-xs font-semibold" [class]="audienceTab()==='lists' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'" (click)="audienceTab.set('lists')">Lists</button>
+          <button class="rounded-full px-3.5 py-1.5 text-xs font-semibold" [class]="audienceTab()==='contacts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'" (click)="audienceTab.set('contacts')">Contacts</button>
+        </div>
+        <div class="ml-auto flex gap-2">
+          <button class="rounded-full border border-gray-200 px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openContact()">+ Contact</button>
+          <button class="rounded-full border border-gray-200 px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport()">Import CSV</button>
         </div>
       </div>
 
-      <!-- Error transitorio de una acción (cancelar rechazado, etc.) -->
-      <div *ngIf="store.actionError() as actionErr"
-        class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-        <p class="text-sm text-amber-800">{{ actionErr }}</p>
-        <button type="button" (click)="store.clearActionError()"
-          class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
-          Dismiss
-        </button>
-      </div>
+      @if (audienceTab() === 'lists') {
+        <div class="flex items-center gap-2">
+          <input #listName class="w-64 max-w-full rounded-full border border-gray-200 px-4 py-2 text-sm outline-none focus:border-blue-400" placeholder="New list name…" />
+          <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="createList(listName.value); listName.value=''">Create list</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th class="py-2.5 px-3 font-semibold">List</th><th class="py-2.5 px-3 font-semibold">Members</th><th class="py-2.5 px-3 font-semibold">Description</th><th class="py-2.5 px-3"></th></tr></thead>
+            <tbody>
+              @for (l of store.lists(); track trackById($index, l)) {
+                <tr class="border-b border-gray-50 hover:bg-gray-50/70">
+                  <td class="py-3 px-3 font-semibold text-gray-900">{{ l.name }}</td>
+                  <td class="py-3 px-3 tabular-nums text-gray-700">{{ l.memberCount }}</td>
+                  <td class="py-3 px-3 text-gray-400">{{ l.description || '—' }}</td>
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
+                    <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport(l.id)">Import</button>
+                    <button class="ml-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditList(l)">Edit</button>
+                    <button class="ml-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="deleteList(l)">Delete</button>
+                  </td>
+                </tr>
+              } @empty { <tr><td colspan="4" class="py-12 text-center text-sm text-gray-400">No lists yet.</td></tr> }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th class="py-2.5 px-3 font-semibold">Contact</th><th class="py-2.5 px-3 font-semibold">Email</th><th class="py-2.5 px-3 font-semibold">Phone</th><th class="py-2.5 px-3 font-semibold">Source</th><th class="py-2.5 px-3 font-semibold">Consent</th><th class="py-2.5 px-3"></th></tr></thead>
+            <tbody>
+              @for (c of store.contacts(); track trackById($index, c)) {
+                <tr class="border-b border-gray-50 hover:bg-gray-50/70">
+                  <td class="py-3 px-3 font-semibold text-gray-900">{{ c.name || '—' }}</td>
+                  <td class="py-3 px-3 text-gray-600">{{ c.email || '—' }}</td>
+                  <td class="py-3 px-3 tabular-nums text-gray-600">{{ c.phoneE164 || '—' }}</td>
+                  <td class="py-3 px-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{{ c.source }}</span></td>
+                  <td class="py-3 px-3">
+                    <div class="flex gap-1.5">
+                      @for (ch of sendable; track ch) {
+                        <button
+                          class="rounded-full px-2.5 py-1 text-[11px] font-bold"
+                          [class]="c.optedOutChannels.includes(ch) ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'"
+                          (click)="toggleOptOut(c, ch)"
+                          [title]="c.optedOutChannels.includes(ch) ? 'Opted out — click to opt in' : 'Subscribed — click to opt out'">
+                          {{ ch }} {{ c.optedOutChannels.includes(ch) ? '✕' : '✓' }}
+                        </button>
+                      }
+                    </div>
+                  </td>
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
+                    <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditContact(c)">Edit</button>
+                    <button class="ml-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="removeContact(c)">Delete</button>
+                  </td>
+                </tr>
+              } @empty { <tr><td colspan="6" class="py-12 text-center text-sm text-gray-400">No contacts yet.</td></tr> }
+            </tbody>
+          </table>
+        </div>
+      }
+      <p class="text-xs text-gray-400">Contacts are Campaigns' own address book (may not be clients). Opt-out is per channel; clients come from the Customer directory over M2M.</p>
+    }
 
-      <!-- Estados de carga / error del listado -->
-      <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-        Loading campaigns…
+    <!-- ============ SENDERS ============ -->
+    @if (tab() === 'senders') {
+      <div class="flex justify-end">
+        <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="openSender()">+ New sender</button>
       </div>
-
-      <div *ngIf="!store.loading() && store.error() as err"
-        class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-        <p class="text-sm text-red-600">{{ err }}</p>
-        <button type="button" (click)="retryLoad()"
-          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          Retry
-        </button>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th class="py-2.5 px-3 font-semibold">Sender</th><th class="py-2.5 px-3 font-semibold">Channel</th><th class="py-2.5 px-3 font-semibold">Sends as (SenderRef)</th><th class="py-2.5 px-3 font-semibold">Status</th><th class="py-2.5 px-3"></th></tr></thead>
+          <tbody>
+            @for (s of store.senders(); track trackById($index, s)) {
+              <tr class="border-b border-gray-50 hover:bg-gray-50/70">
+                <td class="py-3 px-3 font-semibold text-gray-900">{{ s.name }}</td>
+                <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="channelClass(s.channel)">{{ s.channel }}</span></td>
+                <td class="py-3 px-3 text-gray-600">{{ s.senderRef }}</td>
+                <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'">{{ s.status }}</span></td>
+                <td class="py-3 px-3 text-right"><button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="toggleSender(s.id, s.status !== 'Active')">{{ s.status==='Active' ? 'Disable' : 'Enable' }}</button></td>
+              </tr>
+            } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No sender profiles yet.</td></tr> }
+          </tbody>
+        </table>
       </div>
+      <p class="text-xs text-gray-400">A sender is an opaque reference (from address, sender ID…). The channel executor resolves it — Campaigns never stores provider secrets.</p>
+    }
 
-      <!-- Table -->
-      <div *ngIf="!store.loading() && !store.error()" class="mt-5">
-        <app-campaign-table [campaigns]="pagedCampaigns()" [emptyMessage]="emptyMessage()"
-          (previewRequested)="openPreview($event)" (launchRequested)="openLaunchPanel($event)"
-          (cancelRequested)="requestCancel($event)"></app-campaign-table>
-        <app-pagination [currentPage]="currentPage()" [totalItems]="visibleCampaigns().length" [pageSize]="pageSize"
-          (pageChange)="currentPage.set($event)"></app-pagination>
-      </div>
-    </div>
-  </ng-container>
-
-  <!-- Takeover: vista previa de solo lectura + envío de correo de prueba -->
-  <ng-template #previewView>
-    <app-campaign-preview [campaign]="previewCampaign()" [testSending]="testSending()" [testResult]="testResult()"
-      (back)="closePreview()" (sendTest)="handleSendTest($event)"></app-campaign-preview>
-  </ng-template>
+    <!-- ============ SCHEDULES ============ -->
+    @if (tab() === 'schedules') {
+      @if (!selected()) {
+        <div class="py-16 text-center text-sm text-gray-400">Pick a campaign to see its schedules.</div>
+      } @else {
+        <div class="text-sm text-gray-500">Schedules of <b class="text-gray-800">{{ selected()!.name }}</b></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th class="py-2.5 px-3 font-semibold">When</th><th class="py-2.5 px-3 font-semibold">Audience</th><th class="py-2.5 px-3 font-semibold">Status</th><th class="py-2.5 px-3 font-semibold">Next / last fire</th><th class="py-2.5 px-3"></th></tr></thead>
+            <tbody>
+              @for (s of store.schedules(); track trackById($index, s)) {
+                <tr class="border-b border-gray-50 hover:bg-gray-50/70">
+                  <td class="py-3 px-3">
+                    <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.kind==='Recurring' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'">{{ s.kind==='Recurring' ? 'Recurring' : 'One time' }}</span>
+                    <span class="ml-2 text-gray-500">{{ s.kind==='Recurring' ? ('every ' + s.intervalMinutes + ' min') : (local(s.nextFireAtUtc) | date:'MMM d, HH:mm') }}</span>
+                  </td>
+                  <td class="py-3 px-3 text-gray-500">{{ s.contactListIds.length }} list(s){{ s.includeCustomers ? ' · clients' : '' }}</td>
+                  <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'">{{ s.status }}</span></td>
+                  <td class="py-3 px-3 text-gray-400">{{ local(s.nextFireAtUtc || s.lastFiredAtUtc) | date:'MMM d, HH:mm' }}</td>
+                  <td class="py-3 px-3 text-right">
+                    @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'pause')">Pause</button> }
+                    @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'resume')">Resume</button> }
+                  </td>
+                </tr>
+              } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No schedules yet.</td></tr> }
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-gray-400">Durable, lease-based scheduler. Missed slots coalesce; an overlapping run is skipped until the previous one completes. Each fire creates a fresh run.</p>
+      }
+    }
+  </div>
 </div>
 
-<!-- Crear campaña / lanzar un draft existente -->
-<app-campaign-form-panel [isOpen]="isPanelOpen()" [campaign]="launchTarget()"
-  [templates]="store.publishableTemplates()" [templatesLoading]="store.templatesLoading()"
-  [templatesError]="store.templatesError()" [saving]="panelSaving()" [errorMessage]="panelError()"
-  (closed)="closePanel()" (submitted)="handleSubmitted($event)" (launched)="handleLaunched($event)"
-  (retryTemplates)="store.loadTemplates()"></app-campaign-form-panel>
+<!-- ===================== MODALS ===================== -->
 
-<!-- Confirmación de cancelación (una campaña cancelada no se puede reanudar) -->
-<app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel campaign?" [message]="cancelMessage()"
-  confirmLabel="Cancel campaign" (confirmed)="confirmCancel()"
-  (cancelled)="pendingCancel.set(null)"></app-confirm-dialog>
+<!-- New campaign -->
+<app-modal [isOpen]="showNew()" [heading]="editingId() ? 'Edit campaign' : 'New campaign'" [subheading]="editingId() ? 'Update the content (Draft only).' : 'Pick channels, write the content. You can send or schedule it after.'" size="lg" (closed)="showNew.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Name</label>
+      <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.name" placeholder="e.g. April deadline reminder" />
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Channels — sent to every selected channel</label>
+      <div class="mt-1.5 flex flex-wrap gap-2">
+        @for (ch of sendable; track ch) {
+          <button type="button"
+            class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors"
+            [class]="newForm.channels[ch] ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'"
+            (click)="toggleNewChannel(ch)">
+            {{ ch }}
+          </button>
+        }
+      </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Template <span class="text-gray-400">(prefills the body)</span></label>
+        <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="newForm.templateId" (ngModelChange)="applyTemplate($event)">
+          <option value="">— No template —</option>
+          @for (t of store.templates(); track t.id) { <option [ngValue]="t.id">{{ t.templateKey }}{{ t.category ? ' · ' + t.category : '' }}</option> }
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Subject <span class="text-gray-400">(Email)</span></label>
+        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.subject" placeholder="Your return is ready" />
+      </div>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Message</label>
+      <textarea rows="4" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.message" placeholder="Hi {{ '{{first_name}}' }}, your 2024 return is ready to review and sign."></textarea>
+    </div>
+
+    @if (!editingId()) {
+      <label class="text-xs font-semibold text-gray-600">Audience <span class="text-gray-400">(optional — for “Create &amp; send now”)</span></label>
+      <div class="flex flex-col gap-1.5 max-h-40 overflow-auto">
+        @for (l of store.lists(); track trackById($index, l)) {
+          <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="newForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+            <input type="checkbox" [ngModel]="newForm.listIds[l.id]" (ngModelChange)="newForm.listIds[l.id]=!newForm.listIds[l.id]" class="h-4 w-4 accent-blue-600" />
+            <span class="flex-1 text-sm text-gray-800">{{ l.name }}</span><span class="text-xs text-gray-400">{{ l.memberCount }}</span>
+          </label>
+        }
+        <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="newForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+          <input type="checkbox" [(ngModel)]="newForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
+          <span class="flex-1 text-sm text-gray-800">All active clients</span>
+        </label>
+      </div>
+      <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Audience is resolved fresh at send time (opt-out &amp; dedupe applied) — never frozen into the campaign.</div>
+    }
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showNew.set(false)">Cancel</button>
+      @if (editingId()) {
+        <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(false)">Save changes</button>
+      } @else {
+        <button class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(false)">Save draft</button>
+        <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(true)">Create &amp; send now</button>
+      }
+    </div>
+  </div>
+</app-modal>
+
+<!-- Send to audience -->
+<app-modal [isOpen]="showSend()" heading="Send to audience" [subheading]="selected() ? ('“' + selected()!.name + '” · one unit per recipient × channel') : ''" size="lg" (closed)="showSend.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <label class="text-xs font-semibold text-gray-600">Audience sources — combinable</label>
+    <div class="flex flex-col gap-2">
+      @for (l of store.lists(); track trackById($index, l)) {
+        <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2.5 cursor-pointer" [class]="sendForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+          <input type="checkbox" [ngModel]="sendForm.listIds[l.id]" (ngModelChange)="toggleList(l.id)" class="h-4 w-4 accent-blue-600" />
+          <span class="flex-1"><b class="text-sm text-gray-800">{{ l.name }}</b> <span class="text-xs text-gray-400">{{ l.description || '' }}</span></span>
+          <span class="text-xs font-bold text-blue-600 tabular-nums">{{ l.memberCount }}</span>
+        </label>
+      }
+      <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2.5 cursor-pointer" [class]="sendForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+        <input type="checkbox" [(ngModel)]="sendForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
+        <span class="flex-1"><b class="text-sm text-gray-800">All active clients</b> <span class="text-xs text-gray-400">from the Customer directory (M2M at send time)</span></span>
+      </label>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Manual entries <span class="text-gray-400">(emails or phones, one per line)</span></label>
+      <textarea rows="2" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="sendForm.manual" placeholder="extra@example.com&#10;+18095550142"></textarea>
+    </div>
+    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Opt-outs and duplicates are removed automatically. Each recipient × channel becomes one dispatch unit.</div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSend.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSend()">Send now</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Schedule -->
+<app-modal [isOpen]="showSchedule()" heading="Schedule campaign" [subheading]="selected() ? selected()!.name : ''" size="md" (closed)="showSchedule.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div class="flex gap-2">
+      <button type="button" class="rounded-full border px-4 py-1.5 text-sm font-semibold" [class]="!schedForm.recurring ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'" (click)="schedForm.recurring=false">One time</button>
+      <button type="button" class="rounded-full border px-4 py-1.5 text-sm font-semibold" [class]="schedForm.recurring ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'" (click)="schedForm.recurring=true">Recurring</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-600">First run</label>
+        <input type="datetime-local" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="schedForm.runAt" />
+      </div>
+      @if (schedForm.recurring) {
+        <div>
+          <label class="text-xs font-semibold text-gray-600">Every</label>
+          <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="schedForm.intervalMinutes">
+            <option [ngValue]="60">1 hour</option><option [ngValue]="1440">1 day</option><option [ngValue]="10080">1 week</option>
+          </select>
+        </div>
+      }
+    </div>
+    <label class="text-xs font-semibold text-gray-600">Audience for each fire</label>
+    <div class="flex flex-col gap-2">
+      @for (l of store.lists(); track trackById($index, l)) {
+        <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="schedForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+          <input type="checkbox" [ngModel]="schedForm.listIds[l.id]" (ngModelChange)="schedForm.listIds[l.id]=!schedForm.listIds[l.id]" class="h-4 w-4 accent-blue-600" />
+          <span class="flex-1 text-sm text-gray-800">{{ l.name }}</span><span class="text-xs text-gray-400">{{ l.memberCount }}</span>
+        </label>
+      }
+      <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="schedForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
+        <input type="checkbox" [(ngModel)]="schedForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
+        <span class="flex-1 text-sm text-gray-800">All active clients</span>
+      </label>
+    </div>
+    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Recurrence is by interval today (cron/timezone on the roadmap). Missed slots coalesce; overlapping runs are skipped.</div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSchedule.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSchedule()">Schedule</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Import CSV -->
+<app-modal [isOpen]="showImport()" heading="Import contacts" subheading="CSV: name,email,phone per line. Header optional." size="md" (closed)="showImport.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Target list</label>
+      <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="importForm.listId">
+        @for (l of store.lists(); track trackById($index, l)) { <option [ngValue]="l.id">{{ l.name }} · {{ l.memberCount }} members</option> }
+      </select>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-gray-600">CSV</label>
+      <textarea rows="6" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-mono outline-none focus:border-blue-400" [(ngModel)]="importForm.csv" spellcheck="false"></textarea>
+    </div>
+    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Dedupe by normalized email/phone (in-file &amp; against existing). Rows with no destination are skipped.</div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showImport.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitImport()">Import</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- New sender -->
+<app-modal [isOpen]="showSender()" heading="New sender profile" subheading="Who the message is sent as, per channel. No provider secrets." size="md" (closed)="showSender.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Channel</label>
+        <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.channel">
+          @for (ch of sendable; track ch) { <option [ngValue]="ch">{{ ch }}</option> }
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Name</label>
+        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.name" placeholder="TaxProffice Oficial" />
+      </div>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Sends as (SenderRef)</label>
+      <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.senderRef" placeholder="no-reply@taxproffice.com  ·  or a sender ID for SMS" />
+    </div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSender.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSender()">Create</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Edit list -->
+<app-modal [isOpen]="showEditList()" heading="Edit list" subheading="Rename or update the description." size="md" (closed)="showEditList.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div><label class="text-xs font-semibold text-gray-600">Name</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="editListForm.name" /></div>
+    <div><label class="text-xs font-semibold text-gray-600">Description</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="editListForm.description" /></div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showEditList.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitEditList()">Save</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Edit contact -->
+<app-modal [isOpen]="showEditContact()" heading="Edit contact" subheading="Needs at least an email or a phone." size="md" (closed)="showEditContact.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div><label class="text-xs font-semibold text-gray-600">Name</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="editContactForm.name" /></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div><label class="text-xs font-semibold text-gray-600">Email</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="editContactForm.email" /></div>
+      <div><label class="text-xs font-semibold text-gray-600">Phone (E.164)</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="editContactForm.phoneE164" /></div>
+    </div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showEditContact.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitEditContact()">Save</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- New contact -->
+<app-modal [isOpen]="showContact()" heading="New contact" subheading="Needs at least an email or a phone." size="md" (closed)="showContact.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-3">
+    <div>
+      <label class="text-xs font-semibold text-gray-600">Name</label>
+      <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="contactForm.name" />
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div><label class="text-xs font-semibold text-gray-600">Email</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="contactForm.email" /></div>
+      <div><label class="text-xs font-semibold text-gray-600">Phone (E.164)</label><input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="contactForm.phoneE164" placeholder="+1809…" /></div>
+    </div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showContact.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitContact()">Create</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Run detail -->
+<app-modal [isOpen]="showRun()" [heading]="selected()?.name || 'Run'" [subheading]="selectedRun() ? ('Triggered ' + selectedRun()!.triggerKind + ' · ' + (local(selectedRun()!.createdAtUtc) | date:'MMM d, HH:mm')) : ''" size="lg" (closed)="showRun.set(false)">
+  @if (selectedRun(); as r) {
+    <div class="px-6 pb-6 flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="runStatusClass(r.status)">{{ r.status }}</span>
+        <span class="text-xs text-gray-500">{{ settled(r) }} settled / {{ r.recipientCount }} frozen total</span>
+      </div>
+      <div class="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+        <i class="block h-full bg-green-500" [style.width.%]="pct(r.delivered, r.recipientCount)"></i>
+        <i class="block h-full bg-blue-500" [style.width.%]="pct(r.accepted, r.recipientCount)"></i>
+        <i class="block h-full bg-red-500" [style.width.%]="pct(r.failed, r.recipientCount)"></i>
+        <i class="block h-full bg-amber-500" [style.width.%]="pct(r.skipped, r.recipientCount)"></i>
+      </div>
+      <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div class="flex justify-between border-b border-gray-50 py-1.5"><span class="text-gray-500">Delivered</span><b class="text-green-600">{{ r.delivered }}</b></div>
+        <div class="flex justify-between border-b border-gray-50 py-1.5"><span class="text-gray-500">Accepted</span><b class="text-blue-600">{{ r.accepted }}</b></div>
+        <div class="flex justify-between border-b border-gray-50 py-1.5"><span class="text-gray-500">Failed</span><b class="text-red-600">{{ r.failed }}</b></div>
+        <div class="flex justify-between border-b border-gray-50 py-1.5"><span class="text-gray-500">Skipped</span><b class="text-amber-600">{{ r.skipped }}</b></div>
+      </div>
+      <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-1">Units · recipient × channel</div>
+      <div class="max-h-72 overflow-auto flex flex-col divide-y divide-gray-50">
+        @for (u of r.recipients; track trackById($index, u)) {
+          <div class="flex items-center gap-3 py-2">
+            <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="channelClass(u.channel)">{{ u.channel }}</span>
+            <span class="flex-1 min-w-0">
+              <span class="block truncate text-sm text-gray-700">{{ destinationOf(u) }}</span>
+              @if (u.reason) { <span class="block truncate text-[11px] text-red-500">{{ u.reason }}</span> }
+            </span>
+            <span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="unitStateClass(u.state)">{{ u.state }}</span>
+          </div>
+        } @empty { <div class="py-6 text-center text-xs text-gray-400">No unit detail on this run summary.</div> }
+      </div>
+      <p class="text-xs text-gray-400">Units fan out as campaign.dispatch.requested; a late carrier/MTA receipt moves Accepted → Delivered and refines the counters — the run stays closed.</p>
+    </div>
+  }
+</app-modal>
