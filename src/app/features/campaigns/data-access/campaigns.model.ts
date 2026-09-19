@@ -1,58 +1,39 @@
 /**
- * Espejos del contrato HTTP de campañas de correo (EmailCampaignsController del servicio
- * Notification, ruta `/notifications/email/campaigns` vía Gateway) + view-model de la página.
- * Los enums viajan como STRING: `CampaignType` y `CampaignStatus` se comparan por nombre.
+ * Espejos del contrato HTTP del NUEVO servicio orquestador `TaxVision.Campaigns` (vía Gateway,
+ * prefijos `/campaigns`, `/contacts`, `/contact-lists`, `/sender-profiles`). Reemplaza al viejo
+ * módulo email-only de Notification (`/notifications/email/campaigns`, superseded).
  *
- * Flujo real del backend: POST crea un Draft con destinatarios explícitos → POST {id}/schedule
- * captura la plantilla publicada y lo deja Scheduled (el scheduler hace el fan-out) → los
- * contadores sent/failed/opened/clicked se actualizan en background. No existe PUT (editar),
- * DELETE (borrar) ni pause/resume: la única transición manual es cancel.
+ * Principio del backend: Campaign es un ORQUESTADOR agnóstico de canal, SIN dinero. Define la
+ * campaña + audiencia, hace fan-out por unidad (destinatario × canal) y agrega resultados; los
+ * canales (Email/SMS…) entregan. Los enums viajan como STRING (se comparan por nombre).
  */
 
-// ---------- Enums del backend (TaxVision.Notification.Domain.Emailing.Campaigns) ----------
+// ---------- Enums ----------
 
-/** Espejo de CampaignType. */
-export type ApiCampaignType = 'Newsletter' | 'Notification' | 'Marketing' | 'Custom';
+/** Espejo de CampaignChannel ([Flags] en el back; acá lista de nombres). */
+export type ApiChannel = 'Email' | 'Sms' | 'WhatsApp' | 'Push' | 'InApp';
+export const CHANNELS: ApiChannel[] = ['Email', 'Sms', 'WhatsApp', 'Push', 'InApp'];
 
-/** Espejo de CampaignStatus. Paused/Failed los pone el backend; no hay endpoint para pausar. */
-export type ApiCampaignStatus =
-  | 'Draft'
-  | 'Scheduled'
-  | 'Running'
-  | 'Paused'
-  | 'Completed'
-  | 'Cancelled'
-  | 'Failed';
+/** Espejo de CampaignStatus. */
+export type ApiCampaignStatus = 'Draft' | 'Ready' | 'Scheduled' | 'Archived';
 
-export const CAMPAIGN_TYPES: ApiCampaignType[] = ['Newsletter', 'Notification', 'Marketing', 'Custom'];
+/** Espejo de CampaignRunStatus. */
+export type ApiRunStatus = 'Dispatching' | 'Completed' | 'PartiallyFailed' | 'Failed' | 'Cancelled' | 'Rejected';
 
-// ---------- Respuestas ----------
+/** Espejo de DispatchState (estado de una unidad destinatario/canal). */
+export type ApiUnitState = 'Pending' | 'Dispatched' | 'Accepted' | 'Delivered' | 'Failed' | 'Skipped' | 'Unknown';
 
-/** Espejo de EmailCampaignResponse (camelCase). Ojo: NO incluye la lista de destinatarios. */
-export interface EmailCampaignResponse {
-  id: string;
-  tenantId: string;
-  name: string;
-  type: ApiCampaignType;
-  status: ApiCampaignStatus;
-  templateId: string;
-  templateVersionId: string | null;
-  scheduledAtUtc: string | null;
-  startedAtUtc: string | null;
-  finishedAtUtc: string | null;
-  totalRecipients: number;
-  sentCount: number;
-  failedCount: number;
-  openedCount: number;
-  clickedCount: number;
-  createdAtUtc: string;
-}
+/** Espejo de ContactSource. */
+export type ApiContactSource = 'Manual' | 'Import' | 'FromCustomer';
 
-/** Espejo de OutboundEmailResponse (subset que nos interesa del 202 de send-test). */
-export interface OutboundEmailResponse {
-  id: string;
-  status: string;
-}
+/** Espejo de SenderProfileStatus. */
+export type ApiSenderStatus = 'Active' | 'Disabled';
+
+/** Espejo de ScheduleKind / ScheduleStatus. */
+export type ApiScheduleKind = 'OneTime' | 'Recurring';
+export type ApiScheduleStatus = 'Active' | 'Paused' | 'Cancelled' | 'Completed';
+
+// ---------- PagedResult ----------
 
 /** Espejo de BuildingBlocks.Common.PagedResult<T> (campo `size`, no `pageSize`). */
 export interface PagedResult<T> {
@@ -65,175 +46,235 @@ export interface PagedResult<T> {
   hasPrevious: boolean;
 }
 
-// ---------- Requests (EmailCampaignsController) ----------
+// ---------- Campaign ----------
 
-export interface CampaignRecipientInput {
-  address: string;
-  name?: string | null;
-  variables?: Record<string, string | null> | null;
+export interface CampaignSenderSelection {
+  channel: ApiChannel;
+  senderProfileId: string;
+}
+
+export interface CampaignResponse {
+  id: string;
+  tenantId: string;
+  name: string;
+  createdByUserId: string;
+  channels: ApiChannel[];
+  subject: string | null;
+  message: string;
+  status: ApiCampaignStatus;
+  senders: CampaignSenderSelection[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
 }
 
 export interface CreateCampaignRequest {
   name: string;
-  type: ApiCampaignType;
-  templateId: string;
-  recipients: CampaignRecipientInput[];
+  channels: ApiChannel[];
+  message: string;
+  subject?: string | null;
 }
 
-/** `scheduledAtUtc` null/omitido = programar para ahora (el backend usa UtcNow). */
-export interface ScheduleCampaignRequest {
-  scheduledAtUtc: string | null;
+export interface SetCampaignSenderRequest {
+  channel: ApiChannel;
+  senderProfileId: string;
 }
 
-export interface SendTestRequest {
-  toEmail: string;
-  variables?: Record<string, string | null> | null;
-}
+// ---------- Runs ----------
 
-// ---------- Réplicas mínimas de otros servicios (sin imports cross-feature) ----------
-
-/**
- * Fila de GET /notifications/email/templates (EmailTemplateResponse). Programar una campaña
- * exige plantilla Active con versión publicada (currentVersionId != null): el picker solo
- * ofrece esas.
- */
-export interface CampaignTemplateSummary {
+export interface RunRecipient {
   id: string;
-  scope: string;
+  contactRef: string;
+  channel: ApiChannel;
+  email: string | null;
+  phoneE164: string | null;
+  state: ApiUnitState;
+  reason: string | null;
+  providerRef: string | null;
+  dispatchId: string;
+}
+
+export interface CampaignRunResponse {
+  id: string;
+  tenantId: string;
+  campaignId: string;
+  status: ApiRunStatus;
+  triggerKind: string;
+  recipientCount: number;
+  dispatched: number;
+  accepted: number;
+  delivered: number;
+  failed: number;
+  skipped: number;
+  unknown: number;
+  createdAtUtc: string;
+  finishedAtUtc: string | null;
+  recipients: RunRecipient[];
+}
+
+export interface SendNowRecipient {
+  contactRef: string;
+  email?: string | null;
+  phoneE164?: string | null;
+}
+export interface SendNowRequest {
+  recipients: SendNowRecipient[];
+}
+
+export interface ManualAudienceEntry {
+  email?: string | null;
+  phoneE164?: string | null;
+}
+export interface SendToAudienceRequest {
+  contactListIds?: string[];
+  manual?: ManualAudienceEntry[];
+  includeCustomers?: boolean;
+}
+
+// ---------- Contacts ----------
+
+export interface ContactResponse {
+  id: string;
+  tenantId: string;
+  name: string | null;
+  email: string | null;
+  phoneE164: string | null;
+  source: ApiContactSource;
+  customerRef: string | null;
+  optedOutChannels: ApiChannel[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+export interface CreateContactRequest {
+  name?: string | null;
+  email?: string | null;
+  phoneE164?: string | null;
+}
+export interface SetContactOptOutRequest {
+  channels: ApiChannel[];
+  optedOut: boolean;
+}
+
+// ---------- Contact lists ----------
+
+export interface ContactListResponse {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  memberCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+export interface CreateContactListRequest {
+  name: string;
+  description?: string | null;
+}
+export interface ImportContactsRequest {
+  csv: string;
+}
+export interface ImportContactsResponse {
+  created: number;
+  reused: number;
+  invalid: number;
+  membersAdded: number;
+}
+
+// ---------- Sender profiles ----------
+
+export interface SenderProfileResponse {
+  id: string;
+  tenantId: string;
+  channel: ApiChannel;
+  name: string;
+  senderRef: string;
+  status: ApiSenderStatus;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+export interface CreateSenderProfileRequest {
+  channel: ApiChannel;
+  name: string;
+  senderRef: string;
+}
+
+// ---------- Schedules ----------
+
+export interface CampaignScheduleResponse {
+  id: string;
+  tenantId: string;
+  campaignId: string;
+  kind: ApiScheduleKind;
+  status: ApiScheduleStatus;
+  nextFireAtUtc: string | null;
+  intervalMinutes: number | null;
+  contactListIds: string[];
+  includeCustomers: boolean;
+  lastFiredAtUtc: string | null;
+  activeRunId: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+export interface ScheduleCampaignRequest {
+  recurring: boolean;
+  runAtUtc: string;
+  intervalMinutes?: number | null;
+  contactListIds?: string[];
+  includeCustomers?: boolean;
+}
+export type ScheduleAction = 'pause' | 'resume' | 'cancel';
+
+// ---------- Email templates (réplica de EmailTemplatesController, para el picker del body) ----------
+
+/** Subset de EmailTemplateResponse que usa el picker de la campaña. */
+export interface EmailTemplateSummary {
+  id: string;
   templateKey: string;
   subject: string;
   description: string | null;
   category: string | null;
   status: string;
-  currentVersionId: string | null;
 }
 
-/** Subset mínimo de GET /customers para armar destinatarios (réplica, patrón task/documents). */
-export interface CampaignClientSummary {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  status: 'Active' | 'Inactive' | 'Archived';
-}
+// ---------- View-model helpers ----------
 
-// ---------- View-model de la página ----------
+/** Combina la lista de canales en el flag de estilo del chip. */
+export const channelClass = (c: ApiChannel): string =>
+  ({
+    Email: 'bg-blue-50 text-blue-700',
+    Sms: 'bg-teal-50 text-teal-700',
+    WhatsApp: 'bg-green-50 text-green-700',
+    Push: 'bg-purple-50 text-purple-700',
+    InApp: 'bg-slate-100 text-slate-600',
+  })[c] ?? 'bg-slate-100 text-slate-600';
 
-/**
- * Estado visual de la tabla. Mapea 1:1 desde ApiCampaignStatus conservando el vocabulario
- * de chips original: Running → active y Completed → sent; se agregan cancelled y failed.
- */
-export type CampaignStatus = 'draft' | 'scheduled' | 'active' | 'sent' | 'paused' | 'cancelled' | 'failed';
+/** Pill de estado de campaña. */
+export const campaignStatusClass = (s: ApiCampaignStatus): string =>
+  ({
+    Draft: 'bg-slate-100 text-slate-600',
+    Ready: 'bg-blue-50 text-blue-700',
+    Scheduled: 'bg-blue-50 text-blue-700',
+    Archived: 'bg-slate-100 text-slate-500',
+  })[s] ?? 'bg-slate-100 text-slate-600';
 
-/** Fila/tarjeta de campaña: campos de presentación + los crudos que necesitan las acciones. */
-export interface CampaignItem {
-  id: string;
-  name: string;
-  type: ApiCampaignType;
-  templateId: string;
-  /** Nombre de la plantilla resuelto vía GET /notifications/email/templates ('' si no se pudo). */
-  templateName: string;
-  /** Subject de la plantilla (para el preview); '' si no se pudo resolver. */
-  templateSubject: string;
-  status: CampaignStatus;
-  /** Estado real del backend — fuente de verdad para decidir acciones. */
-  apiStatus: ApiCampaignStatus;
-  /** YYYY-MM-DD (fecha UTC de programación) o null si sigue en borrador. */
-  scheduledDate: string | null;
-  scheduledAtUtc: string | null;
-  startedAtUtc: string | null;
-  finishedAtUtc: string | null;
-  createdAtUtc: string;
-  recipients: number;
-  delivered: number;
-  failed: number;
-  opened: number;
-  clicked: number;
-}
+/** Pill de estado de run. */
+export const runStatusClass = (s: ApiRunStatus): string =>
+  ({
+    Completed: 'bg-green-50 text-green-700',
+    Dispatching: 'bg-blue-50 text-blue-700',
+    PartiallyFailed: 'bg-amber-50 text-amber-700',
+    Failed: 'bg-red-50 text-red-700',
+    Cancelled: 'bg-slate-100 text-slate-600',
+    Rejected: 'bg-red-50 text-red-700',
+  })[s] ?? 'bg-slate-100 text-slate-600';
 
-/** Lo que emite el panel de creación; el store lo traduce a requests reales. */
-export interface CampaignFormValue {
-  name: string;
-  type: ApiCampaignType;
-  templateId: string;
-  /** Fuente de destinatarios: clientes activos del tenant o lista manual de correos. */
-  audience: 'active-clients' | 'custom';
-  /** Correos crudos del textarea (solo audience === 'custom'). */
-  customEmails: string;
-  /** YYYY-MM-DD; '' = dejar la campaña en Draft (sin programar). */
-  scheduledDate: string;
-}
-
-// ---------- Mapeos ----------
-
-export function statusToUi(status: ApiCampaignStatus): CampaignStatus {
-  switch (status) {
-    case 'Draft':
-      return 'draft';
-    case 'Scheduled':
-      return 'scheduled';
-    case 'Running':
-      return 'active';
-    case 'Paused':
-      return 'paused';
-    case 'Completed':
-      return 'sent';
-    case 'Cancelled':
-      return 'cancelled';
-    case 'Failed':
-      return 'failed';
-  }
-}
-
-/** Tasa de apertura como % sobre los entregados (sentCount); 0 si todavía no se envió nada. */
-export function openRate(campaign: CampaignItem): number {
-  return campaign.delivered > 0 ? (campaign.opened / campaign.delivered) * 100 : 0;
-}
-
-/**
- * EmailCampaignResponse → fila. El nombre/subject de plantilla se resuelve contra el mapa
- * id→plantilla que arma el store (best-effort: sin permiso template.view queda vacío).
- */
-export function toCampaignItem(
-  response: EmailCampaignResponse,
-  templateById: ReadonlyMap<string, CampaignTemplateSummary>,
-): CampaignItem {
-  const template = templateById.get(response.templateId);
-  return {
-    id: response.id,
-    name: response.name,
-    type: response.type,
-    templateId: response.templateId,
-    templateName: template?.templateKey ?? '',
-    templateSubject: template?.subject ?? '',
-    status: statusToUi(response.status),
-    apiStatus: response.status,
-    scheduledDate: response.scheduledAtUtc ? response.scheduledAtUtc.slice(0, 10) : null,
-    scheduledAtUtc: response.scheduledAtUtc,
-    startedAtUtc: response.startedAtUtc,
-    finishedAtUtc: response.finishedAtUtc,
-    createdAtUtc: response.createdAtUtc,
-    recipients: response.totalRecipients,
-    delivered: response.sentCount,
-    failed: response.failedCount,
-    opened: response.openedCount,
-    clicked: response.clickedCount,
-  };
-}
-
-/**
- * Parsea el textarea de correos manuales: separa por comas, punto y coma, espacios o saltos
- * de línea, exige un '@' (misma validación mínima que el dominio) y deduplica.
- */
-export function parseCustomEmails(raw: string): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const token of raw.split(/[\s,;]+/)) {
-    const email = token.trim();
-    const key = email.toLowerCase();
-    if (email.includes('@') && !seen.has(key)) {
-      seen.add(key);
-      result.push(email);
-    }
-  }
-  return result;
-}
+/** Pill de estado de unidad. */
+export const unitStateClass = (s: ApiUnitState): string =>
+  ({
+    Delivered: 'bg-green-50 text-green-700',
+    Accepted: 'bg-blue-50 text-blue-700',
+    Failed: 'bg-red-50 text-red-700',
+    Skipped: 'bg-amber-50 text-amber-700',
+    Unknown: 'bg-slate-100 text-slate-600',
+    Pending: 'bg-slate-100 text-slate-500',
+    Dispatched: 'bg-slate-100 text-slate-500',
+  })[s] ?? 'bg-slate-100 text-slate-600';
