@@ -1,3 +1,8 @@
+/* La tarjeta se ensancha en revisión/firma (hojas del documento): transición suave del ancho. */
+.sign-shell {
+  transition: max-width 320ms cubic-bezier(0.2, 0, 0, 1);
+}
+
 /* Entrada de la tarjeta (mismo idioma que auth-card-in del login/register). */
 .sign-card {
   animation: sign-card-in 500ms ease-out backwards;
@@ -14,9 +19,14 @@
   }
 }
 
-/* Transición entre pasos: step-in de la casa (re-dispara al montar cada *ngIf). */
+/*
+ * Transición entre pasos: step-in de la casa (re-dispara al montar cada *ngIf o al
+ * volver a mostrarse). `backwards` y NO `both`: con `both` el paso se quedaba con
+ * `transform: translateX(0)` para siempre, y un ancestro con transform convierte el
+ * `position: fixed` de la firma a pantalla completa en relativo a la tarjeta.
+ */
 .step-content {
-  animation: step-in 280ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: step-in 280ms cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
 @keyframes step-in {

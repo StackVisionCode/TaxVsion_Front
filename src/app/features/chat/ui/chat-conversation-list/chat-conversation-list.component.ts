@@ -60,6 +60,11 @@ export class ChatConversationListComponent {
     this.conversationSelected.emit(id);
   }
 
+  /** Identidad estable: cada evento del socket crea un objeto nuevo y sin esto la fila se recreaba (parpadeo). */
+  trackConversation(_: number, conv: ChatConversation): string {
+    return conv.id;
+  }
+
   lastMessage(conv: ChatConversation): ChatMessage | undefined {
     return conv.messages[conv.messages.length - 1];
   }

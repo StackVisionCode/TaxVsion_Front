@@ -4,10 +4,11 @@ import { ClientProfile } from '../../models/client-profile.model';
 
 /**
  * Tab "Info" del perfil de cliente: grilla de dos columnas con tarjetas de
- * contacto (direcciones reales), detalle personal (individual) o de negocio
- * (company) con el identificador fiscal enmascarado + reveal auditado,
- * dependientes y cónyuge (derivados de `relations[]`). Presentacional puro —
- * el HTTP del reveal lo dispara el contenedor (`client-profile-page`).
+ * contacto, detalle personal (individual) o de negocio (company) con el
+ * identificador fiscal enmascarado + reveal auditado. Cada tarjeta es editable:
+ * `edit` abre el panel de edición del cliente y `editFiscal` el perfil fiscal.
+ * El cónyuge y los dependientes viven en `app-client-profile-family`, debajo.
+ * Presentacional puro — el HTTP lo dispara el contenedor (`client-profile-page`).
  */
 @Component({
   selector: 'app-client-profile-info',
@@ -24,6 +25,8 @@ export class ClientProfileInfoComponent {
 
   @Output() revealTaxId = new EventEmitter<string>();
   @Output() editFiscal = new EventEmitter<void>();
+  /** Editar los datos del cliente (email, teléfono, nacimiento, ocupación, datos de la empresa). */
+  @Output() edit = new EventEmitter<void>();
 
   /** Confirmación de un paso antes de revelar: el reveal queda registrado en el backend. */
   readonly confirmingReveal = signal(false);

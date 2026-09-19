@@ -3,10 +3,10 @@
   <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-300/40 blur-3xl"></div>
   <div class="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-brand-light/30 blur-3xl"></div>
 
-  <div class="relative w-full max-w-md">
+  <div class="sign-shell relative w-full" [ngClass]="wideLayout() ? 'max-w-2xl' : 'max-w-md'">
     <div class="sign-card relative flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-brand-light/40">
       <!-- Header: marca + chip seguro -->
-      <div class="border-b border-gray-100 px-6 pb-4 pt-6">
+      <div class="border-b border-gray-100 px-4 pb-4 pt-6 sm:px-6">
         <div class="mb-4 flex items-center justify-center gap-2">
           <app-brand-logo
             logoClass="h-8 max-w-[150px] object-contain"
@@ -45,7 +45,7 @@
       </div>
 
       <!-- Cuerpo -->
-      <div class="flex-1 overflow-y-auto px-6 py-5">
+      <div class="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <!-- Cargando el contexto del token -->
         <div *ngIf="loading()" class="flex flex-col items-center justify-center gap-3 py-16">
           <span class="h-8 w-8 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600"></span>
@@ -78,6 +78,27 @@
             </button>
           </div>
         </ng-container>
+
+        <!-- Enlace ya usado en este dispositivo: la página expiró (no se vuelve a cargar el recorrido) -->
+        <div *ngIf="usedLink() as used" class="step-content py-4 text-center">
+          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+            [ngClass]="used.outcome === 'signed' ? 'bg-emerald-50 text-emerald-500' : 'bg-brand-white text-gray-400'">
+            <ion-icon [name]="used.outcome === 'signed' ? 'checkmark-done-outline' : 'lock-closed-outline'" class="text-3xl"></ion-icon>
+          </span>
+          <h1 class="mt-4 text-xl font-bold text-gray-900">This link has expired</h1>
+          <p class="mt-2 text-sm text-gray-500">
+            {{ used.outcome === 'signed'
+              ? 'You already signed this document. Your signature is recorded and the office will email you the sealed copy.'
+              : 'You declined this document, so this link was closed. Contact the office if you need a new invitation.' }}
+          </p>
+          <p *ngIf="usedLinkAtLabel()" class="mt-4 rounded-2xl bg-brand-white px-4 py-3 text-[11px] text-gray-400">
+            {{ used.outcome === 'signed' ? 'Signed' : 'Declined' }} on {{ usedLinkAtLabel() }}
+          </p>
+          <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+            <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
+            You can safely close this window.
+          </p>
+        </div>
 
         <!-- Rechazo confirmado en esta sesión (el token queda revocado en el backend) -->
         <div *ngIf="declined()" class="step-content py-4 text-center">
@@ -151,7 +172,7 @@
                     <span class="min-w-0">
                       <span class="block text-[11px] text-gray-400">Signing as</span>
                       <span class="block truncate text-sm font-medium text-gray-900">{{ ctx.signerFullName }}</span>
-                      <span class="block truncate text-[11px] text-gray-400">{{ ctx.signerEmail }}</span>
+                      <span class="block truncate text-[11px] text-gray-400">{{ maskedEmail() }}</span>
                     </span>
                   </div>
                 </div>
@@ -163,7 +184,7 @@
                   </span>
                   <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="finger-print-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
-                    Single-use secure link
+                    Link expires once you sign
                   </span>
                   <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
                     <ion-icon name="timer-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
@@ -308,36 +329,20 @@
                     {{ ctx.description }}
                   </p>
 
-                  <div class="mt-3 flex items-start gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-3 text-[11px] leading-snug text-gray-500">
-                    <ion-icon name="eye-off-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
-                    <span>
-                      The full document preview isn't available on this link — the file is stored in the
-                      office's secure vault and only opens for signed-in staff. A sealed copy is emailed to
-                      you as soon as everyone signs.
-                    </span>
+                  <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    Where your fields go ({{ fields().length }})
+                  </p>
+                  <div class="mt-2">
+                    <app-sign-document-view [fields]="fields()" [values]="fieldValues()"></app-sign-document-view>
                   </div>
 
-                  <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                    Your fields ({{ fields().length }})
-                  </p>
-                  <ul class="mt-1.5 space-y-1.5">
-                    <li *ngFor="let field of fields()"
-                      class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2 text-xs">
-                      <span class="flex min-w-0 items-center gap-2">
-                        <ion-icon name="create-outline" class="shrink-0 text-sm text-indigo-500"></ion-icon>
-                        <span class="truncate font-medium text-gray-700">
-                          {{ field.label || fieldKindLabel[field.kind] }}
-                        </span>
-                      </span>
-                      <span class="shrink-0 text-[11px] text-gray-400">
-                        Page {{ field.page }}<span *ngIf="field.isRequired" class="text-red-400"> · required</span>
-                      </span>
-                    </li>
-                    <li *ngIf="fields().length === 0"
-                      class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
-                      The office didn't place any field for you — your signature seals the whole document.
-                    </li>
-                  </ul>
+                  <div class="mt-3 flex items-start gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-[11px] leading-snug text-gray-500">
+                    <ion-icon name="eye-off-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
+                    <span>
+                      The page content isn't shown on this link — the file stays in the office's secure vault.
+                      A sealed copy is emailed to you as soon as everyone signs.
+                    </span>
+                  </div>
                 </div>
 
                 <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
@@ -358,30 +363,56 @@
                 </p>
               </div>
 
-              <!-- PASO: Firmar (Typed — único método posible sin sesión) -->
-              <div *ngIf="stepId() === 'sign'" class="step-content">
+              <!--
+                PASO: Firmar. Se OCULTA con [hidden] en vez de destruirse: así la firma dibujada
+                sobrevive a un "Back" para revisar el documento.
+              -->
+              <div [hidden]="stepId() !== 'sign'" class="step-content">
                 <h1 class="text-xl font-bold text-gray-900">Your signature</h1>
                 <p class="mt-1.5 text-sm text-gray-500">
                   Draw your signature, type your name, or upload an image. This is the signature stamped on your document.
                 </p>
 
-                <div class="mt-4 rounded-2xl border border-gray-100 bg-brand-white px-4 py-3">
-                  <p class="text-[11px] uppercase tracking-wide text-gray-400">Name on the document</p>
-                  <p class="text-sm font-semibold text-gray-900">{{ ctx.signerFullName }}</p>
+                <!-- Qué se está firmando -->
+                <div class="mt-4 rounded-2xl border border-gray-100 bg-brand-white p-3">
+                  <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
+                      <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-semibold text-gray-900">{{ ctx.title }}</p>
+                      <p class="text-[11px] text-gray-400">{{ categoryLabel() }} · Due {{ expiresLabel() }}</p>
+                    </div>
+                  </div>
+                  <ng-container *ngIf="ctx.description">
+                    <p class="mt-2 whitespace-pre-line text-xs leading-snug text-gray-600"
+                      [class.line-clamp-2]="!descriptionExpanded()">{{ ctx.description }}</p>
+                    <button *ngIf="ctx.description.length > 110" type="button" (click)="descriptionExpanded.set(!descriptionExpanded())"
+                      class="mt-0.5 text-[11px] font-medium text-brand-bold underline-offset-2 hover:underline">
+                      {{ descriptionExpanded() ? 'Show less' : 'Show more' }}
+                    </button>
+                  </ng-container>
+                  <div class="mt-2 grid grid-cols-2 gap-2 border-t border-gray-200/70 pt-2 text-[11px]">
+                    <div class="min-w-0">
+                      <span class="block text-gray-400">Name on the document</span>
+                      <span class="block truncate text-sm font-semibold text-gray-900">{{ ctx.signerFullName }}</span>
+                    </div>
+                    <div class="min-w-0">
+                      <span class="block text-gray-400">Your fields</span>
+                      <span class="block text-sm font-semibold text-gray-900">
+                        {{ fields().length }}<span class="text-[11px] font-normal text-gray-500">
+                          on {{ fieldPageCount() }} {{ fieldPageCount() === 1 ? 'page' : 'pages' }}
+                          · {{ requiredFieldCount() }} required</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Campos de texto que el preparador colocó para este firmante (P4) -->
-                <div *ngIf="textFields().length > 0" class="mt-4 flex flex-col gap-3">
-                  <div *ngFor="let field of textFields()">
-                    <label [for]="'field-' + field.id" class="mb-1 block text-xs font-medium text-gray-600">
-                      {{ field.label || 'Additional information' }}
-                      <span *ngIf="field.isRequired" class="text-red-500">*</span>
-                    </label>
-                    <input [id]="'field-' + field.id" type="text" [required]="field.isRequired"
-                      [ngModel]="fieldValues()[field.id] || ''" (ngModelChange)="setFieldValue(field.id, $event)"
-                      [name]="'field-' + field.id" [placeholder]="field.label || 'Type here'"
-                      class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 transition-colors focus:border-brand-bold focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
-                  </div>
+                <!-- Campos de texto que el preparador colocó para este firmante: se escriben sobre la página -->
+                <div *ngIf="textFields().length > 0" class="mt-4">
+                  <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Fill in your document</p>
+                  <app-sign-document-view [fields]="fieldsOnTextPages()" [values]="fieldValues()" [editable]="true"
+                    (valueChange)="setFieldValue($event.fieldId, $event.value)"></app-sign-document-view>
                 </div>
 
                 <div class="mt-4">
@@ -408,6 +439,7 @@
                 </span>
                 <h1 class="mt-4 text-2xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
                 <p class="mt-1 text-sm font-medium text-emerald-600">Your signature was recorded successfully.</p>
+                <p class="mt-1 text-xs text-gray-400">This signing link has now expired.</p>
 
                 <!-- Resumen de lo firmado -->
                 <div class="mt-5 rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
@@ -443,15 +475,6 @@
                   You can safely close this window.
                 </p>
 
-                <!-- Redirección con cuenta atrás -->
-                <div *ngIf="redirectSeconds() > 0" class="mt-4 flex flex-col items-center gap-2">
-                  <p class="text-[11px] text-gray-400">Redirecting in {{ redirectSeconds() }}s…</p>
-                  <button type="button" (click)="redirectNow()"
-                    class="rounded-full bg-brand-bold px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
-                    Continue now
-                  </button>
-                </div>
-
                 <div class="mt-5">
                   <ng-container *ngTemplateOutlet="receipt"></ng-container>
                 </div>
@@ -476,7 +499,7 @@
       </div>
 
       <!-- Footer: navegación -->
-      <div *ngIf="context() && !blocked() && !declined() && !isDone()" class="border-t border-gray-100 px-6 py-4">
+      <div *ngIf="context() && !blocked() && !declined() && !isDone()" class="border-t border-gray-100 px-4 py-4 sm:px-6">
         <div class="flex items-center gap-2">
           <button *ngIf="!isFirstStep()" type="button" (click)="back()" [disabled]="busy()"
             class="rounded-full border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50">
@@ -530,7 +553,10 @@
         <dd class="font-medium">
           <span *ngIf="auditIntact() === true" class="text-emerald-600">Verified · {{ audit()?.eventCount }} events</span>
           <span *ngIf="auditIntact() === false" class="text-red-600">Integrity check failed</span>
-          <span *ngIf="auditIntact() === null" class="text-xs font-normal text-gray-400">Not available right now</span>
+          <!-- Tras completarse la solicitud el token se revoca y la cadena ya no es legible con este enlace -->
+          <span *ngIf="auditIntact() === null" class="text-xs font-normal text-gray-400">
+            {{ justSigned() ? 'Kept by the office' : 'Not available right now' }}
+          </span>
         </dd>
       </div>
       <div *ngIf="chainHash()" class="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 pt-1.5">

@@ -34,6 +34,11 @@ function avatarColorFor(id: string): string {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
+/** Id local para mensajes optimistas (no viaja al backend: el socket usa su propio clientKey). */
+function newLocalId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function formatTime(iso: string): string {
   return parseUtcDate(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
@@ -262,17 +267,92 @@ export class ChatStore {
     });
   }
 
+  /**
+   * Envío optimista: la burbuja aparece al instante ("sending") y el hilo baja al fondo sin esperar
+   * al socket. Con el ack se reemplaza en su lugar por el mensaje real (misma `renderKey` ⇒ el nodo no
+   * se recrea); si falla queda marcada "failed" para reintentar.
+   */
   async sendMessage(text: string): Promise<void> {
     const conversationId = this._activeConversationId();
     if (!conversationId) {
       return;
     }
+    const tempId = `tmp-${newLocalId()}`;
+    const now = new Date().toISOString();
+    this.upsertOwnMessage(conversationId, tempId, {
+      id: tempId,
+      renderKey: tempId,
+      senderId: 'me',
+      text,
+      time: formatTime(now),
+      dateGroup: formatDateGroup(now),
+      isEdited: false,
+      isDeleted: false,
+      createdAtUtc: now,
+      status: 'sending',
+    });
+    await this.deliverPending(conversationId, tempId, text);
+  }
+
+  /** Reintenta un mensaje que quedó "failed" (mismo nodo, vuelve a "sending"). */
+  async retryMessage(tempId: string): Promise<void> {
+    const conversationId = this._activeConversationId();
+    const pending = this._conversations()
+      .find(c => c.id === conversationId)
+      ?.messages.find(m => m.id === tempId && m.status === 'failed');
+    if (!conversationId || !pending?.text) {
+      return;
+    }
+    this.upsertOwnMessage(conversationId, tempId, { ...pending, status: 'sending' });
+    await this.deliverPending(conversationId, tempId, pending.text);
+  }
+
+  private async deliverPending(conversationId: string, tempId: string, text: string): Promise<void> {
     const ack = await this.socket.sendMessage(conversationId, text);
     if (!ack.ok) {
       console.warn('No se pudo enviar el mensaje:', ack.message);
+      this.patchOwnMessage(conversationId, tempId, { status: 'failed' });
       return;
     }
-    this.appendMessage(ack.value.message);
+    const dto = ack.value.message;
+    this.noteLatestTimestamp(conversationId, dto.createdAtUtc);
+    const real = { ...this.toMessage(dto, this.auth.currentUser()?.id ?? null), renderKey: tempId };
+    this._conversations.update(list =>
+      list.map(c => {
+        if (c.id !== conversationId) {
+          return c;
+        }
+        // El broadcast del propio mensaje pudo llegar antes que el ack y ya ocupó el lugar del pendiente.
+        if (c.messages.some(m => m.id === real.id)) {
+          return { ...c, messages: c.messages.filter(m => m.id !== tempId) };
+        }
+        return { ...c, messages: c.messages.map(m => (m.id === tempId ? real : m)) };
+      }),
+    );
+  }
+
+  /** Inserta (o reemplaza por id) un mensaje propio en la conversación. */
+  private upsertOwnMessage(conversationId: string, id: string, message: ChatMessage): void {
+    this._conversations.update(list =>
+      list.map(c => {
+        if (c.id !== conversationId) {
+          return c;
+        }
+        const exists = c.messages.some(m => m.id === id);
+        return {
+          ...c,
+          messages: exists ? c.messages.map(m => (m.id === id ? message : m)) : [...c.messages, message],
+        };
+      }),
+    );
+  }
+
+  private patchOwnMessage(conversationId: string, id: string, patch: Partial<ChatMessage>): void {
+    this._conversations.update(list =>
+      list.map(c =>
+        c.id === conversationId ? { ...c, messages: c.messages.map(m => (m.id === id ? { ...m, ...patch } : m)) } : c,
+      ),
+    );
   }
 
   async sendAttachment(file: File): Promise<void> {
@@ -746,6 +826,9 @@ export class ChatStore {
             if (m.senderId !== 'me' || m.createdAtUtc > cutoff) {
               return m;
             }
+            if (m.status === 'sending' || m.status === 'failed') {
+              return m; // todavía no está en el servidor
+            }
             const current = m.status ?? 'sent';
             return rank[next] > rank[current] ? { ...m, status: next } : m;
           }),
@@ -822,6 +905,17 @@ export class ChatStore {
         }
         if (c.messages.some(m => m.id === message.id)) {
           return c; // ya insertado (ack local + broadcast del propio mensaje)
+        }
+        // Eco de MI mensaje que llega antes que el ack: ocupa el lugar del pendiente con el mismo texto
+        // (heredando su renderKey) en vez de mostrarse duplicado hasta que llegue el ack.
+        if (!fromOther && message.text) {
+          const pending = c.messages.find(m => m.status === 'sending' && m.text === message.text);
+          if (pending) {
+            return {
+              ...c,
+              messages: c.messages.map(m => (m === pending ? { ...message, renderKey: pending.renderKey } : m)),
+            };
+          }
         }
         return {
           ...c,

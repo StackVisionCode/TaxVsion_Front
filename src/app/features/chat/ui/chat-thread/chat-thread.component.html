@@ -1,4 +1,9 @@
-<div #scrollContainer class="h-full overflow-y-auto" style="overflow-anchor: none" (scroll)="onScroll()">
+<!-- Envoltorio relativo: la píldora "New messages" flota sobre el hilo sin scrollear con él. -->
+<div class="relative h-full">
+<!-- scrollbar-gutter: el hueco de la barra se reserva siempre (que aparezca no corre las burbujas).
+     aria-busy mientras se antepone historial: el lector de pantalla no anuncia mensajes viejos. -->
+<div #scrollContainer class="h-full overflow-y-auto overscroll-contain [scrollbar-gutter:stable]" style="overflow-anchor: none"
+  (scroll)="onScroll()" role="log" aria-label="Messages" [attr.aria-busy]="loadingOlder">
   <!-- Flujo normal (como el Portal, que funciona): sin `justify-end`/`min-h-full`, que peleaban con el
        scroll anchoring del navegador y el scroll programático → no bajaba al último al abrir. -->
   <div #scrollInner class="flex flex-col gap-3 py-4 pr-1">
@@ -10,7 +15,7 @@
       </span>
     </div>
 
-    <ng-container *ngFor="let message of messages; let i = index">
+    <ng-container *ngFor="let message of messages; let i = index; trackBy: trackMessage">
       <!-- Date separator -->
       <div *ngIf="showDateSeparator(i)" class="my-2 flex justify-center">
         <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">{{ message.dateGroup }}</span>
@@ -23,11 +28,13 @@
         </span>
       </div>
 
-      <div *ngIf="!message.isSystem" class="group flex" [class.justify-end]="message.senderId === 'me'">
+      <!-- Mensajes seguidos del mismo autor se agrupan: menos aire entre ellos y el avatar no se repite. -->
+      <div *ngIf="!message.isSystem" class="group flex" [class.justify-end]="message.senderId === 'me'"
+        [ngClass]="{ '-mt-1.5': isContinuation(i) }">
         <!-- Their message -->
-        <div *ngIf="message.senderId === 'them'" class="flex max-w-lg items-end gap-2">
+        <div *ngIf="message.senderId === 'them'" class="flex max-w-[85%] items-end gap-2 sm:max-w-lg">
           <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-            [ngClass]="otherAvatarColor">{{ initials(otherName) }}</span>
+            [ngClass]="otherAvatarColor" [class.invisible]="isContinuation(i)" aria-hidden="true">{{ initials(otherName) }}</span>
           <div>
             <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3"
               [class.italic]="message.isDeleted" [class.text-gray-400]="message.isDeleted">
@@ -56,7 +63,7 @@
         </div>
 
         <!-- My message -->
-        <div *ngIf="message.senderId === 'me'" class="flex max-w-lg items-center gap-1.5">
+        <div *ngIf="message.senderId === 'me'" class="flex max-w-[85%] items-center gap-1.5 sm:max-w-lg">
           <!-- Hover actions (edit/delete) -->
           <div *ngIf="(canEdit(message) || canDelete(message)) && editingId() !== message.id"
             class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -88,8 +95,9 @@
 
             <!-- Bubble -->
             <ng-container *ngIf="editingId() !== message.id">
-              <div *ngIf="message.text" class="rounded-2xl rounded-br-md px-4 py-3"
-                [ngClass]="message.isDeleted ? 'bg-gray-100' : 'bg-brand-bold'">
+              <div *ngIf="message.text" class="rounded-2xl rounded-br-md px-4 py-3 transition-opacity"
+                [ngClass]="message.isDeleted ? 'bg-gray-100' : 'bg-brand-bold'"
+                [class.opacity-70]="message.status === 'sending' || message.status === 'failed'">
                 <p class="text-sm leading-relaxed whitespace-pre-line"
                   [ngClass]="message.isDeleted ? 'italic text-gray-400' : 'text-white'">{{ message.text }}</p>
               </div>
@@ -111,8 +119,16 @@
               </div>
               <p class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-400">
                 <span>{{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span></span>
+                <!-- No se pudo enviar: aviso + reintentar (el mensaje sigue en su lugar). -->
+                <button *ngIf="message.status === 'failed'" type="button" (click)="retryRequested.emit(message.id)"
+                  class="inline-flex items-center gap-1 font-medium text-red-600 hover:underline">
+                  <ion-icon name="alert-circle-outline" class="text-sm"></ion-icon> Not sent · Retry
+                </button>
+                <!-- Enviando (optimista, aún sin ack del servidor) -->
+                <ion-icon *ngIf="message.status === 'sending'" name="time-outline" class="text-sm text-gray-400"
+                  title="Sending" aria-label="Sending"></ion-icon>
                 <!-- Cotejos (solo MIS mensajes, no borrados): ✓ enviado / ✓✓ entregado (gris) / ✓✓ leído (azul). -->
-                <span *ngIf="!message.isDeleted"
+                <span *ngIf="!message.isDeleted && message.status !== 'sending' && message.status !== 'failed'"
                   class="inline-flex items-center leading-none"
                   [ngClass]="message.status === 'read' ? 'text-indigo-500' : 'text-gray-400'"
                   [attr.title]="message.status === 'read' ? 'Read' : message.status === 'delivered' ? 'Delivered' : 'Sent'"
@@ -151,4 +167,12 @@
 
     <div #scrollAnchor></div>
   </div>
+</div>
+
+<!-- Llegaron mensajes mientras se leía más arriba: se avisa en vez de mover la vista. -->
+<button *ngIf="unseenCount() > 0" type="button" (click)="jumpToLatest()"
+  class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-brand-ink transition-colors">
+  <ion-icon name="arrow-down-outline" class="text-sm"></ion-icon>
+  {{ unseenCount() === 1 ? '1 new message' : unseenCount() + ' new messages' }}
+</button>
 </div>

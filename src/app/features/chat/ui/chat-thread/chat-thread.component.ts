@@ -32,8 +32,16 @@ export interface ChatMessage {
   isDeleted: boolean;
   /** createdAtUtc crudo (ISO) — cursor para avanzar cotejos por fecha. */
   createdAtUtc: string;
-  /** Cotejo de MI mensaje: 'sent' (1 gris) / 'delivered' (2 grises) / 'read' (2 azules). undefined si es del otro. */
-  status?: 'sent' | 'delivered' | 'read';
+  /**
+   * Cotejo de MI mensaje: 'sending' (reloj, aún sin ack) / 'failed' (no se envió, se puede reintentar) /
+   * 'sent' (1 gris) / 'delivered' (2 grises) / 'read' (2 azules). undefined si es del otro.
+   */
+  status?: 'sending' | 'failed' | 'sent' | 'delivered' | 'read';
+  /**
+   * Clave estable del nodo en el DOM. Un mensaje optimista nace con un id temporal y al llegar el ack
+   * pasa a tener el id real: `renderKey` no cambia, así la burbuja no se destruye y recrea (parpadeo).
+   */
+  renderKey?: string;
 }
 
 export interface MessageEdit {
@@ -80,6 +88,8 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   @Output() loadOlder = new EventEmitter<void>();
   @Output() editSubmitted = new EventEmitter<MessageEdit>();
   @Output() deleteRequested = new EventEmitter<string>();
+  /** Reintentar un mensaje propio que quedó "failed" (id temporal). */
+  @Output() retryRequested = new EventEmitter<string>();
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef<HTMLDivElement>;
   @ViewChild('scrollInner') private scrollInner?: ElementRef<HTMLDivElement>;
@@ -87,6 +97,12 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
 
   readonly editingId = signal<string | null>(null);
   readonly editDraft = signal('');
+
+  /**
+   * Llegaron mensajes del otro mientras el usuario leía más arriba: en vez de arrancarle la vista
+   * al fondo se muestra la píldora "New messages ↓" (patrón de Slack/WhatsApp/Discord).
+   */
+  readonly unseenCount = signal(0);
 
   // Estado de scroll para "pegar al fondo" y preservar posición al anteponer historial.
   private isAtBottom = true;
@@ -159,6 +175,23 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     el.scrollTop = el.scrollHeight;
     this.lastScrollTop = el.scrollTop;
     this.isAtBottom = true;
+    this.unseenCount.set(0);
+  }
+
+  /** Píldora "New messages": baja al último mensaje y vuelve a pegarse al fondo. */
+  jumpToLatest(): void {
+    const el = this.scrollContainer?.nativeElement;
+    if (!el) {
+      return;
+    }
+    this.pinToBottom = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    this.unseenCount.set(0);
+  }
+
+  /** Identidad estable por id: sin esto cada evento del socket recreaba TODAS las burbujas (parpadeo). */
+  trackMessage(_: number, message: ChatMessage): string {
+    return message.renderKey ?? message.id;
   }
 
   onScroll(): void {
@@ -168,6 +201,9 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     }
     const top = el.scrollTop;
     this.isAtBottom = el.scrollHeight - top - el.clientHeight < BOTTOM_STICK_THRESHOLD;
+    if (this.isAtBottom && this.unseenCount() > 0) {
+      this.unseenCount.set(0);
+    }
     // Soltar el pin SOLO cuando el usuario sube de verdad (scrollTop bajó respecto al último) y ya no
     // está al fondo. El pin programático siempre BAJA (scrollTop sube), así que nunca se auto-suelta —
     // esto evita que el hilo se quede arriba mientras el contenido async todavía está creciendo.
@@ -189,6 +225,7 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     if (this.conversationId !== this.prevConversationId) {
       this.pendingScroll = 'bottom'; // conversación nueva: al fondo
       this.isAtBottom = true; // entrar a un hilo arranca pegado al fondo (no arrastra el estado del anterior)
+      this.unseenCount.set(0);
     } else if (count > this.prevCount) {
       const prepended = last === this.prevLastId && first !== this.prevFirstId;
       if (this.prevCount === 0) {
@@ -204,8 +241,15 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
         // Carga INICIAL (el hilo tenía solo el preview de 1 mensaje y llega el historial completo):
         // al fondo. Sin esto se trataba como prepend y quedaba casi arriba (preserveFromHeight del preview).
         this.pendingScroll = 'bottom';
+      } else if (this.messages[count - 1]?.senderId === 'me') {
+        // Lo mandé yo: SIEMPRE al fondo, aunque estuviera leyendo más arriba (lo esperado en cualquier chat).
+        this.pendingScroll = 'bottom';
+      } else if (this.isAtBottom) {
+        this.pendingScroll = 'bottom'; // mensaje del otro y estaba al fondo: lo sigo
       } else {
-        this.pendingScroll = this.isAtBottom ? 'bottom' : null; // mensaje nuevo: solo si estabas al fondo
+        // Mensaje del otro mientras leo más arriba: no muevo la vista, aviso con la píldora.
+        this.pendingScroll = null;
+        this.unseenCount.update(n => n + (count - this.prevCount));
       }
     } else {
       this.pendingScroll = null; // edit/delete: no muevas la vista
@@ -225,12 +269,17 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     this.prevCount = count;
   }
 
+  /** Un mensaje optimista (aún sin id real del servidor) no se puede editar ni borrar. */
+  private isPending(message: ChatMessage): boolean {
+    return message.status === 'sending' || message.status === 'failed';
+  }
+
   canEdit(message: ChatMessage): boolean {
-    return message.senderId === 'me' && !message.isDeleted && !!message.text && !message.attachment;
+    return message.senderId === 'me' && !message.isDeleted && !!message.text && !message.attachment && !this.isPending(message);
   }
 
   canDelete(message: ChatMessage): boolean {
-    return message.senderId === 'me' && !message.isDeleted;
+    return message.senderId === 'me' && !message.isDeleted && !this.isPending(message);
   }
 
   startEdit(message: ChatMessage): void {
@@ -264,10 +313,21 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
       .toUpperCase();
   }
 
+  /** Mismo autor que el mensaje anterior (y mismo día): se agrupan sin repetir el avatar. */
+  isContinuation(index: number): boolean {
+    const prev = this.messages[index - 1];
+    const current = this.messages[index];
+    return !!prev && !prev.isSystem && !current.isSystem && prev.senderId === current.senderId && prev.dateGroup === current.dateGroup;
+  }
+
   showDateSeparator(index: number): boolean {
     if (index === 0) {
       return true;
     }
     return this.messages[index - 1].dateGroup !== this.messages[index].dateGroup;
   }
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }

@@ -23,6 +23,7 @@ import {
   RelationResponse,
   RevealedTaxIdentifierResponse,
   SetCustomerFiscalProfileRequest,
+  SetRelationFiscalProfileRequest,
   UpdateCustomerRequest,
   customerToClientItem,
 } from './clients.model';
@@ -249,12 +250,20 @@ export class ClientsStore {
     return this.service.addRelation(customerId, req);
   }
 
-  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<RelationResponse> {
+  updateRelation(customerId: string, relationId: string, req: AddRelationRequest): Observable<void> {
     return this.service.updateRelation(customerId, relationId, req);
   }
 
   deleteRelation(customerId: string, relationId: string): Observable<void> {
     return this.service.deleteRelation(customerId, relationId);
+  }
+
+  setRelationFiscalProfile(
+    customerId: string,
+    relationId: string,
+    req: SetRelationFiscalProfileRequest,
+  ): Observable<unknown> {
+    return this.service.setRelationFiscalProfile(customerId, relationId, req);
   }
 
   // ---------- Mutaciones que afectan al listado ----------
