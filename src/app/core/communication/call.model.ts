@@ -114,3 +114,34 @@ export interface CallTranscriptReadyDto {
   wordCount: number;
   readyAtUtc: string;
 }
+
+/** Fila de GET /communication/customers/{customerId}/calls — historial de llamadas del cliente con la oficina. */
+export interface CustomerCallItem {
+  id: string;
+  kind: CallKind;
+  status: CallStatus;
+  /** Relativa a la oficina: 'outgoing' = oficina→cliente, 'incoming' = cliente→oficina. */
+  direction: 'incoming' | 'outgoing';
+  conversationId: string | null;
+  ringingAtUtc: string;
+  endedAtUtc: string | null;
+  durationSeconds: number | null;
+  recordingFileId: string | null;
+  endReason: string | null;
+}
+
+export interface CustomerCallsStats {
+  total: number;
+  completed: number;
+  missed: number;
+  avgDurationSeconds: number | null;
+}
+
+export interface CustomerCallsResponse {
+  items: CustomerCallItem[];
+  stats: CustomerCallsStats;
+  /** El cliente tiene cuenta de portal (identidad in-app) → se pueden tener/registrar llamadas. */
+  hasPortalAccount: boolean;
+  /** UserId del portal del cliente — para iniciar una llamada desde el perfil. Ausente si no hay cuenta. */
+  clientUserId?: string;
+}

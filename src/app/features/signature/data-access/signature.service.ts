@@ -242,6 +242,20 @@ export class SignatureService {
     return this.http.put<void>(`${this.base}/templates/${templateId}/defaults`, body);
   }
 
+  /** Practitioner PIN por defecto de la plantilla (Form 8879); las requests desde la plantilla lo heredan. */
+  setTemplatePractitionerPin(templateId: string, pin: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/practitioner-pin`, { pin });
+  }
+
+  clearTemplatePractitionerPin(templateId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/templates/${templateId}/practitioner-pin`);
+  }
+
+  /** PUT /signature/templates/{id}/base-document → 204. P7: fija (o quita con null) el documento base. */
+  setTemplateBaseDocument(templateId: string, baseDocumentFileId: string | null): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/base-document`, { baseDocumentFileId });
+  }
+
   /** POST /signature/templates/{id}/slots → 201 con el `order` asignado. */
   addTemplateSlot(templateId: string, body: AddTemplateSlotBody): Observable<TemplateSlotCreatedResponse> {
     return this.http.post<TemplateSlotCreatedResponse>(`${this.base}/templates/${templateId}/slots`, body);

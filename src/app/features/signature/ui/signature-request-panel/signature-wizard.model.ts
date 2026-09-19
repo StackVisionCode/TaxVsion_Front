@@ -19,10 +19,14 @@ export interface PlacedField {
   height: number;
   /** id del firmante dueño del campo. */
   signerId: string;
+  /** Instrucción/etiqueta que verá el firmante (solo campos `text`). */
+  label?: string;
 }
 
 /** Canal por el que el firmante recibe/verifica su código (propuesta UX). */
-export type VerificationChannel = 'email' | 'sms' | 'whatsapp' | 'app';
+// 'none' = sin código OTP (el firmante no recibe código): útil cuando la seguridad la da el
+// Practitioner PIN por sí solo, o el documento no requiere verificación extra.
+export type VerificationChannel = 'email' | 'sms' | 'whatsapp' | 'app' | 'none';
 
 /** Reglas de la solicitud (panel Rules del editor, tomadas de la propuesta UX). */
 export interface RequestRules {
@@ -31,8 +35,20 @@ export interface RequestRules {
   /** Canales de verificación habilitados (mínimo 1); el firmante elige entre ellos. */
   channels: VerificationChannel[];
   autoReminder: boolean;
+  /** Cada cuántas HORAS se recuerda a los firmantes pendientes (la UI lo edita en días). */
+  reminderIntervalHours: number;
   certificate: boolean;
   includePreparerSignature: boolean;
+  /** P2: entregar el documento firmado a los firmantes al completar (email/SMS). */
+  sendSignedDocument: boolean;
+  /** P2: entregar el certificado de finalización a los firmantes al completar. */
+  sendCertificate: boolean;
+  /**
+   * PIN del preparador (Practitioner PIN, Form 8879): secreto de 4–10 dígitos que el preparador fija y
+   * comunica al cliente por fuera; el cliente lo escribe en la página de firma. Opcional (null = sin PIN).
+   * Es una capa aparte del OTP, no lo reemplaza.
+   */
+  signingPin: string | null;
 }
 
 /** Firmante dentro del editor (el cliente es el firmante #1; se pueden añadir más). */

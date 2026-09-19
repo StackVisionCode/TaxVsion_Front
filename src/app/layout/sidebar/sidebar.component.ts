@@ -24,6 +24,7 @@ import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { PermissionService } from '@core/auth/permission.service';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import { ChatStore } from '@features/chat/data-access/chat.store';
 
@@ -55,6 +56,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly chatStore = inject(ChatStore);
   private readonly injector = inject(Injector);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
+  private readonly perms = inject(PermissionService);
   private readonly destroy$ = new Subject<void>();
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
@@ -119,6 +121,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services' },
     { label: 'Inventory', icon: 'cube-outline', route: '/inventory' },
     { label: 'Signature', icon: 'create-outline', route: '/signature' },
+    { label: 'SMS', icon: 'chatbox-ellipses-outline', route: '/sms', requiredPermissions: ['sms.read'] },
     { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat' },
     { label: 'Meetings', icon: 'videocam-outline', route: '/meetings' },
     { label: 'Support', icon: 'headset-outline', route: '/support' },
@@ -173,9 +176,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  canShowItem(_item: MenuItem): boolean {
-    // No role/permission system yet -- every item is always visible.
-    return true;
+  canShowItem(item: MenuItem): boolean {
+    // Los ítems sin requiredPermissions se muestran siempre; los que lo declaran se gatean
+    // por el permiso real de la sesión (p. ej. SMS → sms.read).
+    const required = item.requiredPermissions;
+    return !required || required.length === 0 || this.perms.hasAny(required);
   }
 
   canShowSubItem(_subItem: SubMenuItem): boolean {

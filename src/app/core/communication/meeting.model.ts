@@ -77,6 +77,8 @@ export interface SfuNewProducerDto {
   userId: string;
   producerId: string;
   kind: 'audio' | 'video';
+  /** 'camera' (default) o 'screen' — un participante puede producir cámara Y pantalla a la vez. */
+  source?: 'camera' | 'screen';
 }
 export interface SfuProducerClosedDto {
   meetingId: string;
@@ -87,6 +89,7 @@ export interface SfuRemoteProducer {
   userId: string;
   producerId: string;
   kind: 'audio' | 'video';
+  source?: 'camera' | 'screen';
 }
 
 /**

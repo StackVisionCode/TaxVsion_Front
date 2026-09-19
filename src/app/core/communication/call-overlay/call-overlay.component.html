@@ -1,5 +1,6 @@
-<!-- Audio remoto (siempre en el DOM para que suene aunque sea video o se oculte). -->
-<audio [srcObject]="remoteStream()" autoplay class="hidden"></audio>
+<!-- Audio remoto (siempre en el DOM para que suene aunque sea video o se oculte). El audio del par viaja
+     junto a su CÁMARA (dual-source), así que se ata al stream de cámara remoto. -->
+<audio [srcObject]="remoteCameraStream()" autoplay class="hidden"></audio>
 
 <!-- ============ Modal de consentimiento de grabación (lo ve quien NO pidió grabar) ============ -->
 <div *ngIf="recordingConsentFrom()" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
@@ -28,10 +29,18 @@
   class="fixed inset-x-4 bottom-4 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-96"
   role="dialog" aria-live="polite" [attr.aria-label]="statusLabel() + ' with ' + (peerDisplayName() || 'contact')">
   <div class="relative overflow-hidden rounded-3xl bg-gray-900 text-white shadow-2xl">
-    <!-- Remote video stage -->
+    <!-- Escenario: PANTALLA si alguien comparte (object-contain para que quepa completa), si no la CÁMARA
+         del par (object-cover). El audio va por el <audio> de arriba, así que el video va muted. -->
     <div class="relative aspect-video w-full bg-black">
-      <video [srcObject]="remoteStream()" autoplay playsinline muted
-        class="h-full w-full object-cover" [class.opacity-0]="showRemotePlaceholder()"></video>
+      <video [srcObject]="stageStream()" autoplay playsinline muted
+        class="h-full w-full" [class.object-contain]="isScreenStage()" [class.object-cover]="!isScreenStage()"
+        [class.opacity-0]="showRemotePlaceholder()"></video>
+
+      <!-- PiP de la CÁMARA del par (abajo-izquierda) cuando en el escenario hay una pantalla -->
+      <div *ngIf="showPeerCameraPip()" class="absolute bottom-3 left-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
+        <video [srcObject]="remoteCameraStream()" autoplay playsinline muted class="h-full w-full object-cover"></video>
+        <div class="absolute bottom-0.5 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px]">{{ peerDisplayName() || 'Contact' }}</div>
+      </div>
 
       <!-- Placeholder cuando el par no envía video (conectando, o audio-only) -->
       <div *ngIf="showRemotePlaceholder()" class="absolute inset-0 flex flex-col items-center justify-center gap-2">
@@ -61,12 +70,12 @@
         </span>
       </div>
 
-      <!-- Local PiP (abajo-derecha) -->
+      <!-- Local PiP (abajo-derecha) = MI cámara. Dual-source: queda viva aunque comparta pantalla (mi
+           pantalla va al escenario, no aquí). Espejo siempre (es cámara); avatar/off cuando la apago. -->
       <div class="absolute bottom-3 right-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
         <video [srcObject]="localStream()" autoplay playsinline muted
-          class="h-full w-full object-cover" [class.-scale-x-100]="!screenSharing()"
-          [class.opacity-0]="!videoEnabled() && !screenSharing()"></video>
-        <div *ngIf="!videoEnabled() && !screenSharing()" class="absolute inset-0 flex items-center justify-center">
+          class="h-full w-full object-cover -scale-x-100" [class.opacity-0]="!videoEnabled()"></video>
+        <div *ngIf="!videoEnabled()" class="absolute inset-0 flex items-center justify-center">
           <ion-icon name="videocam-off-outline" class="text-lg text-white/60"></ion-icon>
         </div>
       </div>
@@ -80,7 +89,7 @@
         [ngClass]="audioEnabled() ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-white text-gray-900'">
         <ion-icon [name]="audioEnabled() ? 'mic-outline' : 'mic-off-outline'" class="text-xl"></ion-icon>
       </button>
-      <button *ngIf="!screenSharing()" type="button" (click)="toggleVideo()"
+      <button type="button" (click)="toggleVideo()"
         [attr.aria-pressed]="!videoEnabled()" [attr.aria-label]="videoEnabled() ? 'Turn camera off' : 'Turn camera on'"
         class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
         [ngClass]="videoEnabled() ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-white text-gray-900'">

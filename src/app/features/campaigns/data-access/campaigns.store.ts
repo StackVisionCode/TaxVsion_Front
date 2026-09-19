@@ -1,244 +1,205 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { EMPTY, Observable, expand, map, of, reduce, switchMap, tap, throwError } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { CampaignsService } from './campaigns.service';
 import {
-  CampaignFormValue,
-  CampaignItem,
-  CampaignRecipientInput,
-  CampaignTemplateSummary,
-  EmailCampaignResponse,
-  OutboundEmailResponse,
-  parseCustomEmails,
-  toCampaignItem,
+  ApiCampaignStatus,
+  ApiChannel,
+  CampaignResponse,
+  CampaignRunResponse,
+  CampaignScheduleResponse,
+  ContactListResponse,
+  ContactResponse,
+  CreateCampaignRequest,
+  CreateContactListRequest,
+  CreateContactRequest,
+  CreateSenderProfileRequest,
+  EmailTemplateSummary,
+  ImportContactsRequest,
+  ImportContactsResponse,
+  ScheduleAction,
+  ScheduleCampaignRequest,
+  SendToAudienceRequest,
+  SenderProfileResponse,
+  SetCampaignSenderRequest,
+  SetContactOptOutRequest,
 } from './campaigns.model';
 
-/** Lote por página del listado (máximo que acepta el backend). */
-const LIST_PAGE_SIZE = 100;
-/** Tope de páginas encadenadas al cargar (500 campañas es más que suficiente para un tenant). */
-const LIST_MAX_PAGES = 5;
+const PAGE = 100;
 
 /**
- * Store del módulo Campaigns (EmailCampaignsController de Notification vía
- * `/notifications/email/campaigns`). Guarda los EmailCampaignResponse crudos y deriva las
- * filas con computed(): así los nombres de plantilla se re-resuelven solos cuando llega el
- * catálogo de plantillas (GET /notifications/email/templates, best-effort).
- *
- * El backend no expone búsqueda ni edición: la lista se trae completa (paginada en lotes de
- * 100 hasta un tope) y búsqueda/filtro/paginación viven en el cliente, igual que en el mock.
+ * Store del módulo Campaigns (servicio orquestador `TaxVision.Campaigns`). Guarda el estado de
+ * lectura de los cuatro recursos como signals y expone acciones que refrescan el recurso afectado.
+ * Búsqueda/filtro por estado viven en el cliente sobre la lista completa (paginada en un lote).
  */
 @Injectable({ providedIn: 'root' })
 export class CampaignsStore {
   private readonly service = inject(CampaignsService);
 
-  // ---------- Estado crudo ----------
-  private readonly _raw = signal<EmailCampaignResponse[]>([]);
-  private readonly _totalCount = signal(0);
+  // ---------- campaigns ----------
+  private readonly _campaigns = signal<CampaignResponse[]>([]);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
-  /** Error transitorio de una acción (cancelar, programar…): banner descartable, no rompe la lista. */
   private readonly _actionError = signal<string | null>(null);
+  private readonly _statusFilter = signal<ApiCampaignStatus | 'all'>('all');
+  private readonly _search = signal('');
   private initialized = false;
-
-  // ---------- Catálogo de plantillas (réplica de EmailTemplatesController) ----------
-  private readonly _templates = signal<CampaignTemplateSummary[]>([]);
-  private readonly _templatesError = signal<string | null>(null);
-  private readonly _templatesLoading = signal(false);
 
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly actionError = this._actionError.asReadonly();
-  readonly totalCount = this._totalCount.asReadonly();
-  readonly templatesError = this._templatesError.asReadonly();
-  readonly templatesLoading = this._templatesLoading.asReadonly();
+  readonly statusFilter = this._statusFilter.asReadonly();
 
-  private readonly templateById = computed<ReadonlyMap<string, CampaignTemplateSummary>>(
-    () => new Map(this._templates().map(template => [template.id, template])),
-  );
-
-  /** Solo se puede programar con plantilla Active y versión publicada: el picker ofrece esas. */
-  readonly publishableTemplates = computed<CampaignTemplateSummary[]>(() =>
-    this._templates().filter(template => template.status === 'Active' && template.currentVersionId !== null),
-  );
-
-  /** Filas de la tabla, más recientes primero (el backend no garantiza orden entre páginas). */
-  readonly campaigns = computed<CampaignItem[]>(() => {
-    const templates = this.templateById();
-    return [...this._raw()]
-      .sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc))
-      .map(response => toCampaignItem(response, templates));
+  readonly campaigns = computed<CampaignResponse[]>(() => {
+    const q = this._search().trim().toLowerCase();
+    const s = this._statusFilter();
+    return this._campaigns().filter(c => (s === 'all' || c.status === s) && (!q || c.name.toLowerCase().includes(q)));
   });
+  readonly totalCount = computed(() => this._campaigns().length);
 
-  // ---------- Carga ----------
+  // ---------- supporting resources ----------
+  private readonly _lists = signal<ContactListResponse[]>([]);
+  private readonly _contacts = signal<ContactResponse[]>([]);
+  private readonly _senders = signal<SenderProfileResponse[]>([]);
+  private readonly _runs = signal<CampaignRunResponse[]>([]);
+  private readonly _schedules = signal<CampaignScheduleResponse[]>([]);
+  private readonly _templates = signal<EmailTemplateSummary[]>([]);
+  readonly lists = this._lists.asReadonly();
+  readonly contacts = this._contacts.asReadonly();
+  readonly senders = this._senders.asReadonly();
+  readonly runs = this._runs.asReadonly();
+  readonly schedules = this._schedules.asReadonly();
+  readonly templates = this._templates.asReadonly();
 
-  /** Carga inicial idempotente: listado + catálogo de plantillas. */
+  // ---------- init ----------
   init(): void {
-    if (this.initialized) {
-      return;
-    }
+    if (this.initialized) return;
     this.initialized = true;
+    this.loadCampaigns();
+    this.loadLists();
+    this.loadSenders();
     this.loadTemplates();
-    this.refresh();
   }
 
-  refresh(): void {
-    this._loading.set(true);
-    this._error.set(null);
-    this.fetchAllPages().subscribe({
-      next: ({ items, total }) => {
-        this._raw.set(items);
-        this._totalCount.set(total);
-        this._loading.set(false);
-      },
-      error: err => {
-        this._error.set(toApiError(err).message);
-        this._loading.set(false);
-      },
-    });
+  loadTemplates(): void {
+    this.service.listTemplates().subscribe({ next: t => this._templates.set(t ?? []), error: () => {} });
   }
 
+  setStatusFilter(s: ApiCampaignStatus | 'all'): void {
+    this._statusFilter.set(s);
+  }
+  setSearch(q: string): void {
+    this._search.set(q);
+  }
   clearActionError(): void {
     this._actionError.set(null);
   }
 
-  /** Encadena GET /notifications/email/campaigns página a página mientras hasMore (con tope). */
-  private fetchAllPages(): Observable<{ items: EmailCampaignResponse[]; total: number }> {
-    return this.service.list({ page: 1, size: LIST_PAGE_SIZE }).pipe(
-      expand(result =>
-        result.hasMore && result.page < LIST_MAX_PAGES
-          ? this.service.list({ page: result.page + 1, size: LIST_PAGE_SIZE })
-          : EMPTY,
-      ),
-      reduce(
-        (acc, result) => ({ items: [...acc.items, ...result.items], total: result.totalCount }),
-        { items: [] as EmailCampaignResponse[], total: 0 },
-      ),
-    );
-  }
-
-  /** Plantillas para el picker y los nombres de la tabla. Reintentable desde el panel. */
-  loadTemplates(): void {
-    this._templatesLoading.set(true);
-    this._templatesError.set(null);
-    this.service.listTemplates().subscribe({
-      next: templates => {
-        this._templates.set(templates);
-        this._templatesLoading.set(false);
+  // ---------- loads ----------
+  loadCampaigns(): void {
+    this._loading.set(true);
+    this._error.set(null);
+    this.service.listCampaigns({ size: PAGE }).subscribe({
+      next: p => {
+        this._campaigns.set(p.items);
+        this._loading.set(false);
       },
-      error: err => {
-        // Best-effort para los nombres de la tabla, pero el panel sí necesita avisar:
-        // sin catálogo no se puede elegir plantilla y crear queda bloqueado.
-        this._templatesError.set(toApiError(err).message);
-        this._templatesLoading.set(false);
+      error: e => {
+        this._error.set(toApiError(e).message);
+        this._loading.set(false);
       },
     });
   }
-
-  // ---------- Crear / programar / cancelar ----------
-
-  /**
-   * Crea el Draft (resolviendo primero los destinatarios según la audiencia elegida) y, si el
-   * formulario trae fecha, lo programa de inmediato con POST {id}/schedule.
-   */
-  createCampaign(form: CampaignFormValue): Observable<void> {
-    return this.resolveRecipients(form).pipe(
-      switchMap(recipients =>
-        this.service.create({
-          name: form.name.trim(),
-          type: form.type,
-          templateId: form.templateId,
-          recipients,
-        }),
-      ),
-      switchMap(created =>
-        form.scheduledDate
-          ? this.service.schedule(created.id, { scheduledAtUtc: `${form.scheduledDate}T00:00:00Z` })
-          : of(created),
-      ),
-      tap(final => {
-        this._raw.update(list => [final, ...list]);
-        this._totalCount.update(total => total + 1);
-      }),
-      map(() => undefined),
-    );
+  loadLists(): void {
+    this.service.listContactLists(1, PAGE).subscribe({ next: p => this._lists.set(p.items), error: () => {} });
+  }
+  loadContacts(): void {
+    this.service.listContacts(1, PAGE).subscribe({ next: p => this._contacts.set(p.items), error: () => {} });
+  }
+  loadSenders(): void {
+    this.service.listSenders(undefined, 1, PAGE).subscribe({ next: p => this._senders.set(p.items), error: () => {} });
+  }
+  loadRuns(campaignId: string): void {
+    this._runs.set([]);
+    this.service.listRuns(campaignId, 1, 50).subscribe({ next: p => this._runs.set(p.items), error: () => {} });
+  }
+  loadSchedules(campaignId: string): void {
+    this.service.listSchedules(campaignId, 1, 50).subscribe({ next: p => this._schedules.set(p.items), error: () => {} });
   }
 
-  /**
-   * Programa un Draft existente. `dateYmd` vacío = lanzar ahora (el backend usa UtcNow cuando
-   * scheduledAtUtc llega null).
-   */
-  scheduleCampaign(id: string, dateYmd: string): Observable<void> {
-    const scheduledAtUtc = dateYmd ? `${dateYmd}T00:00:00Z` : null;
-    return this.service.schedule(id, { scheduledAtUtc }).pipe(
-      tap(final => this.replaceRaw(final)),
-      map(() => undefined),
-    );
+  // ---------- actions (return Observable so the page can toast/close) ----------
+  createCampaign(req: CreateCampaignRequest): Observable<CampaignResponse> {
+    return this.act(this.service.createCampaign(req), () => this.loadCampaigns());
+  }
+  updateCampaign(id: string, req: CreateCampaignRequest): Observable<CampaignResponse> {
+    return this.act(this.service.updateCampaign(id, req), () => this.loadCampaigns());
+  }
+  markReady(id: string): Observable<CampaignResponse> {
+    return this.act(this.service.markReady(id), () => this.loadCampaigns());
+  }
+  revertToDraft(id: string): Observable<CampaignResponse> {
+    return this.act(this.service.revertToDraft(id), () => this.loadCampaigns());
+  }
+  archiveCampaign(id: string): Observable<CampaignResponse> {
+    return this.act(this.service.archiveCampaign(id), () => this.loadCampaigns());
+  }
+  deleteCampaign(id: string): Observable<void> {
+    return this.act(this.service.deleteCampaign(id), () => this.loadCampaigns());
+  }
+  setCampaignSender(id: string, req: SetCampaignSenderRequest): Observable<CampaignResponse> {
+    return this.act(this.service.setSender(id, req), () => this.loadCampaigns());
+  }
+  sendToAudience(id: string, req: SendToAudienceRequest): Observable<CampaignRunResponse> {
+    return this.act(this.service.sendToAudience(id, req), () => this.loadRuns(id));
+  }
+  schedule(id: string, req: ScheduleCampaignRequest): Observable<CampaignScheduleResponse> {
+    return this.act(this.service.schedule(id, req), () => this.loadSchedules(id));
+  }
+  setScheduleState(campaignId: string, scheduleId: string, action: ScheduleAction): Observable<CampaignScheduleResponse> {
+    return this.act(this.service.setScheduleState(scheduleId, action), () => this.loadSchedules(campaignId));
+  }
+  createContact(req: CreateContactRequest): Observable<ContactResponse> {
+    return this.act(this.service.createContact(req), () => this.loadContacts());
+  }
+  updateContact(id: string, req: CreateContactRequest): Observable<ContactResponse> {
+    return this.act(this.service.updateContact(id, req), () => this.loadContacts());
+  }
+  setContactOptOut(id: string, req: SetContactOptOutRequest): Observable<ContactResponse> {
+    return this.act(this.service.setContactOptOut(id, req), () => this.loadContacts());
+  }
+  createContactList(req: CreateContactListRequest): Observable<ContactListResponse> {
+    return this.act(this.service.createContactList(req), () => this.loadLists());
+  }
+  updateContactList(id: string, req: CreateContactListRequest): Observable<ContactListResponse> {
+    return this.act(this.service.updateContactList(id, req), () => this.loadLists());
+  }
+  deleteContactList(id: string): Observable<void> {
+    return this.act(this.service.deleteContactList(id), () => this.loadLists());
+  }
+  deleteContact(id: string): Observable<void> {
+    return this.act(this.service.deleteContact(id), () => this.loadContacts());
+  }
+  importContacts(listId: string, req: ImportContactsRequest): Observable<ImportContactsResponse> {
+    return this.act(this.service.importContacts(listId, req), () => this.loadLists());
+  }
+  createSender(req: CreateSenderProfileRequest): Observable<SenderProfileResponse> {
+    return this.act(this.service.createSender(req), () => this.loadSenders());
+  }
+  setSenderStatus(id: string, active: boolean): Observable<SenderProfileResponse> {
+    return this.act(this.service.setSenderStatus(id, active), () => this.loadSenders());
   }
 
-  /**
-   * Cancela una campaña (única transición manual del backend; inválida en Completed/Cancelled).
-   * El endpoint devuelve 204, así que la fila se refresca con GET {id}. Si algo falla se muestra
-   * el banner de acción y se re-sincroniza la fila por si el cancel sí llegó a aplicarse.
-   */
-  cancelCampaign(id: string): void {
-    this.service
-      .cancel(id)
-      .pipe(switchMap(() => this.service.getById(id)))
-      .subscribe({
-        next: final => this.replaceRaw(final),
-        error: err => {
-          this._actionError.set(toApiError(err).message);
-          // Re-sync best-effort: el cancel pudo aplicarse y fallar solo el GET de refresco.
-          this.service.getById(id).subscribe({
-            next: final => this.replaceRaw(final),
-            error: () => undefined,
-          });
-        },
-      });
-  }
-
-  /** POST {id}/send-test — correo de prueba a una dirección (202, se encola). */
-  sendTest(id: string, toEmail: string): Observable<OutboundEmailResponse> {
-    return this.service.sendTest(id, { toEmail: toEmail.trim() });
-  }
-
-  // ---------- Helpers ----------
-
-  /** Audiencia → destinatarios reales: clientes activos (GET /customers) o correos manuales. */
-  private resolveRecipients(form: CampaignFormValue): Observable<CampaignRecipientInput[]> {
-    if (form.audience === 'custom') {
-      const emails = parseCustomEmails(form.customEmails);
-      return emails.length > 0
-        ? of(emails.map(address => ({ address })))
-        : throwError(() => new RecipientsError('Add at least one valid email address for the custom list.'));
-    }
-    return this.service.listClients().pipe(
-      map(result => {
-        const seen = new Set<string>();
-        const recipients: CampaignRecipientInput[] = [];
-        for (const client of result.items) {
-          const email = client.primaryEmail?.trim();
-          if (client.status !== 'Active' || !email || !email.includes('@')) {
-            continue;
-          }
-          const key = email.toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            recipients.push({ address: email, name: client.displayName });
-          }
-        }
-        if (recipients.length === 0) {
-          throw new RecipientsError('Your office has no active clients with an email address yet.');
-        }
-        return recipients;
+  /** Envuelve una acción: limpia el banner, refresca el recurso en éxito y captura el error en el banner. */
+  private act<T>(source: Observable<T>, onOk: () => void): Observable<T> {
+    this._actionError.set(null);
+    return source.pipe(
+      tap({
+        next: () => onOk(),
+        error: e => this._actionError.set(toApiError(e).message),
       }),
     );
   }
 
-  private replaceRaw(final: EmailCampaignResponse): void {
-    this._raw.update(list => list.map(response => (response.id === final.id ? final : response)));
-  }
+  channelsWithoutSender = (c: CampaignResponse): ApiChannel[] =>
+    c.channels.filter(ch => !c.senders.some(s => s.channel === ch));
 }
-
-/** Error con mensaje ya apto para UI (no pasa por toApiError). */
-export class RecipientsError extends Error {}

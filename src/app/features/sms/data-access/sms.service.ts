@@ -6,8 +6,34 @@ import {
   PagedResult,
   SendSmsBatchResponse,
   SendSmsMessagesRequest,
+  SetSmsConsentRequest,
   SmsCustomerSummary,
+  SmsMessageDetail,
+  SmsMessageSummary,
+  SmsOptOutFilter,
+  SmsOptOutSummary,
+  SmsStats,
+  SmsStatusFilter,
 } from './sms.model';
+
+/** Filtros del listado de mensajes (query params server-side). */
+export interface SmsMessageQuery {
+  customerId?: string | null;
+  status?: SmsStatusFilter;
+  term?: string | null;
+  from?: string | null;
+  to?: string | null;
+  page?: number;
+  size?: number;
+}
+
+/** Filtros del listado de bajas. */
+export interface SmsOptOutQuery {
+  status?: SmsOptOutFilter;
+  term?: string | null;
+  page?: number;
+  size?: number;
+}
 
 /**
  * Cliente HTTP fino sobre MessagesController (`/sms`, servicio Sms.Api vía Gateway).
@@ -41,5 +67,56 @@ export class SmsService {
   listCustomers(size = 200): Observable<PagedResult<SmsCustomerSummary>> {
     const params = new HttpParams().set('status', 'NotArchived').set('size', size);
     return this.http.get<PagedResult<SmsCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
+  }
+
+  /**
+   * GET /customers?term= — búsqueda server-side para el picker del compose. Reemplaza el filtrado
+   * client-side sobre 200 cargados: así se alcanzan TODOS los clientes (400+), no solo la 1ª página.
+   */
+  searchCustomers(term: string, size = 15): Observable<PagedResult<SmsCustomerSummary>> {
+    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
+    if (term.trim()) params = params.set('term', term.trim());
+    return this.http.get<PagedResult<SmsCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
+  }
+
+  /** GET /sms/messages — historial paginado + filtros (requiere `sms.read`). */
+  listMessages(query: SmsMessageQuery): Observable<PagedResult<SmsMessageSummary>> {
+    let params = new HttpParams();
+    if (query.customerId) params = params.set('customerId', query.customerId);
+    if (query.status && query.status !== 'All') params = params.set('status', query.status);
+    if (query.term) params = params.set('term', query.term);
+    if (query.from) params = params.set('from', query.from);
+    if (query.to) params = params.set('to', query.to);
+    if (query.page) params = params.set('page', query.page);
+    if (query.size) params = params.set('size', query.size);
+    return this.http.get<PagedResult<SmsMessageSummary>>(this.api.tenantUrl('/sms/messages'), { params });
+  }
+
+  /** GET /sms/messages/{id} — detalle con línea de tiempo de estado. */
+  getMessage(id: string): Observable<SmsMessageDetail> {
+    return this.http.get<SmsMessageDetail>(this.api.tenantUrl(`/sms/messages/${id}`));
+  }
+
+  /** GET /sms/messages/stats — conteos agregados (ventana opcional; backend default 30d). */
+  getStats(from?: string | null, to?: string | null): Observable<SmsStats> {
+    let params = new HttpParams();
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<SmsStats>(this.api.tenantUrl('/sms/messages/stats'), { params });
+  }
+
+  /** GET /sms/optouts — bajas paginadas + filtros. */
+  listOptOuts(query: SmsOptOutQuery): Observable<PagedResult<SmsOptOutSummary>> {
+    let params = new HttpParams();
+    if (query.status && query.status !== 'All') params = params.set('status', query.status);
+    if (query.term) params = params.set('term', query.term);
+    if (query.page) params = params.set('page', query.page);
+    if (query.size) params = params.set('size', query.size);
+    return this.http.get<PagedResult<SmsOptOutSummary>>(this.api.tenantUrl('/sms/optouts'), { params });
+  }
+
+  /** POST /sms/optouts — gestión manual del consentimiento (admin, `sms.manage`). */
+  setConsent(req: SetSmsConsentRequest): Observable<SmsOptOutSummary> {
+    return this.http.post<SmsOptOutSummary>(this.api.tenantUrl('/sms/optouts'), req);
   }
 }

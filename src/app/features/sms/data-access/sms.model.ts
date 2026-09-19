@@ -34,6 +34,8 @@ export interface SmsMessageItemRequest {
   /** Destino E.164 (`+` y 7..15 dígitos); el backend normaliza espacios/guiones/paréntesis. */
   to: string;
   message: string;
+  /** Nombre del destinatario (snapshot) — el backend lo guarda para el log; null = no aportado. */
+  recipientName?: string | null;
   media: SmsMediaItemRequest[] | null;
   /**
    * OJO: si va null el backend DERIVA la clave de (tenant, customer, to, body, media),
@@ -96,6 +98,88 @@ export interface SmsCustomerSummary {
   primaryEmail: string;
   primaryPhone: string | null;
   createdAtUtc: string;
+}
+
+// ---------- Read model (SmsReadController: GET /sms/messages, /stats, /{id}, /optouts) ----------
+
+/** Filtro de estado del listado (query param). 'All' no filtra. */
+export type SmsStatusFilter = 'All' | SmsApiStatus;
+
+/** Fila del historial (SmsMessageSummaryResponse). NO trae proveedor ni id de proveedor. */
+export interface SmsMessageSummary {
+  id: string;
+  customerId: string;
+  to: string;
+  /** Nombre del cliente al enviar (snapshot); null en mensajes antiguos/de sistema → cae al teléfono. */
+  recipientName: string | null;
+  body: string;
+  status: SmsApiStatus;
+  /** Código canónico del backend cuando falló; el front lo traduce a lenguaje simple. */
+  failureCode: string | null;
+  hasMedia: boolean;
+  createdAtUtc: string;
+}
+
+/** Media (MMS) — solo metadatos. */
+export interface SmsMediaResponse {
+  url: string;
+  contentType: string;
+  fileName: string | null;
+  sizeBytes: number | null;
+}
+
+/** Detalle con timestamps de estado (SmsMessageDetailResponse). */
+export interface SmsMessageDetail {
+  id: string;
+  customerId: string;
+  to: string;
+  recipientName: string | null;
+  body: string;
+  status: SmsApiStatus;
+  failureCode: string | null;
+  failureReason: string | null;
+  createdAtUtc: string;
+  acceptedAtUtc: string | null;
+  deliveredAtUtc: string | null;
+  failedAtUtc: string | null;
+  media: SmsMediaResponse[];
+}
+
+/** Conteos agregados (SmsStatsResponse). El front deriva la tasa de entrega. */
+export interface SmsStats {
+  total: number;
+  pending: number;
+  accepted: number;
+  delivered: number;
+  failed: number;
+  undeliverable: number;
+  suppressed: number;
+  optedOut: number;
+}
+
+/** Consentimiento de un cliente por número (SmsOptOutSummaryResponse). */
+export type SmsConsentStatus = 'Subscribed' | 'OptedOut';
+
+export interface SmsOptOutSummary {
+  customerId: string;
+  phoneE164: string;
+  status: SmsConsentStatus;
+  lastKeyword: string | null;
+  optedOutAtUtc: string | null;
+  optedInAtUtc: string | null;
+  updatedAtUtc: string;
+}
+
+/** Filtro de la vista de bajas. */
+export type SmsOptOutFilter = 'All' | SmsConsentStatus;
+
+/** Acción de gestión manual (SmsConsentController: POST /sms/optouts, admin sms.manage). */
+export type SmsConsentAction = 'OptOut' | 'OptIn';
+
+export interface SetSmsConsentRequest {
+  customerId: string;
+  phone: string;
+  action: SmsConsentAction;
 }
 
 // ---------- View-model de la bandeja ----------

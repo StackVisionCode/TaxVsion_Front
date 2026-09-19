@@ -8,6 +8,7 @@ import {
   Output,
   SimpleChanges,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -26,7 +27,6 @@ import {
 import { SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
 import { PageMetrics, PdfRect, screenRectToPdf } from '../signature-request-panel/signature-coords.util';
 import {
-  ALL_CHANNELS,
   CHANNEL_META,
   FIELD_TYPE_CIRCLE,
   FIELD_TYPE_ICON,
@@ -38,9 +38,23 @@ import {
 } from '../signature-request-panel/signature-wizard.presenter';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
+import { PermissionService } from '../../../../core/auth/permission.service';
 
 const MIN_W = 48;
 const MIN_H = 28;
+
+/**
+ * Mínimo de tamaño POR TIPO al redimensionar. Una firma/iniciales se sella como un cuño apilado
+ * (firma + fecha, y caption si cabe): por debajo de ~44px de alto la firma queda diminuta y se
+ * encarama sobre la fecha en el PDF. Fecha/texto sí pueden ser más bajos. Evita que el preparador
+ * achique el campo a algo inusable.
+ */
+const MIN_SIZE_BY_TYPE: Record<FieldType, { w: number; h: number }> = {
+  signature: { w: 120, h: 44 },
+  initials: { w: 64, h: 40 },
+  date: { w: MIN_W, h: MIN_H },
+  text: { w: MIN_W, h: MIN_H },
+};
 
 /** Escala base del render (100% de zoom). */
 const BASE_SCALE = 1.2;
@@ -99,6 +113,8 @@ export interface NormalizedPlacedField {
   y: number;
   width: number;
   height: number;
+  /** Instrucción/etiqueta del campo (solo `text`); el firmante la ve como placeholder. */
+  label?: string;
 }
 
 /**
@@ -147,8 +163,11 @@ export class SignaturePdfEditorComponent implements OnChanges {
 
   /** Reglas de la solicitud (sección Rules del sidebar). */
   readonly rules = signal<RequestRules>(defaultRules());
-  readonly allChannels = ALL_CHANNELS;
   readonly channelMeta = CHANNEL_META;
+
+  private readonly perms = inject(PermissionService);
+  /** P2/P8: los toggles de entrega solo se muestran a quien puede entregar (signature.document.send). */
+  readonly canDeliverDocs = computed(() => this.perms.has('signature.document.send'));
 
   /** Modal "Add signer": cliente registrado o datos manuales + canal. */
   readonly isAddSignerOpen = signal(false);
@@ -159,6 +178,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
   readonly draftChannel = signal<VerificationChannel>('email');
   readonly draftLanguage = signal<SignerLanguage>('En');
   readonly draftError = signal('');
+  /** Atestación del preparador de que el firmante consintió recibir SMS (TCPA); exigida en SMS/WhatsApp. */
+  readonly draftSmsConsent = signal(false);
 
   /** El canal elegido exige teléfono (SMS/WhatsApp): controla la visibilidad del campo. */
   readonly draftChannelNeedsPhone = computed(() => channelRequiresPhone(this.draftChannel()));
@@ -218,14 +239,22 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.activeSignerId.set(id);
   }
 
+  /** Canal por defecto para un firmante nuevo = el default de la request (chips). Email si está ofrecido,
+   * si no el primero ofrecido. Así los canales de la request dejan de ser decorativos. */
+  private defaultSignerChannel(): VerificationChannel {
+    // El canal por defecto de un firmante nuevo = el default elegido en las chips (primer elemento).
+    return this.rules().channels[0] ?? 'email';
+  }
+
   openAddSigner(): void {
     this.draftClientId.set('');
     this.draftName.set('');
     this.draftEmail.set('');
     this.draftPhone.set('');
-    this.draftChannel.set('email');
+    this.draftChannel.set(this.defaultSignerChannel());
     this.draftLanguage.set('En');
     this.draftError.set('');
+    this.draftSmsConsent.set(false);
     this.isAddSignerOpen.set(true);
   }
 
@@ -261,6 +290,11 @@ export class SignaturePdfEditorComponent implements OnChanges {
       this.draftError.set('Enter a phone number for SMS/WhatsApp verification.');
       return;
     }
+    // TCPA: no se envían textos sin confirmar que el firmante los consintió.
+    if (this.draftChannelNeedsPhone() && !this.draftSmsConsent()) {
+      this.draftError.set('Confirm the signer agreed to receive text messages.');
+      return;
+    }
     const id = `signer-${this.seq++}`;
     this.signers.update(list => {
       const color = SIGNER_PALETTE[list.length % SIGNER_PALETTE.length].bg;
@@ -291,20 +325,68 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.rules.update(r => ({ ...r, sequential }));
   }
 
-  /** Activa/desactiva un canal permitido; siempre debe quedar al menos uno. */
-  toggleChannel(channel: VerificationChannel): void {
-    this.rules.update(r => {
-      const has = r.channels.includes(channel);
-      if (has && r.channels.length <= 1) {
-        return r;
-      }
-      return { ...r, channels: has ? r.channels.filter(c => c !== channel) : [...r.channels, channel] };
-    });
+  /** Canales de ENTREGA reales (por firmante). 'app' no entrega a firmantes externos, se excluye. */
+  readonly deliveryChannels: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'none'];
+
+  /** Canal por defecto para firmantes NUEVOS (chips): se guarda como primer elemento de rules.channels. */
+  setDefaultChannel(channel: VerificationChannel): void {
+    this.rules.update(r => ({ ...r, channels: [channel] }));
   }
 
-  toggleRule(key: 'autoReminder' | 'certificate' | 'includePreparerSignature'): void {
+  /** Fija el canal de UN firmante (incluido el cliente). Es lo que decide su invitación + OTP. */
+  setSignerChannel(signerId: string, channel: VerificationChannel): void {
+    this.signers.update(list => list.map(s => (s.id === signerId ? { ...s, channel } : s)));
+  }
+
+  /** Edita el teléfono de UN firmante (necesario para SMS/WhatsApp). */
+  setSignerPhone(signerId: string, phone: string): void {
+    this.signers.update(list => list.map(s => (s.id === signerId ? { ...s, phone } : s)));
+  }
+
+  /** true si el canal del firmante exige teléfono (SMS/WhatsApp) y no lo tiene: hay que pedirlo. */
+  signerNeedsPhone(signer: EditorSigner): boolean {
+    return channelRequiresPhone(signer.channel) && signer.phone.trim().length === 0;
+  }
+
+  /** Firmantes con canal SMS/WhatsApp pero sin teléfono — bloquean avanzar (no se les puede entregar el OTP). */
+  readonly signersMissingPhone = computed(() => this.signers().filter(s => this.signerNeedsPhone(s)));
+
+  /** Resumen de los canales realmente en uso por los firmantes (distintos), para el panel Summary. */
+  readonly signerChannelSummary = computed(() => {
+    const labels = [...new Set(this.signers().map(s => this.channelMeta[s.channel].label))];
+    return labels.length > 0 ? labels.join(', ') : '—';
+  });
+
+  /** Intervalo de recordatorio en DÍAS (deriva de las horas del modelo). */
+  readonly reminderIntervalDays = computed(() => Math.max(1, Math.round(this.rules().reminderIntervalHours / 24)));
+
+  /** Fija el intervalo desde el input en días (1..30); persiste en horas. */
+  setReminderIntervalDays(days: number): void {
+    const clamped = Math.min(30, Math.max(1, Math.round(days) || 1));
+    this.rules.update(r => ({ ...r, reminderIntervalHours: clamped * 24 }));
+  }
+
+  toggleRule(
+    key: 'autoReminder' | 'certificate' | 'includePreparerSignature' | 'sendSignedDocument' | 'sendCertificate',
+  ): void {
+    // Entregar el certificado exige que el certificado se genere: si está apagado, no se puede activar.
+    if (key === 'sendCertificate' && !this.rules().certificate) {
+      return;
+    }
     this.rules.update(r => ({ ...r, [key]: !r[key] }));
   }
+
+  /** Practitioner PIN (Form 8879): solo dígitos, máx 10; vacío = sin PIN (null). El backend exige 4–10. */
+  setSigningPin(value: string): void {
+    const digits = (value ?? '').replace(/\D/g, '').slice(0, 10);
+    this.rules.update(r => ({ ...r, signingPin: digits.length > 0 ? digits : null }));
+  }
+
+  /** true si hay un PIN escrito pero con longitud inválida (1–3 dígitos) — bloquea avanzar. */
+  readonly signingPinInvalid = computed(() => {
+    const pin = this.rules().signingPin ?? '';
+    return pin.length > 0 && pin.length < 4;
+  });
 
   getRules(): RequestRules {
     return this.rules();
@@ -334,7 +416,7 @@ export class SignaturePdfEditorComponent implements OnChanges {
         name: client.displayName,
         email: client.email,
         color: SIGNER_PALETTE[0].bg,
-        channel: 'email',
+        channel: this.defaultSignerChannel(),
         phone: client.phone ?? '',
         language: 'En',
       };
@@ -391,6 +473,11 @@ export class SignaturePdfEditorComponent implements OnChanges {
   removeField(id: string): void {
     this.fields.update(list => list.filter(f => f.id !== id));
     this.emitCount();
+  }
+
+  /** Fija la etiqueta/instrucción de un campo de texto (P4); la ve el firmante como placeholder. */
+  setFieldLabel(id: string, label: string): void {
+    this.fields.update(list => list.map(f => (f.id === id ? { ...f, label } : f)));
   }
 
   borderClass(signerId: string): string {
@@ -475,8 +562,9 @@ export class SignaturePdfEditorComponent implements OnChanges {
       const y = clamp(event.clientY - d.pageTop - d.offsetY, 0, d.pageH - d.startH);
       this.fields.update(list => list.map(f => (f.id === d.id ? { ...f, x, y } : f)));
     } else {
-      const width = clamp(d.startW + (event.clientX - d.startPointerX), MIN_W, d.pageW - d.startX);
-      const height = clamp(d.startH + (event.clientY - d.startPointerY), MIN_H, d.pageH - d.startY);
+      const min = MIN_SIZE_BY_TYPE[this.fields().find(f => f.id === d.id)?.type ?? 'text'];
+      const width = clamp(d.startW + (event.clientX - d.startPointerX), min.w, d.pageW - d.startX);
+      const height = clamp(d.startH + (event.clientY - d.startPointerY), min.h, d.pageH - d.startY);
       this.fields.update(list => list.map(f => (f.id === d.id ? { ...f, width, height } : f)));
     }
   }
@@ -538,6 +626,7 @@ export class SignaturePdfEditorComponent implements OnChanges {
         y,
         width,
         height,
+        label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
       });
     }
     return out;
