@@ -138,11 +138,24 @@ export interface PublicSignerView {
 
 // ---------- Bodies de las mutaciones ----------
 
+/** Valor que el firmante escribió en un campo de texto del documento (espejo de `SubmitFieldValueDto`). */
+export interface SubmitFieldValue {
+  fieldId: string;
+  value: string | null;
+}
+
 export interface SubmitSignatureBody {
   method: SignatureCaptureMethod;
   typedName: string | null;
   /** Guid de CloudStorage; solo aplica a `Drawn`/`Uploaded`. */
   signatureImageFileId: string | null;
+  /** Valores de los campos de texto que el firmante rellenó (P4). */
+  fieldValues?: SubmitFieldValue[];
+}
+
+/** Respuesta de `POST /signature/public/{token}/signature-image`. */
+export interface AttachSignatureImageResponse {
+  fileId: string;
 }
 
 export interface VerifyPinBody {

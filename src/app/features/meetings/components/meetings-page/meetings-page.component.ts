@@ -46,40 +46,29 @@ export class MeetingsPageComponent implements OnInit {
   readonly activeRoomMeeting = signal<MeetingItem | null>(null);
   readonly toastMessage = signal<string | null>(null);
 
+  /**
+   * La sala se muestra solo mientras hay un meeting ACTIVO. Cuando la fase vuelve a 'idle' (salí, me
+   * sacaron o el join falló) se oculta y volvemos a la lista. Sin esto el `<app-meeting-room>` quedaba
+   * montado con phase='idle' y el template no tiene rama para 'idle' → tarjeta en BLANCO que obligaba a
+   * refrescar (pasaba tras salir, porque `reset()` pone 'idle' por caminos que no limpian activeRoomMeeting).
+   */
+  readonly showRoom = computed(() => !!this.activeRoomMeeting() && this.activeMeeting.phase() !== 'idle');
+
   ngOnInit(): void {
+    this.store.bindRealtime();
     this.store.loadScope('upcoming');
+    this.store.loadStats();
   }
 
   // ---------- Stats (sobre lo cargado del scope actual) ----------
 
-  readonly todayCount = computed(() => {
-    const now = new Date();
-    return this.store
-      .upcoming()
-      .filter(meeting => meeting.status === 'upcoming' || meeting.status === 'live')
-      .filter(meeting => {
-        if (meeting.status === 'live') {
-          return true;
-        }
-        return !!meeting.scheduledAt && new Date(meeting.scheduledAt).toDateString() === now.toDateString();
-      }).length;
-  });
-
-  readonly thisWeekCount = computed(() => {
-    const weekFromNow = Date.now() + 7 * 24 * 60 * 60 * 1000;
-    return this.store
-      .upcoming()
-      .filter(
-        meeting =>
-          meeting.status === 'live' ||
-          (!!meeting.scheduledAt && new Date(meeting.scheduledAt).getTime() <= weekFromNow),
-      ).length;
-  });
-
-  readonly liveNowCount = computed(() => this.store.upcoming().filter(meeting => meeting.status === 'live').length);
-
-  /** Transcripts disponibles en el historial cargado (reemplaza al "recordings" del mock). */
-  readonly transcriptsCount = computed(() => this.store.past().filter(meeting => !!meeting.transcriptFileId).length);
+  // Contadores reales del backend (GET /meetings/stats): cuentan sobre TODOS los meetings del usuario,
+  // no la página cargada en el cliente — antes "Transcripts" siempre daba 0 (la pestaña "past" era lazy)
+  // y el resto contaba solo la primera página de "upcoming".
+  readonly todayCount = computed(() => this.store.stats().today);
+  readonly thisWeekCount = computed(() => this.store.stats().thisWeek);
+  readonly liveNowCount = computed(() => this.store.stats().liveNow);
+  readonly transcriptsCount = computed(() => this.store.stats().transcriptsAvailable);
 
   // ---------- Listado ----------
 

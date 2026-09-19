@@ -38,6 +38,17 @@ export class ClientPortalService {
     return this.http.get<PagedResult<PortalUserResponse>>(this.api.tenantUrl('/auth/users'), { params });
   }
 
+  /**
+   * GET /auth/users?search=<email> — usuarios del tenant que matchean el email. Auth dedup-ea las
+   * invitaciones por EMAIL (no por customerId), así que un cliente cuyo email YA es usuario de portal
+   * (aunque el usuario no esté ligado a ESTE customerId) hace que invitar sea un no-op silencioso. Esto
+   * permite detectarlo y avisar "already has portal access". Perm `users.view`.
+   */
+  searchUsersByEmail(email: string, size = 10): Observable<PagedResult<PortalUserResponse>> {
+    const params = new HttpParams().set('search', email).set('page', 1).set('size', size);
+    return this.http.get<PagedResult<PortalUserResponse>>(this.api.tenantUrl('/auth/users'), { params });
+  }
+
   /** POST /auth/invitations/{id}/resend — reenvía una invitación pendiente (perm `users.invite` + admin). */
   resendInvitation(invitationId: string): Observable<void> {
     return this.http.post<void>(this.api.tenantUrl(`/auth/invitations/${invitationId}/resend`), {});

@@ -67,5 +67,9 @@ export class SessionRevokedModalComponent {
 
   dismiss(): void {
     this.revocation.dismiss();
+    // Recarga dura a /login: la sesión fue revocada en otro dispositivo. Además de cerrar el modal,
+    // destruye los stores providedIn:'root' para que al reingresar en esta misma pestaña no quede
+    // nada del usuario anterior (misma razón que navbar.logout).
+    window.location.assign('/login');
   }
 }

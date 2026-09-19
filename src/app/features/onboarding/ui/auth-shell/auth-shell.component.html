@@ -13,7 +13,12 @@
       <div class="absolute bottom-0 right-0 w-72 h-72 bg-brand-bold/60 blur-3xl"></div>
 
       <div class="relative z-10 flex flex-col justify-between w-full p-10">
-        <span class="text-white text-4xl font-bold leading-none">*</span>
+        @if (logoUrl() && !logoFailed()) {
+          <img [src]="logoUrl()" alt="Office logo" class="h-12 max-w-[200px] object-contain self-start"
+            (error)="logoFailed.set(true)" />
+        } @else {
+          <span class="text-white text-4xl font-bold leading-none">*</span>
+        }
 
         <div class="text-white space-y-2">
           <p class="text-sm font-medium text-white/80">{{ panelEyebrow }}</p>

@@ -1,12 +1,19 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { take, takeWhile, timer, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
+import { EditAccessDrawerComponent } from '../../ui/edit-access-drawer/edit-access-drawer.component';
+import {
+  SEAT_CHECKOUT_INTENT_KEY,
+  SeatPurchaseModalComponent,
+} from '../../ui/seat-purchase-modal/seat-purchase-modal.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { UserManagementStore } from '../../data-access/user-management.store';
+import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
 
 type TeamTab = 'members' | 'invitations';
 const SEARCH_DEBOUNCE_MS = 300;
@@ -30,6 +37,8 @@ const SEARCH_DEBOUNCE_MS = 300;
     FormsModule,
     UserTableComponent,
     UserInvitePanelComponent,
+    EditAccessDrawerComponent,
+    SeatPurchaseModalComponent,
     PaginationComponent,
     ConfirmDialogComponent,
   ],
@@ -38,6 +47,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 })
 export class UserManagementPageComponent {
   private readonly store = inject(UserManagementStore);
+  private readonly seatStore = inject(SeatPurchaseStore);
 
   readonly members = this.store.members;
   readonly membersTotal = this.store.membersTotal;
@@ -51,6 +61,7 @@ export class UserManagementPageComponent {
   readonly invitationsError = this.store.invitationsError;
 
   readonly limits = this.store.limits;
+  readonly permissions = this.store.permissions;
   readonly currentUserId = this.store.currentUserId;
   readonly pageSize = this.store.pageSize;
 
@@ -60,6 +71,10 @@ export class UserManagementPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
   readonly pendingCancel = signal<TeamMember | null>(null);
+  readonly isSeatModalOpen = signal(false);
+
+  /** The member whose "Edit access" drawer is open (null = closed). */
+  readonly accessMember = signal<TeamMember | null>(null);
 
   private searchDebounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -103,6 +118,62 @@ export class UserManagementPageComponent {
     this.store.loadMembers(1);
     this.store.loadInvitations(1);
     this.store.loadCatalogs();
+    this.resumePendingSeatCheckout();
+  }
+
+  /** "Buy seats" (cabecera o desde el panel de invitación al tope): abre el modal de compra. */
+  openSeatModal(): void {
+    this.isPanelOpen.set(false);
+    this.isSeatModalOpen.set(true);
+  }
+
+  closeSeatModal(): void {
+    this.isSeatModalOpen.set(false);
+  }
+
+  /** Cobro off-session exitoso: refrescar el cupo y avisar. El redirect no pasa por acá (navega afuera). */
+  handleSeatsPurchased(): void {
+    this.store.refreshLimits();
+    this.showToast('Seats added. You can invite now.');
+    this.closeSeatModal();
+  }
+
+  /**
+   * Al volver del hosted-checkout (redirect), si quedó un intentId en sessionStorage, poll-ea el estado hasta
+   * que el webhook aprovisione (Provisioned) o falle. Éxito → refresca el cupo. Molde de espera acotada (20
+   * intentos × 2.5s) para no colgar si el webhook demora.
+   */
+  private resumePendingSeatCheckout(): void {
+    let intentId: string | null = null;
+    try {
+      intentId = sessionStorage.getItem(SEAT_CHECKOUT_INTENT_KEY);
+      sessionStorage.removeItem(SEAT_CHECKOUT_INTENT_KEY);
+    } catch {
+      intentId = null;
+    }
+    if (!intentId) {
+      return;
+    }
+
+    const id = intentId;
+    this.showToast('Confirming your payment…');
+    timer(0, 2500)
+      .pipe(
+        switchMap(() => this.seatStore.getCheckoutStatus(id)),
+        takeWhile(status => status.status === 'Pending' || status.status === 'Paid', true),
+        take(20),
+      )
+      .subscribe({
+        next: status => {
+          if (status.status === 'Provisioned') {
+            this.store.refreshLimits();
+            this.showToast(`Added ${status.quantity} seat${status.quantity === 1 ? '' : 's'}. You can invite now.`);
+          } else if (status.status === 'Failed') {
+            this.showToast('The seat payment did not go through.', 'error');
+          }
+        },
+        error: () => this.showToast('Could not confirm the seat payment.', 'error'),
+      });
   }
 
   setTab(tab: TeamTab): void {
@@ -137,6 +208,27 @@ export class UserManagementPageComponent {
   closePanel(): void {
     this.isPanelOpen.set(false);
     this.editingMember.set(null);
+  }
+
+  /** "Edit access" (menú de la fila) abre el drawer de permisos de ese miembro. */
+  openAccessDrawer(member: TeamMember): void {
+    this.accessMember.set(member);
+  }
+
+  closeAccessDrawer(): void {
+    this.accessMember.set(null);
+  }
+
+  /** El drawer ya hizo el PUT de overrides y quedó limpio — acá solo toast + cierre. */
+  handleAccessSaved(): void {
+    this.showToast('Access updated');
+    this.closeAccessDrawer();
+  }
+
+  /** "Manage roles" desde el drawer delega en el panel de edición de roles existente (asignación rápida). */
+  handleManageRoles(member: TeamMember): void {
+    this.closeAccessDrawer();
+    this.openEditPanel(member);
   }
 
   /** El panel ya hizo el POST/PUT real y actualizó el store — acá solo toast + cierre. */

@@ -165,6 +165,20 @@ export class SignatureRequestPanelComponent {
     if (!this.canProceed()) {
       return;
     }
+    // El buscador del paso 1 es typeahead server-side y deja `store.customers()` con las
+    // últimas coincidencias; al avanzar restauramos el lote completo para que el <select>
+    // de firmantes extra del editor (paso 3) no quede reducido a esa búsqueda.
+    if (this.currentStep() === 1) {
+      this.store.queryCustomers('');
+    }
+    // Un PIN de firma escrito pero incompleto (1–3 dígitos) bloquea avanzar: el backend exige 4–10.
+    if (this.currentStep() === 3 && this.editor?.signingPinInvalid()) {
+      return;
+    }
+    // Un firmante por SMS/WhatsApp SIN teléfono no puede recibir el OTP → bloquea avanzar.
+    if (this.currentStep() === 3 && (this.editor?.signersMissingPhone().length ?? 0) > 0) {
+      return;
+    }
     // Al salir del editor se congela el estado para el resumen del paso 4 y el POST.
     if (this.currentStep() === 3) {
       this.signersSnapshot.set(this.editor?.getSigners() ?? []);
@@ -242,6 +256,11 @@ export class SignatureRequestPanelComponent {
       requiresSequentialSigning: rules?.sequential ?? true,
       requiresConsent: true,
       generateCertificate: rules?.certificate ?? true,
+      sendSignedDocumentToSigners: rules?.sendSignedDocument ?? true,
+      sendCertificateToSigners: (rules?.sendCertificate ?? false) && (rules?.certificate ?? true),
+      autoRemindersEnabled: rules?.autoReminder ?? true,
+      reminderIntervalHours: rules?.reminderIntervalHours ?? 48,
+      signingPin: rules?.signingPin?.trim() || null,
       signers: this.signersSnapshot().map(signer => ({
         localId: signer.id,
         fullName: signer.name,
@@ -260,6 +279,7 @@ export class SignatureRequestPanelComponent {
         width: field.width,
         height: field.height,
         isRequired: true,
+        label: field.label ?? null,
       })),
     };
   }

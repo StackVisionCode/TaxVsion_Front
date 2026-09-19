@@ -160,7 +160,14 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
     }
     this.uploadError.set('');
     const reader = new FileReader();
-    reader.onload = () => this.uploadedDataUrl.set(reader.result as string);
+    reader.onload = () => {
+      // Aplana sobre blanco (quita alfa) para que un PNG transparente subido no salga con
+      // recuadro negro al sellar; una imagen sin alfa (JPEG) queda idéntica.
+      const img = new Image();
+      img.onload = () => this.uploadedDataUrl.set(this.flattenToWhite(img));
+      img.onerror = () => this.uploadedDataUrl.set(reader.result as string);
+      img.src = reader.result as string;
+    };
     reader.readAsDataURL(file);
     input.value = '';
   }
@@ -184,12 +191,32 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
   getDataUrl(): string | null {
     switch (this.method()) {
       case 'draw':
-        return this.hasDrawing() ? this.canvasRef.nativeElement.toDataURL('image/png') : null;
+        return this.hasDrawing() ? this.flattenToWhite(this.canvasRef.nativeElement) : null;
       case 'upload':
         return this.uploadedDataUrl();
       case 'type':
         return this.typedText().trim() ? this.renderTypedSignature() : null;
     }
+  }
+
+  /**
+   * Compone `source` sobre un fondo BLANCO opaco y devuelve un PNG sin canal alfa.
+   * El motor de sellado (PdfSharp 6.x) pinta los píxeles transparentes de un PNG como
+   * NEGRO opaco, así que un trazo sobre canvas transparente salía rodeado de un recuadro
+   * negro en el PDF. El box del sello ya es blanco, por lo que el fondo blanco encaja sin
+   * costura y elimina el artefacto para dibujo, texto e imagen subida por igual.
+   */
+  private flattenToWhite(source: HTMLCanvasElement | HTMLImageElement): string {
+    const width = source instanceof HTMLCanvasElement ? source.width : source.naturalWidth;
+    const height = source instanceof HTMLCanvasElement ? source.height : source.naturalHeight;
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0, width, height);
+    return out.toDataURL('image/png');
   }
 
   private pointFromEvent(event: PointerEvent): { x: number; y: number } {
@@ -208,6 +235,9 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
     canvas.width = 480;
     canvas.height = 160;
     const ctx = canvas.getContext('2d')!;
+    // Fondo blanco opaco: mismo motivo que flattenToWhite — PdfSharp pinta el alfa como negro.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = `italic 52px ${this.selectedFontFamily()}`;
     ctx.fillStyle = '#111827';
     ctx.textBaseline = 'middle';

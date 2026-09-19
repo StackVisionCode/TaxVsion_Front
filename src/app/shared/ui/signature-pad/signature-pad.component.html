@@ -21,8 +21,8 @@
     </button>
   </div>
 
-  <!-- Draw -->
-  <div *ngIf="method() === 'draw'" class="mt-4">
+  <!-- Draw — se OCULTA (no se destruye) para no perder el contexto del canvas al volver de otro tab -->
+  <div [class.hidden]="method() !== 'draw'" class="mt-4">
     <div class="relative overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-brand-white">
       <canvas #canvas class="h-40 w-full touch-none" style="touch-action: none;" (pointerdown)="onPointerDown($event)"
         (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp()" (pointerleave)="onPointerUp()"></canvas>

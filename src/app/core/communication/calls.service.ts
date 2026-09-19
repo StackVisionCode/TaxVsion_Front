@@ -15,6 +15,7 @@ import {
   CallStateDto,
   CallTranscriptReadyDto,
   CallUpgradedToVideoDto,
+  CustomerCallsResponse,
   IceResponse,
   IncomingCallDto,
 } from './call.model';
@@ -37,6 +38,11 @@ export class CallsService {
   getIceServers(ttlSeconds = 300): Observable<IceResponse> {
     const params = new HttpParams().set('ttl', ttlSeconds);
     return this.http.get<IceResponse>(`${this.base}/webrtc/ice`, { params });
+  }
+
+  /** Historial de llamadas in-app de un cliente concreto (perfil → Activity → Call history). */
+  getCustomerCalls(customerId: string): Observable<CustomerCallsResponse> {
+    return this.http.get<CustomerCallsResponse>(`${this.base}/customers/${customerId}/calls`);
   }
 
   // ---------- Comandos con ack ----------

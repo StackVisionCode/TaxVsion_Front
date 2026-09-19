@@ -50,6 +50,17 @@ export interface MeetingsPageResponse {
 /** Alcance del listado: upcoming = Scheduled+Live, past = Ended+Cancelled. */
 export type MeetingsScope = 'upcoming' | 'past';
 
+/**
+ * GET /communication/meetings/stats — contadores para las tarjetas del dashboard, calculados en el
+ * backend sobre TODOS los meetings del usuario (no la página cargada), así reflejan el total real.
+ */
+export interface MeetingStatsResponse {
+  today: number;
+  thisWeek: number;
+  liveNow: number;
+  transcriptsAvailable: number;
+}
+
 // ---------- POST /communication/meetings ----------
 
 export interface CreateMeetingRequest {
@@ -89,6 +100,8 @@ export type MeetingInviteeKind = 'employee' | 'customer' | 'external';
 export interface MeetingInviteeInput {
   kind: MeetingInviteeKind;
   userId?: string;
+  /** Solo customer: el backend lo resuelve a su userId de portal para la lista + realtime. */
+  customerId?: string;
   email?: string;
   name?: string;
 }
@@ -149,8 +162,10 @@ export interface MeetingCustomerEntry {
 /** Invitado elegido en el panel (chip) antes de mandar las invitaciones. */
 export interface MeetingInviteeDraft {
   kind: MeetingInviteeKind;
-  /** Solo para employees (id de Auth); customers van por email. */
+  /** Solo para employees (id de Auth). */
   userId: string | null;
+  /** Solo para customers: el backend lo resuelve a su userId de portal (lista + realtime). */
+  customerId?: string | null;
   email: string | null;
   name: string;
 }
@@ -162,6 +177,12 @@ export interface MeetingFormValue {
   /** ISO UTC o null para meeting instantáneo. */
   scheduledForUtc: string | null;
   invitees: MeetingInviteeDraft[];
+  /** Sala de espera: el host admite/deniega a cada participante antes de entrar. */
+  requireWaitingRoom: boolean;
+  /** Passcode opcional para unirse (4..120 chars); null/'' = sin passcode. */
+  passcode: string | null;
+  /** Pide grabar la reunión (con consentimiento de los participantes). */
+  recordingRequested: boolean;
 }
 
 /** Fila de la lista, derivada de MeetingListItemResponse + usuario actual. */

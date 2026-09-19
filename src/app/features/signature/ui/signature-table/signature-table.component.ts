@@ -229,8 +229,13 @@ export class SignatureTableComponent {
    * El PIN solo se puede tocar mientras la solicitud siga viva: una vez
    * completada, cancelada o vencida ya no hay firma que verificar.
    */
+  /**
+   * El PIN del preparador y la identidad del preparador SOLO se pueden fijar/cambiar mientras la
+   * solicitud es editable (Draft/Ready) — igual que el dominio (`EnsureCanBeEdited`). Una vez enviada
+   * (pending/in-progress) o cerrada, no se ofrece: fijarlo daba error en el backend.
+   */
   canManagePin(request: SignatureRequest): boolean {
-    return isActionableStatus(request.status);
+    return request.status === 'draft' || request.status === 'ready';
   }
 
   /** Solo tiene sentido reenviar cuando la solicitud está en curso y queda alguien pendiente. */

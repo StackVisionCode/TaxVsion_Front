@@ -13,6 +13,7 @@ import {
   MeetingInviteeInput,
   MeetingsPageResponse,
   MeetingsScope,
+  MeetingStatsResponse,
   StartMeetingResponse,
 } from './meeting.model';
 
@@ -41,6 +42,11 @@ export class MeetingsService {
       query = query.set('size', params.size);
     }
     return this.http.get<MeetingsPageResponse>(`${this.base}/meetings`, { params: query });
+  }
+
+  /** GET /communication/meetings/stats — contadores reales para las tarjetas del dashboard. */
+  stats(): Observable<MeetingStatsResponse> {
+    return this.http.get<MeetingStatsResponse>(`${this.base}/meetings/stats`);
   }
 
   /** POST /communication/meetings — requiere permiso `communication.meeting.create`. */

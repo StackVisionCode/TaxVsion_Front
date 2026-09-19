@@ -1,0 +1,129 @@
+<app-modal
+  [isOpen]="isOpen"
+  heading="Add staff seats"
+  subheading="Extra seats raise your invite limit right away."
+  size="md"
+  (closed)="close()"
+>
+  <div class="flex flex-col gap-5">
+    <p *ngIf="seatCap !== null" class="text-sm text-slate-500">{{ seatsInUse ?? 0 }} / {{ seatCap }} seats in use</p>
+
+    <div class="flex items-center justify-between">
+      <span class="text-sm font-medium text-slate-700">Seats to add</span>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 disabled:opacity-40"
+          (click)="decrement()"
+          [disabled]="quantity() <= 1 || purchasing()"
+          aria-label="Decrease seats"
+        >
+          &minus;
+        </button>
+        <input
+          type="number"
+          min="1"
+          max="500"
+          class="w-16 rounded-xl border border-slate-200 py-1.5 text-center text-sm"
+          [ngModel]="quantity()"
+          (ngModelChange)="setQuantity($event)"
+          [disabled]="purchasing()"
+          aria-label="Seats to add"
+        />
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 disabled:opacity-40"
+          (click)="increment()"
+          [disabled]="quantity() >= 500 || purchasing()"
+          aria-label="Increase seats"
+        >
+          +
+        </button>
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-slate-50 p-4 text-sm">
+      <ng-container *ngIf="!quoteLoading(); else quoteLoadingTpl">
+        <div class="flex justify-between">
+          <span class="text-slate-500">Due today (prorated)</span>
+          <span class="font-semibold text-slate-900">{{ chargedTodayLabel() }}</span>
+        </div>
+        <div class="mt-1 flex justify-between">
+          <span class="text-slate-500">Then</span>
+          <span class="text-slate-700">{{ renewsAtLabel() }}</span>
+        </div>
+      </ng-container>
+      <ng-template #quoteLoadingTpl>
+        <span class="text-slate-400">Calculating…</span>
+      </ng-template>
+    </div>
+
+    <p *ngIf="error()" class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error() }}</p>
+
+    <div class="flex flex-col gap-3">
+      <p *ngIf="hasCardOnFile() === null" class="text-sm text-slate-400">Checking your payment method…</p>
+
+      <button
+        *ngIf="hasCardOnFile() === true"
+        type="button"
+        class="w-full rounded-full bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+        (click)="buyWithCardOnFile()"
+        [disabled]="purchasing() || quoteLoading()"
+      >
+        {{ purchasing() ? 'Processing…' : 'Pay ' + chargedTodayLabel() }}
+        <span *ngIf="!purchasing() && defaultCard()" class="font-normal opacity-90">
+          with {{ defaultCard()?.brand }} ending {{ defaultCard()?.last4 }}
+        </span>
+      </button>
+
+      <div *ngIf="hasCardOnFile() === true" class="flex items-center gap-2 text-xs text-slate-400">
+        <span class="h-px flex-1 bg-slate-200"></span>or pay another way<span class="h-px flex-1 bg-slate-200"></span>
+      </div>
+
+      <div *ngIf="hasCardOnFile() !== null" class="flex flex-col gap-3">
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-xl border px-3 py-2 text-sm transition"
+            [ngClass]="provider() === 'Stripe' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'"
+            (click)="selectProvider('Stripe')"
+          >
+            Card (Stripe)
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-xl border px-3 py-2 text-sm transition"
+            [ngClass]="provider() === 'PayPal' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'"
+            (click)="selectProvider('PayPal')"
+          >
+            PayPal
+          </button>
+        </div>
+        <button
+          type="button"
+          class="w-full rounded-full px-4 py-3 text-sm font-semibold transition disabled:opacity-50"
+          [ngClass]="
+            hasCardOnFile() === false
+              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+          "
+          (click)="continueToCheckout()"
+          [disabled]="purchasing() || quoteLoading()"
+        >
+          {{ purchasing() ? 'Redirecting…' : 'Continue to checkout' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="flex justify-end">
+      <button
+        type="button"
+        class="rounded-full px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+        (click)="close()"
+        [disabled]="purchasing()"
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+</app-modal>

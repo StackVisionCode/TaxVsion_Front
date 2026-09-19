@@ -17,9 +17,8 @@
       <div class="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5" cdkDropList
         (cdkDropListDropped)="dropSigner($event)">
         <div *ngFor="let s of signers(); let i = index" cdkDrag [cdkDragDisabled]="!rules().sequential"
-          class="relative flex items-center gap-2 rounded-full border px-2 py-1.5 cursor-pointer bg-white transition-colors"
-          [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-gray-50' : 'border-gray-100 hover:bg-gray-50'"
-          (click)="setActiveSigner(s.id)">
+          class="relative rounded-2xl border bg-white px-2 py-1.5 transition-colors"
+          [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
 
           <!-- Badge de orden (solo secuencial) -->
           <span *ngIf="rules().sequential"
@@ -27,35 +26,49 @@
             {{ i + 1 }}
           </span>
 
-          <span *ngIf="rules().sequential" cdkDragHandle
-            class="flex shrink-0 cursor-grab items-center text-gray-300 hover:text-gray-600 active:cursor-grabbing"
-            (click)="$event.stopPropagation()" aria-label="Reorder signer">
-            <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
-          </span>
-
-          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            [ngClass]="s.color">{{ initials(s.name) }}</span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-xs font-medium text-gray-700">{{ s.name }}</span>
-            <span class="flex items-center gap-1 text-[10px] text-gray-400">
-              <ion-icon [name]="channelMeta[s.channel].icon" class="text-[10px]"></ion-icon>
-              {{ channelMeta[s.channel].label }}
+          <div class="flex cursor-pointer items-center gap-2" (click)="setActiveSigner(s.id)">
+            <span *ngIf="rules().sequential" cdkDragHandle
+              class="flex shrink-0 cursor-grab items-center text-gray-300 hover:text-gray-600 active:cursor-grabbing"
+              (click)="$event.stopPropagation()" aria-label="Reorder signer">
+              <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
             </span>
-          </span>
 
-          <!-- Badge: nº de campos de este firmante -->
-          <span *ngIf="fieldCountBySigner()[s.id]; else noFields"
-            class="field-count-badge shrink-0 rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">
-            {{ fieldCountBySigner()[s.id] }}
-          </span>
-          <ng-template #noFields>
-            <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-400">0</span>
-          </ng-template>
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+              [ngClass]="s.color">{{ initials(s.name) }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-xs font-medium text-gray-700">{{ s.name }}</span>
+              <span class="block truncate text-[10px] text-gray-400">{{ s.email }}</span>
+            </span>
 
-          <button *ngIf="!isClientSigner(s)" type="button" (click)="removeSigner(s.id); $event.stopPropagation()"
-            class="shrink-0 text-gray-300 hover:text-red-500" aria-label="Remove signer">
-            <ion-icon name="close-outline" class="text-sm"></ion-icon>
-          </button>
+            <!-- Canal por firmante (email/SMS/WhatsApp): cada firmante recibe la invitación + OTP por AQUÍ. -->
+            <select [ngModel]="s.channel" (ngModelChange)="setSignerChannel(s.id, $event)"
+              (click)="$event.stopPropagation()" [attr.aria-label]="'Channel for ' + s.name"
+              class="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-600 focus:border-brand-bold focus:outline-none">
+              <option *ngFor="let ch of deliveryChannels" [value]="ch">{{ channelMeta[ch].label }}</option>
+            </select>
+
+            <!-- Badge: nº de campos de este firmante -->
+            <span *ngIf="fieldCountBySigner()[s.id]; else noFields"
+              class="field-count-badge shrink-0 rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">
+              {{ fieldCountBySigner()[s.id] }}
+            </span>
+            <ng-template #noFields>
+              <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-400">0</span>
+            </ng-template>
+
+            <button *ngIf="!isClientSigner(s)" type="button" (click)="removeSigner(s.id); $event.stopPropagation()"
+              class="shrink-0 text-gray-300 hover:text-red-500" aria-label="Remove signer">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+
+          <!-- Teléfono: obligatorio para SMS/WhatsApp (si no, el OTP no se puede entregar). -->
+          <div *ngIf="signerNeedsPhone(s)" class="mt-1.5 flex items-center gap-1.5 pl-1">
+            <ion-icon name="call-outline" class="shrink-0 text-xs text-amber-500"></ion-icon>
+            <input type="tel" inputmode="tel" [ngModel]="s.phone" (ngModelChange)="setSignerPhone(s.id, $event)"
+              placeholder="+1 809 555 1234" [attr.aria-label]="'Phone for ' + s.name"
+              class="w-full rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[11px] text-gray-700 focus:border-amber-500 focus:outline-none" />
+          </div>
         </div>
       </div>
 
@@ -64,6 +77,12 @@
         <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
         Add signer
       </button>
+
+      <p *ngIf="signersMissingPhone().length > 0"
+        class="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-700">
+        <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+        Add a phone number for every SMS/WhatsApp signer so they can receive the verification code.
+      </p>
     </div>
 
     <!-- Field tools -->
@@ -145,11 +164,20 @@
               [ngClass]="borderClass(f.signerId)"
               [style.left.px]="f.x" [style.top.px]="f.y" [style.width.px]="f.width" [style.height.px]="f.height"
               style="touch-action: none;" (pointerdown)="startMove($event, f)">
-              <div class="flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
-                [ngClass]="textClass(f.signerId)">
-                <ion-icon [name]="fieldIcon[f.type]" class="text-xs"></ion-icon>
-                <span class="truncate">{{ fieldLabel[f.type] }}</span>
+              <!-- Campo de texto: etiqueta editable inline (P4); el firmante la ve como instrucción -->
+              <div *ngIf="f.type === 'text'; else fieldBadge" class="flex h-full w-full items-center px-1"
+                (pointerdown)="$event.stopPropagation()">
+                <input type="text" [ngModel]="f.label || ''" (ngModelChange)="setFieldLabel(f.id, $event)"
+                  [name]="'label-' + f.id" placeholder="Field label"
+                  class="h-full w-full bg-transparent text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
               </div>
+              <ng-template #fieldBadge>
+                <div class="flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
+                  [ngClass]="textClass(f.signerId)">
+                  <ion-icon [name]="fieldIcon[f.type]" class="text-xs"></ion-icon>
+                  <span class="truncate">{{ fieldLabel[f.type] }}</span>
+                </div>
+              </ng-template>
 
               <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(f.id)"
                 class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold text-white shadow"
@@ -173,8 +201,8 @@
 
   <!-- Columna derecha: Rules (fija) + Summary vivo (crece) -->
   <aside class="rules-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
-    <div class="sidebar-section shrink-0 overflow-y-auto rounded-2xl border border-gray-100 p-3">
-      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Request rules</p>
+    <div class="sidebar-section flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3">
+      <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Request rules</p>
 
       <!-- Orden de firma -->
       <p class="mt-2 text-[11px] font-medium text-gray-600">Signing order</p>
@@ -191,17 +219,17 @@
         </button>
       </div>
 
-      <!-- Canales de verificación -->
-      <p class="mt-3 text-[11px] font-medium text-gray-600">Identity verification</p>
+      <!-- Canal por defecto para firmantes nuevos (el canal REAL se fija por firmante, arriba). -->
+      <p class="mt-3 text-[11px] font-medium text-gray-600">Default channel for new signers</p>
       <div class="mt-1.5 flex flex-wrap gap-1.5">
-        <button *ngFor="let ch of allChannels" type="button" (click)="toggleChannel(ch)"
+        <button *ngFor="let ch of deliveryChannels" type="button" (click)="setDefaultChannel(ch)"
           class="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="rules().channels.includes(ch) ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
+          [ngClass]="rules().channels[0] === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-[11px]"></ion-icon>
           {{ channelMeta[ch].label }}
         </button>
       </div>
-      <p class="mt-1.5 text-[10px] text-gray-400">Signers choose among the enabled channels.</p>
+      <p class="mt-1.5 text-[10px] text-gray-400">Each signer's channel (email/SMS/WhatsApp) is set in the signer list above.</p>
 
       <!-- Toggles -->
       <div class="mt-3 space-y-2.5">
@@ -213,9 +241,18 @@
           </span>
           <span class="min-w-0">
             <span class="block text-[11px] font-medium text-gray-700">Auto reminder</span>
-            <span class="block text-[10px] text-gray-400">Every 2 days until signed</span>
+            <span class="block text-[10px] text-gray-400">Email/SMS pending signers until they sign</span>
           </span>
         </button>
+
+        <!-- Intervalo del recordatorio (solo si Auto reminder está activo) -->
+        <div *ngIf="rules().autoReminder" class="flex items-center gap-2 pl-11">
+          <span class="text-[10px] text-gray-400">Remind every</span>
+          <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" name="reminderIntervalDays"
+            (ngModelChange)="setReminderIntervalDays($event)"
+            class="w-14 rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-700 focus:border-brand-bold focus:outline-none" />
+          <span class="text-[10px] text-gray-400">day(s)</span>
+        </div>
 
         <button type="button" (click)="toggleRule('certificate')" class="flex w-full items-center gap-2 text-left">
           <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
@@ -229,6 +266,34 @@
           </span>
         </button>
 
+        <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
+        <ng-container *ngIf="canDeliverDocs()">
+          <button type="button" (click)="toggleRule('sendSignedDocument')" class="flex w-full items-center gap-2 text-left">
+            <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
+              [ngClass]="rules().sendSignedDocument ? 'bg-brand-bold' : 'bg-gray-200'">
+              <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
+                [ngClass]="rules().sendSignedDocument ? 'left-[18px]' : 'left-0.5'"></span>
+            </span>
+            <span class="min-w-0">
+              <span class="block text-[11px] font-medium text-gray-700">Send signed document</span>
+              <span class="block text-[10px] text-gray-400">Email/SMS to signers when complete</span>
+            </span>
+          </button>
+
+          <button type="button" (click)="toggleRule('sendCertificate')" class="flex w-full items-center gap-2 text-left"
+            [disabled]="!rules().certificate" [class.opacity-50]="!rules().certificate">
+            <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
+              [ngClass]="rules().sendCertificate && rules().certificate ? 'bg-brand-bold' : 'bg-gray-200'">
+              <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
+                [ngClass]="rules().sendCertificate && rules().certificate ? 'left-[18px]' : 'left-0.5'"></span>
+            </span>
+            <span class="min-w-0">
+              <span class="block text-[11px] font-medium text-gray-700">Send certificate</span>
+              <span class="block text-[10px] text-gray-400">Deliver the certificate to signers (needs the certificate on)</span>
+            </span>
+          </button>
+        </ng-container>
+
         <button type="button" (click)="toggleRule('includePreparerSignature')" class="flex w-full items-center gap-2 text-left">
           <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
             [ngClass]="rules().includePreparerSignature ? 'bg-brand-bold' : 'bg-gray-200'">
@@ -240,6 +305,18 @@
             <span class="block text-[10px] text-gray-400">Applied to the final document</span>
           </span>
         </button>
+
+        <!-- Signing PIN (Form 8879, opcional): 4–10 dígitos que el preparador comparte con el firmante. -->
+        <div class="pt-1">
+          <label class="block text-[11px] font-medium text-gray-700">Signing PIN <span class="text-gray-400">(optional)</span></label>
+          <span class="mb-1 block text-[10px] text-gray-400">4–10 digits the signer enters to sign. Share it with them separately.</span>
+          <input type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="e.g. 1234"
+            [ngModel]="rules().signingPin ?? ''" (ngModelChange)="setSigningPin($event)" name="signingPin"
+            class="w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none"
+            [class.border-gray-200]="!signingPinInvalid()" [class.focus:border-brand-bold]="!signingPinInvalid()"
+            [class.border-red-300]="signingPinInvalid()" />
+          <span *ngIf="signingPinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
+        </div>
       </div>
     </div>
 
@@ -308,7 +385,7 @@
           </p>
           <p class="flex items-center gap-1.5 text-[11px] text-emerald-600">
             <ion-icon name="checkmark-circle" class="text-sm"></ion-icon>
-            {{ rules().channels.length }} verification {{ rules().channels.length === 1 ? 'channel' : 'channels' }}
+            Channels: {{ signerChannelSummary() }}
           </p>
         </div>
       </div>
@@ -352,7 +429,7 @@
     <div>
       <label class="mb-1 block text-xs font-medium text-gray-600">Verification channel</label>
       <div class="flex flex-wrap gap-1.5">
-        <button *ngFor="let ch of allChannels" type="button" (click)="draftChannel.set(ch)"
+        <button *ngFor="let ch of deliveryChannels" type="button" (click)="draftChannel.set(ch)"
           class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
           [ngClass]="draftChannel() === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>
@@ -370,6 +447,12 @@
           class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
       </div>
       <p class="mt-1 text-[11px] text-gray-400">Required to deliver the code by {{ channelMeta[draftChannel()].label }}.</p>
+
+      <label class="mt-3 flex cursor-pointer items-start gap-2 text-[11px] leading-snug text-gray-600">
+        <input type="checkbox" name="draftSmsConsent" class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-brand-bold"
+          [ngModel]="draftSmsConsent()" (ngModelChange)="draftSmsConsent.set($event)" />
+        <span>This signer agreed to receive text messages about their documents. Standard message rates may apply; they can reply STOP to opt out.</span>
+      </label>
     </div>
 
     <div>

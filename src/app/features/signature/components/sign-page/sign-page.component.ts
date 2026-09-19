@@ -1,4 +1,13 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -6,6 +15,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { SignaturePadComponent } from '../../../../shared/ui/signature-pad/signature-pad.component';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
 import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
 import {
@@ -14,6 +24,7 @@ import {
   PublicSignerFieldView,
   PublicSignerView,
   SIGNATURE_CATEGORY_LABEL,
+  SignatureCaptureMethod,
   SignerVerificationMethod,
   describeDeadLink,
   isDeadLinkCode,
@@ -58,15 +69,18 @@ interface BlockedState {
  *     bloqueo: el backend rechazaría la firma si no es su turno.
  * Si la solicitud no exige un gate, ese paso simplemente no existe.
  *
- * Limitaciones del contrato público (no son simulables, se muestran como tales):
+ * Captura de firma: el firmante dibuja, teclea o sube una imagen en el pad compartido; el
+ * PNG resultante se sube por el endpoint anónimo por token (`POST /signature-image`) y luego
+ * se firma referenciando ese `fileId`. El backend escanea la imagen con ClamAV de forma
+ * asíncrona y el sellado espera a que esté lista (no hay que hacer nada en el cliente).
+ *
+ * Limitación del contrato público (no simulable, se muestra como tal):
  *   - El contexto expone `originalFileId` pero CloudStorage exige JWT para emitir la
  *     URL presignada ⇒ no hay previsualización del PDF ni descargas para el firmante.
- *   - `Drawn`/`Uploaded` exigen subir la imagen a CloudStorage (endpoint autenticado)
- *     ⇒ el único método de captura disponible sin sesión es `Typed`.
  */
 @Component({
   selector: 'app-sign-page',
-  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent, SignaturePadComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sign-page.component.html',
   styleUrl: './sign-page.component.css',
@@ -102,13 +116,25 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly stepId = signal<StepId>('welcome');
   /** true tras un POST /sign exitoso en esta sesión (dispara la vista de acuse). */
   readonly justSigned = signal(false);
+
+  /** Segundos restantes antes de redirigir al firmante tras completar (0 = sin countdown activo). */
+  readonly redirectSeconds = signal(0);
+  private redirectTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly RedirectDelaySeconds = 10;
   /** true tras un POST /reject exitoso: el token queda revocado, no se recarga nada. */
   readonly declined = signal(false);
   readonly declineReasonEcho = signal('');
 
   readonly consentChecked = signal(false);
   readonly pin = signal('');
-  readonly typedName = signal('');
+  /** El PIN se escribe oculto (password) por privacidad; la lupa lo revela como en un login. */
+  readonly pinRevealed = signal(false);
+
+  /** Pad de firma compartido (Draw/Type/Upload); solo montado en el paso 'sign'. */
+  private readonly pad = viewChild(SignaturePadComponent);
+
+  /** Texto que el firmante escribe en cada campo `Text`, indexado por `fieldId` (P4). */
+  readonly fieldValues = signal<Record<string, string>>({});
 
   // ---------- OTP (verificación de identidad por firmante) ----------
 
@@ -183,7 +209,6 @@ export class SignPageComponent implements OnInit, OnDestroy {
   });
 
   readonly canProceed = computed(() => {
-    const ctx = this.context();
     switch (this.stepId()) {
       case 'consent':
         return this.consentChecked();
@@ -192,12 +217,39 @@ export class SignPageComponent implements OnInit, OnDestroy {
       case 'verify-otp':
         return this.otpIssued() && this.isOtpComplete();
       case 'sign':
-        return !!ctx && matchesSignerFullName(this.typedName(), ctx.signerFullName);
+        return this.signReady();
       case 'done':
         return false;
       default:
         return true;
     }
+  });
+
+  /**
+   * Lista para firmar: el pad tiene contenido guardable y, si el firmante eligió teclear su
+   * firma, el texto coincide con el nombre legal (el backend valida esa igualdad en Typed).
+   */
+  readonly signReady = computed(() => {
+    const pad = this.pad();
+    if (!pad || !pad.canSave() || !this.requiredTextComplete()) {
+      return false;
+    }
+    if (pad.method() === 'type') {
+      const ctx = this.context();
+      return !!ctx && matchesSignerFullName(pad.typedText(), ctx.signerFullName);
+    }
+    return true;
+  });
+
+  /** true si en el pad se teclea la firma pero el texto aún no coincide con el nombre del documento. */
+  readonly padTypedMismatch = computed(() => {
+    const pad = this.pad();
+    const ctx = this.context();
+    if (!pad || pad.method() !== 'type') {
+      return false;
+    }
+    const typed = pad.typedText().trim();
+    return !!ctx && typed.length > 0 && !matchesSignerFullName(typed, ctx.signerFullName);
   });
 
   /** Bloqueo temporal del PIN (5 fallos ⇒ 30 min), tal como lo reporta el contexto. */
@@ -349,11 +401,13 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly requiredFieldCount = computed(() => this.fields().filter(f => f.isRequired).length);
 
-  readonly typedNameMismatch = computed(() => {
-    const ctx = this.context();
-    const typed = this.typedName().trim();
-    return !!ctx && typed.length > 0 && !matchesSignerFullName(typed, ctx.signerFullName);
-  });
+  /** Campos de texto rellenables por el firmante (P4), ordenados por página. */
+  readonly textFields = computed<PublicSignerFieldView[]>(() => this.fields().filter(f => f.kind === 'Text'));
+
+  /** true si todos los campos de texto REQUERIDOS tienen valor (gate de la firma). */
+  readonly requiredTextComplete = computed(() =>
+    this.textFields().every(f => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0),
+  );
 
   // ---------- Acuse derivado de la cadena de audit ----------
 
@@ -391,6 +445,10 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (this.clockTimer !== null) {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
+    }
+    if (this.redirectTimer !== null) {
+      clearInterval(this.redirectTimer);
+      this.redirectTimer = null;
     }
   }
 
@@ -480,6 +538,11 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.consentChecked.update(v => !v);
   }
 
+  /** Guarda el texto de un campo `Text` (P4) por su `fieldId`. */
+  setFieldValue(fieldId: string, value: string): void {
+    this.fieldValues.update(current => ({ ...current, [fieldId]: value }));
+  }
+
   // ------------------------------------------------------------------
   // Acciones contra el backend
   // ------------------------------------------------------------------
@@ -550,30 +613,75 @@ export class SignPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * POST /sign → 204. Método `Typed`: es el único posible sin sesión, porque
-   * `Drawn`/`Uploaded` exigirían subir la imagen al CloudStorage autenticado.
+   * Captura del pad → firma. Dos llamadas encadenadas: primero se sube el PNG de la firma
+   * (`POST /signature-image`, endpoint anónimo por token que devuelve el `fileId`) y luego
+   * se firma (`POST /sign`) referenciando ese archivo. El método del pad mapea al del backend:
+   * draw→Drawn, upload→Uploaded, type→Typed (rasterizado como imagen; además exige que el
+   * texto coincida con el nombre legal, que es lo que valida `SubmitSignatureHandler`).
    */
   private async submitSignature(): Promise<void> {
     const ctx = this.context();
-    if (!ctx) {
+    const pad = this.pad();
+    if (!ctx || !pad) {
       return;
     }
-    const ok = await this.run('Applying your signature…', () =>
-      firstValueFrom(
-        this.api.sign(this.token, {
-          method: 'Typed',
-          typedName: this.typedName().trim(),
-          signatureImageFileId: null,
-        }),
-      ),
-    );
+
+    const dataUrl = pad.getDataUrl();
+    if (!dataUrl) {
+      this.actionError.set('Add your signature first.');
+      return;
+    }
+
+    const padMethod = pad.method();
+    const method: SignatureCaptureMethod = padMethod === 'draw' ? 'Drawn' : padMethod === 'upload' ? 'Uploaded' : 'Typed';
+    const typedName = padMethod === 'type' ? pad.typedText().trim() : null;
+    if (method === 'Typed' && (!typedName || !matchesSignerFullName(typedName, ctx.signerFullName))) {
+      this.actionError.set('Type your full name exactly as it appears on the document.');
+      return;
+    }
+
+    const fieldValues = this.textFields().map(f => ({ fieldId: f.id, value: this.fieldValues()[f.id]?.trim() || null }));
+
+    const ok = await this.run('Applying your signature…', async () => {
+      const image = await dataUrlToTrimmedPngBlob(dataUrl);
+      const { fileId } = await firstValueFrom(this.api.attachSignatureImage(this.token, image));
+      await firstValueFrom(
+        this.api.sign(this.token, { method, typedName, signatureImageFileId: fileId, fieldValues }),
+      );
+    });
     if (!ok) {
       return;
     }
     this.justSigned.set(true);
     this.stepId.set('done');
+    this.startRedirectCountdown();
     await this.reloadContext();
     await this.loadAudit();
+  }
+
+  /** Tras completar, cuenta atrás y redirige al firmante al sitio de la oficina. */
+  private startRedirectCountdown(): void {
+    if (this.redirectTimer !== null) {
+      return;
+    }
+    this.redirectSeconds.set(SignPageComponent.RedirectDelaySeconds);
+    this.redirectTimer = setInterval(() => {
+      const left = this.redirectSeconds() - 1;
+      if (left <= 0) {
+        this.redirectNow();
+      } else {
+        this.redirectSeconds.set(left);
+      }
+    }, 1000);
+  }
+
+  /** Redirige ya (botón manual o al llegar a cero). Destino = raíz del host (sitio de la oficina). */
+  redirectNow(): void {
+    if (this.redirectTimer !== null) {
+      clearInterval(this.redirectTimer);
+      this.redirectTimer = null;
+    }
+    window.location.href = window.location.origin;
   }
 
   openReject(): void {
@@ -693,6 +801,94 @@ function shortenHash(hash: string): string {
   return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-10)}`;
 }
 
+/**
+ * Normaliza cualquier data-URL de firma (dibujada, tecleada-rasterizada o una imagen subida
+ * en otro formato) a un PNG recortado a su contenido visible. Recortar la transparencia evita
+ * que el motor de sellado ajuste una firma diminuta dentro de un lienzo mayormente vacío. Si no
+ * se detecta contenido (o el navegador no deja leer el píxel), cae al PNG completo sin romper.
+ */
+async function dataUrlToTrimmedPngBlob(dataUrl: string): Promise<Blob> {
+  const image = await loadImage(dataUrl);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+
+  const source = document.createElement('canvas');
+  source.width = width;
+  source.height = height;
+  const sourceCtx = source.getContext('2d');
+  if (!sourceCtx) {
+    return blobFromCanvas(source);
+  }
+  sourceCtx.drawImage(image, 0, 0, width, height);
+
+  const bounds = alphaBounds(sourceCtx, width, height);
+  if (!bounds) {
+    return blobFromCanvas(source);
+  }
+
+  // Pequeño margen para que el trazo no quede pegado al borde del recorte.
+  const padding = 8;
+  const cropX = Math.max(0, bounds.minX - padding);
+  const cropY = Math.max(0, bounds.minY - padding);
+  const cropW = Math.min(width, bounds.maxX + padding) - cropX;
+  const cropH = Math.min(height, bounds.maxY + padding) - cropY;
+
+  const trimmed = document.createElement('canvas');
+  trimmed.width = cropW;
+  trimmed.height = cropH;
+  trimmed.getContext('2d')?.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  return blobFromCanvas(trimmed);
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('The signature image could not be read.'));
+    img.src = src;
+  });
+}
+
+/** Caja delimitadora de los píxeles no transparentes; null si el lienzo está vacío o no legible. */
+function alphaBounds(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, width, height).data;
+  } catch {
+    return null;
+  }
+  let minX = width;
+  let minY = height;
+  let maxX = 0;
+  let maxY = 0;
+  let found = false;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > 8) {
+        found = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  return found ? { minX, minY, maxX: maxX + 1, maxY: maxY + 1 } : null;
+}
+
+function blobFromCanvas(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => (blob ? resolve(blob) : reject(new Error('The signature image could not be encoded.'))),
+      'image/png',
+    );
+  });
+}
+
 /** Mensajes de los errores de negocio más probables en esta pantalla. */
 function friendlyMessage(error: ApiError): string {
   switch (error.code) {
@@ -723,6 +919,20 @@ function friendlyMessage(error: ApiError): string {
     case 'Signature.Public.TypedNameMismatch':
     case 'Signature.Public.TypedNameEmpty':
       return 'Type your full name exactly as it appears on the document.';
+    case 'Signature.Image.NotPng':
+    case 'Signature.Image.BadDimensions':
+    case 'Signature.Image.Empty':
+      return 'That signature image is not valid. Draw again, or upload a clear PNG or photo.';
+    case 'Signature.Image.TooLarge':
+      return 'That image is too large. Please use a smaller signature image.';
+    case 'Signature.FieldValue.RequiredMissing':
+      return 'Please fill in every required field before signing.';
+    case 'Signature.FieldValue.Length':
+      return 'One of your entries is too long. Please shorten it.';
+    case 'Signature.FieldValue.NotText':
+    case 'Signature.FieldValue.FieldMissing':
+    case 'Signature.FieldValue.Duplicate':
+      return 'We could not save one of your entries. Please review the fields and try again.';
     case 'Network.Unreachable':
       return 'We could not reach the server. Check your connection and try again.';
     default:

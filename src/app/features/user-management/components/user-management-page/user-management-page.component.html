@@ -65,11 +65,18 @@
         </div>
       </div>
 
-      <button type="button" (click)="openInvitePanel()"
-        class="ml-auto flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        <ion-icon name="person-add-outline" class="text-base"></ion-icon>
-        Invite member
-      </button>
+      <div class="ml-auto flex items-center gap-2">
+        <button type="button" (click)="openSeatModal()"
+          class="flex items-center gap-2 rounded-full border border-brand-bold/30 px-4 py-2 text-sm font-semibold text-brand-bold hover:bg-brand-bold/5 transition-colors">
+          <ion-icon name="ticket-outline" class="text-base"></ion-icon>
+          Buy seats
+        </button>
+        <button type="button" (click)="openInvitePanel()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="person-add-outline" class="text-base"></ion-icon>
+          Invite member
+        </button>
+      </div>
     </div>
 
     <!-- Members tab: GET /auth/users paginado en servidor -->
@@ -77,7 +84,7 @@
       <p *ngIf="membersLoading()" class="mb-3 text-sm text-gray-400">Loading members…</p>
       <p *ngIf="membersError()" class="mb-3 text-sm text-red-600">{{ membersError() }}</p>
       <app-user-table [members]="members()" [currentUserId]="currentUserId()"
-        emptyMessage="No team members match your search" (editRoles)="openEditPanel($event)"
+        emptyMessage="No team members match your search" (editRoles)="openAccessDrawer($event)"
         (toggleSuspend)="toggleSuspend($event)"></app-user-table>
       <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
         (pageChange)="onMembersPageChange($event)"></app-pagination>
@@ -98,7 +105,17 @@
 
 <!-- Invite / edit overlay -->
 <app-user-invite-panel [isOpen]="isPanelOpen()" [member]="editingMember()" (closed)="closePanel()"
-  (saved)="handleSaved($event)"></app-user-invite-panel>
+  (saved)="handleSaved($event)" (buySeats)="openSeatModal()"></app-user-invite-panel>
+
+<!-- Buy seats modal (hybrid: charge card on file → hosted-checkout fallback) -->
+<app-seat-purchase-modal [isOpen]="isSeatModalOpen()" [seatsInUse]="limits()?.activeUsers ?? null"
+  [seatCap]="limits()?.maxUsers ?? null" (closed)="closeSeatModal()"
+  (purchased)="handleSeatsPurchased()"></app-seat-purchase-modal>
+
+<!-- Edit access drawer (per-user permission overrides) — created fresh per open so its store is clean -->
+<app-edit-access-drawer *ngIf="accessMember() as member" [member]="member" [catalog]="permissions()"
+  (closed)="closeAccessDrawer()" (saved)="handleAccessSaved()"
+  (manageRoles)="handleManageRoles($event)"></app-edit-access-drawer>
 
 <!-- Cancel invitation confirmation -->
 <app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel invitation?" [message]="cancelMessage()"

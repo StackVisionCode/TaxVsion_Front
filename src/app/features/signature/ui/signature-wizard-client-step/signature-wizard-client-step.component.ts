@@ -1,4 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { WizardClient } from '../signature-request-panel/signature-wizard.model';
@@ -33,21 +35,26 @@ export class SignatureWizardClientStepComponent {
 
   constructor() {
     this.store.loadCustomers();
+
+    // Typeahead server-side: cada término (debounced) consulta el backend, que busca
+    // sobre TODO el tenant — así se encuentran clientes fuera del lote inicial precargado.
+    // El filtro `filtered` de abajo sigue afinando en cliente para respuesta instantánea.
+    toObservable(this.search)
+      .pipe(
+        map(term => term.trim()),
+        debounceTime(250),
+        distinctUntilChanged(),
+        takeUntilDestroyed(),
+      )
+      .subscribe(term => this.store.queryCustomers(term));
   }
 
+  // El texto lo resuelve el backend (typeahead server-side); aquí sólo afinamos por tipo
+  // sobre las coincidencias devueltas, para no ocultar un match del servidor (p. ej. razón
+  // social de una empresa) que el filtro local no comprobaría.
   readonly filtered = computed<WizardClient[]>(() => {
     const filter = this.typeFilter();
-    const query = this.search().trim().toLowerCase();
-    return this.store
-      .customers()
-      .filter(client => filter === 'all' || client.type === filter)
-      .filter(
-        client =>
-          !query ||
-          client.displayName.toLowerCase().includes(query) ||
-          client.email.toLowerCase().includes(query) ||
-          client.phone.includes(query),
-      );
+    return this.store.customers().filter(client => filter === 'all' || client.type === filter);
   });
 
   retryLoad(): void {

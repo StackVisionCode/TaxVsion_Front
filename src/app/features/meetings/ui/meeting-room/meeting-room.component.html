@@ -20,6 +20,33 @@
     </button>
   </div>
 
+  <!-- Passcode: el meeting exige código para entrar -->
+  <div *ngIf="phase() === 'passcode'" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+    <span class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
+      <ion-icon name="lock-closed-outline" class="text-3xl"></ion-icon>
+    </span>
+    <div class="max-w-sm">
+      <p class="text-base font-bold text-gray-900">This meeting is protected</p>
+      <p class="mt-1 text-sm text-gray-500">Enter the passcode to join.</p>
+    </div>
+    <form (ngSubmit)="submitPasscode()" class="flex w-full max-w-xs flex-col items-center gap-2">
+      <input type="password" autocomplete="off" placeholder="Passcode" [ngModel]="passcodeDraft()"
+        (ngModelChange)="passcodeDraft.set($event)" name="passcode" maxlength="120"
+        class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-center text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+      <p *ngIf="errorMessage()" class="text-xs font-medium text-red-600">{{ errorMessage() }}</p>
+      <div class="mt-1 flex items-center gap-2">
+        <button type="button" (click)="leave()"
+          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+        <button type="submit" [disabled]="!passcodeDraft().trim()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+          Join
+        </button>
+      </div>
+    </form>
+  </div>
+
   <!-- Unsupported (SFU / >4 participants) -->
   <div *ngIf="phase() === 'unsupported'" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
     <span class="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
@@ -109,78 +136,126 @@
       </div>
     </div>
 
-    <!-- Grilla de video (local + un peer por participante remoto) -->
+    <!-- Área de video: escenario+filmstrip si alguien comparte pantalla; galería de cámaras si no. -->
     <div class="flex-1 overflow-y-auto py-4">
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <!-- Mi tile -->
-        <div class="relative aspect-video overflow-hidden rounded-2xl bg-gray-900">
-          <video [srcObject]="localStream()" autoplay playsinline muted
-            class="h-full w-full object-cover" [class.-scale-x-100]="!screenSharing()"
-            [class.hidden]="(!videoEnabled() && !screenSharing()) || !localStream()"></video>
-          <div *ngIf="(!videoEnabled() && !screenSharing()) || !localStream()" class="absolute inset-0 flex items-center justify-center bg-gray-800">
-            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-bold text-lg font-bold text-white">You</span>
-          </div>
-          <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-            You
-            <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-xs"></ion-icon>
-            <span *ngIf="screenSharing()" class="flex items-center gap-1"><ion-icon name="desktop-outline" class="text-xs"></ion-icon> Sharing</span>
-          </div>
-          <span *ngIf="handRaised()" class="absolute right-2 top-2 text-base" title="Hand raised" aria-label="Hand raised">✋</span>
+      <!-- ===== MODO ESCENARIO (alguien comparte pantalla) ===== -->
+      <ng-container *ngIf="isSharing(); else gallery">
+        <!-- Escenario: la pantalla seleccionada, en grande -->
+        <div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+          <video [srcObject]="activeShare()?.stream ?? null" autoplay playsinline [muted]="activeShare()?.isMine ?? false"
+            class="h-full w-full object-contain"></video>
+          <span class="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <ion-icon name="desktop-outline" class="text-xs"></ion-icon>
+            {{ activeShare()?.isMine ? 'Your screen' : (activeShare()?.displayName || 'Someone') + "'s screen" }}
+          </span>
         </div>
 
-        <!-- Tiles remotas (sin overflow-hidden para que el menú de host no se recorte). Click = spotlight
-             (destacar en grande y pedir capa alta al SFU; el resto pasa a capa baja). -->
-        <div *ngFor="let p of remoteParticipants()" (click)="toggleSpotlight(p.userId)"
-          [title]="spotlightUserId() === p.userId ? 'Click to unpin' : 'Click to spotlight'"
-          class="relative aspect-video cursor-pointer rounded-2xl bg-gray-900 transition-all"
-          [class.sm:col-span-2]="spotlightUserId() === p.userId"
-          [class.ring-2]="spotlightUserId() === p.userId"
-          [class.ring-brand-bold]="spotlightUserId() === p.userId">
-          <video [srcObject]="streamFor(p.userId)" autoplay playsinline
-            class="h-full w-full rounded-2xl object-cover" [class.hidden]="!p.videoEnabled || !streamFor(p.userId)"></video>
-          <div *ngIf="!p.videoEnabled || !streamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
-            <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
-              [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
-          </div>
-          <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
-            {{ p.displayName }}
-            <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-xs"></ion-icon>
-            <span *ngIf="p.handRaised" title="Hand raised" aria-label="Hand raised">✋</span>
-          </div>
-          <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
+        <!-- Selector de pantallas (solo si hay más de una compartiendo) -->
+        <div *ngIf="screenShares().length > 1" class="mt-3 flex flex-wrap gap-2">
+          <button *ngFor="let s of screenShares()" type="button" (click)="selectShare(s.userId)"
+            class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+            [ngClass]="activeShare()?.userId === s.userId ? 'border-brand-bold bg-indigo-50 text-brand-bold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+            <ion-icon name="desktop-outline" class="text-sm"></ion-icon>
+            {{ s.isMine ? 'Your screen' : s.displayName }}
+          </button>
+        </div>
 
-          <!-- Menú de host por participante (swallow del click para que no dispare el spotlight del tile) -->
-          <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2" data-dropdown="meeting-peer-menu">
-            <button type="button" (click)="toggleMenu(p.userId, $event)" aria-label="Participant options"
-              class="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
-              <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
-            </button>
-            <div *ngIf="openMenuUserId() === p.userId"
-              class="absolute right-0 top-9 z-10 w-44 overflow-hidden rounded-2xl border border-gray-100 bg-white py-1 text-left shadow-xl">
-              <button *ngIf="p.role === 'Attendee'" type="button" (click)="promote(p.userId)"
-                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                <ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host
-              </button>
-              <button *ngIf="p.role === 'Cohost'" type="button" (click)="demote(p.userId)"
-                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                <ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host
-              </button>
-              <button type="button" (click)="makeHost(p.userId)"
-                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                <ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host
-              </button>
-              <button type="button" (click)="remove(p.userId)"
-                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                <ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove
-              </button>
+        <!-- Filmstrip de cámaras (la mía + cada remoto), en mini -->
+        <div class="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <div class="relative aspect-video w-40 shrink-0 overflow-hidden rounded-xl bg-gray-900">
+            <video [srcObject]="localStream()" autoplay playsinline muted
+              class="h-full w-full -scale-x-100 object-cover" [class.hidden]="!videoEnabled() || !localStream()"></video>
+            <div *ngIf="!videoEnabled() || !localStream()" class="absolute inset-0 flex items-center justify-center bg-gray-800">
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-bold text-sm font-bold text-white">You</span>
+            </div>
+            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              You <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-[10px]"></ion-icon>
+            </div>
+          </div>
+          <div *ngFor="let p of remoteParticipants()" class="relative aspect-video w-40 shrink-0 overflow-hidden rounded-xl bg-gray-900">
+            <video [srcObject]="cameraStreamFor(p.userId)" autoplay playsinline
+              class="h-full w-full object-cover" [class.hidden]="!p.videoEnabled || !cameraStreamFor(p.userId)"></video>
+            <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center">
+              <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white" [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+            </div>
+            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              {{ p.displayName }} <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-[10px]"></ion-icon>
             </div>
           </div>
         </div>
-      </div>
+      </ng-container>
 
-      <p *ngIf="remoteParticipants().length === 0" class="py-8 text-center text-sm text-gray-400">
-        You're the first one here. Waiting for others to join…
-      </p>
+      <!-- ===== MODO GALERÍA (nadie comparte) — columnas por conteo ===== -->
+      <ng-template #gallery>
+        <div class="grid gap-3" [ngClass]="galleryColsClass()">
+          <!-- Mi tile -->
+          <div class="relative aspect-video overflow-hidden rounded-2xl bg-gray-900">
+            <video [srcObject]="localStream()" autoplay playsinline muted
+              class="h-full w-full -scale-x-100 object-cover" [class.hidden]="!videoEnabled() || !localStream()"></video>
+            <div *ngIf="!videoEnabled() || !localStream()" class="absolute inset-0 flex items-center justify-center bg-gray-800">
+              <span class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-bold text-lg font-bold text-white">You</span>
+            </div>
+            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              You
+              <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-xs"></ion-icon>
+            </div>
+            <span *ngIf="handRaised()" class="absolute right-2 top-2 text-base" title="Hand raised" aria-label="Hand raised">✋</span>
+          </div>
+
+          <!-- Tiles remotas (sin overflow-hidden para que el menú de host no se recorte). Click = spotlight
+               (destacar en grande y pedir capa alta al SFU; el resto pasa a capa baja). -->
+          <div *ngFor="let p of remoteParticipants()" (click)="toggleSpotlight(p.userId)"
+            [title]="spotlightUserId() === p.userId ? 'Click to unpin' : 'Click to spotlight'"
+            class="relative aspect-video cursor-pointer rounded-2xl bg-gray-900 transition-all"
+            [class.sm:col-span-2]="spotlightUserId() === p.userId"
+            [class.ring-2]="spotlightUserId() === p.userId"
+            [class.ring-brand-bold]="spotlightUserId() === p.userId">
+            <video [srcObject]="cameraStreamFor(p.userId)" autoplay playsinline
+              class="h-full w-full rounded-2xl object-cover" [class.hidden]="!p.videoEnabled || !cameraStreamFor(p.userId)"></video>
+            <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
+              <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
+                [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+            </div>
+            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              {{ p.displayName }}
+              <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-xs"></ion-icon>
+              <span *ngIf="p.handRaised" title="Hand raised" aria-label="Hand raised">✋</span>
+            </div>
+            <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
+
+            <!-- Menú de host por participante (swallow del click para que no dispare el spotlight del tile) -->
+            <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2" data-dropdown="meeting-peer-menu">
+              <button type="button" (click)="toggleMenu(p.userId, $event)" aria-label="Participant options"
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
+                <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
+              </button>
+              <div *ngIf="openMenuUserId() === p.userId"
+                class="absolute right-0 top-9 z-10 w-44 overflow-hidden rounded-2xl border border-gray-100 bg-white py-1 text-left shadow-xl">
+                <button *ngIf="p.role === 'Attendee'" type="button" (click)="promote(p.userId)"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host
+                </button>
+                <button *ngIf="p.role === 'Cohost'" type="button" (click)="demote(p.userId)"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host
+                </button>
+                <button type="button" (click)="makeHost(p.userId)"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host
+                </button>
+                <button type="button" (click)="remove(p.userId)"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                  <ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p *ngIf="remoteParticipants().length === 0" class="py-8 text-center text-sm text-gray-400">
+          You're the first one here. Waiting for others to join…
+        </p>
+      </ng-template>
     </div>
 
     <!-- Controles -->

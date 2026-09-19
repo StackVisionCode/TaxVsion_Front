@@ -63,8 +63,8 @@
               <ng-container *ngIf="member.kind === 'user'">
                 <button type="button" (click)="editRoles.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <ion-icon name="create-outline" class="text-sm text-gray-400"></ion-icon>
-                  Edit roles
+                  <ion-icon name="options-outline" class="text-sm text-gray-400"></ion-icon>
+                  Edit access
                 </button>
                 <button type="button" (click)="toggleSuspend.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">

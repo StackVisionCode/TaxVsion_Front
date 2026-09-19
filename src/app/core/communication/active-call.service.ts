@@ -40,14 +40,21 @@ export class ActiveCallService {
   readonly conversationId = signal<string | null>(null);
 
   readonly localStream = signal<MediaStream | null>(null);
-  readonly remoteStream = signal<MediaStream | null>(null);
+  /** Mi pantalla mientras comparto (separada de la cámara), para el escenario/PiP local. */
+  readonly localScreenStream = signal<MediaStream | null>(null);
+  /** CÁMARA del par (con su audio) y su PANTALLA — streams separados (dual-source): el par puede enviar
+   * ambos a la vez, así que su cámara va al PiP y su pantalla al escenario. */
+  readonly remoteCameraStream = signal<MediaStream | null>(null);
+  readonly remoteScreenStream = signal<MediaStream | null>(null);
   readonly audioEnabled = signal(true);
   readonly videoEnabled = signal(true);
   readonly remoteAudioEnabled = signal(true);
   /** Estoy compartiendo mi pantalla. */
   readonly screenSharing = signal(false);
-  /** El par está enviando video (cámara o pantalla) — para mostrar el stage / placeholder. */
-  readonly peerVideoActive = signal(false);
+  /** El par tiene la CÁMARA encendida (para su tile/PiP vs placeholder de iniciales). */
+  readonly peerCameraOn = signal(false);
+  /** El par está compartiendo PANTALLA (para mostrar su pantalla en el escenario). */
+  readonly peerScreenSharing = signal(false);
   /** Calidad de conexión local estimada (getStats). Solo se muestra la propia — no hay evento de bajada del par. */
   readonly connectionQuality = signal<CallConnectionQuality>('Good');
   /** ICE cayó y está intentando reconectar (estado transitorio, puede recuperarse). */
@@ -93,18 +100,22 @@ export class ActiveCallService {
   private makingOffer = false;
   private ignoreOffer = false;
   private listenersBound = false;
-  /** Candidatos ICE llegados antes de tener remote description — se aplican al setearlo. */
-  private pendingCandidates: RTCIceCandidateInit[] = [];
   /**
-   * Emisor de video (sender). Se crea SIEMPRE al armar la conexión (con track en video,
-   * o como transceiver `sendrecv` vacío en audio). Así "upgrade to video" y screen share
-   * cambian el track con `replaceTrack` — sin renegociar, sin glare (el m-line ya existe).
+   * DOS senders de video PERSISTENTES (dos m-lines pre-creados con addTrack): cámara y pantalla. Así
+   * prender/apagar cámara y compartir pantalla son SIMULTÁNEOS y solo `replaceTrack` — sin renegociar, sin
+   * glare, y SIN `addTransceiver` (que disparaba el bug "BUNDLE codec collision" de Chromium).
    */
-  private videoSender: RTCRtpSender | null = null;
-  /** Track de cámara (para restaurar tras compartir pantalla). */
+  private cameraSender: RTCRtpSender | null = null;
+  private screenSender: RTCRtpSender | null = null;
+  /** Track de cámara (para apagarla físicamente / mantenerla mientras comparto). */
   private cameraTrack: MediaStreamTrack | null = null;
   /** Track de pantalla activo mientras se comparte. */
   private screenTrack: MediaStreamTrack | null = null;
+  /** Placeholder negro para la CÁMARA — mantiene vivo su m-line sin cámara (apagada / llamada de audio). */
+  private placeholderStream: MediaStream | null = null;
+  /** Placeholder negro para la PANTALLA — mantiene vivo el 2º m-line mientras NO comparto (pista propia,
+   * distinta a la de cámara: una misma pista no puede ir en dos senders del mismo PC). */
+  private screenPlaceholderStream: MediaStream | null = null;
   private statsTimer: ReturnType<typeof setInterval> | undefined;
   private lastReportedQuality: CallConnectionQuality | null = null;
   private prevPacketsLost = 0;
@@ -161,7 +172,8 @@ export class ActiveCallService {
       }
       this.remoteAudioEnabled.set(dto.audioEnabled);
       // El par envía video si tiene cámara encendida o comparte pantalla — para stage/placeholder.
-      this.peerVideoActive.set(dto.videoEnabled || dto.screenSharing);
+      this.peerCameraOn.set(dto.videoEnabled);
+      this.peerScreenSharing.set(dto.screenSharing);
     });
 
     this.calls.onUpgradedToVideo().subscribe(dto => {
@@ -212,7 +224,7 @@ export class ActiveCallService {
       if (dto.state === 'Recording') {
         this.startRecordingTimer();
         if (this.isRecordingRequester()) {
-          this.recording.start(this.localStream(), this.remoteStream());
+          this.recording.start(this.localStream(), this.remoteCameraStream());
         }
       } else {
         this.stopRecordingTimer();
@@ -283,6 +295,10 @@ export class ActiveCallService {
 
   async endCall(): Promise<void> {
     const callId = this.callId();
+    // Colgar una llamada SALIENTE que aún suena (Ringing) es un CANCEL, no un END: el backend rechaza
+    // `end` fuera de Accepted/Active (InvalidTransition) → no emitía estado terminal y el modal de
+    // "incoming" del callee se quedaba pegado. En 'outgoing' cancelamos; ya conectando/activa terminamos.
+    const cancelling = this.phase() === 'outgoing';
     // Si estoy grabando, capturo el blob ANTES de cortar los tracks (la subida va en background).
     let pendingBlob: Blob | null = null;
     if (this.isRecordingRequester() && this.recordingState() === 'Recording') {
@@ -297,7 +313,11 @@ export class ActiveCallService {
     }
     if (callId) {
       try {
-        await this.calls.end(callId);
+        if (cancelling) {
+          await this.calls.cancel(callId);
+        } else {
+          await this.calls.end(callId);
+        }
       } catch {
         /* noop */
       }
@@ -317,12 +337,38 @@ export class ActiveCallService {
     this.publishMediaStatus();
   }
 
-  toggleVideo(): void {
-    const enabled = !this.videoEnabled();
-    this.videoEnabled.set(enabled);
-    this.localStream()
-      ?.getVideoTracks()
-      .forEach(t => (t.enabled = enabled));
+  async toggleVideo(): Promise<void> {
+    const enabling = !this.videoEnabled();
+    if (!enabling) {
+      // Apagar FÍSICO: DETENER la cámara apaga el hardware/LED (no basta `enabled=false`, que la deja
+      // adquirida y el LED encendido — el bug reportado). Placeholder negro en el videoSender con
+      // replaceTrack → mantiene el m-line vivo, SIN renegociar.
+      this.videoEnabled.set(false);
+      this.publishMediaStatus();
+      let placeholder: MediaStreamTrack | null = null;
+      try { placeholder = this.ensurePlaceholderVideoTrack(); } catch { /* jsdom */ }
+      this.cameraTrack?.stop();
+      this.cameraTrack = null;
+      await this.cameraSender?.replaceTrack(placeholder);
+      this.swapLocalVideoTrack(placeholder);
+      return;
+    }
+    // Encender: adquirir la cámara y publicarla con replaceTrack sobre el videoSender persistente (sin renegociar).
+    let cam: MediaStream;
+    try {
+      cam = await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch {
+      this.videoEnabled.set(false); // sin permiso: no marcar como encendida
+      this.toast.error('Allow camera access to turn on video.');
+      return;
+    }
+    const track = cam.getVideoTracks()[0] ?? null;
+    if (track) {
+      this.cameraTrack = track;
+      await this.cameraSender?.replaceTrack(track);
+      this.swapLocalVideoTrack(track);
+    }
+    this.videoEnabled.set(true);
     this.publishMediaStatus();
   }
 
@@ -347,13 +393,13 @@ export class ActiveCallService {
       return;
     }
     this.cameraTrack = videoTrack;
-    if (this.videoSender) {
-      await this.videoSender.replaceTrack(videoTrack); // sin renegociación
+    if (this.cameraSender) {
+      await this.cameraSender.replaceTrack(videoTrack); // sin renegociación (m-line pre-creado)
     } else {
       // Fallback (no debería pasar: siempre pre-creamos el sender). addTrack SÍ renegocia.
-      this.videoSender = this.pc.addTrack(videoTrack, this.localStream() ?? new MediaStream([videoTrack]));
+      this.cameraSender = this.pc.addTrack(videoTrack, this.localStream() ?? new MediaStream([videoTrack]));
     }
-    this.localStream()?.addTrack(videoTrack); // el PiP local (bind al mismo stream) lo toma en vivo
+    this.swapLocalVideoTrack(videoTrack); // reemplaza el placeholder por la cámara en el PiP local
     this.kind.set('Video');
     this.videoEnabled.set(true);
     try {
@@ -364,9 +410,10 @@ export class ActiveCallService {
     this.publishMediaStatus();
   }
 
-  /** Compartir pantalla: getDisplayMedia → replaceTrack sobre el videoSender (sin renegociar). */
+  /** Compartir pantalla ADITIVO: getDisplayMedia → replaceTrack sobre el screenSender (sin renegociar). NO
+   * toca la cámara → el par ve tu cámara Y tu pantalla a la vez. */
   async startScreenShare(callId = this.callId()): Promise<void> {
-    if (!callId || this.phase() !== 'active' || this.screenSharing() || !this.videoSender) {
+    if (!callId || this.phase() !== 'active' || this.screenSharing()) {
       return;
     }
     let display: MediaStream;
@@ -380,8 +427,8 @@ export class ActiveCallService {
       return;
     }
     this.screenTrack = track;
-    await this.videoSender.replaceTrack(track);
-    this.swapLocalVideoTrack(track);
+    this.localScreenStream.set(display); // escenario/PiP local (separado de la cámara)
+    await this.screenSender?.replaceTrack(track); // al screenSender, sin renegociar. NO toca la cámara.
     // El navegador tiene su propio botón "Dejar de compartir": engancharlo para parar limpio.
     track.onended = () => void this.stopScreenShare();
     this.screenSharing.set(true);
@@ -399,9 +446,11 @@ export class ActiveCallService {
     }
     this.screenTrack?.stop();
     this.screenTrack = null;
-    // Volver a la cámara si la había; si era llamada de audio, dejar el sender sin track.
-    await this.videoSender?.replaceTrack(this.cameraTrack ?? null);
-    this.swapLocalVideoTrack(this.cameraTrack ?? null);
+    this.localScreenStream.set(null);
+    // Volver el screenSender al placeholder negro (conserva el m-line, sin renegociar). NO toca la cámara.
+    let placeholder: MediaStreamTrack | null = null;
+    try { placeholder = this.ensureScreenPlaceholderTrack(); } catch { /* jsdom */ }
+    await this.screenSender?.replaceTrack(placeholder);
     this.screenSharing.set(false);
     if (callId) {
       try {
@@ -427,6 +476,48 @@ export class ActiveCallService {
     if (track && !stream.getVideoTracks().includes(track)) {
       stream.addTrack(track);
     }
+  }
+
+  /**
+   * Pista de video "vacía": canvas 2×2 negro capturado a 1 fps y DESHABILITADO (no transmite). Mantiene vivo
+   * el m-line/sender de video sin cámara, para que prender la cámara o compartir pantalla sea `replaceTrack`
+   * (sin crear el m-line tarde, que disparaba el bug de Chromium). Se crea una vez y se reusa.
+   */
+  private ensurePlaceholderVideoTrack(): MediaStreamTrack {
+    const existing = this.placeholderStream?.getVideoTracks()[0];
+    if (existing && existing.readyState === 'live') {
+      return existing;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
+    this.placeholderStream = (
+      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
+    ).captureStream(1);
+    const track = this.placeholderStream.getVideoTracks()[0];
+    track.enabled = false;
+    return track;
+  }
+
+  /** Placeholder negro deshabilitado para el 2º m-line (PANTALLA): mantiene vivo el screenSender mientras no
+   * comparto, para que empezar/parar el share sea replaceTrack sin renegociar. Pista propia (distinta a la
+   * de cámara). Se crea una vez y se reusa. */
+  private ensureScreenPlaceholderTrack(): MediaStreamTrack {
+    const existing = this.screenPlaceholderStream?.getVideoTracks()[0];
+    if (existing && existing.readyState === 'live') {
+      return existing;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
+    this.screenPlaceholderStream = (
+      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
+    ).captureStream(1);
+    const track = this.screenPlaceholderStream.getVideoTracks()[0];
+    track.enabled = false;
+    return track;
   }
 
   // ---------- Grabación (con consentimiento) ----------
@@ -560,6 +651,12 @@ export class ActiveCallService {
       status === 'MissedCall' ||
       status === 'Failed'
     ) {
+      // Llamada SALIENTE que nadie contestó (par offline / no disponible): feedback inmediato al caller.
+      // El backend ya la registra como MissedCall en el historial (de ambos) — esto solo avisa en la UI, ya
+      // que ahora se permite llamar aunque el par esté offline.
+      if (status === 'MissedCall' && this.isCaller) {
+        this.toast.info(`Could not reach ${this.peerDisplayName() || 'the contact'}.`);
+      }
       this.reset();
     }
   }
@@ -606,24 +703,48 @@ export class ActiveCallService {
       void this.endCall();
       return;
     }
+    // Asegurar SIEMPRE una pista de video: cámara (llamada de video) o placeholder negro deshabilitado
+    // (llamada de audio). Así el m-line de video existe desde el armado y "upgrade to video" / prender-apagar
+    // cámara / screen share son replaceTrack SIN renegociar — vía addTrack (NO addTransceiver, que disparaba
+    // el bug "BUNDLE codec collision" de Chromium). Ambos lados lo hacen para que las líneas SDP calcen.
+    this.cameraTrack = stream.getVideoTracks()[0] ?? null;
+    if (!this.cameraTrack) {
+      try {
+        stream.addTrack(this.ensurePlaceholderVideoTrack());
+      } catch {
+        /* jsdom (tests): sin placeholder */
+      }
+    }
     this.localStream.set(stream);
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-    // Pre-crear el m-line de video para poder pasar a video/screenshare con replaceTrack (sin renegociar).
-    // Ambos lados lo hacen para que las líneas SDP calcen. En una llamada de video ya hay sender de video.
-    if (this.kind() === 'Video') {
-      this.videoSender = pc.getSenders().find(s => s.track?.kind === 'video') ?? null;
-      this.cameraTrack = stream.getVideoTracks()[0] ?? null;
-    } else {
-      this.videoSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender;
+    // ORDEN DETERMINISTA de m-lines en AMBOS lados: audio, cámara, pantalla — así los m-lines se aparean por
+    // índice y la pantalla del par SIEMPRE cae en el screenSender (no en la cámara). Dos senders de video
+    // pre-creados (cámara + pantalla) → cámara y screen-share SIMULTÁNEOS con replaceTrack, sin renegociar.
+    stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+    const cameraTrack = stream.getVideoTracks()[0];
+    if (cameraTrack) {
+      this.cameraSender = pc.addTrack(cameraTrack, stream);
+    }
+    try {
+      const screenT = this.screenTrack ?? this.ensureScreenPlaceholderTrack();
+      const screenOut = this.localScreenStream() ?? new MediaStream([screenT]);
+      this.screenSender = pc.addTrack(screenT, screenOut);
+    } catch {
+      /* jsdom (tests): sin screenSender */
     }
 
-    const remote = new MediaStream();
-    this.remoteStream.set(remote);
-    // Se agrega el track directo (no `event.streams[0]`): con transceivers pre-creados el receiver
-    // puede no venir asociado a un stream, y así igual recibimos audio y video.
+    const remoteCamera = new MediaStream();
+    const remoteScreen = new MediaStream();
+    this.remoteCameraStream.set(remoteCamera);
+    this.remoteScreenStream.set(remoteScreen);
+    // Clasificación cámara vs pantalla en el receptor SIN señalización extra: se compara el sender de MI
+    // transceiver (screenSender) contra el del track entrante. Pantalla → remoteScreen; cámara y audio →
+    // remoteCamera (así el audio del par suena junto a su cámara).
     pc.ontrack = event => {
-      remote.addTrack(event.track);
+      if (this.screenSender && event.transceiver.sender === this.screenSender) {
+        remoteScreen.addTrack(event.track);
+      } else {
+        remoteCamera.addTrack(event.track);
+      }
     };
 
     pc.onicecandidate = event => {
@@ -770,7 +891,6 @@ export class ActiveCallService {
           return;
         }
         await pc.setRemoteDescription(data as RTCSessionDescriptionInit);
-        await this.flushPendingCandidates(pc);
         await pc.setLocalDescription();
         this.sendSignal('answer', pc.localDescription);
       } else if (kind === 'answer') {
@@ -781,31 +901,19 @@ export class ActiveCallService {
           return;
         }
         await pc.setRemoteDescription(data as RTCSessionDescriptionInit);
-        await this.flushPendingCandidates(pc);
       } else if (kind === 'ice') {
-        const candidate = data as RTCIceCandidateInit;
-        if (pc.remoteDescription) {
-          await pc.addIceCandidate(candidate);
-        } else {
-          // Llegó antes del remote description: se guarda y se aplica al setearlo.
-          this.pendingCandidates.push(candidate);
+        // SIN buffer manual: el RTCPeerConnection ya encola addIceCandidate detrás de setRemoteDescription.
+        // Bufferear a mano rompía el ICE con glare ("Unknown ufrag"). Un candidato que llega antes del remote
+        // description o de una generación vieja lanza un error INOFENSIVO → se ignora en silencio.
+        try {
+          await pc.addIceCandidate(data as RTCIceCandidateInit);
+        } catch {
+          /* candidato obsoleto o antes del remoteDescription — inofensivo */
         }
       }
     } catch (err) {
       if (!this.ignoreOffer) {
         console.error('[ActiveCall] signal handling error:', err);
-      }
-    }
-  }
-
-  private async flushPendingCandidates(pc: RTCPeerConnection): Promise<void> {
-    const pending = this.pendingCandidates;
-    this.pendingCandidates = [];
-    for (const candidate of pending) {
-      try {
-        await pc.addIceCandidate(candidate);
-      } catch (err) {
-        console.error('[ActiveCall] buffered ICE candidate error:', err);
       }
     }
   }
@@ -821,16 +929,23 @@ export class ActiveCallService {
     this.pc?.close();
     this.pc = null;
     this.pcReady = null;
-    this.videoSender = null;
-    this.pendingCandidates = [];
+    this.cameraSender = null;
+    this.screenSender = null;
     this.screenTrack?.stop();
     this.screenTrack = null;
+    this.localScreenStream()?.getTracks().forEach(t => t.stop());
+    this.localScreenStream.set(null);
     this.cameraTrack = null;
     this.localStream()
       ?.getTracks()
       .forEach(t => t.stop());
     this.localStream.set(null);
-    this.remoteStream.set(null);
+    this.placeholderStream?.getTracks().forEach(t => t.stop());
+    this.placeholderStream = null;
+    this.screenPlaceholderStream?.getTracks().forEach(t => t.stop());
+    this.screenPlaceholderStream = null;
+    this.remoteCameraStream.set(null);
+    this.remoteScreenStream.set(null);
     this.phase.set('idle');
     this.callId.set(null);
     this.peerUserId.set(null);
@@ -840,7 +955,8 @@ export class ActiveCallService {
     this.videoEnabled.set(true);
     this.remoteAudioEnabled.set(true);
     this.screenSharing.set(false);
-    this.peerVideoActive.set(false);
+    this.peerCameraOn.set(false);
+    this.peerScreenSharing.set(false);
     this.connectionQuality.set('Good');
     this.reconnecting.set(false);
     this.recordingState.set('Idle');

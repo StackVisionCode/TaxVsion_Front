@@ -1,0 +1,230 @@
+<!--
+  "Edit access" drawer. Right-side panel on desktop, full-screen on mobile. All copy in English; brand
+  colours come from the tenant-themed `brand-*` Tailwind tokens (+ a few scoped CSS vars in the .css).
+-->
+<div class="backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px]" (click)="onCancel()"></div>
+
+<aside
+  class="drawer fixed inset-y-0 right-0 z-[60] flex h-full w-full max-w-[560px] flex-col bg-white shadow-2xl sm:w-[560px]"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Edit access for ' + member.name"
+>
+  <!-- Header -->
+  <div class="border-b border-slate-200 px-5 pb-4 pt-5">
+    <div class="flex items-center justify-between gap-3">
+      <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-brand-bold">Edit access</span>
+      <button
+        type="button"
+        class="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+        aria-label="Close"
+        (click)="onCancel()"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="mt-3.5 flex items-center gap-3">
+      <div
+        class="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full text-base font-bold text-white"
+        [ngClass]="member.avatarColor"
+      >
+        {{ member.initials }}
+      </div>
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-[16px] font-bold leading-tight text-slate-800">{{ member.name }}</div>
+        <div class="truncate text-[12.5px] text-slate-500">{{ member.email }}</div>
+      </div>
+    </div>
+
+    <div class="mt-3 flex flex-wrap items-center gap-1.5">
+      <span class="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-slate-400">Roles</span>
+      <span
+        *ngFor="let role of member.roleNames"
+        class="inline-flex items-center gap-1.5 rounded-full border border-brand-bold/25 bg-brand-surface px-2.5 py-1 text-xs font-semibold text-brand-ink"
+      >
+        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ role }}
+      </span>
+      <span
+        class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700"
+      >
+        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ seatLabel() }}
+      </span>
+      <button
+        type="button"
+        class="rounded-full border border-dashed border-brand-bold/40 px-2.5 py-1 text-xs font-semibold text-brand-bold hover:bg-brand-surface"
+        (click)="onManageRoles()"
+      >
+        Manage roles
+      </button>
+    </div>
+
+    <p class="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-slate-500">
+      Permissions come from {{ member.name }}'s <b class="text-slate-600">roles</b>. Turn any off to
+      <b class="text-slate-600">restrict it for {{ member.name }} only</b> — no one else is affected. Whatever you turn
+      off stops working for them right away, and hides from the screens that check it.
+    </p>
+  </div>
+
+  <!-- Search -->
+  <div class="px-5 pb-1 pt-3.5">
+    <label class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2">
+      <svg class="flex-shrink-0 text-slate-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+      </svg>
+      <input
+        type="text"
+        class="min-w-0 flex-1 border-none bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+        placeholder="Search a permission or module…"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+    </label>
+  </div>
+
+  <!-- Body -->
+  <div class="flex-1 overflow-y-auto px-5 pb-4 pt-2">
+    <!-- Loading -->
+    <div *ngIf="loading()" class="space-y-3 pt-2">
+      <div *ngFor="let placeholder of [1, 2, 3]" class="h-16 animate-pulse rounded-2xl bg-slate-100"></div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="!loading() && error()" class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      {{ error() }}
+    </div>
+
+    <!-- Empty -->
+    <div
+      *ngIf="!loading() && !error() && modules().length === 0"
+      class="mt-8 text-center text-sm text-slate-500"
+    >
+      <p *ngIf="search()">No permission or module matches “{{ search() }}”.</p>
+      <p *ngIf="!search()">This member has no role-granted permissions yet. Assign a role to grant access.</p>
+    </div>
+
+    <!-- Modules -->
+    <section
+      *ngFor="let module of modules()"
+      class="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white"
+      [class.mod-open]="isOpen(module.key)"
+    >
+      <!-- Module header -->
+      <div class="flex cursor-pointer select-none items-center gap-3 px-3.5 py-3" (click)="toggleAccordion(module.key)">
+        <div class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] bg-brand-surface text-brand-bold">
+          <ng-container [ngSwitch]="module.icon">
+            <svg *ngSwitchCase="'clients'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 8.5a3 3 0 0 1 0 5" /><path d="M18 19a5 5 0 0 0-2.5-4.3" /></svg>
+            <svg *ngSwitchCase="'tasks'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12.5l2.2 2.2L16 9.5" /></svg>
+            <svg *ngSwitchCase="'communication'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H8l-4 3z" /></svg>
+            <svg *ngSwitchCase="'billing'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 9h8M8 13h5" /></svg>
+            <svg *ngSwitchCase="'catalog'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7l8-3 8 3-8 3-8-3z" /><path d="M4 7v8l8 3 8-3V7" /></svg>
+            <svg *ngSwitchCase="'documents'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /></svg>
+            <svg *ngSwitchCase="'storage'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h6l2 2h8v10H4z" /></svg>
+            <svg *ngSwitchCase="'notes'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>
+            <svg *ngSwitchCase="'calendar'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 9h16M8 3v4M16 3v4" /></svg>
+            <svg *ngSwitchCase="'reminder'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="7" /><path d="M12 10v3l2 2M9 3l-2 2M15 3l2 2" /></svg>
+            <svg *ngSwitchCase="'users'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 8.5a3 3 0 0 1 0 5" /><path d="M18 19a5 5 0 0 0-2.5-4.3" /></svg>
+            <svg *ngSwitchCase="'mail'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
+            <svg *ngSwitchDefault width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
+          </ng-container>
+        </div>
+
+        <div class="min-w-0 flex-1">
+          <div class="text-[13.5px] font-bold text-slate-800">{{ module.label }}</div>
+          <div *ngIf="module.description" class="mt-px text-[11.5px] text-slate-500">{{ module.description }}</div>
+        </div>
+
+        <span
+          class="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          [ngClass]="
+            moduleDeniedCount(module) > 0
+              ? 'border border-rose-200 bg-rose-50 text-rose-600'
+              : 'border border-slate-100 bg-slate-50 text-slate-500'
+          "
+        >
+          <ng-container *ngIf="moduleDeniedCount(module) as denied; else allAllowed"
+            >{{ denied }} restricted</ng-container
+          >
+          <ng-template #allAllowed>{{ moduleGrantedCount(module) }} allowed</ng-template>
+        </span>
+
+        <!-- Module master toggle: restrict/restore the whole module at once. -->
+        <span class="sw" (click)="$event.stopPropagation()" [title]="moduleAllowed(module) ? 'Restrict whole module' : 'Restore whole module'">
+          <input
+            type="checkbox"
+            [attr.aria-label]="'Allow all of ' + module.label"
+            [checked]="moduleAllowed(module)"
+            (change)="setModuleAllowed(module, $any($event.target).checked)"
+          />
+          <span class="track"></span>
+        </span>
+
+        <svg class="chev flex-shrink-0 text-slate-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
+
+      <!-- Module body -->
+      <div *ngIf="isOpen(module.key)" class="border-t border-slate-100">
+        <label
+          *ngFor="let row of module.rows"
+          class="perm-row flex items-center gap-3 border-t border-slate-100 px-3.5 py-2.5 first:border-t-0"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
+              {{ row.label }}
+              <span
+                *ngIf="!row.locked && isDenied(row.permissionId)"
+                class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-rose-600"
+                >Restricted</span
+              >
+              <span
+                *ngIf="row.locked"
+                class="rounded-full border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-400"
+                >Not in their roles</span
+              >
+            </div>
+            <div class="mt-px text-[11.5px] text-slate-500">
+              {{ row.code }}<span *ngIf="row.locked"> · add a role that includes it to enable</span>
+            </div>
+          </div>
+
+          <span class="sw">
+            <input
+              type="checkbox"
+              [disabled]="row.locked"
+              [attr.aria-label]="row.label"
+              [checked]="!row.locked && !isDenied(row.permissionId)"
+              (change)="setAllowed(row.permissionId, $any($event.target).checked)"
+            />
+            <span class="track"></span>
+          </span>
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <div class="flex items-center gap-3.5 border-t border-slate-200 bg-white px-5 py-3.5">
+    <div class="flex-1 text-[12.5px] leading-snug text-slate-500">
+      <b [class.text-rose-600]="deniedCount() > 0" [class.text-slate-600]="deniedCount() === 0">{{ summary() }}</b>
+    </div>
+    <button
+      type="button"
+      class="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-800"
+      (click)="onCancel()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-bold/25 hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+      [disabled]="!dirty() || saving()"
+      (click)="onSave()"
+    >
+      {{ saving() ? 'Saving…' : 'Save changes' }}
+    </button>
+  </div>
+</aside>

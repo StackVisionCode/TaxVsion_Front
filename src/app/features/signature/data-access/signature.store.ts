@@ -1,9 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable, debounceTime, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureRequest } from '../ui/signature-table/signature-table.component';
 import { WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { SignatureService } from './signature.service';
+import { SignatureRealtimeService } from './signature-realtime.service';
 import {
   ApiSignatureRequestStatus,
   SignatureCategory,
@@ -56,6 +58,8 @@ export interface WizardFieldDraft {
   width: number;
   height: number;
   isRequired: boolean;
+  /** Etiqueta/instrucción del campo de texto (P4); null en los demás tipos. */
+  label: string | null;
 }
 
 export interface WizardRequestDraft {
@@ -67,6 +71,17 @@ export interface WizardRequestDraft {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  /** P2: entregar el documento firmado / el certificado a los firmantes (gateado por permiso en backend). */
+  sendSignedDocumentToSigners: boolean;
+  sendCertificateToSigners: boolean;
+  /** Recordatorios automáticos a firmantes: on/off + intervalo (horas). */
+  autoRemindersEnabled: boolean;
+  reminderIntervalHours: number;
+  /**
+   * PIN del preparador (Form 8879), 4–10 dígitos, opcional (null = sin PIN). Se fija ENTRE crear y
+   * enviar (mientras Draft/Ready), vía PUT practitioner-pin — el backend lo hashea.
+   */
+  signingPin: string | null;
   /** En orden de firma (el backend asigna `order` por inserción). */
   signers: WizardSignerDraft[];
   fields: WizardFieldDraft[];
@@ -81,11 +96,13 @@ export interface WizardSendState {
   requestId: string | null;
   signerIdByLocal: Record<string, string>;
   postedFieldLocalIds: string[];
+  /** Ya se fijó el practitioner PIN (si el draft lo pedía) — evita re-fijarlo en un reintento. */
+  pinSet: boolean;
   sent: boolean;
 }
 
 export function emptySendState(): WizardSendState {
-  return { requestId: null, signerIdByLocal: {}, postedFieldLocalIds: [], sent: false };
+  return { requestId: null, signerIdByLocal: {}, postedFieldLocalIds: [], pinSet: false, sent: false };
 }
 
 export type WizardSendPhase = 'creating' | 'sending';
@@ -107,6 +124,23 @@ export interface SignatureStats {
 @Injectable({ providedIn: 'root' })
 export class SignatureStore {
   private readonly service = inject(SignatureService);
+  private readonly realtime = inject(SignatureRealtimeService);
+
+  constructor() {
+    // Realtime: cuando alguien firma/rechaza o cambia el estado, Communication emite
+    // `signature.request.changed` por-tenant. Refrescamos la lista (debounced para coalescer ráfagas
+    // de varios firmantes) SOLO si ya se cargó alguna vez — si el usuario nunca abrió firmas, no
+    // hay nada que refrescar y al abrirla se carga igual.
+    this.realtime.connect();
+    this.realtime.requestChanged$
+      .pipe(debounceTime(400), takeUntilDestroyed())
+      .subscribe(() => {
+        if (this.refreshToken > 0) {
+          this.refresh();
+          this.loadStats();
+        }
+      });
+  }
 
   // ---------- Listado ----------
   private readonly _requests = signal<SignatureRequest[]>([]);
@@ -137,6 +171,8 @@ export class SignatureStore {
   private readonly _customersLoading = signal(false);
   private readonly _customersError = signal<string | null>(null);
   private customersLoaded = false;
+  /** Guarda de orden: descarta respuestas que llegan tarde tras una búsqueda más reciente. */
+  private customersReqSeq = 0;
 
   readonly customers = this._customers.asReadonly();
   readonly customersLoading = this._customersLoading.asReadonly();
@@ -391,18 +427,28 @@ export class SignatureStore {
    */
   async instantiateTemplateAndSend(
     templateId: string,
-    source: { file: File } | { fileId: string },
+    source: { file: File } | { fileId: string } | { templateDoc: true },
     slotBindings: SlotBinding[],
     descriptionOverride: string | null,
     onPhase?: (phase: 'creating' | 'preparing' | 'sending') => void,
   ): Promise<{ detail: SignatureRequestDetail; sent: boolean }> {
     onPhase?.('creating');
-    const detail =
-      'fileId' in source
-        ? await firstValueFrom(
-            this.instantiateTemplateWithFileId(templateId, source.fileId, slotBindings, descriptionOverride),
-          )
-        : await firstValueFrom(this.instantiateTemplate(templateId, source.file, slotBindings, descriptionOverride));
+    let detail: SignatureRequestDetail;
+    if ('templateDoc' in source) {
+      // P7: sin documento → el backend reusa el documento base de la plantilla.
+      detail = await firstValueFrom(
+        this.service.instantiateTemplate(templateId, { slotBindings, descriptionOverride }),
+      );
+      this.refreshAfterAction();
+    } else if ('fileId' in source) {
+      detail = await firstValueFrom(
+        this.instantiateTemplateWithFileId(templateId, source.fileId, slotBindings, descriptionOverride),
+      );
+    } else {
+      detail = await firstValueFrom(
+        this.instantiateTemplate(templateId, source.file, slotBindings, descriptionOverride),
+      );
+    }
 
     try {
       onPhase?.('preparing');
@@ -461,15 +507,37 @@ export class SignatureStore {
     if (this.customersLoaded && !force) {
       return;
     }
+    this.fetchCustomers();
+  }
+
+  /**
+   * Búsqueda server-side (typeahead) del picker del wizard. El backend `GET /customers`
+   * busca por nombre, email y teléfono sobre TODO el tenant, así que encuentra clientes
+   * más allá del lote inicial precargado (antes el filtro era 100% client-side y quedaba
+   * topado a los primeros resultados cargados). Con `term` vacío recarga el lote de browse.
+   * El componente lo llama con debounce; aquí sólo aplicamos la guarda de orden.
+   */
+  queryCustomers(term: string): void {
+    this.fetchCustomers(term.trim() || undefined);
+  }
+
+  private fetchCustomers(term?: string): void {
+    const seq = ++this.customersReqSeq;
     this._customersLoading.set(true);
     this._customersError.set(null);
-    this.service.searchCustomers().subscribe({
+    this.service.searchCustomers(term).subscribe({
       next: result => {
+        if (seq !== this.customersReqSeq) {
+          return; // llegó tarde: una búsqueda posterior ya manda
+        }
         this._customers.set(result.items.map(customerToWizardClient));
         this.customersLoaded = true;
         this._customersLoading.set(false);
       },
       error: err => {
+        if (seq !== this.customersReqSeq) {
+          return;
+        }
         this._customersError.set(toApiError(err).message);
         this._customersLoading.set(false);
       },
@@ -513,6 +581,10 @@ export class SignatureStore {
             requiresSequentialSigning: draft.requiresSequentialSigning,
             requiresConsent: draft.requiresConsent,
             generateCertificate: draft.generateCertificate,
+            sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+            sendCertificateToSigners: draft.sendCertificateToSigners,
+            autoRemindersEnabled: draft.autoRemindersEnabled,
+            reminderIntervalHours: draft.reminderIntervalHours,
           }),
         );
         state.requestId = created.id;
@@ -554,11 +626,19 @@ export class SignatureStore {
             y: field.y,
             width: field.width,
             height: field.height,
-            label: null,
+            label: field.label,
             isRequired: field.isRequired,
           }),
         );
         state.postedFieldLocalIds.push(field.localId);
+      }
+
+      // Practitioner PIN (Form 8879): se fija ANTES de enviar, mientras la solicitud está Draft/Ready
+      // (el backend solo lo permite en esos estados). Opcional; idempotente por `state.pinSet`.
+      const signingPin = draft.signingPin?.trim();
+      if (signingPin && !state.pinSet) {
+        await firstValueFrom(this.service.setPractitionerPin(requestId, signingPin));
+        state.pinSet = true;
       }
 
       if (!state.sent) {

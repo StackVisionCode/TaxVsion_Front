@@ -3,9 +3,11 @@ import { Device, types as MsTypes } from 'mediasoup-client';
 import { Subscription } from 'rxjs';
 import { MeetingRtcService } from './meeting-rtc.service';
 
+export type SfuSource = 'camera' | 'screen';
+
 /** Callbacks hacia ActiveMeetingService para poblar la grilla (sin acoplar el estado). */
 export interface SfuHandlers {
-  onRemoteStream(userId: string, stream: MediaStream): void;
+  onRemoteStream(userId: string, source: SfuSource, stream: MediaStream): void;
   onRemovePeer(userId: string): void;
 }
 
@@ -13,6 +15,10 @@ export interface SfuHandlers {
  * Cliente SFU (mediasoup-client) para meetings con `strategy === 'Sfu'` (>4 participantes).
  * Un solo send-transport (produce mis tracks) y un solo recv-transport (consume a todos).
  * Reemplaza el mesh (N peer connections) por 2 transports contra el SFU del backend.
+ *
+ * Fase C (dual-source): un participante puede producir DOS videos a la vez — cámara y pantalla —
+ * como producers separados etiquetados con `source` (viaja en el `appData` del producer, ver backend).
+ * El receptor agrupa por `userId:source` en streams distintos para pintar cámara vs pantalla aparte.
  *
  * Flujo: get_router_capabilities → device.load → create/connect send+recv transport →
  * produce mis tracks → list_remote_producers + `sfu.new_producer` → consume → resume.
@@ -25,15 +31,21 @@ export class MeetingSfuService {
   private device: Device | null = null;
   private sendTransport: MsTypes.Transport | null = null;
   private recvTransport: MsTypes.Transport | null = null;
-  private readonly producers = new Map<string, MsTypes.Producer>(); // por kind
+  /** Mis producers por clave: 'audio' | 'camera' | 'screen'. */
+  private readonly producers = new Map<string, MsTypes.Producer>();
   private readonly consumers = new Map<string, MsTypes.Consumer>(); // por consumerId
-  /** producerId → { userId, consumerId } — para cerrar el consumer correcto en producer_closed. */
-  private readonly producerIndex = new Map<string, { userId: string; consumerId: string }>();
+  /** producerId → { userId, source, consumerId } — para cerrar el consumer correcto en producer_closed. */
+  private readonly producerIndex = new Map<string, { userId: string; source: SfuSource; consumerId: string }>();
+  /** Streams remotos por `userId:source` (cámara y pantalla separadas). */
   private readonly peerStreams = new Map<string, MediaStream>();
   private subs: Subscription[] = [];
   private meetingId: string | null = null;
   private handlers: SfuHandlers | null = null;
   private active = false;
+
+  private streamKey(userId: string, source: SfuSource): string {
+    return `${userId}:${source}`;
+  }
 
   /** Devuelve true si arrancó bien; false si falló (el caller degrada a `unsupported`). */
   async join(meetingId: string, localStream: MediaStream | null, handlers: SfuHandlers): Promise<boolean> {
@@ -54,12 +66,12 @@ export class MeetingSfuService {
       // Consumir a los que ya estaban, y suscribir altas/bajas de producers.
       const existing = await this.rtc.sfuListRemoteProducers(meetingId);
       for (const p of existing) {
-        await this.consume(p.userId, p.producerId);
+        await this.consume(p.userId, p.producerId, p.source ?? 'camera');
       }
       this.subs.push(
         this.rtc.onSfuNewProducer().subscribe(dto => {
           if (dto.meetingId === this.meetingId) {
-            void this.consume(dto.userId, dto.producerId);
+            void this.consume(dto.userId, dto.producerId, dto.source ?? 'camera');
           }
         }),
         this.rtc.onSfuProducerClosed().subscribe(dto => {
@@ -89,9 +101,11 @@ export class MeetingSfuService {
     transport.on('connect', ({ dtlsParameters }, callback, errback) => {
       this.rtc.sfuConnectTransport(this.meetingId!, transport.id, dtlsParameters).then(() => callback(), errback);
     });
-    transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
+    transport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
+      // El `source` (cámara/pantalla) viaja en appData → al backend para etiquetar el producer.
+      const source = (appData as { source?: SfuSource }).source ?? 'camera';
       this.rtc
-        .sfuProduce(this.meetingId!, transport.id, kind, rtpParameters)
+        .sfuProduce(this.meetingId!, transport.id, kind, rtpParameters, source)
         .then(({ producerId }) => callback({ id: producerId }), errback);
     });
     this.sendTransport = transport;
@@ -136,14 +150,17 @@ export class MeetingSfuService {
       if (track.kind === 'video' && !this.device!.canProduce('video')) {
         continue;
       }
-      const producer = await this.sendTransport.produce(
-        track.kind === 'video' ? { track, ...this.videoProduceOptions() } : { track },
-      );
-      this.producers.set(track.kind, producer);
+      if (track.kind === 'video') {
+        const producer = await this.sendTransport.produce({ track, ...this.videoProduceOptions(), appData: { source: 'camera' } });
+        this.producers.set('camera', producer);
+      } else {
+        const producer = await this.sendTransport.produce({ track });
+        this.producers.set('audio', producer);
+      }
     }
   }
 
-  private async consume(userId: string, producerId: string): Promise<void> {
+  private async consume(userId: string, producerId: string, source: SfuSource): Promise<void> {
     if (!this.recvTransport || !this.device || this.producerIndex.has(producerId)) {
       return; // ya consumido o sin transport
     }
@@ -156,17 +173,20 @@ export class MeetingSfuService {
         rtpParameters: params.rtpParameters,
       });
       this.consumers.set(consumer.id, consumer);
-      this.producerIndex.set(producerId, { userId, consumerId: consumer.id });
+      this.producerIndex.set(producerId, { userId, source, consumerId: consumer.id });
 
-      let stream = this.peerStreams.get(userId);
+      // El audio va con la cámara (mismo tile de la persona); el video va a su fuente (cámara/pantalla).
+      const streamSource: SfuSource = consumer.kind === 'audio' ? 'camera' : source;
+      const key = this.streamKey(userId, streamSource);
+      let stream = this.peerStreams.get(key);
       const isNew = !stream;
       if (!stream) {
         stream = new MediaStream();
-        this.peerStreams.set(userId, stream);
+        this.peerStreams.set(key, stream);
       }
       stream.addTrack(consumer.track);
       if (isNew) {
-        this.handlers?.onRemoteStream(userId, stream);
+        this.handlers?.onRemoteStream(userId, streamSource, stream);
       }
       await this.rtc.sfuResumeConsumer(this.meetingId!, consumer.id); // el consumer arranca en pausa
     } catch (err) {
@@ -176,8 +196,7 @@ export class MeetingSfuService {
 
   /**
    * Fija la capa de simulcast preferida del video de un peer (spotlight = alta, thumbnail = baja).
-   * Resuelve el consumerId de VIDEO de ese userId (no hay mapa directo userId→consumerId). No-op en mesh
-   * (producerIndex vacío) o si el peer aún no tiene consumer de video.
+   * Resuelve el consumerId de VIDEO de ese userId. No-op en mesh (producerIndex vacío).
    */
   async setPeerPreferredLayers(userId: string, spatialLayer: number, temporalLayer?: number): Promise<void> {
     for (const { userId: u, consumerId } of this.producerIndex.values()) {
@@ -203,29 +222,36 @@ export class MeetingSfuService {
     this.producerIndex.delete(producerId);
     const consumer = this.consumers.get(entry.consumerId);
     if (consumer) {
-      const stream = this.peerStreams.get(entry.userId);
+      const streamSource: SfuSource = consumer.kind === 'audio' ? 'camera' : entry.source;
+      const key = this.streamKey(entry.userId, streamSource);
+      const stream = this.peerStreams.get(key);
       stream?.removeTrack(consumer.track);
       consumer.close();
       this.consumers.delete(entry.consumerId);
-      // Si al usuario no le queda ningún track, sacarlo de la grilla.
       if (stream && stream.getTracks().length === 0) {
-        this.peerStreams.delete(entry.userId);
-        this.handlers?.onRemovePeer(entry.userId);
+        this.peerStreams.delete(key);
       }
+    }
+    // Si al usuario no le queda NINGÚN producer (cámara/pantalla/audio) → salió del meeting: sacarlo de la
+    // grilla. Si solo cerró la pantalla (dejó de compartir), sus otros producers siguen → el peer se queda;
+    // el tile de pantalla se oculta por el flag `screenSharing` del roster (media_status).
+    const hasAny = [...this.producerIndex.values()].some(e => e.userId === entry.userId);
+    if (!hasAny) {
+      this.handlers?.onRemovePeer(entry.userId);
     }
   }
 
-  /** Cambia el track de video que produzco (cámara ↔ pantalla) sin renegociar. */
-  async replaceVideoTrack(track: MediaStreamTrack | null): Promise<void> {
-    const producer = this.producers.get('video');
+  /** Cambia/crea el producer de una fuente (cámara o pantalla) sin renegociar (o lo crea si no existía). */
+  async replaceVideoTrack(source: SfuSource, track: MediaStreamTrack | null): Promise<void> {
+    const producer = this.producers.get(source);
     if (producer && !producer.closed) {
       await producer.replaceTrack({ track });
       return;
     }
-    // No había producer de video (entré con la cámara apagada): crear uno con la pantalla.
+    // No había producer de esa fuente todavía (p.ej. primer screen share): crearlo.
     if (track && this.sendTransport && this.device?.canProduce('video')) {
-      const newProducer = await this.sendTransport.produce({ track, ...this.videoProduceOptions() });
-      this.producers.set('video', newProducer);
+      const newProducer = await this.sendTransport.produce({ track, ...this.videoProduceOptions(), appData: { source } });
+      this.producers.set(source, newProducer);
     }
   }
 

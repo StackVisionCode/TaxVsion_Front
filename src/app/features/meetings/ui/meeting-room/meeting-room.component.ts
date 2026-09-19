@@ -43,6 +43,7 @@ export class MeetingRoomComponent {
   readonly isHost = this.meeting.isHost;
   readonly errorMessage = this.meeting.errorMessage;
   readonly localStream = this.meeting.localStream;
+  readonly localScreenStream = this.meeting.localScreenStream;
   readonly audioEnabled = this.meeting.audioEnabled;
   readonly videoEnabled = this.meeting.videoEnabled;
   readonly handRaised = this.meeting.handRaised;
@@ -85,6 +86,13 @@ export class MeetingRoomComponent {
 
   toggleSpotlight(userId: string): void {
     this.spotlightUserId.update(cur => (cur === userId ? null : userId));
+  }
+
+  /** Passcode que el usuario tipea cuando el meeting lo exige (fase 'passcode'). */
+  readonly passcodeDraft = signal('');
+
+  submitPasscode(): void {
+    void this.meeting.submitPasscode(this.passcodeDraft());
   }
 
   // ---------- Chat del meeting ----------
@@ -158,8 +166,50 @@ export class MeetingRoomComponent {
     }
   }
 
-  streamFor(userId: string): MediaStream | null {
-    return this.peers().get(userId)?.stream ?? null;
+  /** Stream de CÁMARA de un peer (para su tile). */
+  cameraStreamFor(userId: string): MediaStream | null {
+    return this.peers().get(userId)?.cameraStream ?? null;
+  }
+
+  readonly myUserId = this.meeting.myUserId;
+
+  /** Columnas de la galería (sin nadie compartiendo) calculadas por conteo — bien distribuidas. */
+  readonly galleryColsClass = computed(() => {
+    const n = 1 + this.remoteParticipants().length; // yo + remotos
+    if (n <= 1) return 'grid-cols-1';
+    if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
+    if (n <= 4) return 'grid-cols-2';
+    if (n <= 6) return 'grid-cols-2 sm:grid-cols-3';
+    return 'grid-cols-2 sm:grid-cols-4';
+  });
+
+  /** Todas las pantallas que se están compartiendo (remotos + la mía), para el escenario y el selector. */
+  readonly screenShares = computed<{ userId: string; displayName: string; isMine: boolean; stream: MediaStream | null }[]>(() => {
+    const myId = this.myUserId();
+    const shares: { userId: string; displayName: string; isMine: boolean; stream: MediaStream | null }[] = [];
+    for (const p of this.remoteParticipants()) {
+      if (p.screenSharing) {
+        shares.push({ userId: p.userId, displayName: p.displayName, isMine: false, stream: this.peers().get(p.userId)?.screenStream ?? null });
+      }
+    }
+    if (this.screenSharing()) {
+      shares.push({ userId: myId ?? 'me', displayName: 'You', isMine: true, stream: this.localScreenStream() });
+    }
+    return shares;
+  });
+
+  readonly isSharing = computed(() => this.screenShares().length > 0);
+
+  /** Cuál screen share va al escenario (el usuario puede elegir si hay varias; default = la más reciente). */
+  readonly selectedShareUserId = signal<string | null>(null);
+  readonly activeShare = computed(() => {
+    const shares = this.screenShares();
+    if (shares.length === 0) return null;
+    return shares.find(s => s.userId === this.selectedShareUserId()) ?? shares[shares.length - 1];
+  });
+
+  selectShare(userId: string): void {
+    this.selectedShareUserId.set(userId);
   }
 
   toggleMenu(userId: string, event: MouseEvent): void {

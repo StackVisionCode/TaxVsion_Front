@@ -698,7 +698,14 @@ export class ChatStore {
     return {
       id: dto.id,
       senderId: isMine ? 'me' : 'them',
-      text: dto.isDeleted ? '(message deleted)' : dto.kind === 'Text' ? (dto.body ?? undefined) : undefined,
+      // System = evento del sistema en el hilo (p.ej. "Missed call", "Call ended 2:34") → se pinta centrado.
+      isSystem: !dto.isDeleted && dto.kind === 'System',
+      text:
+        dto.isDeleted
+          ? '(message deleted)'
+          : dto.kind === 'Text' || dto.kind === 'System'
+            ? (dto.body ?? undefined)
+            : undefined,
       attachment:
         !dto.isDeleted && !isVoice && dto.kind === 'Attachment' && dto.attachmentFileId
           ? (knownAttachment ?? this.resolveAttachment(dto.attachmentFileId))
