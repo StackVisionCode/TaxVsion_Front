@@ -335,10 +335,12 @@ export function describeDeadLink(code: string): { title: string; detail: string 
         detail: 'Signature links are valid for a limited time. Ask the office to send you a new one.',
       };
     case 'Signature.Token.Revoked':
+      // El backend revoca el token al completarse la solicitud (todos firmaron), al
+      // rechazarla o al cancelarla: es el caso más común tras firmar.
       return {
-        title: 'This link is no longer active',
+        title: 'This link has expired',
         detail:
-          'The office cancelled the request, or the document was already declined. Ask them for a new link.',
+          'The document was already signed, declined or cancelled, so this link no longer works. If you still need to sign, ask the office for a new link.',
       };
     case 'Signature.Request.NotFound':
     case 'Signature.Signer.NotFound':

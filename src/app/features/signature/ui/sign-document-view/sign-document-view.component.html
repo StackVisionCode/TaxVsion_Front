@@ -1,0 +1,61 @@
+<div class="flex flex-col gap-4">
+  <!-- Progreso de los campos de texto (solo al firmar) -->
+  <div *ngIf="editable && textFieldCount > 0"
+    class="flex items-center justify-between gap-3 rounded-xl bg-brand-white px-3 py-2 text-[11px]">
+    <span *ngIf="pendingRequired > 0" class="text-gray-600">
+      <span class="font-semibold text-gray-900">{{ pendingRequired }}</span>
+      required {{ pendingRequired === 1 ? 'field' : 'fields' }} left — type directly on the page
+    </span>
+    <span *ngIf="pendingRequired === 0" class="flex items-center gap-1 font-medium text-emerald-600">
+      <ion-icon name="checkmark-circle" class="text-sm"></ion-icon> All fields complete
+    </span>
+    <button *ngIf="pendingRequired > 0" type="button" (click)="focusNextPending()"
+      class="shrink-0 rounded-full bg-brand-bold px-3 py-1 font-semibold text-white transition-colors hover:bg-brand-ink">
+      Next field
+    </button>
+  </div>
+
+  <div *ngFor="let p of pages" class="page-wrap">
+    <p class="mb-1.5 flex items-center justify-between px-1 text-[11px] text-gray-400">
+      <span class="font-medium text-gray-500">Page {{ p.page }}</span>
+      <span>{{ p.fields.length }} {{ p.fields.length === 1 ? 'field' : 'fields' }}</span>
+    </p>
+
+    <div class="sheet relative w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+      [class.sheet-blank]="!pageImages?.[p.page]"
+      [style.background-image]="pageImages?.[p.page] ? 'url(' + pageImages![p.page] + ')' : null">
+      <ng-container *ngFor="let field of p.fields; trackBy: trackField">
+        <!-- Texto: el firmante escribe sobre la página -->
+        <label *ngIf="field.kind === 'Text' && editable" class="field field-text absolute" [ngStyle]="boxStyle(field)"
+          [class.field-filled]="!!values[field.id]?.trim()"
+          [class.field-missing]="field.isRequired && !values[field.id]?.trim()">
+          <input type="text" [attr.data-field-id]="field.id" [maxlength]="maxLength" autocomplete="off"
+            [ngModel]="values[field.id] || ''" (ngModelChange)="onInput(field, $event)" [name]="'doc-field-' + field.id"
+            [placeholder]="field.label || 'Type here'" [attr.aria-label]="field.label || 'Text field'"
+            [required]="field.isRequired" [title]="field.label || 'Text field'"
+            class="h-full w-full bg-transparent px-1.5 text-[13px] text-gray-900 placeholder-indigo-400 focus:outline-none" />
+          <span *ngIf="field.isRequired" class="required-dot" aria-hidden="true"></span>
+        </label>
+
+        <!-- Texto en solo lectura (revisión) -->
+        <div *ngIf="field.kind === 'Text' && !editable" class="field field-mark absolute" [ngStyle]="boxStyle(field)"
+          [title]="field.label || 'Text field'">
+          <ion-icon name="document-text-outline" class="shrink-0"></ion-icon>
+          <span class="truncate">{{ values[field.id]?.trim() || field.label || 'Text' }}</span>
+        </div>
+
+        <!-- Firma, iniciales, fecha: solo se marca dónde irá -->
+        <div *ngIf="field.kind !== 'Text'" class="field field-mark absolute" [ngStyle]="boxStyle(field)"
+          [class.field-sign]="field.kind === 'Signature' || field.kind === 'Initials'" [title]="kindLabel(field)">
+          <ion-icon [name]="kindIcon(field)" class="shrink-0"></ion-icon>
+          <span class="truncate">{{ kindLabel(field) }}</span>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+  <p *ngIf="pages.length === 0"
+    class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
+    The office didn't place any field for you — your signature seals the whole document.
+  </p>
+</div>

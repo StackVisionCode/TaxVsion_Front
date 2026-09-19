@@ -16,11 +16,13 @@ import { ApiError, toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { SignaturePadComponent } from '../../../../shared/ui/signature-pad/signature-pad.component';
+import { SignDocumentViewComponent } from '../../ui/sign-document-view/sign-document-view.component';
+import { maskEmail } from '../../utils/mask-email.util';
+import { UsedLinkRecord, markLinkUsed, readUsedLink } from '../../utils/used-link.util';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
 import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
 import {
   AuditChainVerificationResponse,
-  FIELD_KIND_LABEL,
   PublicSignerFieldView,
   PublicSignerView,
   SIGNATURE_CATEGORY_LABEL,
@@ -77,10 +79,12 @@ interface BlockedState {
  * Limitación del contrato público (no simulable, se muestra como tal):
  *   - El contexto expone `originalFileId` pero CloudStorage exige JWT para emitir la
  *     URL presignada ⇒ no hay previsualización del PDF ni descargas para el firmante.
+ *     Las hojas (`app-sign-document-view`) muestran los campos en su posición real sobre
+ *     un lienzo en blanco; los campos de texto se escriben ahí mismo.
  */
 @Component({
   selector: 'app-sign-page',
-  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent, SignaturePadComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent, SignaturePadComponent, SignDocumentViewComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sign-page.component.html',
   styleUrl: './sign-page.component.css',
@@ -88,8 +92,6 @@ interface BlockedState {
 export class SignPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
-
-  readonly fieldKindLabel = FIELD_KIND_LABEL;
 
   private token = '';
 
@@ -116,11 +118,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly stepId = signal<StepId>('welcome');
   /** true tras un POST /sign exitoso en esta sesión (dispara la vista de acuse). */
   readonly justSigned = signal(false);
+  /** Hora local de la firma: respaldo del acuse si la cadena de audit ya no es legible (token revocado). */
+  private readonly signedAtLocal = signal<string | null>(null);
 
-  /** Segundos restantes antes de redirigir al firmante tras completar (0 = sin countdown activo). */
-  readonly redirectSeconds = signal(0);
-  private redirectTimer: ReturnType<typeof setInterval> | null = null;
-  private static readonly RedirectDelaySeconds = 10;
+  /**
+   * El enlace ya se usó en este dispositivo (firmado o rechazado): la página queda expirada
+   * aunque el backend todavía lo resuelva (varios firmantes pendientes). Ver `used-link.util`.
+   */
+  readonly usedLink = signal<UsedLinkRecord | null>(null);
   /** true tras un POST /reject exitoso: el token queda revocado, no se recarga nada. */
   readonly declined = signal(false);
   readonly declineReasonEcho = signal('');
@@ -130,7 +135,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
   /** El PIN se escribe oculto (password) por privacidad; la lupa lo revela como en un login. */
   readonly pinRevealed = signal(false);
 
-  /** Pad de firma compartido (Draw/Type/Upload); solo montado en el paso 'sign'. */
+  /** Pad de firma compartido (Draw/Type/Upload); montado siempre, visible solo en el paso 'sign'. */
   private readonly pad = viewChild(SignaturePadComponent);
 
   /** Texto que el firmante escribe en cada campo `Text`, indexado por `fieldId` (P4). */
@@ -161,6 +166,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly firstName = computed(() => this.context()?.signerFullName.trim().split(/\s+/)[0] ?? '');
 
+  /** El email del cliente nunca se muestra completo: cualquiera con el enlace vería esta página. */
+  readonly maskedEmail = computed(() => maskEmail(this.context()?.signerEmail));
+
   /** Pasos vigentes: los gates opcionales desaparecen si la solicitud no los exige. */
   readonly steps = computed<WizardStep[]>(() => {
     const ctx = this.context();
@@ -188,6 +196,15 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly stepCount = computed(() => this.steps().length);
   readonly isFirstStep = computed(() => this.stepIndex() === 0);
   readonly isDone = computed(() => this.stepId() === 'done');
+
+  /** Revisión y firma muestran las hojas del documento: la tarjeta se ensancha en pantallas grandes. */
+  readonly wideLayout = computed(
+    () =>
+      !!this.context() &&
+      !this.blocked() &&
+      !this.declined() &&
+      (this.stepId() === 'review' || (this.stepId() === 'sign' && this.textFields().length > 0)),
+  );
 
   readonly nextLabel = computed(() => {
     switch (this.stepId()) {
@@ -271,11 +288,11 @@ export class SignPageComponent implements OnInit, OnDestroy {
   /** Cómo se le nombra el canal al firmante en la copy. */
   readonly otpChannelLabel = computed(() => channelLabel(this.otpMethod()));
 
-  /** A dónde llega el código (email visible; el teléfono no se expone en el contexto público). */
+  /** A dónde llega el código (email enmascarado; el teléfono no se expone en el contexto público). */
   readonly otpDestinationHint = computed(() => {
     switch (this.otpMethod()) {
       case 'EmailOtp':
-        return this.context()?.signerEmail ?? 'your email';
+        return this.context()?.signerEmail ? this.maskedEmail() : 'your email';
       case 'SmsOtp':
         return 'your phone by text message';
       case 'WhatsAppOtp':
@@ -313,8 +330,8 @@ export class SignPageComponent implements OnInit, OnDestroy {
       return {
         icon: 'checkmark-circle-outline',
         tone: 'success',
-        title: 'You already signed this document',
-        detail: 'Your signature is recorded. There is nothing left for you to do.',
+        title: 'This link has expired',
+        detail: 'You already signed this document. Your signature is recorded and there is nothing left for you to do.',
         showReceipt: true,
       };
     }
@@ -401,8 +418,23 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly requiredFieldCount = computed(() => this.fields().filter(f => f.isRequired).length);
 
+  /** Páginas distintas donde el preparador puso campos para este firmante. */
+  readonly fieldPageCount = computed(() => new Set(this.fields().map(f => f.page)).size);
+
+  /** La descripción del preparador puede ser larga: se muestra recortada con "Show more". */
+  readonly descriptionExpanded = signal(false);
+
   /** Campos de texto rellenables por el firmante (P4), ordenados por página. */
   readonly textFields = computed<PublicSignerFieldView[]>(() => this.fields().filter(f => f.kind === 'Text'));
+
+  /**
+   * Al firmar solo interesan las páginas donde hay algo que escribir (en el teléfono, las
+   * demás solo alargarían el scroll hasta el pad). La revisión muestra todas.
+   */
+  readonly fieldsOnTextPages = computed<PublicSignerFieldView[]>(() => {
+    const pages = new Set(this.textFields().map(f => f.page));
+    return this.fields().filter(f => pages.has(f.page));
+  });
 
   /** true si todos los campos de texto REQUERIDOS tienen valor (gate de la firma). */
   readonly requiredTextComplete = computed(() =>
@@ -418,7 +450,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly signedAtLabel = computed(() => {
     const evt = this.signedEvent();
-    return evt ? formatDateTime(evt.occurredAtUtc) : '';
+    const at = evt?.occurredAtUtc ?? this.signedAtLocal();
+    return at ? formatDateTime(at) : '';
+  });
+
+  /** Cuándo se usó el enlace en este dispositivo (pantalla de enlace expirado). */
+  readonly usedLinkAtLabel = computed(() => {
+    const at = this.usedLink()?.atUtc;
+    return at ? formatDateTime(at) : '';
   });
 
   /** Hash encadenado (HMAC) de la última fila: lo que hace verificable el acuse. */
@@ -446,10 +485,6 @@ export class SignPageComponent implements OnInit, OnDestroy {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
     }
-    if (this.redirectTimer !== null) {
-      clearInterval(this.redirectTimer);
-      this.redirectTimer = null;
-    }
   }
 
   async load(): Promise<void> {
@@ -460,6 +495,12 @@ export class SignPageComponent implements OnInit, OnDestroy {
     }
     this.loading.set(true);
     this.loadError.set(null);
+    const used = await readUsedLink(this.token);
+    if (used) {
+      this.usedLink.set(used);
+      this.loading.set(false);
+      return;
+    }
     try {
       const ctx = await firstValueFrom(this.api.getContext(this.token));
       this.applyContext(ctx);
@@ -652,36 +693,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (!ok) {
       return;
     }
+    // La página expira: se marca el enlace como usado (recargar muestra "expired") y NO se
+    // redirige a la raíz del host, que para un firmante externo es el login del staff.
+    this.signedAtLocal.set(new Date().toISOString());
     this.justSigned.set(true);
     this.stepId.set('done');
-    this.startRedirectCountdown();
+    await markLinkUsed(this.token, 'signed');
     await this.reloadContext();
     await this.loadAudit();
-  }
-
-  /** Tras completar, cuenta atrás y redirige al firmante al sitio de la oficina. */
-  private startRedirectCountdown(): void {
-    if (this.redirectTimer !== null) {
-      return;
-    }
-    this.redirectSeconds.set(SignPageComponent.RedirectDelaySeconds);
-    this.redirectTimer = setInterval(() => {
-      const left = this.redirectSeconds() - 1;
-      if (left <= 0) {
-        this.redirectNow();
-      } else {
-        this.redirectSeconds.set(left);
-      }
-    }, 1000);
-  }
-
-  /** Redirige ya (botón manual o al llegar a cero). Destino = raíz del host (sitio de la oficina). */
-  redirectNow(): void {
-    if (this.redirectTimer !== null) {
-      clearInterval(this.redirectTimer);
-      this.redirectTimer = null;
-    }
-    window.location.href = window.location.origin;
   }
 
   openReject(): void {
@@ -708,6 +727,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.isRejectOpen.set(false);
     this.declineReasonEcho.set(reason);
     this.declined.set(true);
+    await markLinkUsed(this.token, 'declined');
   }
 
   /** GET /verify-audit. Best-effort: si falla, el acuse queda vacío (no se inventa). */
@@ -803,7 +823,7 @@ function shortenHash(hash: string): string {
 
 /**
  * Normaliza cualquier data-URL de firma (dibujada, tecleada-rasterizada o una imagen subida
- * en otro formato) a un PNG recortado a su contenido visible. Recortar la transparencia evita
+ * en otro formato) a un PNG recortado a su contenido visible. Recortar el margen vacío evita
  * que el motor de sellado ajuste una firma diminuta dentro de un lienzo mayormente vacío. Si no
  * se detecta contenido (o el navegador no deja leer el píxel), cae al PNG completo sin romper.
  */
@@ -821,7 +841,7 @@ async function dataUrlToTrimmedPngBlob(dataUrl: string): Promise<Blob> {
   }
   sourceCtx.drawImage(image, 0, 0, width, height);
 
-  const bounds = alphaBounds(sourceCtx, width, height);
+  const bounds = inkBounds(sourceCtx, width, height);
   if (!bounds) {
     return blobFromCanvas(source);
   }
@@ -849,8 +869,12 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Caja delimitadora de los píxeles no transparentes; null si el lienzo está vacío o no legible. */
-function alphaBounds(
+/**
+ * Caja delimitadora de la "tinta": píxeles visibles que no son (casi) blancos. El pad
+ * entrega la firma aplanada sobre blanco opaco (PdfSharp pinta el alfa como negro), así
+ * que recortar solo por transparencia no recortaba nada. Null si no hay tinta o no es legible.
+ */
+function inkBounds(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -868,7 +892,10 @@ function alphaBounds(
   let found = false;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * 4 + 3] > 8) {
+      const i = (y * width + x) * 4;
+      const visible = data[i + 3] > 8;
+      const nearWhite = data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240;
+      if (visible && !nearWhite) {
         found = true;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
