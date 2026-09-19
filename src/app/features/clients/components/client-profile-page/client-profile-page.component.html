@@ -135,7 +135,7 @@
   <!--
     Contenido de la pestaña activa.
 
-    Overview e Info van sin diferir: son las dos que más se abren y las que reciben el
+    Overview e Info (Details y Family) van sin diferir: son las dos que más se abren y las que reciben el
     objeto completo, así que entrar a un cliente no debe esperar por ningún chunk. Las
     otras 11 se cargan la primera vez que se abren — antes las 15 pestañas viajaban en el
     chunk del perfil aunque solo miraras Overview.
@@ -158,11 +158,14 @@
       <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
         [canEditFiscal]="canEditFiscal()" (revealTaxId)="handleRevealTaxId($event)"
         (editFiscal)="openFiscalForm()" (edit)="openEditPanel()"></app-client-profile-info>
-      <!-- Hogar fiscal (cónyuge + dependientes): vive en Info junto al resto de los datos del cliente -->
-      <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()"
-        (saveRelation)="handleSaveRelation($event)"
-        (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
     </div>
+  }
+
+  <!-- Info ▸ Family: hogar fiscal (cónyuge + dependientes) -->
+  @if (activeTab() === 'family') {
+    <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()"
+      (saveRelation)="handleSaveRelation($event)"
+      (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
   }
 
   @defer (when activeTab() === 'work'; prefetch on idle) {

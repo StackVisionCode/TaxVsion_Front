@@ -43,6 +43,7 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 export type ClientProfileTabId =
   | 'overview'
   | 'info'
+  | 'family'
   | 'documents'
   | 'invoices'
   | 'work'
@@ -65,14 +66,21 @@ type ClientProfileNavEntry =
   | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
 
 /**
- * Se agrupan las tabs de Finance y Activity para no alargar la fila de
- * píldoras (12 tabs individuales no cabían sin scroll horizontal). Overview,
- * Info y Permissions quedan sueltas por ser las más consultadas o distintas
- * en naturaleza (administrativa) al resto.
+ * Se agrupan las tabs de Info, Finance y Activity para no alargar la fila de
+ * píldoras (12 tabs individuales no cabían sin scroll horizontal). Info agrupa
+ * los datos del cliente (Details) y su hogar fiscal (Family: cónyuge y
+ * dependientes). Overview y Portal quedan sueltas.
  */
 const PROFILE_NAV: ClientProfileNavEntry[] = [
   { kind: 'tab', id: 'overview', label: 'Overview' },
-  { kind: 'tab', id: 'info', label: 'Info' },
+  {
+    kind: 'group',
+    label: 'Info',
+    tabs: [
+      { id: 'info', label: 'Details' },
+      { id: 'family', label: 'Family' },
+    ],
+  },
   {
     kind: 'group',
     label: 'Finance',
