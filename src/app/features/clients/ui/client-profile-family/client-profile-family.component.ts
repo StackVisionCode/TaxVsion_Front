@@ -28,16 +28,9 @@ export interface SaveRelationPayload {
 }
 
 /**
- * Pestaña "Family" del perfil de cliente, cableada contra
- * `/customers/{id}/relations` — las **escrituras** son reales
- * (POST/PATCH/DELETE existen y funcionan).
- *
- * ⚠️ La **lectura** no: verificado contra el backend (2026-08-28) no hay
- * `GET` de relaciones, y `GET /customers/{id}` devuelve `CustomerResponse`,
- * que son solo escalares. Por eso el contenedor conserva en memoria lo
- * guardado en la sesión y pasa `sessionOnly` para que la UI lo diga en vez
- * de aparentar una lista persistida: recargar la página vacía la lista
- * aunque los datos sí quedaron en el servidor.
+ * Hogar fiscal (cónyuge + dependientes) del perfil de cliente, cableado contra
+ * `/customers/{id}/relations` (POST/PATCH/DELETE). La lectura llega en el
+ * detalle: `GET /customers/{id}` trae `relations` (no hay GET propio).
  *
  * `RelationResponse` NO separa first/last name (solo `displayName`), así que
  * al editar se pre-completa partiendo el nombre por el primer espacio — el
@@ -60,8 +53,6 @@ export class ClientProfileFamilyComponent implements OnChanges {
   @Input() client: ClientProfile | null = null;
   @Input() saving = false;
   @Input() saveError: string | null = null;
-  /** true = lo listado solo vive en memoria porque el backend no expone lectura de relaciones. */
-  @Input() sessionOnly = false;
 
   @Output() saveRelation = new EventEmitter<SaveRelationPayload>();
   @Output() deleteRelation = new EventEmitter<string>();

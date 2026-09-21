@@ -21,17 +21,21 @@ import { ClientProfile } from '../../models/client-profile.model';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { ClientItem } from '../../ui/client-table/client-table.component';
 import { ClientsStore } from '../../data-access/clients.store';
-import { RelationResponse, customerToClientProfile } from '../../data-access/clients.model';
+import { customerToClientProfile } from '../../data-access/clients.model';
 import { SaveRelationPayload } from '../../ui/client-profile-family/client-profile-family.component';
 import {
   ClientProfileContactDetailsComponent,
   SaveAddressPayload,
   SaveContactPayload,
 } from '../../ui/client-profile-contact-details/client-profile-contact-details.component';
-import { ClientFiscalFormComponent } from '../../ui/client-fiscal-form/client-fiscal-form.component';
+import {
+  ClientFiscalFormComponent,
+  FiscalSpouseDraft,
+  SaveFiscalPayload,
+} from '../../ui/client-fiscal-form/client-fiscal-form.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
-import { SetCustomerFiscalProfileRequest } from '../../data-access/clients.model';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, finalize, map, of, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -39,6 +43,7 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 export type ClientProfileTabId =
   | 'overview'
   | 'info'
+  | 'family'
   | 'documents'
   | 'invoices'
   | 'work'
@@ -46,7 +51,6 @@ export type ClientProfileTabId =
   | 'communication'
   | 'calls'
   | 'bank'
-  | 'family'
   | 'reminders'
   | 'mileage'
   | 'portal';
@@ -62,14 +66,21 @@ type ClientProfileNavEntry =
   | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
 
 /**
- * Se agrupan las tabs de Finance y Activity para no alargar la fila de
- * píldoras (12 tabs individuales no cabían sin scroll horizontal). Overview,
- * Info y Permissions quedan sueltas por ser las más consultadas o distintas
- * en naturaleza (administrativa) al resto.
+ * Se agrupan las tabs de Info, Finance y Activity para no alargar la fila de
+ * píldoras (12 tabs individuales no cabían sin scroll horizontal). Info agrupa
+ * los datos del cliente (Details) y su hogar fiscal (Family: cónyuge y
+ * dependientes). Overview y Portal quedan sueltas.
  */
 const PROFILE_NAV: ClientProfileNavEntry[] = [
   { kind: 'tab', id: 'overview', label: 'Overview' },
-  { kind: 'tab', id: 'info', label: 'Info' },
+  {
+    kind: 'group',
+    label: 'Info',
+    tabs: [
+      { id: 'info', label: 'Details' },
+      { id: 'family', label: 'Family' },
+    ],
+  },
   {
     kind: 'group',
     label: 'Finance',
@@ -88,7 +99,6 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
       { id: 'notes', label: 'Notes' },
       { id: 'communication', label: 'Communication' },
       { id: 'calls', label: 'Calls' },
-      { id: 'family', label: 'Family' },
       { id: 'reminders', label: 'Reminders' },
     ],
   },
@@ -217,50 +227,16 @@ export class ClientProfilePageComponent {
   readonly isFiscalFormOpen = signal(false);
   readonly savingFiscal = signal(false);
 
+  /** Cónyuge en ficha: el formulario fiscal lo precarga con "Married filing jointly". */
+  readonly spouseRelation = computed(
+    () => this.client()?.relations.find(relation => relation.relationshipKind === 'Spouse') ?? null,
+  );
+
   readonly savingRelation = signal(false);
   readonly relationError = signal<string | null>(null);
 
   /** Guardando una dirección o punto de contacto (deshabilita los forms mientras dura). */
   readonly savingContactDetails = signal(false);
-
-  /**
-   * Relaciones creadas/editadas en ESTA sesión.
-   *
-   * El backend expone `POST/PATCH/DELETE /customers/{id}/relations` pero
-   * **ningún GET**, y `GET /customers/{id}` devuelve `CustomerResponse` (solo
-   * escalares, sin `relations`). Sin esto el usuario guardaba un dependiente y
-   * lo veía desaparecer en el acto — `loadClient()` vuelve a pedir el detalle,
-   * que llega sin relaciones — sin saber si se había guardado o no.
-   *
-   * Se mantienen en memoria para que el trabajo de la sesión siga a la vista.
-   * La pestaña avisa explícitamente de que al recargar la página la lista se
-   * vacía aunque los datos SÍ quedaron guardados en el servidor.
-   */
-  readonly sessionRelations = signal<RelationResponse[]>([]);
-
-  /**
-   * `client` + lo guardado en la sesión, que es lo que ve la pestaña Family.
-   * Si el backend algún día devuelve `relations` en el detalle, lo del
-   * servidor manda y esto se vuelve un no-op sin tocar nada más.
-   */
-  readonly familyClient = computed<ClientProfile | null>(() => {
-    const client = this.client();
-    if (!client) {
-      return null;
-    }
-    const session = this.sessionRelations();
-    if (session.length === 0) {
-      return client;
-    }
-    const fromServer = new Set(client.relations.map(relation => relation.id));
-    return {
-      ...client,
-      relations: [...client.relations, ...session.filter(relation => !fromServer.has(relation.id))],
-    };
-  });
-
-  /** true = la lista de la pestaña Family solo existe en memoria (no hay GET de relaciones). */
-  readonly relationsAreSessionOnly = computed(() => (this.client()?.relations.length ?? 0) === 0);
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
@@ -274,8 +250,6 @@ export class ClientProfilePageComponent {
     effect(() => {
       const id = this.paramMap().get('id');
       if (id) {
-        // Otro cliente ⇒ lo acumulado en memoria no le pertenece.
-        this.sessionRelations.set([]);
         this.loadClient(id);
       }
     });
@@ -317,10 +291,10 @@ export class ClientProfilePageComponent {
   /**
    * Alta/edición de una relación (dependiente o cónyuge).
    *
-   * La respuesta del POST/PATCH **es** la fuente de verdad de lo que quedó
-   * guardado: no hay GET de relaciones al que volver a preguntar, así que se
-   * guarda en `sessionRelations` en vez de descartarla. Igual se recarga el
-   * cliente porque el alta puede tocar campos escalares del detalle.
+   * No se lee la respuesta: el PATCH responde 204 sin body (Angular emite `null`),
+   * y leer `saved.id` de ahí tumbaba la detección de cambios y dejaba el modal en
+   * "Saving…". El detalle (`GET /customers/{id}`) ya trae `relations`, así que
+   * basta con recargar el cliente.
    */
   handleSaveRelation(payload: SaveRelationPayload): void {
     const client = this.client();
@@ -329,13 +303,12 @@ export class ClientProfilePageComponent {
     }
     this.savingRelation.set(true);
     this.relationError.set(null);
-    const call = payload.id
+    const call: Observable<unknown> = payload.id
       ? this.store.updateRelation(client.id, payload.id, payload.req)
       : this.store.addRelation(client.id, payload.req);
     call.subscribe({
-      next: saved => {
+      next: () => {
         this.savingRelation.set(false);
-        this.sessionRelations.update(list => [...list.filter(relation => relation.id !== saved.id), saved]);
         this.loadClient(client.id);
       },
       error: err => {
@@ -355,7 +328,6 @@ export class ClientProfilePageComponent {
     this.store.deleteRelation(client.id, relationId).subscribe({
       next: () => {
         this.savingRelation.set(false);
-        this.sessionRelations.update(list => list.filter(relation => relation.id !== relationId));
         this.loadClient(client.id);
       },
       error: err => {
@@ -476,25 +448,62 @@ export class ClientProfilePageComponent {
     this.isFiscalFormOpen.set(false);
   }
 
-  handleSaveFiscal(req: SetCustomerFiscalProfileRequest): void {
+  /**
+   * Perfil fiscal y, con "Married filing jointly", el cónyuge: PUT fiscal-profile →
+   * POST/PATCH de la relación → PUT de su SSN (si se escribió). Si algo falla a mitad,
+   * se recarga igual el cliente: así el formulario adopta el cónyuge ya creado y el
+   * reintento hace PATCH en vez de duplicarlo.
+   */
+  handleSaveFiscal(payload: SaveFiscalPayload): void {
     const client = this.client();
     if (!client || this.savingFiscal()) {
       return;
     }
     this.savingFiscal.set(true);
-    this.store.setFiscalProfile(client.id, req).subscribe({
-      next: () => {
-        this.savingFiscal.set(false);
-        this.isFiscalFormOpen.set(false);
-        this.revealedTaxId.set(null); // el id cambió; no dejar un reveal viejo colgado
-        this.loadClient(client.id);
-        this.toast.success('Tax profile saved');
-      },
-      error: err => {
-        this.savingFiscal.set(false);
-        this.toast.error(toApiError(err).message);
-      },
-    });
+    this.store
+      .setFiscalProfile(client.id, payload.profile)
+      .pipe(
+        switchMap(() => this.saveFiscalSpouse(client.id, payload.spouse)),
+        finalize(() => this.savingFiscal.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.isFiscalFormOpen.set(false);
+          this.revealedTaxId.set(null); // el id cambió; no dejar un reveal viejo colgado
+          this.loadClient(client.id);
+          this.toast.success('Tax profile saved');
+        },
+        error: err => {
+          this.loadClient(client.id);
+          this.toast.error(toApiError(err).message);
+        },
+      });
+  }
+
+  private saveFiscalSpouse(customerId: string, spouse: FiscalSpouseDraft | null): Observable<unknown> {
+    if (!spouse) {
+      return of(null);
+    }
+    const { req, taxIdentifier } = spouse;
+    const relationId$: Observable<string | null> = !req
+      ? of(spouse.id)
+      : spouse.id
+        ? this.store.updateRelation(customerId, spouse.id, req).pipe(map(() => spouse.id))
+        : this.store.addRelation(customerId, req).pipe(map(created => created.id));
+    return relationId$.pipe(
+      switchMap(relationId =>
+        relationId && taxIdentifier
+          ? this.store.setRelationFiscalProfile(customerId, relationId, {
+              role: 'Spouse',
+              taxIdentifier,
+              // Se declara el año fiscal anterior al calendario (en 2026 se presenta el 2025).
+              taxYear: new Date().getFullYear() - 1,
+              qualifiesAsDependent: false,
+              livedWithTaxpayer: true,
+            })
+          : of(null),
+      ),
+    );
   }
 
   selectTab(id: ClientProfileTabId): void {

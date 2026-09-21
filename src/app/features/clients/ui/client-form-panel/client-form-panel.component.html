@@ -94,6 +94,13 @@
         </div>
 
         <div class="grid grid-cols-2 gap-3">
+          <!-- En edición el SSN se cambia desde "Tax profile": el PUT reemplaza el perfil fiscal entero -->
+          <div *ngIf="isEditMode(); else ssnField"
+            class="flex h-11 items-center gap-2 rounded-full border border-dashed border-gray-200 px-4 text-xs text-gray-400">
+            <ion-icon name="shield-checkmark-outline" class="shrink-0 text-sm"></ion-icon>
+            <span class="truncate">SSN is edited from Tax profile</span>
+          </div>
+          <ng-template #ssnField>
           <div>
             <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
               [ngClass]="taxErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
@@ -104,6 +111,7 @@
             </div>
             @if (taxErr()) { <p id="err-tax" class="field-err mt-1 px-4 text-xs text-red-600">{{ taxErr() }}</p> }
           </div>
+          </ng-template>
           <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
             <span class="text-sm text-gray-400">DOB</span>
             <input type="date" [ngModel]="dateOfBirth()" name="dateOfBirth" (ngModelChange)="dateOfBirth.set($event)"
@@ -129,6 +137,12 @@
         </div>
 
         <div class="grid grid-cols-2 gap-3">
+          <div *ngIf="isEditMode(); else einField"
+            class="flex h-11 items-center gap-2 rounded-full border border-dashed border-gray-200 px-4 text-xs text-gray-400">
+            <ion-icon name="shield-checkmark-outline" class="shrink-0 text-sm"></ion-icon>
+            <span class="truncate">EIN is edited from Tax profile</span>
+          </div>
+          <ng-template #einField>
           <div>
             <div class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
               [ngClass]="taxErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
@@ -139,6 +153,7 @@
             </div>
             @if (taxErr()) { <p id="err-tax" class="field-err mt-1 px-4 text-xs text-red-600">{{ taxErr() }}</p> }
           </div>
+          </ng-template>
           <div>
             <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 cursor-pointer transition-colors"
               [ngClass]="formationErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
@@ -155,7 +170,9 @@
         <div class="relative" data-dropdown="client-structure">
           <button type="button" (click)="toggleStructureDropdown()"
             class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-            <span>{{ businessStructure() }}</span>
+            <span [class.text-gray-400]="isEditMode() && !structureTouched()">
+              {{ isEditMode() && !structureTouched() ? 'Keep current structure' : businessStructure() }}
+            </span>
             <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
           </button>
           @if (isStructureOpen()) {
@@ -163,7 +180,7 @@
               <button *ngFor="let option of businessStructures" type="button" (click)="selectBusinessStructure(option)"
                 class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 {{ option }}
-                <ion-icon *ngIf="option === businessStructure()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
+                <ion-icon *ngIf="option === businessStructure() && (!isEditMode() || structureTouched())" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
               </button>
             </div>
           }

@@ -9,7 +9,7 @@
 
   <!-- Conversation list -->
   <div class="flex flex-col gap-1">
-    <button *ngFor="let conv of filteredConversations" type="button" (click)="select(conv.id)"
+    <button *ngFor="let conv of filteredConversations; trackBy: trackConversation" type="button" (click)="select(conv.id)"
       class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
       [ngClass]="conv.id === selectedId ? 'bg-brand-bold text-white' : 'hover:bg-gray-50 text-gray-700'">
       <div class="relative shrink-0">
