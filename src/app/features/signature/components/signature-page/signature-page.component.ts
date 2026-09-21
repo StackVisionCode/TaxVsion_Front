@@ -497,6 +497,10 @@ export class SignaturePageComponent {
 
   // ---------- Descargas (CloudStorage download-url) ----------
 
+  downloadOriginal(request: SignatureRequest): void {
+    this.openDownload(request.originalFileId ?? null, 'Original document');
+  }
+
   downloadSealed(request: SignatureRequest): void {
     this.openDownload(request.sealedFileId ?? null, 'Signed document');
   }

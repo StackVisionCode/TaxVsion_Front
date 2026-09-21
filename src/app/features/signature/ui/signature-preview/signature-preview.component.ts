@@ -24,6 +24,7 @@ export class SignaturePreviewComponent {
   @Input() sending = false;
   @Output() back = new EventEmitter<void>();
   @Output() send = new EventEmitter<SignatureRequest>();
+  @Output() downloadOriginal = new EventEmitter<SignatureRequest>();
   @Output() downloadSealed = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificate = new EventEmitter<SignatureRequest>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
@@ -101,7 +102,24 @@ export class SignaturePreviewComponent {
     }
   }
 
-  signerStatusLabel(status: SignerStatus): string {
+  /**
+   * Estado a mostrar por firmante: si la solicitud terminó (canceled/expired/rejected) y el firmante
+   * seguía pendiente, no se muestra "Pending" — se refleja el cierre de la solicitud.
+   */
+  displaySignerStatus(request: SignatureRequest, signer: Signer): SignerStatus | 'canceled' {
+    if (signer.status !== 'pending') {
+      return signer.status;
+    }
+    if (request.status === 'expired') {
+      return 'expired';
+    }
+    if (request.status === 'canceled' || request.status === 'rejected') {
+      return 'canceled';
+    }
+    return 'pending';
+  }
+
+  signerStatusLabel(status: SignerStatus | 'canceled'): string {
     switch (status) {
       case 'pending':
         return 'Pending';
@@ -111,10 +129,12 @@ export class SignaturePreviewComponent {
         return 'Rejected';
       case 'expired':
         return 'Expired';
+      case 'canceled':
+        return 'Canceled';
     }
   }
 
-  signerStatusIcon(status: SignerStatus): string {
+  signerStatusIcon(status: SignerStatus | 'canceled'): string {
     switch (status) {
       case 'pending':
         return 'hourglass-outline';
@@ -124,10 +144,12 @@ export class SignaturePreviewComponent {
         return 'close-circle-outline';
       case 'expired':
         return 'time-outline';
+      case 'canceled':
+        return 'ban-outline';
     }
   }
 
-  signerStatusColor(status: SignerStatus): string {
+  signerStatusColor(status: SignerStatus | 'canceled'): string {
     switch (status) {
       case 'pending':
         return 'text-orange-500';
@@ -137,11 +159,13 @@ export class SignaturePreviewComponent {
         return 'text-red-500';
       case 'expired':
         return 'text-amber-600';
+      case 'canceled':
+        return 'text-gray-400';
     }
   }
 
   /** Chip del firmante (reusa la paleta de estados de solicitud). */
-  signerChip(status: SignerStatus): string {
+  signerChip(status: SignerStatus | 'canceled'): string {
     switch (status) {
       case 'signed':
         return this.statusChip('completed');
@@ -151,11 +175,18 @@ export class SignaturePreviewComponent {
         return this.statusChip('expired');
       case 'pending':
         return this.statusChip('pending');
+      case 'canceled':
+        return this.statusChip('canceled');
     }
   }
 
   signedCount(request: SignatureRequest): number {
     return request.signers.filter(signer => signer.status === 'signed').length;
+  }
+
+  /** El documento original está disponible en cualquier estado mientras exista el archivo. */
+  hasOriginal(request: SignatureRequest): boolean {
+    return !!request.originalFileId;
   }
 
   hasSealed(request: SignatureRequest): boolean {

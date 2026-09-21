@@ -23,6 +23,11 @@
         <ion-icon [name]="sending ? 'hourglass-outline' : 'paper-plane-outline'" class="text-base"></ion-icon>
         {{ sending ? 'Sending…' : 'Send to signers' }}
       </button>
+      <button *ngIf="hasOriginal(req)" type="button" (click)="downloadOriginal.emit(req)"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+        <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+        Original document
+      </button>
       <button *ngIf="hasSealed(req)" type="button" (click)="downloadSealed.emit(req)"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="download-outline" class="text-base"></ion-icon>
@@ -106,9 +111,10 @@
             Resend
           </button>
           <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="signerChip(signer.status)">
-            <ion-icon [name]="signerStatusIcon(signer.status)" class="text-sm" [ngClass]="signerStatusColor(signer.status)"></ion-icon>
-            {{ signerStatusLabel(signer.status) }}
+            [ngClass]="signerChip(displaySignerStatus(req, signer))">
+            <ion-icon [name]="signerStatusIcon(displaySignerStatus(req, signer))" class="text-sm"
+              [ngClass]="signerStatusColor(displaySignerStatus(req, signer))"></ion-icon>
+            {{ signerStatusLabel(displaySignerStatus(req, signer)) }}
           </span>
         </div>
       </div>

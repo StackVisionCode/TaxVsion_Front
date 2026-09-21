@@ -115,6 +115,7 @@
     <ng-template #previewOnly>
       <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
         (send)="sendRequest($event)"
+        (downloadOriginal)="downloadOriginal($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
         (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>
