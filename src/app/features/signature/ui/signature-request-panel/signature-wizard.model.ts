@@ -66,6 +66,27 @@ export interface EditorSigner {
   language: SignerLanguage;
 }
 
+/** Campo sembrado al rehidratar un borrador: coordenadas NORMALIZADas [0..1] (el editor las pasa a px al render). */
+export interface EditorSeedField {
+  localId: string;
+  type: FieldType;
+  /** Página 1-based. */
+  page: number;
+  nx: number;
+  ny: number;
+  nw: number;
+  nh: number;
+  signerLocalId: string;
+  label?: string;
+}
+
+/** Estado con el que se siembra el editor al "continuar" un borrador existente. */
+export interface EditorSeed {
+  signers: EditorSigner[];
+  fields: EditorSeedField[];
+  rules: RequestRules;
+}
+
 /** Cliente elegido en el paso 1 (subset mock, alineado con ClientItem de la feature clients). */
 export interface WizardClient {
   id: string;

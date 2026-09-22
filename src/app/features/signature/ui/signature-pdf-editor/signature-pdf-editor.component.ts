@@ -15,6 +15,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import {
+  EditorSeed,
+  EditorSeedField,
   EditorSigner,
   FieldType,
   PlacedField,
@@ -137,6 +139,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
   @Input() document: WizardDocument | null = null;
   /** Clientes reales del tenant (GET /customers) para el select del modal "Add signer". */
   @Input() registeredClients: WizardClient[] = [];
+  /** Siembra al continuar un borrador: firmantes + campos + reglas ya existentes. */
+  @Input() seed: EditorSeed | null = null;
   @Output() fieldCountChange = new EventEmitter<number>();
 
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
@@ -215,14 +219,64 @@ export class SignaturePdfEditorComponent implements OnChanges {
   private drag: DragState | null = null;
   private seq = 0;
   private loadToken = 0;
+  /** true cuando se rehidrató desde un borrador: los firmantes vienen del seed, no del cliente. */
+  private seeded = false;
+  /** Campos del seed en espera de que rendericen las páginas (para pasarlos de [0..1] a px). */
+  private pendingSeedFields: EditorSeedField[] | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['client']) {
+    if (changes['seed']) {
+      this.applySeed();
+    }
+    // El seed ya trae el firmante cliente; en ese modo no lo re-sincronizamos desde `client`.
+    if (changes['client'] && !this.seeded) {
       this.syncClientSigner();
     }
     if (changes['document']) {
       void this.loadDocument();
     }
+  }
+
+  /** Rehidrata firmantes y reglas al instante; los campos esperan al render (ver loadDocument). */
+  private applySeed(): void {
+    const seed = this.seed;
+    if (!seed) {
+      return;
+    }
+    this.seeded = true;
+    this.signers.set(seed.signers);
+    this.rules.set(seed.rules);
+    this.activeSignerId.set(seed.signers[0]?.id ?? null);
+    this.pendingSeedFields = seed.fields;
+  }
+
+  /** Coloca los campos sembrados una vez conocidas las dimensiones px de cada página. */
+  private applyPendingSeedFields(): void {
+    const pending = this.pendingSeedFields;
+    if (!pending) {
+      return;
+    }
+    const placed: PlacedField[] = [];
+    for (const field of pending) {
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page) {
+        continue;
+      }
+      placed.push({
+        id: field.localId,
+        type: field.type,
+        page: field.page,
+        x: field.nx * page.width,
+        y: field.ny * page.height,
+        width: field.nw * page.width,
+        height: field.nh * page.height,
+        signerId: field.signerLocalId,
+        label: field.label,
+      });
+    }
+    this.pendingSeedFields = null;
+    this.fields.set(placed);
+    this.emitCount();
   }
 
   // ---------- firmantes ----------
@@ -744,6 +798,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
         return;
       }
       this.pages.set(pages);
+      // Continuar un borrador: ahora que hay dimensiones de página, colocamos los campos sembrados.
+      this.applyPendingSeedFields();
     } catch (err) {
       if (token !== this.loadToken) {
         return;

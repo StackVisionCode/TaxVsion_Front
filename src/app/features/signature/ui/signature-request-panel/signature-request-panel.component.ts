@@ -3,19 +3,32 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
   HostListener,
+  Input,
+  OnChanges,
   Output,
+  SimpleChanges,
   ViewChild,
   computed,
   inject,
   signal,
 } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
+import { SignatureClientPickerComponent } from '../signature-client-picker/signature-client-picker.component';
 import { SignatureWizardDocumentStepComponent } from '../signature-wizard-document-step/signature-wizard-document-step.component';
+import { pushRecentClient, readRecentClients } from '../../utils/recent-clients.util';
 import { SignatureWizardReviewStepComponent } from '../signature-wizard-review-step/signature-wizard-review-step.component';
 import { NormalizedPlacedField, SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
-import { EditorSigner, PlacedField, RequestRules, WizardClient, WizardDocument } from './signature-wizard.model';
+import {
+  EditorSeed,
+  EditorSigner,
+  PlacedField,
+  RequestRules,
+  WizardClient,
+  WizardDocument,
+} from './signature-wizard.model';
 import {
   SignatureCategory,
   TOKEN_EXPIRATION_DEFAULT_HOURS,
@@ -25,11 +38,13 @@ import {
   fieldTypeToKind,
 } from '../../data-access/signature.model';
 import {
+  DraftEditOriginal,
   SignatureStore,
   WizardRequestDraft,
   WizardSendState,
   emptySendState,
 } from '../../data-access/signature.store';
+import { buildDraftHydration } from '../../utils/draft-hydration.util';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -53,6 +68,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     CommonModule,
     FormsModule,
     SignatureWizardClientStepComponent,
+    SignatureClientPickerComponent,
     SignatureWizardDocumentStepComponent,
     SignatureWizardReviewStepComponent,
     SignaturePdfEditorComponent,
@@ -61,17 +77,35 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
   templateUrl: './signature-request-panel.component.html',
   styleUrl: './signature-request-panel.component.css',
 })
-export class SignatureRequestPanelComponent {
+export class SignatureRequestPanelComponent implements OnChanges {
+  /** Cuando viene un id, el wizard se abre para CONTINUAR ese borrador (rehidratado), no para crear uno. */
+  @Input() continueRequestId: string | null = null;
+
   @Output() closed = new EventEmitter<void>();
   /** El backend ya mandó los emails (POST send → 202): el padre solo refresca y cierra. */
   @Output() sent = new EventEmitter<void>();
+  /** Guardado como borrador sin enviar: el padre refresca la lista, avisa y cierra. */
+  @Output() saved = new EventEmitter<void>();
 
   @ViewChild('editor') private editor?: SignaturePdfEditorComponent;
 
   readonly store = inject(SignatureStore);
 
   readonly currentStep = signal<WizardStep>(1);
+  /** Rehidratando un borrador (fetch del detalle + bytes del PDF). */
+  readonly hydrating = signal(false);
+  readonly hydrateError = signal('');
+  /** true cuando el wizard se abrió para continuar un borrador (cambia títulos/CTA). */
+  readonly editingDraft = signal(false);
+  /** Siembra del editor al continuar un borrador (firmantes + campos + reglas). */
+  readonly editorSeed = signal<EditorSeed | null>(null);
+  /** Ids originales del borrador (para el diff al guardar/enviar). null = creación nueva. */
+  private original: DraftEditOriginal | null = null;
   readonly selectedClient = signal<WizardClient | null>(null);
+  /** Modal de búsqueda de cliente (vive en la raíz del panel, fuera de la tarjeta animada). */
+  readonly clientPickerOpen = signal(false);
+  /** Últimos clientes elegidos, para el acceso rápido del paso 1. */
+  readonly recentClients = signal<WizardClient[]>(readRecentClients());
   readonly selectedDocument = signal<WizardDocument | null>(null);
   readonly title = signal('');
   readonly category = signal<SignatureCategory>('Fiscal');
@@ -88,6 +122,9 @@ export class SignatureRequestPanelComponent {
   /** Progreso del envío multi-paso; sobrevive a fallos parciales para reintentar sin duplicar. */
   private sendState: WizardSendState = emptySendState();
   readonly sendError = signal('');
+
+  /** Guardando como borrador (sin enviar). */
+  readonly savingDraft = signal(false);
 
   /** Coreografía de envío (overlay a pantalla completa). */
   readonly sendPhase = signal<SendPhase>('idle');
@@ -146,8 +183,75 @@ export class SignatureRequestPanelComponent {
     );
   });
 
+  /** Guardar como borrador exige cliente, documento subido y un título válido; el resto es opcional. */
+  readonly canSaveDraft = computed(() => {
+    const titleLength = this.title().trim().length;
+    return (
+      this.selectedClient() !== null &&
+      !!this.selectedDocument()?.fileId &&
+      titleLength >= 3 &&
+      titleLength <= 300
+    );
+  });
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['continueRequestId'] && this.continueRequestId) {
+      void this.hydrateFromDraft(this.continueRequestId);
+    }
+  }
+
+  /**
+   * Reabre el wizard sobre un borrador existente: trae el detalle, reconstruye cliente/metadata,
+   * re-descarga los bytes del PDF y siembra el editor (firmantes + campos). El `sendState` queda
+   * pre-poblado para no re-crear nada; al guardar/enviar se calcula el diff (ver commitEditedDraft).
+   */
+  private async hydrateFromDraft(requestId: string): Promise<void> {
+    this.editingDraft.set(true);
+    this.hydrating.set(true);
+    this.hydrateError.set('');
+    try {
+      const detail = await firstValueFrom(this.store.getDetail(requestId));
+      const hydration = buildDraftHydration(detail);
+
+      this.selectedClient.set(hydration.client);
+      this.title.set(hydration.metadata.title);
+      this.category.set(hydration.metadata.category);
+      this.notes.set(hydration.metadata.description);
+      this.dueDate.set(hydration.metadata.dueDate);
+      this.editorSeed.set(hydration.seed);
+      this.original = hydration.original;
+      this.sendState = hydration.sendState;
+
+      // Bytes del PDF original para que el editor renderice el documento real (no el de muestra).
+      const url = await firstValueFrom(this.store.getDownloadUrl(detail.originalFileId));
+      const blob = await (await fetch(url)).blob();
+      this.selectedDocument.set({
+        id: detail.originalFileId,
+        name: `${detail.title}.pdf`,
+        kind: 'pdf',
+        size: '',
+        date: '',
+        blob,
+        fileId: detail.originalFileId,
+      });
+
+      this.currentStep.set(3);
+    } catch (err) {
+      this.hydrateError.set(err instanceof Error ? err.message : 'The draft could not be loaded.');
+    } finally {
+      this.hydrating.set(false);
+    }
+  }
+
   onClientSelected(client: WizardClient): void {
     this.selectedClient.set(client);
+    this.recentClients.set(pushRecentClient(this.recentClients(), client));
+  }
+
+  /** El picker devolvió un cliente: se elige y se cierra el modal. */
+  onClientPicked(client: WizardClient): void {
+    this.onClientSelected(client);
+    this.clientPickerOpen.set(false);
   }
 
   onDocumentSelected(doc: WizardDocument): void {
@@ -219,6 +323,43 @@ export class SignatureRequestPanelComponent {
     void this.runSend();
   }
 
+  /** Guarda el borrador sin enviarlo. Reusa `sendState`: si luego se envía, no se duplica nada. */
+  saveAsDraft(): void {
+    if (!this.canSaveDraft() || this.savingDraft() || this.isSending()) {
+      return;
+    }
+    // Congela lo que haya en el editor (que está montado desde el paso 1 y ya tiene al firmante
+    // cliente) sin importar el paso actual — si no, guardar desde el paso 2 dejaba el borrador SIN
+    // firmantes y "Continue editing" no mostraba el cliente.
+    if (this.editor) {
+      this.signersSnapshot.set(this.editor.getSigners());
+      this.fieldsSnapshot.set(this.editor.getFields());
+      this.normalizedFieldsSnapshot.set(this.editor.buildNormalizedFields());
+      this.rulesSnapshot.set(this.editor.getRules());
+    }
+    const draft = this.buildDraft();
+    if (!draft) {
+      return;
+    }
+    void this.runSaveDraft(draft);
+  }
+
+  private async runSaveDraft(draft: WizardRequestDraft): Promise<void> {
+    this.savingDraft.set(true);
+    this.sendError.set('');
+    try {
+      // Continuar (rehidratado) usa el commit con diff; crear nuevo usa saveDraft.
+      this.sendState = this.original
+        ? await this.store.commitEditedDraft(draft, this.sendState, this.original, false)
+        : await this.store.saveDraft(draft, this.sendState);
+      this.savingDraft.set(false);
+      this.saved.emit();
+    } catch (err) {
+      this.savingDraft.set(false);
+      this.sendError.set(err instanceof Error ? err.message : 'The draft could not be saved.');
+    }
+  }
+
   private async runSend(): Promise<void> {
     const draft = this.buildDraft();
     if (!draft) {
@@ -226,10 +367,13 @@ export class SignatureRequestPanelComponent {
     }
     this.sendError.set('');
     this.sendPhase.set('paper');
+    const onPhase = (phase: 'creating' | 'sending'): void =>
+      this.sendPhase.set(phase === 'creating' ? 'paper' : 'signing');
     try {
-      this.sendState = await this.store.sendWizard(draft, this.sendState, phase => {
-        this.sendPhase.set(phase === 'creating' ? 'paper' : 'signing');
-      });
+      // Continuar (rehidratado) usa el commit con diff; crear nuevo usa sendWizard.
+      this.sendState = this.original
+        ? await this.store.commitEditedDraft(draft, this.sendState, this.original, true, onPhase)
+        : await this.store.sendWizard(draft, this.sendState, onPhase);
       this.sendPhase.set('done');
       await this.delay(800);
       this.sendPhase.set('idle');

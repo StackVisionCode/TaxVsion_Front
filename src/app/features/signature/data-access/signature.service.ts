@@ -24,6 +24,7 @@ import {
   TemplateFieldCreatedResponse,
   TemplateListResult,
   TemplateSlotCreatedResponse,
+  UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
   ValidateDocumentResponse,
@@ -105,11 +106,24 @@ export class SignatureService {
     if (params.size) {
       query = query.set('size', params.size);
     }
+    if (params.editableOnly) {
+      query = query.set('editableOnly', true);
+    }
     return this.http.get<SignatureRequestListResult>(`${this.base}/requests`, { params: query });
   }
 
   getById(id: string): Observable<SignatureRequestDetail> {
     return this.http.get<SignatureRequestDetail>(`${this.base}/requests/${id}`);
+  }
+
+  /** PUT /signature/requests/{id} — edita la metadata de un borrador (Draft/Ready). */
+  update(id: string, body: UpdateSignatureRequestBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${id}`, body);
+  }
+
+  /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */
+  deleteRequest(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${id}`);
   }
 
   addSigner(requestId: string, body: AddSignerBody): Observable<SignerResponse> {

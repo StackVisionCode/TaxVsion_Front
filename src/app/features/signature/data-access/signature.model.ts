@@ -92,6 +92,10 @@ export interface SignatureRequestDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  sendSignedDocumentToSigners: boolean;
+  sendCertificateToSigners: boolean;
+  autoRemindersEnabled: boolean;
+  reminderIntervalHours: number;
   requiresPractitionerPin: boolean;
   practitionerPinSetAtUtc: string | null;
   tokenExpirationHours: number;
@@ -371,6 +375,22 @@ export interface CreateSignatureRequestBody {
   reminderIntervalHours?: number | null;
 }
 
+/**
+ * Edita la metadata de un borrador (PUT /signature/requests/{id}). El documento y GenerateCertificate
+ * no se editan (son decisiones de creación); el backend solo acepta esto en Draft/Ready.
+ */
+export interface UpdateSignatureRequestBody {
+  title: string;
+  description?: string | null;
+  category: SignatureCategory;
+  tokenExpirationHours: number;
+  // Opcionales (partial update): omitidos = el backend no toca entrega/reminders.
+  sendSignedDocumentToSigners?: boolean;
+  sendCertificateToSigners?: boolean;
+  autoRemindersEnabled?: boolean;
+  reminderIntervalHours?: number;
+}
+
 /** Idioma de los correos al firmante (backend Signer.Language). */
 export type SignerLanguage = 'Es' | 'En';
 
@@ -437,6 +457,8 @@ export interface ListSignatureRequestsParams {
   category?: SignatureCategory;
   page?: number;
   size?: number;
+  /** Solo borradores editables (Draft/Ready), para la pestaña Drafts. */
+  editableOnly?: boolean;
 }
 
 // ---------- Customers: el picker del wizard usa el DTO compartido @core/customers ----------
@@ -517,6 +539,10 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     certificateFileId: detail.certificateFileId,
     requiresPractitionerPin: detail.requiresPractitionerPin,
     practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,
+    // Un borrador solo es "enviable" cuando tiene al menos un campo de firma/iniciales colocado.
+    hasSignatureField: detail.signers.some(signer =>
+      signer.fields.some(f => f.kind === 'Signature' || f.kind === 'Initials'),
+    ),
   };
 }
 

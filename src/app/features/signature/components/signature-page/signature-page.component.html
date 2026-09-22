@@ -100,6 +100,8 @@
           (sendRequested)="sendRequest($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
           (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)" (preparerRequested)="openPreparerModal($event)"
+          (continueRequested)="openContinuePanel($event)"
+          (editRequested)="openEditModal($event)" (deleteRequested)="openDeleteModal($event)"
           (downloadSealedRequested)="downloadSealed($event)"
           (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
         <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
@@ -110,8 +112,8 @@
 
   <!-- Takeover: wizard de creación o vista previa (in-page, dentro del shell) -->
   <ng-template #takeoverView>
-    <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" (closed)="closePanel()"
-      (sent)="handleSent()"></app-signature-request-panel>
+    <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" [continueRequestId]="continueRequestId()"
+      (closed)="closePanel()" (sent)="handleSent()" (saved)="handleDraftSaved()"></app-signature-request-panel>
     <ng-template #previewOnly>
       <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
         (send)="sendRequest($event)"
@@ -284,6 +286,68 @@
     <button type="button" (click)="confirmSetPreparer()" [disabled]="actionBusy() || !isPreparerValid()"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
       {{ actionBusy() ? 'Saving…' : 'Save preparer' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Editar metadata de un borrador (Draft/Ready) -->
+<app-modal [isOpen]="editTarget() !== null" heading="Edit draft details"
+  subheading="Only unsent drafts can be edited" size="md" (closed)="closeEditModal()">
+  <div *ngIf="editTarget()" class="mt-4 flex flex-col gap-3">
+    <label class="text-xs font-medium text-gray-500">Title</label>
+    <input type="text" [ngModel]="editTitle()" (ngModelChange)="editTitle.set($event)" name="editTitle"
+      placeholder="Request title" maxlength="300"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    <p *ngIf="editTitle().trim().length > 0 && !isEditValid()" class="text-xs text-amber-700">
+      The title must be between 3 and 300 characters.
+    </p>
+
+    <label class="text-xs font-medium text-gray-500">Category</label>
+    <select [ngModel]="editCategory()" (ngModelChange)="editCategory.set($event)" name="editCategory"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+      <option *ngFor="let category of categories" [value]="category">{{ categoryLabel(category) }}</option>
+    </select>
+
+    <label class="text-xs font-medium text-gray-500">Expiration date <span class="text-gray-400">(optional)</span></label>
+    <input type="date" [ngModel]="editDueDate()" (ngModelChange)="editDueDate.set($event)" name="editDueDate"
+      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+
+    <label class="text-xs font-medium text-gray-500">Notes <span class="text-gray-400">(optional)</span></label>
+    <textarea rows="3" [ngModel]="editNotes()" (ngModelChange)="editNotes.set($event)" name="editNotes"
+      placeholder="Internal notes"
+      class="w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none"></textarea>
+
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button type="button" (click)="closeEditModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmEdit()" [disabled]="actionBusy() || !isEditValid()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Save changes' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Borrar un borrador en firme (solo Draft/Ready) -->
+<app-modal [isOpen]="deleteTarget() !== null" heading="Delete draft"
+  subheading="This permanently removes the draft" size="md" (closed)="closeDeleteModal()">
+  <div *ngIf="deleteTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      Delete <span class="font-semibold text-gray-900">{{ target.documentName }}</span>? This cannot be undone.
+    </p>
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button type="button" (click)="closeDeleteModal()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Keep draft
+    </button>
+    <button type="button" (click)="confirmDelete()" [disabled]="actionBusy()"
+      class="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Deleting…' : 'Delete draft' }}
     </button>
   </div>
 </app-modal>

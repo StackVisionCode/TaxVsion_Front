@@ -19,6 +19,7 @@ import {
   SignatureTemplateDetail,
   SlotBinding,
   TemplateSummary,
+  UpdateSignatureRequestBody,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -31,7 +32,8 @@ export const SIGNATURE_PAGE_SIZE = 8;
 const READY_POLL_MAX_ATTEMPTS = 10;
 const READY_POLL_INTERVAL_MS = 2000;
 
-export type SignatureStatusFilter = 'All' | ApiSignatureRequestStatus;
+// 'Drafts' = borradores editables (Draft+Ready) vía editableOnly; el resto mapea 1:1 al status del backend.
+export type SignatureStatusFilter = 'All' | 'Drafts' | ApiSignatureRequestStatus;
 
 // ---------- Draft del wizard (lo que el panel arma al enviar) ----------
 
@@ -107,6 +109,43 @@ export function emptySendState(): WizardSendState {
 }
 
 export type WizardSendPhase = 'creating' | 'sending';
+
+/** Ids originales (del backend) de un borrador rehidratado, para calcular qué borrar al editar. */
+export interface DraftEditOriginal {
+  signerBackendIds: string[];
+  fields: { editorLocalId: string; fieldId: string; signerBackendId: string }[];
+}
+
+export interface DraftEditPlan {
+  removeSignerBackendIds: string[];
+  removeFields: { signerBackendId: string; fieldId: string }[];
+}
+
+/**
+ * Diff puro: qué firmantes/campos del borrador original ya no están en la edición actual y hay que
+ * borrar. Un firmante presente = su localId sigue mapeado a un id de backend en el `state`; un campo
+ * cuyo firmante sobrevive pero cuyo localId desapareció se borra (si el firmante se borró, el backend
+ * borra sus campos en cascada, así que no se listan aquí).
+ */
+export function computeDraftEditPlan(
+  draft: WizardRequestDraft,
+  state: WizardSendState,
+  original: DraftEditOriginal,
+): DraftEditPlan {
+  const currentBackendIds = draft.signers
+    .map(signer => state.signerIdByLocal[signer.localId])
+    .filter((id): id is string => !!id);
+  const currentFieldLocalIds = new Set(draft.fields.map(field => field.localId));
+
+  return {
+    removeSignerBackendIds: original.signerBackendIds.filter(id => !currentBackendIds.includes(id)),
+    removeFields: original.fields
+      .filter(
+        field => currentBackendIds.includes(field.signerBackendId) && !currentFieldLocalIds.has(field.editorLocalId),
+      )
+      .map(field => ({ signerBackendId: field.signerBackendId, fieldId: field.fieldId })),
+  };
+}
 
 export interface SignatureStats {
   totalRequests: number;
@@ -207,7 +246,8 @@ export class SignatureStore {
     const filter = this._statusFilter();
     this.service
       .list({
-        status: filter === 'All' ? undefined : filter,
+        status: filter === 'All' || filter === 'Drafts' ? undefined : filter,
+        editableOnly: filter === 'Drafts',
         page: this._page(),
         size: SIGNATURE_PAGE_SIZE,
       })
@@ -275,6 +315,16 @@ export class SignatureStore {
 
   cancel(requestId: string, reason: string | null): Observable<void> {
     return this.service.cancel(requestId, reason).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** Edita la metadata de un borrador (Draft/Ready). */
+  updateRequest(requestId: string, body: UpdateSignatureRequestBody): Observable<void> {
+    return this.service.update(requestId, body).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** Borra en firme un borrador sin enviar. */
+  deleteRequest(requestId: string): Observable<void> {
+    return this.service.deleteRequest(requestId).pipe(tap(() => this.refreshAfterAction()));
   }
 
   extendExpiration(requestId: string, additionalHours: number): Observable<void> {
@@ -418,6 +468,11 @@ export class SignatureStore {
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
   getRequestUi(requestId: string): Observable<SignatureRequest> {
     return this.service.getById(requestId).pipe(map(detailToUiRequest));
+  }
+
+  /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
+  getDetail(requestId: string): Observable<SignatureRequestDetail> {
+    return this.service.getById(requestId);
   }
 
   /**
@@ -571,79 +626,100 @@ export class SignatureStore {
     onPhase?: (phase: WizardSendPhase) => void,
   ): Promise<WizardSendState> {
     try {
-      onPhase?.('creating');
-      if (!state.requestId) {
-        const created = await firstValueFrom(
-          this.service.create({
-            title: draft.title,
-            description: draft.description,
-            category: draft.category,
-            originalFileId: draft.originalFileId,
-            tokenExpirationHours: draft.tokenExpirationHours,
-            requiresSequentialSigning: draft.requiresSequentialSigning,
-            requiresConsent: draft.requiresConsent,
-            generateCertificate: draft.generateCertificate,
-            sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
-            sendCertificateToSigners: draft.sendCertificateToSigners,
-            autoRemindersEnabled: draft.autoRemindersEnabled,
-            reminderIntervalHours: draft.reminderIntervalHours,
-          }),
-        );
-        state.requestId = created.id;
-      }
-      const requestId = state.requestId;
-
-      // Firmantes en orden (el backend asigna `order` por inserción) — secuencial a propósito.
-      for (const signer of draft.signers) {
-        if (state.signerIdByLocal[signer.localId]) {
-          continue;
-        }
-        const created = await firstValueFrom(
-          this.service.addSigner(requestId, {
-            email: signer.email,
-            fullName: signer.fullName,
-            language: signer.language,
-            phoneNumber: signer.phone,
-            verificationMethod: signer.verificationMethod,
-          }),
-        );
-        state.signerIdByLocal[signer.localId] = created.id;
-      }
-
-      // Campos (coordenadas ya normalizadas [0..1], origen arriba-izquierda).
-      for (const field of draft.fields) {
-        if (state.postedFieldLocalIds.includes(field.localId)) {
-          continue;
-        }
-        const signerId = state.signerIdByLocal[field.signerLocalId];
-        if (!signerId) {
-          continue; // firmante eliminado entre reintentos: campo huérfano, se omite
-        }
-        await firstValueFrom(
-          this.service.placeField(requestId, {
-            signerId,
-            kind: field.kind,
-            page: field.page,
-            x: field.x,
-            y: field.y,
-            width: field.width,
-            height: field.height,
-            label: field.label,
-            isRequired: field.isRequired,
-          }),
-        );
-        state.postedFieldLocalIds.push(field.localId);
-      }
-
-      // Practitioner PIN (Form 8879): se fija ANTES de enviar, mientras la solicitud está Draft/Ready
-      // (el backend solo lo permite en esos estados). Opcional; idempotente por `state.pinSet`.
-      const signingPin = draft.signingPin?.trim();
-      if (signingPin && !state.pinSet) {
-        await firstValueFrom(this.service.setPractitionerPin(requestId, signingPin));
-        state.pinSet = true;
-      }
+      await this.materializeDraft(draft, state, onPhase);
 
       if (!state.sent) {
+        onPhase?.('sending');
+        await this.waitUntilReady(state.requestId!);
+        await firstValueFrom(this.service.send(state.requestId!));
+        state.sent = true;
+      }
+
+      this.refreshAfterAction();
+      return state;
+    } catch (err) {
+      if (err instanceof SendNotReadyError) {
+        throw err;
+      }
+      throw new Error(toApiError(err).message);
+    }
+  }
+
+  /**
+   * Guarda el borrador SIN enviarlo: create → firmantes → campos → PIN, y para. Reusa el mismo
+   * `WizardSendState` (idempotente por reintentos); el backend lo deja en Draft/Ready y el usuario
+   * lo envía luego desde la lista. Lanza Error con mensaje humano si algún paso falla.
+   */
+  async saveDraft(draft: WizardRequestDraft, state: WizardSendState): Promise<WizardSendState> {
+    try {
+      await this.materializeDraft(draft, state);
+      this.refreshAfterAction();
+      return state;
+    } catch (err) {
+      throw new Error(toApiError(err).message);
+    }
+  }
+
+  /**
+   * Guarda/envía un borrador REHIDRATADO (F4b). A diferencia de `sendWizard`, aquí ya existe la
+   * solicitud: se edita la metadata (PUT), se borran los firmantes/campos que el usuario quitó, se
+   * agregan los nuevos, se reordena y — si `send` — se envía. El `state` sembrado hace que
+   * `materializeDraft` no re-cree ni re-agregue lo que ya existía.
+   *
+   * Limitaciones (sin endpoint en el backend): editar canal/teléfono de un firmante existente o
+   * mover un campo ya colocado no se persiste; sí add/remove/reorder de firmantes, add/remove de
+   * campos y la metadata.
+   */
+  async commitEditedDraft(
+    draft: WizardRequestDraft,
+    state: WizardSendState,
+    original: DraftEditOriginal,
+    send: boolean,
+    onPhase?: (phase: WizardSendPhase) => void,
+  ): Promise<WizardSendState> {
+    const requestId = state.requestId;
+    if (!requestId) {
+      throw new Error('The draft to edit no longer exists.');
+    }
+    try {
+      onPhase?.('creating');
+      // Metadata + flags de entrega/reminders (para que los toggles editados al continuar se guarden).
+      // GenerateCertificate es inmutable tras crear; SetCertificateDelivery solo acepta true si aquél
+      // está activo, pero el editor no deja activar "send certificate" sin "generate", así que es coherente.
+      await firstValueFrom(
+        this.service.update(requestId, {
+          title: draft.title,
+          description: draft.description,
+          category: draft.category,
+          tokenExpirationHours: draft.tokenExpirationHours,
+          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendCertificateToSigners: draft.sendCertificateToSigners,
+          autoRemindersEnabled: draft.autoRemindersEnabled,
+          reminderIntervalHours: draft.reminderIntervalHours,
+        }),
+      );
+
+      // Bajas de lo que el usuario quitó (los campos de un firmante borrado caen en cascada).
+      const plan = computeDraftEditPlan(draft, state, original);
+      for (const field of plan.removeFields) {
+        await firstValueFrom(this.service.removeField(requestId, field.signerBackendId, field.fieldId));
+      }
+      for (const signerId of plan.removeSignerBackendIds) {
+        await firstValueFrom(this.service.removeSigner(requestId, signerId));
+      }
+
+      // Altas nuevas (firmantes/campos/PIN); lo existente se omite por el state sembrado.
+      await this.materializeDraft(draft, state);
+
+      // Reordena al orden final (idempotente).
+      const orderedIds = draft.signers
+        .map(signer => state.signerIdByLocal[signer.localId])
+        .filter((id): id is string => !!id);
+      if (orderedIds.length > 0) {
+        await firstValueFrom(this.service.reorderSigners(requestId, orderedIds));
+      }
+
+      if (send && !state.sent) {
         onPhase?.('sending');
         await this.waitUntilReady(requestId);
         await firstValueFrom(this.service.send(requestId));
@@ -657,6 +733,85 @@ export class SignatureStore {
         throw err;
       }
       throw new Error(toApiError(err).message);
+    }
+  }
+
+  /** Pasos compartidos por envío y guardar-borrador: create → firmantes → campos → PIN (todo menos send). */
+  private async materializeDraft(
+    draft: WizardRequestDraft,
+    state: WizardSendState,
+    onPhase?: (phase: WizardSendPhase) => void,
+  ): Promise<void> {
+    onPhase?.('creating');
+    if (!state.requestId) {
+      const created = await firstValueFrom(
+        this.service.create({
+          title: draft.title,
+          description: draft.description,
+          category: draft.category,
+          originalFileId: draft.originalFileId,
+          tokenExpirationHours: draft.tokenExpirationHours,
+          requiresSequentialSigning: draft.requiresSequentialSigning,
+          requiresConsent: draft.requiresConsent,
+          generateCertificate: draft.generateCertificate,
+          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendCertificateToSigners: draft.sendCertificateToSigners,
+          autoRemindersEnabled: draft.autoRemindersEnabled,
+          reminderIntervalHours: draft.reminderIntervalHours,
+        }),
+      );
+      state.requestId = created.id;
+    }
+    const requestId = state.requestId;
+
+    // Firmantes en orden (el backend asigna `order` por inserción) — secuencial a propósito.
+    for (const signer of draft.signers) {
+      if (state.signerIdByLocal[signer.localId]) {
+        continue;
+      }
+      const created = await firstValueFrom(
+        this.service.addSigner(requestId, {
+          email: signer.email,
+          fullName: signer.fullName,
+          language: signer.language,
+          phoneNumber: signer.phone,
+          verificationMethod: signer.verificationMethod,
+        }),
+      );
+      state.signerIdByLocal[signer.localId] = created.id;
+    }
+
+    // Campos (coordenadas ya normalizadas [0..1], origen arriba-izquierda).
+    for (const field of draft.fields) {
+      if (state.postedFieldLocalIds.includes(field.localId)) {
+        continue;
+      }
+      const signerId = state.signerIdByLocal[field.signerLocalId];
+      if (!signerId) {
+        continue; // firmante eliminado entre reintentos: campo huérfano, se omite
+      }
+      await firstValueFrom(
+        this.service.placeField(requestId, {
+          signerId,
+          kind: field.kind,
+          page: field.page,
+          x: field.x,
+          y: field.y,
+          width: field.width,
+          height: field.height,
+          label: field.label,
+          isRequired: field.isRequired,
+        }),
+      );
+      state.postedFieldLocalIds.push(field.localId);
+    }
+
+    // Practitioner PIN (Form 8879): se fija mientras la solicitud está Draft/Ready (el backend solo lo
+    // permite ahí). Opcional; idempotente por `state.pinSet`.
+    const signingPin = draft.signingPin?.trim();
+    if (signingPin && !state.pinSet) {
+      await firstValueFrom(this.service.setPractitionerPin(requestId, signingPin));
+      state.pinSet = true;
     }
   }
 

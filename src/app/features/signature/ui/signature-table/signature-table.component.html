@@ -67,6 +67,16 @@
                 <ion-icon name="eye-outline" class="text-base"></ion-icon>
                 View
               </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onContinueClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
+                <ion-icon name="brush-outline" class="text-base"></ion-icon>
+                Continue editing
+              </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onEditClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+                Edit details
+              </button>
               <button *ngIf="canSendRow(request)" type="button" (click)="onSendClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
                 <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
@@ -108,6 +118,11 @@
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
                 <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
                 Cancel request
+              </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onDeleteClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                Delete draft
               </button>
             </div>
           </div>
