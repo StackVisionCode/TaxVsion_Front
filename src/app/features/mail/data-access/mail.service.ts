@@ -57,10 +57,14 @@ export class MailService {
    * `returnUrl` (origen de ESTE subdominio del tenant) para que el callback de OAuth devuelva el
    * navegador acá — donde el usuario está logueado — y no a un dominio central fijo.
    */
-  initiateOAuthConnect(providerCode: 'Gmail' | 'Graph'): Observable<InitiateOAuthConnectResult> {
+  initiateOAuthConnect(
+    providerCode: 'Gmail' | 'Graph',
+    asOffice = false,
+  ): Observable<InitiateOAuthConnectResult> {
     return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, {
       providerCode,
       returnUrl: window.location.origin,
+      asOffice,
     });
   }
 

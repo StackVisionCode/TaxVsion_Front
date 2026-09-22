@@ -38,6 +38,7 @@ import {
   plainTextToHtml,
 } from './mail.model';
 import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
+import { ConnectorsCapabilities } from './connectors-permissions';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
 export type MailFolderId = 'conversations' | 'sent' | 'archived' | 'drafts' | 'trash';
@@ -131,6 +132,14 @@ export class MailStore {
   private readonly uploads = inject(CloudStorageUploadService);
   private readonly auth = inject(AuthService);
   private readonly mailSocket = inject(MailSocketService);
+  private readonly caps = inject(ConnectorsCapabilities);
+
+  // ---------- Capacidades de conexión (Office vs Personal) ----------
+
+  /** Conectar/administrar el buzón de oficina (compartido) — exige connectors.accounts.write. */
+  readonly canManageOffice = this.caps.canManageOffice;
+  /** Conectar/administrar el buzón personal propio — exige connect_own (o write). */
+  readonly canConnectOwn = this.caps.canConnectOwn;
 
   // ---------- Identidad del usuario (guía la conexión de buzón) ----------
 
@@ -179,6 +188,25 @@ export class MailStore {
     return this.usableAccounts().some(account => account.emailAddress.trim().toLowerCase() === email);
   });
 
+  /**
+   * Buzón de OFICINA (compartido) del tenant, si existe. El list del backend lo devuelve a todos
+   * (OwnerUserId null es visible para cualquiera del tenant), así que esto se puebla también para
+   * empleados sin permiso de administrarlo. Hay como mucho uno (el admin conecta un solo buzón).
+   */
+  readonly officeAccount = computed(() => this._accounts().find(account => account.isOffice) ?? null);
+  /**
+   * Buzón PERSONAL del usuario, si existe. El list del backend scopea a oficina + propios, así que
+   * cualquier cuenta no-oficina de la lista es la del propio usuario.
+   */
+  readonly myAccount = computed(() => this._accounts().find(account => !account.isOffice) ?? null);
+  /** ¿El usuario ya conectó su buzón personal? (no queda nada personal por conectar). */
+  readonly myMailboxConnected = computed(() => this.myAccount() !== null);
+
+  /** ¿Puede administrar (reauth/desconectar) esta cuenta? Oficina → write; personal → propio con connect_own. */
+  canManageAccount(account: MailAccount): boolean {
+    return account.isOffice ? this.canManageOffice() : this.canConnectOwn();
+  }
+
   private readonly _activeAccountId = signal<string | null>(null);
   readonly activeAccountId = this._activeAccountId.asReadonly();
   readonly activeAccount = computed(
@@ -217,15 +245,24 @@ export class MailStore {
   // El backend acepta `term`, así que la búsqueda es server-side: escala a cualquier cantidad de
   // clientes sin traerlos todos al DOM. `_customers` (boot) queda solo para el nombre por defecto.
   private readonly _customerQuery = signal('');
-  private readonly _selectedCustomerName = signal<string | null>(null);
+  private readonly _selectedCustomer = signal<MailCustomerSummary | null>(null);
   private readonly _customerResults = signal<MailCustomerSummary[]>([]);
   private readonly _customerSearchLoading = signal(false);
   private readonly _customerSearch$ = new Subject<string>();
 
+  /** Clientes elegidos recientemente (persistidos en localStorage): cambiar de bandeja en un clic. */
+  private static readonly RECENTS_KEY = 'mail.recentCustomers';
+  private static readonly RECENTS_MAX = 6;
+  private readonly _recentCustomers = signal<MailCustomerSummary[]>(this.loadRecentCustomers());
+
   readonly customerQuery = this._customerQuery.asReadonly();
-  readonly selectedCustomerName = this._selectedCustomerName.asReadonly();
+  /** Cliente activo completo (nombre + email + avatar), para el encabezado del selector. */
+  readonly selectedCustomer = this._selectedCustomer.asReadonly();
+  /** Nombre del cliente activo (compat con lo existente). */
+  readonly selectedCustomerName = computed(() => this._selectedCustomer()?.displayName ?? null);
   readonly customerResults = this._customerResults.asReadonly();
   readonly customerSearchLoading = this._customerSearchLoading.asReadonly();
+  readonly recentCustomers = this._recentCustomers.asReadonly();
 
   // ---------- Autocompletar destinatarios del composer (To/Cc) ----------
   // Stream aparte del anterior: el del rail fija el cliente DUEÑO del hilo, mientras que este
@@ -421,12 +458,37 @@ export class MailStore {
     }
   }
 
-  /** Elige un cliente del typeahead: fija id + nombre, limpia el buscador y carga sus hilos. */
+  /** Elige un cliente del typeahead: fija el cliente activo, lo sube a recientes y carga sus hilos. */
   pickCustomer(customer: MailCustomerSummary): void {
-    this._selectedCustomerName.set(customer.displayName);
+    this._selectedCustomer.set(customer);
+    this.pushRecentCustomer(customer);
     this._customerQuery.set('');
     this._customerResults.set([]);
     this.selectCustomer(customer.id);
+  }
+
+  /** Sube un cliente al tope de recientes (dedupe por id, cap RECENTS_MAX) y persiste. */
+  private pushRecentCustomer(customer: MailCustomerSummary): void {
+    const next = [customer, ...this._recentCustomers().filter(c => c.id !== customer.id)].slice(
+      0,
+      MailStore.RECENTS_MAX,
+    );
+    this._recentCustomers.set(next);
+    try {
+      localStorage.setItem(MailStore.RECENTS_KEY, JSON.stringify(next));
+    } catch {
+      // Modo privado / storage bloqueado: recientes es solo una conveniencia, se ignora.
+    }
+  }
+
+  private loadRecentCustomers(): MailCustomerSummary[] {
+    try {
+      const raw = localStorage.getItem(MailStore.RECENTS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as MailCustomerSummary[]) : [];
+      return Array.isArray(parsed) ? parsed.filter(c => c && c.id && c.displayName) : [];
+    } catch {
+      return [];
+    }
   }
 
   /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
@@ -469,8 +531,12 @@ export class MailStore {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
         if (!this._selectedCustomerId() && customers.items.length > 0) {
-          this._selectedCustomerId.set(customers.items[0].id);
-          this._selectedCustomerName.set(customers.items[0].displayName);
+          // Arranca en el cliente reciente más reciente si sigue existiendo; si no, el primero.
+          const recent = this._recentCustomers()[0];
+          const initial =
+            (recent && customers.items.find(c => c.id === recent.id)) ?? recent ?? customers.items[0];
+          this._selectedCustomerId.set(initial.id);
+          this._selectedCustomer.set(initial);
         }
         if (this._selectedCustomerId() && usable.length > 0) {
           this.loadThreads(true);
@@ -510,14 +576,17 @@ export class MailStore {
 
   // ---------- Conectar buzón ----------
 
-  /** POST /connectors/accounts y redirección FULL-PAGE al consentimiento de Google/Microsoft. */
-  connectMailbox(provider: 'Gmail' | 'Graph'): void {
+  /**
+   * POST /connectors/accounts y redirección FULL-PAGE al consentimiento de Google/Microsoft.
+   * `asOffice` = conectar el buzón de oficina (compartido); false = el buzón personal del usuario.
+   */
+  connectMailbox(provider: 'Gmail' | 'Graph', asOffice = false): void {
     if (this._connectBusy()) {
       return;
     }
     this._connectBusy.set(provider);
     this._connectError.set(null);
-    this.service.initiateOAuthConnect(provider).subscribe({
+    this.service.initiateOAuthConnect(provider, asOffice).subscribe({
       next: result => {
         // No se limpia el busy: el navegador abandona la app hacia el proveedor.
         window.location.assign(result.authorizationUrl);

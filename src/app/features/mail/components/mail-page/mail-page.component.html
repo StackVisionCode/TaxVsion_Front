@@ -44,38 +44,64 @@
       </button>
     </div>
 
-    <!-- Ya hay buzón para el email de login: el guard solo permite conectar el propio login, así que no
-         queda nada por conectar — se muestra solo estado + desconectar, sin el hero de conexión. -->
-    <div *ngIf="store.loginMailboxConnected()" class="text-center">
-      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
-        <ion-icon name="mail-open-outline" class="text-2xl text-emerald-600"></ion-icon>
-      </span>
-      <h2 class="mt-4 text-xl font-bold text-gray-900">Your mailbox</h2>
-      <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
-        Your mailbox is connected. Check its sync status below, or disconnect it.
-      </p>
+    <!-- Nada por conectar: o ya están conectados los buzones a los que este usuario tiene acceso,
+         o no tiene permiso para conectar ninguno. -->
+    <div *ngIf="nothingToConnect()" class="text-center">
+      <ng-container *ngIf="!noConnectPermission()">
+        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+          <ion-icon name="mail-open-outline" class="text-2xl text-emerald-600"></ion-icon>
+        </span>
+        <h2 class="mt-4 text-xl font-bold text-gray-900">You're all set</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+          {{ connectingOffice() ? 'The office mailbox is connected.' : 'Your mailbox is connected.' }}
+          To connect a different one, disconnect the current mailbox below first.
+        </p>
+      </ng-container>
+      <ng-container *ngIf="noConnectPermission()">
+        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+          <ion-icon name="lock-closed-outline" class="text-2xl text-gray-400"></ion-icon>
+        </span>
+        <h2 class="mt-4 text-xl font-bold text-gray-900">No mailbox yet</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+          You don't have permission to connect a mailbox. Ask an administrator to connect the office
+          mailbox, or to grant you access to connect your own.
+        </p>
+      </ng-container>
     </div>
 
-    <!-- Sin buzón para el email de login todavía: flujo de conexión completo -->
-    <ng-container *ngIf="!store.loginMailboxConnected()">
-    <div class="text-center">
-      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
-        <ion-icon name="mail-outline" class="text-2xl text-brand-bold"></ion-icon>
-      </span>
-      <h2 class="mt-4 text-xl font-bold text-gray-900">Connect your mailbox</h2>
-      <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
-        Mail reads and sends through <span class="font-semibold text-gray-700">your own</span> email account.
-        You can only connect the address you signed in with; nothing is stored until you approve it.
-      </p>
+    <!-- Hay una vía por conectar (según permiso: admin→oficina, empleado→personal) -->
+    <ng-container *ngIf="!nothingToConnect()">
 
-      <!-- Recomendación según el dominio del email de login -->
-      <div *ngIf="store.loginEmail() as email"
-        class="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 rounded-2xl bg-gray-50 px-4 py-2.5 text-sm">
-        <ion-icon name="person-circle-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
-        <span class="min-w-0 truncate text-gray-600">
-          {{ email }} · looks like <span class="font-semibold text-gray-800">{{ store.providerDetection().label }}</span>
-        </span>
-      </div>
+    <!-- Hero: copy según la vía activa -->
+    <div class="text-center">
+      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
+        [ngClass]="connectingOffice() ? 'bg-amber-100' : 'bg-indigo-100'">
+        <ion-icon [name]="connectingOffice() ? 'business-outline' : 'mail-outline'" class="text-2xl"
+          [ngClass]="connectingOffice() ? 'text-amber-600' : 'text-brand-bold'"></ion-icon>
+      </span>
+      <ng-container *ngIf="connectingOffice(); else personalHero">
+        <h2 class="mt-4 text-xl font-bold text-gray-900">Connect the office mailbox</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+          The <span class="font-semibold text-gray-700">shared</span> mailbox your team sends from
+          (e.g. office&#64;yourfirm.com). It can be any address — nothing is stored until you approve it.
+        </p>
+      </ng-container>
+      <ng-template #personalHero>
+        <h2 class="mt-4 text-xl font-bold text-gray-900">Connect your mailbox</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+          Mail reads and sends through <span class="font-semibold text-gray-700">your own</span> email account.
+          You can only connect the address you signed in with; nothing is stored until you approve it.
+        </p>
+
+        <!-- Recomendación según el dominio del email de login (solo aplica al buzón personal) -->
+        <div *ngIf="store.loginEmail() as email"
+          class="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 rounded-2xl bg-gray-50 px-4 py-2.5 text-sm">
+          <ion-icon name="person-circle-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
+          <span class="min-w-0 truncate text-gray-600">
+            {{ email }} · looks like <span class="font-semibold text-gray-800">{{ store.providerDetection().label }}</span>
+          </span>
+        </div>
+      </ng-template>
     </div>
 
     <!-- OAuth: solo el proveedor del dominio detectado (ambos solo si es dominio propio: Google Workspace vs M365 no se distinguen) -->
@@ -136,7 +162,8 @@
       </div>
       <app-mail-connect-manual
         [loginEmail]="store.loginEmail()"
-        [preset]="store.providerDetection().imapPreset"
+        [preset]="manualPreset()"
+        [asOffice]="connectingOffice()"
         [providerLabel]="store.providerDetection().label"
         [busy]="store.manualConnecting()"
         [error]="store.manualError()"
@@ -153,14 +180,22 @@
         <div *ngFor="let account of store.accounts()"
           class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
           <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-gray-900">{{ account.emailAddress }}</p>
+            <p class="flex items-center gap-2 truncate text-sm font-medium text-gray-900">
+              <span class="truncate">{{ account.emailAddress }}</span>
+              <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                [ngClass]="account.isOffice ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-brand-bold'">
+                {{ mailboxKindLabel(account) }}
+              </span>
+            </p>
             <p class="truncate text-xs text-gray-400">
               {{ account.providerCode }} · {{ account.status }}
               <span *ngIf="account.status === 'Connected'" class="text-amber-600">· not receiving mail yet</span>
               <span *ngIf="account.status === 'Active'" class="text-emerald-600">· syncing</span>
             </p>
           </div>
-          <div class="flex shrink-0 items-center gap-2">
+          <!-- Acciones solo para quien puede administrar el buzón (oficina→admin; personal→su dueño con
+               connect_own). Revocar connect_own deja el buzón usable pero sin reauth/desconectar acá. -->
+          <div *ngIf="canManageAccount(account)" class="flex shrink-0 items-center gap-2">
             <button *ngIf="canReauth(account.status)" type="button" (click)="reauthAccount(account.id)"
               [disabled]="!!store.reauthBusyId() || !!store.disconnectBusyId()"
               class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
@@ -179,7 +214,7 @@
     <div class="mt-6 text-center">
       <button type="button" (click)="reloadAccounts()"
         class="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
-        {{ store.loginMailboxConnected() ? 'Refresh status' : 'Already connected? Refresh' }}
+        {{ store.hasMailbox() ? 'Refresh status' : 'Already connected? Refresh' }}
       </button>
     </div>
   </div>
@@ -243,55 +278,112 @@
           (composeClicked)="openCompose()"></app-mail-folder-list>
       </div>
 
-      <!-- Cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un customer.
-           El rail solo muestra la fila del cliente activo; al pulsarla aparece el typeahead
-           server-side (no un <select> con tope de 200) y se repliega al elegir. -->
+      <!-- Selector de cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un cliente.
+           Combobox (no <select>): encabezado con el cliente activo → popover con búsqueda server-side,
+           recientes y navegación por teclado (↑/↓/Enter/Esc). -->
       <div class="mt-5">
+        <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
+
+        <!-- Encabezado: cliente activo (avatar + nombre + email) -->
         <button *ngIf="!customerPickerOpen()" type="button" (click)="openCustomerPicker()"
-          class="flex h-10 w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-left transition-colors hover:bg-gray-50">
-          <ion-icon name="person-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
-          <span class="min-w-0 flex-1 truncate text-sm"
-            [ngClass]="store.selectedCustomerName() ? 'text-gray-700' : 'text-gray-500'">
-            {{ store.selectedCustomerName() || 'Select a client' }}
+          class="mt-2 flex w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50">
+          <span *ngIf="store.selectedCustomer() as c; else noClientAvatar"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+            [ngClass]="avatarColor(c.displayName)">{{ avatarInitials(c.displayName) }}</span>
+          <ng-template #noClientAvatar>
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100">
+              <ion-icon name="person-outline" class="text-base text-gray-400"></ion-icon>
+            </span>
+          </ng-template>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold"
+              [ngClass]="store.selectedCustomer() ? 'text-gray-900' : 'text-gray-500'">
+              {{ store.selectedCustomerName() || 'Select a client' }}
+            </span>
+            <span *ngIf="store.selectedCustomer()?.primaryEmail as email" class="block truncate text-[11px] text-gray-400">{{ email }}</span>
           </span>
-          <ion-icon name="chevron-down-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
+          <ion-icon name="chevron-expand-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
         </button>
 
-        <div *ngIf="customerPickerOpen()" class="relative">
+        <!-- Popover: búsqueda + recientes/resultados -->
+        <div *ngIf="customerPickerOpen()" class="relative mt-2">
           <ion-icon name="search-outline" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
           <input #customerInput id="mailCustomer" type="text" name="mailCustomerSearch" autocomplete="off"
             aria-label="Search a client" [ngModel]="store.customerQuery()" (ngModelChange)="onCustomerQuery($event)"
             (blur)="closeCustomerPickerSoon()" (keydown.escape)="closeCustomerPicker()"
-            [placeholder]="store.selectedCustomerName() || 'Search a client…'"
-            class="h-10 w-full rounded-full border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder-gray-500 focus:border-gray-300 focus:outline-none transition-colors" />
+            (keydown.arrowDown)="$event.preventDefault(); moveHighlight(1)"
+            (keydown.arrowUp)="$event.preventDefault(); moveHighlight(-1)"
+            (keydown.enter)="$event.preventDefault(); pickHighlighted()"
+            placeholder="Search clients by name or email…"
+            class="h-10 w-full rounded-2xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder-gray-500 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold transition-colors" />
 
-          <!-- Dropdown de resultados (server-side) -->
-          <div *ngIf="store.customerResults().length > 0 || store.customerSearchLoading()"
-            class="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
+          <div class="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-xl">
             <div *ngIf="store.customerSearchLoading()" class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
               <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
             </div>
-            <button *ngFor="let customer of store.customerResults()" type="button"
-              (mousedown)="$event.preventDefault()" (click)="pickCustomer(customer)"
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-              [ngClass]="customer.id === store.selectedCustomerId() ? 'text-brand-bold font-semibold' : 'text-gray-700'">
-              <span class="truncate">{{ customer.displayName }}</span>
-              <span *ngIf="customer.primaryEmail" class="ml-auto shrink-0 truncate text-[11px] text-gray-400">{{ customer.primaryEmail }}</span>
+
+            <p *ngIf="showingRecents()" class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Recent</p>
+
+            <button *ngFor="let customer of comboItems(); let i = index" type="button"
+              (mousedown)="$event.preventDefault()" (mouseenter)="highlightedIndex.set(i)" (click)="pickCustomer(customer)"
+              class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
+              [class.bg-gray-50]="i === highlightedIndex()">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                [ngClass]="avatarColor(customer.displayName)">{{ avatarInitials(customer.displayName) }}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm"
+                  [ngClass]="customer.id === store.selectedCustomerId() ? 'font-semibold text-brand-bold' : 'text-gray-800'">
+                  {{ customer.displayName }}
+                </span>
+                <span *ngIf="customer.primaryEmail" class="block truncate text-[11px] text-gray-400">{{ customer.primaryEmail }}</span>
+              </span>
+              <ion-icon *ngIf="customer.id === store.selectedCustomerId()" name="checkmark-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
             </button>
+
+            <div *ngIf="!store.customerSearchLoading() && comboItems().length === 0"
+              class="px-3 py-6 text-center text-xs text-gray-400">
+              {{ store.customerQuery().trim() ? 'No clients match your search' : 'Start typing to find a client' }}
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->
-      <div *ngIf="store.usableAccounts().length > 1" class="mt-4">
-        <label for="mailAccount" class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Mailbox
-        </label>
-        <select id="mailAccount" [ngModel]="store.activeAccountId()" name="mailAccount"
-          (ngModelChange)="selectAccount($event)"
-          class="mt-2 h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
-          <option *ngFor="let account of store.usableAccounts()" [value]="account.id">{{ account.emailAddress }}</option>
-        </select>
+      <!-- Buzón activo (desde el que se envía): picker con avatar + chip Office/My email. Solo si hay >1. -->
+      <div *ngIf="store.usableAccounts().length > 1" class="relative mt-4">
+        <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Send from</label>
+
+        <button type="button" (click)="toggleMailboxPicker()" (blur)="closeMailboxPickerSoon()"
+          class="mt-2 flex w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            [ngClass]="store.activeAccount()?.isOffice ? 'bg-amber-100' : 'bg-indigo-100'">
+            <ion-icon [name]="store.activeAccount()?.isOffice ? 'business-outline' : 'mail-outline'" class="text-base"
+              [ngClass]="store.activeAccount()?.isOffice ? 'text-amber-600' : 'text-brand-bold'"></ion-icon>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium text-gray-900">{{ store.activeAccount()?.emailAddress }}</span>
+            <span *ngIf="store.activeAccount() as a" class="block text-[11px] text-gray-400">{{ mailboxKindLabel(a) }}</span>
+          </span>
+          <ion-icon name="chevron-expand-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
+        </button>
+
+        <div *ngIf="mailboxPickerOpen()"
+          class="absolute z-30 mt-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white py-1 shadow-xl">
+          <button *ngFor="let account of store.usableAccounts()" type="button"
+            (mousedown)="$event.preventDefault()" (click)="pickMailbox(account.id)"
+            class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-gray-50">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              [ngClass]="account.isOffice ? 'bg-amber-100' : 'bg-indigo-100'">
+              <ion-icon [name]="account.isOffice ? 'business-outline' : 'mail-outline'" class="text-base"
+                [ngClass]="account.isOffice ? 'text-amber-600' : 'text-brand-bold'"></ion-icon>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm text-gray-800">{{ account.emailAddress }}</span>
+              <span class="block text-[11px] text-gray-400">{{ mailboxKindLabel(account) }}</span>
+            </span>
+            <ion-icon *ngIf="account.id === store.activeAccountId()" name="checkmark-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
+          </button>
+        </div>
       </div>
     </div>
 
