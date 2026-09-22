@@ -30,6 +30,7 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   // CloudStorage — carpetas
   'Folder.NotFound': "We couldn't find that folder.",
   'Folder.NotEmpty': 'This folder must be empty before it can be deleted.',
+  'Folder.HasLegalHold': "This folder can't be deleted because it contains files on legal hold.",
   'Folder.Forbidden': "You don't have access to this folder.",
   'Folder.InvalidName': "That name isn't allowed. Avoid slashes and special characters.",
   'Folder.CircularReference': "You can't move a folder into itself.",
@@ -45,6 +46,19 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   'ShareLink.AlreadyRevoked': 'That link has already been revoked.',
   'ShareLink.PublicSharingDisabled':
     "Public links are turned off by your firm's security settings.",
+  'ShareLink.LinkSharingDisabled':
+    "Secure links are turned off by your firm's security settings.",
+  'ShareLink.PasswordRequiredForLinkShare':
+    'Your firm requires a password on secure links. Add one and try again.',
+  'ShareLink.ShareLifetimeExceedsMax':
+    'Secure links can last at most 30 days. Choose an earlier expiration date.',
+  'ShareLink.ExpirationInPast': 'The expiration date must be in the future.',
+  'ShareLink.InvalidMaxAccessCount': 'Maximum opens must be a positive number.',
+  'ShareLink.RecipientsRequired': 'Add at least one recipient for this type of link.',
+  'ShareLink.ElevatedPermissionRequiresManage':
+    "You don't have permission to grant that access level.",
+  'ShareLink.ElevatedPermissionNotAllowedOnPublicLink':
+    "Open links can't grant upload or edit access.",
 
   // Billing → Inventory (descuento de stock al emitir la factura)
   'inventory.insufficientStock':

@@ -14,6 +14,7 @@ export type FileRowAction =
   | { kind: 'open-folder'; folder: FolderResponse }
   | { kind: 'rename-folder'; folder: FolderResponse }
   | { kind: 'move-folder'; folder: FolderResponse }
+  | { kind: 'share-folder'; folder: FolderResponse }
   | { kind: 'delete-folder'; folder: FolderResponse }
   | { kind: 'select-file'; file: FileResponse }
   | { kind: 'toggle-file'; file: FileResponse }

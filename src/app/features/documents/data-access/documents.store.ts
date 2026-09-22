@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { map, of, switchMap } from 'rxjs';
+import { map, of, switchMap, Observable } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
@@ -12,6 +12,7 @@ import {
 import { DocumentsService } from './documents.service';
 import {
   CreateShareLinkRequest,
+  CreateFolderShareLinkRequest,
   CreatedShareLinkResponse,
   DocumentSort,
   FileFilters,
@@ -24,9 +25,10 @@ import {
   ViewMode,
   WorkspaceContext,
   WorkspaceSection,
-  displayStatus,
+  FolderContentsQueryOpts,
   emptyFilters,
-  isUserFacingFolderType,
+  USER_FACING_FOLDER_TYPES,
+  displayStatusToFileStatuses,
 } from './documents.model';
 
 /** Filas por página del selector de clientes. Cabe en pantalla sin scroll interno. */
@@ -89,11 +91,28 @@ export class DocumentsStore {
   private readonly _folderLoading = signal(false);
   private readonly _uploadingCount = signal(0);
 
+  // Paginación server-side (carpetas primero). El backend acota take a 200; acá usamos 50.
+  private readonly _page = signal(0);
+  private readonly _totalCount = signal(0);
+  readonly pageSize = 25;
+
   readonly breadcrumbs = this._breadcrumbs.asReadonly();
   readonly subfolders = this._subfolders.asReadonly();
   readonly files = this._files.asReadonly();
   readonly folderLoading = this._folderLoading.asReadonly();
   readonly uploading = computed(() => this._uploadingCount() > 0);
+
+  // Estado de paginación expuesto a la UI (1-based para mostrar).
+  readonly page = computed(() => this._page() + 1);
+  readonly totalCount = this._totalCount.asReadonly();
+  readonly pageCount = computed(() => Math.max(1, Math.ceil(this._totalCount() / this.pageSize)));
+  readonly hasPrevPage = computed(() => this._page() > 0);
+  readonly hasNextPage = computed(() => this._page() + 1 < this.pageCount());
+  /** Índice 1-based del primer y último item de la página actual (para "X–Y de N"). */
+  readonly pageStart = computed(() => (this._totalCount() === 0 ? 0 : this._page() * this.pageSize + 1));
+  readonly pageEnd = computed(() =>
+    Math.min(this._totalCount(), this._page() * this.pageSize + this._subfolders().length + this._files().length)
+  );
 
   readonly currentFolderId = computed<string | null>(() => {
     const crumbs = this._breadcrumbs();
@@ -113,31 +132,11 @@ export class DocumentsStore {
   });
 
   /**
-   * Archivos visibles en el explorador: oculta el ruido interno (FolderType no navegable, ej.
-   * Branding/Templates que quedan en raíz), aplica filtros y orden. La UI bindea ESTO, no `files`.
+   * Archivos visibles en el explorador. El filtrado (tipo user-facing, año, extensión, estado) y el
+   * orden ahora los hace el BACKEND (ver buildQueryOpts), así que esto es la página tal cual llega.
+   * Se mantiene el nombre porque la UI bindea `visibleFiles`.
    */
-  readonly visibleFiles = computed<FileResponse[]>(() => {
-    const f = this._filters();
-    const sort = this._sort();
-    let out = this._files().filter(file => isUserFacingFolderType(file.folderType));
-    if (f.years.length) {
-      out = out.filter(file => file.taxYear !== null && f.years.includes(file.taxYear));
-    }
-    if (f.types.length) {
-      out = out.filter(file => f.types.includes((file.originalName.split('.').pop() ?? '').toUpperCase()));
-    }
-    if (f.statuses.length) {
-      out = out.filter(file => f.statuses.includes(displayStatus(file.status)));
-    }
-    const dir = sort.dir === 'asc' ? 1 : -1;
-    const val = (file: FileResponse) =>
-      sort.key === 'size' ? file.sizeBytes : sort.key === 'modified' ? (file.scannedAtUtc ?? file.createdAtUtc) : file.originalName.toLowerCase();
-    return [...out].sort((a, b) => {
-      const x = val(a);
-      const y = val(b);
-      return x < y ? -dir : x > y ? dir : 0;
-    });
-  });
+  readonly visibleFiles = this._files.asReadonly();
 
   // ---------- Multiselección + barra en lote ----------
   private readonly _selectedIds = signal<ReadonlySet<string>>(new Set());
@@ -329,37 +328,108 @@ export class DocumentsStore {
     this._selectedFileId.set(null);
     this._selectedIds.set(new Set());
     this._filters.set(emptyFilters());
+    this._page.set(0);
+    this._totalCount.set(0);
   }
 
   // ================= Navegación =================
+
+  /**
+   * Re-lee la carpeta actual en silencio (sin skeleton) para refrescar el badge "Shared" de cada
+   * item tras crear/revocar un link. Un archivo puede tener varios links, así que se re-consulta al
+   * backend (recalcula isShared) en vez de adivinar en el cliente.
+   */
+  /** Arma paginación + filtro + orden server-side para la carpeta actual. */
+  private buildQueryOpts(): FolderContentsQueryOpts {
+    const f = this._filters();
+    const sort = this._sort();
+    return {
+      skip: this._page() * this.pageSize,
+      take: this.pageSize,
+      // El explorador siempre oculta los FolderType internos (Branding/Avatars/Templates…).
+      folderTypes: [...USER_FACING_FOLDER_TYPES],
+      taxYears: f.years,
+      extensions: f.types,
+      statuses: f.statuses.flatMap(displayStatusToFileStatuses),
+      sort: sort.key === 'modified' ? 'Modified' : sort.key === 'size' ? 'Size' : 'Name',
+      desc: sort.dir === 'desc',
+    };
+  }
+
+  private refreshShareBadges(): void {
+    if (!this.isBrowsing()) {
+      return;
+    }
+    this.service
+      .getFolderContents(this.ownerType(), this.ownerId(), this.currentFolderId(), this.buildQueryOpts())
+      .subscribe({
+        next: contents => {
+          this._subfolders.set(contents.subfolders);
+          this._files.set(contents.files);
+          this._totalCount.set(contents.totalCount ?? contents.subfolders.length + contents.files.length);
+        },
+        error: () => {},
+      });
+  }
 
   loadCurrentFolder(): void {
     if (!this.isBrowsing()) {
       return;
     }
     this._folderLoading.set(true);
-    this.service.getFolderContents(this.ownerType(), this.ownerId(), this.currentFolderId()).subscribe({
-      next: contents => {
-        this._subfolders.set(contents.subfolders);
-        this._files.set(contents.files);
-        this._folderLoading.set(false);
-      },
-      error: err => {
-        this._folderLoading.set(false);
-        this.toast.error(toUserMessage(err));
-      },
-    });
+    this.service
+      .getFolderContents(this.ownerType(), this.ownerId(), this.currentFolderId(), this.buildQueryOpts())
+      .subscribe({
+        next: contents => {
+          const total = contents.totalCount ?? contents.subfolders.length + contents.files.length;
+          // Si borraron/movieron items y esta página quedó vacía pero hay contenido antes, retrocede.
+          if (contents.subfolders.length === 0 && contents.files.length === 0 && this._page() > 0 && total > 0) {
+            this._page.set(Math.min(this._page() - 1, Math.max(0, Math.ceil(total / this.pageSize) - 1)));
+            this.loadCurrentFolder();
+            return;
+          }
+          this._subfolders.set(contents.subfolders);
+          this._files.set(contents.files);
+          this._totalCount.set(total);
+          this._folderLoading.set(false);
+        },
+        error: err => {
+          this._folderLoading.set(false);
+          this.toast.error(toUserMessage(err));
+        },
+      });
+  }
+
+  /** Va a una página (0-based, clamped) y recarga. */
+  private goToPage(page: number): void {
+    const clamped = Math.max(0, Math.min(page, this.pageCount() - 1));
+    if (clamped === this._page()) {
+      return;
+    }
+    this._page.set(clamped);
+    this._selectedFileId.set(null);
+    this.loadCurrentFolder();
+  }
+
+  nextPage(): void {
+    this.goToPage(this._page() + 1);
+  }
+
+  prevPage(): void {
+    this.goToPage(this._page() - 1);
   }
 
   openFolder(folder: FolderResponse): void {
     this._breadcrumbs.update(crumbs => [...crumbs, folder]);
     this._selectedFileId.set(null);
+    this._page.set(0);
     this.loadCurrentFolder();
   }
 
   goToRoot(): void {
     this._breadcrumbs.set([]);
     this._selectedFileId.set(null);
+    this._page.set(0);
     this.loadCurrentFolder();
   }
 
@@ -369,6 +439,7 @@ export class DocumentsStore {
       return index === -1 ? crumbs : crumbs.slice(0, index + 1);
     });
     this._selectedFileId.set(null);
+    this._page.set(0);
     this.loadCurrentFolder();
   }
 
@@ -422,12 +493,13 @@ export class DocumentsStore {
   }
 
   deleteFolder(folder: FolderResponse): void {
+    // Borrado recursivo: el backend manda el contenido a la papelera y elimina el subárbol.
     this.service.deleteFolder(folder.id).subscribe({
       next: () => {
-        this.toast.success(`Deleted "${folder.name}"`);
+        this.toast.success(`"${folder.name}" moved to the recycle bin`);
         this.loadCurrentFolder();
       },
-      // Folder.NotEmpty → "This folder must be empty before it can be deleted." (catálogo).
+      // Folder.HasLegalHold si tiene archivos en retención legal → toast del catálogo.
       error: err => this.toast.error(toUserMessage(err)),
     });
   }
@@ -588,6 +660,62 @@ export class DocumentsStore {
     });
   }
 
+  /** Carga los links de una carpeta (reusa la misma señal de shares del diálogo). */
+  loadFolderShares(folderId: string): void {
+    this._fileSharesFileId.set(folderId);
+    this._fileShares.set([]);
+    this._fileSharesLoading.set(true);
+    this.service.listFolderShares(folderId).subscribe({
+      next: shares => {
+        this._fileShares.set(shares);
+        this._fileSharesLoading.set(false);
+      },
+      error: () => this._fileSharesLoading.set(false),
+    });
+  }
+
+  createFolderShareLink(folder: FolderResponse, req: CreateFolderShareLinkRequest): void {
+    this.service.createFolderShareLink(folder.id, req).subscribe({
+      next: created => {
+        this._createdShare.set(created);
+        if (this._fileSharesFileId() === folder.id) {
+          this.loadFolderShares(folder.id);
+        }
+        this.refreshShareBadges();
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
+  }
+
+  /** "Copy link" sobre un folder link copiable: crea uno nuevo preservando tipo+alcance y revoca el viejo. */
+  reshareFolderLink(folder: FolderResponse, old: ShareLinkResponse): void {
+    const req: CreateFolderShareLinkRequest = {
+      visibility: old.visibility === 'ExternalLink' ? 'ExternalLink' : 'Public',
+      permission: old.permission,
+      password: null,
+      expiresAtUtc: old.expiresAtUtc,
+      maxAccessCount: old.maxAccessCount ?? null,
+      recipientEmails: null,
+      recipientLanguage: null,
+      isRecursive: old.isRecursive,
+      appliesToFutureItems: old.appliesToFutureItems,
+    };
+    this.service.createFolderShareLink(folder.id, req).subscribe({
+      next: created => {
+        this._createdShare.set(created);
+        this.service.revokeShareLink(old.id).subscribe({
+          next: () => {
+            if (this._fileSharesFileId() === folder.id) {
+              this.loadFolderShares(folder.id);
+            }
+          },
+          error: () => {},
+        });
+      },
+      error: err => this.toast.error(toUserMessage(err)),
+    });
+  }
+
   /**
    * "Compartir de nuevo" un link Public: como el token del viejo no se puede recuperar (solo se
    * emite al crear), se crea uno NUEVO con el mismo permiso/expiración y se REVOCA el viejo al
@@ -596,7 +724,8 @@ export class DocumentsStore {
    */
   resharePublicLink(file: FileResponse, old: ShareLinkResponse): void {
     const req: CreateShareLinkRequest = {
-      visibility: 'Public',
+      // Preserva el tipo del link copiable (Public o Secure link/ExternalLink); no lo degrada a Public.
+      visibility: old.visibility === 'ExternalLink' ? 'ExternalLink' : 'Public',
       permission: old.permission,
       password: null,
       expiresAtUtc: old.expiresAtUtc,
@@ -629,6 +758,7 @@ export class DocumentsStore {
         if (fileId) {
           this.loadFileShares(fileId);
         }
+        this.refreshShareBadges();
         this.toast.success('Share link revoked.');
       },
       error: err => this.toast.error(toUserMessage(err)),
@@ -652,7 +782,10 @@ export class DocumentsStore {
   }
 
   restoreFile(item: RecycleBinItemResponse): void {
-    this.service.restoreFile(item.id).subscribe({
+    // Una entrada de carpeta restaura todo su contenido; un archivo, solo el archivo.
+    const restore$: Observable<unknown> =
+      item.itemType === 'Folder' ? this.service.restoreFolder(item.id) : this.service.restoreFile(item.id);
+    restore$.subscribe({
       next: () => {
         this._recycleBinItems.update(list => list.filter(i => i.id !== item.id));
         this.toast.success(`Restored "${item.originalName}"`);
@@ -700,6 +833,9 @@ export class DocumentsStore {
 
   setSort(key: DocumentSort['key']): void {
     this._sort.update(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
+    // El orden es server-side: vuelve a página 1 y recarga.
+    this._page.set(0);
+    this.loadCurrentFolder();
   }
 
   toggleFilter(group: keyof FileFilters, value: string | number): void {
@@ -708,10 +844,15 @@ export class DocumentsStore {
       const next = list.includes(value) ? list.filter(x => x !== value) : [...list, value];
       return { ...f, [group]: next };
     });
+    // Los filtros son server-side: vuelve a página 1 y recarga.
+    this._page.set(0);
+    this.loadCurrentFolder();
   }
 
   clearFilters(): void {
     this._filters.set(emptyFilters());
+    this._page.set(0);
+    this.loadCurrentFolder();
   }
 
   // ================= Multiselección + lote =================
@@ -821,6 +962,7 @@ export class DocumentsStore {
         if (this._fileSharesFileId() === file.id) {
           this.loadFileShares(file.id);
         }
+        this.refreshShareBadges();
       },
       error: err => this.toast.error(toUserMessage(err)),
     });

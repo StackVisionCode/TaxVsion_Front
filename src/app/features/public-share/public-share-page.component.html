@@ -1,5 +1,9 @@
 <div class="share-bg flex min-h-screen w-full items-center justify-center px-4 py-10">
-  <div class="share-card w-full max-w-md rounded-3xl bg-white p-7 shadow-xl ring-1 ring-gray-100 sm:p-9">
+  <div
+    class="share-card w-full rounded-3xl bg-white p-7 shadow-xl ring-1 ring-gray-100 sm:p-9"
+    [class.max-w-md]="!(state() === 'ready' && mode() === 'folder')"
+    [class.max-w-2xl]="state() === 'ready' && mode() === 'folder'"
+  >
     <!-- Marca de la oficina (con cascada a la del sistema). -->
     <div class="mb-7 flex items-center justify-center">
       <app-brand-logo logoClass="h-10 max-w-[190px] object-contain" fallbackClass="text-brand-bold text-3xl font-bold leading-none" />
@@ -9,32 +13,119 @@
       @case ('loading') {
         <div class="flex flex-col items-center gap-3 py-8 text-gray-400">
           <span class="share-spinner"></span>
-          <p class="text-sm">Opening the shared document…</p>
+          <p class="text-sm">{{ mode() === 'folder' ? 'Opening the shared folder…' : 'Opening the shared document…' }}</p>
         </div>
       }
 
       @case ('ready') {
-        <div class="flex flex-col items-center text-center">
-          <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-indigo-50 text-brand-bold">
-            <ion-icon [name]="fileIcon(meta()?.contentType)" class="text-3xl"></ion-icon>
-          </span>
-          <h1 class="text-lg font-bold text-gray-900 [text-wrap:balance]">{{ meta()?.fileName }}</h1>
-          <div class="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-gray-400">
-            @if (meta()?.sizeBytes != null) { <span>{{ formatSize(meta()?.sizeBytes) }}</span> }
-            @if (formatExpiry(meta()?.expiresAt); as exp) { <span aria-hidden="true">·</span><span>{{ exp }}</span> }
+        @if (mode() === 'folder') {
+          @let f = folder();
+          <!-- Cabecera de la carpeta compartida. -->
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2.5">
+                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-brand-bold">
+                  <ion-icon name="folder-open" class="text-2xl"></ion-icon>
+                </span>
+                <div class="min-w-0">
+                  <h1 class="truncate text-lg font-bold text-gray-900">{{ f?.folderName }}</h1>
+                  <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-gray-400">
+                    <span>{{ (f?.files?.length ?? 0) }} {{ (f?.files?.length ?? 0) === 1 ? 'file' : 'files' }}</span>
+                    @if ((f?.subfolders?.length ?? 0) > 0) {
+                      <span aria-hidden="true">·</span>
+                      <span>{{ f?.subfolders?.length }} {{ (f?.subfolders?.length ?? 0) === 1 ? 'folder' : 'folders' }}</span>
+                    }
+                    @if (formatExpiry(f?.expiresAt); as exp) { <span aria-hidden="true">·</span><span>{{ exp }}</span> }
+                  </p>
+                </div>
+              </div>
+            </div>
+            @if (folderAllowsDownload()) {
+              <button type="button" (click)="downloadAll()"
+                class="flex shrink-0 items-center gap-2 rounded-xl bg-brand-bold px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold">
+                <ion-icon name="download-outline" class="text-base"></ion-icon> Download all (ZIP)
+              </button>
+            }
           </div>
 
-          <button type="button" (click)="open()"
-            class="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold">
-            <ion-icon [name]="isViewOnly() ? 'eye-outline' : 'download-outline'" class="text-base"></ion-icon>
-            {{ isViewOnly() ? 'View document' : 'Download document' }}
-          </button>
+          <!-- Breadcrumb: el último es la carpeta actual; los demás navegan hacia arriba. -->
+          @if ((f?.breadcrumb?.length ?? 0) > 1) {
+            <nav class="mt-5 flex flex-wrap items-center gap-1 text-xs text-gray-400" aria-label="Folder path">
+              @for (crumb of f?.breadcrumb ?? []; track crumb.folderId; let last = $last) {
+                @if (last) {
+                  <span class="font-semibold text-gray-600">{{ crumb.name }}</span>
+                } @else {
+                  <button type="button" (click)="navigateFolder(crumb.folderId)" class="rounded px-1 py-0.5 font-medium hover:bg-gray-100 hover:text-gray-700">{{ crumb.name }}</button>
+                  <ion-icon name="chevron-forward" class="text-[11px]"></ion-icon>
+                }
+              }
+            </nav>
+          }
 
-          <p class="mt-4 flex items-center gap-1.5 text-xs text-gray-400">
+          <!-- Contenido: subcarpetas primero, luego archivos. -->
+          <div class="mt-5 overflow-hidden rounded-2xl border border-gray-100">
+            @if ((f?.subfolders?.length ?? 0) === 0 && (f?.files?.length ?? 0) === 0) {
+              <div class="flex flex-col items-center gap-2 py-12 text-gray-400">
+                <ion-icon name="folder-open-outline" class="text-3xl"></ion-icon>
+                <p class="text-sm">This folder is empty.</p>
+              </div>
+            }
+            <ul class="divide-y divide-gray-100">
+              @for (sub of f?.subfolders ?? []; track sub.folderId) {
+                <li>
+                  <button type="button" (click)="navigateFolder(sub.folderId)"
+                    class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50">
+                    <ion-icon name="folder" class="shrink-0 text-xl text-amber-500"></ion-icon>
+                    <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">{{ sub.name }}</span>
+                    <ion-icon name="chevron-forward" class="shrink-0 text-sm text-gray-300"></ion-icon>
+                  </button>
+                </li>
+              }
+              @for (file of f?.files ?? []; track file.fileId) {
+                <li class="flex items-center gap-3 px-4 py-3">
+                  <ion-icon [name]="fileIcon(file.contentType)" class="shrink-0 text-xl text-gray-400"></ion-icon>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-medium text-gray-800">{{ file.name }}</span>
+                    <span class="block text-xs text-gray-400">{{ formatSize(file.sizeBytes) }}</span>
+                  </span>
+                  <button type="button" (click)="downloadFolderFile(file.fileId)"
+                    [title]="folderAllowsDownload() ? 'Download' : 'View'"
+                    class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                    <ion-icon [name]="folderAllowsDownload() ? 'download-outline' : 'eye-outline'"></ion-icon>
+                    {{ folderAllowsDownload() ? 'Download' : 'View' }}
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <p class="mt-4 flex items-center justify-center gap-1.5 text-xs text-gray-400">
             <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
             Shared securely with a link that expires.
           </p>
-        </div>
+        } @else {
+          <div class="flex flex-col items-center text-center">
+            <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-indigo-50 text-brand-bold">
+              <ion-icon [name]="fileIcon(meta()?.contentType)" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900 [text-wrap:balance]">{{ meta()?.fileName }}</h1>
+            <div class="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-gray-400">
+              @if (meta()?.sizeBytes != null) { <span>{{ formatSize(meta()?.sizeBytes) }}</span> }
+              @if (formatExpiry(meta()?.expiresAt); as exp) { <span aria-hidden="true">·</span><span>{{ exp }}</span> }
+            </div>
+
+            <button type="button" (click)="open()"
+              class="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold">
+              <ion-icon [name]="isViewOnly() ? 'eye-outline' : 'download-outline'" class="text-base"></ion-icon>
+              {{ isViewOnly() ? 'View document' : 'Download document' }}
+            </button>
+
+            <p class="mt-4 flex items-center gap-1.5 text-xs text-gray-400">
+              <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
+              Shared securely with a link that expires.
+            </p>
+          </div>
+        }
       }
 
       @case ('password') {
@@ -42,7 +133,7 @@
           <span class="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-600">
             <ion-icon name="lock-closed-outline" class="text-3xl"></ion-icon>
           </span>
-          <h1 class="text-lg font-bold text-gray-900">This document is protected</h1>
+          <h1 class="text-lg font-bold text-gray-900">{{ mode() === 'folder' ? 'This folder is protected' : 'This document is protected' }}</h1>
           <p class="mt-1.5 max-w-xs text-sm text-gray-500">Enter the password the office shared with you to continue.</p>
 
           <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event); passwordError.set(false)"
@@ -56,7 +147,7 @@
           <button type="submit" [disabled]="!password().trim() || submitting()"
             class="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
             @if (submitting()) { <span class="share-spinner share-spinner-sm"></span> Checking… }
-            @else { <ion-icon name="lock-open-outline" class="text-base"></ion-icon> Unlock document }
+            @else { <ion-icon name="lock-open-outline" class="text-base"></ion-icon> {{ mode() === 'folder' ? 'Unlock folder' : 'Unlock document' }} }
           </button>
         </form>
       }

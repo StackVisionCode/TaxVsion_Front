@@ -58,6 +58,8 @@ export interface FileResponse {
   scanReport: string | null;
   createdAtUtc: string;
   scannedAtUtc: string | null;
+  /** true si el archivo tiene un link de compartir vigente (lo marca el listado de carpeta). */
+  isShared?: boolean;
 }
 
 /** Body de POST /storage/files/uploads. */
