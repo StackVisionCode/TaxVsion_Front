@@ -10,7 +10,6 @@ import {
   ListSignatureRequestsParams,
   PlaceFieldBody,
   SignatureAnalyticsSummary,
-  SignatureCustomersPage,
   SignatureFieldResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
@@ -33,8 +32,6 @@ import {
 /**
  * Cliente HTTP fino sobre TaxVision.Signature.Api (`/signature` vía Gateway, mismo
  * patrón que clients.service). Incluye además:
- * - `searchCustomers`: subset de GET /customers para los pickers del wizard (espejo
- *   local, sin import cruzado de features).
  * - `uploadOriginalDocument`: cadena presigned de CloudStorage (initiate → MinIO →
  *   complete) con `ownerType: 'Signature'` + `folderType: 'Signatures'` — los mismos
  *   valores que usa el propio backend de Signature al subir sealed/certificate.
@@ -308,14 +305,4 @@ export class SignatureService {
     return this.http.get<SignatureAnalyticsSummary>(`${this.base}/analytics/summary`, { params: query });
   }
 
-  // ---------- Customers (picker del wizard) ----------
-
-  /** GET /customers — subset espejo de Customer.Api para no importar entre features. */
-  searchCustomers(term?: string, size = 200): Observable<SignatureCustomersPage> {
-    let query = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term) {
-      query = query.set('term', term);
-    }
-    return this.http.get<SignatureCustomersPage>(this.api.tenantUrl('/customers'), { params: query });
-  }
 }

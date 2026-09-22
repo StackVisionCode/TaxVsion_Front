@@ -26,14 +26,6 @@ export interface PagedResult<T> {
   hasPrevious: boolean;
 }
 
-/** Subset mínimo de GET /customers para el picker de cliente (réplica, no import de features/clients). */
-export interface MailCustomerSummary {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  status: 'Active' | 'Inactive' | 'Archived';
-}
-
 // ---------- Connectors (`/connectors`) ----------
 
 /** Espejo de TaxVision.Connectors.Domain.Shared.ProviderCode. `Imap` solo llega vía /accounts/manual. */

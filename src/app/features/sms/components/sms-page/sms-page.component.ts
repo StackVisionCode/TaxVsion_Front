@@ -97,19 +97,12 @@ export class SmsPageComponent implements OnInit {
 
   readonly segments = computed<Segments>(() => this.computeSegments(this.composeBody()));
 
-  /** Mapa customerId → nombre del cliente (de los contactos que el store ya cargó). */
-  private readonly contactsById = computed<Map<string, string>>(() => {
-    const map = new Map<string, string>();
-    for (const c of this.store.contacts()) map.set(c.id, c.name);
-    return map;
-  });
-
   /**
    * Nombre a mostrar para una fila: 1) el snapshot del mensaje (recipientName, semántica correcta del
-   * log); 2) la caché de contactos; 3) el teléfono. Así no dependemos de tener al cliente cacheado.
+   * log); 2) el nombre resuelto por el directorio compartido (solo los ids del listado); 3) el teléfono.
    */
   clientName(recipientName: string | null, customerId: string, phone: string): string {
-    return recipientName || this.contactsById().get(customerId) || phone;
+    return recipientName || this.store.contactsById().get(customerId) || phone;
   }
 
   ngOnInit(): void {
@@ -120,7 +113,6 @@ export class SmsPageComponent implements OnInit {
     const size = Number(q.get('size')) || undefined;
     this.searchText.set(term);
     this.store.initList({ status, term, page, size });
-    this.store.loadContacts();
   }
 
   // ---------- Tabs ----------

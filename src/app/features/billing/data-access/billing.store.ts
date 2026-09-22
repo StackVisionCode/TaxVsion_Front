@@ -4,9 +4,10 @@ import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { parseUtcDateOrNull, utcTime } from '@shared/utils/utc-date.util';
 import { BillingService } from './billing.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   BillingCatalogItem,
-  BillingCustomerSummary,
   EMPTY_ISSUER_PROFILE,
   InvoiceBranding,
   InvoiceDetail,
@@ -63,6 +64,7 @@ export interface InvoiceMetrics {
 @Injectable()
 export class BillingStore {
   private readonly service = inject(BillingService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
 
   // ---------- Facturas ----------
@@ -351,7 +353,7 @@ export class BillingStore {
    * una sola dirección: una vez creada, la factura ya no se puede editar.
    */
   createInvoice(
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -434,7 +436,7 @@ export class BillingStore {
   /** Guarda los cambios de una factura editable (borrador o emitida sin pagos). */
   updateInvoice(
     invoiceId: string,
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -538,7 +540,7 @@ export class BillingStore {
 
   // ---------- Búsqueda de clientes (typeahead server-side) ----------
 
-  private readonly _customerResults = signal<BillingCustomerSummary[]>([]);
+  private readonly _customerResults = signal<CustomerSummary[]>([]);
   private readonly _customerSearching = signal(false);
   private readonly _customerSearch$ = new Subject<string>();
 
@@ -865,7 +867,9 @@ export class BillingStore {
         distinctUntilChanged(),
         switchMap(term => {
           this._customerSearching.set(true);
-          return this.service.searchCustomers(term).pipe(catchError(() => of<BillingCustomerSummary[]>([])));
+          return this.directory
+            .search({ term, status: 'NotArchived', size: 20 })
+            .pipe(map(p => p.items), catchError(() => of<CustomerSummary[]>([])));
         }),
       )
       .subscribe(items => {

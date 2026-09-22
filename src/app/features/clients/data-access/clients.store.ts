@@ -4,6 +4,7 @@ import { Observable, Subject, catchError, forkJoin, map, of, switchMap, tap } fr
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { ClientItem } from '../ui/client-table/client-table.component';
 import { ClientsService } from './clients.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import {
   AddAddressRequest,
   AddContactPointRequest,
@@ -54,6 +55,7 @@ export interface ClientSaveOptions {
 @Injectable({ providedIn: 'root' })
 export class ClientsStore {
   private readonly service = inject(ClientsService);
+  private readonly directory = inject(CustomerDirectoryStore);
 
   // ---------- Estado del listado ----------
   private readonly _term = signal('');
@@ -164,10 +166,13 @@ export class ClientsStore {
       });
   }
 
-  /** Tras una mutación de estado: re-sincroniza la página visible y los conteos. */
+  /** Tras una mutación: re-sincroniza la página visible y los conteos, e invalida el cache
+   * compartido de clientes para que los pickers (mail/task/signature/billing/documents/sms) no
+   * sirvan datos viejos. */
   private afterMutation(): void {
     this.reloadList();
     this.loadCounts();
+    this.directory.invalidate();
   }
 
   setTerm(term: string): void {

@@ -3,10 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DocumentsStore } from '../../data-access/documents.store';
-import {
-  DocumentsClientStatusFilter,
-  DocumentsClientSummary,
-} from '../../data-access/documents-clients.service';
+import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   CreateShareLinkRequest,
   CreateFolderShareLinkRequest,
@@ -72,7 +69,7 @@ export class DocumentsPageComponent {
   readonly clientsPageCount = this.store.clientsPageCount;
   readonly clientsFiltered = this.store.clientsFiltered;
   /** Filtros de estado del selector, en el orden en que se ofrecen. */
-  readonly clientStatusOptions: ReadonlyArray<{ id: DocumentsClientStatusFilter; label: string }> = [
+  readonly clientStatusOptions: ReadonlyArray<{ id: CustomerStatusFilter; label: string }> = [
     { id: 'NotArchived', label: 'Active & inactive' },
     { id: 'Active', label: 'Active' },
     { id: 'Inactive', label: 'Inactive' },
@@ -197,7 +194,7 @@ export class DocumentsPageComponent {
   openClients(): void {
     this.store.openClients();
   }
-  openClient(client: DocumentsClientSummary): void {
+  openClient(client: CustomerSummary): void {
     this.store.openClient(client);
   }
   openRecent(): void {
@@ -212,7 +209,7 @@ export class DocumentsPageComponent {
   searchClients(term: string): void {
     this.store.setClientSearch(term);
   }
-  setClientsStatus(status: DocumentsClientStatusFilter): void {
+  setClientsStatus(status: CustomerStatusFilter): void {
     this.store.setClientsStatus(status);
   }
   goToClientsPage(page: number): void {

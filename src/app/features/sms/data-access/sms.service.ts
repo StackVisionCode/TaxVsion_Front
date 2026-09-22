@@ -7,7 +7,6 @@ import {
   SendSmsBatchResponse,
   SendSmsMessagesRequest,
   SetSmsConsentRequest,
-  SmsCustomerSummary,
   SmsMessageDetail,
   SmsMessageSummary,
   SmsOptOutFilter,
@@ -59,25 +58,7 @@ export class SmsService {
     return this.http.post<SendSmsBatchResponse>(this.api.tenantUrl('/sms/messages'), req);
   }
 
-  /**
-   * GET /customers — réplica mínima para el rail de contactos (patrón task-clients,
-   * sin imports cross-feature). Devuelve `primaryPhone`, que es lo que necesitamos
-   * para saber a quién se puede textear. `NotArchived` excluye los archivados.
-   */
-  listCustomers(size = 200): Observable<PagedResult<SmsCustomerSummary>> {
-    const params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    return this.http.get<PagedResult<SmsCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
-  }
 
-  /**
-   * GET /customers?term= — búsqueda server-side para el picker del compose. Reemplaza el filtrado
-   * client-side sobre 200 cargados: así se alcanzan TODOS los clientes (400+), no solo la 1ª página.
-   */
-  searchCustomers(term: string, size = 15): Observable<PagedResult<SmsCustomerSummary>> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term.trim()) params = params.set('term', term.trim());
-    return this.http.get<PagedResult<SmsCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
-  }
 
   /** GET /sms/messages — historial paginado + filtros (requiere `sms.read`). */
   listMessages(query: SmsMessageQuery): Observable<PagedResult<SmsMessageSummary>> {

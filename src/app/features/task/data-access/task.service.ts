@@ -21,7 +21,6 @@ import {
   SetTaskTemplateActiveRequest,
   TaskAttachmentResponse,
   TaskAttachmentUpsertRequest,
-  TaskClientSummary,
   TaskTemplateResponse,
   TemplateApplicationResponse,
   TaskDependencyGraphResponse,
@@ -320,14 +319,6 @@ export class TaskService {
     );
   }
 
-  /** GET /customers — lote para el picker de cliente y para resolver nombres en tarjetas. */
-  searchClients(term: string, size = 200): Observable<PagedResult<TaskClientSummary>> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term.trim()) {
-      params = params.set('term', term.trim());
-    }
-    return this.http.get<PagedResult<TaskClientSummary>>(this.api.tenantUrl('/customers'), { params });
-  }
 
   /** GET /auth/users — nombres de asignados. Best-effort: sin permiso users.view devuelve 403.
    *  size topado en 100: el backend valida `size between 1 and 100` y devolvía 400 con 200. */

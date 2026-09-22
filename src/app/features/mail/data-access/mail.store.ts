@@ -19,6 +19,8 @@ import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { AuthService } from '@core/auth/auth.service';
 import { MailService } from './mail.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { MailSocketService } from './mail-socket.service';
 import {
   AttachFileToDraftRequest,
@@ -28,7 +30,6 @@ import {
   DraftDetail,
   DraftListItem,
   MailAccount,
-  MailCustomerSummary,
   MessageSummary,
   SentMessageListItem,
   ThreadSummary,
@@ -129,6 +130,7 @@ const EMPTY_COMPOSE: ComposeState = {
 @Injectable({ providedIn: 'root' })
 export class MailStore {
   private readonly service = inject(MailService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly uploads = inject(CloudStorageUploadService);
   private readonly auth = inject(AuthService);
   private readonly mailSocket = inject(MailSocketService);
@@ -153,7 +155,7 @@ export class MailStore {
   private readonly _bootLoading = signal(false);
   private readonly _bootError = signal<string | null>(null);
   private readonly _accounts = signal<MailAccount[]>([]);
-  private readonly _customers = signal<MailCustomerSummary[]>([]);
+  private readonly _customers = signal<CustomerSummary[]>([]);
   private initialized = false;
 
   readonly bootLoading = this._bootLoading.asReadonly();
@@ -245,15 +247,15 @@ export class MailStore {
   // El backend acepta `term`, así que la búsqueda es server-side: escala a cualquier cantidad de
   // clientes sin traerlos todos al DOM. `_customers` (boot) queda solo para el nombre por defecto.
   private readonly _customerQuery = signal('');
-  private readonly _selectedCustomer = signal<MailCustomerSummary | null>(null);
-  private readonly _customerResults = signal<MailCustomerSummary[]>([]);
+  private readonly _selectedCustomer = signal<CustomerSummary | null>(null);
+  private readonly _customerResults = signal<CustomerSummary[]>([]);
   private readonly _customerSearchLoading = signal(false);
   private readonly _customerSearch$ = new Subject<string>();
 
   /** Clientes elegidos recientemente (persistidos en localStorage): cambiar de bandeja en un clic. */
   private static readonly RECENTS_KEY = 'mail.recentCustomers';
   private static readonly RECENTS_MAX = 6;
-  private readonly _recentCustomers = signal<MailCustomerSummary[]>(this.loadRecentCustomers());
+  private readonly _recentCustomers = signal<CustomerSummary[]>(this.loadRecentCustomers());
 
   readonly customerQuery = this._customerQuery.asReadonly();
   /** Cliente activo completo (nombre + email + avatar), para el encabezado del selector. */
@@ -268,7 +270,7 @@ export class MailStore {
   // Stream aparte del anterior: el del rail fija el cliente DUEÑO del hilo, mientras que este
   // solo sugiere direcciones para escribir. Compartirlo haría que escribir en To cambiara la
   // bandeja que se está viendo.
-  private readonly _recipientResults = signal<MailCustomerSummary[]>([]);
+  private readonly _recipientResults = signal<CustomerSummary[]>([]);
   private readonly _recipientSearchLoading = signal(false);
   private readonly _recipientSearch$ = new Subject<string>();
 
@@ -408,9 +410,9 @@ export class MailStore {
         distinctUntilChanged(),
         switchMap(term => {
           this._customerSearchLoading.set(true);
-          return this.service.searchCustomers(term).pipe(
+          return this.directory.search({ term, status: 'NotArchived', size: 200 }).pipe(
             map(result => result.items),
-            catchError(() => of<MailCustomerSummary[]>([])),
+            catchError(() => of<CustomerSummary[]>([])),
           );
         }),
       )
@@ -434,9 +436,9 @@ export class MailStore {
         distinctUntilChanged(),
         switchMap(term => {
           this._recipientSearchLoading.set(true);
-          return this.service.searchCustomers(term).pipe(
+          return this.directory.search({ term, status: 'NotArchived', size: 200 }).pipe(
             map(result => result.items),
-            catchError(() => of<MailCustomerSummary[]>([])),
+            catchError(() => of<CustomerSummary[]>([])),
           );
         }),
       )
@@ -459,7 +461,7 @@ export class MailStore {
   }
 
   /** Elige un cliente del typeahead: fija el cliente activo, lo sube a recientes y carga sus hilos. */
-  pickCustomer(customer: MailCustomerSummary): void {
+  pickCustomer(customer: CustomerSummary): void {
     this._selectedCustomer.set(customer);
     this.pushRecentCustomer(customer);
     this._customerQuery.set('');
@@ -468,7 +470,7 @@ export class MailStore {
   }
 
   /** Sube un cliente al tope de recientes (dedupe por id, cap RECENTS_MAX) y persiste. */
-  private pushRecentCustomer(customer: MailCustomerSummary): void {
+  private pushRecentCustomer(customer: CustomerSummary): void {
     const next = [customer, ...this._recentCustomers().filter(c => c.id !== customer.id)].slice(
       0,
       MailStore.RECENTS_MAX,
@@ -481,10 +483,10 @@ export class MailStore {
     }
   }
 
-  private loadRecentCustomers(): MailCustomerSummary[] {
+  private loadRecentCustomers(): CustomerSummary[] {
     try {
       const raw = localStorage.getItem(MailStore.RECENTS_KEY);
-      const parsed = raw ? (JSON.parse(raw) as MailCustomerSummary[]) : [];
+      const parsed = raw ? (JSON.parse(raw) as CustomerSummary[]) : [];
       return Array.isArray(parsed) ? parsed.filter(c => c && c.id && c.displayName) : [];
     } catch {
       return [];
@@ -519,7 +521,7 @@ export class MailStore {
     this._bootError.set(null);
     forkJoin({
       accounts: this.service.listAccounts(),
-      customers: this.service.searchCustomers(''),
+      customers: this.directory.search({ status: 'NotArchived', size: 200 }),
     }).subscribe({
       next: ({ accounts, customers }) => {
         this._accounts.set(accounts);

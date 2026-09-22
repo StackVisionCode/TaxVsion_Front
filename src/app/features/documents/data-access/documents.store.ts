@@ -4,11 +4,8 @@ import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest, OwnerType, isFilePending } from '@core/cloud-storage/cloud-storage.model';
-import {
-  DocumentsClientStatusFilter,
-  DocumentsClientSummary,
-  DocumentsClientsService,
-} from './documents-clients.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
 import { DocumentsService } from './documents.service';
 import {
   CreateShareLinkRequest,
@@ -48,7 +45,7 @@ const STATUS_POLL_INTERVAL_MS = 3000;
  */
 @Injectable({ providedIn: 'root' })
 export class DocumentsStore {
-  private readonly clientsService = inject(DocumentsClientsService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly service = inject(DocumentsService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly toast = inject(ToastService);
@@ -61,12 +58,12 @@ export class DocumentsStore {
   readonly isBrowsing = computed(() => this._context().section === 'office' || this._context().section === 'client');
 
   // ---------- Selector de clientes (pantalla propia, paginado server-side) ----------
-  private readonly _clients = signal<DocumentsClientSummary[]>([]);
+  private readonly _clients = signal<CustomerSummary[]>([]);
   private readonly _clientsTotal = signal(0);
   private readonly _clientSearch = signal('');
   private readonly _clientsLoading = signal(false);
   private readonly _clientsPage = signal(1);
-  private readonly _clientsStatus = signal<DocumentsClientStatusFilter>('NotArchived');
+  private readonly _clientsStatus = signal<CustomerStatusFilter>('NotArchived');
   private clientSearchDebounce: ReturnType<typeof setTimeout> | null = null;
 
   readonly clients = this._clients.asReadonly();
@@ -223,7 +220,7 @@ export class DocumentsStore {
     }, CLIENT_SEARCH_DEBOUNCE_MS);
   }
 
-  setClientsStatus(status: DocumentsClientStatusFilter): void {
+  setClientsStatus(status: CustomerStatusFilter): void {
     this._clientsStatus.set(status);
     this._clientsPage.set(1);
     this.refreshClientsNow();
@@ -256,7 +253,7 @@ export class DocumentsStore {
 
   refreshClients(): void {
     this._clientsLoading.set(true);
-    this.clientsService
+    this.directory
       .search({
         term: this._clientSearch(),
         status: this._clientsStatus(),
@@ -293,7 +290,7 @@ export class DocumentsStore {
     this.refreshClients();
   }
 
-  openClient(client: DocumentsClientSummary): void {
+  openClient(client: CustomerSummary): void {
     this.setContext({ section: 'client', clientId: client.id, clientName: client.displayName });
   }
 

@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { CustomerSummary } from '../../../clients/data-access/clients.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   DashboardClientsStore,
   MonthlyClientsBucket,

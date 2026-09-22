@@ -14,7 +14,6 @@ import {
   DraftListItem,
   InitiateOAuthConnectResult,
   MailAccount,
-  MailCustomerSummary,
   MessageBody,
   MessageSummary,
   SentMessageListItem,
@@ -85,16 +84,6 @@ export class MailService {
   /** Desconecta la cuenta (deja de sincronizar). 204. */
   disconnectAccount(accountId: string): Observable<void> {
     return this.http.delete<void>(`${this.connectors}/accounts/${accountId}`);
-  }
-
-  // ---------- Customer: picker de cliente ----------
-
-  searchCustomers(term: string, size = 200): Observable<PagedResult<MailCustomerSummary>> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term.trim()) {
-      params = params.set('term', term.trim());
-    }
-    return this.http.get<PagedResult<MailCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
   }
 
   // ---------- Correspondence: hilos ----------

@@ -15,7 +15,6 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CatalogItemPickerComponent } from '../catalog-item-picker/catalog-item-picker.component';
 import {
   BillingCatalogItem,
-  BillingCustomerSummary,
   InvoiceDetail,
   InvoiceLineDraft,
   draftTotals,
@@ -25,10 +24,11 @@ import {
   isEmptyLine,
   lineTotals,
 } from '../../data-access/billing.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 
 /** Lo que el formulario emite al guardar. */
 export interface InvoiceFormSubmit {
-  customer: BillingCustomerSummary;
+  customer: CustomerSummary;
   customerTaxId: string;
   currency: string;
   lines: InvoiceLineDraft[];
@@ -60,7 +60,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
 })
 export class InvoiceFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
-  @Input() customerResults: BillingCustomerSummary[] = [];
+  @Input() customerResults: CustomerSummary[] = [];
   @Input() customerSearching = false;
   @Input() catalogResults: BillingCatalogItem[] = [];
   @Input() catalogSearching = false;
@@ -86,7 +86,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
     return this.editing !== null;
   }
 
-  readonly customer = signal<BillingCustomerSummary | null>(null);
+  readonly customer = signal<CustomerSummary | null>(null);
   readonly customerQuery = signal('');
   readonly customerPickerOpen = signal(false);
   readonly customerTaxId = signal('');
@@ -122,7 +122,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
     setTimeout(() => this.customerPickerOpen.set(false), 150);
   }
 
-  pickCustomer(customer: BillingCustomerSummary): void {
+  pickCustomer(customer: CustomerSummary): void {
     this.customer.set(customer);
     this.customerQuery.set('');
     this.customerPickerOpen.set(false);
@@ -286,12 +286,16 @@ export class InvoiceFormPanelComponent implements OnChanges {
 
     const editing = this.editing;
     if (editing) {
-      // Modo edición: prellenar con el detalle traído del backend (líneas en centavos y bps → UI).
+      // Modo edición: prellenar con el detalle del backend. El detalle de factura solo trae
+      // id/nombre/email/teléfono; kind/status/createdAtUtc no los usa el formulario (placeholders).
       this.customer.set({
         id: editing.customer.customerId,
         displayName: editing.customer.name,
         primaryEmail: editing.customer.email ?? '',
         primaryPhone: editing.customer.phone,
+        kind: 'Individual',
+        status: 'Active',
+        createdAtUtc: '',
       });
       this.customerTaxId.set(editing.customer.taxId ?? '');
       this.currency.set(editing.currency);

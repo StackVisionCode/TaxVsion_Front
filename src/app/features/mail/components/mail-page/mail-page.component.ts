@@ -22,11 +22,11 @@ import {
   ConnectManualAccountRequest,
   MailAccount,
   MailAccountStatus,
-  MailCustomerSummary,
   avatarColorFor,
   formatMailTime,
   initialsFor,
 } from '../../data-access/mail.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -336,7 +336,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
   );
 
   /** Lista plana que se pinta y sobre la que navegan las flechas. */
-  readonly comboItems = computed<MailCustomerSummary[]>(() =>
+  readonly comboItems = computed<CustomerSummary[]>(() =>
     this.showingRecents() ? this.store.recentCustomers() : this.store.customerResults(),
   );
 
@@ -390,7 +390,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
   }
 
   /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
-  pickCustomer(customer: MailCustomerSummary): void {
+  pickCustomer(customer: CustomerSummary): void {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
     this.store.pickCustomer(customer);

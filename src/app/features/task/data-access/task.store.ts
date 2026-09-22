@@ -1,4 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { Observable, concatMap, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
@@ -9,7 +11,6 @@ import {
   ChangeTaskDueRequest,
   CreateTaskRequest,
   EmployeeDirectoryEntry,
-  TaskClientSummary,
   TaskFormValue,
   TaskItem,
   TaskResponse,
@@ -37,6 +38,7 @@ function isClosed(status: ApiTaskStatus): boolean {
 @Injectable({ providedIn: 'root' })
 export class TaskStore {
   private readonly service = inject(TaskService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly auth = inject(AuthService);
 
   // ---------- Estado crudo ----------
@@ -64,7 +66,7 @@ export class TaskStore {
   private readonly initGate = new FetchGate(60_000);
 
   // ---------- Catálogos para nombres/pickers ----------
-  private readonly _clients = signal<TaskClientSummary[]>([]);
+  private readonly _clients = signal<CustomerSummary[]>([]);
   private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
 
   readonly loading = this._loading.asReadonly();
@@ -249,7 +251,7 @@ export class TaskStore {
   // ---------- Catálogos ----------
 
   private loadClients(): void {
-    this.service.searchClients('').subscribe({
+    this.directory.search({ status: 'NotArchived', size: 200 }).subscribe({
       next: result => this._clients.set(result.items),
       error: err => console.warn('Tasks: no se pudo cargar el picker de clientes:', toApiError(err).message),
     });

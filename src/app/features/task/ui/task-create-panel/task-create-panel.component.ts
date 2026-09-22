@@ -11,6 +11,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
@@ -19,7 +20,6 @@ import {
   ApiTaskPriority,
   EmployeeDirectoryEntry,
   TASK_COLUMNS,
-  TaskClientSummary,
   TaskFormValue,
   TaskItem,
   TaskStatus,
@@ -73,7 +73,7 @@ export class TaskCreatePanelComponent implements OnChanges {
   readonly priority = signal<ApiTaskPriority>('Normal');
   readonly status = signal<TaskStatus>('not-started');
   readonly expectedItems = signal('');
-  readonly selectedClient = signal<TaskClientSummary | null>(null);
+  readonly selectedClient = signal<CustomerSummary | null>(null);
   readonly clientSearch = signal('');
   readonly assignee = signal<AssigneeOption | null>(null);
   readonly assigneeSearch = signal('');
@@ -92,7 +92,7 @@ export class TaskCreatePanelComponent implements OnChanges {
   /** Signal propia porque `task` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
 
-  readonly filteredClients = computed<TaskClientSummary[]>(() => {
+  readonly filteredClients = computed<CustomerSummary[]>(() => {
     const query = this.clientSearch().trim().toLowerCase();
     const all = this.store.clients();
     return query ? all.filter(client => client.displayName.toLowerCase().includes(query)) : all;
@@ -173,7 +173,7 @@ export class TaskCreatePanelComponent implements OnChanges {
     this.isStatusOpen.set(false);
   }
 
-  selectClient(client: TaskClientSummary | null): void {
+  selectClient(client: CustomerSummary | null): void {
     this.selectedClient.set(client);
     this.isClientOpen.set(false);
     this.clientSearch.set('');
@@ -297,6 +297,9 @@ export class TaskCreatePanelComponent implements OnChanges {
               displayName: task.client || 'Client',
               primaryEmail: '',
               status: 'Active',
+              kind: 'Individual',
+              primaryPhone: null,
+              createdAtUtc: '',
             })
           : null,
       );

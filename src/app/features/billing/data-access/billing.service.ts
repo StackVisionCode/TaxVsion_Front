@@ -2,9 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, catchError, map, of } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   BillingCatalogItem,
-  BillingCustomerSummary,
   CatalogPage,
   CreateInvoiceRequest,
   CreateInvoiceResult,
@@ -65,7 +65,7 @@ export class BillingService {
    * empresa guardado en `/billing/issuer-profile`.
    */
   createInvoice(
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -96,7 +96,7 @@ export class BillingService {
   /** `PUT /billing/invoices/{id}` — edita borrador o emitida sin pagos (recalcula, reconcilia stock). */
   updateInvoice(
     invoiceId: string,
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -279,16 +279,6 @@ export class BillingService {
 
   // ---------- Apoyo: clientes y catálogo ----------
 
-  /** `GET /customers` — el picker de la factura necesita el GUID real del maestro Customer. */
-  searchCustomers(term: string, size = 20): Observable<BillingCustomerSummary[]> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term.trim()) {
-      params = params.set('term', term.trim());
-    }
-    return this.http
-      .get<{ items: BillingCustomerSummary[] }>(`${this.base}/customers`, { params })
-      .pipe(map(result => result.items ?? []));
-  }
 
   /**
    * `GET /catalog/items` — productos y servicios para rellenar una línea. Catalog usa su propio

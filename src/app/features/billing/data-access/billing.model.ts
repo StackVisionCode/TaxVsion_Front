@@ -292,18 +292,7 @@ export const EXPIRATION_OPTIONS: { label: string; value: string }[] = [
   { label: '30 days', value: '30.00:00:00' },
 ];
 
-// ---------- Clientes y catálogo (réplicas, sin imports cross-feature) ----------
-
-/**
- * Subset de `GET /customers` para el picker de la factura. Réplica del shape (patrón mail/task):
- * las features no se importan entre sí.
- */
-export interface BillingCustomerSummary {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  primaryPhone: string | null;
-}
+// ---------- Catálogo (el cliente usa el DTO compartido @core/customers) ----------
 
 /**
  * Subset de `CatalogItemDto` (`GET /catalog/items`) para rellenar una línea. El precio viene como

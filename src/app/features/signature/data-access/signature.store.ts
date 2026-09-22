@@ -5,6 +5,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { SignatureRequest } from '../ui/signature-table/signature-table.component';
 import { WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { SignatureService } from './signature.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { SignatureRealtimeService } from './signature-realtime.service';
 import {
   ApiSignatureRequestStatus,
@@ -124,6 +125,7 @@ export interface SignatureStats {
 @Injectable({ providedIn: 'root' })
 export class SignatureStore {
   private readonly service = inject(SignatureService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly realtime = inject(SignatureRealtimeService);
 
   constructor() {
@@ -525,7 +527,7 @@ export class SignatureStore {
     const seq = ++this.customersReqSeq;
     this._customersLoading.set(true);
     this._customersError.set(null);
-    this.service.searchCustomers(term).subscribe({
+    this.directory.search({ term, status: 'NotArchived', size: 200 }).subscribe({
       next: result => {
         if (seq !== this.customersReqSeq) {
           return; // llegó tarde: una búsqueda posterior ya manda

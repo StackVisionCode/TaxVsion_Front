@@ -19,11 +19,11 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
 import {
   DraftAttachmentSummary,
-  MailCustomerSummary,
   formatFileSize,
   htmlToPlainText,
   parseRecipients,
 } from '../../data-access/mail.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ComposeState } from '../../data-access/mail.store';
 
 /** Lo que el editor emite al presionar Send; mail-page le agrega customerId/accountId del store. */
@@ -100,7 +100,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   /** Cliente dueño del hilo — Correspondence es customer-céntrico. */
   @Input() customerName: string | null = null;
   /** Clientes que devolvió la búsqueda del término tecleado en To/Cc. */
-  @Input() recipientSuggestions: MailCustomerSummary[] = [];
+  @Input() recipientSuggestions: CustomerSummary[] = [];
   @Input() recipientSearching = false;
 
   @Output() closed = new EventEmitter<void>();
@@ -241,7 +241,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
    * campo, ni lo tecleado, ni la tanda de sugerencias: además de ahorrar el filtrado, mantiene
    * estable la referencia del array que consume el `*ngFor`.
    */
-  recipientOptions(field: RecipientField): MailCustomerSummary[] {
+  recipientOptions(field: RecipientField): CustomerSummary[] {
     const value = this.recipientValue(field);
     const cached = this.recipientOptionsCache;
     if (cached && cached.field === field && cached.value === value && cached.source === this.recipientSuggestions) {
@@ -258,8 +258,8 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   private recipientOptionsCache: {
     field: RecipientField;
     value: string;
-    source: MailCustomerSummary[];
-    options: MailCustomerSummary[];
+    source: CustomerSummary[];
+    options: CustomerSummary[];
   } | null = null;
 
   /** Lo tecleado ya es una dirección y ningún cliente la tiene: se ofrece tal cual. */
@@ -281,7 +281,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     return this.recipientOptions(field).length > 0 || !!this.typedEmail(field) || this.recipientSearching;
   }
 
-  pickRecipient(field: RecipientField, customer: MailCustomerSummary): void {
+  pickRecipient(field: RecipientField, customer: CustomerSummary): void {
     // El campo separa destinatarios por coma (igual que `parseRecipients`), así que un nombre
     // tipo "Peña, Enger" partiría la dirección en dos: se aplana antes de escribirlo.
     const name = customer.displayName.replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim();

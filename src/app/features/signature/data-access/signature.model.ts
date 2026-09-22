@@ -1,4 +1,5 @@
 import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
 
 /**
@@ -438,22 +439,7 @@ export interface ListSignatureRequestsParams {
   size?: number;
 }
 
-// ---------- Customers (subset espejo de Customer.Api; sin import cruzado de features) ----------
-
-export interface SignatureCustomerSummary {
-  id: string;
-  kind: 'Individual' | 'Business';
-  status: 'Active' | 'Inactive' | 'Archived';
-  displayName: string;
-  primaryEmail: string;
-  primaryPhone: string | null;
-  createdAtUtc: string;
-}
-
-export interface SignatureCustomersPage {
-  items: SignatureCustomerSummary[];
-  totalCount: number;
-}
+// ---------- Customers: el picker del wizard usa el DTO compartido @core/customers ----------
 
 // ---------- Adaptadores backend -> shapes de UI existentes ----------
 
@@ -535,7 +521,7 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
 }
 
 /** Fila de GET /customers -> shape que ya consumen los pasos del wizard. */
-export function customerToWizardClient(summary: SignatureCustomerSummary): WizardClient {
+export function customerToWizardClient(summary: CustomerSummary): WizardClient {
   return {
     id: summary.id,
     displayName: summary.displayName,
