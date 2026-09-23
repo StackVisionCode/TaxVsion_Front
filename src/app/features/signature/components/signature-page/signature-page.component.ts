@@ -8,6 +8,8 @@ import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
+import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
+import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
@@ -67,6 +69,8 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     PaginationComponent,
     ModalComponent,
     SignatureTemplatePickerComponent,
+    SignatureCategoryPickerComponent,
+    SignatureCategoryManagerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
@@ -85,6 +89,8 @@ export class SignaturePageComponent {
   readonly isCreatorOpen = signal(false);
   /** Modal para crear la solicitud a partir de una plantilla guardada. */
   readonly isTemplatePickerOpen = signal(false);
+  /** Modal de gestión de categorías del tenant (renombrar/archivar). */
+  readonly isCategoryManagerOpen = signal(false);
   readonly mySignature = signal<CreatedSignature | null>(null);
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
@@ -218,6 +224,14 @@ export class SignaturePageComponent {
 
   closeTemplatePicker(): void {
     this.isTemplatePickerOpen.set(false);
+  }
+
+  openCategoryManager(): void {
+    this.isCategoryManagerOpen.set(true);
+  }
+
+  closeCategoryManager(): void {
+    this.isCategoryManagerOpen.set(false);
   }
 
   /**

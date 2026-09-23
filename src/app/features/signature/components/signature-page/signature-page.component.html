@@ -54,6 +54,11 @@
             <ion-icon name="settings-outline" class="text-base"></ion-icon>
             Manage templates
           </a>
+          <button type="button" (click)="openCategoryManager()"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+            <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
+            Categories
+          </button>
           <button type="button" (click)="openCreatePanel()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
@@ -132,6 +137,10 @@
 <!-- Signature generator overlay -->
 <app-signature-creator [isOpen]="isCreatorOpen()" (closed)="closeCreator()"
   (created)="handleSignatureCreated($event)"></app-signature-creator>
+
+<!-- Gestión de categorías del tenant (renombrar / archivar las custom) -->
+<app-signature-category-manager [isOpen]="isCategoryManagerOpen()"
+  (closed)="closeCategoryManager()"></app-signature-category-manager>
 
 <!-- Cancelar solicitud (con motivo opcional) -->
 <app-modal [isOpen]="cancelTarget() !== null" heading="Cancel signature request"
@@ -303,10 +312,8 @@
     </p>
 
     <label class="text-xs font-medium text-gray-500">Category</label>
-    <select [ngModel]="editCategory()" (ngModelChange)="editCategory.set($event)" name="editCategory"
-      class="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
-      <option *ngFor="let category of categories" [value]="category">{{ categoryLabel(category) }}</option>
-    </select>
+    <app-signature-category-picker [value]="editCategory()" (valueChange)="editCategory.set($event)"
+      [allowCreate]="true"></app-signature-category-picker>
 
     <label class="text-xs font-medium text-gray-500">Expiration date <span class="text-gray-400">(optional)</span></label>
     <input type="date" [ngModel]="editDueDate()" (ngModelChange)="editDueDate.set($event)" name="editDueDate"

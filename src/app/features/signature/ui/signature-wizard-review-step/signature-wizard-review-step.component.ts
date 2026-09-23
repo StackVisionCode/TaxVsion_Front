@@ -20,11 +20,8 @@ import {
   kindCircle,
   kindIcon,
 } from '../signature-request-panel/signature-wizard.presenter';
-import {
-  SIGNATURE_CATEGORIES,
-  SIGNATURE_CATEGORY_LABEL,
-  SignatureCategory,
-} from '../../data-access/signature.model';
+import { SignatureCategory } from '../../data-access/signature.model';
+import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 
 const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
 
@@ -37,7 +34,7 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-review-step.component.html',
   styleUrl: './signature-wizard-review-step.component.css',
@@ -59,8 +56,6 @@ export class SignatureWizardReviewStepComponent {
 
   readonly fieldIcon = FIELD_TYPE_ICON;
   readonly channelMeta = CHANNEL_META;
-  readonly categories = SIGNATURE_CATEGORIES;
-  readonly categoryLabel = SIGNATURE_CATEGORY_LABEL;
 
   /** Etiquetas de los canales habilitados, para la tarjeta de reglas. */
   channelLabels(): string {

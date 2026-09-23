@@ -10,7 +10,9 @@ import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/s
 
 // ---------- Enums (espejo de TaxVision.Signature.Domain.Requests) ----------
 
-export type SignatureCategory = 'Fiscal' | 'EngagementLetter' | 'ConsentToDisclose' | 'BankAuth' | 'Other';
+// Antes era una unión cerrada; ahora el tenant puede definir categorías custom, así que el valor
+// guardado es un string libre. SIGNATURE_CATEGORIES/LABEL siguen describiendo solo las de sistema.
+export type SignatureCategory = string;
 
 export type ApiSignatureRequestStatus =
   | 'Draft'
@@ -33,13 +35,30 @@ export const SIGNATURE_CATEGORIES: SignatureCategory[] = [
   'Other',
 ];
 
-export const SIGNATURE_CATEGORY_LABEL: Record<SignatureCategory, string> = {
+export const SIGNATURE_CATEGORY_LABEL: Record<string, string> = {
   Fiscal: 'Fiscal',
   EngagementLetter: 'Engagement letter',
   ConsentToDisclose: 'Consent to disclose',
   BankAuth: 'Bank authorization',
   Other: 'Other',
 };
+
+/** Etiqueta amigable para una categoría: nombre bonito si es de sistema, si no el propio nombre custom. */
+export function signatureCategoryLabel(name: string): string {
+  return SIGNATURE_CATEGORY_LABEL[name] ?? name;
+}
+
+/** Una categoría disponible para el tenant (sistema o custom). Espeja SignatureCategoryResponse del backend. */
+export interface SignatureCategoryOption {
+  id: string | null;
+  name: string;
+  isSystem: boolean;
+  isArchived: boolean;
+}
+
+export interface SignatureCategoriesResult {
+  categories: SignatureCategoryOption[];
+}
 
 /** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
 export const TOKEN_EXPIRATION_MIN_HOURS = 1;

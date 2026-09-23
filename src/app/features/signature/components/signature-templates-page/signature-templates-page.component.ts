@@ -6,15 +6,15 @@ import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureService } from '../../data-access/signature.service';
 import {
-  SIGNATURE_CATEGORIES,
-  SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
   SignatureTemplateStatus,
   TOKEN_EXPIRATION_DEFAULT_HOURS,
   TemplateSummary,
+  signatureCategoryLabel,
 } from '../../data-access/signature.model';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { SignatureTemplateEditorComponent } from '../../ui/signature-template-editor/signature-template-editor.component';
+import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 
 /**
  * Autoría de plantillas de firma (`/signature/templates`). Dos vistas:
@@ -26,7 +26,14 @@ import { SignatureTemplateEditorComponent } from '../../ui/signature-template-ed
  */
 @Component({
   selector: 'app-signature-templates-page',
-  imports: [CommonModule, FormsModule, RouterLink, ModalComponent, SignatureTemplateEditorComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    ModalComponent,
+    SignatureTemplateEditorComponent,
+    SignatureCategoryPickerComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-templates-page.component.html',
   styleUrl: './signature-templates-page.component.css',
@@ -34,8 +41,7 @@ import { SignatureTemplateEditorComponent } from '../../ui/signature-template-ed
 export class SignatureTemplatesPageComponent implements OnInit {
   private readonly service = inject(SignatureService);
 
-  readonly categories = SIGNATURE_CATEGORIES;
-  readonly categoryLabel = SIGNATURE_CATEGORY_LABEL;
+  readonly categoryLabel = signatureCategoryLabel;
 
   readonly templates = signal<TemplateSummary[]>([]);
   readonly loading = signal(false);

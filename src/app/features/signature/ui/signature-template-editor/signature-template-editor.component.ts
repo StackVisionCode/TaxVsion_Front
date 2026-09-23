@@ -16,13 +16,13 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureService } from '../../data-access/signature.service';
+import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import {
-  SIGNATURE_CATEGORIES,
-  SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
   SignatureTemplateDetail,
   SignerLanguage,
   SignerVerificationMethod,
+  signatureCategoryLabel,
   TemplateSlotResponse,
   fieldTypeToKind,
 } from '../../data-access/signature.model';
@@ -102,7 +102,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 @Component({
   selector: 'app-signature-template-editor',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-editor.component.html',
   styleUrl: './signature-template-editor.component.css',
@@ -115,8 +115,7 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   /** Se emite cuando cambió algo persistido (para refrescar la lista al volver). */
   @Output() changed = new EventEmitter<void>();
 
-  readonly categories = SIGNATURE_CATEGORIES;
-  readonly categoryLabel = SIGNATURE_CATEGORY_LABEL;
+  readonly categoryLabel = signatureCategoryLabel;
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
   readonly fieldLabel = FIELD_TYPE_LABEL;
   readonly fieldIcon = FIELD_TYPE_ICON;

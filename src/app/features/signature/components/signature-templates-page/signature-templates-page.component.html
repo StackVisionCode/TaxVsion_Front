@@ -45,7 +45,7 @@
         class="flex flex-col rounded-[24px] border border-gray-100 p-4 text-left transition-colors hover:border-brand-bold hover:bg-brand-white">
         <div class="mb-2 flex items-start justify-between gap-2">
           <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-            {{ categoryLabel[template.category] }}
+            {{ categoryLabel(template.category) }}
           </span>
           <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" [ngClass]="statusClass(template.status)">
             {{ template.status }}
@@ -92,10 +92,8 @@
     </div>
     <div>
       <label class="mb-1 block text-xs font-medium text-gray-600">Category</label>
-      <select [ngModel]="draftCategory()" (ngModelChange)="draftCategory.set($event)"
-        class="w-full rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
-        <option *ngFor="let c of categories" [value]="c">{{ categoryLabel[c] }}</option>
-      </select>
+      <app-signature-category-picker [value]="draftCategory()" (valueChange)="draftCategory.set($event)"
+        [allowCreate]="true"></app-signature-category-picker>
     </div>
     <p *ngIf="createError()" class="text-xs font-medium text-red-500">{{ createError() }}</p>
     <p class="text-[11px] text-gray-400">You'll add roles and place fields on the next screen.</p>

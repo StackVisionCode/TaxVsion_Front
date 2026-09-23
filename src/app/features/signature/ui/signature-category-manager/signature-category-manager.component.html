@@ -1,0 +1,80 @@
+<app-modal [isOpen]="isOpen" heading="Manage categories"
+  subheading="Rename or archive your custom categories. System ones are fixed." size="md" (closed)="close()">
+  <div class="mt-2 space-y-5">
+    <p *ngIf="error()" class="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-medium text-red-600">{{ error() }}</p>
+
+    <!-- Custom del tenant -->
+    <div>
+      <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Your categories</h4>
+
+      <div *ngIf="customCategories().length === 0"
+        class="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-xs text-gray-400">
+        No custom categories yet. Add one from any category picker with “＋ New”.
+      </div>
+
+      <ul *ngIf="customCategories().length > 0" class="space-y-2">
+        <li *ngFor="let category of customCategories()"
+          class="flex items-center gap-2 rounded-2xl border border-gray-100 px-3 py-2">
+
+          <!-- Edición inline -->
+          <ng-container *ngIf="editingId() === category.id; else readRow">
+            <input type="text" [ngModel]="editName()" (ngModelChange)="editName.set($event)"
+              (keydown.enter)="confirmRename(category)" name="renameCategory" maxlength="60" autofocus
+              class="flex-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+            <button type="button" (click)="confirmRename(category)" [disabled]="busyId() === category.id"
+              class="rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+              {{ busyId() === category.id ? 'Saving…' : 'Save' }}
+            </button>
+            <button type="button" (click)="cancelRename()" [disabled]="busyId() === category.id"
+              class="rounded-full px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50 transition-colors">
+              Cancel
+            </button>
+          </ng-container>
+
+          <!-- Fila de lectura -->
+          <ng-template #readRow>
+            <span class="flex-1 truncate text-sm"
+              [ngClass]="category.isArchived ? 'text-gray-400 line-through' : 'text-gray-800'">
+              {{ category.name }}
+            </span>
+            <span *ngIf="category.isArchived"
+              class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Archived
+            </span>
+            <button type="button" (click)="startRename(category)" [disabled]="busyId() === category.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">
+              Rename
+            </button>
+            <button type="button" (click)="toggleArchive(category)" [disabled]="busyId() === category.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors"
+              [ngClass]="category.isArchived ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'">
+              {{ category.isArchived ? 'Restore' : 'Archive' }}
+            </button>
+          </ng-template>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Sistema (solo lectura) -->
+    <div>
+      <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">System categories</h4>
+      <div class="flex flex-wrap gap-2">
+        <span *ngFor="let category of systemCategories()"
+          class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+          {{ label(category.name) }}
+        </span>
+      </div>
+    </div>
+
+    <p class="text-[11px] text-gray-400">
+      Archiving hides a category from new requests. Requests already using it keep their category unchanged.
+    </p>
+  </div>
+
+  <div class="mt-5 flex justify-end">
+    <button type="button" (click)="close()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Done
+    </button>
+  </div>
+</app-modal>

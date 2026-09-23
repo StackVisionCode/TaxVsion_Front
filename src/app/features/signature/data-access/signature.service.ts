@@ -24,6 +24,8 @@ import {
   TemplateFieldCreatedResponse,
   TemplateListResult,
   TemplateSlotCreatedResponse,
+  SignatureCategoriesResult,
+  SignatureCategoryOption,
   UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
@@ -124,6 +126,34 @@ export class SignatureService {
   /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */
   deleteRequest(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/requests/${id}`);
+  }
+
+  // ---------- Categorías del tenant (14.5) ----------
+
+  /** GET /signature/categories — categorías de sistema + custom del tenant. */
+  listCategories(includeArchived = false): Observable<SignatureCategoriesResult> {
+    const params = includeArchived ? new HttpParams().set('includeArchived', true) : undefined;
+    return this.http.get<SignatureCategoriesResult>(`${this.base}/categories`, { params });
+  }
+
+  /** POST /signature/categories — crea una categoría custom. */
+  createCategory(name: string): Observable<SignatureCategoryOption> {
+    return this.http.post<SignatureCategoryOption>(`${this.base}/categories`, { name });
+  }
+
+  /** PUT /signature/categories/{id} — renombra una categoría custom (no toca el histórico, que guarda el nombre congelado). */
+  renameCategory(id: string, name: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/categories/${id}`, { name });
+  }
+
+  /** POST /signature/categories/{id}/archive — la saca del picker sin borrar nada. */
+  archiveCategory(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/categories/${id}/archive`, {});
+  }
+
+  /** POST /signature/categories/{id}/unarchive — la vuelve a mostrar en el picker. */
+  unarchiveCategory(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/categories/${id}/unarchive`, {});
   }
 
   addSigner(requestId: string, body: AddSignerBody): Observable<SignerResponse> {

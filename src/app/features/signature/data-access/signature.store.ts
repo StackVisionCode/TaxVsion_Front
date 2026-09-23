@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, debounceTime, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -15,6 +15,7 @@ import {
   SignerVerificationMethod,
   PreparerSessionState,
   SetPreparerBody,
+  SignatureCategoryOption,
   SignatureRequestDetail,
   SignatureTemplateDetail,
   SlotBinding,
@@ -473,6 +474,49 @@ export class SignatureStore {
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
   getDetail(requestId: string): Observable<SignatureRequestDetail> {
     return this.service.getById(requestId);
+  }
+
+  // ---------- Categorías del tenant (14.5) ----------
+  private readonly _categories = signal<SignatureCategoryOption[]>([]);
+  private categoriesLoaded = false;
+  readonly categories = this._categories.asReadonly();
+  /** Las utilizables en el picker: sistema + custom no archivadas. */
+  readonly activeCategories = computed(() => this._categories().filter(c => !c.isArchived));
+
+  loadCategories(force = false): void {
+    if (this.categoriesLoaded && !force) {
+      return;
+    }
+    // includeArchived=true: una sola carga sirve al picker (activeCategories filtra) y a la gestión (F4).
+    this.service.listCategories(true).subscribe({
+      next: result => {
+        this._categories.set(result.categories);
+        this.categoriesLoaded = true;
+      },
+      error: () => {
+        // Si falla, el picker cae a las de sistema que el propio backend siempre incluye en el próximo intento.
+      },
+    });
+  }
+
+  /** Crea una categoría custom y refresca la lista. */
+  createCategory(name: string): Observable<SignatureCategoryOption> {
+    return this.service.createCategory(name).pipe(tap(() => this.loadCategories(true)));
+  }
+
+  /** Renombra una categoría custom y refresca la lista (gestión, F4). */
+  renameCategory(id: string, name: string): Observable<void> {
+    return this.service.renameCategory(id, name).pipe(tap(() => this.loadCategories(true)));
+  }
+
+  /** Archiva una categoría custom (la saca del picker) y refresca. */
+  archiveCategory(id: string): Observable<void> {
+    return this.service.archiveCategory(id).pipe(tap(() => this.loadCategories(true)));
+  }
+
+  /** Desarchiva una categoría custom (la vuelve al picker) y refresca. */
+  unarchiveCategory(id: string): Observable<void> {
+    return this.service.unarchiveCategory(id).pipe(tap(() => this.loadCategories(true)));
   }
 
   /**

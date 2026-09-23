@@ -8,7 +8,7 @@
       </button>
       <div class="min-w-0">
         <h2 class="truncate text-sm font-bold text-gray-900">{{ title() || 'Untitled template' }}</h2>
-        <span class="text-[11px] text-gray-400">{{ categoryLabel[category()] }}</span>
+        <span class="text-[11px] text-gray-400">{{ categoryLabel(category()) }}</span>
       </div>
       <span *ngIf="detail() as d"
         class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
@@ -64,10 +64,8 @@
         <textarea rows="2" [ngModel]="description()" (ngModelChange)="description.set($event)" placeholder="Optional"
           class="mb-2 w-full resize-none rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none"></textarea>
         <label class="mb-1 block text-xs font-medium text-gray-600">Category</label>
-        <select [ngModel]="category()" (ngModelChange)="category.set($event)"
-          class="w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
-          <option *ngFor="let c of categories" [value]="c">{{ categoryLabel[c] }}</option>
-        </select>
+        <app-signature-category-picker [value]="category()" (valueChange)="category.set($event)"
+          [allowCreate]="true"></app-signature-category-picker>
       </section>
 
       <!-- Defaults -->

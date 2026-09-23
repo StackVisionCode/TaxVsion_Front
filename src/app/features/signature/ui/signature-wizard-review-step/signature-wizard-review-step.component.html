@@ -94,13 +94,11 @@
         <p *ngIf="titleTooShort()" class="mt-1 px-1 text-xs text-red-500">The title needs at least 3 characters.</p>
       </div>
 
-      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+      <div class="flex items-center gap-2">
         <span class="shrink-0 text-sm text-gray-400">Category</span>
-        <select name="reviewCategory" [ngModel]="category" (ngModelChange)="categoryChange.emit($event)"
-          class="h-full w-full cursor-pointer bg-transparent text-sm text-gray-700 focus:outline-none">
-          <option *ngFor="let cat of categories" [ngValue]="cat">{{ categoryLabel[cat] }}</option>
-        </select>
-      </label>
+        <app-signature-category-picker [value]="category" (valueChange)="categoryChange.emit($event)"
+          [allowCreate]="true"></app-signature-category-picker>
+      </div>
 
       <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
         <span class="shrink-0 text-sm text-gray-400">Due date</span>
