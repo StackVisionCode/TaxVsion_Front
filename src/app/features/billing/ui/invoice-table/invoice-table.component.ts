@@ -1,13 +1,6 @@
-import {
-  Component,
-  CUSTOM_ELEMENTS_SCHEMA,
-  EventEmitter,
-  HostListener,
-  Input,
-  Output,
-  signal,
-} from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   InvoiceStatus,
@@ -29,7 +22,10 @@ export type InvoiceAction =
   | 'copyLink'
   | 'pdf'
   | 'recordPayment'
-  | 'receipt';
+  | 'receipt'
+  | 'markSent'
+  | 'markIssued'
+  | 'reissue';
 
 /**
  * Tabla de facturas (mismo patrón que product-table/client-table: cabecera en píldora
@@ -41,7 +37,7 @@ export type InvoiceAction =
  */
 @Component({
   selector: 'app-invoice-table',
-  imports: [CommonModule],
+  imports: [CommonModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-table.component.html',
 })
@@ -52,28 +48,23 @@ export class InvoiceTableComponent {
 
   @Output() actionRequested = new EventEmitter<{ action: InvoiceAction; invoice: InvoiceSummary }>();
 
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="invoice-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
+  /** Factura cuyo menú de acciones está abierto (modal centrado, no un dropdown lateral que se corta). */
+  readonly menuInvoice = signal<InvoiceSummary | null>(null);
 
   trackByInvoiceId(_index: number, invoice: InvoiceSummary): string {
     return invoice.id;
   }
 
-  toggleMenu(invoice: InvoiceSummary, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.update(current => (current === invoice.id ? null : invoice.id));
+  openMenu(invoice: InvoiceSummary): void {
+    this.menuInvoice.set(invoice);
   }
 
-  emit(action: InvoiceAction, invoice: InvoiceSummary, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
+  closeMenu(): void {
+    this.menuInvoice.set(null);
+  }
+
+  emit(action: InvoiceAction, invoice: InvoiceSummary): void {
+    this.menuInvoice.set(null);
     this.actionRequested.emit({ action, invoice });
   }
 
@@ -129,6 +120,24 @@ export class InvoiceTableComponent {
 
   /** Anulable: emitida/enviada/parcial/pagada (repone el stock descontado al emitir). */
   canVoid(invoice: InvoiceSummary): boolean {
+    return invoice.status !== 'Draft' && invoice.status !== 'Voided';
+  }
+
+  /** Cambio de estado manual (item 6.2): marcar una emitida como "enviada al cliente". */
+  canMarkSent(invoice: InvoiceSummary): boolean {
+    return invoice.status === 'Issued';
+  }
+
+  /** Cambio de estado manual (item 6.2): revertir "enviada" a "emitida" (no se envió al final). */
+  canMarkIssued(invoice: InvoiceSummary): boolean {
+    return invoice.status === 'Sent';
+  }
+
+  /**
+   * Reemisión (item 6.3): anular + reemplazo enlazado. Aplica a una factura ya emitida (no borrador) y no
+   * anulada. Si ya fue reemplazada, el backend lo rechaza (aquí no se ve ese dato en el summary).
+   */
+  canReissue(invoice: InvoiceSummary): boolean {
     return invoice.status !== 'Draft' && invoice.status !== 'Voided';
   }
 }

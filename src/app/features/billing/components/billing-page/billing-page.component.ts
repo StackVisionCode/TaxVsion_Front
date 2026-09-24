@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -62,6 +62,12 @@ type BillingTab = 'invoices' | 'links';
 export class BillingPageComponent implements OnInit {
   readonly store = inject(BillingStore);
 
+  /**
+   * Fábrica de alta rápida de catálogo pasada al formulario de factura. Referencia ESTABLE (campo, no
+   * método inline) para no romper el change-detection del @Input; delega en el store.
+   */
+  readonly createCatalogItemFn = this.store.createCatalogItem.bind(this.store);
+
   readonly tab = signal<BillingTab>('invoices');
   readonly takeOptions = TAKE_OPTIONS;
   readonly statusTabs: InvoiceStatusFilter[] = ['All', ...FILTERABLE_STATUSES];
@@ -73,6 +79,7 @@ export class BillingPageComponent implements OnInit {
   /** Confirmaciones in-app (no `confirm()`/`prompt()` nativos: los bloquean algunos navegadores). */
   readonly deleteTarget = signal<InvoiceSummary | null>(null);
   readonly voidTarget = signal<InvoiceSummary | null>(null);
+  readonly reissueTarget = signal<InvoiceSummary | null>(null);
 
   ngOnInit(): void {
     this.store.init();
@@ -138,6 +145,15 @@ export class BillingPageComponent implements OnInit {
         break;
       case 'receipt':
         this.receiptTarget.set(invoice);
+        break;
+      case 'markSent':
+        this.store.changeInvoiceStatus(invoice.id, 'Sent', null, () => undefined);
+        break;
+      case 'markIssued':
+        this.store.changeInvoiceStatus(invoice.id, 'Issued', null, () => undefined);
+        break;
+      case 'reissue':
+        this.reissueTarget.set(invoice);
         break;
     }
   }
@@ -222,6 +238,15 @@ export class BillingPageComponent implements OnInit {
     this.voidTarget.set(null);
   }
 
+  confirmReissue(): void {
+    const invoice = this.reissueTarget();
+    if (invoice) {
+      // Anula la original y abre el borrador de reemplazo en el editor para corregirlo antes de emitir.
+      this.store.reissueInvoice(invoice.id, null, () => this.formOpen.set(true));
+    }
+    this.reissueTarget.set(null);
+  }
+
   // ---------- Cobro manual ----------
 
   closePaymentDialog(): void {
@@ -248,11 +273,16 @@ export class BillingPageComponent implements OnInit {
 
   // ---------- Links de pago ----------
 
+  @ViewChild(PaymentLinksPanelComponent) private linksPanel?: PaymentLinksPanelComponent;
+
   onCreateLink(form: CreatePaymentLinkForm): void {
-    this.store.createPaymentLink(form, token =>
-      // Se copia sola: un link recién creado casi siempre se va a pegar en un mensaje.
-      this.store.copyToClipboard(paymentLinkUrl(token), 'Payment link created and copied.'),
-    );
+    this.store.createPaymentLink(form, token => {
+      // Éxito: cerrar el modal de "New payment link" (antes quedaba abierto) y copiar el link, que
+      // casi siempre se pega en un mensaje. Un fallo NO llega acá (lo reporta el store con toast) y
+      // deja el modal abierto para reintentar.
+      this.linksPanel?.closeForm();
+      this.store.copyToClipboard(paymentLinkUrl(token), 'Payment link created and copied.');
+    });
   }
 
   onRevokeLink(event: { link: PaymentLink; reason: string }): void {

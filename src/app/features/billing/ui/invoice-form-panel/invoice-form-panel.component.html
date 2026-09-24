@@ -54,27 +54,8 @@
       </div>
     </div>
 
-    <!-- Identificación fiscal del cliente + moneda -->
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div>
-        <label for="customerTaxId" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Client tax ID <span class="font-normal normal-case tracking-normal text-gray-400">(optional)</span>
-        </label>
-        <input id="customerTaxId" type="text" name="customerTaxId" [disabled]="saving" [ngModel]="customerTaxId()"
-          (ngModelChange)="customerTaxId.set($event)" placeholder="EIN / SSN"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-      </div>
-      <div>
-        <label for="invoiceCurrency" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Currency
-        </label>
-        <select id="invoiceCurrency" name="invoiceCurrency" [disabled]="saving" [ngModel]="currency()"
-          (ngModelChange)="currency.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
-          <option *ngFor="let code of currencies" [value]="code">{{ code }}</option>
-        </select>
-      </div>
-    </div>
+    <!-- (Client Tax ID y el selector de moneda se quitaron del formulario: la moneda es la default del
+         tenant en Company settings; el Tax ID no se captura por factura.) -->
 
     <!-- Líneas -->
     <div class="mt-6 flex items-center justify-between">
@@ -87,7 +68,7 @@
     </div>
 
     <div class="mt-2 overflow-x-auto">
-      <table class="w-full min-w-[680px] border-separate border-spacing-0 text-sm">
+      <table class="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
             <th class="rounded-l-2xl bg-brand-white px-3 py-2.5 text-left text-xs font-semibold text-gray-900">
@@ -95,7 +76,7 @@
             </th>
             <th class="w-20 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Qty</th>
             <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Price</th>
-            <th class="w-24 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Tax %</th>
+            <th class="w-20 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Tax %</th>
             <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Total</th>
             <th class="w-10 rounded-r-2xl bg-brand-white px-2 py-2.5"></th>
           </tr>
@@ -139,7 +120,8 @@
                 class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
             </td>
             <td class="px-3 py-2 align-top">
-              <input type="number" min="0" max="1000" step="0.01" [name]="'lineTax' + i" [disabled]="saving"
+              <!-- Tax % por línea: se precarga del ítem del catálogo y es editable (item 6 / pedido del usuario). -->
+              <input type="number" min="0" max="100" step="0.01" [name]="'lineTax' + i" [disabled]="saving"
                 [ngModel]="line.taxPercent" (ngModelChange)="updateLine(i, { taxPercent: $event })"
                 class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
             </td>
@@ -218,5 +200,6 @@
 
 <!-- Picker del catálogo, apilado sobre el formulario -->
 <app-catalog-item-picker [isOpen]="catalogTargetIndex() !== null" [items]="catalogResults"
-  [searching]="catalogSearching" (searchChanged)="catalogSearchChanged.emit($event)"
-  (itemPicked)="applyCatalogItem($event)" (closed)="closeCatalog()"></app-catalog-item-picker>
+  [searching]="catalogSearching" [creating]="catalogCreating" (searchChanged)="catalogSearchChanged.emit($event)"
+  (itemPicked)="applyCatalogItem($event)" (createRequested)="onCatalogQuickCreate($event)"
+  (closed)="closeCatalog()"></app-catalog-item-picker>

@@ -4,6 +4,7 @@ import { Observable, catchError, map, of } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
+  BillingCatalogCategory,
   BillingCatalogItem,
   CatalogPage,
   CreateInvoiceRequest,
@@ -13,13 +14,16 @@ import {
   InvoiceDetail,
   InvoiceLineDraft,
   InvoiceLineInput,
+  InvoiceStatus,
   InvoiceSummary,
   IssueInvoiceResult,
   IssuerProfile,
+  NewCatalogItemInput,
   PaymentConfig,
   PaymentLink,
   PaymentLinkStatus,
   PaymentPurposeKind,
+  ReissueInvoiceResult,
   toBasisPoints,
   toCents,
 } from './billing.model';
@@ -128,6 +132,23 @@ export class BillingService {
     return this.http.post<void>(`${this.base}/billing/invoices/${invoiceId}/void`, { reason });
   }
 
+  /**
+   * `POST /billing/invoices/{id}/status` — cambio de estado MANUAL (item 6.2). El backend solo acepta
+   * transiciones legales de la matriz del dominio (hoy Issued⇄Sent) y audita cada cambio.
+   */
+  changeInvoiceStatus(invoiceId: string, toStatus: InvoiceStatus, reason: string | null): Observable<void> {
+    return this.http.post<void>(`${this.base}/billing/invoices/${invoiceId}/status`, { toStatus, reason });
+  }
+
+  /**
+   * `POST /billing/invoices/{id}/reissue` — reemisión enlazada (item 6.3): anula la original y crea un
+   * BORRADOR de reemplazo enlazado (copia de cliente/líneas) que arrastra el pago ya cobrado como crédito.
+   * Devuelve el id del reemplazo para abrirlo en el editor.
+   */
+  reissueInvoice(invoiceId: string, reason: string | null): Observable<ReissueInvoiceResult> {
+    return this.http.post<ReissueInvoiceResult>(`${this.base}/billing/invoices/${invoiceId}/reissue`, { reason });
+  }
+
   /** Convierte líneas de la UI (dólares y %) al contrato (centavos y puntos básicos). */
   private toLineInputs(lines: InvoiceLineDraft[]): InvoiceLineInput[] {
     return lines.map(line => ({
@@ -186,6 +207,7 @@ export class BillingService {
       phone: profile.phone || null,
       email: profile.email || null,
       website: profile.website || null,
+      defaultCurrency: profile.defaultCurrency || 'USD',
     });
   }
 
@@ -292,6 +314,52 @@ export class BillingService {
     return this.http
       .get<CatalogPage<BillingCatalogItem>>(`${this.base}/catalog/items`, { params })
       .pipe(map(result => result.items ?? []));
+  }
+
+  /** `GET /catalog/categories` — para el alta rápida de un ítem desde el picker (el backend exige categoría). */
+  listCatalogCategories(): Observable<BillingCatalogCategory[]> {
+    return this.http
+      .get<BillingCatalogCategory[]>(`${this.base}/catalog/categories`)
+      .pipe(map(categories => categories ?? []));
+  }
+
+  /** `POST /catalog/categories` — alta al vuelo de la categoría "General" cuando el tenant no tiene ninguna. */
+  createCatalogCategory(name: string): Observable<BillingCatalogCategory> {
+    return this.http.post<BillingCatalogCategory>(`${this.base}/catalog/categories`, {
+      name: name.trim(),
+      description: null,
+      parentCategoryId: null,
+    });
+  }
+
+  /**
+   * `POST /catalog/items` — alta rápida de un producto/servicio desde el formulario de factura. Solo los
+   * campos mínimos; el resto queda null (editable luego en Products/Services). `trackInventory` solo para
+   * Product (el backend lo fuerza a false en Service igualmente). Devuelve el ítem ya como `BillingCatalogItem`.
+   */
+  createCatalogItem(input: NewCatalogItemInput, categoryId: string): Observable<BillingCatalogItem> {
+    const isProduct = input.kind === 'Product';
+    const sku = isProduct && input.sku?.trim() ? input.sku.trim() : null;
+    const costAmount = isProduct && input.costAmount != null && input.costAmount > 0 ? input.costAmount : null;
+    const unit = isProduct && input.unit?.trim() ? input.unit.trim() : null;
+    return this.http.post<BillingCatalogItem>(`${this.base}/catalog/items`, {
+      name: input.name.trim(),
+      description: null,
+      sku,
+      barcode: null,
+      categoryId,
+      kind: input.kind,
+      priceAmount: input.priceAmount,
+      priceCurrency: input.priceCurrency,
+      costAmount,
+      // El backend usa priceCurrency si costCurrency es null; solo mandamos moneda si hay costo.
+      costCurrency: costAmount != null ? input.priceCurrency : null,
+      unit,
+      taxRateBasisPoints: Math.round((input.taxPercent || 0) * 100),
+      trackInventory: isProduct ? (input.trackInventory ?? true) : false,
+      imageUrl: null,
+      attributes: null,
+    });
   }
 
   /**

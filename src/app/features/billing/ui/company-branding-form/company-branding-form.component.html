@@ -72,6 +72,16 @@
           (ngModelChange)="updateIssuer({ website: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
+
+      <div>
+        <label for="companyCurrency" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Default currency</label>
+        <select id="companyCurrency" name="companyCurrency" [disabled]="saving" [ngModel]="form.defaultCurrency"
+          (ngModelChange)="updateIssuer({ defaultCurrency: $event })"
+          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
+        </select>
+        <p class="mt-1 text-xs text-gray-400">New invoices use this. Existing invoices keep the currency they were issued with.</p>
+      </div>
     </div>
   </div>
 

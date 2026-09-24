@@ -54,12 +54,17 @@
       [ngClass]="kindFilter() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
       Services <span class="ml-1 opacity-70">{{ serviceCount() }}</span>
     </button>
+    <button type="button" (click)="openCategories()"
+      class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+      <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
+      Manage categories
+    </button>
   </div>
 
   <!-- Catalog -->
   <app-service-catalog *ngIf="!store.loading() && !store.error()" [services]="filteredEntries()"
     [categories]="store.categoryNames()" (addService)="openAddPanel()"
-    (editService)="openEditPanel($event)"></app-service-catalog>
+    (editService)="openEditPanel($event)" (deleteService)="requestDelete($event)"></app-service-catalog>
 </div>
 
 <!-- Add / edit service overlay -->
@@ -98,6 +103,45 @@
         [ngClass]="newKind() === 'Product' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
         Product
       </button>
+    </div>
+
+    <!-- Detalles solo de PRODUCTO (un servicio es intangible: sin SKU/costo/unidad/stock). Solo al crear. -->
+    <div *ngIf="showProductDetails()" class="rounded-2xl border border-gray-100 bg-brand-white p-3">
+      <p class="text-xs font-semibold text-gray-500">Product details</p>
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="SKU (optional)" [ngModel]="newSku()" (ngModelChange)="newSku.set($event)"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <input type="text" placeholder="Unit (e.g. each)" [ngModel]="newUnit()" (ngModelChange)="newUnit.set($event)"
+            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <span class="pl-4 text-sm text-gray-400">$</span>
+          <input type="number" min="0" step="0.01" placeholder="Cost" [ngModel]="newCost()"
+            (ngModelChange)="newCost.set($event)"
+            class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+        <button type="button" (click)="newTrackInventory.set(!newTrackInventory())"
+          class="flex h-10 items-center justify-between rounded-full border border-gray-200 bg-white px-4 transition-colors"
+          role="switch" [attr.aria-checked]="newTrackInventory()" aria-label="Toggle inventory tracking">
+          <span class="text-sm text-gray-600">Track stock</span>
+          <span class="relative flex h-5 w-9 items-center rounded-full transition-colors"
+            [ngClass]="newTrackInventory() ? 'bg-brand-bold' : 'bg-gray-300'">
+            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+              [ngClass]="newTrackInventory() ? 'translate-x-4' : 'translate-x-0.5'"></span>
+          </span>
+        </button>
+        <!-- Cantidad inicial recibida: solo tiene sentido si se rastrea el stock -->
+        <div *ngIf="newTrackInventory()"
+          class="col-span-2 h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+          <span class="pl-4 text-sm text-gray-400">Qty received</span>
+          <input type="number" min="0" step="1" placeholder="0" [ngModel]="newStockQuantity()"
+            (ngModelChange)="newStockQuantity.set($event)"
+            class="w-full h-full bg-transparent px-3 text-right text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        </div>
+      </div>
     </div>
 
     <!-- Categoría real del tenant (el backend exige un CategoryId válido) -->
@@ -152,3 +196,76 @@
     </button>
   </div>
 </app-modal>
+
+<!-- Confirmación de baja (producto o servicio) -->
+<app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete item?" [message]="deleteMessage()"
+  confirmLabel="Delete" (confirmed)="confirmDelete()"
+  (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>
+
+<!-- Gestión de categorías: crear / renombrar / eliminar -->
+<app-modal [isOpen]="isCategoriesOpen()" heading="Categories"
+  subheading="Rename or remove your product & service categories" size="md" (closed)="closeCategories()">
+  <div class="mt-4 flex flex-col gap-3">
+    <!-- Alta rápida -->
+    <div class="flex items-center gap-2">
+      <div class="h-10 flex-1 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+        <input type="text" placeholder="New category name" [ngModel]="newCategoryName()"
+          (ngModelChange)="newCategoryName.set($event)"
+          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+      </div>
+      <button type="button" (click)="addCategory()" [disabled]="!newCategoryName().trim() || creatingCategory()"
+        class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+        {{ creatingCategory() ? 'Adding…' : 'Add' }}
+      </button>
+    </div>
+
+    <p *ngIf="categoryError() as err" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+      {{ err }}
+    </p>
+
+    <div *ngIf="store.categories().length === 0" class="px-4 py-8 text-center text-sm text-gray-400">
+      No categories yet — add your first one above.
+    </div>
+
+    <div class="max-h-80 overflow-y-auto flex flex-col gap-1">
+      <div *ngFor="let cat of store.categories()"
+        class="flex items-center gap-2 rounded-2xl px-2 py-1.5 hover:bg-gray-50 transition-colors">
+        <ng-container *ngIf="editingCategoryId() === cat.id; else readRow">
+          <div class="h-9 flex-1 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+            <input type="text" [ngModel]="editingCategoryName()" (ngModelChange)="editingCategoryName.set($event)"
+              (keyup.enter)="saveCategory()"
+              class="w-full h-full bg-transparent px-4 text-sm text-gray-700 focus:outline-none" />
+          </div>
+          <button type="button" (click)="saveCategory()" [disabled]="!editingCategoryName().trim() || categoryBusy()"
+            class="flex h-9 w-9 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition-colors"
+            aria-label="Save category">
+            <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+          </button>
+          <button type="button" (click)="cancelEditCategory()"
+            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors"
+            aria-label="Cancel">
+            <ion-icon name="close-outline" class="text-base"></ion-icon>
+          </button>
+        </ng-container>
+        <ng-template #readRow>
+          <span class="flex-1 truncate px-2 text-sm text-gray-700">{{ cat.name }}</span>
+          <button type="button" (click)="startEditCategory(cat)"
+            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="Rename category">
+            <ion-icon name="create-outline" class="text-base"></ion-icon>
+          </button>
+          <button type="button" (click)="requestDeleteCategory(cat)"
+            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            aria-label="Delete category">
+            <ion-icon name="trash-outline" class="text-base"></ion-icon>
+          </button>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Confirmación de baja de categoría (el backend rechaza si tiene ítems) -->
+<app-confirm-dialog [isOpen]="!!pendingCategoryDelete()" heading="Delete category?"
+  [message]="categoryDeleteMessage()" confirmLabel="Delete" (confirmed)="confirmDeleteCategory()"
+  (cancelled)="pendingCategoryDelete.set(null)"></app-confirm-dialog>

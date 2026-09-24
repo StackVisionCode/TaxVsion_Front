@@ -14,6 +14,8 @@ export interface InvoiceCheckout {
   currency: string;
   purposeKind: string;
   purposeExternalReferenceId?: string | null;
+  /** Etiqueta legible (número de factura) para mostrar en vez del id crudo. */
+  purposeDescription?: string | null;
   tenantName: string;
   methods: InvoiceCheckoutMethod[];
 }

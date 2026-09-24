@@ -93,29 +93,48 @@ export class CatalogStore {
    * fuerza false en Service igualmente); SKU/costo/atributos no están en este formulario.
    */
   createEntry(form: CatalogFormValue): Observable<void> {
+    // Detalles solo de producto: un servicio ignora SKU/costo/unidad/inventario.
+    const isProduct = form.kind === 'Product';
+    const sku = isProduct && form.sku?.trim() ? form.sku.trim() : null;
+    const costAmount = isProduct && form.costAmount != null && form.costAmount > 0 ? form.costAmount : null;
+    const unit = isProduct && form.unit?.trim() ? form.unit.trim() : null;
     return this.api
       .createItem({
         name: form.name.trim(),
         description: null,
-        sku: null,
+        sku,
         barcode: null,
         categoryId: form.categoryId,
         kind: form.kind,
         priceAmount: form.price,
         priceCurrency: DEFAULT_CURRENCY,
-        costAmount: null,
-        costCurrency: null,
-        unit: null,
+        costAmount,
+        costCurrency: costAmount != null ? DEFAULT_CURRENCY : null,
+        unit,
         taxRateBasisPoints: Math.round((form.taxRatePercent || 0) * 100),
-        trackInventory: form.kind === 'Product',
+        trackInventory: isProduct ? (form.trackInventory ?? true) : false,
         imageUrl: null,
         attributes: null,
       })
       .pipe(
         tap(created => {
+          // Prepend optimista para feedback inmediato.
           this._raw.update(list => [created, ...list]);
           this._total.update(total => total + 1);
         }),
+        // Cantidad inicial recibida (solo Product con inventario): primer movimiento de stock en
+        // Inventory. Falla suave — el ítem ya quedó creado; la cantidad se puede ajustar luego.
+        concatMap(created => {
+          const initialQty =
+            isProduct && (form.trackInventory ?? true) && form.stockQuantity != null && form.stockQuantity > 0
+              ? form.stockQuantity
+              : 0;
+          return initialQty > 0
+            ? this.api.adjustInitialStock(created.id, initialQty).pipe(map(() => undefined))
+            : of(undefined);
+        }),
+        // Reconciliación con el servidor: deja la lista consistente sin recargar la página a mano.
+        tap(() => this.refresh()),
         map(() => undefined),
       );
   }
@@ -150,6 +169,8 @@ export class CatalogStore {
             categoryId: form.categoryId,
             unit: latest.unit,
             taxRateBasisPoints: taxBps,
+            // Conservar el valor actual: esta pantalla no togglea el rastreo (se hace en Inventory).
+            trackInventory: latest.trackInventory,
             imageUrl: latest.imageUrl,
             attributes: null,
           }),
@@ -186,6 +207,19 @@ export class CatalogStore {
     );
   }
 
+  /**
+   * Baja de un ítem (producto O servicio): `DELETE /catalog/items/{id}` (soft-delete en Catalog).
+   * Se quita de la lista local al confirmar el 204 para que desaparezca sin recargar.
+   */
+  deleteEntry(id: string): Observable<void> {
+    return this.api.deleteItem(id).pipe(
+      tap(() => {
+        this._raw.update(list => list.filter(item => item.id !== id));
+        this._total.update(total => Math.max(0, total - 1));
+      }),
+    );
+  }
+
   // ---------- Categorías ----------
 
   /**
@@ -196,5 +230,20 @@ export class CatalogStore {
     return this.api
       .createCategory({ name: name.trim(), description: null, parentCategoryId: null })
       .pipe(tap(created => this._categories.update(list => [...list, created])));
+  }
+
+  /** Renombrar una categoría: PUT /catalog/categories/{id}; los nombres en las filas se re-resuelven solos. */
+  renameCategory(id: string, name: string): Observable<CategoryDto> {
+    return this.api
+      .updateCategory(id, name)
+      .pipe(tap(updated => this._categories.update(list => list.map(c => (c.id === id ? updated : c)))));
+  }
+
+  /**
+   * Borrar una categoría: DELETE /catalog/categories/{id}. El backend la rechaza si tiene ítems
+   * (el caller muestra el error). Al eliminarse, los ítems que la usaban muestran "Uncategorized".
+   */
+  deleteCategory(id: string): Observable<void> {
+    return this.api.deleteCategory(id).pipe(tap(() => this._categories.update(list => list.filter(c => c.id !== id))));
   }
 }

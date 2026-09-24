@@ -45,6 +45,8 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   readonly phase = signal<CheckoutPhase>('loading');
   readonly checkout = signal<InvoiceCheckout | null>(null);
   readonly errorMessage = signal<string | null>(null);
+  /** Mensaje del estado 'invalid' (enlace no disponible). Se adapta al motivo (anulada, vencida…). */
+  readonly invalidMessage = signal('Este enlace de pago no existe o ya venció.');
   readonly cardError = signal<string | null>(null);
   readonly receiptEmail = signal('');
 
@@ -79,6 +81,19 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // El resolver del backend redirige acá con ?unavailable={motivo} cuando la factura no se puede pagar
+    // (anulada, referencia inexistente, etc.) → mostramos una tarjeta amable, sin llamar a la API.
+    const unavailable = this.route.snapshot.queryParamMap.get('unavailable');
+    if (unavailable) {
+      this.invalidMessage.set(
+        unavailable === 'Payable.Revoked'
+          ? 'Esta factura fue anulada y ya no se puede pagar.'
+          : 'Este enlace de pago ya no está disponible.',
+      );
+      this.phase.set('invalid');
+      return;
+    }
+
     this.token = this.route.snapshot.paramMap.get('token') ?? '';
     if (!this.token) {
       this.phase.set('invalid');

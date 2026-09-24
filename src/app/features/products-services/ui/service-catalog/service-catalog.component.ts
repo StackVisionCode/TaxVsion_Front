@@ -42,6 +42,7 @@ export class ServiceCatalogComponent {
 
   @Output() addService = new EventEmitter<void>();
   @Output() editService = new EventEmitter<CatalogEntry>();
+  @Output() deleteService = new EventEmitter<CatalogEntry>();
 
   readonly filters = computed<CategoryFilter[]>(() => ['All', ...this.categoriesSig()]);
 

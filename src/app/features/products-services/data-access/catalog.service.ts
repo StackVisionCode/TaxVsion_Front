@@ -40,6 +40,22 @@ export class CatalogApiService {
     return this.api.tenantUrl('/catalog/categories');
   }
 
+  /** Base de Inventory (stock). Aunque Products/Services vive sobre Catalog, el alta puede fijar la
+   * cantidad inicial recibida, que es dominio de Inventory (/inventory/stock). */
+  private get stockBase(): string {
+    return this.api.tenantUrl('/inventory/stock');
+  }
+
+  /** POST /inventory/stock/{catalogItemId}/adjust — primer movimiento: crea el nivel y aplica la cantidad. */
+  adjustInitialStock(catalogItemId: string, quantity: number): Observable<unknown> {
+    return this.http.post(`${this.stockBase}/${catalogItemId}/adjust`, {
+      type: 'Adjustment',
+      quantity,
+      reference: 'Initial stock',
+      notes: null,
+    });
+  }
+
   // ---------- Items ----------
 
   /** GET /catalog/items — paginado propio de Catalog: `{ items, total, page, pageSize }`. */
@@ -103,5 +119,19 @@ export class CatalogApiService {
 
   createCategory(req: CreateCategoryRequest): Observable<CategoryDto> {
     return this.http.post<CategoryDto>(this.categoriesBase, req);
+  }
+
+  /** PUT /catalog/categories/{id} — renombra (description/parent se conservan si van null como en el alta). */
+  updateCategory(id: string, name: string): Observable<CategoryDto> {
+    return this.http.put<CategoryDto>(`${this.categoriesBase}/${id}`, {
+      name: name.trim(),
+      description: null,
+      parentCategoryId: null,
+    });
+  }
+
+  /** DELETE /catalog/categories/{id} — el backend rechaza si la categoría tiene ítems (se muestra el error). */
+  deleteCategory(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.categoriesBase}/${id}`);
   }
 }

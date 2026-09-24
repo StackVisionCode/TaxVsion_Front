@@ -11,12 +11,17 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
-import { CatalogItemPickerComponent } from '../catalog-item-picker/catalog-item-picker.component';
+import {
+  CatalogItemPickerComponent,
+  CatalogQuickCreate,
+} from '../catalog-item-picker/catalog-item-picker.component';
 import {
   BillingCatalogItem,
   InvoiceDetail,
   InvoiceLineDraft,
+  NewCatalogItemInput,
   draftTotals,
   emptyLine,
   formatCents,
@@ -60,10 +65,16 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
 })
 export class InvoiceFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
+  /** Moneda por defecto del tenant (Company settings). La factura ya no la elige el usuario. */
+  @Input() defaultCurrency = 'USD';
   @Input() customerResults: CustomerSummary[] = [];
   @Input() customerSearching = false;
   @Input() catalogResults: BillingCatalogItem[] = [];
   @Input() catalogSearching = false;
+  /** El contenedor está guardando un alta rápida de catálogo (deshabilita el mini-formulario). */
+  @Input() catalogCreating = false;
+  /** Fábrica de alta rápida (la provee el contenedor, ligada al store). Devuelve el ítem ya creado. */
+  @Input() createCatalogItem?: (input: NewCatalogItemInput) => Observable<BillingCatalogItem>;
   @Input() saving = false;
   /** Sin perfil de emisor guardado el PDF sale sin los datos de la firma: se avisa arriba. */
   @Input() hasIssuerProfile = true;
@@ -175,6 +186,31 @@ export class InvoiceFormPanelComponent implements OnChanges {
   }
 
   /**
+   * Alta rápida desde el picker: crea el producto/servicio en el catálogo (con la moneda de la factura
+   * en curso) y, al volver el ítem creado, lo agrega a la línea que se estaba rellenando — igual que si
+   * lo hubiera elegido de la lista. Un fallo lo reporta el store (toast) y deja el picker abierto.
+   */
+  onCatalogQuickCreate(payload: CatalogQuickCreate): void {
+    if (!this.createCatalogItem || this.catalogTargetIndex() === null) {
+      return;
+    }
+    const input: NewCatalogItemInput = {
+      name: payload.name,
+      kind: payload.kind,
+      priceAmount: payload.price,
+      priceCurrency: this.currency(),
+      taxPercent: payload.taxPercent,
+      sku: payload.sku,
+      costAmount: payload.cost,
+      unit: payload.unit,
+      trackInventory: payload.trackInventory,
+    };
+    this.createCatalogItem(input).subscribe({
+      next: created => this.applyCatalogItem(created),
+    });
+  }
+
+  /**
    * Añade el ítem del catálogo a la factura. Si ese MISMO ítem ya está en otra línea, **suma 1 a la
    * cantidad** de la existente en vez de duplicarlo (un servicio, al ser incontable, se queda en 1);
    * si la línea que se estaba rellenando quedó vacía, se descarta. Si el ítem es nuevo, congela
@@ -212,9 +248,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
       });
     }
 
-    if (item.price?.currency) {
-      this.currency.set(item.price.currency);
-    }
+    // La moneda de la factura es la del tenant (no se cambia por el ítem del catálogo).
     // Pedir su stock para poder avisar si la cantidad se pasa (no bloquea, el bloqueo es al emitir).
     // Se pide para cualquier ítem: un servicio/no-rastreado devuelve "sin límite" y no genera aviso.
     this.stockLookupRequested.emit(item.id);
@@ -323,7 +357,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
 
     this.customer.set(null);
     this.customerTaxId.set('');
-    this.currency.set('USD');
+    this.currency.set(this.defaultCurrency || 'USD');
     this.notes.set('');
     this.lines.set([emptyLine()]);
   }
