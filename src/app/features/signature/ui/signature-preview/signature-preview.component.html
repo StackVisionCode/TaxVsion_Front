@@ -79,10 +79,21 @@
     <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-700">{{ req.notes }}</p>
   </div>
 
-  <!-- Preparer signature stamp -->
-  <div *ngIf="req.preparerSignatureDataUrl" class="mt-6 flex items-center gap-3 rounded-2xl border border-gray-100 p-4">
-    <img [src]="req.preparerSignatureDataUrl" alt="Preparer signature" class="h-10 max-w-[160px] object-contain" />
-    <p class="text-xs text-gray-400">Prepared &amp; stamped by you</p>
+  <!-- Firma del preparador que se estampará en el documento final (no la ve el firmante). -->
+  <div *ngIf="req.preparerSignatureFileId" class="mt-6 flex items-center gap-3 rounded-2xl border border-gray-100 p-4">
+    <div class="flex h-12 w-32 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-white">
+      <img *ngIf="preparerSignatureUrl() as sigUrl; else prepStampFallback" [src]="sigUrl" alt="Preparer signature"
+        class="max-h-10 max-w-[120px] object-contain" />
+      <ng-template #prepStampFallback>
+        <ion-icon name="ribbon-outline" class="text-xl text-gray-300"></ion-icon>
+      </ng-template>
+    </div>
+    <div class="min-w-0">
+      <p class="text-xs font-semibold text-gray-800">Preparer signature</p>
+      <p class="text-[11px] text-gray-400">
+        Applied to the final document{{ req.preparerFieldCount ? ' · ' + req.preparerFieldCount + ' placement(s)' : '' }}. Signers don't see it.
+      </p>
+    </div>
   </div>
 
   <!-- Signer progress -->

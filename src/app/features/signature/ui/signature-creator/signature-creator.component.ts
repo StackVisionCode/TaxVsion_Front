@@ -65,6 +65,8 @@ export class SignatureCreatorComponent implements OnChanges, OnDestroy {
   @Input() isOpen = false;
   /** Prellenar el nombre de la firma (opcional). */
   @Input() initialText = '';
+  /** El padre está guardando la firma emitida (subida/persistencia); bloquea el botón. */
+  @Input() busy = false;
   @Output() created = new EventEmitter<CreatedSignature>();
   @Output() closed = new EventEmitter<void>();
 

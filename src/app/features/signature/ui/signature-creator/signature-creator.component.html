@@ -122,14 +122,14 @@
 
   <!-- Footer -->
   <div class="mt-6 flex items-center justify-end gap-3">
-    <button type="button" (click)="cancel()"
-      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+    <button type="button" (click)="cancel()" [disabled]="busy"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
       Cancel
     </button>
-    <button type="button" (click)="confirm()" [disabled]="!canSave()"
+    <button type="button" (click)="confirm()" [disabled]="!canSave() || busy"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
-      Save signature
+      <ion-icon [name]="busy ? 'sync-outline' : 'checkmark-outline'" class="text-base" [class.animate-spin]="busy"></ion-icon>
+      {{ busy ? 'Saving…' : 'Save signature' }}
     </button>
   </div>
 </app-modal>

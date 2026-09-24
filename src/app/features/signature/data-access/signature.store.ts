@@ -16,6 +16,9 @@ import {
   PreparerSessionState,
   SetPreparerBody,
   SignatureCategoryOption,
+  SignatureProfile,
+  SignatureProfileScope,
+  SignatureSettings,
   SignatureRequestDetail,
   SignatureTemplateDetail,
   SlotBinding,
@@ -89,6 +92,12 @@ export interface WizardRequestDraft {
   /** En orden de firma (el backend asigna `order` por inserción). */
   signers: WizardSignerDraft[];
   fields: WizardFieldDraft[];
+  /** Campos del preparador (canal paralelo). `signerLocalId` no aplica. */
+  preparerFields: WizardFieldDraft[];
+  /** FileId de la firma reutilizable a estampar por el preparador (null = la efectiva del backend). */
+  preparerSignatureFileId: string | null;
+  /** Identidad 8879 del preparador (PTIN/nombre/título); null = no se completó (no se fija). */
+  preparerInfo: SetPreparerBody | null;
 }
 
 /**
@@ -102,11 +111,26 @@ export interface WizardSendState {
   postedFieldLocalIds: string[];
   /** Ya se fijó el practitioner PIN (si el draft lo pedía) — evita re-fijarlo en un reintento. */
   pinSet: boolean;
+  /** localIds de campos del preparador ya posteados (idempotencia entre reintentos). */
+  postedPreparerFieldLocalIds: string[];
+  /** Ya se fijó la firma reutilizable del preparador — evita re-PUT en un reintento. */
+  preparerSignatureSet: boolean;
+  /** Ya se fijó la identidad 8879 del preparador — idempotencia entre reintentos. */
+  preparerInfoSet: boolean;
   sent: boolean;
 }
 
 export function emptySendState(): WizardSendState {
-  return { requestId: null, signerIdByLocal: {}, postedFieldLocalIds: [], pinSet: false, sent: false };
+  return {
+    requestId: null,
+    signerIdByLocal: {},
+    postedFieldLocalIds: [],
+    pinSet: false,
+    postedPreparerFieldLocalIds: [],
+    preparerSignatureSet: false,
+    preparerInfoSet: false,
+    sent: false,
+  };
 }
 
 export type WizardSendPhase = 'creating' | 'sending';
@@ -115,6 +139,8 @@ export type WizardSendPhase = 'creating' | 'sending';
 export interface DraftEditOriginal {
   signerBackendIds: string[];
   fields: { editorLocalId: string; fieldId: string; signerBackendId: string }[];
+  /** Campos del preparador originales, para borrar los que el usuario quitó al editar. */
+  preparerFields: { editorLocalId: string; fieldId: string }[];
 }
 
 export interface DraftEditPlan {
@@ -504,6 +530,104 @@ export class SignatureStore {
     return this.service.createCategory(name).pipe(tap(() => this.loadCategories(true)));
   }
 
+  // ---------- Firmas reutilizables (My Signature) ----------
+  private readonly _signatureProfiles = signal<SignatureProfile[]>([]);
+  private signatureProfilesLoaded = false;
+  readonly signatureProfiles = this._signatureProfiles.asReadonly();
+  /** La firma por defecto del usuario/oficina utilizable (la primera default no archivada). */
+  readonly defaultSignatureProfile = computed(
+    () => this._signatureProfiles().find(p => p.isDefault && !p.isArchived) ?? null,
+  );
+  /** Firmas seleccionables para estampar (no archivadas): propias + oficina. */
+  readonly activeSignatureProfiles = computed(() => this._signatureProfiles().filter(p => !p.isArchived));
+
+  /** El backend dice si el actor puede gestionar/usar su firma personal (empleado con toggle OFF → false). */
+  private readonly _canManageOwnSignature = signal(true);
+  readonly canManageOwnSignature = this._canManageOwnSignature.asReadonly();
+
+  loadSignatureProfiles(force = false): void {
+    if (this.signatureProfilesLoaded && !force) {
+      return;
+    }
+    // includeArchived=true: una carga sirve al manager (que muestra archivadas) y al picker (filtra).
+    this.service.listSignatureProfiles(true).subscribe({
+      next: result => {
+        this._signatureProfiles.set(result.profiles);
+        this._canManageOwnSignature.set(result.canManageOwnSignature ?? true);
+        this.signatureProfilesLoaded = true;
+      },
+      error: () => {
+        // El manager reintenta al reabrir; sin firmas el editor cae al sello tipográfico del backend.
+      },
+    });
+  }
+
+  createSignatureProfile(body: {
+    label: string;
+    scope: SignatureProfileScope;
+    imageBase64: string;
+  }): Observable<SignatureProfile> {
+    return this.service.createSignatureProfile(body).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  renameSignatureProfile(id: string, label: string): Observable<void> {
+    return this.service.renameSignatureProfile(id, label).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  setDefaultSignatureProfile(id: string): Observable<void> {
+    return this.service.setDefaultSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  archiveSignatureProfile(id: string): Observable<void> {
+    return this.service.archiveSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  unarchiveSignatureProfile(id: string): Observable<void> {
+    return this.service.unarchiveSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  deleteSignatureProfile(id: string): Observable<void> {
+    return this.service.deleteSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+  }
+
+  // ---------- Gobernanza de firma (solo admin) ----------
+  private readonly _signatureSettings = signal<SignatureSettings | null>(null);
+  readonly signatureSettings = this._signatureSettings.asReadonly();
+
+  loadSignatureSettings(): void {
+    this.service.getSignatureSettings().subscribe({
+      next: settings => this._signatureSettings.set(settings),
+      error: () => {
+        // 403 si no es admin, o sin sesión: la sección de gobernanza no se muestra.
+      },
+    });
+  }
+
+  /** Cambia solo el toggle re-enviando el resto de la config tal cual (PUT de reemplazo del backend). */
+  setAllowEmployeeOwnSignature(allow: boolean): Observable<void> {
+    const s = this._signatureSettings();
+    if (!s) {
+      return of(undefined);
+    }
+    return this.service
+      .updateSignatureSettings({
+        allowedVerificationChannels: s.allowedVerificationChannels,
+        defaultVerificationChannel: s.defaultVerificationChannel,
+        defaultTokenExpirationHours: s.defaultTokenExpirationHours,
+        remindersEnabledByDefault: s.remindersEnabledByDefault,
+        generateCertificateByDefault: s.generateCertificateByDefault,
+        documentLimits: {
+          maxPdfBytes: s.maxPdfBytes,
+          maxImageBytes: s.maxImageBytes,
+          maxPagesPerDocument: s.maxPagesPerDocument,
+        },
+        retentionPolicy: { retentionYears: s.retentionYears, allowPurge: s.allowPurge },
+        defaultReminderIntervalHours: s.defaultReminderIntervalHours,
+        allowEmployeeOwnSignature: allow,
+      })
+      .pipe(tap(() => this._signatureSettings.set({ ...s, allowEmployeeOwnSignature: allow })));
+  }
+
   /** Renombra una categoría custom y refresca la lista (gestión, F4). */
   renameCategory(id: string, name: string): Observable<void> {
     return this.service.renameCategory(id, name).pipe(tap(() => this.loadCategories(true)));
@@ -752,6 +876,14 @@ export class SignatureStore {
         await firstValueFrom(this.service.removeSigner(requestId, signerId));
       }
 
+      // Campos del preparador que ya no están en la edición → borrar.
+      const currentPreparerLocalIds = new Set(draft.preparerFields.map(f => f.localId));
+      for (const field of original.preparerFields) {
+        if (!currentPreparerLocalIds.has(field.editorLocalId)) {
+          await firstValueFrom(this.service.removePreparerField(requestId, field.fieldId));
+        }
+      }
+
       // Altas nuevas (firmantes/campos/PIN); lo existente se omite por el state sembrado.
       await this.materializeDraft(draft, state);
 
@@ -856,6 +988,39 @@ export class SignatureStore {
     if (signingPin && !state.pinSet) {
       await firstValueFrom(this.service.setPractitionerPin(requestId, signingPin));
       state.pinSet = true;
+    }
+
+    // Identidad 8879 del preparador (opcional): se fija mientras Draft/Ready (EnsureCanBeEdited), igual que
+    // el PIN — así no hace falta guardar como borrador primero. Idempotente por `preparerInfoSet`.
+    if (draft.preparerInfo && !state.preparerInfoSet) {
+      await firstValueFrom(this.service.setPreparer(requestId, draft.preparerInfo));
+      state.preparerInfoSet = true;
+    }
+
+    // Firma del preparador (canal paralelo): fija qué firma estampar + coloca sus campos. Solo si hay
+    // campos del preparador; idempotente por `preparerSignatureSet` / `postedPreparerFieldLocalIds`.
+    if (draft.preparerFields.length > 0) {
+      if (!state.preparerSignatureSet) {
+        await firstValueFrom(this.service.setPreparerSignature(requestId, draft.preparerSignatureFileId));
+        state.preparerSignatureSet = true;
+      }
+      for (const field of draft.preparerFields) {
+        if (state.postedPreparerFieldLocalIds.includes(field.localId)) {
+          continue;
+        }
+        await firstValueFrom(
+          this.service.placePreparerField(requestId, {
+            kind: field.kind,
+            page: field.page,
+            x: field.x,
+            y: field.y,
+            width: field.width,
+            height: field.height,
+            label: field.label,
+          }),
+        );
+        state.postedPreparerFieldLocalIds.push(field.localId);
+      }
     }
   }
 

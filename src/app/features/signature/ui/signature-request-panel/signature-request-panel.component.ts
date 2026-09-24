@@ -5,6 +5,7 @@ import {
   HostListener,
   Input,
   OnChanges,
+  OnInit,
   Output,
   SimpleChanges,
   ViewChild,
@@ -23,13 +24,22 @@ import { SignatureWizardReviewStepComponent } from '../signature-wizard-review-s
 import { NormalizedPlacedField, SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
 import {
   EditorSeed,
+  EditorSeedField,
   EditorSigner,
+  PREPARER_PARTY_ID,
   PlacedField,
   RequestRules,
   WizardClient,
   WizardDocument,
 } from './signature-wizard.model';
 import {
+  WizardDraftSnapshot,
+  clearDraftSnapshot,
+  readDraftSnapshot,
+  writeDraftSnapshot,
+} from '../../utils/wizard-draft-recovery.util';
+import {
+  SetPreparerBody,
   SignatureCategory,
   TOKEN_EXPIRATION_DEFAULT_HOURS,
   TOKEN_EXPIRATION_MAX_HOURS,
@@ -45,6 +55,7 @@ import {
   emptySendState,
 } from '../../data-access/signature.store';
 import { buildDraftHydration } from '../../utils/draft-hydration.util';
+import { ToastService } from '../../../../shared/ui/toast/toast.service';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -77,7 +88,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
   templateUrl: './signature-request-panel.component.html',
   styleUrl: './signature-request-panel.component.css',
 })
-export class SignatureRequestPanelComponent implements OnChanges {
+export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Cuando viene un id, el wizard se abre para CONTINUAR ese borrador (rehidratado), no para crear uno. */
   @Input() continueRequestId: string | null = null;
 
@@ -90,6 +101,7 @@ export class SignatureRequestPanelComponent implements OnChanges {
   @ViewChild('editor') private editor?: SignaturePdfEditorComponent;
 
   readonly store = inject(SignatureStore);
+  private readonly toast = inject(ToastService);
 
   readonly currentStep = signal<WizardStep>(1);
   /** Rehidratando un borrador (fetch del detalle + bytes del PDF). */
@@ -99,6 +111,8 @@ export class SignatureRequestPanelComponent implements OnChanges {
   readonly editingDraft = signal(false);
   /** Siembra del editor al continuar un borrador (firmantes + campos + reglas). */
   readonly editorSeed = signal<EditorSeed | null>(null);
+  /** Snapshot local de recuperación disponible al abrir (recarga/cierre previo). Se ofrece restaurar. */
+  readonly recoverable = signal<WizardDraftSnapshot | null>(null);
   /** Ids originales del borrador (para el diff al guardar/enviar). null = creación nueva. */
   private original: DraftEditOriginal | null = null;
   readonly selectedClient = signal<WizardClient | null>(null);
@@ -117,6 +131,12 @@ export class SignatureRequestPanelComponent implements OnChanges {
   readonly signersSnapshot = signal<EditorSigner[]>([]);
   readonly fieldsSnapshot = signal<PlacedField[]>([]);
   readonly normalizedFieldsSnapshot = signal<NormalizedPlacedField[]>([]);
+  /** Campos del preparador (canal paralelo) congelados al salir del editor. */
+  readonly preparerFieldsSnapshot = signal<NormalizedPlacedField[]>([]);
+  /** FileId de la firma reutilizable a estampar por el preparador (null = la efectiva). */
+  readonly preparerSignatureFileIdSnapshot = signal<string | null>(null);
+  /** Identidad 8879 del preparador capturada inline (null = no se completó). */
+  readonly preparerInfoSnapshot = signal<SetPreparerBody | null>(null);
   readonly rulesSnapshot = signal<RequestRules | null>(null);
 
   /** Progreso del envío multi-paso; sobrevive a fallos parciales para reintentar sin duplicar. */
@@ -200,6 +220,127 @@ export class SignatureRequestPanelComponent implements OnChanges {
     }
   }
 
+  ngOnInit(): void {
+    // Solo en modo CREAR (no continuar): si hay un snapshot de recuperación de una sesión anterior
+    // (recarga/cierre accidental), ofrecemos restaurar el trabajo del editor.
+    if (!this.continueRequestId) {
+      const snapshot = readDraftSnapshot();
+      if (snapshot) {
+        this.recoverable.set(snapshot);
+      }
+    }
+  }
+
+  // Autoguardado de recuperación: se escribe SOLO al ocultarse/cerrarse la página (recarga, cierre de
+  // pestaña/navegador) y únicamente si hay campos colocados. Nada de red ni escrituras por tecla → cero
+  // impacto en el performance mientras se trabaja.
+  @HostListener('window:pagehide')
+  onPageHide(): void {
+    this.persistRecoverySnapshot();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.hidden) {
+      this.persistRecoverySnapshot();
+    }
+  }
+
+  private persistRecoverySnapshot(): void {
+    // No en modo continuar (ese draft ya vive en el backend), y solo con cliente + documento subido.
+    if (this.editingDraft() || !this.editor) {
+      return;
+    }
+    const client = this.selectedClient();
+    const doc = this.selectedDocument();
+    if (!client || !doc?.fileId) {
+      return;
+    }
+    const seed = this.buildEditorSeedFromLive();
+    if (seed.fields.length === 0) {
+      return; // "siempre y cuando hagamos cambios en el editor": sin campos no se guarda nada
+    }
+    writeDraftSnapshot({
+      savedAt: Date.now(),
+      client,
+      documentFileId: doc.fileId,
+      documentName: doc.name,
+      title: this.title(),
+      category: this.category(),
+      dueDate: this.dueDate(),
+      notes: this.notes(),
+      seed,
+    });
+  }
+
+  /** Serializa el estado vivo del editor a un EditorSeed (mismo shape que usa la rehidratación). */
+  private buildEditorSeedFromLive(): EditorSeed {
+    const editor = this.editor!;
+    const toSeedField = (f: NormalizedPlacedField): EditorSeedField => ({
+      localId: f.localId,
+      type: f.type,
+      page: f.page,
+      nx: f.x,
+      ny: f.y,
+      nw: f.width,
+      nh: f.height,
+      signerLocalId: f.signerLocalId,
+      label: f.label,
+    });
+    const signerFields = editor.buildNormalizedFields().map(toSeedField);
+    const preparerFields = editor
+      .buildPreparerFields()
+      .map(f => ({ ...toSeedField(f), signerLocalId: PREPARER_PARTY_ID }));
+    return {
+      signers: editor.getSigners(),
+      fields: [...signerFields, ...preparerFields],
+      rules: editor.getRules(),
+      preparerSignatureFileId: editor.getPreparerSignatureFileId(),
+      preparerInfo: editor.getPreparerInfo(),
+    };
+  }
+
+  /** Restaura el trabajo del snapshot: cliente, metadata, documento (re-descargado) y siembra del editor. */
+  async restoreDraft(): Promise<void> {
+    const snapshot = this.recoverable();
+    if (!snapshot) {
+      return;
+    }
+    this.recoverable.set(null);
+    this.hydrating.set(true);
+    this.hydrateError.set('');
+    try {
+      this.selectedClient.set(snapshot.client);
+      this.title.set(snapshot.title);
+      this.category.set(snapshot.category);
+      this.notes.set(snapshot.notes);
+      this.dueDate.set(snapshot.dueDate);
+      this.editorSeed.set(snapshot.seed);
+
+      const url = await firstValueFrom(this.store.getDownloadUrl(snapshot.documentFileId));
+      const blob = await (await fetch(url)).blob();
+      this.selectedDocument.set({
+        id: snapshot.documentFileId,
+        name: snapshot.documentName,
+        kind: 'pdf',
+        size: '',
+        date: '',
+        blob,
+        fileId: snapshot.documentFileId,
+      });
+      this.currentStep.set(3);
+    } catch (err) {
+      this.hydrateError.set(err instanceof Error ? err.message : 'Your unsaved work could not be restored.');
+    } finally {
+      this.hydrating.set(false);
+    }
+  }
+
+  discardRecovery(): void {
+    clearDraftSnapshot();
+    this.recoverable.set(null);
+  }
+
   /**
    * Reabre el wizard sobre un borrador existente: trae el detalle, reconstruye cliente/metadata,
    * re-descarga los bytes del PDF y siembra el editor (firmantes + campos). El `sendState` queda
@@ -276,11 +417,21 @@ export class SignatureRequestPanelComponent implements OnChanges {
       this.store.queryCustomers('');
     }
     // Un PIN de firma escrito pero incompleto (1–3 dígitos) bloquea avanzar: el backend exige 4–10.
+    // El botón Next está habilitado (hay campos): sin un toast, el clic parece "no hacer nada".
     if (this.currentStep() === 3 && this.editor?.signingPinInvalid()) {
+      this.toast.error('Enter a 4–10 digit Signing PIN, or clear it to continue.');
       return;
     }
     // Un firmante por SMS/WhatsApp SIN teléfono no puede recibir el OTP → bloquea avanzar.
     if (this.currentStep() === 3 && (this.editor?.signersMissingPhone().length ?? 0) > 0) {
+      this.toast.error('Add a phone number for every SMS/WhatsApp signer to continue.');
+      return;
+    }
+    // Identidad 8879 a medias/mal (uno de PTIN/nombre sin el otro) → bloquea avanzar (el backend la rechazaría).
+    // Expande el panel del preparador por si estaba plegado: si no, el error inline ni se renderiza.
+    if (this.currentStep() === 3 && this.editor?.preparerInfoInvalid()) {
+      this.editor?.preparerOpen.set(true);
+      this.toast.error('Complete the preparer details (Form 8879): enter both name and PTIN/EFIN, or clear both.');
       return;
     }
     // Al salir del editor se congela el estado para el resumen del paso 4 y el POST.
@@ -288,6 +439,9 @@ export class SignatureRequestPanelComponent implements OnChanges {
       this.signersSnapshot.set(this.editor?.getSigners() ?? []);
       this.fieldsSnapshot.set(this.editor?.getFields() ?? []);
       this.normalizedFieldsSnapshot.set(this.editor?.buildNormalizedFields() ?? []);
+      this.preparerFieldsSnapshot.set(this.editor?.buildPreparerFields() ?? []);
+      this.preparerSignatureFileIdSnapshot.set(this.editor?.getPreparerSignatureFileId() ?? null);
+      this.preparerInfoSnapshot.set(this.editor?.getPreparerInfo() ?? null);
       this.rulesSnapshot.set(this.editor?.getRules() ?? null);
     }
     this.currentStep.update(step => Math.min(4, step + 1) as WizardStep);
@@ -335,6 +489,9 @@ export class SignatureRequestPanelComponent implements OnChanges {
       this.signersSnapshot.set(this.editor.getSigners());
       this.fieldsSnapshot.set(this.editor.getFields());
       this.normalizedFieldsSnapshot.set(this.editor.buildNormalizedFields());
+      this.preparerFieldsSnapshot.set(this.editor.buildPreparerFields());
+      this.preparerSignatureFileIdSnapshot.set(this.editor.getPreparerSignatureFileId());
+      this.preparerInfoSnapshot.set(this.editor.getPreparerInfo());
       this.rulesSnapshot.set(this.editor.getRules());
     }
     const draft = this.buildDraft();
@@ -352,6 +509,7 @@ export class SignatureRequestPanelComponent implements OnChanges {
       this.sendState = this.original
         ? await this.store.commitEditedDraft(draft, this.sendState, this.original, false)
         : await this.store.saveDraft(draft, this.sendState);
+      clearDraftSnapshot();
       this.savingDraft.set(false);
       this.saved.emit();
     } catch (err) {
@@ -374,6 +532,7 @@ export class SignatureRequestPanelComponent implements OnChanges {
       this.sendState = this.original
         ? await this.store.commitEditedDraft(draft, this.sendState, this.original, true, onPhase)
         : await this.store.sendWizard(draft, this.sendState, onPhase);
+      clearDraftSnapshot();
       this.sendPhase.set('done');
       await this.delay(800);
       this.sendPhase.set('idle');
@@ -425,6 +584,20 @@ export class SignatureRequestPanelComponent implements OnChanges {
         isRequired: true,
         label: field.label ?? null,
       })),
+      preparerFields: this.preparerFieldsSnapshot().map(field => ({
+        localId: field.localId,
+        signerLocalId: field.signerLocalId,
+        kind: fieldTypeToKind(field.type),
+        page: field.page,
+        x: field.x,
+        y: field.y,
+        width: field.width,
+        height: field.height,
+        isRequired: true,
+        label: field.label ?? null,
+      })),
+      preparerSignatureFileId: this.preparerSignatureFileIdSnapshot(),
+      preparerInfo: this.preparerInfoSnapshot(),
     };
   }
 

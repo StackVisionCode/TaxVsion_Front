@@ -49,6 +49,10 @@ function detail(): SignatureRequestDetail {
     completedAtUtc: null,
     canceledAtUtc: null,
     expiredAtUtc: null,
+    isPreparerSigned: false,
+    preparerSignedAtUtc: null,
+    preparerSignatureFileId: null,
+    preparerFields: [],
     signers: [
       {
         id: 'signer-client',

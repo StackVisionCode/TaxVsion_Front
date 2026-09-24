@@ -56,6 +56,10 @@ export interface SignatureRequest {
   certificateFileId?: string | null;
   /** Data URL (PNG) of the preparer's own signature stamp, captured via app-signature-pad. Undefined/null if not added. */
   preparerSignatureDataUrl?: string | null;
+  /** FileId de la firma reutilizable del preparador a estampar (14.5); el preview baja su URL. */
+  preparerSignatureFileId?: string | null;
+  /** Nº de campos del preparador colocados (para mostrar en el preview de staff). */
+  preparerFieldCount?: number;
   /** id del cliente elegido en el wizard (mock). */
   clientId?: string;
   /** Campos de firma colocados sobre el documento en el editor PDF del wizard. */

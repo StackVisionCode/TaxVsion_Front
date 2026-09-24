@@ -85,29 +85,93 @@
       </p>
     </div>
 
-    <!-- Field tools -->
-    <div class="sidebar-section shrink-0 rounded-2xl border border-gray-100 p-3">
-      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Add field</p>
-      <p class="mt-1 text-[11px] text-gray-400">For: <span class="font-medium text-gray-600">{{ activeSignerName() }}</span></p>
-      <div class="mt-2 grid grid-cols-2 gap-1.5">
-        <button *ngFor="let t of fieldTypes" type="button" (click)="addField(t)"
-          [disabled]="pages().length === 0 || !activeSignerId()"
-          class="flex items-center gap-2 rounded-xl border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors">
-          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
-            <ion-icon [name]="fieldIcon[t]" class="text-sm text-gray-700"></ion-icon>
-          </span>
-          {{ fieldLabel[t] }}
-        </button>
-      </div>
+    <!-- Field tools: tope a ~50% de la columna y scroll interno, para que NUNCA aplaste la lista de firmantes. -->
+    <div class="sidebar-section flex min-h-0 shrink-0 flex-col rounded-2xl border border-gray-100 p-3 lg:max-h-[50%]">
+      <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Add field</p>
+      <p class="mt-1 shrink-0 text-[11px] text-gray-400">For: <span class="font-medium text-gray-600">{{ activeSignerName() }}</span></p>
 
-      <!-- Hint mientras no hay campos -->
-      <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] leading-snug text-gray-500">
-        <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
-        Place at least one field on the document to continue.
-      </p>
-      <p *ngIf="fields().length > 0" class="mt-2.5 text-[11px] leading-snug text-gray-400">
-        Drag to move, corner handle to resize, × to delete.
-      </p>
+      <!-- Cuerpo scrolleable: campos + firma del preparador + hints -->
+      <div class="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5">
+        <div class="grid grid-cols-2 gap-1.5">
+          <button *ngFor="let t of fieldTypes" type="button" (click)="addField(t)"
+            [disabled]="pages().length === 0 || !activeSignerId()"
+            class="flex items-center gap-2 rounded-xl border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
+              <ion-icon [name]="fieldIcon[t]" class="text-sm text-gray-700"></ion-icon>
+            </span>
+            {{ fieldLabel[t] }}
+          </button>
+        </div>
+
+        <!-- Firma del preparador (Form 8879): plegable para no comerle espacio a los firmantes. -->
+        <div class="mt-3 border-t border-gray-100 pt-3">
+          <button type="button" (click)="togglePreparerPanel()"
+            class="flex w-full items-center justify-between gap-2 text-left">
+            <span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Preparer signature
+              <span *ngIf="hasPlacedPreparerField()"
+                class="rounded-full bg-brand-bold px-1.5 py-0.5 text-[9px] font-semibold normal-case text-white">Placed</span>
+            </span>
+            <ion-icon [name]="preparerOpen() ? 'chevron-up-outline' : 'chevron-down-outline'" class="shrink-0 text-sm text-gray-400"></ion-icon>
+          </button>
+
+          <div *ngIf="preparerOpen()">
+            <!-- Selector de qué firma estampar (propias + oficina); por defecto la firma por defecto. -->
+            <select *ngIf="signatureOptions().length > 1"
+              [ngModel]="previewedSignature()?.id ?? ''" (ngModelChange)="onSelectSignature($event)" name="preparerSignaturePick"
+              class="mt-2 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-[11px] text-gray-700 focus:border-brand-bold focus:outline-none">
+              <option *ngFor="let sig of signatureOptions()" [value]="sig.id">
+                {{ sig.label }}{{ sig.isOffice ? ' (office)' : '' }}{{ sig.isDefault ? ' • default' : '' }}
+              </option>
+            </select>
+            <button type="button" (click)="addPreparerField()" [disabled]="pages().length === 0 || !hasPreparerSignature()"
+              class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 transition-colors">
+              <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
+              Place my signature
+            </button>
+            <p *ngIf="!hasPreparerSignature()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
+              Add a default signature in “My signatures” to place it here.
+            </p>
+            <p *ngIf="hasPreparerSignature()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
+              Stamped when signing completes — signers don't see it.
+            </p>
+
+            <!-- Identidad 8879: se revela SOLO al colocar la firma del preparador (progressive disclosure),
+                 anidada bajo su firma para que "quién firma" quede junto a "qué firma". El nombre se
+                 autollena del perfil; el PTIN/EFIN se escribe (no lo guardamos). El firmante no la ve. -->
+            <div *ngIf="hasPlacedPreparerField()" class="mt-3 rounded-xl border-l-2 border-brand-bold bg-brand-white p-2.5">
+              <p class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+                <ion-icon name="ribbon-outline" class="text-xs text-brand-bold"></ion-icon>
+                Your details (Form 8879)
+              </p>
+              <span class="mt-0.5 mb-2 block text-[10px] leading-snug text-gray-400">
+                Referenced on the completion certificate — optional.
+              </span>
+              <input type="text" autocomplete="off" maxlength="200" placeholder="Preparer name (e.g. Jane Doe, EA)"
+                [ngModel]="preparerName()" (ngModelChange)="setPreparerName($event)" name="preparerName"
+                class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+              <input type="text" autocomplete="off" maxlength="20" placeholder="PTIN or EFIN (e.g. P12345678)"
+                [ngModel]="preparerPtin()" (ngModelChange)="setPreparerPtin($event)" name="preparerPtin"
+                class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+              <input type="text" autocomplete="off" maxlength="100" placeholder="Title (optional, e.g. Tax Preparer)"
+                [ngModel]="preparerTitle()" (ngModelChange)="setPreparerTitle($event)" name="preparerTitle"
+                class="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+              <span *ngIf="preparerInfoInvalid()" class="mt-1 block text-[10px] leading-snug text-red-500">
+                Enter both name (3+ chars) and PTIN/EFIN (6–20 alphanumeric).
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hint mientras no hay campos -->
+        <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] leading-snug text-gray-500">
+          <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
+          Place at least one field on the document to continue.
+        </p>
+        <p *ngIf="fields().length > 0" class="mt-2.5 text-[11px] leading-snug text-gray-400">
+          Drag to move, corner handle to resize, × to delete.
+        </p>
+      </div>
     </div>
   </aside>
 
@@ -161,9 +225,22 @@
             <!-- overlays de campos de esta página -->
             <div *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField"
               class="field-overlay absolute box-border cursor-move touch-none rounded-md border-2 bg-white/70"
-              [ngClass]="borderClass(f.signerId)"
+              [ngClass]="isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId)"
               [style.left.px]="f.x" [style.top.px]="f.y" [style.width.px]="f.width" [style.height.px]="f.height"
               style="touch-action: none;" (pointerdown)="startMove($event, f)">
+              <!-- Campo del preparador: se pinta la firma default (WYSIWYG) con un tag "You". -->
+              <div *ngIf="isPreparerField(f); else signerField" class="relative flex h-full w-full items-center justify-center overflow-hidden px-1">
+                <img *ngIf="preparerSignatureUrl() as sigUrl; else preparerFallback" [src]="sigUrl" alt="Preparer signature"
+                  class="max-h-full max-w-full object-contain" draggable="false" />
+                <ng-template #preparerFallback>
+                  <span class="flex items-center gap-1 text-[11px] font-medium text-brand-bold">
+                    <ion-icon name="ribbon-outline" class="text-xs"></ion-icon> Signature
+                  </span>
+                </ng-template>
+                <span class="absolute left-0.5 top-0.5 rounded bg-brand-bold px-1 text-[8px] font-semibold uppercase text-white">You</span>
+              </div>
+
+              <ng-template #signerField>
               <!-- Campo de texto: etiqueta editable inline (P4); el firmante la ve como instrucción -->
               <div *ngIf="f.type === 'text'; else fieldBadge" class="flex h-full w-full items-center px-1"
                 (pointerdown)="$event.stopPropagation()">
@@ -177,6 +254,7 @@
                   <ion-icon [name]="fieldIcon[f.type]" class="text-xs"></ion-icon>
                   <span class="truncate">{{ fieldLabel[f.type] }}</span>
                 </div>
+              </ng-template>
               </ng-template>
 
               <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(f.id)"
@@ -294,18 +372,6 @@
           </button>
         </ng-container>
 
-        <button type="button" (click)="toggleRule('includePreparerSignature')" class="flex w-full items-center gap-2 text-left">
-          <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
-            [ngClass]="rules().includePreparerSignature ? 'bg-brand-bold' : 'bg-gray-200'">
-            <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
-              [ngClass]="rules().includePreparerSignature ? 'left-[18px]' : 'left-0.5'"></span>
-          </span>
-          <span class="min-w-0">
-            <span class="block text-[11px] font-medium text-gray-700">Include my signature</span>
-            <span class="block text-[10px] text-gray-400">Applied to the final document</span>
-          </span>
-        </button>
-
         <!-- Signing PIN (Form 8879, opcional): 4–10 dígitos que el preparador comparte con el firmante. -->
         <div class="pt-1">
           <label class="block text-[11px] font-medium text-gray-700">Signing PIN <span class="text-gray-400">(optional)</span></label>
@@ -395,16 +461,65 @@
 
 <!-- Modal: agregar firmante (cliente registrado o manual + canal) -->
 <app-modal [isOpen]="isAddSignerOpen()" heading="Add signer"
-  subheading="Pick a registered client or type the details manually" size="md" (closed)="closeAddSigner()">
+  subheading="Search a registered client or type the details manually" size="lg" (closed)="closeAddSigner()">
   <div class="mt-4 flex flex-col gap-3">
+    <!-- Cliente registrado: buscador (typeahead server-side sobre el directorio compartido) con avatares. -->
     <div>
       <label class="mb-1 block text-xs font-medium text-gray-600">Registered client</label>
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <select name="draftClient" [ngModel]="draftClientId()" (ngModelChange)="onDraftClientChange($event)"
-          class="h-full w-full cursor-pointer bg-transparent text-sm text-gray-700 focus:outline-none">
-          <option value="">— Type manually —</option>
-          <option *ngFor="let c of registeredClients" [value]="c.id">{{ c.displayName }} — {{ c.email }}</option>
-        </select>
+      <div class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-brand-bold transition-colors">
+        <ion-icon name="search-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+        <input type="text" name="signerClientSearch" autocomplete="off" placeholder="Search name, email or phone"
+          [ngModel]="signerClientSearch()" (ngModelChange)="signerClientSearch.set($event)" (focus)="clientListOpen.set(true)"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+        <button *ngIf="draftClientId()" type="button" (click)="clearRegisteredClient()"
+          class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium text-gray-400 hover:text-gray-700 transition-colors">
+          Type manually
+        </button>
+      </div>
+
+      <!-- Resultados: se despliega al enfocar/buscar. -->
+      <div *ngIf="clientListOpen()"
+        class="mt-1.5 max-h-56 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-1 shadow-sm">
+        <!-- Cargando -->
+        <div *ngIf="customersLoading()" class="space-y-1 p-1">
+          <div *ngFor="let i of [1, 2, 3]" class="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
+            <span class="h-9 w-9 shrink-0 animate-pulse rounded-full bg-gray-100"></span>
+            <span class="h-3 flex-1 animate-pulse rounded bg-gray-100"></span>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="!customersLoading() && customersError() as err"
+          class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-red-600">
+          <span class="min-w-0 truncate">{{ err }}</span>
+          <button type="button" (click)="retryLoadClients()"
+            class="shrink-0 rounded-full border border-red-200 px-2.5 py-1 font-medium hover:bg-red-50 transition-colors">Retry</button>
+        </div>
+
+        <!-- Resultados / vacío -->
+        <ng-container *ngIf="!customersLoading() && !customersError()">
+          <button *ngFor="let c of signerClientResults()" type="button" (click)="pickRegisteredClient(c)"
+            class="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-gray-50 transition-colors"
+            [class.bg-gray-50]="draftClientId() === c.id">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+              [ngClass]="avatarFor(c)">{{ initials(c.displayName) }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-1.5">
+                <span class="min-w-0 truncate text-sm font-medium text-gray-800">{{ c.displayName }}</span>
+                <span class="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                  [ngClass]="typeBadge(c.type)">{{ c.type === 'company' ? 'Company' : 'Individual' }}</span>
+                <span *ngIf="!c.isActive"
+                  class="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-400">Inactive</span>
+              </span>
+              <span class="block truncate text-[11px] text-gray-400">{{ c.email }}{{ c.phone ? ' · ' + c.phone : '' }}</span>
+            </span>
+            <ion-icon *ngIf="draftClientId() === c.id" name="checkmark-circle" class="shrink-0 text-base text-brand-bold"></ion-icon>
+          </button>
+
+          <p *ngIf="signerClientResults().length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
+            No clients found. Type the details manually below.
+          </p>
+        </ng-container>
       </div>
     </div>
 

@@ -12,6 +12,28 @@
     </button>
   </div>
 
+  <!-- Recuperación: trabajo sin guardar de una recarga/cierre anterior -->
+  <div *ngIf="recoverable() as snap"
+    class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    <ion-icon name="refresh-outline" class="shrink-0 text-lg text-amber-600"></ion-icon>
+    <div class="min-w-0 flex-1 basis-64">
+      <p class="text-sm font-semibold text-amber-800">Restore your unsaved work?</p>
+      <p class="text-xs text-amber-700">
+        We found a signature request you were preparing{{ snap.title ? ' — "' + snap.title + '"' : '' }}. Restore it or start fresh.
+      </p>
+    </div>
+    <div class="ml-auto flex shrink-0 items-center gap-2">
+      <button type="button" (click)="discardRecovery()"
+        class="rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-white transition-colors">
+        Start fresh
+      </button>
+      <button type="button" (click)="restoreDraft()"
+        class="rounded-full bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 transition-colors">
+        Restore
+      </button>
+    </div>
+  </div>
+
   <!-- Stepper numerado -->
   <div class="mt-5 flex items-center gap-2">
     <ng-container *ngFor="let s of steps; let last = last">

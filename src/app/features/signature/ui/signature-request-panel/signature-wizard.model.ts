@@ -1,7 +1,14 @@
 /** Tipos del wizard de "New Signature Request" (cliente → documento → editor de campos PDF). */
-import { SignerLanguage } from '../../data-access/signature.model';
+import { SetPreparerBody, SignerLanguage } from '../../data-access/signature.model';
 
 export type FieldType = 'signature' | 'initials' | 'date' | 'text';
+
+/**
+ * "Firmante" sintético para los campos del preparador dentro del editor: viven en el mismo array de
+ * campos con este `signerId`, y se separan al exportar (buildPreparerFields) porque el preparador no es
+ * un firmante (no recibe email/token). El backend los recibe por endpoints propios (preparer-fields).
+ */
+export const PREPARER_PARTY_ID = 'preparer';
 
 /**
  * Campo colocado sobre una página del PDF. `x/y/width/height` están en px de
@@ -38,7 +45,6 @@ export interface RequestRules {
   /** Cada cuántas HORAS se recuerda a los firmantes pendientes (la UI lo edita en días). */
   reminderIntervalHours: number;
   certificate: boolean;
-  includePreparerSignature: boolean;
   /** P2: entregar el documento firmado a los firmantes al completar (email/SMS). */
   sendSignedDocument: boolean;
   /** P2: entregar el certificado de finalización a los firmantes al completar. */
@@ -85,6 +91,10 @@ export interface EditorSeed {
   signers: EditorSigner[];
   fields: EditorSeedField[];
   rules: RequestRules;
+  /** FileId de la firma del preparador elegida en el borrador (para preseleccionarla en el editor). */
+  preparerSignatureFileId?: string | null;
+  /** Identidad 8879 del preparador (PTIN/nombre/título) capturada inline en el wizard. */
+  preparerInfo?: SetPreparerBody | null;
 }
 
 /** Cliente elegido en el paso 1 (subset mock, alineado con ClientItem de la feature clients). */

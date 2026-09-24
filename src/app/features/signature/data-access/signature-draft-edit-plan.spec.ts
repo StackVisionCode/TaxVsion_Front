@@ -34,6 +34,9 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
       isRequired: true,
       label: null,
     })),
+    preparerFields: [],
+    preparerSignatureFileId: null,
+    preparerInfo: null,
   };
 }
 
@@ -44,12 +47,16 @@ describe('computeDraftEditPlan', () => {
       { editorLocalId: 'client:c', fieldId: 'F1', signerBackendId: 'S1' },
       { editorLocalId: 'seed-x', fieldId: 'F2', signerBackendId: 'S2' },
     ],
+    preparerFields: [],
   };
   const state: WizardSendState = {
     requestId: 'req',
     signerIdByLocal: { 'client:c': 'S1', 'seed-s2': 'S2' },
     postedFieldLocalIds: ['client:c', 'seed-x'],
     pinSet: false,
+    postedPreparerFieldLocalIds: [],
+    preparerSignatureSet: false,
+    preparerInfoSet: false,
     sent: false,
   };
 

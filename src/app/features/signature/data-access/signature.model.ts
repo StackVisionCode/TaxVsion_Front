@@ -60,6 +60,46 @@ export interface SignatureCategoriesResult {
   categories: SignatureCategoryOption[];
 }
 
+// ---------- Firmas reutilizables del preparador/oficina (My Signature) ----------
+
+/** Ámbito de una firma: personal del usuario u de oficina (gestionada por el admin). */
+export type SignatureProfileScope = 'user' | 'office';
+
+/** Firma reutilizable. Espejo de SignatureProfileResponse del backend. La imagen se baja por `fileId`. */
+export interface SignatureProfile {
+  id: string;
+  ownerUserId: string | null;
+  isOffice: boolean;
+  label: string;
+  fileId: string;
+  width: number;
+  height: number;
+  isDefault: boolean;
+  isArchived: boolean;
+}
+
+export interface SignatureProfilesResult {
+  profiles: SignatureProfile[];
+  /** false para un empleado no-admin cuando el tenant apagó la firma propia: solo puede usar la de oficina. */
+  canManageOwnSignature: boolean;
+}
+
+/** Subconjunto de la configuración de firma del tenant que la UI de gobernanza necesita round-tripear. */
+export interface SignatureSettings {
+  allowedVerificationChannels: string[];
+  defaultVerificationChannel: string;
+  defaultTokenExpirationHours: number;
+  remindersEnabledByDefault: boolean;
+  defaultReminderIntervalHours: number;
+  generateCertificateByDefault: boolean;
+  allowEmployeeOwnSignature: boolean;
+  maxPdfBytes: number;
+  maxImageBytes: number;
+  maxPagesPerDocument: number;
+  retentionYears: number;
+  allowPurge: boolean;
+}
+
 /** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
 export const TOKEN_EXPIRATION_MIN_HOURS = 1;
 export const TOKEN_EXPIRATION_MAX_HOURS = 720;
@@ -94,6 +134,18 @@ export interface SignerResponse {
   fields: SignatureFieldResponse[];
 }
 
+/** Campo del preparador (canal paralelo Form 8879). Sin signerId: no pertenece a un firmante. */
+export interface PreparerFieldResponse {
+  id: string;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+}
+
 /** GET /signature/requests/{id} y respuesta de POST /signature/requests. */
 export interface SignatureRequestDetail {
   id: string;
@@ -126,6 +178,10 @@ export interface SignatureRequestDetail {
   completedAtUtc: string | null;
   canceledAtUtc: string | null;
   expiredAtUtc: string | null;
+  isPreparerSigned: boolean;
+  preparerSignedAtUtc: string | null;
+  preparerSignatureFileId: string | null;
+  preparerFields: PreparerFieldResponse[];
   signers: SignerResponse[];
 }
 
@@ -231,6 +287,18 @@ export interface TemplateFieldResponse {
   isRequired: boolean;
 }
 
+/** Campo del preparador predefinido en la plantilla (sin slot). "from template" lo hereda. */
+export interface TemplatePreparerFieldResponse {
+  id: string;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+}
+
 /** GET /signature/templates/{id} — el molde completo, con sus slots y campos. */
 export interface SignatureTemplateDetail {
   id: string;
@@ -255,6 +323,7 @@ export interface SignatureTemplateDetail {
   publishedAtUtc: string | null;
   slots: TemplateSlotResponse[];
   fields: TemplateFieldResponse[];
+  preparerFields: TemplatePreparerFieldResponse[];
 }
 
 /** Ata un firmante real a un rol del molde. */
@@ -562,6 +631,8 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     hasSignatureField: detail.signers.some(signer =>
       signer.fields.some(f => f.kind === 'Signature' || f.kind === 'Initials'),
     ),
+    preparerSignatureFileId: detail.preparerSignatureFileId,
+    preparerFieldCount: detail.preparerFields.length,
   };
 }
 

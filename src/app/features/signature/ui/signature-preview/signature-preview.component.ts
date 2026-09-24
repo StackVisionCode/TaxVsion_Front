@@ -1,6 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SignatureRequest, SignatureStatus, Signer, SignerStatus } from '../signature-table/signature-table.component';
+import { SignatureStore } from '../../data-access/signature.store';
 
 /**
  * Vista previa de solo lectura de una solicitud de firma (mismo patrón
@@ -19,7 +20,20 @@ import { SignatureRequest, SignatureStatus, Signer, SignerStatus } from '../sign
   templateUrl: './signature-preview.component.html',
 })
 export class SignaturePreviewComponent {
-  @Input() request: SignatureRequest | null = null;
+  private readonly store = inject(SignatureStore);
+
+  private _request: SignatureRequest | null = null;
+  @Input() set request(value: SignatureRequest | null) {
+    this._request = value;
+    this.loadPreparerSignature(value);
+  }
+  get request(): SignatureRequest | null {
+    return this._request;
+  }
+
+  /** URL presignada de la firma del preparador estampada (para mostrarla en el preview de staff). */
+  readonly preparerSignatureUrl = signal<string | null>(null);
+
   /** true mientras el envío (Ready → InProgress) está en vuelo. */
   @Input() sending = false;
   @Output() back = new EventEmitter<void>();
@@ -207,5 +221,18 @@ export class SignaturePreviewComponent {
 
   goBack(): void {
     this.back.emit();
+  }
+
+  /** Baja la URL de la firma del preparador si la solicitud la tiene, para mostrarla estampada. */
+  private loadPreparerSignature(request: SignatureRequest | null): void {
+    this.preparerSignatureUrl.set(null);
+    const fileId = request?.preparerSignatureFileId;
+    if (!fileId) {
+      return;
+    }
+    this.store.getDownloadUrl(fileId).subscribe({
+      next: url => this.preparerSignatureUrl.set(url),
+      error: () => this.preparerSignatureUrl.set(null),
+    });
   }
 }

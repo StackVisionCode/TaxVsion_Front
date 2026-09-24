@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
-import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
+import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-manager/signature-profiles-manager.component';
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
@@ -65,7 +65,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
-    SignatureCreatorComponent,
+    SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
     SignatureTemplatePickerComponent,
@@ -85,13 +85,12 @@ export class SignaturePageComponent {
   /** Id del borrador a continuar en el wizard (null = crear uno nuevo). */
   readonly continueRequestId = signal<string | null>(null);
 
-  /** Generador de firmas (adaptado del CRM legado): modal + firma propia del preparador. */
-  readonly isCreatorOpen = signal(false);
+  /** Gestión de "My Signatures" (firmas reutilizables del preparador, persistidas). */
+  readonly isProfilesManagerOpen = signal(false);
   /** Modal para crear la solicitud a partir de una plantilla guardada. */
   readonly isTemplatePickerOpen = signal(false);
   /** Modal de gestión de categorías del tenant (renombrar/archivar). */
   readonly isCategoryManagerOpen = signal(false);
-  readonly mySignature = signal<CreatedSignature | null>(null);
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
@@ -147,6 +146,7 @@ export class SignaturePageComponent {
   constructor() {
     this.store.refresh();
     this.store.loadStats();
+    this.store.loadSignatureProfiles();
   }
 
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
@@ -248,27 +248,12 @@ export class SignaturePageComponent {
     );
   }
 
-  openCreator(): void {
-    this.isCreatorOpen.set(true);
+  openProfilesManager(): void {
+    this.isProfilesManagerOpen.set(true);
   }
 
-  closeCreator(): void {
-    this.isCreatorOpen.set(false);
-  }
-
-  /**
-   * La imagen se queda SOLO en memoria de esta pantalla.
-   *
-   * Ningún endpoint de Signature acepta un binario de firma: `SetPreparerBody`
-   * son tres strings y `preparer/sign` va sin body, así que no hay dónde
-   * enviarla. Decir "saved" prometía una persistencia que no existe — se pierde
-   * al recargar. Tampoco se guarda en localStorage a propósito: una firma
-   * manuscrita es un dato sensible y ahí la leería cualquier script de la página.
-   */
-  handleSignatureCreated(signature: CreatedSignature): void {
-    this.mySignature.set(signature);
-    this.closeCreator();
-    this.showToast('Signature ready — kept on this screen only, not stored on the server');
+  closeProfilesManager(): void {
+    this.isProfilesManagerOpen.set(false);
   }
 
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */

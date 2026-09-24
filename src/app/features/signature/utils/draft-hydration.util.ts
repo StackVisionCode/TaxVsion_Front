@@ -4,6 +4,7 @@ import {
   EditorSeed,
   EditorSeedField,
   EditorSigner,
+  PREPARER_PARTY_ID,
   RequestRules,
   WizardClient,
 } from '../ui/signature-request-panel/signature-wizard.model';
@@ -39,6 +40,7 @@ export interface DraftHydration {
   original: {
     signerBackendIds: string[];
     fields: OriginalField[];
+    preparerFields: { editorLocalId: string; fieldId: string }[];
   };
   metadata: {
     title: string;
@@ -113,6 +115,26 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
     }
   }
 
+  // Campos del preparador: viven en el mismo array del editor con signerLocalId = PREPARER_PARTY_ID.
+  const preparerOriginal: { editorLocalId: string; fieldId: string }[] = [];
+  const postedPreparerFieldLocalIds: string[] = [];
+  for (const field of detail.preparerFields) {
+    const localId = `seed-prep-${field.id}`;
+    seedFields.push({
+      localId,
+      type: kindToFieldType(field.kind),
+      page: field.page,
+      nx: field.x,
+      ny: field.y,
+      nw: field.width,
+      nh: field.height,
+      signerLocalId: PREPARER_PARTY_ID,
+      label: field.label ?? undefined,
+    });
+    postedPreparerFieldLocalIds.push(localId);
+    preparerOriginal.push({ editorLocalId: localId, fieldId: field.id });
+  }
+
   const rules: RequestRules = {
     ...defaultRules(),
     sequential: detail.requiresSequentialSigning,
@@ -125,17 +147,24 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
 
   return {
     client,
-    seed: { signers: editorSigners, fields: seedFields, rules },
+    seed: { signers: editorSigners, fields: seedFields, rules, preparerSignatureFileId: detail.preparerSignatureFileId },
     sendState: {
       requestId: detail.id,
       signerIdByLocal,
       postedFieldLocalIds,
       pinSet: detail.requiresPractitionerPin,
+      postedPreparerFieldLocalIds,
+      // false a propósito: al guardar/enviar la edición re-aplica la firma elegida actual (idempotente).
+      preparerSignatureSet: false,
+      // El detalle no devuelve la identidad del preparador; si el usuario no la reingresa, draft.preparerInfo
+      // será null y no se toca la existente en el backend.
+      preparerInfoSet: false,
       sent: false,
     },
     original: {
       signerBackendIds: signers.map(s => s.id),
       fields: originalFields,
+      preparerFields: preparerOriginal,
     },
     metadata: {
       title: detail.title,

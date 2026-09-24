@@ -27,19 +27,17 @@
           <h2 class="text-xl font-bold text-gray-900">Signature Requests</h2>
           <p class="mt-1 text-sm text-gray-500">Track documents sent out for client signature</p>
 
-          <!-- Firma propia generada (generador de firmas) -->
-          <div *ngIf="mySignature() as sig"
+          <!-- Firma por defecto guardada (persistida en CloudStorage) -->
+          <div *ngIf="store.defaultSignatureProfile() as sig"
             class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
-            <img [src]="sig.dataUrl" alt="My signature" class="h-8 max-w-[140px] object-contain" />
-            <span class="text-xs font-medium text-gray-600">{{ sig.displayName }}</span>
-            <!-- No hay endpoint que reciba la imagen: vive solo en esta pantalla. -->
-            <span class="text-[10px] text-gray-400">this screen only</span>
-            <button type="button" (click)="openCreator()"
-              class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Change</button>
+            <ion-icon name="ribbon-outline" class="text-base text-brand-bold"></ion-icon>
+            <span class="text-xs font-medium text-gray-600">Default signature: {{ sig.label }}</span>
+            <button type="button" (click)="openProfilesManager()"
+              class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Manage</button>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button type="button" (click)="openCreator()"
+          <button type="button" (click)="openProfilesManager()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             My signature
@@ -134,9 +132,9 @@
 <app-signature-template-picker [isOpen]="isTemplatePickerOpen()" (closed)="closeTemplatePicker()"
   (created)="handleTemplateInstantiated($event)"></app-signature-template-picker>
 
-<!-- Signature generator overlay -->
-<app-signature-creator [isOpen]="isCreatorOpen()" (closed)="closeCreator()"
-  (created)="handleSignatureCreated($event)"></app-signature-creator>
+<!-- Gestión de "My Signatures" (firmas reutilizables del preparador, persistidas) -->
+<app-signature-profiles-manager [isOpen]="isProfilesManagerOpen()"
+  (closed)="closeProfilesManager()"></app-signature-profiles-manager>
 
 <!-- Gestión de categorías del tenant (renombrar / archivar las custom) -->
 <app-signature-category-manager [isOpen]="isCategoryManagerOpen()"
