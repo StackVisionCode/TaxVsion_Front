@@ -6,12 +6,14 @@ import { toApiError } from '@core/models/api-error.model';
 import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.component';
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
 import { EditAccessDrawerComponent } from '../../ui/edit-access-drawer/edit-access-drawer.component';
+import { OffboardDialogComponent } from '../../ui/offboard-dialog/offboard-dialog.component';
 import {
   SEAT_CHECKOUT_INTENT_KEY,
   SeatPurchaseModalComponent,
 } from '../../ui/seat-purchase-modal/seat-purchase-modal.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
 import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
 
@@ -26,9 +28,10 @@ const SEARCH_DEBOUNCE_MS = 300;
  * edición. Los datos vienen de UserManagementStore (Auth.Api vía `/auth/*`):
  * Members = GET /auth/users con paginación y búsqueda del servidor;
  * Invitations = GET /auth/invitations?status=Pending. Suspend/Reactivate son
- * PATCH deactivate/reactivate (no hay delete de usuarios en el backend, así
- * que no existe "Remove member"); cancelar una invitación sí pide confirmación.
- * La fila del usuario logueado no muestra menú de acciones.
+ * PATCH deactivate/reactivate; "Remove from office" es el retiro terminal
+ * (POST offboard) con su diálogo de impacto + sucesor. Suspend y offboard piden
+ * confirmación; cancelar una invitación también. La fila del usuario logueado no
+ * muestra menú de acciones.
  */
 @Component({
   selector: 'app-user-management-page',
@@ -38,6 +41,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     UserTableComponent,
     UserInvitePanelComponent,
     EditAccessDrawerComponent,
+    OffboardDialogComponent,
     SeatPurchaseModalComponent,
     PaginationComponent,
     ConfirmDialogComponent,
@@ -48,6 +52,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 export class UserManagementPageComponent {
   private readonly store = inject(UserManagementStore);
   private readonly seatStore = inject(SeatPurchaseStore);
+  private readonly toastService = inject(ToastService);
 
   readonly members = this.store.members;
   readonly membersTotal = this.store.membersTotal;
@@ -71,6 +76,8 @@ export class UserManagementPageComponent {
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
   readonly pendingCancel = signal<TeamMember | null>(null);
+  readonly pendingSuspend = signal<TeamMember | null>(null);
+  readonly pendingOffboard = signal<TeamMember | null>(null);
   readonly isSeatModalOpen = signal(false);
 
   /** The member whose "Edit access" drawer is open (null = closed). */
@@ -85,9 +92,12 @@ export class UserManagementPageComponent {
       : '';
   });
 
-  readonly toast = signal<string | null>(null);
-  readonly toastKind = signal<'success' | 'error'>('success');
-  private toastTimer?: ReturnType<typeof setTimeout>;
+  readonly suspendMessage = computed(() => {
+    const member = this.pendingSuspend();
+    return member
+      ? `${member.name} won't be able to sign in until you reactivate them. Their data and assignments stay as they are.`
+      : '';
+  });
 
   // Stats: total desde el listado paginado; activos/pendientes/asientos desde GET /auth/tenants/limits.
   readonly totalCount = this.store.membersTotal;
@@ -247,13 +257,51 @@ export class UserManagementPageComponent {
     });
   }
 
-  /** Suspend/Reactivate = PATCH /auth/users/{id}/deactivate|reactivate. */
+  /**
+   * Suspend/Reactivate = PATCH /auth/users/{id}/deactivate|reactivate. Reactivar no es destructivo →
+   * directo; suspender corta el acceso → pide confirmación primero (FE-1b).
+   */
   toggleSuspend(member: TeamMember): void {
-    const reactivating = member.status === 'suspended';
-    this.store.setUserActive(member.id, reactivating).subscribe({
-      next: () => this.showToast(reactivating ? `${member.name} reactivated` : `${member.name} suspended`),
+    if (member.status === 'suspended') {
+      this.performSetActive(member, true);
+      return;
+    }
+    this.pendingSuspend.set(member);
+  }
+
+  confirmSuspend(): void {
+    const member = this.pendingSuspend();
+    if (member) {
+      this.performSetActive(member, false);
+    }
+    this.pendingSuspend.set(null);
+  }
+
+  private performSetActive(member: TeamMember, active: boolean): void {
+    this.store.setUserActive(member.id, active).subscribe({
+      next: () => this.showToast(active ? `${member.name} reactivated` : `${member.name} suspended`),
       error: err => this.showToast(toApiError(err).message, 'error'),
     });
+  }
+
+  /** "Remove from office" (retiro terminal) — pide confirmación. */
+  offboard(member: TeamMember): void {
+    this.pendingOffboard.set(member);
+  }
+
+  /**
+   * FE-2: el diálogo emite el sucesor elegido (o null = rutar a la oficina). El backend marca el estado
+   * terminal, reasigna el trabajo activo y libera el asiento.
+   */
+  confirmOffboard(successorUserId: string | null): void {
+    const member = this.pendingOffboard();
+    if (member) {
+      this.store.offboardUser(member.id, successorUserId).subscribe({
+        next: () => this.showToast(`${member.name} removed from the office`),
+        error: err => this.showToast(toApiError(err).message, 'error'),
+      });
+    }
+    this.pendingOffboard.set(null);
   }
 
   cancelInvite(member: TeamMember): void {
@@ -272,10 +320,14 @@ export class UserManagementPageComponent {
     this.pendingCancel.set(null);
   }
 
+  // Toast global compartido (app-toast-host, montado una vez en el shell): flotante y visible en toda
+  // la app, a diferencia del chip inline anterior que estaba pegado al título y era fácil no verlo —
+  // p.ej. al remover un miembro parecía que "no avisaba nada".
   private showToast(message: string, kind: 'success' | 'error' = 'success'): void {
-    this.toast.set(message);
-    this.toastKind.set(kind);
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => this.toast.set(null), 2500);
+    if (kind === 'error') {
+      this.toastService.error(message);
+    } else {
+      this.toastService.success(message);
+    }
   }
 }

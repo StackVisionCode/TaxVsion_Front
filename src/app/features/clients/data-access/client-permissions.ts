@@ -42,6 +42,15 @@ export class ClientPermissions {
     () => this.perms.has(CustomersPermissions.Manage) && this.perms.isAdmin(),
   );
 
+  /** Asignar/repartir clientes a staff: permiso preparer + actor admin (el backend gatea admin-only). */
+  readonly canAssignPreparer: Signal<boolean> = computed(
+    () => this.perms.has(CustomersPermissions.PreparerManage) && this.perms.isAdmin(),
+  );
+
+  /** Ver el roster de asignados (columna "Assigned to" + tarjeta): solo admin/view_all (need-to-know).
+   * El backend además no envía los asignados a un no-admin, así que esto solo evita pintar la columna. */
+  readonly canViewAssignees: Signal<boolean> = computed(() => this.perms.isAdmin());
+
   /** Import: solo administrador del tenant (backend gatea por rol TenantAdmin). */
   readonly canImport: Signal<boolean> = computed(() => this.perms.isAdmin());
 }

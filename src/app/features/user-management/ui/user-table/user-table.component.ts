@@ -2,7 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, O
 import { CommonModule } from '@angular/common';
 import { actorTypeLabel } from '../../data-access/user-management.model';
 
-export type MemberStatus = 'active' | 'invited' | 'suspended';
+export type MemberStatus = 'active' | 'invited' | 'suspended' | 'removed';
 
 /**
  * Fila de la tabla del equipo. Cubre dos orígenes reales:
@@ -53,6 +53,7 @@ export class UserTableComponent {
   @Output() editRoles = new EventEmitter<TeamMember>();
   @Output() resendInvite = new EventEmitter<TeamMember>();
   @Output() toggleSuspend = new EventEmitter<TeamMember>();
+  @Output() offboard = new EventEmitter<TeamMember>();
   @Output() cancelInvite = new EventEmitter<TeamMember>();
 
   readonly openMenuId = signal<string | null>(null);
@@ -113,6 +114,8 @@ export class UserTableComponent {
         return 'Invited';
       case 'suspended':
         return 'Suspended';
+      case 'removed':
+        return 'Removed';
       default:
         return status;
     }
@@ -126,6 +129,9 @@ export class UserTableComponent {
         return 'border-gray-200 bg-gray-100 text-gray-600';
       case 'suspended':
         return 'border-red-200 bg-red-50 text-red-700';
+      // Removed (offboarded) es terminal: neutro, no rojo — no es un estado accionable como suspended.
+      case 'removed':
+        return 'border-gray-300 bg-gray-100 text-gray-500';
       default:
         return 'border-gray-200 bg-gray-50 text-gray-600';
     }
@@ -139,6 +145,8 @@ export class UserTableComponent {
         return 'bg-gray-400';
       case 'suspended':
         return 'bg-red-500';
+      case 'removed':
+        return 'bg-gray-400';
       default:
         return 'bg-gray-400';
     }

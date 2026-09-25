@@ -1,6 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { StaffDirectoryStore, StaffMember } from '../../data-access/staff-directory.store';
 
 export type ClientType = 'individual' | 'company';
 
@@ -33,6 +34,8 @@ export interface ClientItem {
   isActive: boolean;
   /** ISO date string (YYYY-MM-DD). */
   createdAt: string;
+  /** userIds del staff asignado (M:N) — para los avatares de la fila. Opcional: solo el listado los trae. */
+  assigneeUserIds?: string[];
   individual?: ClientIndividualDetails;
   company?: ClientCompanyDetails;
 }
@@ -59,14 +62,25 @@ export class ClientTableComponent {
   @Input() selectedIds: ReadonlySet<string> = new Set<string>();
   @Input() canManage = true;
   @Input() canChangeStatus = true;
+  @Input() canAssignPreparer = false;
+  /** Mostrar la columna "Assigned to" (roster). Solo admin/view_all — need-to-know. */
+  @Input() canViewAssignees = false;
 
   @Output() editRequested = new EventEmitter<ClientItem>();
   @Output() toggleActiveRequested = new EventEmitter<ClientItem>();
   @Output() deleteRequested = new EventEmitter<ClientItem>();
+  @Output() assignRequested = new EventEmitter<ClientItem>();
   @Output() selectToggled = new EventEmitter<string>();
   @Output() selectAllToggled = new EventEmitter<void>();
 
+  private readonly staff = inject(StaffDirectoryStore);
+
   readonly openMenuId = signal<string | null>(null);
+
+  constructor() {
+    // Para resolver los avatares de los asignados (userId → iniciales/color).
+    this.staff.ensureLoaded();
+  }
 
   private readonly avatarPalette = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
@@ -93,7 +107,14 @@ export class ClientTableComponent {
 
   /** Cualquier acción de fila disponible (para decidir si mostrar la columna/menú). */
   hasRowActions(): boolean {
-    return this.canManage || this.canChangeStatus;
+    return this.canManage || this.canChangeStatus || this.canAssignPreparer;
+  }
+
+  /** Hasta 3 avatares de staff asignado resueltos + cuántos quedan fuera (para la columna "Assigned to"). */
+  assigneeAvatars(client: ClientItem): { shown: StaffMember[]; extra: number } {
+    const ids = client.assigneeUserIds ?? [];
+    const members = ids.map(id => this.staff.resolve(id)).filter((m): m is StaffMember => !!m);
+    return { shown: members.slice(0, 3), extra: Math.max(0, ids.length - members.slice(0, 3).length) };
   }
 
   initials(client: ClientItem): string {
@@ -158,6 +179,12 @@ export class ClientTableComponent {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.deleteRequested.emit(client);
+  }
+
+  onAssignClick(client: ClientItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.assignRequested.emit(client);
   }
 
   onMenuClick(event: MouseEvent): void {
