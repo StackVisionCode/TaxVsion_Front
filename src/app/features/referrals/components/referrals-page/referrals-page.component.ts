@@ -11,7 +11,7 @@ const PAGE_SIZE = 8;
 /**
  * Página del módulo Referrals (estilo "Aether"): hero de balance + 3 stat cards pastel,
  * tarjeta con el código de referido real (POST /growth/referrals/codes, get-or-create
- * idempotente vía ReferralsStore) con copy/share del enlace `/register?referral=<code>`,
+ * idempotente vía ReferralsStore) con copy/share del enlace al alta del Landing,
  * y la tabla de referidos.
  *
  * Los montos y la lista de referidos NO tienen fuente de datos: Growth no expone ningún

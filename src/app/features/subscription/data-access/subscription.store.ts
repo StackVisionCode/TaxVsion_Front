@@ -144,10 +144,6 @@ export class SubscriptionStore {
     });
   }
 
-  renewSeat(id: string): void {
-    this.runSeatAction(this.service.renewSeat(id), () => this.loadSeats());
-  }
-
   // ---------- Add-ons ----------
 
   loadAddOns(): void {
@@ -198,10 +194,6 @@ export class SubscriptionStore {
       this.loadAddOns();
       onDone();
     });
-  }
-
-  renewAddOn(id: string): void {
-    this.runAddOnAction(this.service.renewAddOn(id), () => this.loadAddOns());
   }
 
   // ---------- Audit ----------

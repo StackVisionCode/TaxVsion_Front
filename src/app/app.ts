@@ -7,6 +7,7 @@ import { SessionExpiryService } from '@core/services/session-expiry.service';
 import { SessionExpiryModalComponent } from '@core/auth/session-expiry-modal.component';
 import { SessionRevokedModalComponent } from '@core/auth/session-revoked-modal.component';
 import { SessionTakeoverModalComponent } from '@core/auth/session-takeover-modal.component';
+import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 
 @Component({
   selector: 'app-root',
@@ -15,6 +16,7 @@ import { SessionTakeoverModalComponent } from '@core/auth/session-takeover-modal
     SessionExpiryModalComponent,
     SessionRevokedModalComponent,
     SessionTakeoverModalComponent,
+    ToastHostComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',

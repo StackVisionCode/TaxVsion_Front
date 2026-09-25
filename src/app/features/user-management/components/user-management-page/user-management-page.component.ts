@@ -320,7 +320,7 @@ export class UserManagementPageComponent {
     this.pendingCancel.set(null);
   }
 
-  // Toast global compartido (app-toast-host, montado una vez en el shell): flotante y visible en toda
+  // Toast global compartido (app-toast-host, montado una vez en la raíz): flotante y visible en toda
   // la app, a diferencia del chip inline anterior que estaba pegado al título y era fácil no verlo —
   // p.ej. al remover un miembro parecía que "no avisaba nada".
   private showToast(message: string, kind: 'success' | 'error' = 'success'): void {

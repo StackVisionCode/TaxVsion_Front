@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
 import { permissionGuard } from '@core/auth/permission.guard';
+import { redirectToLandingGuard } from '@core/config/landing';
 
 /**
  * Convención de precarga (ver `PacedPreloadStrategy` en core/performance):
@@ -35,24 +36,11 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
   },
   {
-    // Alta self-service pública (fuera del shell/authGuard): plan → cuenta → MFA → pago.
-    path: 'signup',
-    data: { preload: false },
-    loadChildren: () => import('./features/signup/signup.routes').then(m => m.SIGNUP_ROUTES),
-  },
-  {
-    // Alta PAGO-PRIMERO pública (fuera del shell/authGuard): email OTP → plan → códigos+pago (Stripe
-    // o cubierto 100%) → email de registro. Ejercita el flujo /onboarding/* con gift/promo/referido.
-    path: 'onboarding',
-    data: { preload: false },
-    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES),
-  },
-  {
-    // Link emailado post-pago ({RegistrationUrlBase}/register?token=...) y, sin token, el wizard
-    // de compra nuevo. Fuera del shell/authGuard: el comprador todavía no tiene cuenta.
+    // El alta vive en el Landing. Los enlaces viejos a /register* (correo post-pago, referidos
+    // compartidos) se reenvían allí con la misma ruta y query.
     path: 'register',
-    data: { preload: false },
-    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.REGISTER_ROUTES),
+    canActivate: [redirectToLandingGuard],
+    children: [{ path: '**', children: [] }],
   },
   {
     // Canje de invitación de equipo: el invitado llega del correo que emite Notification
@@ -176,12 +164,6 @@ export const routes: Routes = [
         path: 'plans',
         data: { preloadPriority: 'low' },
         loadChildren: () => import('./features/plans/plans.routes').then(m => m.PLANS_ROUTES),
-      },
-      {
-        // Arrastra el SDK de Stripe y solo se visita desde el flujo de compra.
-        path: 'checkout',
-        data: { preload: false },
-        loadChildren: () => import('./features/checkout/checkout.routes').then(m => m.CHECKOUT_ROUTES),
       },
       {
         path: 'subscription',

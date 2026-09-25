@@ -12,16 +12,16 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { toApiError } from '@core/models/api-error.model';
+import { Plan } from '@core/plans/plan.model';
+import { PlansService } from '@core/plans/plans.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { OnboardingService } from '../../../onboarding/data-access/onboarding.service';
-import { OnboardingPlan } from '../../../onboarding/data-access/onboarding.model';
-import { onboardingErrorMessage } from '../../../onboarding/data-access/onboarding-errors';
 
 export type BillingCycle = 'Monthly' | 'Yearly';
 
 /** Lo que el modal devuelve al elegir: el plan y el ciclo con el que se mostró el precio. */
 export interface PlanChoice {
-  plan: OnboardingPlan;
+  plan: Plan;
   cycle: BillingCycle;
 }
 
@@ -47,17 +47,12 @@ const MODULE_LABELS: Record<string, string> = {
  * ciclo (`pricesUsdByCycle`) y los beneficios son los `enabledModules` de cada plan más
  * sus cupos reales de usuarios y almacenamiento.
  *
- * Solo elige: no crea nada. El alta la sigue haciendo el wizard de onboarding, al que se
- * llega con el plan ya seleccionado.
+ * Solo elige: no crea nada. El alta sigue en el Landing, al que se llega con el plan ya seleccionado.
  */
 @Component({
   selector: 'app-plan-picker-modal',
   imports: [CommonModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  // OnboardingService es route-scoped (@Injectable sin providedIn) y solo se provee en
-  // la rama /onboarding. Este modal también se usa en /login (fuera de esa rama), así que
-  // trae su propio provider — sin esto el login crashea con NG0201 (No provider) y queda en blanco.
-  providers: [OnboardingService],
   templateUrl: './plan-picker-modal.component.html',
 })
 export class PlanPickerModalComponent implements OnChanges {
@@ -65,9 +60,9 @@ export class PlanPickerModalComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
   @Output() planChosen = new EventEmitter<PlanChoice>();
 
-  private readonly onboarding = inject(OnboardingService);
+  private readonly catalog = inject(PlansService);
 
-  readonly plans = signal<OnboardingPlan[]>([]);
+  readonly plans = signal<Plan[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly cycle = signal<BillingCycle>('Monthly');
@@ -84,7 +79,7 @@ export class PlanPickerModalComponent implements OnChanges {
   load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.onboarding.getPlans().subscribe({
+    this.catalog.list().subscribe({
       next: plans => {
         // De más barato a más caro: el catálogo llega sin orden garantizado.
         this.plans.set([...plans].sort((a, b) => a.monthlyPriceUsd - b.monthlyPriceUsd));
@@ -92,7 +87,7 @@ export class PlanPickerModalComponent implements OnChanges {
         this.loading.set(false);
       },
       error: err => {
-        this.error.set(onboardingErrorMessage(err));
+        this.error.set(toApiError(err).message);
         this.loading.set(false);
       },
     });
@@ -107,7 +102,7 @@ export class PlanPickerModalComponent implements OnChanges {
     this.cycle.set(cycle);
   }
 
-  priceFor(plan: OnboardingPlan): number {
+  priceFor(plan: Plan): number {
     return plan.pricesUsdByCycle?.[this.cycle()] ?? plan.monthlyPriceUsd;
   }
 
@@ -126,7 +121,7 @@ export class PlanPickerModalComponent implements OnChanges {
   }
 
   /** Meses de descuento del plan anual frente a 12 mensualidades (0 si no hay ahorro). */
-  yearlySavingMonths(plan: OnboardingPlan): number {
+  yearlySavingMonths(plan: Plan): number {
     const yearly = plan.pricesUsdByCycle?.['Yearly'];
     const monthly = plan.pricesUsdByCycle?.['Monthly'] ?? plan.monthlyPriceUsd;
     if (!yearly || !monthly) {
@@ -136,7 +131,7 @@ export class PlanPickerModalComponent implements OnChanges {
     return saved > 0 ? Math.round(saved / monthly) : 0;
   }
 
-  storageLabel(plan: OnboardingPlan): string {
+  storageLabel(plan: Plan): string {
     return formatBytes(plan.storageQuotaBytes);
   }
 
@@ -144,7 +139,7 @@ export class PlanPickerModalComponent implements OnChanges {
     return MODULE_LABELS[code] ?? code;
   }
 
-  choose(plan: OnboardingPlan): void {
+  choose(plan: Plan): void {
     this.planChosen.emit({ plan, cycle: this.cycle() });
   }
 

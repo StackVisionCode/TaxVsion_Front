@@ -15,7 +15,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { environment } from '@env/environment';
-import { AuthShellComponent } from '../../../onboarding/ui/auth-shell/auth-shell.component';
+import { AuthShellComponent } from '../../ui/auth-shell/auth-shell.component';
 import { InvitationService, InvitationValidation } from '../../data-access/invitation.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 

@@ -5,6 +5,9 @@ import { HttpErrorResponse } from '@angular/common/http';
  * de algún limiter viejo) y el load shedding del Gateway (503 `LoadShedding.Active`). Ninguno es un
  * error de datos del usuario: lo que corresponde es decirle cuánto esperar.
  *
+ * Un 503 sin ese código (servicio caído detrás del Gateway, denylist de sesión sin Redis) no es un
+ * throttle: no se le pide al usuario que "baje el ritmo" (ver `toApiError`).
+ *
  * Los throttles de dominio (login bloqueado, OTP, PIN de firma…) también son 429 pero traen su propio
  * código y mensaje de negocio, que la pantalla de ese flujo ya muestra — no se tratan acá.
  */
@@ -35,7 +38,7 @@ export function readThrottle(err: unknown): Throttle | null {
   if (err.status === 429 && (code === null || code === RATE_LIMIT_CODE)) {
     return { kind: 'rate-limited', retryAfterSeconds: retryAfterSeconds(err) };
   }
-  if (err.status === 503 && (code === null || code === LOAD_SHEDDING_CODE)) {
+  if (err.status === 503 && code === LOAD_SHEDDING_CODE) {
     return { kind: 'overloaded', retryAfterSeconds: retryAfterSeconds(err) };
   }
   return null;

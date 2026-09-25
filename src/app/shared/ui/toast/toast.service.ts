@@ -11,8 +11,8 @@ interface CountdownSlot {
 
 /**
  * Cola de toasts de toda la app. Único punto para notificar acciones (crear,
- * editar, borrar, subir…). El `<app-toast-host>` (montado una sola vez en el
- * shell) renderiza la señal `toasts`. Los mensajes SIEMPRE son texto ya limpio
+ * editar, borrar, subir…). El `<app-toast-host>` (montado una sola vez en la
+ * raíz) renderiza la señal `toasts`. Los mensajes SIEMPRE son texto ya limpio
  * y en inglés — nunca se le pasa el error crudo del backend (usar
  * `toUserMessage` para derivar el texto antes de llamar aquí).
  */

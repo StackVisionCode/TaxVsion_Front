@@ -23,7 +23,6 @@ import {
 import { filter, map, of, switchMap, timer } from 'rxjs';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
@@ -47,7 +46,6 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
     RouterOutlet,
     NavbarComponent,
     SidebarComponent,
-    ToastHostComponent,
     CallOverlayComponent,
     SubscriptionBannerComponent,
   ],

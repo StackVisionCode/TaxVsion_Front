@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   FormBuilder,
   FormGroup,
@@ -16,8 +16,8 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { environment } from '@env/environment';
 import { CentralLoginService } from '@core/auth/central-login.service';
+import { landingUrl } from '@core/config/landing';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { DiscoverOffice, DiscoverOutcome } from '@core/auth/central-login.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -44,7 +44,6 @@ type Step = 'credentials' | 'select';
 export class CentralLoginPageComponent {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly centralLogin = inject(CentralLoginService);
   private readonly branding = inject(TenantBrandingService);
   private readonly destroyRef = inject(DestroyRef);
@@ -103,21 +102,12 @@ export class CentralLoginPageComponent {
 
   /**
    * Plan elegido → alta con ese plan ya seleccionado (id y ciclo por query, para que el enlace sea
-   * compartible). El alta vive en el sitio público (`{landingUrl}/register`); sin landingUrl (dev)
-   * se queda en la ruta interna /onboarding.
+   * compartible). El alta vive en el Landing (otro origen).
    */
   startSignup(choice: PlanChoice): void {
     this.closePlanPicker();
     const params = new URLSearchParams({ plan: choice.plan.id, cycle: choice.cycle });
-
-    const landing = environment.landingUrl?.trim().replace(/\/$/, '');
-    if (landing) {
-      window.location.assign(`${landing}/register?${params}`);
-      return;
-    }
-    void this.router.navigate(['/onboarding'], {
-      queryParams: { plan: choice.plan.id, cycle: choice.cycle },
-    });
+    window.location.assign(landingUrl(`/register?${params}`));
   }
 
   togglePasswordVisibility(): void {

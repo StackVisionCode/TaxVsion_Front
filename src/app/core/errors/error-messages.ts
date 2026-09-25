@@ -1,4 +1,4 @@
-import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { NETWORK_ERROR_CODE, SERVICE_UNAVAILABLE_MESSAGE, toApiError } from '@core/models/api-error.model';
 import { readThrottle, throttleMessage } from './throttling';
 
 /**
@@ -14,6 +14,9 @@ import { readThrottle, throttleMessage } from './throttling';
 const USER_ERROR_MESSAGES: Record<string, string> = {
   // Red / conexión
   [NETWORK_ERROR_CODE]: "We couldn't reach the server. Check your connection and try again.",
+  // 503 transitorio que no es load shedding (servicio caído, denylist de sesión sin Redis).
+  'Http.503': SERVICE_UNAVAILABLE_MESSAGE,
+  'Auth.SessionDenylistUnavailable': SERVICE_UNAVAILABLE_MESSAGE,
 
   // CloudStorage — archivos
   'File.NotFound': "We couldn't find that file.",

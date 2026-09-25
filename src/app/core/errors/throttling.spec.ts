@@ -41,6 +41,13 @@ describe('readThrottle', () => {
     expect(readThrottle(httpError(400, { code: 'RateLimit.Exceeded' }))).toBeNull();
   });
 
+  it('does not treat a 503 without the load-shedding code as throttling', () => {
+    expect(readThrottle(httpError(503, null))).toBeNull();
+    expect(
+      readThrottle(httpError(503, { type: 'Auth.SessionDenylistUnavailable', title: 'Session revocation status is unknown.' })),
+    ).toBeNull();
+  });
+
   it('returns a null wait when the backend did not send one', () => {
     expect(readThrottle(httpError(429, { code: 'RateLimit.Exceeded' }))?.retryAfterSeconds).toBeNull();
   });

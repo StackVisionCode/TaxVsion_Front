@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { PlansService } from './plans.service';
-import { Plan } from './plan.model';
+import { PlansService } from '@core/plans/plans.service';
+import { Plan } from '@core/plans/plan.model';
 
 /** Store de signals de la feature Planes (provisto en el route config; se destruye al salir). */
 @Injectable()

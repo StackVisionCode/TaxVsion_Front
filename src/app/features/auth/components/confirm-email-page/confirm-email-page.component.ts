@@ -7,7 +7,7 @@ import { defer } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
-import { AuthShellComponent } from '../../../onboarding/ui/auth-shell/auth-shell.component';
+import { AuthShellComponent } from '../../ui/auth-shell/auth-shell.component';
 
 type Phase = 'confirming' | 'done' | 'error' | 'no-token';
 

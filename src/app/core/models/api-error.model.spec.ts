@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HttpErrorResponse } from '@angular/common/http';
 import { OVERLOADED_MESSAGE, RATE_LIMITED_MESSAGE } from '@core/errors/throttling';
-import { toApiError } from './api-error.model';
+import { SERVICE_UNAVAILABLE_MESSAGE, toApiError } from './api-error.model';
 
 /**
  * Más de 200 pantallas muestran `toApiError(err).message` tal cual: para rate limit y load shedding el
@@ -33,5 +33,41 @@ describe('toApiError — throttling', () => {
     });
 
     expect(toApiError(err)).toEqual({ code: 'Auth.LockedOut', message: 'Too many attempts. Try again later.' });
+  });
+});
+
+describe('toApiError — service unavailable', () => {
+  it('reads the code from `type` and hides the technical title of the session denylist', () => {
+    const err = new HttpErrorResponse({
+      status: 503,
+      error: { type: 'Auth.SessionDenylistUnavailable', title: 'Session revocation status is unknown.' },
+    });
+
+    expect(toApiError(err)).toEqual({ code: 'Auth.SessionDenylistUnavailable', message: SERVICE_UNAVAILABLE_MESSAGE });
+  });
+
+  it('explains an empty 503 as a temporary outage', () => {
+    expect(toApiError(new HttpErrorResponse({ status: 503 }))).toEqual({
+      code: 'Http.503',
+      message: SERVICE_UNAVAILABLE_MESSAGE,
+    });
+  });
+
+  it('keeps the message of a business 503', () => {
+    const err = new HttpErrorResponse({
+      status: 503,
+      error: { code: 'PayPal.ConfigurationMissing', message: 'PayPal is not configured for this office.' },
+    });
+
+    expect(toApiError(err)).toEqual({ code: 'PayPal.ConfigurationMissing', message: 'PayPal is not configured for this office.' });
+  });
+
+  it('never uses the URL `type` of an ASP.NET ProblemDetails as the code', () => {
+    const err = new HttpErrorResponse({
+      status: 500,
+      error: { type: 'https://tools.ietf.org/html/rfc9110#section-15.6.1', title: 'An error occurred.' },
+    });
+
+    expect(toApiError(err).code).toBe('Http.500');
   });
 });

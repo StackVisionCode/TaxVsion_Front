@@ -170,10 +170,6 @@
                       class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
                       Release
                     </button>
-                    <button type="button" (click)="store.renewSeat(seat.id)" [disabled]="store.seatsBusy()"
-                      class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
-                      Renew
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -239,10 +235,6 @@
               Ends {{ date(addOn.currentPeriodEndUtc) | date: 'mediumDate' }}
             </span>
             <div class="flex items-center gap-1">
-              <button type="button" (click)="store.renewAddOn(addOn.id)" [disabled]="store.addOnsBusy()"
-                class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors duration-200">
-                Renew
-              </button>
               <button type="button" (click)="openCancelAddOn(addOn)" [disabled]="store.addOnsBusy()"
                 class="rounded-full px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors duration-200">
                 Cancel

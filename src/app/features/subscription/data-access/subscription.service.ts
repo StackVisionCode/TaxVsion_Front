@@ -101,10 +101,6 @@ export class SubscriptionService {
     return this.http.post<void>(`${this.base}/seats/${id}/reassign`, req);
   }
 
-  renewSeat(id: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/seats/${id}/renew`, {});
-  }
-
   // ---------- Add-ons ----------
 
   /**
@@ -127,10 +123,6 @@ export class SubscriptionService {
 
   cancelAddOn(id: string, req: CancelAddOnRequest): Observable<void> {
     return this.http.post<void>(`${this.base}/addons/${id}/cancel`, req);
-  }
-
-  renewAddOn(id: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/addons/${id}/renew`, {});
   }
 
   // ---------- Audit ----------

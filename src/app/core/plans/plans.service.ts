@@ -4,8 +4,8 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { Plan } from './plan.model';
 
-/** Acceso HTTP al catálogo de planes. Endpoint público del gateway (no requiere sesión). */
-@Injectable()
+/** Catálogo público de planes (`GET /plans`, sin sesión). Lo usan la página de planes y el selector del login. */
+@Injectable({ providedIn: 'root' })
 export class PlansService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
