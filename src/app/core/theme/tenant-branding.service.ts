@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of, retry, tap } from 'rxjs';
+import { catchError, of, retry, tap, throwError, timer } from 'rxjs';
+import { isThrottled } from '@core/errors/throttling';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ThemeService } from './theme.service';
 
@@ -133,7 +134,8 @@ export class TenantBrandingService {
         // El shell dispara esto en cuanto /me resuelve; si el token o el gateway todavía no están
         // listos, un fallo transitorio dejaba el logo/iniciales colgados hasta recargar. Un par de
         // reintentos con espera cubre esa ventana sin castigar el caso feliz (fallback total abajo).
-        retry({ count: 2, delay: 1200 }),
+        // Un rate limit no se reintenta: solo gastaría más cupo.
+        retry({ count: 2, delay: err => (isThrottled(err) ? throwError(() => err) : timer(1200)) }),
         tap((brand) => this.applyBrand(brand)),
         catchError(() => of(null)),
       )

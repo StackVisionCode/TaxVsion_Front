@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { EMPTY, catchError, concatMap, of, retry, tap, timer } from 'rxjs';
+import { EMPTY, catchError, concatMap, of, retry, tap, throwError, timer } from 'rxjs';
+import { isThrottled } from '@core/errors/throttling';
 import { AuthService } from '@core/auth/auth.service';
 import { CheckoutIntentService } from '@core/billing/checkout-intent.service';
 import { toApiError } from '@core/models/api-error.model';
@@ -122,7 +123,8 @@ export class SignupStore {
               password: draft.password,
             })
             .pipe(
-              retry({ count: 8, delay: () => timer(1200) }),
+              // Un 429 no se reintenta: el accept de invitación tiene un cupo por IP y 8 reintentos lo agotan.
+              retry({ count: 8, delay: err => (isThrottled(err) ? throwError(() => err) : timer(1200)) }),
               concatMap(() => of(tenant))
             )
         ),

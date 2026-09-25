@@ -1,4 +1,5 @@
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { readThrottle, throttleMessage } from './throttling';
 
 /**
  * Traducción de códigos de error del backend a mensajes claros, en inglés y
@@ -80,9 +81,8 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   'Subscription.RenewalCheckout.Unavailable':
     'The payment service is temporarily unavailable. Please try again shortly.',
 
-  // Genéricos transversales
+  // Genéricos transversales (rate limit y load shedding se resuelven en `toUserMessage` vía readThrottle)
   'Auth.Forbidden': "You don't have permission to do that.",
-  'RateLimit.Exceeded': "You're going a bit fast. Please wait a moment and try again.",
 };
 
 /** Mensaje genérico cuando el código no está catalogado (nunca filtra detalle técnico). */
@@ -93,6 +93,10 @@ const GENERIC_MESSAGE = 'Something went wrong. Please try again.';
  * Es el único camino sancionado para mostrar errores en la UI.
  */
 export function toUserMessage(err: unknown): string {
+  const throttle = readThrottle(err);
+  if (throttle) {
+    return throttleMessage(throttle);
+  }
   const { code } = toApiError(err);
   return USER_ERROR_MESSAGES[code] ?? GENERIC_MESSAGE;
 }

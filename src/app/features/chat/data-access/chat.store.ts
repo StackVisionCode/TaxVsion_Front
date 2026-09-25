@@ -3,6 +3,8 @@ import { Observable, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
+import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, throttleMessageOr } from '@core/errors/throttling';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse, formatBytes } from '@core/cloud-storage/cloud-storage.model';
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
@@ -76,6 +78,7 @@ export class ChatStore {
   private readonly directory = inject(ChatDirectoryService);
   private readonly attachments = inject(ChatAttachmentsService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly toast = inject(ToastService);
 
   private readonly _conversations = signal<ChatConversation[]>([]);
   private readonly _loading = signal(false);
@@ -312,6 +315,10 @@ export class ChatStore {
     if (!ack.ok) {
       console.warn('No se pudo enviar el mensaje:', ack.message);
       this.patchOwnMessage(conversationId, tempId, { status: 'failed' });
+      // La burbuja "failed" ya ofrece reintentar; si fue por ir demasiado rápido, además se dice.
+      if (isSocketRateLimited(ack.code)) {
+        this.toast.error(SOCKET_RATE_LIMITED_MESSAGE);
+      }
       return;
     }
     const dto = ack.value.message;
@@ -366,11 +373,13 @@ export class ChatStore {
       const ack = await this.socket.sendAttachment(conversationId, fileId);
       if (!ack.ok) {
         console.warn('No se pudo enviar el adjunto:', ack.message);
+        this.toast.error(isSocketRateLimited(ack.code) ? SOCKET_RATE_LIMITED_MESSAGE : "Couldn't send the attachment.");
         return;
       }
       this.appendMessage(ack.value.message, { name: file.name, size: formatBytes(file.size), fileId });
     } catch (err) {
       console.warn('No se pudo subir el adjunto:', toApiError(err).message);
+      this.toast.error(throttleMessageOr(err, "Couldn't upload the attachment."));
     } finally {
       this._uploadingAttachment.set(false);
     }
@@ -467,11 +476,13 @@ export class ChatStore {
       const ack = await this.socket.sendVoiceNote(conversationId, fileId, recorded.durationMs, recorded.waveform);
       if (!ack.ok) {
         console.warn('No se pudo enviar la nota de voz:', ack.message);
+        this.toast.error(isSocketRateLimited(ack.code) ? SOCKET_RATE_LIMITED_MESSAGE : "Couldn't send the voice note.");
         return;
       }
       this.appendMessage(ack.value.message);
     } catch (err) {
       console.warn('No se pudo subir la nota de voz:', toApiError(err).message);
+      this.toast.error(throttleMessageOr(err, "Couldn't upload the voice note."));
     } finally {
       this._uploadingAttachment.set(false);
     }
@@ -556,7 +567,7 @@ export class ChatStore {
     this._messageActionError.set(null);
     const ack = await this.socket.editMessage(messageId, trimmed);
     if (!ack.ok) {
-      this._messageActionError.set(ack.message);
+      this.reportMessageActionError(ack.code, "Couldn't edit the message.");
     }
   }
 
@@ -565,8 +576,15 @@ export class ChatStore {
     this._messageActionError.set(null);
     const ack = await this.socket.deleteMessage(messageId);
     if (!ack.ok) {
-      this._messageActionError.set(ack.message);
+      this.reportMessageActionError(ack.code, "Couldn't delete the message.");
     }
+  }
+
+  // Ninguna vista pinta `messageActionError`: sin el toast, un fallo al editar/borrar pasaba en silencio.
+  private reportMessageActionError(code: string, fallback: string): void {
+    const message = isSocketRateLimited(code) ? SOCKET_RATE_LIMITED_MESSAGE : fallback;
+    this._messageActionError.set(message);
+    this.toast.error(message);
   }
 
   // ---------- Historial (scrollback) ----------

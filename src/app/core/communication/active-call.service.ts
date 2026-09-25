@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, map, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { AuthService } from '@core/auth/auth.service';
+import { CALLS_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { CallsService } from './calls.service';
@@ -260,8 +261,10 @@ export class ActiveCallService {
     try {
       const { callId } = await this.calls.initiate(peerUserId, kind, conversationId);
       this.callId.set(callId);
-    } catch {
-      this.toast.error('Could not start the call.');
+    } catch (err) {
+      this.toast.error(
+        isSocketRateLimited(socketErrorCode(err)) ? CALLS_RATE_LIMITED_MESSAGE : 'Could not start the call.',
+      );
       this.reset();
     }
   }

@@ -8,12 +8,13 @@ import { ApiError, NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error
  * (`OtpRateLimited`, `ResendCooldown`, `ResendLimitExceeded`)— caen en el 400 por
  * defecto de `ErrorHttpMapping`, no en 429.
  *
- * La excepción es el rate limiter de ASP.NET, que corta antes del handler y
- * responde un **429 pelado, sin body JSON** — `toApiError()` lo normaliza a
- * `Http.429` y acá se le da su propio mensaje.
+ * La excepción es el rate limiter de infraestructura, que corta antes del handler con un 429: hoy trae
+ * el contrato común (`RateLimit.Exceeded`), y los limiters viejos un 429 pelado que `toApiError()`
+ * normaliza a `Http.429`. Ambos llevan el mismo mensaje.
  */
 const MESSAGES: Record<string, string> = {
-  // Rate limiter de infraestructura (429 sin body) y red.
+  // Rate limiter de infraestructura y red.
+  'RateLimit.Exceeded': 'Too many attempts. Please wait a moment and try again.',
   'Http.429': 'Too many attempts. Please wait a moment and try again.',
   [NETWORK_ERROR_CODE]: "We couldn't reach the server. Check your connection and try again.",
 

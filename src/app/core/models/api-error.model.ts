@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { readThrottle, throttleMessage } from '@core/errors/throttling';
 
 /**
  * Forma plana de error del backend (BuildingBlocks.Results.Error), serializada en
@@ -38,6 +39,13 @@ export function toApiError(err: unknown): ApiError {
     // status 0 => no hubo respuesta (backend caído, CORS o sin red).
     if (err.status === 0) {
       return { code: NETWORK_ERROR_CODE, message: SAFE_FALLBACK_MESSAGE };
+    }
+    // Rate limit / load shedding: el texto del backend era técnico ("user rate limit exceeded…",
+    // "Fleet is overloaded…") y más de 200 pantallas muestran este `message` tal cual.
+    const throttle = readThrottle(err);
+    if (throttle) {
+      const code = (err.error as { code?: string } | null)?.code ?? `Http.${err.status}`;
+      return { code, message: throttleMessage(throttle) };
     }
     const body = err.error as (Partial<ApiError & ProblemDetails> & { error?: string }) | string | null;
     if (body && typeof body === 'object') {

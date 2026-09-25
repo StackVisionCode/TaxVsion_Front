@@ -11,10 +11,12 @@ import {
   retry,
   switchMap,
   tap,
+  throwError,
   timeout,
   timer,
 } from 'rxjs';
 import { CheckoutIntentService } from '@core/billing/checkout-intent.service';
+import { isThrottled } from '@core/errors/throttling';
 import { toApiError } from '@core/models/api-error.model';
 import { CheckoutService } from './checkout.service';
 import { CheckoutPhase, SubscriptionSummary } from './checkout.model';
@@ -62,7 +64,8 @@ export class CheckoutStore {
   loadSetupIntentAsync(): Promise<string> {
     return firstValueFrom(
       this.service.createSetupIntent().pipe(
-        retry({ count: 6, delay: () => timer(1500) }),
+        // Un 429 no es la race de RBAC: reintentarlo quemaba la cuota de cobros (10/min) en segundos.
+        retry({ count: 6, delay: err => (isThrottled(err) ? throwError(() => err) : timer(1500)) }),
         map(r => r.clientSecret)
       )
     );
