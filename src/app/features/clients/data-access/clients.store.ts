@@ -10,6 +10,7 @@ import {
   AddContactPointRequest,
   AddRelationRequest,
   AddressResponse,
+  BulkAssignResponse,
   BulkStatusActionResponse,
   ContactPointResponse,
   CreateCustomerRequest,
@@ -175,6 +176,12 @@ export class ClientsStore {
     this.directory.invalidate();
   }
 
+  /** Tras un cambio de asignación de UN cliente: desaloja ese cliente del cache compartido (los conteos
+   * no cambian). El diálogo refresca su propia vista y el listado se re-pide al cerrarlo. */
+  private afterAssignmentMutation(id: string): void {
+    this.directory.evict(id);
+  }
+
   setTerm(term: string): void {
     this._term.set(term);
     this._page.set(1);
@@ -295,6 +302,33 @@ export class ClientsStore {
   /** Acción de estado masiva. Devuelve el desglose (con fallos parciales) y re-sincroniza. */
   bulkStatus(action: CustomerStatusAction, customerIds: string[], reason?: string | null): Observable<BulkStatusActionResponse> {
     return this.service.bulkStatus(action, customerIds, reason).pipe(tap(() => this.afterMutation()));
+  }
+
+  // ---------- Asignación de staff (acceso por cliente) ----------
+
+  /** Reparto masivo: asigna un usuario a varios clientes. Devuelve el resumen y re-sincroniza. */
+  bulkAssign(userId: string, customerIds: string[]): Observable<BulkAssignResponse> {
+    return this.service.bulkAssign(userId, customerIds).pipe(tap(() => this.afterMutation()));
+  }
+
+  /** Fija al responsable (primary) de un cliente. */
+  assignPreparer(id: string, userId: string): Observable<void> {
+    return this.service.assignPreparer(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Quita al responsable de un cliente. */
+  unassignPreparer(id: string): Observable<void> {
+    return this.service.unassignPreparer(id).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Da acceso adicional a un miembro del staff. */
+  grantAccess(id: string, userId: string): Observable<void> {
+    return this.service.grantAccess(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Revoca el acceso de un miembro del staff. */
+  revokeAccess(id: string, userId: string): Observable<void> {
+    return this.service.revokeAccess(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
   }
 
   /** Tras crear/actualizar: aplica el toggle Active/Inactive del form y, si hay SSN/EIN, el perfil fiscal. Ambos best-effort. */

@@ -25,6 +25,8 @@ export interface UserSummary {
   email: string;
   actorType: string;
   isActive: boolean;
+  /** Ciclo de vida (UserStatus): 'Active' | 'Deactivated' | 'Offboarded'. Distingue un retiro terminal de una suspensión. */
+  status: string;
   mfaEnabled: boolean;
   createdAtUtc: string;
   roles: string[];
@@ -152,6 +154,29 @@ export interface SetPermissionOverridesRequest {
   deniedPermissionIds: string[];
 }
 
+// ---------- Offboarding (punto 3.2): preview de impacto + sucesor ----------
+
+/**
+ * Un renglón de la preview de impacto del retiro, ya compuesto desde el `GET /<svc>/offboarding-impact/{userId}`
+ * de cada servicio. `available` es false si ese servicio no respondió (403/error/timeout) — el fan-out degrada
+ * por-servicio en vez de fallar entero.
+ */
+export interface OffboardImpactItem {
+  key: string;
+  label: string;
+  action: string;
+  icon: string;
+  count: number;
+  available: boolean;
+}
+
+/** Candidato a sucesor: staff activo (no portal) distinto del que se retira, para el picker del diálogo. */
+export interface EligibleSuccessor {
+  id: string;
+  name: string;
+  subtitle: string;
+}
+
 // ---------- Adaptadores backend -> TeamMember (shape de la UI existente) ----------
 
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500'];
@@ -215,7 +240,8 @@ export function userToTeamMember(user: UserSummary): TeamMember {
     email: user.email,
     roleNames: user.roles,
     actorType: user.actorType,
-    status: user.isActive ? 'active' : 'suspended',
+    // 'Offboarded' es terminal (Removed): distinto de una suspensión reversible; el resto por isActive.
+    status: user.status === 'Offboarded' ? 'removed' : user.isActive ? 'active' : 'suspended',
     activity: `Joined ${formatDate(user.createdAtUtc)}`,
   };
 }

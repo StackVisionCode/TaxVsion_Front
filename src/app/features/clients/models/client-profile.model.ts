@@ -1,6 +1,7 @@
 import type {
   AddressResponse,
   ContactPointResponse,
+  CustomerAssignee,
   CustomerFiscalProfileResponse,
   CustomerLanguage,
   PreferredChannel,
@@ -80,6 +81,8 @@ export interface ClientProfile {
   relations: RelationResponse[];
   /** Perfil fiscal enmascarado, o null si nunca se configuró. */
   fiscalProfile: CustomerFiscalProfileResponse | null;
+  /** Staff asignado (M:N). Solo viene poblado para admin/view_all (need-to-know). */
+  assignees: CustomerAssignee[];
   /** Derivado de `relations` (relationshipKind !== 'Spouse') — solo para el resumen de la tab Info. */
   dependents: ClientDependent[];
   /** Derivado de `relations` (la única relación con relationshipKind === 'Spouse', si hay). */

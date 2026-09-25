@@ -178,6 +178,21 @@ export class UserManagementStore {
     );
   }
 
+  /**
+   * POST offboard (204). Retiro TERMINAL: marca la fila como 'removed' (no vuelve a Suspend/Reactivate) y
+   * refresca el cupo (offboard libera el asiento). `successorUserId` null = el trabajo se ruta a la oficina.
+   */
+  offboardUser(userId: string, successorUserId: string | null): Observable<void> {
+    return this.service.offboardUser(userId, successorUserId).pipe(
+      tap(() => {
+        this._members.update(list =>
+          list.map(member => (member.id === userId ? { ...member, status: 'removed' } : member)),
+        );
+        this.refreshLimits();
+      }),
+    );
+  }
+
   resendInvitation(invitationId: string): Observable<void> {
     return this.service.resendInvitation(invitationId).pipe(tap(() => this.loadInvitations()));
   }

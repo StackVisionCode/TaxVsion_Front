@@ -7,6 +7,8 @@ import {
   AddContactPointRequest,
   AddRelationRequest,
   AddressResponse,
+  BulkAssignRequest,
+  BulkAssignResponse,
   BulkStatusActionRequest,
   BulkStatusActionResponse,
   BusinessActivityOption,
@@ -116,6 +118,34 @@ export class ClientsService {
   ): Observable<BulkStatusActionResponse> {
     const body: BulkStatusActionRequest = { customerIds, reason: reason ?? null };
     return this.http.post<BulkStatusActionResponse>(`${this.base}/bulk/${action}`, body);
+  }
+
+  // ---------- Asignación de staff (acceso por cliente, M:N) ----------
+
+  /** PUT /customers/{id}/preparer — fija al responsable (primary). Degrada a cualquier otro primary. */
+  assignPreparer(id: string, userId: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/${id}/preparer`, { preparerUserId: userId });
+  }
+
+  /** DELETE /customers/{id}/preparer — quita al responsable (los accesos adicionales quedan). */
+  unassignPreparer(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}/preparer`);
+  }
+
+  /** POST /customers/{id}/assignees — da acceso adicional (no-primary) a un miembro del staff. */
+  grantAccess(id: string, userId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/${id}/assignees`, { userId });
+  }
+
+  /** DELETE /customers/{id}/assignees/{userId} — revoca el acceso de un miembro del staff. */
+  revokeAccess(id: string, userId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}/assignees/${userId}`);
+  }
+
+  /** POST /customers/assignees/bulk — asigna UN usuario a MUCHOS clientes (reparto de cartera). */
+  bulkAssign(userId: string, customerIds: string[]): Observable<BulkAssignResponse> {
+    const body: BulkAssignRequest = { userId, customerIds };
+    return this.http.post<BulkAssignResponse>(`${this.base}/assignees/bulk`, body);
   }
 
   /** PUT /customers/{id}/fiscal-profile — SSN/ITIN/EIN. Requiere rol TenantAdmin; un TenantEmployee recibe 403. */
