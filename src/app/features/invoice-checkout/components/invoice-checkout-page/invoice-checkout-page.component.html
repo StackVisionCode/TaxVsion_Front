@@ -5,11 +5,11 @@
       <p class="muted">Cargando…</p>
     </ng-container>
 
-    <!-- Link inválido / vencido -->
+    <!-- Link inválido / vencido / factura anulada -->
     <ng-container *ngIf="phase() === 'invalid'">
       <div class="icon warn">!</div>
-      <h1>Enlace no válido</h1>
-      <p class="muted">Este enlace de pago no existe o ya venció.</p>
+      <h1>Enlace no disponible</h1>
+      <p class="muted">{{ invalidMessage() }}</p>
     </ng-container>
 
     <!-- Pagado -->
@@ -39,7 +39,9 @@
     <ng-container *ngIf="phase() === 'ready' || phase() === 'paying'">
       <p class="pay-to" *ngIf="checkout() as c">Pagar a <strong>{{ c.tenantName }}</strong></p>
       <p class="amount">{{ amountLabel() }}</p>
-      <p class="ref muted" *ngIf="checkout()?.purposeExternalReferenceId as ref">Factura {{ ref }}</p>
+      <p class="ref muted" *ngIf="checkout()?.purposeDescription || checkout()?.purposeExternalReferenceId as label">
+        Factura {{ checkout()?.purposeDescription || label }}
+      </p>
 
       <!-- Selector de proveedor (solo si hay más de uno) -->
       <div class="methods" *ngIf="methods().length > 1">
@@ -64,8 +66,7 @@
         <button class="btn-primary" (click)="pay()" [disabled]="phase() === 'paying'">
           {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
         </button>
-        <p class="test-hint muted">Prueba: tarjeta 4242 4242 4242 4242, fecha futura, cualquier CVC.</p>
-      </ng-container>
+       </ng-container>
 
       <!-- PayPal: Buttons (crear + aprobar orden; el server hace el capture) -->
       <ng-container *ngIf="isPayPalSelected()">
@@ -86,6 +87,5 @@
       </ng-container>
     </ng-container>
 
-    <p class="powered muted">Pago seguro · TaxVision</p>
   </div>
 </div>

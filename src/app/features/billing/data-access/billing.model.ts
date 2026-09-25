@@ -16,15 +16,21 @@
 /**
  * Espejo de `TaxVision.Billing.Domain.ValueObjects.InvoiceStatus`.
  *
- * OJO: `Sent` y `Voided` están declarados en el enum pero **ningún camino de código los asigna**
- * (el agregado no tiene `MarkSent` ni `Void`), así que el ciclo real es
- * Draft → Issued → PartiallyPaid → Paid. Se mantienen en el tipo para no romper si el backend
- * los habilita, pero la UI no ofrece acciones que los produzcan.
+ * Ciclo real: Draft → Issued (⇄ Sent) → PartiallyPaid → Paid, con Voided como estado terminal.
+ * `Voided` lo produce `/void`; `Sent` lo produce el cambio de estado manual (item 6.2, endpoint
+ * `/status`, matriz de transiciones legales del dominio Issued⇄Sent).
  */
 export type InvoiceStatus = 'Draft' | 'Issued' | 'Sent' | 'PartiallyPaid' | 'Paid' | 'Voided';
 
 /** Estados que la UI ofrece como filtro: los que el backend puede producir hoy. */
-export const FILTERABLE_STATUSES: InvoiceStatus[] = ['Draft', 'Issued', 'PartiallyPaid', 'Paid'];
+export const FILTERABLE_STATUSES: InvoiceStatus[] = [
+  'Draft',
+  'Issued',
+  'Sent',
+  'PartiallyPaid',
+  'Paid',
+  'Voided',
+];
 
 /** Espejo de `PaymentMethod`. `Online`/`Card` los pone el webhook de Stripe, no la UI. */
 export type InvoicePaymentMethod = 'Online' | 'Card' | 'Cash' | 'Check' | 'BankTransfer' | 'Other';
@@ -121,6 +127,17 @@ export interface InvoiceDetailLine {
   catalogItemId: string | null;
 }
 
+/** Una fila del rastro de auditoría de estado (item 6.2). Espejo de `InvoiceStatusHistoryEntry`. */
+export interface InvoiceStatusHistoryEntry {
+  fromStatus: InvoiceStatus | null;
+  toStatus: InvoiceStatus;
+  /** Created | Issue | Payment | Void | ManualChange. */
+  trigger: string;
+  reason: string | null;
+  changedByUserId: string;
+  changedAtUtc: string;
+}
+
 export interface InvoiceDetail {
   id: string;
   invoiceNumber: string | null;
@@ -139,6 +156,29 @@ export interface InvoiceDetail {
   isVoidable: boolean;
   /** Borrable (soft): solo borradores. */
   isDeletable: boolean;
+  /** Destinos legales de un cambio de estado MANUAL desde el estado actual (matriz del dominio). */
+  allowedNextStatuses: InvoiceStatus[];
+  /** Historial de transiciones, más reciente primero. */
+  statusHistory: InvoiceStatusHistoryEntry[];
+  /** Reemisión (item 6.3): se puede anular + reemplazar (emitida/pagada y no reemplazada aún). */
+  isReissuable: boolean;
+  /** Si es un reemplazo, la original que sustituye. */
+  replacesInvoiceId: string | null;
+  /** Si fue reemplazada, su reemplazo. */
+  replacedByInvoiceId: string | null;
+}
+
+/** Cuerpo de `POST /billing/invoices/{id}/status` (item 6.2 — cambio de estado manual). */
+export interface ChangeInvoiceStatusRequest {
+  toStatus: InvoiceStatus;
+  reason: string | null;
+}
+
+/** Respuesta de `POST /billing/invoices/{id}/reissue` (item 6.3). El reemplazo nace como borrador. */
+export interface ReissueInvoiceResult {
+  originalInvoiceId: string;
+  replacementInvoiceId: string;
+  replacementStatus: InvoiceStatus;
 }
 
 /** Cuerpo de `PUT /billing/invoices/{id}` — igual que crear, sin emisor (no se edita). */
@@ -168,6 +208,8 @@ export interface IssuerProfile {
   phone: string;
   email: string;
   website: string;
+  /** Moneda por defecto del tenant (ISO-4217). Las facturas la usan; el histórico congela la suya. */
+  defaultCurrency: string;
 }
 
 export const EMPTY_ISSUER_PROFILE: IssuerProfile = {
@@ -181,6 +223,7 @@ export const EMPTY_ISSUER_PROFILE: IssuerProfile = {
   phone: '',
   email: '',
   website: '',
+  defaultCurrency: 'USD',
 };
 
 // ---------- Documents: marca del PDF ----------
@@ -316,6 +359,35 @@ export interface CatalogPage<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/** Categoría del catálogo (`/catalog/categories`) — solo lo que necesita el alta rápida. */
+export interface BillingCatalogCategory {
+  id: string;
+  name: string;
+}
+
+/**
+ * Alta rápida de un producto/servicio desde el picker de la factura (sin salir a Products/Services).
+ * Los campos de producto (SKU/costo/unidad/inventario) solo aplican a `kind === 'Product'`; un servicio
+ * los deja sin definir.
+ */
+export interface NewCatalogItemInput {
+  name: string;
+  kind: 'Product' | 'Service';
+  /** Precio en dólares (unidades de UI); se convierte a la moneda del alta. */
+  priceAmount: number;
+  priceCurrency: string;
+  /** Impuesto por defecto en porcentaje (se guarda en puntos básicos). */
+  taxPercent: number;
+  /** Solo Product: código único por tenant (el backend lo normaliza a mayúsculas). */
+  sku?: string | null;
+  /** Solo Product: costo en dólares (para margen); usa la misma moneda que el precio. */
+  costAmount?: number | null;
+  /** Solo Product: unidad de medida (ej. "each", "box", "hour"). */
+  unit?: string | null;
+  /** Solo Product: si Inventory debe rastrear existencias (default true para productos). */
+  trackInventory?: boolean;
 }
 
 // ---------- Borrador del formulario (unidades de UI) ----------

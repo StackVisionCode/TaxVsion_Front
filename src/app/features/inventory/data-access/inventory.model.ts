@@ -129,7 +129,7 @@ export interface CreateCatalogItemRequest {
   attributes: null;
 }
 
-/** PUT /catalog/items/{id} — sin sku/kind/precio; attributes:null conserva los actuales. */
+/** PUT /catalog/items/{id} — sin sku/kind/precio; `trackInventory` es editable; attributes:null conserva. */
 export interface UpdateCatalogItemRequest {
   name: string;
   description: string | null;
@@ -137,6 +137,7 @@ export interface UpdateCatalogItemRequest {
   categoryId: string;
   unit: string | null;
   taxRateBasisPoints: number;
+  trackInventory: boolean;
   imageUrl: string | null;
   attributes: null;
 }
@@ -225,6 +226,10 @@ export interface ProductFormValue {
   stockQuantity: number;
   lowStockThreshold: number;
   status: ProductStatus;
+  /** Rastrear stock (editable): al activarlo en un producto que no rastreaba, se puede fijar cantidad. */
+  trackInventory: boolean;
+  /** Impuesto por defecto del producto, en % (0 = sin impuesto). */
+  taxPercent: number;
 }
 
 /** JOIN CatalogItemSummary + StockLevelDto → fila de la tabla. */

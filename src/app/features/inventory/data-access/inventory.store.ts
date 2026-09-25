@@ -132,8 +132,8 @@ export class InventoryStore {
         costAmount: null,
         costCurrency: null,
         unit: null,
-        taxRateBasisPoints: 0,
-        trackInventory: true,
+        taxRateBasisPoints: Math.round((form.taxPercent || 0) * 100),
+        trackInventory: form.trackInventory,
         imageUrl: null,
         attributes: null,
       })
@@ -154,7 +154,7 @@ export class InventoryStore {
               ),
             );
           }
-          if (form.stockQuantity > 0) {
+          if (form.trackInventory && form.stockQuantity > 0) {
             chain = chain.pipe(
               concatMap(() =>
                 this.api
@@ -179,6 +179,10 @@ export class InventoryStore {
           }
           return chain;
         }),
+        // Reconciliación con el servidor: el alta prepende el ítem del catálogo (sin stock) y luego
+        // aplica el stock inicial/umbral por endpoints aparte. Re-cargar deja la fila con el producto
+        // Y su stock reales (cantidad recibida incluida) sin recargar la página a mano.
+        tap(() => this.refresh()),
         map(() => undefined),
       );
   }
@@ -197,9 +201,15 @@ export class InventoryStore {
     }
 
     const name = form.name.trim();
+    const taxBps = Math.round((form.taxPercent || 0) * 100);
     let chain: Observable<CatalogItemSummary> = of(baseline);
 
-    if (name !== baseline.name || form.categoryId !== baseline.categoryId) {
+    if (
+      name !== baseline.name ||
+      form.categoryId !== baseline.categoryId ||
+      form.trackInventory !== baseline.trackInventory ||
+      taxBps !== (baseline.taxRateBasisPoints ?? 0)
+    ) {
       chain = chain.pipe(
         concatMap(latest =>
           this.api.updateItem(latest.id, {
@@ -208,8 +218,10 @@ export class InventoryStore {
             barcode: latest.barcode,
             categoryId: form.categoryId,
             unit: latest.unit,
-            // Ecoar el impuesto actual: sin esto, editar desde Inventory lo resetearía a 0.
-            taxRateBasisPoints: latest.taxRateBasisPoints ?? 0,
+            // Impuesto editable desde Inventory (antes se ecoaba el actual).
+            taxRateBasisPoints: taxBps,
+            // Rastreo editable: activar/desactivar el inventario de un producto existente.
+            trackInventory: form.trackInventory,
             imageUrl: latest.imageUrl,
             attributes: null,
           }),
@@ -244,9 +256,11 @@ export class InventoryStore {
     return chain.pipe(
       tap(final => this._items.update(list => list.map(item => (item.id === final.id ? final : item)))),
       concatMap(() => {
-        // Follow-ups de stock: solo para ítems rastreados (los untracked no tienen ledger).
+        // Follow-ups de stock: se gatean con el estado NUEVO de rastreo (form.trackInventory), no el
+        // viejo — así, al activar el rastreo de un producto que no lo tenía, se puede fijar la cantidad
+        // recibida en la misma edición (el updateItem que lo activó ya corrió antes en la cadena).
         let stockChain: Observable<unknown> = of(null);
-        if (editing.tracked) {
+        if (form.trackInventory) {
           if (form.lowStockThreshold !== editing.lowStockThreshold) {
             stockChain = stockChain.pipe(
               concatMap(() =>
@@ -278,6 +292,8 @@ export class InventoryStore {
         }
         return stockChain;
       }),
+      // Reconciliar con el servidor: refleja el nuevo estado de rastreo + stock sin recargar.
+      tap(() => this.refresh()),
       map(() => undefined),
     );
   }

@@ -83,6 +83,53 @@
       </button>
     </div>
 
+    <!-- Reemisión (item 6.3): enlace a la factura original/reemplazo para no perder trazabilidad -->
+    <div *ngIf="replacedByInvoiceId"
+      class="mt-3 flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+      <ion-icon name="git-branch-outline" class="mt-0.5 shrink-0 text-base text-gray-500"></ion-icon>
+      <p class="text-xs leading-relaxed text-gray-600">
+        This invoice was voided and replaced by a corrected invoice. Any payment already collected was carried
+        over to the replacement.
+      </p>
+    </div>
+    <div *ngIf="replacesInvoiceId"
+      class="mt-3 flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+      <ion-icon name="git-branch-outline" class="mt-0.5 shrink-0 text-base text-brand-bold"></ion-icon>
+      <p class="text-xs leading-relaxed text-brand-bold">
+        This is a replacement invoice that supersedes an earlier voided one, with its payment carried over.
+      </p>
+    </div>
+
+    <!-- Rastro de auditoría de estado (item 6.2): quién cambió el estado, cuándo y por qué -->
+    <div class="mt-5">
+      <h4 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <ion-icon name="time-outline" class="text-sm text-gray-400"></ion-icon>
+        Status history
+      </h4>
+
+      <p *ngIf="historyLoading" class="mt-3 text-sm text-gray-400">Loading…</p>
+
+      <p *ngIf="!historyLoading && statusHistory.length === 0" class="mt-3 text-sm text-gray-400">
+        No status changes recorded yet.
+      </p>
+
+      <ol *ngIf="!historyLoading && statusHistory.length > 0" class="mt-3 flex flex-col gap-3">
+        <li *ngFor="let entry of statusHistory" class="flex items-start gap-3">
+          <span class="mt-1 h-2 w-2 shrink-0 rounded-full" [ngClass]="statusDot(entry.toStatus)"></span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm text-gray-800">
+              <span class="font-medium">{{ triggerLabel(entry.trigger) }}</span>
+              <span class="text-gray-500">
+                — {{ entry.fromStatus ? statusLabel(entry.fromStatus) + ' → ' : '' }}{{ statusLabel(entry.toStatus) }}
+              </span>
+            </p>
+            <p class="text-xs text-gray-400">{{ longDate(entry.changedAtUtc) }}</p>
+            <p *ngIf="entry.reason" class="mt-0.5 text-xs italic text-gray-500">“{{ entry.reason }}”</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+
     <!-- Acciones -->
     <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
       <button type="button" (click)="refreshRequested.emit(inv)" [disabled]="busy"

@@ -92,11 +92,18 @@
           </td>
           <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
             [class.border-b]="!last" [class.border-gray-100]="!last">
-            <button type="button" (click)="editService.emit(service)"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors ml-auto"
-              aria-label="Edit service">
-              <ion-icon name="create-outline" class="text-base"></ion-icon>
-            </button>
+            <div class="flex items-center justify-end gap-1">
+              <button type="button" (click)="editService.emit(service)"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                aria-label="Edit item">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+              </button>
+              <button type="button" (click)="deleteService.emit(service)"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                aria-label="Delete item">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -135,11 +142,18 @@
           {{ statusLabel(service.status) }}
         </span>
       </div>
-      <button type="button" (click)="editService.emit(service)"
-        class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-gray-200 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-        <ion-icon name="create-outline" class="text-sm"></ion-icon>
-        Edit
-      </button>
+      <div class="mt-3 flex items-center gap-2">
+        <button type="button" (click)="editService.emit(service)"
+          class="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-gray-200 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+          <ion-icon name="create-outline" class="text-sm"></ion-icon>
+          Edit
+        </button>
+        <button type="button" (click)="deleteService.emit(service)"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+          aria-label="Delete item">
+          <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+        </button>
+      </div>
     </div>
   </div>
 

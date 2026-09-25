@@ -56,7 +56,10 @@ export class InventoryPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.store.init();
+    // refresh() (no init()): el store es providedIn:'root' y persiste entre navegaciones, así que
+    // init() —idempotente— no re-cargaría al volver. Recargar en cada entrada refleja productos
+    // creados en otras páginas (p. ej. en Products/Services) sin recargar el navegador.
+    this.store.refresh();
   }
 
   retryLoad(): void {
