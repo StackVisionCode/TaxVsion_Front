@@ -9,8 +9,19 @@ import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { readThrottle } from '@core/errors/throttling';
 import { toApiError } from '@core/models/api-error.model';
 
-/** Endpoints anónimos: un 401 aquí es un fallo legítimo, no dispara refresh. */
-const ANON_AUTH_ENDPOINTS = ['/auth/login', '/auth/refresh', '/auth/mfa/verify'];
+/**
+ * Endpoints anónimos: un 401 aquí es un fallo legítimo, no dispara refresh. Los de token por correo (reset,
+ * confirmar email, aceptar invitación) responden 401 si el token no sirve, aunque haya sesión abierta.
+ */
+const ANON_AUTH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/mfa/verify',
+  '/auth/password/forgot',
+  '/auth/password/reset',
+  '/auth/me/email/confirm',
+  '/auth/invitations/accept',
+];
 
 /** Un GET rechazado por rate limit/load shedding con una espera corta se reintenta una vez, sin avisar. */
 const MAX_AUTO_RETRY_SECONDS = 5;

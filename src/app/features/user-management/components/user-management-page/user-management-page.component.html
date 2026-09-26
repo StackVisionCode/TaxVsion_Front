@@ -45,6 +45,13 @@
             : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
           Invitations ({{ invitationsTotal() }})
         </button>
+        <button type="button" (click)="setTab('seats')"
+          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'seats'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Seats
+        </button>
       </div>
 
       <div class="relative w-full sm:w-64">
@@ -90,6 +97,11 @@
         (cancelInvite)="cancelInvite($event)"></app-user-table>
       <app-pagination [currentPage]="invitationsPage()" [totalItems]="invitationsTotal()" [pageSize]="pageSize"
         (pageChange)="onInvitationsPageChange($event)"></app-pagination>
+    </div>
+
+    <!-- Seats: quién ocupa cada asiento comprado. Comprar sigue siendo el botón de arriba. -->
+    <div *ngIf="tab() === 'seats'" class="mt-5">
+      <app-seats-panel [teammates]="members()"></app-seats-panel>
     </div>
   </div>
 </div>

@@ -139,12 +139,16 @@ describe('UserManagementService — offboarding', () => {
     expect(byKey('mailboxes').count).toBe(0);
   });
 
-  it('getEligibleSuccessors returns active staff excluding the leaver and portal users', () => {
+  // Los clientes de portal los descarta el backend (accountKind=Staff): acá solo se quita al que se va.
+  it('getEligibleSuccessors asks for staff only and excludes the leaver', () => {
     let result: EligibleSuccessor[] | undefined;
     service.getEligibleSuccessors('leaver').subscribe((list) => (result = list));
 
     const request = httpMock.expectOne(
-      (r) => r.url === 'http://test/auth/users' && r.params.get('isActive') === 'true',
+      (r) =>
+        r.url === 'http://test/auth/users' &&
+        r.params.get('isActive') === 'true' &&
+        r.params.get('accountKind') === 'Staff',
     );
     const user = (id: string, actorType: string, roles: string[]) => ({
       id,
@@ -162,11 +166,10 @@ describe('UserManagementService — offboarding', () => {
       items: [
         user('leaver', 'TenantEmployee', ['Preparer']),
         user('s1', 'TenantAdmin', ['Administrator']),
-        user('p1', 'CustomerPortal', []),
       ],
       page: 1,
       size: 100,
-      totalCount: 3,
+      totalCount: 2,
       totalPages: 1,
       hasMore: false,
       hasPrevious: false,

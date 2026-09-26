@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { SeatPurchaseModalComponent } from './seat-purchase-modal.component';
-import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
+import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 
 describe('SeatPurchaseModalComponent', () => {
   function setup() {

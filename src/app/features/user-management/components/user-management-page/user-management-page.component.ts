@@ -15,9 +15,10 @@ import { PaginationComponent } from '../../../../shared/ui/pagination/pagination
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
-import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
+import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
+import { SeatsPanelComponent } from '../../ui/seats-panel/seats-panel.component';
 
-type TeamTab = 'members' | 'invitations';
+type TeamTab = 'members' | 'invitations' | 'seats';
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -43,6 +44,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     EditAccessDrawerComponent,
     OffboardDialogComponent,
     SeatPurchaseModalComponent,
+    SeatsPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
   ],

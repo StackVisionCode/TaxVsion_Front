@@ -82,7 +82,7 @@ export class UserManagementStore {
     this._membersError.set(null);
     this._membersPage.set(page);
     this.service
-      .getUsers({ page, size: PAGE_SIZE, search: this._search().trim() || undefined })
+      .getUsers({ page, size: PAGE_SIZE, search: this._search().trim() || undefined, accountKind: 'Staff' })
       .subscribe({
         next: result => {
           this._members.set(result.items.map(userToTeamMember));

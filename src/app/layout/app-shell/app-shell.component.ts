@@ -123,7 +123,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
     // Ciclo de vida de la suscripción (Expiración/Dunning, Fase 5): carga el estado para el banner global
     // y, si volvemos de un hosted-checkout de renovación, retoma el poll de la intención pendiente.
     this.subscriptionStatus.load();
-    this.subscriptionStatus.resumePendingRenewCheckout();
 
     // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,

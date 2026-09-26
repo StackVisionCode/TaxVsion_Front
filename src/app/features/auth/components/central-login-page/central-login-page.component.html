@@ -119,6 +119,7 @@
           <p class="mt-6 text-center text-sm text-gray-600">
             <a
               routerLink="/forgot-password"
+              [queryParams]="portal ? { account: 'portal' } : null"
               class="font-semibold text-indigo-600 hover:text-indigo-500"
               >Forgot your password?</a
             >
@@ -223,7 +224,7 @@
           }
 
           <ul class="mt-6 space-y-3">
-            @for (office of offices(); track office.tenantId) {
+            @for (office of offices(); track officeKey(office)) {
               <li class="rounded-xl border border-gray-200 overflow-hidden">
                 <button
                   type="button"
@@ -238,6 +239,11 @@
                     <span class="block text-xs text-gray-500 truncate"
                       >{{ office.subdomain }}.taxproffice.com</span
                     >
+                    @if (office.isClientPortal) {
+                      <span class="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600"
+                        >Client portal</span
+                      >
+                    }
                   </span>
                   <span class="flex items-center gap-2 shrink-0">
                     @if (office.mfaRequired) {
@@ -253,16 +259,16 @@
                   </span>
                 </button>
 
-                @if (mfaOfficeId() === office.tenantId) {
+                @if (mfaOfficeId() === officeKey(office)) {
                   <div class="px-4 pb-4 pt-1 space-y-3 bg-indigo-50/40">
                     <label
-                      [for]="'mfa-' + office.tenantId"
+                      [for]="'mfa-' + officeKey(office)"
                       class="block text-xs font-medium text-gray-700"
                     >
                       Enter your verification code
                     </label>
                     <input
-                      [id]="'mfa-' + office.tenantId"
+                      [id]="'mfa-' + officeKey(office)"
                       type="text"
                       inputmode="numeric"
                       autocomplete="one-time-code"

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
+import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 
 /** Clave de sessionStorage donde se guarda el intentId antes del redirect, para pollear el estado al volver. */
 export const SEAT_CHECKOUT_INTENT_KEY = 'seatCheckoutIntentId';

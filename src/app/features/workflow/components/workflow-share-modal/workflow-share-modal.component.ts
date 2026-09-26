@@ -91,7 +91,7 @@ export class WorkflowShareModalComponent {
   private loadUsers(): void {
     this.usersLoading.set(true);
     this.usersError.set(null);
-    this.users.getUsers({ page: 1, size: 50, isActive: true }).subscribe({
+    this.users.getUsers({ page: 1, size: 50, isActive: true, accountKind: 'Staff' }).subscribe({
       next: result => {
         this.tenantUsers.set(result.items ?? []);
         this.usersLoading.set(false);

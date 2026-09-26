@@ -1,0 +1,91 @@
+<div *ngIf="canManage()" class="bg-white rounded-[28px] p-6">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">What this client can do</h2>
+      <p class="mt-1 text-sm text-gray-500">{{ summary() }}</p>
+    </div>
+  </div>
+
+  <!-- Cargando -->
+  <div *ngIf="loading()" class="mt-5 space-y-3">
+    <div class="h-16 animate-pulse rounded-2xl bg-gray-100"></div>
+    <div class="h-16 animate-pulse rounded-2xl bg-gray-100"></div>
+  </div>
+
+  <!-- Error de carga -->
+  <div *ngIf="!loading() && error() as err" class="mt-5 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+    <p class="text-sm text-red-700">{{ err }}</p>
+    <button type="button" (click)="retry()"
+      class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors">
+      Try again
+    </button>
+  </div>
+
+  <ng-container *ngIf="!loading() && !error()">
+    <p *ngIf="modules().length === 0" class="mt-5 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+      This client's portal role grants nothing yet.
+    </p>
+
+    <section *ngFor="let module of modules()" class="mt-3 overflow-hidden rounded-2xl border border-gray-100">
+      <!-- Cabecera del módulo -->
+      <div class="flex items-center gap-3 bg-gray-50/70 px-4 py-3">
+        <div class="min-w-0 flex-1">
+          <div class="text-[13.5px] font-bold text-gray-800">{{ module.label }}</div>
+          <div *ngIf="module.description" class="mt-px text-[11.5px] text-gray-500">{{ module.description }}</div>
+        </div>
+
+        <span class="whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+          [ngClass]="moduleDeniedCount(module) > 0 ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-gray-100 bg-white text-gray-500'">
+          <ng-container *ngIf="moduleDeniedCount(module) as denied; else allAllowed">{{ denied }} restricted</ng-container>
+          <ng-template #allAllowed>{{ moduleGrantedCount(module) }} allowed</ng-template>
+        </span>
+
+        <!-- Interruptor maestro del módulo -->
+        <span class="sw" [title]="moduleAllowed(module) ? 'Restrict everything here' : 'Restore everything here'">
+          <input type="checkbox" [attr.aria-label]="'Allow all of ' + module.label" [checked]="moduleAllowed(module)"
+            (change)="setModuleAllowed(module, $any($event.target).checked)" />
+          <span class="track"></span>
+        </span>
+      </div>
+
+      <!-- Capacidades -->
+      <label *ngFor="let row of module.rows"
+        class="perm-row flex items-center gap-3 border-t border-gray-100 px-4 py-2.5">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-gray-800">
+            {{ row.label }}
+            <span *ngIf="!row.locked && isDenied(row.permissionId)"
+              class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-rose-600">Restricted</span>
+            <span *ngIf="row.locked"
+              class="rounded-full border border-gray-100 bg-gray-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-400">Not in their role</span>
+          </div>
+          <div class="mt-px text-[11.5px] text-gray-500">
+            {{ row.code }}<span *ngIf="row.locked"> · granted by the portal role, not here</span>
+          </div>
+        </div>
+
+        <span class="sw">
+          <input type="checkbox" [disabled]="row.locked" [attr.aria-label]="row.label"
+            [checked]="!row.locked && !isDenied(row.permissionId)"
+            (change)="setAllowed(row.permissionId, $any($event.target).checked)" />
+          <span class="track"></span>
+        </span>
+      </label>
+    </section>
+
+    <!-- Barra de guardado: solo aparece cuando hay algo que guardar -->
+    <div *ngIf="dirty()" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+      <p class="text-sm text-gray-600">{{ summary() }}</p>
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="discard()" [disabled]="saving()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-white disabled:opacity-50 transition-colors">
+          Discard
+        </button>
+        <button type="button" (click)="save()" [disabled]="saving()"
+          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+          {{ saving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</div>

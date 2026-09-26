@@ -125,7 +125,7 @@ export class CentralLoginPageComponent {
 
     const { email, password } = this.form.getRawValue();
     this.centralLogin
-      .discover(email, password)
+      .discover(email, password, this.portal ? 'Portal' : undefined)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (outcome) => this.handleDiscover(outcome),
@@ -138,7 +138,7 @@ export class CentralLoginPageComponent {
     this.formError.set(null);
     if (office.mfaRequired) {
       // Revela el campo de código para esta oficina; el canje espera al submit del MFA.
-      this.mfaOfficeId.set(office.tenantId);
+      this.mfaOfficeId.set(this.officeKey(office));
       this.mfaCode.set('');
       return;
     }
@@ -153,6 +153,11 @@ export class CentralLoginPageComponent {
       return;
     }
     this.requestHandoff(office.tenantId, code, office.isClientPortal);
+  }
+
+  /** Una misma oficina puede aparecer dos veces (espacio de trabajo y portal del cliente). */
+  officeKey(office: DiscoverOffice): string {
+    return `${office.tenantId}:${office.isClientPortal ? 'portal' : 'staff'}`;
   }
 
   cancelMfa(): void {
@@ -190,7 +195,7 @@ export class CentralLoginPageComponent {
     this.formError.set(null);
     this.isBusy.set(true);
     this.centralLogin
-      .handoff(this.sessionRef, chosenTenantId, mfaCode)
+      .handoff(this.sessionRef, chosenTenantId, mfaCode, isClientPortal ? 'Portal' : 'Staff')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (view) => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),

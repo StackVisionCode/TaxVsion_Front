@@ -47,6 +47,8 @@ interface GetUsersParams {
   size?: number;
   search?: string;
   isActive?: boolean;
+  /** Personal o clientes de portal. Sin valor el backend devuelve los dos, que casi nunca es lo que se quiere. */
+  accountKind?: 'Staff' | 'Portal';
 }
 
 interface GetInvitationsParams {
@@ -77,6 +79,9 @@ export class UserManagementService {
     }
     if (params.isActive !== undefined) {
       query = query.set('isActive', params.isActive);
+    }
+    if (params.accountKind) {
+      query = query.set('accountKind', params.accountKind);
     }
     return this.http.get<PagedResult<UserSummary>>(`${this.base}/users`, { params: query });
   }
@@ -127,10 +132,10 @@ export class UserManagementService {
 
   /** Staff activo (no portal) distinto del que se retira — candidatos a sucesor para el picker del diálogo. */
   getEligibleSuccessors(excludeUserId: string): Observable<EligibleSuccessor[]> {
-    return this.getUsers({ page: 1, size: 100, isActive: true }).pipe(
+    return this.getUsers({ page: 1, size: 100, isActive: true, accountKind: 'Staff' }).pipe(
       map(result =>
         result.items
-          .filter(user => user.id !== excludeUserId && user.actorType !== 'CustomerPortal')
+          .filter(user => user.id !== excludeUserId)
           .map(user => ({
             id: user.id,
             name: `${user.name} ${user.lastName}`.trim() || user.email,

@@ -1,14 +1,15 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { SeatPurchaseStore } from './seat-purchase.store';
-import { SubscriptionService } from './subscription.service';
+import { SeatsService } from './seats.service';
 import {
   ProviderCustomer,
   SeatCheckoutStatusResponse,
   SeatPurchaseOutcome,
   SeatQuoteResponse,
   StartSeatCheckoutResponse,
-} from './subscription.model';
+} from './seats.model';
 
 describe('SeatPurchaseStore', () => {
   const quote: SeatQuoteResponse = {
@@ -22,9 +23,9 @@ describe('SeatPurchaseStore', () => {
     currentPeriodEndUtc: '2026-10-16T00:00:00Z',
   };
 
-  function setup(serviceStub: Partial<SubscriptionService>): SeatPurchaseStore {
+  function setup(serviceStub: Partial<SeatsService>): SeatPurchaseStore {
     TestBed.configureTestingModule({
-      providers: [SeatPurchaseStore, { provide: SubscriptionService, useValue: serviceStub }],
+      providers: [SeatPurchaseStore, { provide: SeatsService, useValue: serviceStub }],
     });
     return TestBed.inject(SeatPurchaseStore);
   }
@@ -117,6 +118,34 @@ describe('SeatPurchaseStore', () => {
       .subscribe(result => (received = result));
 
     expect(received).toEqual(response);
+    expect(store.purchasing()).toBe(false);
+  });
+
+  // Regresión F6: el backend ya no abre un segundo cobro si hay uno vivo; el modal debe explicarlo.
+  it('startCheckout surfaces the backend message when a purchase is already in progress', () => {
+    const conflict = new HttpErrorResponse({
+      status: 409,
+      error: {
+        code: 'Seat.CheckoutInProgress',
+        message: 'There is already a seat purchase waiting for payment. Finish it or wait for it to expire.',
+      },
+    });
+    const store = setup({ startSeatCheckout: () => throwError(() => conflict) });
+
+    store
+      .startCheckout({
+        seatType: 'Standard',
+        quantity: 2,
+        autoRenew: true,
+        payerEmail: 'owner@acme.test',
+        successUrl: 's',
+        cancelUrl: 'c',
+      })
+      .subscribe({
+      error: () => undefined,
+    });
+
+    expect(store.error()).toContain('already a seat purchase waiting for payment');
     expect(store.purchasing()).toBe(false);
   });
 

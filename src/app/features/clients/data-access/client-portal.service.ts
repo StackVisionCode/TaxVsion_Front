@@ -18,7 +18,11 @@ export class ClientPortalService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
 
-  /** POST /customers/{id}/portal-invitations — sin body; 202. Perm `customers.manage` + admin. */
+  /**
+   * POST /customers/{id}/portal-invitations — sin body. 200 con el desenlace (invitado, reenviado o ya activo);
+   * 409 con el motivo si el email ya es del portal de otro cliente o el acceso está desactivado.
+   * Perm `customers.manage` + admin.
+   */
   invite(customerId: string): Observable<RequestPortalInvitationResponse> {
     return this.http.post<RequestPortalInvitationResponse>(
       this.api.tenantUrl(`/customers/${customerId}/portal-invitations`),
@@ -28,24 +32,21 @@ export class ClientPortalService {
 
   /** GET /auth/invitations?customerId=&size= — invitaciones de este cliente (perm `users.invite`). */
   listInvitations(customerId: string, size = 50): Observable<PagedResult<InvitationResponse>> {
-    const params = new HttpParams().set('customerId', customerId).set('page', 1).set('size', size);
+    const params = new HttpParams()
+      .set('customerId', customerId)
+      .set('accountKind', 'Portal')
+      .set('page', 1)
+      .set('size', size);
     return this.http.get<PagedResult<InvitationResponse>>(this.api.tenantUrl('/auth/invitations'), { params });
   }
 
   /** GET /auth/users?customerId=&size= — usuario(s) de portal de este cliente (perm `users.view`). */
   listUsers(customerId: string, size = 10): Observable<PagedResult<PortalUserResponse>> {
-    const params = new HttpParams().set('customerId', customerId).set('page', 1).set('size', size);
-    return this.http.get<PagedResult<PortalUserResponse>>(this.api.tenantUrl('/auth/users'), { params });
-  }
-
-  /**
-   * GET /auth/users?search=<email> — usuarios del tenant que matchean el email. Auth dedup-ea las
-   * invitaciones por EMAIL (no por customerId), así que un cliente cuyo email YA es usuario de portal
-   * (aunque el usuario no esté ligado a ESTE customerId) hace que invitar sea un no-op silencioso. Esto
-   * permite detectarlo y avisar "already has portal access". Perm `users.view`.
-   */
-  searchUsersByEmail(email: string, size = 10): Observable<PagedResult<PortalUserResponse>> {
-    const params = new HttpParams().set('search', email).set('page', 1).set('size', size);
+    const params = new HttpParams()
+      .set('customerId', customerId)
+      .set('accountKind', 'Portal')
+      .set('page', 1)
+      .set('size', size);
     return this.http.get<PagedResult<PortalUserResponse>>(this.api.tenantUrl('/auth/users'), { params });
   }
 

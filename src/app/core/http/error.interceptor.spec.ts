@@ -106,3 +106,43 @@ describe('errorInterceptor — throttling', () => {
     expect(failed).toBe(throttledRefresh);
   });
 });
+
+describe('errorInterceptor — enlaces por correo', () => {
+  let http: HttpClient;
+  let httpMock: HttpTestingController;
+  const auth = { refresh: vi.fn(), logoutLocal: vi.fn() };
+
+  beforeEach(() => {
+    auth.refresh.mockReset();
+    auth.logoutLocal.mockReset();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: ThrottleNoticeService, useValue: { notify: vi.fn() } },
+        { provide: AuthService, useValue: auth },
+        { provide: TokenService, useValue: { getRefreshToken: () => 'refresh-token' } },
+        { provide: SubscriptionStatusStore, useValue: { markBlockedFromError: vi.fn() } },
+      ],
+    });
+    http = TestBed.inject(HttpClient);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  // Con sesión abierta en el navegador, un 401 de estos endpoints es el token del correo, no la sesión.
+  it.each(['/auth/password/reset/validate', '/auth/password/reset', '/auth/me/email/confirm', '/auth/invitations/accept'])(
+    'un token de correo que ya no sirve en %s no renueva ni cierra la sesión',
+    path => {
+      let failed: HttpErrorResponse | undefined;
+      http.post(path, {}).subscribe({ error: err => (failed = err) });
+
+      httpMock.expectOne(path).flush({ code: 'Auth.InvalidResetToken' }, { status: 401, statusText: 'Unauthorized' });
+
+      expect(failed?.status).toBe(401);
+      expect(auth.refresh).not.toHaveBeenCalled();
+      expect(auth.logoutLocal).not.toHaveBeenCalled();
+    },
+  );
+});

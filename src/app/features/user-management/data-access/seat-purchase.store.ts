@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, finalize, map, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
-import { SubscriptionService } from './subscription.service';
+import { SeatsService } from './seats.service';
 import {
   SavedPaymentMethod,
   SeatCheckoutStatusResponse,
@@ -9,7 +9,7 @@ import {
   SeatQuoteResponse,
   StartSeatCheckoutRequest,
   StartSeatCheckoutResponse,
-} from './subscription.model';
+} from './seats.model';
 
 /**
  * Data-access de compra de asientos, compartible entre la consola `/subscription` y el flujo de invitar en
@@ -19,7 +19,7 @@ import {
  */
 @Injectable({ providedIn: 'root' })
 export class SeatPurchaseStore {
-  private readonly service = inject(SubscriptionService);
+  private readonly service = inject(SeatsService);
 
   private readonly _quote = signal<SeatQuoteResponse | null>(null);
   private readonly _quoteLoading = signal(false);

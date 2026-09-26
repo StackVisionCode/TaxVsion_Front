@@ -225,6 +225,15 @@
               <ion-icon name="business-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
               <span>Company settings</span>
             </a>
+
+            <!-- La suscripción se gestiona en el Account del sitio público: acá solo está la puerta, y
+                 solo para quien puede abrirla. Se sale con esta misma sesión. -->
+            <button *ngIf="canManageSubscription()" type="button" (click)="manageSubscription()"
+              [disabled]="handoff.opening()"
+              class="dropdown-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-60">
+              <ion-icon name="card-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
+              <span>{{ handoff.opening() ? 'Opening…' : 'Manage subscription' }}</span>
+            </button>
           </div>
 
           <div class="mx-1.5 border-t border-gray-100"></div>

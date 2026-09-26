@@ -1,9 +1,12 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
+import { TenantResolutionService } from '@core/auth/tenant-resolution.service';
+import { ApiConfigService } from '@core/config/api-config.service';
+import { environment } from '@env/environment';
 
 type RequestStep = 'email' | 'sent';
 
@@ -31,10 +34,28 @@ export class ForgotPasswordPageComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
+  /** Desde el login de clientes (`?account=portal`) se resetea la cuenta del portal, no la del espacio de trabajo. */
+  private readonly accountKind = inject(ActivatedRoute).snapshot.queryParamMap.get('account') === 'portal' ? 'Portal' : 'Staff';
+
+  /** En la dirección de una oficina el reset es solo de esa oficina; la entrada general cubre todas. */
+  readonly atOffice = inject(ApiConfigService).officeFromHost() !== null;
+  readonly officeName = signal<string | null>(null);
+  /** Entrada general, para quien trabaja en otra oficina. */
+  readonly mainForgotUrl = `https://app.${environment.baseDomain}/forgot-password${this.accountKind === 'Portal' ? '?account=portal' : ''}`;
+
   readonly step = signal<RequestStep>('email');
   readonly email = signal('');
   readonly formError = signal<string | null>(null);
   readonly isBusy = signal(false);
+
+  constructor() {
+    if (this.atOffice) {
+      inject(TenantResolutionService)
+        .currentOfficeName()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(name => this.officeName.set(name));
+    }
+  }
 
   sendCode(): void {
     const value = this.email().trim();
@@ -45,7 +66,7 @@ export class ForgotPasswordPageComponent {
     this.formError.set(null);
     this.isBusy.set(true);
     this.auth
-      .forgotPassword(value)
+      .forgotPassword(value, this.accountKind)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {

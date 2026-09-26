@@ -166,12 +166,6 @@ export const routes: Routes = [
         loadChildren: () => import('./features/plans/plans.routes').then(m => m.PLANS_ROUTES),
       },
       {
-        path: 'subscription',
-        data: { preloadPriority: 'low' },
-        loadChildren: () =>
-          import('./features/subscription/subscription.routes').then(m => m.SUBSCRIPTION_ROUTES),
-      },
-      {
         path: 'workflow',
         loadChildren: () => import('./features/workflow/workflow.routes').then(m => m.WORKFLOW_ROUTES),
       },

@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, map, of, tap } from 'rxjs';
+import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 
 /** Miembro del staff del tenant, resuelto para pickers y avatares (userId → nombre/iniciales/color). */
@@ -11,6 +11,10 @@ export interface StaffMember {
   actorType: string;
   initials: string;
   avatarColor: string;
+  /** Puede trabajar hoy. Un suspendido conserva sus asignaciones; un retirado ya no tiene ninguna. */
+  isActive: boolean;
+  /** Active | Deactivated | Offboarded (espejo de Auth). */
+  status: string;
 }
 
 interface AuthUserRow {
@@ -20,15 +24,23 @@ interface AuthUserRow {
   email: string;
   actorType: string;
   isActive: boolean;
+  status?: string;
+}
+
+interface AuthUserPage {
+  items: AuthUserRow[];
+  totalPages: number;
 }
 
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
+const PAGE_SIZE = 100;
 
 /**
  * Directorio de staff del tenant (GET /auth/users), cacheado en memoria. Resuelve userId → nombre/avatar
- * para los asignados del directorio y del diálogo, y alimenta el picker "asignar a quién" (filtro
- * client-side). Solo staff activo (excluye CustomerPortal). Es una feature admin-only, así que /auth/users
- * está disponible; si fallara, queda vacío (el picker no muestra a nadie, sin romper la página).
+ * para los asignados y alimenta el picker "asignar a quién". Trae el staff COMPLETO, activo y suspendido:
+ * suspender es reversible y el suspendido conserva sus clientes, así que sin él la tarjeta de asignados
+ * mostraba "Unknown user". Para elegir a quién asignar se usa `assignable` (solo quien puede trabajar hoy).
+ * Es una pantalla admin-only, así que /auth/users está disponible; si fallara queda vacío sin romper nada.
  */
 @Injectable({ providedIn: 'root' })
 export class StaffDirectoryStore {
@@ -38,7 +50,11 @@ export class StaffDirectoryStore {
   private readonly _members = signal<StaffMember[]>([]);
   private loaded = false;
 
+  /** Todo el staff, para poner nombre a cualquier asignación existente. */
   readonly members: Signal<StaffMember[]> = computed(() => this._members());
+
+  /** A quién se le puede asignar un cliente hoy. */
+  readonly assignable: Signal<StaffMember[]> = computed(() => this._members().filter(m => m.isActive));
 
   /** Carga el staff una sola vez. Idempotente. */
   ensureLoaded(): void {
@@ -58,25 +74,36 @@ export class StaffDirectoryStore {
     return this._members().find(m => m.userId === userId);
   }
 
-  /** Filtro client-side por nombre/email para el picker. */
+  /** Filtro client-side por nombre/email para el picker: solo asignables. */
   search(term: string): StaffMember[] {
     const q = term.trim().toLowerCase();
-    const all = this._members();
+    const all = this.assignable();
     return q ? all.filter(m => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)) : all;
   }
 
   private fetch(): Observable<StaffMember[]> {
-    const params = new HttpParams().set('size', '100').set('isActive', 'true');
-    return this.http.get<{ items: AuthUserRow[] }>(this.api.tenantUrl('/auth/users'), { params }).pipe(
-      map(res =>
-        (res.items ?? [])
-          .filter(u => u.isActive && u.actorType !== 'CustomerPortal')
+    return this.page(1).pipe(
+      switchMap(first => {
+        const rest = [];
+        for (let page = 2; page <= (first.totalPages ?? 1); page++) {
+          rest.push(this.page(page));
+        }
+        return rest.length === 0 ? of([first]) : forkJoin([of(first), ...rest]);
+      }),
+      map(pages =>
+        pages
+          .flatMap(p => p.items ?? [])
           .map(toStaffMember)
           .sort((a, b) => a.name.localeCompare(b.name)),
       ),
       tap(members => this._members.set(members)),
       catchError(() => of([] as StaffMember[])),
     );
+  }
+
+  private page(page: number): Observable<AuthUserPage> {
+    const params = new HttpParams().set('accountKind', 'Staff').set('page', page).set('size', PAGE_SIZE);
+    return this.http.get<AuthUserPage>(this.api.tenantUrl('/auth/users'), { params });
   }
 }
 
@@ -89,6 +116,8 @@ function toStaffMember(u: AuthUserRow): StaffMember {
     actorType: u.actorType,
     initials: deriveInitials(name),
     avatarColor: pickAvatarColor(u.id),
+    isActive: u.isActive,
+    status: u.status ?? (u.isActive ? 'Active' : 'Deactivated'),
   };
 }
 
