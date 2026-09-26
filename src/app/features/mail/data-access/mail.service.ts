@@ -14,7 +14,6 @@ import {
   DraftListItem,
   InitiateOAuthConnectResult,
   MailAccount,
-  MailCustomerSummary,
   MessageBody,
   MessageSummary,
   SentMessageListItem,
@@ -57,10 +56,14 @@ export class MailService {
    * `returnUrl` (origen de ESTE subdominio del tenant) para que el callback de OAuth devuelva el
    * navegador acá — donde el usuario está logueado — y no a un dominio central fijo.
    */
-  initiateOAuthConnect(providerCode: 'Gmail' | 'Graph'): Observable<InitiateOAuthConnectResult> {
+  initiateOAuthConnect(
+    providerCode: 'Gmail' | 'Graph',
+    asOffice = false,
+  ): Observable<InitiateOAuthConnectResult> {
     return this.http.post<InitiateOAuthConnectResult>(`${this.connectors}/accounts`, {
       providerCode,
       returnUrl: window.location.origin,
+      asOffice,
     });
   }
 
@@ -81,16 +84,6 @@ export class MailService {
   /** Desconecta la cuenta (deja de sincronizar). 204. */
   disconnectAccount(accountId: string): Observable<void> {
     return this.http.delete<void>(`${this.connectors}/accounts/${accountId}`);
-  }
-
-  // ---------- Customer: picker de cliente ----------
-
-  searchCustomers(term: string, size = 200): Observable<PagedResult<MailCustomerSummary>> {
-    let params = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term.trim()) {
-      params = params.set('term', term.trim());
-    }
-    return this.http.get<PagedResult<MailCustomerSummary>>(this.api.tenantUrl('/customers'), { params });
   }
 
   // ---------- Correspondence: hilos ----------

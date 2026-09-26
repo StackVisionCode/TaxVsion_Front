@@ -1,11 +1,26 @@
 <form (ngSubmit)="onSubmit()" class="mt-5 text-left">
-  <!-- Identidad: el buzón es SIEMPRE el email de login (guard del backend) -->
+  <!-- Identidad del buzón: personal → login bloqueado (guard); oficina → editable -->
   <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Email address</label>
-  <div class="mt-1 flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5">
-    <ion-icon name="lock-closed-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
-    <span class="min-w-0 truncate text-sm font-medium text-gray-700">{{ loginEmail || '—' }}</span>
-  </div>
-  <p class="mt-1 text-xs text-gray-400">You can only connect your own mailbox — the one you signed in with.</p>
+  <ng-container *ngIf="asOffice; else lockedEmail">
+    <input type="email" [(ngModel)]="emailAddress" (ngModelChange)="onEmailChange()" name="officeEmail"
+      placeholder="office@yourfirm.com" autocomplete="off"
+      class="mt-1 w-full rounded-2xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold" />
+    <p class="mt-1 text-xs text-gray-400">The shared office mailbox — this can be any address, not your own login.</p>
+  </ng-container>
+  <ng-template #lockedEmail>
+    <div class="mt-1 flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5">
+      <ion-icon name="lock-closed-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+      <span class="min-w-0 truncate text-sm font-medium text-gray-700">{{ loginEmail || '—' }}</span>
+    </div>
+    <p class="mt-1 text-xs text-gray-400">You can only connect your own mailbox — the one you signed in with.</p>
+  </ng-template>
+
+  <!-- Proveedor: prellena host/puerto/cifrado; "Other" deja los campos en blanco -->
+  <label class="mt-4 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Provider</label>
+  <select [(ngModel)]="selectedProviderId" (ngModelChange)="onProviderChange()" name="providerId"
+    class="mt-1 w-full rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold">
+    <option *ngFor="let provider of providers" [value]="provider.id">{{ provider.label }}</option>
+  </select>
 
   <label class="mt-4 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
     Display name <span class="font-normal normal-case tracking-normal text-gray-300">(optional)</span>
@@ -31,17 +46,18 @@
       </div>
     </div>
     <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div>
+      <div *ngIf="asOffice">
         <label class="block text-xs font-medium text-gray-500">Username</label>
         <input type="text" [(ngModel)]="imapUsername" name="imapUsername" autocomplete="off"
           class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold" />
       </div>
-      <div>
+      <div [class.sm:col-span-2]="!asOffice">
         <label class="block text-xs font-medium text-gray-500">Password</label>
         <input type="password" [(ngModel)]="imapPassword" name="imapPassword" autocomplete="new-password"
           class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold" />
       </div>
     </div>
+    <p *ngIf="!asOffice" class="mt-2 text-xs text-gray-400">Signs in with your email address.</p>
     <label class="mt-3 flex items-center gap-2 text-sm text-gray-600">
       <input type="checkbox" [(ngModel)]="imapUseSsl" name="imapUseSsl" class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
       Use SSL/TLS
@@ -66,17 +82,18 @@
       </div>
     </div>
     <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div>
+      <div *ngIf="asOffice">
         <label class="block text-xs font-medium text-gray-500">Username</label>
         <input type="text" [(ngModel)]="smtpUsername" name="smtpUsername" autocomplete="off"
           class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold" />
       </div>
-      <div>
+      <div [class.sm:col-span-2]="!asOffice">
         <label class="block text-xs font-medium text-gray-500">Password</label>
         <input type="password" [(ngModel)]="smtpPassword" name="smtpPassword" autocomplete="new-password"
           class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold" />
       </div>
     </div>
+    <p *ngIf="!asOffice" class="mt-2 text-xs text-gray-400">Signs in with your email address.</p>
     <label class="mt-3 flex items-center gap-2 text-sm text-gray-600">
       <input type="checkbox" [(ngModel)]="smtpUseStartTls" name="smtpUseStartTls" class="h-4 w-4 rounded border-gray-300 text-brand-bold focus:ring-brand-bold" />
       Use STARTTLS

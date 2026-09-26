@@ -55,9 +55,13 @@ export class ProductFormPanelComponent implements OnChanges {
   readonly sku = signal('');
   readonly categoryId = signal('');
   readonly price = signal<number>(0);
+  /** Impuesto por defecto del producto, en % (la factura lo toma al agregarlo). */
+  readonly taxPercent = signal<number>(0);
   readonly stockQuantity = signal<number>(0);
   readonly lowStockThreshold = signal<number>(0);
   readonly status = signal<ProductStatus>('active');
+  /** Rastrear stock (editable): al activarlo en un producto que no rastreaba, se habilita la cantidad. */
+  readonly trackInventory = signal(true);
 
   readonly isCategoryOpen = signal(false);
   readonly newCategoryName = signal('');
@@ -125,9 +129,11 @@ export class ProductFormPanelComponent implements OnChanges {
       sku: this.sku().trim(),
       categoryId: this.categoryId(),
       price: Number(this.price()) || 0,
+      taxPercent: Number(this.taxPercent()) || 0,
       stockQuantity: Number(this.stockQuantity()) || 0,
       lowStockThreshold: Number(this.lowStockThreshold()) || 0,
       status: this.status(),
+      trackInventory: this.trackInventory(),
     });
   }
 
@@ -138,17 +144,21 @@ export class ProductFormPanelComponent implements OnChanges {
       this.sku.set(product.sku === '—' ? '' : product.sku);
       this.categoryId.set(product.categoryId);
       this.price.set(product.price);
+      this.taxPercent.set(product.taxRatePercent);
       this.stockQuantity.set(product.stockQuantity);
       this.lowStockThreshold.set(product.lowStockThreshold);
       this.status.set(product.status);
+      this.trackInventory.set(product.tracked);
     } else {
       this.name.set('');
       this.sku.set('');
       this.categoryId.set(this.categories[0]?.id ?? '');
       this.price.set(0);
+      this.taxPercent.set(0);
       this.stockQuantity.set(0);
       this.lowStockThreshold.set(0);
       this.status.set('active');
+      this.trackInventory.set(true);
     }
     this.newCategoryName.set('');
     this.isCategoryOpen.set(false);

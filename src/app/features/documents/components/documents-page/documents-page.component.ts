@@ -3,12 +3,10 @@ import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DocumentsStore } from '../../data-access/documents.store';
-import {
-  DocumentsClientStatusFilter,
-  DocumentsClientSummary,
-} from '../../data-access/documents-clients.service';
+import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   CreateShareLinkRequest,
+  CreateFolderShareLinkRequest,
   FileResponse,
   FolderResponse,
   RecycleBinItemResponse,
@@ -71,7 +69,7 @@ export class DocumentsPageComponent {
   readonly clientsPageCount = this.store.clientsPageCount;
   readonly clientsFiltered = this.store.clientsFiltered;
   /** Filtros de estado del selector, en el orden en que se ofrecen. */
-  readonly clientStatusOptions: ReadonlyArray<{ id: DocumentsClientStatusFilter; label: string }> = [
+  readonly clientStatusOptions: ReadonlyArray<{ id: CustomerStatusFilter; label: string }> = [
     { id: 'NotArchived', label: 'Active & inactive' },
     { id: 'Active', label: 'Active' },
     { id: 'Inactive', label: 'Inactive' },
@@ -82,6 +80,14 @@ export class DocumentsPageComponent {
   readonly subfolders = this.store.subfolders;
   readonly files = this.store.files;
   readonly folderLoading = this.store.folderLoading;
+  // Paginación server-side del contenido de carpeta.
+  readonly page = this.store.page;
+  readonly pageCount = this.store.pageCount;
+  readonly totalCount = this.store.totalCount;
+  readonly hasPrevPage = this.store.hasPrevPage;
+  readonly hasNextPage = this.store.hasNextPage;
+  readonly pageStart = this.store.pageStart;
+  readonly pageEnd = this.store.pageEnd;
   readonly selectedFile = this.store.selectedFile;
   readonly folderTree = this.store.folderTree;
   readonly recycleBinItems = this.store.recycleBinItems;
@@ -114,6 +120,11 @@ export class DocumentsPageComponent {
   readonly renameTarget = signal<FolderResponse | null>(null);
   readonly moveTarget = signal<MoveTarget | null>(null);
   readonly shareTarget = signal<FileResponse | null>(null);
+  readonly shareFolderTarget = signal<FolderResponse | null>(null);
+  /** Link pendiente de revocar; abre el confirm-dialog compartido (id del share). */
+  readonly pendingRevoke = signal<string | null>(null);
+  /** Carpeta pendiente de borrar; abre el confirm-dialog (el borrado es recursivo → papelera). */
+  readonly pendingDeleteFolder = signal<FolderResponse | null>(null);
   readonly storageOpen = signal(false);
   readonly emptyTrashOpen = signal(false);
   readonly previewFile = signal<FileResponse | null>(null);
@@ -183,7 +194,7 @@ export class DocumentsPageComponent {
   openClients(): void {
     this.store.openClients();
   }
-  openClient(client: DocumentsClientSummary): void {
+  openClient(client: CustomerSummary): void {
     this.store.openClient(client);
   }
   openRecent(): void {
@@ -198,7 +209,7 @@ export class DocumentsPageComponent {
   searchClients(term: string): void {
     this.store.setClientSearch(term);
   }
-  setClientsStatus(status: DocumentsClientStatusFilter): void {
+  setClientsStatus(status: CustomerStatusFilter): void {
     this.store.setClientsStatus(status);
   }
   goToClientsPage(page: number): void {
@@ -248,8 +259,12 @@ export class DocumentsPageComponent {
       case 'move-folder':
         this.openMove({ folder: action.folder });
         break;
+      case 'share-folder':
+        this.shareFolderTarget.set(action.folder);
+        this.store.loadFolderShares(action.folder.id);
+        break;
       case 'delete-folder':
-        this.store.deleteFolder(action.folder);
+        this.pendingDeleteFolder.set(action.folder);
         break;
       case 'select-file':
         this.store.selectFile(action.file);
@@ -326,14 +341,33 @@ export class DocumentsPageComponent {
     this.shareTarget.set(null);
   }
 
-  /** "Copy link" sobre un Public existente: crea uno nuevo (copiable) y revoca el viejo. */
+  confirmFolderShare(req: CreateFolderShareLinkRequest): void {
+    const folder = this.shareFolderTarget();
+    if (folder) {
+      this.store.createFolderShareLink(folder, req);
+    }
+    this.shareFolderTarget.set(null);
+  }
+
+  /** "Copy link" sobre un link copiable existente: crea uno nuevo (copiable) y revoca el viejo. */
   reshareLink(share: ShareLinkResponse): void {
+    const folder = this.shareFolderTarget();
+    if (folder) {
+      this.store.reshareFolderLink(folder, share);
+      this.shareFolderTarget.set(null);
+      return;
+    }
     const file = this.shareTarget();
     if (file) {
       this.store.resharePublicLink(file, share);
     }
     // Cierra el diálogo; aparece el modal de "link creado" con la URL nueva copiable.
     this.shareTarget.set(null);
+  }
+
+  closeShareDialog(): void {
+    this.shareTarget.set(null);
+    this.shareFolderTarget.set(null);
   }
   closeCreatedShare(): void {
     this.store.clearCreatedShare();
@@ -351,11 +385,33 @@ export class DocumentsPageComponent {
     return `${window.location.origin}/s/${token}`;
   }
 
-  revokeShare(shareLinkId: string): void {
-    // Irreversible: se confirma antes. Si el usuario cancela, no pasa nada.
-    if (confirm('Revoke this link? Anyone using it will lose access immediately.')) {
-      this.store.revokeShare(shareLinkId);
+  confirmDeleteFolder(): void {
+    const folder = this.pendingDeleteFolder();
+    if (folder) {
+      this.store.deleteFolder(folder);
     }
+    this.pendingDeleteFolder.set(null);
+  }
+
+  nextPage(): void {
+    this.store.nextPage();
+  }
+
+  prevPage(): void {
+    this.store.prevPage();
+  }
+
+  revokeShare(shareLinkId: string): void {
+    // Irreversible: se confirma con el diálogo compartido antes de ejecutar.
+    this.pendingRevoke.set(shareLinkId);
+  }
+
+  confirmRevoke(): void {
+    const id = this.pendingRevoke();
+    if (id) {
+      this.store.revokeShare(id);
+    }
+    this.pendingRevoke.set(null);
   }
 
   // ---------- Diálogos ----------

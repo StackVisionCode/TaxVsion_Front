@@ -82,7 +82,7 @@ export class UserManagementStore {
     this._membersError.set(null);
     this._membersPage.set(page);
     this.service
-      .getUsers({ page, size: PAGE_SIZE, search: this._search().trim() || undefined })
+      .getUsers({ page, size: PAGE_SIZE, search: this._search().trim() || undefined, accountKind: 'Staff' })
       .subscribe({
         next: result => {
           this._members.set(result.items.map(userToTeamMember));
@@ -172,6 +172,21 @@ export class UserManagementStore {
           list.map(member =>
             member.id === userId ? { ...member, status: active ? 'active' : 'suspended' } : member,
           ),
+        );
+        this.refreshLimits();
+      }),
+    );
+  }
+
+  /**
+   * POST offboard (204). Retiro TERMINAL: marca la fila como 'removed' (no vuelve a Suspend/Reactivate) y
+   * refresca el cupo (offboard libera el asiento). `successorUserId` null = el trabajo se ruta a la oficina.
+   */
+  offboardUser(userId: string, successorUserId: string | null): Observable<void> {
+    return this.service.offboardUser(userId, successorUserId).pipe(
+      tap(() => {
+        this._members.update(list =>
+          list.map(member => (member.id === userId ? { ...member, status: 'removed' } : member)),
         );
         this.refreshLimits();
       }),

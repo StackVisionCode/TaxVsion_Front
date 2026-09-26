@@ -1,13 +1,17 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject } from '@angular/core';
 import { PermissionService } from '@core/auth/permission.service';
+import { AccountHandoffStore } from '@core/billing/account-handoff.store';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 
 /**
- * Banner global del ciclo de vida de la suscripción de la firma (Expiración/Dunning, Fase 5). Aparece en el
- * shell autenticado cuando la suscripción está en lapso (PastDue/GracePeriod/Suspended/Expired) y ofrece
- * renovar. El botón "Renew" solo se muestra a admins/owner (el staff sin permiso queda cortado por el backend
- * antes de llegar acá). El copy y el color escalan con el estado.
+ * Banner global del ciclo de vida de la suscripción de la firma. Aparece en el shell autenticado cuando la
+ * suscripción está en lapso (PastDue/GracePeriod/Suspended/Expired) y ofrece renovar. El botón solo se
+ * muestra a admins/owner (el staff sin permiso queda cortado por el backend antes de llegar acá). El copy y
+ * el color escalan con el estado.
+ *
+ * Renovar es un cobro, así que se hace en el Account: el banner sale allí con esta misma sesión en vez de
+ * abrir el checkout desde el espacio de trabajo.
  */
 @Component({
   selector: 'app-subscription-banner',
@@ -37,10 +41,10 @@ import { SubscriptionStatusStore } from '@core/billing/subscription-status.store
             [class.hover:bg-amber-700]="store.tone() === 'warning'"
             [class.bg-red-600]="store.tone() === 'critical'"
             [class.hover:bg-red-700]="store.tone() === 'critical'"
-            [disabled]="store.renewing()"
-            (click)="store.startRenewAndRedirect()"
+            [disabled]="handoff.opening()"
+            (click)="handoff.open('/account/plan')"
           >
-            {{ store.renewing() ? 'Starting…' : 'Renew now' }}
+            {{ handoff.opening() ? 'Opening…' : 'Renew now' }}
           </button>
         } @else {
           <span class="shrink-0 opacity-80">Contact your firm's administrator.</span>
@@ -51,6 +55,7 @@ import { SubscriptionStatusStore } from '@core/billing/subscription-status.store
 })
 export class SubscriptionBannerComponent {
   protected readonly store = inject(SubscriptionStatusStore);
+  protected readonly handoff = inject(AccountHandoffStore);
   protected readonly perms = inject(PermissionService);
   private readonly datePipe = new DatePipe('en-US');
 

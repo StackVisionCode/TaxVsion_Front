@@ -8,6 +8,9 @@
             (change)="onSelectAll($event)" aria-label="Select all clients on this page" />
         </th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+        @if (canViewAssignees) {
+          <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Assigned to</th>
+        }
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Email</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Type</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
@@ -32,6 +35,27 @@
             <span class="font-medium text-gray-900 group-hover:text-brand-bold transition-colors">{{ client.displayName }}</span>
           </span>
         </td>
+        @if (canViewAssignees) {
+        <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.bg-indigo-50]="isSelected(client)"
+          [class.border-b]="!last" [class.border-gray-100]="!last">
+          @if (assigneeAvatars(client); as a) {
+            @if (a.shown.length > 0 || a.extra > 0) {
+              <span class="flex items-center">
+                @for (m of a.shown; track m.userId) {
+                  <span
+                    class="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white first:ml-0"
+                    [ngClass]="m.avatarColor" [attr.title]="m.name">{{ m.initials }}</span>
+                }
+                @if (a.extra > 0) {
+                  <span class="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-600 ring-2 ring-white">+{{ a.extra }}</span>
+                }
+              </span>
+            } @else {
+              <span class="inline-block rounded-full border border-dashed border-gray-300 px-2.5 py-0.5 text-xs text-gray-400">Unassigned</span>
+            }
+          }
+        </td>
+        }
         <td class="px-4 py-3.5 text-gray-600 transition-colors group-hover:bg-gray-50"
           [class.bg-indigo-50]="isSelected(client)" [class.border-b]="!last" [class.border-gray-100]="!last">
           {{ client.email }}
@@ -66,6 +90,11 @@
             </button>
             <div *ngIf="openMenuId() === client.id"
               class="menu-pop absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+              <button *ngIf="canAssignPreparer" type="button" (click)="onAssignClick(client, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="people-outline" class="text-base"></ion-icon>
+                Assign staff
+              </button>
               <button *ngIf="canManage" type="button" (click)="onEditClick(client, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="create-outline" class="text-base"></ion-icon>

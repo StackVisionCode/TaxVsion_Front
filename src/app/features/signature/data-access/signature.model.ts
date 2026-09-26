@@ -1,4 +1,5 @@
 import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
 
 /**
@@ -9,7 +10,9 @@ import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/s
 
 // ---------- Enums (espejo de TaxVision.Signature.Domain.Requests) ----------
 
-export type SignatureCategory = 'Fiscal' | 'EngagementLetter' | 'ConsentToDisclose' | 'BankAuth' | 'Other';
+// Antes era una unión cerrada; ahora el tenant puede definir categorías custom, así que el valor
+// guardado es un string libre. SIGNATURE_CATEGORIES/LABEL siguen describiendo solo las de sistema.
+export type SignatureCategory = string;
 
 export type ApiSignatureRequestStatus =
   | 'Draft'
@@ -32,13 +35,70 @@ export const SIGNATURE_CATEGORIES: SignatureCategory[] = [
   'Other',
 ];
 
-export const SIGNATURE_CATEGORY_LABEL: Record<SignatureCategory, string> = {
+export const SIGNATURE_CATEGORY_LABEL: Record<string, string> = {
   Fiscal: 'Fiscal',
   EngagementLetter: 'Engagement letter',
   ConsentToDisclose: 'Consent to disclose',
   BankAuth: 'Bank authorization',
   Other: 'Other',
 };
+
+/** Etiqueta amigable para una categoría: nombre bonito si es de sistema, si no el propio nombre custom. */
+export function signatureCategoryLabel(name: string): string {
+  return SIGNATURE_CATEGORY_LABEL[name] ?? name;
+}
+
+/** Una categoría disponible para el tenant (sistema o custom). Espeja SignatureCategoryResponse del backend. */
+export interface SignatureCategoryOption {
+  id: string | null;
+  name: string;
+  isSystem: boolean;
+  isArchived: boolean;
+}
+
+export interface SignatureCategoriesResult {
+  categories: SignatureCategoryOption[];
+}
+
+// ---------- Firmas reutilizables del preparador/oficina (My Signature) ----------
+
+/** Ámbito de una firma: personal del usuario u de oficina (gestionada por el admin). */
+export type SignatureProfileScope = 'user' | 'office';
+
+/** Firma reutilizable. Espejo de SignatureProfileResponse del backend. La imagen se baja por `fileId`. */
+export interface SignatureProfile {
+  id: string;
+  ownerUserId: string | null;
+  isOffice: boolean;
+  label: string;
+  fileId: string;
+  width: number;
+  height: number;
+  isDefault: boolean;
+  isArchived: boolean;
+}
+
+export interface SignatureProfilesResult {
+  profiles: SignatureProfile[];
+  /** false para un empleado no-admin cuando el tenant apagó la firma propia: solo puede usar la de oficina. */
+  canManageOwnSignature: boolean;
+}
+
+/** Subconjunto de la configuración de firma del tenant que la UI de gobernanza necesita round-tripear. */
+export interface SignatureSettings {
+  allowedVerificationChannels: string[];
+  defaultVerificationChannel: string;
+  defaultTokenExpirationHours: number;
+  remindersEnabledByDefault: boolean;
+  defaultReminderIntervalHours: number;
+  generateCertificateByDefault: boolean;
+  allowEmployeeOwnSignature: boolean;
+  maxPdfBytes: number;
+  maxImageBytes: number;
+  maxPagesPerDocument: number;
+  retentionYears: number;
+  allowPurge: boolean;
+}
 
 /** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
 export const TOKEN_EXPIRATION_MIN_HOURS = 1;
@@ -74,6 +134,18 @@ export interface SignerResponse {
   fields: SignatureFieldResponse[];
 }
 
+/** Campo del preparador (canal paralelo Form 8879). Sin signerId: no pertenece a un firmante. */
+export interface PreparerFieldResponse {
+  id: string;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+}
+
 /** GET /signature/requests/{id} y respuesta de POST /signature/requests. */
 export interface SignatureRequestDetail {
   id: string;
@@ -91,6 +163,10 @@ export interface SignatureRequestDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  sendSignedDocumentToSigners: boolean;
+  sendCertificateToSigners: boolean;
+  autoRemindersEnabled: boolean;
+  reminderIntervalHours: number;
   requiresPractitionerPin: boolean;
   practitionerPinSetAtUtc: string | null;
   tokenExpirationHours: number;
@@ -102,6 +178,10 @@ export interface SignatureRequestDetail {
   completedAtUtc: string | null;
   canceledAtUtc: string | null;
   expiredAtUtc: string | null;
+  isPreparerSigned: boolean;
+  preparerSignedAtUtc: string | null;
+  preparerSignatureFileId: string | null;
+  preparerFields: PreparerFieldResponse[];
   signers: SignerResponse[];
 }
 
@@ -207,6 +287,18 @@ export interface TemplateFieldResponse {
   isRequired: boolean;
 }
 
+/** Campo del preparador predefinido en la plantilla (sin slot). "from template" lo hereda. */
+export interface TemplatePreparerFieldResponse {
+  id: string;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+}
+
 /** GET /signature/templates/{id} — el molde completo, con sus slots y campos. */
 export interface SignatureTemplateDetail {
   id: string;
@@ -231,6 +323,7 @@ export interface SignatureTemplateDetail {
   publishedAtUtc: string | null;
   slots: TemplateSlotResponse[];
   fields: TemplateFieldResponse[];
+  preparerFields: TemplatePreparerFieldResponse[];
 }
 
 /** Ata un firmante real a un rol del molde. */
@@ -370,6 +463,22 @@ export interface CreateSignatureRequestBody {
   reminderIntervalHours?: number | null;
 }
 
+/**
+ * Edita la metadata de un borrador (PUT /signature/requests/{id}). El documento y GenerateCertificate
+ * no se editan (son decisiones de creación); el backend solo acepta esto en Draft/Ready.
+ */
+export interface UpdateSignatureRequestBody {
+  title: string;
+  description?: string | null;
+  category: SignatureCategory;
+  tokenExpirationHours: number;
+  // Opcionales (partial update): omitidos = el backend no toca entrega/reminders.
+  sendSignedDocumentToSigners?: boolean;
+  sendCertificateToSigners?: boolean;
+  autoRemindersEnabled?: boolean;
+  reminderIntervalHours?: number;
+}
+
 /** Idioma de los correos al firmante (backend Signer.Language). */
 export type SignerLanguage = 'Es' | 'En';
 
@@ -436,24 +545,11 @@ export interface ListSignatureRequestsParams {
   category?: SignatureCategory;
   page?: number;
   size?: number;
+  /** Solo borradores editables (Draft/Ready), para la pestaña Drafts. */
+  editableOnly?: boolean;
 }
 
-// ---------- Customers (subset espejo de Customer.Api; sin import cruzado de features) ----------
-
-export interface SignatureCustomerSummary {
-  id: string;
-  kind: 'Individual' | 'Business';
-  status: 'Active' | 'Inactive' | 'Archived';
-  displayName: string;
-  primaryEmail: string;
-  primaryPhone: string | null;
-  createdAtUtc: string;
-}
-
-export interface SignatureCustomersPage {
-  items: SignatureCustomerSummary[];
-  totalCount: number;
-}
+// ---------- Customers: el picker del wizard usa el DTO compartido @core/customers ----------
 
 // ---------- Adaptadores backend -> shapes de UI existentes ----------
 
@@ -531,11 +627,17 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     certificateFileId: detail.certificateFileId,
     requiresPractitionerPin: detail.requiresPractitionerPin,
     practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,
+    // Un borrador solo es "enviable" cuando tiene al menos un campo de firma/iniciales colocado.
+    hasSignatureField: detail.signers.some(signer =>
+      signer.fields.some(f => f.kind === 'Signature' || f.kind === 'Initials'),
+    ),
+    preparerSignatureFileId: detail.preparerSignatureFileId,
+    preparerFieldCount: detail.preparerFields.length,
   };
 }
 
 /** Fila de GET /customers -> shape que ya consumen los pasos del wizard. */
-export function customerToWizardClient(summary: SignatureCustomerSummary): WizardClient {
+export function customerToWizardClient(summary: CustomerSummary): WizardClient {
   return {
     id: summary.id,
     displayName: summary.displayName,

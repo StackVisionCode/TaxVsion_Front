@@ -10,6 +10,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -23,7 +25,6 @@ import {
   ApiTaskPriority,
   RecurrenceMode,
   SaveTaskTemplateRequest,
-  TaskClientSummary,
   TaskTemplateResponse,
   TemplateApplicationResponse,
 } from '../../data-access/task.model';
@@ -57,6 +58,7 @@ interface EditableStep {
 })
 export class TaskTemplatesModalComponent implements OnChanges {
   private readonly service = inject(TaskService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
   private readonly cloud = inject(CloudStorageUploadService);
 
@@ -92,8 +94,8 @@ export class TaskTemplatesModalComponent implements OnChanges {
   // ----- Estado de "aplicar" -----
   readonly selected = signal<TaskTemplateResponse | null>(null);
   readonly clientSearch = signal('');
-  readonly clientResults = signal<TaskClientSummary[]>([]);
-  readonly selectedClient = signal<TaskClientSummary | null>(null);
+  readonly clientResults = signal<CustomerSummary[]>([]);
+  readonly selectedClient = signal<CustomerSummary | null>(null);
   readonly taxYear = signal<number>(new Date().getFullYear());
   readonly anchorDate = signal<string>(this.todayIso());
   readonly allowDuplicate = signal(false);
@@ -392,14 +394,14 @@ export class TaskTemplatesModalComponent implements OnChanges {
       return;
     }
     this.clientSearchTimer = setTimeout(() => {
-      this.service.searchClients(q, 8).subscribe({
+      this.directory.search({ term: q, status: 'NotArchived', size: 8 }).subscribe({
         next: page => this.clientResults.set(page.items),
         error: () => this.clientResults.set([]),
       });
     }, 300);
   }
 
-  chooseClient(c: TaskClientSummary): void {
+  chooseClient(c: CustomerSummary): void {
     this.selectedClient.set(c);
     this.clientSearch.set(c.displayName);
     this.clientResults.set([]);

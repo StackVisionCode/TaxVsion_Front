@@ -6,6 +6,7 @@ import { ApiConfigService } from '../config/api-config.service';
 import { TokenService } from './token.service';
 import { AuthTokens } from './auth.model';
 import {
+  AccountKind,
   DiscoverLoginResponse,
   DiscoverOutcome,
   HandoffSession,
@@ -24,19 +25,28 @@ export class CentralLoginService {
   private readonly api = inject(ApiConfigService);
   private readonly tokenService = inject(TokenService);
 
-  /** Paso 1: password contra cada oficina. */
-  discover(email: string, password: string): Observable<DiscoverOutcome> {
+  /**
+   * Paso 1: password contra cada oficina. `accountKind` acota a un tipo de cuenta (el login del portal pide
+   * solo cuentas Portal); sin él se autentican ambas y una oficina puede aparecer dos veces.
+   */
+  discover(email: string, password: string, accountKind?: AccountKind): Observable<DiscoverOutcome> {
     return this.http
-      .post<DiscoverLoginResponse>(`${this.api.systemBase()}/auth/discover-login`, { email, password })
+      .post<DiscoverLoginResponse>(`${this.api.systemBase()}/auth/discover-login`, { email, password, accountKind })
       .pipe(map(res => interpret(res)));
   }
 
   /** Paso 2 (selector/MFA): elige oficina y resuelve el segundo factor; devuelve el vale. */
-  handoff(sessionRef: string, chosenTenantId: string, mfaCode: string | null): Observable<HandoffTicketView> {
+  handoff(
+    sessionRef: string,
+    chosenTenantId: string,
+    mfaCode: string | null,
+    accountKind: AccountKind,
+  ): Observable<HandoffTicketView> {
     return this.http.post<HandoffTicketView>(`${this.api.systemBase()}/auth/session/handoff`, {
       discoverySessionRef: sessionRef,
       chosenTenantId,
       mfaCode: mfaCode || null,
+      accountKind,
     });
   }
 

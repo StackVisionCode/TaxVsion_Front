@@ -22,6 +22,7 @@ import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
+import { landingUrl } from '@core/config/landing';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -133,23 +134,12 @@ export class LoginPageComponent {
    * params (no por estado en memoria) para que el enlace sea compartible y sobreviva a
    * un refresco a mitad del alta.
    *
-   * El alta vive en el SITIO PÚBLICO (`{landingUrl}/register`), no en esta app, así que
-   * se sale con `window.location` en vez del Router: son dominios distintos y el Router
-   * solo enruta dentro del SPA. Sin `landingUrl` configurado (dev) se usa la ruta
-   * interna, para no obligar a saltar a un sitio externo mientras se desarrolla.
+   * El alta vive en el Landing (otro origen), así que se sale con `window.location` y no con el Router.
    */
   startSignup(choice: PlanChoice): void {
     this.closePlanPicker();
     const params = new URLSearchParams({ plan: choice.plan.id, cycle: choice.cycle });
-
-    const landing = environment.landingUrl?.trim().replace(/\/$/, '');
-    if (landing) {
-      window.location.assign(`${landing}/register?${params}`);
-      return;
-    }
-    void this.router.navigate(['/onboarding'], {
-      queryParams: { plan: choice.plan.id, cycle: choice.cycle },
-    });
+    window.location.assign(landingUrl(`/register?${params}`));
   }
 
   togglePasswordVisibility(): void {

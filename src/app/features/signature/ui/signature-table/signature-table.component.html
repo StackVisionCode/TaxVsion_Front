@@ -1,4 +1,7 @@
-<div class="overflow-x-auto">
+<!-- overflow-x-auto fuerza overflow-y:auto: sin reservar espacio, el menú "..." absoluto de una fila cercana
+     al fondo desborda y el contenedor lo recorta con un scrollbar. Al abrir un menú reservamos hueco
+     inferior para que quepa completo (evita position:fixed, que rompe bajo ancestros con transform). -->
+<div class="overflow-x-auto" [ngClass]="{ 'pb-[22rem]': openMenuId() !== null }">
   <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
     <thead>
       <tr>
@@ -67,6 +70,16 @@
                 <ion-icon name="eye-outline" class="text-base"></ion-icon>
                 View
               </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onContinueClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
+                <ion-icon name="brush-outline" class="text-base"></ion-icon>
+                Continue editing
+              </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onEditClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                <ion-icon name="create-outline" class="text-base"></ion-icon>
+                Edit details
+              </button>
               <button *ngIf="canSendRow(request)" type="button" (click)="onSendClick(request, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
                 <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
@@ -108,6 +121,11 @@
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
                 <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
                 Cancel request
+              </button>
+              <button *ngIf="canEditDraft(request)" type="button" (click)="onDeleteClick(request, $event)"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+                <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                Delete draft
               </button>
             </div>
           </div>

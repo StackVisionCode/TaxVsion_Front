@@ -48,7 +48,7 @@ export class ReferralsStore {
   /** Texto plano del código del tenant (null mientras carga o si falló). */
   readonly referralCode = computed(() => this._code()?.referralCode ?? null);
 
-  /** Enlace compartible hacia el signup pago-primero (/register?referral=<code>). */
+  /** Enlace compartible al alta del Landing (`{landing}/register?referral=<code>`). */
   readonly referralLink = computed(() => {
     const code = this.referralCode();
     return code ? buildReferralLink(code) : null;

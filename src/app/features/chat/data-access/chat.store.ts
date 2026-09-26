@@ -1,8 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom, forkJoin, of } from 'rxjs';
+import { Observable, Subscription, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
+import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, throttleMessageOr } from '@core/errors/throttling';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse, formatBytes } from '@core/cloud-storage/cloud-storage.model';
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
@@ -14,6 +16,7 @@ import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
 import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { chatStartErrorMessage } from './chat-start-error';
 
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
@@ -76,6 +79,7 @@ export class ChatStore {
   private readonly directory = inject(ChatDirectoryService);
   private readonly attachments = inject(ChatAttachmentsService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly toast = inject(ToastService);
 
   private readonly _conversations = signal<ChatConversation[]>([]);
   private readonly _loading = signal(false);
@@ -124,6 +128,7 @@ export class ChatStore {
   private readonly _employeeSearchLoading = signal(false);
   private readonly _employeeSearchError = signal<string | null>(null);
   private readonly _newConversationError = signal<string | null>(null);
+  private directorySearch: Subscription | null = null;
   private readonly _creatingConversation = signal(false);
 
   readonly employeeResults = this._employeeResults.asReadonly();
@@ -312,6 +317,10 @@ export class ChatStore {
     if (!ack.ok) {
       console.warn('No se pudo enviar el mensaje:', ack.message);
       this.patchOwnMessage(conversationId, tempId, { status: 'failed' });
+      // La burbuja "failed" ya ofrece reintentar; si fue por ir demasiado rápido, además se dice.
+      if (isSocketRateLimited(ack.code)) {
+        this.toast.error(SOCKET_RATE_LIMITED_MESSAGE);
+      }
       return;
     }
     const dto = ack.value.message;
@@ -366,11 +375,13 @@ export class ChatStore {
       const ack = await this.socket.sendAttachment(conversationId, fileId);
       if (!ack.ok) {
         console.warn('No se pudo enviar el adjunto:', ack.message);
+        this.toast.error(isSocketRateLimited(ack.code) ? SOCKET_RATE_LIMITED_MESSAGE : "Couldn't send the attachment.");
         return;
       }
       this.appendMessage(ack.value.message, { name: file.name, size: formatBytes(file.size), fileId });
     } catch (err) {
       console.warn('No se pudo subir el adjunto:', toApiError(err).message);
+      this.toast.error(throttleMessageOr(err, "Couldn't upload the attachment."));
     } finally {
       this._uploadingAttachment.set(false);
     }
@@ -467,11 +478,13 @@ export class ChatStore {
       const ack = await this.socket.sendVoiceNote(conversationId, fileId, recorded.durationMs, recorded.waveform);
       if (!ack.ok) {
         console.warn('No se pudo enviar la nota de voz:', ack.message);
+        this.toast.error(isSocketRateLimited(ack.code) ? SOCKET_RATE_LIMITED_MESSAGE : "Couldn't send the voice note.");
         return;
       }
       this.appendMessage(ack.value.message);
     } catch (err) {
       console.warn('No se pudo subir la nota de voz:', toApiError(err).message);
+      this.toast.error(throttleMessageOr(err, "Couldn't upload the voice note."));
     } finally {
       this._uploadingAttachment.set(false);
     }
@@ -556,7 +569,7 @@ export class ChatStore {
     this._messageActionError.set(null);
     const ack = await this.socket.editMessage(messageId, trimmed);
     if (!ack.ok) {
-      this._messageActionError.set(ack.message);
+      this.reportMessageActionError(ack.code, "Couldn't edit the message.");
     }
   }
 
@@ -565,8 +578,15 @@ export class ChatStore {
     this._messageActionError.set(null);
     const ack = await this.socket.deleteMessage(messageId);
     if (!ack.ok) {
-      this._messageActionError.set(ack.message);
+      this.reportMessageActionError(ack.code, "Couldn't delete the message.");
     }
+  }
+
+  // Ninguna vista pinta `messageActionError`: sin el toast, un fallo al editar/borrar pasaba en silencio.
+  private reportMessageActionError(code: string, fallback: string): void {
+    const message = isSocketRateLimited(code) ? SOCKET_RATE_LIMITED_MESSAGE : fallback;
+    this._messageActionError.set(message);
+    this.toast.error(message);
   }
 
   // ---------- Historial (scrollback) ----------
@@ -612,37 +632,34 @@ export class ChatStore {
     const trimmed = term.trim();
     this._customerResults.set([]); // solo una audiencia a la vez
     if (!trimmed) {
+      this.cancelDirectorySearch();
       this._employeeResults.set([]);
       this._employeeSearchError.set(null);
       return;
     }
-    this._employeeSearchLoading.set(true);
-    this._employeeSearchError.set(null);
-    this.directory.searchEmployees(trimmed).subscribe({
-      next: results => {
-        this._employeeResults.set(results);
-        this._employeeSearchLoading.set(false);
-      },
-      error: err => {
-        this._employeeSearchError.set(toApiError(err).message);
-        this._employeeSearchLoading.set(false);
-      },
-    });
+    this.runDirectorySearch(this.directory.searchEmployees(trimmed), results => this._employeeResults.set(results));
   }
 
   searchCustomers(term: string): void {
     const trimmed = term.trim();
     this._employeeResults.set([]); // solo una audiencia a la vez
     if (!trimmed) {
+      this.cancelDirectorySearch();
       this._customerResults.set([]);
       this._employeeSearchError.set(null);
       return;
     }
+    this.runDirectorySearch(this.directory.searchCustomers(trimmed), results => this._customerResults.set(results));
+  }
+
+  /** Una búsqueda nueva cancela la que sigue en vuelo: así una respuesta vieja nunca pisa los resultados del texto actual. */
+  private runDirectorySearch<T>(request: Observable<T[]>, apply: (results: T[]) => void): void {
+    this.directorySearch?.unsubscribe();
     this._employeeSearchLoading.set(true);
     this._employeeSearchError.set(null);
-    this.directory.searchCustomers(trimmed).subscribe({
+    this.directorySearch = request.subscribe({
       next: results => {
-        this._customerResults.set(results);
+        apply(results);
         this._employeeSearchLoading.set(false);
       },
       error: err => {
@@ -652,7 +669,14 @@ export class ChatStore {
     });
   }
 
+  private cancelDirectorySearch(): void {
+    this.directorySearch?.unsubscribe();
+    this.directorySearch = null;
+    this._employeeSearchLoading.set(false);
+  }
+
   resetNewConversationState(): void {
+    this.cancelDirectorySearch();
     this._employeeResults.set([]);
     this._customerResults.set([]);
     this._employeeSearchError.set(null);
@@ -676,17 +700,6 @@ export class ChatStore {
     return this.startDirectWith(entry.portalUserId, entry.displayName);
   }
 
-  /** Traduce el ack de error a un mensaje de usuario (sin filtrar códigos de permiso). */
-  private friendlyStartError(code: string, message: string): string {
-    if (/^Missing communication|forbidden|permission|not allowed|not assigned/i.test(message) || /forbidden|permission/i.test(code)) {
-      return "You don't have access to start chats yet. This may require a plan upgrade.";
-    }
-    if (code === 'Socket.NotConnected' || code === 'Socket.Timeout') {
-      return "Couldn't reach the chat server. Please try again.";
-    }
-    return 'Could not start the conversation.';
-  }
-
   /** Núcleo compartido de start_direct (empleado o cliente): mismo comando, mismo optimismo/navegación. */
   private async startDirectWith(recipientUserId: string, displayName: string): Promise<boolean> {
     this._creatingConversation.set(true);
@@ -694,7 +707,7 @@ export class ChatStore {
     const ack = await this.socket.startDirectConversation(recipientUserId);
     this._creatingConversation.set(false);
     if (!ack.ok) {
-      this._newConversationError.set(this.friendlyStartError(ack.code, ack.message));
+      this._newConversationError.set(chatStartErrorMessage(ack.code, ack.message));
       return false;
     }
     this.ensureOptimisticConversation(ack.value.conversationId, displayName);
@@ -711,7 +724,7 @@ export class ChatStore {
     );
     this._creatingConversation.set(false);
     if (!ack.ok) {
-      this._newConversationError.set(this.friendlyStartError(ack.code, ack.message));
+      this._newConversationError.set(chatStartErrorMessage(ack.code, ack.message));
       return false;
     }
     this.ensureOptimisticConversation(ack.value.conversationId, title);

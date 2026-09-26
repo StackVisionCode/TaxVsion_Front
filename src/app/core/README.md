@@ -8,7 +8,8 @@ Singletons de infraestructura. Cero UI. `core/*` nunca importa de `features/*` n
 - `realtime/` — infraestructura de sockets transversal.
 - `i18n/` — traducción y loaders.
 - `models/` — tipos/enums app-wide.
-- `config/` — inicializadores de la app.
+- `config/` — inicializadores y destinos (API, Landing).
+- `plans/` — catálogo público de planes (`GET /plans`).
 - `services/` — singletons app-wide que no encajan en las categorías anteriores.
 
 Ver `ARCHITECTURE.md` en la raíz del repo.

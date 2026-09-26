@@ -23,7 +23,6 @@ import {
 import { filter, map, of, switchMap, timer } from 'rxjs';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
@@ -47,7 +46,6 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
     RouterOutlet,
     NavbarComponent,
     SidebarComponent,
-    ToastHostComponent,
     CallOverlayComponent,
     SubscriptionBannerComponent,
   ],
@@ -125,7 +123,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
     // Ciclo de vida de la suscripción (Expiración/Dunning, Fase 5): carga el estado para el banner global
     // y, si volvemos de un hosted-checkout de renovación, retoma el poll de la intención pendiente.
     this.subscriptionStatus.load();
-    this.subscriptionStatus.resumePendingRenewCheckout();
 
     // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,

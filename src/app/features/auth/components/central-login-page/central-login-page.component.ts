@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   FormBuilder,
   FormGroup,
@@ -16,8 +16,8 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { environment } from '@env/environment';
 import { CentralLoginService } from '@core/auth/central-login.service';
+import { landingUrl } from '@core/config/landing';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { DiscoverOffice, DiscoverOutcome } from '@core/auth/central-login.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -44,7 +44,6 @@ type Step = 'credentials' | 'select';
 export class CentralLoginPageComponent {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly centralLogin = inject(CentralLoginService);
   private readonly branding = inject(TenantBrandingService);
   private readonly destroyRef = inject(DestroyRef);
@@ -103,21 +102,12 @@ export class CentralLoginPageComponent {
 
   /**
    * Plan elegido → alta con ese plan ya seleccionado (id y ciclo por query, para que el enlace sea
-   * compartible). El alta vive en el sitio público (`{landingUrl}/register`); sin landingUrl (dev)
-   * se queda en la ruta interna /onboarding.
+   * compartible). El alta vive en el Landing (otro origen).
    */
   startSignup(choice: PlanChoice): void {
     this.closePlanPicker();
     const params = new URLSearchParams({ plan: choice.plan.id, cycle: choice.cycle });
-
-    const landing = environment.landingUrl?.trim().replace(/\/$/, '');
-    if (landing) {
-      window.location.assign(`${landing}/register?${params}`);
-      return;
-    }
-    void this.router.navigate(['/onboarding'], {
-      queryParams: { plan: choice.plan.id, cycle: choice.cycle },
-    });
+    window.location.assign(landingUrl(`/register?${params}`));
   }
 
   togglePasswordVisibility(): void {
@@ -135,7 +125,7 @@ export class CentralLoginPageComponent {
 
     const { email, password } = this.form.getRawValue();
     this.centralLogin
-      .discover(email, password)
+      .discover(email, password, this.portal ? 'Portal' : undefined)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (outcome) => this.handleDiscover(outcome),
@@ -148,7 +138,7 @@ export class CentralLoginPageComponent {
     this.formError.set(null);
     if (office.mfaRequired) {
       // Revela el campo de código para esta oficina; el canje espera al submit del MFA.
-      this.mfaOfficeId.set(office.tenantId);
+      this.mfaOfficeId.set(this.officeKey(office));
       this.mfaCode.set('');
       return;
     }
@@ -163,6 +153,11 @@ export class CentralLoginPageComponent {
       return;
     }
     this.requestHandoff(office.tenantId, code, office.isClientPortal);
+  }
+
+  /** Una misma oficina puede aparecer dos veces (espacio de trabajo y portal del cliente). */
+  officeKey(office: DiscoverOffice): string {
+    return `${office.tenantId}:${office.isClientPortal ? 'portal' : 'staff'}`;
   }
 
   cancelMfa(): void {
@@ -200,7 +195,7 @@ export class CentralLoginPageComponent {
     this.formError.set(null);
     this.isBusy.set(true);
     this.centralLogin
-      .handoff(this.sessionRef, chosenTenantId, mfaCode)
+      .handoff(this.sessionRef, chosenTenantId, mfaCode, isClientPortal ? 'Portal' : 'Staff')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (view) => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),

@@ -6,6 +6,8 @@ export interface Toast {
   readonly id: number;
   readonly kind: ToastKind;
   readonly message: string;
+  /** Slot único (p.ej. el aviso de rate limit con cuenta regresiva); ausente en los toasts comunes. */
+  readonly key?: string;
   /** true durante la animación de salida (antes del desmontaje diferido). */
   readonly leaving?: boolean;
 }

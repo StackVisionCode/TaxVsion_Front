@@ -16,13 +16,13 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureService } from '../../data-access/signature.service';
+import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import {
-  SIGNATURE_CATEGORIES,
-  SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
   SignatureTemplateDetail,
   SignerLanguage,
   SignerVerificationMethod,
+  signatureCategoryLabel,
   TemplateSlotResponse,
   fieldTypeToKind,
 } from '../../data-access/signature.model';
@@ -49,6 +49,9 @@ const DEFAULT_SIZE: Record<FieldType, { w: number; h: number }> = {
   date: { w: 130, h: 40 },
   text: { w: 170, h: 40 },
 };
+
+/** slotOrder sentinela para los campos del PREPARADOR (los slots reales son >= 1). */
+const PREPARER_SLOT = 0;
 
 /** Campo colocado sobre la superficie de layout (px de pantalla a la escala actual). */
 interface TemplateFieldLocal {
@@ -102,7 +105,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 @Component({
   selector: 'app-signature-template-editor',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-editor.component.html',
   styleUrl: './signature-template-editor.component.css',
@@ -115,8 +118,7 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   /** Se emite cuando cambió algo persistido (para refrescar la lista al volver). */
   @Output() changed = new EventEmitter<void>();
 
-  readonly categories = SIGNATURE_CATEGORIES;
-  readonly categoryLabel = SIGNATURE_CATEGORY_LABEL;
+  readonly categoryLabel = signatureCategoryLabel;
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
   readonly fieldLabel = FIELD_TYPE_LABEL;
   readonly fieldIcon = FIELD_TYPE_ICON;
@@ -282,25 +284,38 @@ export class SignatureTemplateEditorComponent implements OnChanges {
 
   /** Superficie de layout: páginas en blanco tamaño carta + campos del server → px de pantalla. */
   private async rebuildSurface(detail: SignatureTemplateDetail): Promise<void> {
-    const pageCount = Math.max(1, ...detail.fields.map(f => f.page));
+    const pageCount = Math.max(1, ...detail.fields.map(f => f.page), ...detail.preparerFields.map(f => f.page));
     const pages = this.pages().length > 0 && this.pages()[0].src ? this.pages() : blankPages(pageCount, BASE_SCALE);
     this.pages.set(pages);
-    this.fields.set(
-      detail.fields.map(f => {
-        const page = pages.find(p => p.page === f.page) ?? pages[0];
-        return {
-          localId: `srv-${f.id}`,
-          slotOrder: f.slotOrder,
-          type: kindToType(f.kind),
-          page: page.page,
-          x: f.x * page.width,
-          y: f.y * page.height,
-          width: f.width * page.width,
-          height: f.height * page.height,
-          label: f.label ?? undefined,
-        };
-      }),
-    );
+    const signerFields: TemplateFieldLocal[] = detail.fields.map(f => {
+      const page = pages.find(p => p.page === f.page) ?? pages[0];
+      return {
+        localId: `srv-${f.id}`,
+        slotOrder: f.slotOrder,
+        type: kindToType(f.kind),
+        page: page.page,
+        x: f.x * page.width,
+        y: f.y * page.height,
+        width: f.width * page.width,
+        height: f.height * page.height,
+        label: f.label ?? undefined,
+      };
+    });
+    // Campos del preparador: mismo array con slotOrder sentinela PREPARER_SLOT.
+    const preparerFields: TemplateFieldLocal[] = detail.preparerFields.map(f => {
+      const page = pages.find(p => p.page === f.page) ?? pages[0];
+      return {
+        localId: `srv-prep-${f.id}`,
+        slotOrder: PREPARER_SLOT,
+        type: kindToType(f.kind),
+        page: page.page,
+        x: f.x * page.width,
+        y: f.y * page.height,
+        width: f.width * page.width,
+        height: f.height * page.height,
+      };
+    });
+    this.fields.set([...signerFields, ...preparerFields]);
     this.layoutDirty.set(false);
   }
 
@@ -607,6 +622,37 @@ export class SignatureTemplateEditorComponent implements OnChanges {
     this.layoutDirty.set(true);
   }
 
+  /** Tipos que puede colocar el preparador en la plantilla (sin `text`: sus campos se estampan, no se rellenan). */
+  readonly preparerFieldTypes: FieldType[] = ['signature', 'initials', 'date'];
+
+  /** Coloca un campo del PREPARADOR (sin slot). "from template" lo hereda en la solicitud. */
+  addPreparerField(type: FieldType = 'signature'): void {
+    const first = this.pages()[0];
+    if (!first) {
+      return;
+    }
+    const size = DEFAULT_SIZE[type];
+    const count = this.fields().length;
+    this.fields.update(list => [
+      ...list,
+      {
+        localId: `f-${this.seq++}`,
+        slotOrder: PREPARER_SLOT,
+        type,
+        page: first.page,
+        x: Math.max(8, (first.width - size.w) / 2),
+        y: clamp(180 + (count % 6) * 16, 8, first.height - size.h - 8),
+        width: size.w,
+        height: size.h,
+      },
+    ]);
+    this.layoutDirty.set(true);
+  }
+
+  isPreparerField(field: TemplateFieldLocal): boolean {
+    return field.slotOrder === PREPARER_SLOT;
+  }
+
   /** Etiqueta/instrucción de un campo de texto de la plantilla; el firmante la ve como placeholder. */
   setFieldLabel(localId: string, label: string): void {
     this.fields.update(list => list.map(f => (f.localId === localId ? { ...f, label } : f)));
@@ -726,6 +772,9 @@ export class SignatureTemplateEditorComponent implements OnChanges {
       for (const existing of detail.fields) {
         await firstValueFrom(this.service.removeTemplateField(id, existing.id));
       }
+      for (const existing of detail.preparerFields) {
+        await firstValueFrom(this.service.removeTemplatePreparerField(id, existing.id));
+      }
       for (const field of this.buildNormalizedFields()) {
         await firstValueFrom(
           this.service.placeTemplateField(id, {
@@ -738,6 +787,19 @@ export class SignatureTemplateEditorComponent implements OnChanges {
             height: field.height,
             label: field.label ?? null,
             isRequired: true,
+          }),
+        );
+      }
+      for (const field of this.buildNormalizedPreparerFields()) {
+        await firstValueFrom(
+          this.service.placeTemplatePreparerField(id, {
+            kind: fieldTypeToKind(field.type),
+            page: field.page,
+            x: field.x,
+            y: field.y,
+            width: field.width,
+            height: field.height,
+            label: null,
           }),
         );
       }
@@ -802,6 +864,9 @@ export class SignatureTemplateEditorComponent implements OnChanges {
     const round = (v: number): number => Math.round(v * 10000) / 10000;
     const out: { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number; label?: string }[] = [];
     for (const field of this.fields()) {
+      if (this.isPreparerField(field)) {
+        continue; // los del preparador se persisten aparte (buildNormalizedPreparerFields)
+      }
       const page = this.pages().find(p => p.page === field.page);
       if (!page || page.width <= 0 || page.height <= 0) {
         continue;
@@ -829,6 +894,36 @@ export class SignatureTemplateEditorComponent implements OnChanges {
         height,
         label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
       });
+    }
+    return out;
+  }
+
+  /** Campos del preparador normalizados [0..1] (solo los slotOrder sentinela). */
+  private buildNormalizedPreparerFields(): { type: FieldType; page: number; x: number; y: number; width: number; height: number }[] {
+    const clamp01 = (v: number): number => Math.min(Math.max(v, 0), 1);
+    const round = (v: number): number => Math.round(v * 10000) / 10000;
+    const out: { type: FieldType; page: number; x: number; y: number; width: number; height: number }[] = [];
+    for (const field of this.fields()) {
+      if (!this.isPreparerField(field)) {
+        continue;
+      }
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page || page.width <= 0 || page.height <= 0) {
+        continue;
+      }
+      const x = round(clamp01(field.x / page.width));
+      const y = round(clamp01(field.y / page.height));
+      let width = round(clamp01(field.width / page.width));
+      let height = round(clamp01(field.height / page.height));
+      if (x + width > 1) {
+        width = round(1 - x);
+      }
+      if (y + height > 1) {
+        height = round(1 - y);
+      }
+      if (width > 0 && height > 0) {
+        out.push({ type: field.type, page: field.page, x, y, width, height });
+      }
     }
     return out;
   }

@@ -4,11 +4,13 @@ import { Observable, Subject, catchError, forkJoin, map, of, switchMap, tap } fr
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { ClientItem } from '../ui/client-table/client-table.component';
 import { ClientsService } from './clients.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import {
   AddAddressRequest,
   AddContactPointRequest,
   AddRelationRequest,
   AddressResponse,
+  BulkAssignResponse,
   BulkStatusActionResponse,
   ContactPointResponse,
   CreateCustomerRequest,
@@ -54,6 +56,7 @@ export interface ClientSaveOptions {
 @Injectable({ providedIn: 'root' })
 export class ClientsStore {
   private readonly service = inject(ClientsService);
+  private readonly directory = inject(CustomerDirectoryStore);
 
   // ---------- Estado del listado ----------
   private readonly _term = signal('');
@@ -164,10 +167,19 @@ export class ClientsStore {
       });
   }
 
-  /** Tras una mutación de estado: re-sincroniza la página visible y los conteos. */
+  /** Tras una mutación: re-sincroniza la página visible y los conteos, e invalida el cache
+   * compartido de clientes para que los pickers (mail/task/signature/billing/documents/sms) no
+   * sirvan datos viejos. */
   private afterMutation(): void {
     this.reloadList();
     this.loadCounts();
+    this.directory.invalidate();
+  }
+
+  /** Tras un cambio de asignación de UN cliente: desaloja ese cliente del cache compartido (los conteos
+   * no cambian). El diálogo refresca su propia vista y el listado se re-pide al cerrarlo. */
+  private afterAssignmentMutation(id: string): void {
+    this.directory.evict(id);
   }
 
   setTerm(term: string): void {
@@ -290,6 +302,33 @@ export class ClientsStore {
   /** Acción de estado masiva. Devuelve el desglose (con fallos parciales) y re-sincroniza. */
   bulkStatus(action: CustomerStatusAction, customerIds: string[], reason?: string | null): Observable<BulkStatusActionResponse> {
     return this.service.bulkStatus(action, customerIds, reason).pipe(tap(() => this.afterMutation()));
+  }
+
+  // ---------- Asignación de staff (acceso por cliente) ----------
+
+  /** Reparto masivo: asigna un usuario a varios clientes. Devuelve el resumen y re-sincroniza. */
+  bulkAssign(userId: string, customerIds: string[]): Observable<BulkAssignResponse> {
+    return this.service.bulkAssign(userId, customerIds).pipe(tap(() => this.afterMutation()));
+  }
+
+  /** Fija al responsable (primary) de un cliente. */
+  assignPreparer(id: string, userId: string): Observable<void> {
+    return this.service.assignPreparer(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Quita al responsable de un cliente. */
+  unassignPreparer(id: string): Observable<void> {
+    return this.service.unassignPreparer(id).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Da acceso adicional a un miembro del staff. */
+  grantAccess(id: string, userId: string): Observable<void> {
+    return this.service.grantAccess(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
+  }
+
+  /** Revoca el acceso de un miembro del staff. */
+  revokeAccess(id: string, userId: string): Observable<void> {
+    return this.service.revokeAccess(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
   }
 
   /** Tras crear/actualizar: aplica el toggle Active/Inactive del form y, si hay SSN/EIN, el perfil fiscal. Ambos best-effort. */

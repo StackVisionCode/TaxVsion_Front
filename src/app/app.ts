@@ -2,10 +2,12 @@ import { Component, DestroyRef, afterNextRender, inject, signal } from '@angular
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
+import { isRefreshRejected } from '@core/auth/refresh-failure';
 import { SessionExpiryService } from '@core/services/session-expiry.service';
 import { SessionExpiryModalComponent } from '@core/auth/session-expiry-modal.component';
 import { SessionRevokedModalComponent } from '@core/auth/session-revoked-modal.component';
 import { SessionTakeoverModalComponent } from '@core/auth/session-takeover-modal.component';
+import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +16,7 @@ import { SessionTakeoverModalComponent } from '@core/auth/session-takeover-modal
     SessionExpiryModalComponent,
     SessionRevokedModalComponent,
     SessionTakeoverModalComponent,
+    ToastHostComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -32,11 +35,19 @@ export class App {
     // Angular limpie el host) para no depender del orden de montaje.
     afterNextRender(() => document.getElementById('app-splash')?.remove());
 
-    // El usuario eligió mantener la sesión → intentar refresh; si falla, cerrar sesión.
+    // El usuario eligió mantener la sesión → intentar refresh. Solo se cierra la sesión si el refresh
+    // token fue rechazado; un 429/503/corte de red es transitorio (el aviso global ya lo explica) y el
+    // próximo chequeo lo reintenta.
     this.sessionExpiry.sessionExtended$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.auth.refresh().subscribe({
         next: () => this.sessionExpiry.resetWarning(),
-        error: () => this.forceLogout(),
+        error: err => {
+          if (isRefreshRejected(err)) {
+            this.forceLogout();
+            return;
+          }
+          this.sessionExpiry.refreshFailed();
+        },
       });
     });
 

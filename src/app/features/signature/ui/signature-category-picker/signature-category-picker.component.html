@@ -1,0 +1,30 @@
+<!-- Modo normal: dropdown de categorías + acceso a crear una nueva -->
+<div *ngIf="!adding()" class="flex items-center gap-2">
+  <select [ngModel]="value" (ngModelChange)="onSelect($event)" name="categoryPicker"
+    class="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+    <option *ngFor="let option of options()" [ngValue]="option.name">{{ label(option.name) }}</option>
+  </select>
+  <button *ngIf="allowCreate" type="button" (click)="openAdd()"
+    class="flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+    <ion-icon name="add-outline" class="text-base"></ion-icon>
+    New
+  </button>
+</div>
+
+<!-- Modo crear: input + confirmar/cancelar -->
+<div *ngIf="adding()" class="flex flex-col gap-1">
+  <div class="flex items-center gap-2">
+    <input type="text" [ngModel]="newName()" (ngModelChange)="newName.set($event)" name="newCategoryName"
+      placeholder="New category name" maxlength="60" autofocus
+      class="w-48 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    <button type="button" (click)="confirmAdd()" [disabled]="saving()"
+      class="rounded-full bg-brand-bold px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+      {{ saving() ? 'Adding…' : 'Add' }}
+    </button>
+    <button type="button" (click)="cancelAdd()" [disabled]="saving()"
+      class="rounded-full px-2 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+      Cancel
+    </button>
+  </div>
+  <p *ngIf="error()" class="text-xs text-red-600">{{ error() }}</p>
+</div>

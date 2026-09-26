@@ -8,15 +8,21 @@ import {
   Output,
   SimpleChanges,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import {
+  EditorSeed,
+  EditorSeedField,
   EditorSigner,
   FieldType,
+  PREPARER_PARTY_ID,
   PlacedField,
   RequestRules,
   VerificationChannel,
@@ -24,13 +30,16 @@ import {
   WizardDocKind,
   WizardDocument,
 } from '../signature-request-panel/signature-wizard.model';
-import { SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
+import { SetPreparerBody, SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
+import { SignatureStore } from '../../data-access/signature.store';
 import { PageMetrics, PdfRect, screenRectToPdf } from '../signature-request-panel/signature-coords.util';
 import {
   CHANNEL_META,
   FIELD_TYPE_CIRCLE,
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
+  avatarColor,
+  clientTypeBadge,
   defaultRules,
   initialsOf,
   kindCircle,
@@ -39,6 +48,7 @@ import {
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
+import { AuthService } from '../../../../core/auth/auth.service';
 
 const MIN_W = 48;
 const MIN_H = 28;
@@ -51,7 +61,8 @@ const MIN_H = 28;
  */
 const MIN_SIZE_BY_TYPE: Record<FieldType, { w: number; h: number }> = {
   signature: { w: 120, h: 44 },
-  initials: { w: 64, h: 40 },
+  // Las iniciales son una marca pequeña: se permite achicarlas bastante (antes 64×40 las dejaba grandes).
+  initials: { w: 40, h: 24 },
   date: { w: MIN_W, h: MIN_H },
   text: { w: MIN_W, h: MIN_H },
 };
@@ -137,6 +148,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
   @Input() document: WizardDocument | null = null;
   /** Clientes reales del tenant (GET /customers) para el select del modal "Add signer". */
   @Input() registeredClients: WizardClient[] = [];
+  /** Siembra al continuar un borrador: firmantes + campos + reglas ya existentes. */
+  @Input() seed: EditorSeed | null = null;
   @Output() fieldCountChange = new EventEmitter<number>();
 
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
@@ -169,6 +182,150 @@ export class SignaturePdfEditorComponent implements OnChanges {
   /** P2/P8: los toggles de entrega solo se muestran a quien puede entregar (signature.document.send). */
   readonly canDeliverDocs = computed(() => this.perms.has('signature.document.send'));
 
+  private readonly store = inject(SignatureStore);
+  private readonly auth = inject(AuthService);
+  /** Firmas seleccionables para estampar (propias + oficina, no archivadas). */
+  readonly signatureOptions = computed(() => this.store.activeSignatureProfiles());
+  /** Firma elegida explícitamente en el selector (null = usar la sembrada o la default). */
+  readonly selectedSignatureId = signal<string | null>(null);
+  /** FileId de la firma del preparador que traía el borrador rehidratado (para preseleccionarla). */
+  private seededPreparerFileId: string | null = null;
+  /** Firma reutilizable que se previsualizará/estampará: selección → sembrada → default. */
+  readonly previewedSignature = computed(() => {
+    const profiles = this.store.signatureProfiles();
+    const selected = this.selectedSignatureId();
+    if (selected) {
+      const found = profiles.find(p => p.id === selected && !p.isArchived);
+      if (found) {
+        return found;
+      }
+    }
+    if (this.seededPreparerFileId) {
+      const seeded = profiles.find(p => p.fileId === this.seededPreparerFileId && !p.isArchived);
+      if (seeded) {
+        return seeded;
+      }
+    }
+    return this.store.defaultSignatureProfile();
+  });
+  readonly hasPreparerSignature = computed(() => this.previewedSignature() !== null);
+  /** true cuando hay al menos un campo del preparador colocado sobre el PDF. */
+  readonly hasPlacedPreparerField = computed(() => this.fields().some(f => this.isPreparerField(f)));
+  /** Bloque "Preparer signature" plegable: permite minimizarlo para no comerle espacio a los firmantes. */
+  readonly preparerOpen = signal(true);
+  togglePreparerPanel(): void {
+    this.preparerOpen.update(v => !v);
+  }
+
+  onSelectSignature(id: string): void {
+    this.selectedSignatureId.set(id);
+  }
+
+  /** Nombre del usuario logueado (perfil /auth/me) para autollenar la identidad 8879. */
+  private currentUserFullName(): string {
+    const me = this.auth.currentUser();
+    if (!me) {
+      return '';
+    }
+    return `${me.name ?? ''} ${me.lastName ?? ''}`.replace(/\s+/g, ' ').trim();
+  }
+
+  // ---------- Identidad 8879 del preparador (inline, opcional) ----------
+  readonly preparerPtin = signal('');
+  readonly preparerName = signal('');
+  readonly preparerTitle = signal('');
+
+  setPreparerPtin(value: string): void {
+    this.preparerPtin.set(value);
+  }
+  setPreparerName(value: string): void {
+    this.preparerName.set(value);
+  }
+  setPreparerTitle(value: string): void {
+    this.preparerTitle.set(value);
+  }
+
+  /** true si la identidad 8879 está a medias/mal (uno de PTIN/nombre sin el otro, o formato inválido). */
+  readonly preparerInfoInvalid = computed(() => {
+    // La identidad solo cuenta si hay una firma del preparador colocada (si no, ni se muestra ni se envía).
+    if (!this.hasPlacedPreparerField()) {
+      return false;
+    }
+    const ptin = this.preparerPtin().trim();
+    const name = this.preparerName().trim();
+    if (!ptin && !name) {
+      return false; // ambos vacíos = ok (es opcional)
+    }
+    if (!ptin || !name) {
+      return true; // uno sin el otro
+    }
+    return !/^[A-Za-z0-9]{6,20}$/.test(ptin) || name.length < 3;
+  });
+
+  /** Identidad 8879 lista para enviar, o null si no se completó (no se toca el preparador en el backend). */
+  getPreparerInfo(): SetPreparerBody | null {
+    // Sin firma del preparador colocada no hay a quién referenciar: no se envía identidad.
+    if (!this.hasPlacedPreparerField()) {
+      return null;
+    }
+    const ptinOrEfin = this.preparerPtin().trim();
+    const displayName = this.preparerName().trim();
+    if (!ptinOrEfin || !displayName) {
+      return null;
+    }
+    return { ptinOrEfin, displayName, titleLabel: this.preparerTitle().trim() || null };
+  }
+  /** URL presignada de la firma del preparador, para pintarla dentro del campo (WYSIWYG). */
+  readonly preparerSignatureUrl = signal<string | null>(null);
+  private loadedSignatureFileId: string | null = null;
+
+  constructor() {
+    // El editor puede montarse sin que la página haya cargado las firmas todavía.
+    this.store.loadSignatureProfiles();
+    // Typeahead server-side del buscador de clientes del "Add signer" (mismo patrón que el picker del paso 1).
+    toObservable(this.signerClientSearch)
+      .pipe(
+        map(term => term.trim()),
+        debounceTime(250),
+        distinctUntilChanged(),
+        takeUntilDestroyed(),
+      )
+      .subscribe(term => {
+        if (this.isAddSignerOpen()) {
+          this.store.queryCustomers(term);
+        }
+      });
+    // Autollenado REACTIVO del nombre 8879: el fill al colocar la firma es one-shot y se pierde si
+    // /auth/me aún no resolvió (cold start). Este effect lo rellena en cuanto el perfil resuelve, si
+    // hay firma del preparador colocada y el nombre sigue vacío. El guard evita bucles y respeta ediciones.
+    effect(() => {
+      if (!this.hasPlacedPreparerField() || this.preparerName().trim()) {
+        return;
+      }
+      const full = this.currentUserFullName();
+      if (full) {
+        this.preparerName.set(full);
+      }
+    });
+    // Baja la URL de preview cuando cambia la firma por defecto.
+    effect(() => {
+      const profile = this.previewedSignature();
+      if (!profile) {
+        this.preparerSignatureUrl.set(null);
+        this.loadedSignatureFileId = null;
+        return;
+      }
+      if (this.loadedSignatureFileId === profile.fileId) {
+        return;
+      }
+      this.loadedSignatureFileId = profile.fileId;
+      this.store.getDownloadUrl(profile.fileId).subscribe({
+        next: url => this.preparerSignatureUrl.set(url),
+        error: () => this.preparerSignatureUrl.set(null),
+      });
+    });
+  }
+
   /** Modal "Add signer": cliente registrado o datos manuales + canal. */
   readonly isAddSignerOpen = signal(false);
   readonly draftClientId = signal('');
@@ -189,6 +346,53 @@ export class SignaturePdfEditorComponent implements OnChanges {
     { value: 'En', label: 'English' },
     { value: 'Es', label: 'Español' },
   ];
+
+  // ---------- Buscador de cliente registrado (combobox del modal "Add signer") ----------
+  /** Término del typeahead server-side (mismo patrón que el picker del paso 1). */
+  readonly signerClientSearch = signal('');
+  /** Lista de resultados desplegada. */
+  readonly clientListOpen = signal(false);
+  /** Badge de tipo de cliente (para el template). */
+  readonly typeBadge = clientTypeBadge;
+  /** Estado del directorio compartido para el buscador (store es privado; se exponen wrappers). */
+  readonly customersLoading = this.store.customersLoading;
+  readonly customersError = this.store.customersError;
+
+  /** Reintenta cargar el directorio de clientes tras un error. */
+  retryLoadClients(): void {
+    this.store.loadCustomers(true);
+  }
+  /** Resultados: los clientes del directorio compartido, ocultando los que ya son firmantes (por email). */
+  readonly signerClientResults = computed(() => {
+    const taken = new Set(this.signers().map(s => s.email.trim().toLowerCase()));
+    return this.store.customers().filter(c => !taken.has(c.email.trim().toLowerCase()));
+  });
+
+  /** Color de avatar estable por id de cliente (hash → paleta), igual que el picker del paso 1. */
+  avatarFor(client: WizardClient): string {
+    let hash = 0;
+    for (let i = 0; i < client.id.length; i++) {
+      hash = (hash * 31 + client.id.charCodeAt(i)) | 0;
+    }
+    return avatarColor(Math.abs(hash));
+  }
+
+  /** Elegir un cliente del buscador: autollena nombre/email/teléfono (editables) y cierra la lista. */
+  pickRegisteredClient(client: WizardClient): void {
+    this.draftClientId.set(client.id);
+    this.draftName.set(client.displayName);
+    this.draftEmail.set(client.email);
+    this.draftPhone.set(client.phone ?? '');
+    this.clientListOpen.set(false);
+    this.signerClientSearch.set('');
+  }
+
+  /** Volver a captura manual: limpia la selección y deja escribir a mano. */
+  clearRegisteredClient(): void {
+    this.draftClientId.set('');
+    this.clientListOpen.set(false);
+    this.signerClientSearch.set('');
+  }
 
   readonly activeSignerName = computed(
     () => this.signers().find(s => s.id === this.activeSignerId())?.name ?? '—',
@@ -215,14 +419,69 @@ export class SignaturePdfEditorComponent implements OnChanges {
   private drag: DragState | null = null;
   private seq = 0;
   private loadToken = 0;
+  /** true cuando se rehidrató desde un borrador: los firmantes vienen del seed, no del cliente. */
+  private seeded = false;
+  /** Campos del seed en espera de que rendericen las páginas (para pasarlos de [0..1] a px). */
+  private pendingSeedFields: EditorSeedField[] | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['client']) {
+    if (changes['seed']) {
+      this.applySeed();
+    }
+    // El seed ya trae el firmante cliente; en ese modo no lo re-sincronizamos desde `client`.
+    if (changes['client'] && !this.seeded) {
       this.syncClientSigner();
     }
     if (changes['document']) {
       void this.loadDocument();
     }
+  }
+
+  /** Rehidrata firmantes y reglas al instante; los campos esperan al render (ver loadDocument). */
+  private applySeed(): void {
+    const seed = this.seed;
+    if (!seed) {
+      return;
+    }
+    this.seeded = true;
+    this.signers.set(seed.signers);
+    this.rules.set(seed.rules);
+    this.activeSignerId.set(seed.signers[0]?.id ?? null);
+    this.pendingSeedFields = seed.fields;
+    this.seededPreparerFileId = seed.preparerSignatureFileId ?? null;
+    // Identidad 8879 sembrada (recuperación local); el detalle del backend no la devuelve.
+    this.preparerPtin.set(seed.preparerInfo?.ptinOrEfin ?? '');
+    this.preparerName.set(seed.preparerInfo?.displayName ?? '');
+    this.preparerTitle.set(seed.preparerInfo?.titleLabel ?? '');
+  }
+
+  /** Coloca los campos sembrados una vez conocidas las dimensiones px de cada página. */
+  private applyPendingSeedFields(): void {
+    const pending = this.pendingSeedFields;
+    if (!pending) {
+      return;
+    }
+    const placed: PlacedField[] = [];
+    for (const field of pending) {
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page) {
+        continue;
+      }
+      placed.push({
+        id: field.localId,
+        type: field.type,
+        page: field.page,
+        x: field.nx * page.width,
+        y: field.ny * page.height,
+        width: field.nw * page.width,
+        height: field.nh * page.height,
+        signerId: field.signerLocalId,
+        label: field.label,
+      });
+    }
+    this.pendingSeedFields = null;
+    this.fields.set(placed);
+    this.emitCount();
   }
 
   // ---------- firmantes ----------
@@ -255,11 +514,18 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.draftLanguage.set('En');
     this.draftError.set('');
     this.draftSmsConsent.set(false);
+    this.signerClientSearch.set('');
+    this.clientListOpen.set(true);
+    // Refresca el lote de navegación del directorio compartido para el buscador.
+    this.store.queryCustomers('');
     this.isAddSignerOpen.set(true);
   }
 
   closeAddSigner(): void {
     this.isAddSignerOpen.set(false);
+    this.clientListOpen.set(false);
+    // Restaura el lote completo del directorio compartido (el buscador lo dejó reducido a la última búsqueda).
+    this.store.queryCustomers('');
   }
 
   /** Elegir un cliente registrado autollena nombre y email (editables). */
@@ -366,9 +632,7 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.rules.update(r => ({ ...r, reminderIntervalHours: clamped * 24 }));
   }
 
-  toggleRule(
-    key: 'autoReminder' | 'certificate' | 'includePreparerSignature' | 'sendSignedDocument' | 'sendCertificate',
-  ): void {
+  toggleRule(key: 'autoReminder' | 'certificate' | 'sendSignedDocument' | 'sendCertificate'): void {
     // Entregar el certificado exige que el certificado se genere: si está apagado, no se puede activar.
     if (key === 'sendCertificate' && !this.rules().certificate) {
       return;
@@ -449,10 +713,17 @@ export class SignaturePdfEditorComponent implements OnChanges {
   }
 
   addField(type: FieldType): void {
-    const signerId = this.activeSignerId();
     const first = this.pages()[0];
+    // Un campo de firmante NUNCA se asigna a la parte preparador: si el activo es 'preparer' (o nulo),
+    // cae al primer firmante real. Evita que tras "Place my signature" los Add Field se creen como preparer.
+    const active = this.activeSignerId();
+    const signerId = active && active !== PREPARER_PARTY_ID ? active : (this.signers()[0]?.id ?? null);
     if (!signerId || !first) {
       return;
+    }
+    // Reencauza el activo a un firmante real para la etiqueta "For:" y los siguientes campos.
+    if (this.activeSignerId() !== signerId) {
+      this.activeSignerId.set(signerId);
     }
     const size = DEFAULT_SIZE[type];
     const count = this.fields().length;
@@ -468,6 +739,41 @@ export class SignaturePdfEditorComponent implements OnChanges {
     };
     this.fields.update(list => [...list, field]);
     this.emitCount();
+  }
+
+  /** Coloca un campo de firma del PREPARADOR (parte sintética, no un firmante). Requiere firma default. */
+  addPreparerField(): void {
+    const first = this.pages()[0];
+    if (!first || !this.hasPreparerSignature()) {
+      return;
+    }
+    const size = DEFAULT_SIZE.signature;
+    const count = this.fields().length;
+    const field: PlacedField = {
+      id: `prep-${this.seq++}`,
+      type: 'signature',
+      page: first.page,
+      x: Math.max(8, (first.width - size.w) / 2),
+      y: clamp(180 + (count % 6) * 16, 8, first.height - size.h - 8),
+      width: size.w,
+      height: size.h,
+      signerId: PREPARER_PARTY_ID,
+    };
+    // NO cambiamos el firmante activo: el campo del preparador es una parte aparte y, si activáramos
+    // 'preparer', los siguientes Add Field se crearían como del preparador (bug reportado).
+    this.fields.update(list => [...list, field]);
+    // Autollena el nombre 8879 con el del usuario (perfil), editable, solo la primera vez (si está vacío).
+    if (!this.preparerName().trim()) {
+      const name = this.currentUserFullName();
+      if (name) {
+        this.preparerName.set(name);
+      }
+    }
+    this.emitCount();
+  }
+
+  isPreparerField(field: PlacedField): boolean {
+    return field.signerId === PREPARER_PARTY_ID;
   }
 
   removeField(id: string): void {
@@ -520,7 +826,10 @@ export class SignaturePdfEditorComponent implements OnChanges {
       startPointerX: event.clientX,
       startPointerY: event.clientY,
     };
-    this.setActiveSigner(field.signerId);
+    // Mover un campo del preparador no debe activar la parte 'preparer' (rompería los siguientes Add Field).
+    if (!this.isPreparerField(field)) {
+      this.setActiveSigner(field.signerId);
+    }
   }
 
   startResize(event: PointerEvent, field: PlacedField): void {
@@ -599,6 +908,9 @@ export class SignaturePdfEditorComponent implements OnChanges {
     const round = (value: number): number => Math.round(value * 10000) / 10000;
     const out: NormalizedPlacedField[] = [];
     for (const field of this.fields()) {
+      if (this.isPreparerField(field)) {
+        continue; // los del preparador se exportan aparte (buildPreparerFields)
+      }
       const page = this.pages().find(p => p.page === field.page);
       if (!page || page.width <= 0 || page.height <= 0) {
         continue;
@@ -630,6 +942,42 @@ export class SignaturePdfEditorComponent implements OnChanges {
       });
     }
     return out;
+  }
+
+  /** Campos del PREPARADOR en coordenadas normalizadas [0..1] (mismo cálculo, filtrando por parte). */
+  buildPreparerFields(): NormalizedPlacedField[] {
+    const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
+    const round = (value: number): number => Math.round(value * 10000) / 10000;
+    const out: NormalizedPlacedField[] = [];
+    for (const field of this.fields()) {
+      if (!this.isPreparerField(field)) {
+        continue;
+      }
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page || page.width <= 0 || page.height <= 0) {
+        continue;
+      }
+      const x = round(clamp01(field.x / page.width));
+      const y = round(clamp01(field.y / page.height));
+      let width = round(clamp01(field.width / page.width));
+      let height = round(clamp01(field.height / page.height));
+      if (x + width > 1) {
+        width = round(1 - x);
+      }
+      if (y + height > 1) {
+        height = round(1 - y);
+      }
+      if (width <= 0 || height <= 0) {
+        continue;
+      }
+      out.push({ localId: field.id, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, x, y, width, height });
+    }
+    return out;
+  }
+
+  /** FileId de la firma reutilizable que se estampará (la previsualizada); null si no hay ninguna. */
+  getPreparerSignatureFileId(): string | null {
+    return this.previewedSignature()?.fileId ?? null;
   }
 
   /** Payload por firmante con las cajas ya en puntos PDF (lo que iría al backend). */
@@ -744,6 +1092,8 @@ export class SignaturePdfEditorComponent implements OnChanges {
         return;
       }
       this.pages.set(pages);
+      // Continuar un borrador: ahora que hay dimensiones de página, colocamos los campos sembrados.
+      this.applyPendingSeedFields();
     } catch (err) {
       if (token !== this.loadToken) {
         return;

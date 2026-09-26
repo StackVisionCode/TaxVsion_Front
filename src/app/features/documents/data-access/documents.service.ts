@@ -6,9 +6,11 @@ import { OwnerType } from '@core/cloud-storage/cloud-storage.model';
 import {
   CreateFolderRequest,
   CreateShareLinkRequest,
+  CreateFolderShareLinkRequest,
   CreatedShareLinkResponse,
   FileResponse,
   FolderContentsResponse,
+  FolderContentsQueryOpts,
   FolderResponse,
   FolderTreeNode,
   RecycleBinItemResponse,
@@ -34,6 +36,7 @@ export class DocumentsService {
     ownerType: OwnerType,
     ownerId: string | null,
     parentFolderId: string | null,
+    opts?: FolderContentsQueryOpts,
   ): Observable<FolderContentsResponse> {
     let params = new HttpParams().set('ownerType', ownerType);
     if (ownerId) {
@@ -41,6 +44,28 @@ export class DocumentsService {
     }
     if (parentFolderId) {
       params = params.set('parentFolderId', parentFolderId);
+    }
+    // Paginación opcional: sin take, el backend devuelve todo (compat con otros usos).
+    if (opts?.take != null) {
+      params = params.set('skip', (opts.skip ?? 0).toString()).set('take', opts.take.toString());
+    }
+    for (const t of opts?.folderTypes ?? []) {
+      params = params.append('folderTypes', t);
+    }
+    for (const y of opts?.taxYears ?? []) {
+      params = params.append('taxYears', y.toString());
+    }
+    for (const e of opts?.extensions ?? []) {
+      params = params.append('extensions', e);
+    }
+    for (const s of opts?.statuses ?? []) {
+      params = params.append('statuses', s);
+    }
+    if (opts?.sort) {
+      params = params.set('sort', opts.sort);
+    }
+    if (opts?.desc != null) {
+      params = params.set('desc', opts.desc.toString());
     }
     return this.http.get<FolderContentsResponse>(`${this.base}/folders`, { params });
   }
@@ -88,6 +113,11 @@ export class DocumentsService {
     return this.http.post<FileResponse>(`${this.base}/recycle-bin/restore/${fileId}`, {});
   }
 
+  /** Restaura una carpeta borrada (y todo su contenido) desde la papelera → 204. */
+  restoreFolder(folderId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/recycle-bin/restore-folder/${folderId}`, {});
+  }
+
   emptyRecycleBin(): Observable<{ purgedCount: number }> {
     return this.http.delete<{ purgedCount: number }>(`${this.base}/recycle-bin/empty`);
   }
@@ -110,6 +140,16 @@ export class DocumentsService {
   /** Los links activos/históricos creados sobre un archivo (para gestionarlos: ver/revocar). */
   listFileShares(fileId: string): Observable<ShareLinkResponse[]> {
     return this.http.get<ShareLinkResponse[]>(`${this.base}/files/${fileId}/shares`);
+  }
+
+  /** Crea un link de compartir para una CARPETA (recursivo/futuros) — plainToken solo en esta respuesta. */
+  createFolderShareLink(folderId: string, req: CreateFolderShareLinkRequest): Observable<CreatedShareLinkResponse> {
+    return this.http.post<CreatedShareLinkResponse>(`${this.base}/folders/${folderId}/shares`, req);
+  }
+
+  /** Los links activos/históricos creados sobre una carpeta. */
+  listFolderShares(folderId: string): Observable<ShareLinkResponse[]> {
+    return this.http.get<ShareLinkResponse[]>(`${this.base}/folders/${folderId}/shares`);
   }
 
   /** Revoca un link de compartir (irreversible). */

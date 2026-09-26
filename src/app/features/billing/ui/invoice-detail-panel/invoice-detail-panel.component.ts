@@ -5,11 +5,12 @@ import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   InvoicePaymentMethod,
   InvoiceStatus,
+  InvoiceStatusHistoryEntry,
   InvoiceSummary,
   formatCents,
+  invoiceStatusLabel,
   invoiceStatusChip,
   invoiceStatusDot,
-  invoiceStatusLabel,
 } from '../../data-access/billing.model';
 
 /**
@@ -29,6 +30,12 @@ import {
 export class InvoiceDetailPanelComponent {
   @Input() invoice: InvoiceSummary | null = null;
   @Input() busy = false;
+  /** Rastro de auditoría de estado (item 6.2), más reciente primero. */
+  @Input() statusHistory: InvoiceStatusHistoryEntry[] = [];
+  @Input() historyLoading = false;
+  /** Reemisión (item 6.3): esta factura reemplaza a otra / fue reemplazada por otra. */
+  @Input() replacesInvoiceId: string | null = null;
+  @Input() replacedByInvoiceId: string | null = null;
 
   @Output() closed = new EventEmitter<void>();
   @Output() issueRequested = new EventEmitter<InvoiceSummary>();
@@ -88,6 +95,24 @@ export class InvoiceDetailPanelComponent {
   get artifactsPending(): boolean {
     const invoice = this.invoice;
     return !!invoice && invoice.status !== 'Draft' && (!invoice.pdfFileId || !invoice.checkoutUrl);
+  }
+
+  /** Etiqueta legible del disparador de una transición del rastro de auditoría. */
+  triggerLabel(trigger: string): string {
+    switch (trigger) {
+      case 'Created':
+        return 'Created';
+      case 'Issue':
+        return 'Issued';
+      case 'Payment':
+        return 'Payment';
+      case 'Void':
+        return 'Voided';
+      case 'ManualChange':
+        return 'Status change';
+      default:
+        return trigger;
+    }
   }
 
   close(): void {

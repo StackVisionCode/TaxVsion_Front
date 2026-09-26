@@ -40,6 +40,9 @@ export class CompanyBrandingFormComponent implements OnChanges {
 
   @Output() saveRequested = new EventEmitter<{ issuer: IssuerProfile; branding: InvoiceBranding }>();
 
+  /** Monedas ofrecidas (ISO-4217). El backend acepta cualquier código de 3 letras; esta es la lista corta. */
+  readonly currencies = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
+
   /** Copias editables: el store es la fuente de verdad y solo se pisa al guardar. */
   readonly draftIssuer = signal<IssuerProfile | null>(null);
   readonly draftBranding = signal<InvoiceBranding | null>(null);

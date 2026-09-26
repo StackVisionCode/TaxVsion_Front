@@ -309,7 +309,11 @@
                     <tr class="doc-row group border-b border-gray-50 transition-colors hover:bg-gray-50">
                       <td class="px-3 py-2.5">
                         <div class="flex min-w-0 items-center gap-2.5">
-                          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon name="document-text-outline"></ion-icon></span>
+                          @if (item.itemType === 'Folder') {
+                            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder"></ion-icon></span>
+                          } @else {
+                            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon name="document-text-outline"></ion-icon></span>
+                          }
                           <span class="truncate font-semibold text-gray-800">{{ item.originalName }}</span>
                         </div>
                       </td>
@@ -318,7 +322,13 @@
                         <span class="rounded-full px-2 py-0.5 text-xs font-semibold"
                           [class]="daysLeft(item) <= 7 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'">In {{ daysLeft(item) }} days</span>
                       </td>
-                      <td class="px-3 py-2.5 text-gray-600">{{ size(item.sizeBytes) }}</td>
+                      <td class="px-3 py-2.5 text-gray-600">
+                        @if (item.itemType === 'Folder') {
+                          {{ item.itemCount }} {{ item.itemCount === 1 ? 'file' : 'files' }}
+                        } @else {
+                          {{ size(item.sizeBytes) }}
+                        }
+                      </td>
                       <td class="px-3 py-2.5 text-right">
                         <button type="button" (click)="restoreItem(item)"
                           class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
@@ -382,6 +392,26 @@
             (action)="onRowAction($event)"
             (toggleAll)="toggleSelectAll()"
             (setSort)="setSort($event)" />
+
+          @if (pageCount() > 1) {
+            <nav class="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3" aria-label="Pagination">
+              <p class="text-xs text-gray-500">
+                Showing <span class="font-semibold text-gray-700">{{ pageStart() }}–{{ pageEnd() }}</span> of
+                <span class="font-semibold text-gray-700">{{ totalCount() }}</span>
+              </p>
+              <div class="flex items-center gap-1.5">
+                <button type="button" (click)="prevPage()" [disabled]="!hasPrevPage()"
+                  class="flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
+                  <ion-icon name="chevron-back"></ion-icon> Previous
+                </button>
+                <span class="px-2 text-xs text-gray-500">Page {{ page() }} of {{ pageCount() }}</span>
+                <button type="button" (click)="nextPage()" [disabled]="!hasNextPage()"
+                  class="flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
+                  Next <ion-icon name="chevron-forward"></ion-icon>
+                </button>
+              </div>
+            </nav>
+          }
         }
       }
     </main>
@@ -458,12 +488,14 @@
 <!-- Compartir -->
 <app-share-dialog
   [file]="shareTarget()"
+  [folder]="shareFolderTarget()"
   [publicAllowed]="publicSharingAllowed()"
   [shares]="fileShares()"
   (created)="confirmShare($event)"
+  (createdFolder)="confirmFolderShare($event)"
   (revokeShare)="revokeShare($event)"
   (reshare)="reshareLink($event)"
-  (cancelled)="shareTarget.set(null)" />
+  (cancelled)="closeShareDialog()" />
 
 <app-modal [isOpen]="!!createdShare()" heading="Share link created" size="md" (closed)="closeCreatedShare()">
   @if (createdShare(); as created) {
@@ -493,6 +525,22 @@
   confirmLabel="Empty recycle bin"
   (confirmed)="confirmEmptyTrash()"
   (cancelled)="emptyTrashOpen.set(false)" />
+
+<app-confirm-dialog
+  [isOpen]="!!pendingRevoke()"
+  heading="Revoke this link?"
+  message="Anyone using this link will lose access immediately. This can't be undone."
+  confirmLabel="Revoke link"
+  (confirmed)="confirmRevoke()"
+  (cancelled)="pendingRevoke.set(null)" />
+
+<app-confirm-dialog
+  [isOpen]="!!pendingDeleteFolder()"
+  [heading]="'Delete “' + (pendingDeleteFolder()?.name ?? '') + '”?'"
+  message="The folder and everything inside it (including subfolders) will be moved to the recycle bin. You can restore the files from there."
+  confirmLabel="Delete folder"
+  (confirmed)="confirmDeleteFolder()"
+  (cancelled)="pendingDeleteFolder.set(null)" />
 
 <!-- Almacenamiento -->
 <app-modal [isOpen]="storageOpen()" heading="Storage usage" size="md" (closed)="storageOpen.set(false)">

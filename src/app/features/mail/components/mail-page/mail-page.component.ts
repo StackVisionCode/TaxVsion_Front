@@ -20,12 +20,13 @@ import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-co
 import { MailFolderId, MailStore } from '../../data-access/mail.store';
 import {
   ConnectManualAccountRequest,
+  MailAccount,
   MailAccountStatus,
-  MailCustomerSummary,
   avatarColorFor,
   formatMailTime,
   initialsFor,
 } from '../../data-access/mail.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -317,19 +318,39 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   readonly selectedCustomerName = computed(() => this.store.selectedCustomerName());
 
-  // ---------- Typeahead de clientes ----------
+  // ---------- Selector de cliente (combobox con recientes) ----------
+  // Correspondence no tiene bandeja global: los hilos cuelgan de un cliente, así que elegir cliente
+  // es la acción más frecuente del módulo. En vez de un <select> (mala UX >10 opciones), es un
+  // combobox: encabezado con el cliente activo → popover con búsqueda server-side, recientes y
+  // navegación por teclado (patrón recomendado para elegir 1 de una lista larga).
 
   @ViewChild('customerInput') private customerInput?: ElementRef<HTMLInputElement>;
 
-  /**
-   * El rail muestra una sola fila con el cliente activo; el buscador aparece al pulsarla y se
-   * repliega al elegir. Correspondence no tiene bandeja global, así que el cliente sigue siendo
-   * obligatorio, pero no tiene por qué ocupar un bloque permanente del rail.
-   */
   readonly customerPickerOpen = signal(false);
+  /** Índice resaltado para navegación con flechas dentro de `comboItems`. */
+  readonly highlightedIndex = signal(0);
+
+  /** Con búsqueda vacía se muestran los recientes; al teclear, los resultados server-side. */
+  readonly showingRecents = computed(
+    () => this.store.customerQuery().trim().length === 0 && this.store.recentCustomers().length > 0,
+  );
+
+  /** Lista plana que se pinta y sobre la que navegan las flechas. */
+  readonly comboItems = computed<CustomerSummary[]>(() =>
+    this.showingRecents() ? this.store.recentCustomers() : this.store.customerResults(),
+  );
+
+  avatarInitials(seed: string): string {
+    return initialsFor(seed || '?');
+  }
+
+  avatarColor(seed: string): string {
+    return avatarColorFor(seed || '?');
+  }
 
   openCustomerPicker(): void {
     this.customerPickerOpen.set(true);
+    this.highlightedIndex.set(0);
     this.store.openCustomerSearch();
     // El input nace en este mismo ciclo: se enfoca cuando ya existe en el DOM.
     setTimeout(() => this.customerInput?.nativeElement.focus(), 0);
@@ -338,6 +359,25 @@ export class MailPageComponent implements OnInit, OnDestroy {
   onCustomerQuery(term: string): void {
     this.store.onCustomerQueryChange(term);
     this.customerPickerOpen.set(true);
+    this.highlightedIndex.set(0);
+  }
+
+  /** ↓/↑ mueven el resaltado dentro de los ítems visibles (recientes o resultados). */
+  moveHighlight(delta: number): void {
+    const count = this.comboItems().length;
+    if (count === 0) {
+      return;
+    }
+    const next = (this.highlightedIndex() + delta + count) % count;
+    this.highlightedIndex.set(next);
+  }
+
+  /** Enter elige el ítem resaltado. */
+  pickHighlighted(): void {
+    const item = this.comboItems()[this.highlightedIndex()];
+    if (item) {
+      this.pickCustomer(item);
+    }
   }
 
   /** Cierra con un pequeño delay para que el click en un resultado alcance a registrarse antes del blur. */
@@ -350,7 +390,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
   }
 
   /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
-  pickCustomer(customer: MailCustomerSummary): void {
+  pickCustomer(customer: CustomerSummary): void {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
     this.store.pickCustomer(customer);
@@ -371,28 +411,89 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.store.setActiveAccount(accountId);
   }
 
+  /** Picker del buzón activo (reemplaza el <select> nativo): dropdown con avatar + chip Office/My email. */
+  readonly mailboxPickerOpen = signal(false);
+
+  toggleMailboxPicker(): void {
+    this.mailboxPickerOpen.update(open => !open);
+  }
+
+  /** Cierra con delay para que el click en una opción se registre antes del blur. */
+  closeMailboxPickerSoon(): void {
+    setTimeout(() => this.mailboxPickerOpen.set(false), 150);
+  }
+
+  pickMailbox(accountId: string): void {
+    this.store.setActiveAccount(accountId);
+    this.mailboxPickerOpen.set(false);
+  }
+
   /** Muestra/oculta el formulario de alta manual IMAP/SMTP en la pantalla de conexión. */
   readonly showManualForm = signal(false);
 
+  // ---------- Office vs Personal: qué buzón conectar ----------
+
   /**
-   * Qué opciones de conexión ofrecer según el proveedor detectado del email de login. Como el guard
-   * obliga a que el buzón sea ese mismo email, solo tiene sentido el proveedor de su dominio:
-   * gmail.com → solo Gmail; outlook/hotmail → solo Microsoft; dominio propio (Unknown) → ambos, porque
-   * no se puede saber si es Google Workspace o M365; yahoo/icloud/zoho (Imap) → ninguno OAuth, solo manual.
+   * La vía de conexión la decide el PERMISO, no una preferencia: admin (write) conecta el buzón de
+   * OFICINA (compartido, uno solo); empleado (connect_own) conecta su PERSONAL (== su login, uno
+   * solo). Son mutuamente excluyentes — un mismo usuario nunca ve ambas — así que no hay selector.
+   */
+  readonly connectingOffice = computed(() => this.store.canManageOffice());
+
+  /** ¿Puede conectar el buzón de oficina ahora? Admin (write) y aún no hay oficina conectada. */
+  readonly canConnectOffice = computed(() => this.store.canManageOffice() && !this.store.officeAccount());
+  /**
+   * ¿Puede conectar su buzón personal ahora? Empleado con connect_own (NO admin: el admin gestiona la
+   * oficina, no un personal propio) y sin personal propio conectado.
+   */
+  readonly canConnectPersonal = computed(
+    () => !this.store.canManageOffice() && this.store.canConnectOwn() && !this.store.myMailboxConnected(),
+  );
+  /** No queda nada por conectar (ya está el de su ámbito, o no tiene permiso para ninguna vía). */
+  readonly nothingToConnect = computed(() => !this.canConnectOffice() && !this.canConnectPersonal());
+  /** El usuario no puede conectar ningún buzón por falta de permisos (para el empty-state honesto). */
+  readonly noConnectPermission = computed(() => !this.store.canManageOffice() && !this.store.canConnectOwn());
+
+  /**
+   * Qué proveedores OAuth ofrecer. Oficina: ambos (Gmail y Microsoft 365) porque el admin elige el
+   * del buzón compartido. Personal: solo el del dominio del email de login (el guard obliga a que el
+   * buzón sea ese mismo email) — gmail.com → Gmail; outlook/hotmail → Microsoft; dominio propio
+   * (Unknown) → ambos; yahoo/icloud/zoho (Imap) → ninguno OAuth, solo manual.
    */
   readonly showGmailOption = computed(() => {
+    if (this.connectingOffice()) {
+      return true;
+    }
     const p = this.store.providerDetection().provider;
     return p === 'Gmail' || p === 'Unknown';
   });
   readonly showGraphOption = computed(() => {
+    if (this.connectingOffice()) {
+      return true;
+    }
     const p = this.store.providerDetection().provider;
     return p === 'Graph' || p === 'Unknown';
   });
   readonly showOAuthOptions = computed(() => this.showGmailOption() || this.showGraphOption());
 
+  /** Preset del formulario manual: personal usa el proveedor detectado del login; oficina lo elige el admin. */
+  readonly manualPreset = computed(() =>
+    this.connectingOffice() ? null : this.store.providerDetection().imapPreset,
+  );
+
   connectMailbox(provider: 'Gmail' | 'Graph'): void {
     // El store redirige la pestaña completa al consentimiento del proveedor.
-    this.store.connectMailbox(provider);
+    this.store.connectMailbox(provider, this.connectingOffice());
+  }
+
+  /** Etiqueta de un buzón en la lista de gestión: Office (compartido) vs My email (personal). */
+  mailboxKindLabel(account: MailAccount): string {
+    return account.isOffice ? 'Office' : 'My email';
+  }
+
+  /** ¿El usuario puede administrar (reauth/desconectar) este buzón? (revoke UX). */
+  canManageAccount(account: MailAccount): boolean {
+    return this.store.canManageAccount(account);
   }
 
   toggleManualForm(): void {

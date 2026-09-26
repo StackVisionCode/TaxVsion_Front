@@ -12,6 +12,8 @@ import {
   notificationIconBg,
   notificationIconText,
 } from '@features/notifications/data-access/notifications.model';
+import { PermissionService } from '@core/auth/permission.service';
+import { AccountHandoffStore } from '@core/billing/account-handoff.store';
 
 /** Pestañas de la campana. No hay "Mentions": este producto no genera menciones. */
 export type NotificationTab = 'all' | 'unread' | 'alerts';
@@ -54,6 +56,8 @@ export class NavbarComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly notificationsStore = inject(NotificationsStore);
+  private readonly permissions = inject(PermissionService);
+  readonly handoff = inject(AccountHandoffStore);
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 
@@ -259,6 +263,15 @@ export class NavbarComponent {
     if (img) {
       img.style.display = 'none';
     }
+  }
+
+  /** El Account es del administrador de la oficina con `billing.view`; el backend aplica lo mismo. */
+  canManageSubscription(): boolean {
+    return this.permissions.isAdmin() && this.permissions.has('billing.view');
+  }
+
+  manageSubscription(): void {
+    this.handoff.open();
   }
 
   logout(): void {

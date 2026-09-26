@@ -5,6 +5,12 @@
  */
 
 /** Una oficina donde el password calzó, ofrecible en el selector. */
+/**
+ * Staff (espacio de trabajo) o Portal (cliente): la misma persona puede tener ambas cuentas en una oficina,
+ * con el mismo email. Viaja como string en el contrato de Auth.
+ */
+export type AccountKind = 'Staff' | 'Portal';
+
 export interface DiscoverOffice {
   tenantId: string;
   subdomain: string;

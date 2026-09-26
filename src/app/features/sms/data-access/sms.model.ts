@@ -7,6 +7,8 @@
  * Por eso el "hilo" del front solo puede mostrar lo enviado en la sesión actual.
  */
 
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+
 // ---------- Enums del backend (TaxVision.Sms.Domain) ----------
 
 /**
@@ -84,20 +86,6 @@ export interface PagedResult<T> {
   totalPages: number;
   hasMore: boolean;
   hasPrevious: boolean;
-}
-
-/**
- * Subset de GET /customers (CustomerSummaryResponse) para el rail de contactos —
- * réplica local al estilo TaskClientSummary, no import de features/clients.
- * `primaryPhone` es nullable: un cliente sin teléfono no es texteable.
- */
-export interface SmsCustomerSummary {
-  id: string;
-  status: 'Active' | 'Inactive' | 'Archived';
-  displayName: string;
-  primaryEmail: string;
-  primaryPhone: string | null;
-  createdAtUtc: string;
 }
 
 // ---------- Read model (SmsReadController: GET /sms/messages, /stats, /{id}, /optouts) ----------
@@ -283,7 +271,7 @@ export function timeLabel(date: Date = new Date()): string {
 }
 
 /** CustomerSummaryResponse → contacto del rail. */
-export function toSmsContact(customer: SmsCustomerSummary): SmsContact {
+export function toSmsContact(customer: CustomerSummary): SmsContact {
   return {
     id: customer.id,
     name: customer.displayName,

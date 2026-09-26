@@ -26,15 +26,6 @@
         <h2 class="text-xl font-bold text-gray-900">Team members</h2>
         <p class="mt-1 text-sm text-gray-500">Manage staff access and roles for your firm</p>
       </div>
-      <span *ngIf="toast()"
-        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
-        [ngClass]="toastKind() === 'success'
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-          : 'bg-red-50 text-red-700 border-red-100'">
-        <ion-icon [name]="toastKind() === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
-          class="text-sm"></ion-icon>
-        {{ toast() }}
-      </span>
     </div>
 
     <!-- Filter bar -->
@@ -53,6 +44,13 @@
             ? 'border-brand-bold bg-brand-bold text-white'
             : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
           Invitations ({{ invitationsTotal() }})
+        </button>
+        <button type="button" (click)="setTab('seats')"
+          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'seats'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Seats
         </button>
       </div>
 
@@ -85,7 +83,7 @@
       <p *ngIf="membersError()" class="mb-3 text-sm text-red-600">{{ membersError() }}</p>
       <app-user-table [members]="members()" [currentUserId]="currentUserId()"
         emptyMessage="No team members match your search" (editRoles)="openAccessDrawer($event)"
-        (toggleSuspend)="toggleSuspend($event)"></app-user-table>
+        (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)"></app-user-table>
       <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
         (pageChange)="onMembersPageChange($event)"></app-pagination>
     </div>
@@ -99,6 +97,11 @@
         (cancelInvite)="cancelInvite($event)"></app-user-table>
       <app-pagination [currentPage]="invitationsPage()" [totalItems]="invitationsTotal()" [pageSize]="pageSize"
         (pageChange)="onInvitationsPageChange($event)"></app-pagination>
+    </div>
+
+    <!-- Seats: quién ocupa cada asiento comprado. Comprar sigue siendo el botón de arriba. -->
+    <div *ngIf="tab() === 'seats'" class="mt-5">
+      <app-seats-panel [teammates]="members()"></app-seats-panel>
     </div>
   </div>
 </div>
@@ -121,3 +124,12 @@
 <app-confirm-dialog [isOpen]="!!pendingCancel()" heading="Cancel invitation?" [message]="cancelMessage()"
   confirmLabel="Cancel invite" (confirmed)="confirmCancelInvite()"
   (cancelled)="pendingCancel.set(null)"></app-confirm-dialog>
+
+<!-- Suspend confirmation (FE-1b) -->
+<app-confirm-dialog [isOpen]="!!pendingSuspend()" heading="Suspend member?" [message]="suspendMessage()"
+  confirmLabel="Suspend" (confirmed)="confirmSuspend()"
+  (cancelled)="pendingSuspend.set(null)"></app-confirm-dialog>
+
+<!-- Remove from office (offboard): preview de impacto (fan-out 7 servicios) + selector de sucesor -->
+<app-offboard-dialog *ngIf="pendingOffboard() as member" [member]="member"
+  (confirmed)="confirmOffboard($event)" (cancelled)="pendingOffboard.set(null)"></app-offboard-dialog>

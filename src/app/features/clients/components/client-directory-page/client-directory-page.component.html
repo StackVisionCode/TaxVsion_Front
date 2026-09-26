@@ -132,9 +132,11 @@
     <!-- Table / cards -->
     <div *ngIf="rows().length > 0" class="mt-4" [class.opacity-60]="loading()" [class.transition-opacity]="true">
       <app-client-table [clients]="rows()" [selectedIds]="selected()" [canManage]="canManage()"
-        [canChangeStatus]="canChangeStatus()" (selectToggled)="toggleSelect($event)"
-        (selectAllToggled)="toggleSelectAll()" (editRequested)="openEditPanel($event)"
-        (toggleActiveRequested)="toggleActive($event)" (deleteRequested)="deleteClient($event)"></app-client-table>
+        [canChangeStatus]="canChangeStatus()" [canAssignPreparer]="canAssignPreparer()"
+        [canViewAssignees]="canViewAssignees()"
+        (selectToggled)="toggleSelect($event)" (selectAllToggled)="toggleSelectAll()"
+        (editRequested)="openEditPanel($event)" (toggleActiveRequested)="toggleActive($event)"
+        (deleteRequested)="deleteClient($event)" (assignRequested)="openAssign($event)"></app-client-table>
       <app-pagination [currentPage]="page()" [totalItems]="totalCount()" [pageSize]="size()"
         (pageChange)="goToPage($event)"></app-pagination>
     </div>
@@ -167,6 +169,10 @@
   <ng-template #noBulkPerm>
     <span class="px-2 text-xs text-gray-400">Status changes need a Tenant Admin</span>
   </ng-template>
+  <button *ngIf="canAssignPreparer()" type="button" (click)="openBulkAssign()"
+    class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/10 transition-colors">
+    <ion-icon name="people-outline"></ion-icon> Assign to…
+  </button>
   <button type="button" (click)="clearSelection()"
     class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/10 transition-colors">
     <ion-icon name="close-outline"></ion-icon> Clear
@@ -196,3 +202,7 @@
     </button>
   </div>
 </app-modal>
+
+<!-- Assign staff dialog (single / bulk) -->
+<app-client-assign-dialog [isOpen]="assignOpen()" [mode]="assignMode()" [client]="assignClient()"
+  [customerIds]="assignCustomerIds()" (closed)="onAssignClosed($event)"></app-client-assign-dialog>

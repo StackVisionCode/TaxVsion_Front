@@ -74,6 +74,15 @@ export interface CustomerSummary {
   primaryEmail: string;
   primaryPhone: string | null;
   createdAtUtc: string;
+  /** userIds del staff asignado (M:N) — para los avatares del directorio. Opcional: el detalle (Customer)
+   * comparte este shape pero no lo trae; el backend del listado sí lo envía siempre. */
+  assigneeUserIds?: string[];
+}
+
+/** Un miembro del staff asignado a un cliente (IsPrimary = responsable). Viene en el detalle. */
+export interface CustomerAssignee {
+  userId: string;
+  isPrimary: boolean;
 }
 
 /** GET /customers/{id} y respuesta de POST/PATCH /customers. */
@@ -190,6 +199,8 @@ export interface CustomerDetailResponse extends Customer {
   contactPoints?: ContactPointResponse[];
   relations?: RelationResponse[];
   fiscalProfile?: CustomerFiscalProfileResponse | null;
+  /** Staff asignado (M:N) con su rol — para el diálogo de asignación. */
+  assignees?: CustomerAssignee[];
 }
 
 export interface AddAddressRequest {
@@ -337,6 +348,20 @@ export interface BulkStatusActionResponse {
   failures: BulkStatusFailure[];
 }
 
+/** Body de POST /customers/assignees/bulk — asigna UN usuario a MUCHOS clientes. */
+export interface BulkAssignRequest {
+  userId: string;
+  customerIds: string[];
+}
+
+/** Resumen del reparto masivo (POST /customers/assignees/bulk). */
+export interface BulkAssignResponse {
+  requested: number;
+  assigned: number;
+  alreadyAssigned: number;
+  notFound: number;
+}
+
 /** Body de PUT /customers/{id}/fiscal-profile — SSN/ITIN/EIN. Requiere rol TenantAdmin en el backend. */
 export interface SetCustomerFiscalProfileRequest {
   subjectKind: FiscalSubjectKind;
@@ -366,6 +391,7 @@ export function summaryToClientItem(summary: CustomerSummary): ClientItem {
     address: '',
     isActive: summary.status === 'Active',
     createdAt: summary.createdAtUtc.slice(0, 10),
+    assigneeUserIds: summary.assigneeUserIds ?? [],
   };
 }
 
@@ -420,6 +446,7 @@ export function customerToClientProfile(customer: CustomerDetailResponse): Clien
     contactPoints: customer.contactPoints ?? [],
     relations,
     fiscalProfile: customer.fiscalProfile ?? null,
+    assignees: customer.assignees ?? [],
     dependents: relations.filter(r => r.id !== spouseRelation?.id).map(relationToDependent),
     spouse: spouseRelation
       ? {

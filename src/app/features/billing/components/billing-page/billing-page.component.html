@@ -147,16 +147,21 @@
 
 <!-- Modales -->
 <app-invoice-form-panel [isOpen]="formOpen()" [editing]="store.editingDetail()"
+  [defaultCurrency]="store.issuer().defaultCurrency"
   [customerResults]="store.customerResults()"
   [customerSearching]="store.customerSearching()" [catalogResults]="store.catalogResults()"
-  [catalogSearching]="store.catalogSearching()" [saving]="store.creating()"
+  [catalogSearching]="store.catalogSearching()" [catalogCreating]="store.catalogCreating()"
+  [createCatalogItem]="createCatalogItemFn" [saving]="store.creating()"
   [hasIssuerProfile]="store.hasIssuerProfile()" [stockByItem]="store.stockByItem()"
   (customerSearchChanged)="store.searchCustomers($event)"
   (catalogSearchChanged)="store.searchCatalog($event)" (stockLookupRequested)="store.lookupStock($event)"
   (submitted)="onFormSubmit($event)" (closed)="closeForm()"></app-invoice-form-panel>
 
 <app-invoice-detail-panel [invoice]="store.selectedInvoice()"
-  [busy]="store.busyInvoiceId() === store.selectedInvoice()?.id" (closed)="closeDetail()"
+  [busy]="store.busyInvoiceId() === store.selectedInvoice()?.id"
+  [statusHistory]="store.selectedHistory()" [historyLoading]="store.selectedHistoryLoading()"
+  [replacesInvoiceId]="store.selectedReplacesId()" [replacedByInvoiceId]="store.selectedReplacedById()"
+  (closed)="closeDetail()"
   (issueRequested)="store.issue($event.id)" (pdfRequested)="store.openPdf($event)"
   (recordPaymentRequested)="paymentTarget.set($event)" (receiptRequested)="receiptTarget.set($event)"
   (copyLinkRequested)="copyLinkUrl($event)"
@@ -178,3 +183,9 @@
 <app-confirm-dialog [isOpen]="voidTarget() !== null" heading="Void invoice"
   message="The invoice will be marked as voided and any stock discounted on issue will be restored."
   confirmLabel="Void invoice" (confirmed)="confirmVoid()" (cancelled)="voidTarget.set(null)"></app-confirm-dialog>
+
+<!-- Reemitir (anular + reemplazo enlazado): confirmación in-app -->
+<app-confirm-dialog [isOpen]="reissueTarget() !== null" heading="Reissue invoice"
+  message="The current invoice will be voided and a draft replacement will be created, carrying over any payment already collected. You can correct the draft before issuing it."
+  confirmLabel="Void & create replacement" (confirmed)="confirmReissue()"
+  (cancelled)="reissueTarget.set(null)"></app-confirm-dialog>

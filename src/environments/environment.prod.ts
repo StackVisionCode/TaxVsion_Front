@@ -14,8 +14,6 @@ export const environment: Environment = {
   // No se usa en prod: el tenant lo resuelve el Host, no el body de login.
   tenantId: '',
   authMock: false,
-  // TODO: publishable key de Stripe de producción (pk_live_…).
-  stripePublishableKey: '',
-  // El alta vive en el sitio público, no en la app.
+  // Alta y gestión de la suscripción viven en el sitio público.
   landingUrl: 'https://www.taxproffice.com',
 };

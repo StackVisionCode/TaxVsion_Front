@@ -1,0 +1,211 @@
+<app-modal [isOpen]="isOpen" [heading]="heading()" [subheading]="subheading()" size="lg" (closed)="close()">
+  <div class="px-1 pb-1">
+    @if (mode === 'single') {
+      <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Assigned team members</p>
+
+      @if (loading()) {
+        <p class="py-4 text-sm text-gray-500">Loading…</p>
+      } @else if (assignees().length === 0) {
+        <p class="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+          No one is assigned yet. Add a team member below.
+        </p>
+      } @else {
+        <ul class="flex flex-col gap-2">
+          @for (row of assignees(); track row.userId) {
+            <li class="flex items-center gap-3 rounded-xl border border-gray-100 p-2">
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                [ngClass]="row.member?.avatarColor ?? 'bg-slate-400'"
+                >{{ row.member?.initials ?? '?' }}</span
+              >
+              <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
+                  <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
+                  @if (row.member && !row.member.isActive) {
+                    <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600">Suspended</span>
+                  }
+                </p>
+                <p class="truncate text-xs text-gray-500">{{ row.member?.email }}</p>
+              </div>
+              @if (row.isPrimary) {
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-brand-surface px-2.5 py-1 text-xs font-medium text-brand-bold"
+                >
+                  <ion-icon name="star"></ion-icon> Primary
+                </span>
+              } @else {
+                <button
+                  type="button"
+                  (click)="makePrimary(row)"
+                  [disabled]="saving()"
+                  class="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Make primary
+                </button>
+              }
+              <button
+                type="button"
+                (click)="remove(row)"
+                [disabled]="saving()"
+                aria-label="Remove"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 disabled:opacity-50"
+              >
+                <ion-icon name="close-outline" class="text-base"></ion-icon>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      <div class="relative mt-4">
+        <div class="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-brand-bold">
+          <ion-icon name="search-outline" class="text-base text-gray-400"></ion-icon>
+          <input
+            type="text"
+            [ngModel]="query()"
+            (ngModelChange)="query.set($event)"
+            (focus)="onQueryFocus()"
+            placeholder="Search team members…"
+            class="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+          />
+        </div>
+        @if (pickerOpen() && pickerResults().length > 0) {
+          <ul class="mt-1 max-h-56 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            @for (m of pickerResults(); track m.userId) {
+              <li>
+                <button
+                  type="button"
+                  (click)="add(m)"
+                  [disabled]="saving()"
+                  class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    [ngClass]="m.avatarColor"
+                    >{{ m.initials }}</span
+                  >
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
+                    <p class="truncate text-xs text-gray-500">{{ m.email }}</p>
+                  </div>
+                  <ion-icon name="add-outline" class="text-base text-brand-bold"></ion-icon>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    @if (mode === 'bulk') {
+      @if (bulkResult(); as r) {
+        <div class="rounded-xl border border-gray-100 p-4 text-sm text-gray-700">
+          <p class="mb-2 font-medium text-gray-900">Done</p>
+          <ul class="flex flex-col gap-1">
+            <li><span class="font-medium text-brand-bold">{{ r.assigned }}</span> newly assigned</li>
+            @if (r.alreadyAssigned > 0) {
+              <li class="text-gray-500">{{ r.alreadyAssigned }} already had access</li>
+            }
+            @if (r.notFound > 0) {
+              <li class="text-gray-500">{{ r.notFound }} couldn’t be assigned</li>
+            }
+          </ul>
+        </div>
+      } @else {
+        <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Assign to</p>
+        @if (bulkTarget(); as t) {
+          <div class="flex items-center gap-3 rounded-xl border border-gray-100 p-2">
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+              [ngClass]="t.avatarColor"
+              >{{ t.initials }}</span
+            >
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-gray-900">{{ t.name }}</p>
+              <p class="truncate text-xs text-gray-500">{{ t.email }}</p>
+            </div>
+            <button
+              type="button"
+              (click)="clearTarget()"
+              aria-label="Change"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100"
+            >
+              <ion-icon name="close-outline" class="text-base"></ion-icon>
+            </button>
+          </div>
+        } @else {
+          <div class="relative">
+            <div
+              class="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-brand-bold"
+            >
+              <ion-icon name="search-outline" class="text-base text-gray-400"></ion-icon>
+              <input
+                type="text"
+                [ngModel]="query()"
+                (ngModelChange)="query.set($event)"
+                (focus)="onQueryFocus()"
+                placeholder="Search team members…"
+                class="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+              />
+            </div>
+            @if (pickerOpen() && pickerResults().length > 0) {
+              <ul class="mt-1 max-h-56 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                @for (m of pickerResults(); track m.userId) {
+                  <li>
+                    <button
+                      type="button"
+                      (click)="selectTarget(m)"
+                      class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
+                    >
+                      <span
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                        [ngClass]="m.avatarColor"
+                        >{{ m.initials }}</span
+                      >
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
+                        <p class="truncate text-xs text-gray-500">{{ m.email }}</p>
+                      </div>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      }
+    }
+
+    <div class="mt-5 flex justify-end gap-2">
+      @if (mode === 'bulk' && !bulkResult() && bulkTarget()) {
+        <button
+          type="button"
+          (click)="close()"
+          class="rounded-xl px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="confirmBulk()"
+          [disabled]="saving()"
+          class="rounded-xl bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50"
+        >
+          {{
+            saving()
+              ? 'Assigning…'
+              : 'Give access to ' + customerIds.length + (customerIds.length === 1 ? ' client' : ' clients')
+          }}
+        </button>
+      } @else {
+        <button
+          type="button"
+          (click)="close()"
+          class="rounded-xl bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink"
+        >
+          Done
+        </button>
+      }
+    </div>
+  </div>
+</app-modal>

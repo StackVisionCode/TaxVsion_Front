@@ -8,7 +8,7 @@
       </button>
       <div class="min-w-0">
         <h2 class="truncate text-sm font-bold text-gray-900">{{ title() || 'Untitled template' }}</h2>
-        <span class="text-[11px] text-gray-400">{{ categoryLabel[category()] }}</span>
+        <span class="text-[11px] text-gray-400">{{ categoryLabel(category()) }}</span>
       </div>
       <span *ngIf="detail() as d"
         class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
@@ -64,10 +64,8 @@
         <textarea rows="2" [ngModel]="description()" (ngModelChange)="description.set($event)" placeholder="Optional"
           class="mb-2 w-full resize-none rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none"></textarea>
         <label class="mb-1 block text-xs font-medium text-gray-600">Category</label>
-        <select [ngModel]="category()" (ngModelChange)="category.set($event)"
-          class="w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
-          <option *ngFor="let c of categories" [value]="c">{{ categoryLabel[c] }}</option>
-        </select>
+        <app-signature-category-picker [value]="category()" (valueChange)="category.set($event)"
+          [allowCreate]="true"></app-signature-category-picker>
       </section>
 
       <!-- Defaults -->
@@ -227,6 +225,20 @@
             {{ fieldLabel[type] }}
           </button>
         </div>
+
+        <!-- Campos del preparador (sin slot): "from template" los hereda y estampa la firma efectiva. -->
+        <div *ngIf="isDraft()" class="flex flex-wrap items-center gap-1.5">
+          <span class="mr-0.5 flex items-center gap-1 text-[11px] font-semibold text-brand-bold">
+            <ion-icon name="ribbon-outline" class="text-xs"></ion-icon>
+            Preparer:
+          </span>
+          <button *ngFor="let type of preparerFieldTypes" type="button" (click)="addPreparerField(type)"
+            [disabled]="pages().length === 0"
+            class="flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
+            <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
+            {{ fieldLabel[type] }}
+          </button>
+        </div>
         <div class="flex items-center gap-2">
           <label class="cursor-pointer text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
             [class.pointer-events-none]="savingBaseDoc()" [class.opacity-50]="savingBaseDoc()">
@@ -273,9 +285,15 @@
             <div *ngFor="let field of fieldsForPage(page.page); trackBy: trackField"
               (pointerdown)="startMove($event, field)"
               class="group absolute flex items-center justify-center rounded-md border-2 bg-white/70 text-[10px] font-semibold backdrop-blur-sm cursor-move"
-              [ngClass]="[borderClass(field.slotOrder), textClass(field.slotOrder)]"
+              [ngClass]="isPreparerField(field) ? 'border-brand-bold text-brand-bold' : [borderClass(field.slotOrder), textClass(field.slotOrder)]"
               [style.left.px]="field.x" [style.top.px]="field.y"
               [style.width.px]="field.width" [style.height.px]="field.height">
+              <!-- Campo del preparador (sin slot) -->
+              <ng-container *ngIf="isPreparerField(field); else signerTemplateField">
+                <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
+                <span class="truncate">Preparer {{ fieldLabel[field.type] }}</span>
+              </ng-container>
+              <ng-template #signerTemplateField>
               <!-- Campo de texto: etiqueta editable inline (la ve el firmante como instrucción) -->
               <input *ngIf="field.type === 'text'; else fieldBadge" type="text" [ngModel]="field.label || ''"
                 (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
@@ -284,6 +302,7 @@
               <ng-template #fieldBadge>
                 <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
                 <span class="truncate">{{ fieldLabel[field.type] }}</span>
+              </ng-template>
               </ng-template>
 
               <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(field.localId)"

@@ -56,6 +56,10 @@ export interface SignatureRequest {
   certificateFileId?: string | null;
   /** Data URL (PNG) of the preparer's own signature stamp, captured via app-signature-pad. Undefined/null if not added. */
   preparerSignatureDataUrl?: string | null;
+  /** FileId de la firma reutilizable del preparador a estampar (14.5); el preview baja su URL. */
+  preparerSignatureFileId?: string | null;
+  /** Nº de campos del preparador colocados (para mostrar en el preview de staff). */
+  preparerFieldCount?: number;
   /** id del cliente elegido en el wizard (mock). */
   clientId?: string;
   /** Campos de firma colocados sobre el documento en el editor PDF del wizard. */
@@ -73,6 +77,8 @@ export interface SignatureRequest {
   requiresPractitionerPin?: boolean;
   /** Cuándo se fijó el PIN (el backend no devuelve el PIN en claro, nunca). */
   practitionerPinSetAtUtc?: string | null;
+  /** true si tiene ≥1 campo de firma/iniciales colocado — condición para poder enviarla. */
+  hasSignatureField?: boolean;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
@@ -124,6 +130,12 @@ export class SignatureTableComponent {
   @Output() preparerRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadSealedRequested = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificateRequested = new EventEmitter<SignatureRequest>();
+  /** Reabrir el wizard rehidratado para seguir editando firmantes/campos (Draft/Ready). */
+  @Output() continueRequested = new EventEmitter<SignatureRequest>();
+  /** Editar solo la metadata de un borrador (modal ligero) (Draft/Ready). */
+  @Output() editRequested = new EventEmitter<SignatureRequest>();
+  /** Borrar en firme un borrador sin enviar (Draft/Ready). */
+  @Output() deleteRequested = new EventEmitter<SignatureRequest>();
 
   readonly openMenuId = signal<string | null>(null);
 
@@ -217,12 +229,17 @@ export class SignatureTableComponent {
     }
   }
 
+  /** Cancelar/extender solo aplican a solicitudes YA ENVIADAS; un borrador sin enviar se borra, no se cancela. */
+  private isSent(request: SignatureRequest): boolean {
+    return request.status === 'pending' || request.status === 'in-progress';
+  }
+
   canCancel(request: SignatureRequest): boolean {
-    return isActionableStatus(request.status);
+    return this.isSent(request);
   }
 
   canExtend(request: SignatureRequest): boolean {
-    return isActionableStatus(request.status);
+    return this.isSent(request);
   }
 
   /**
@@ -266,15 +283,41 @@ export class SignatureTableComponent {
     this.previewRequested.emit(request);
   }
 
-  /** Solo una solicitud Ready (archivo disponible, aún sin enviar) se puede enviar. */
+  /**
+   * Enviable solo si está Ready (archivo disponible) Y tiene al menos un campo de firma colocado.
+   * Un borrador incompleto (sin campos) no ofrece Enviar: hay que terminarlo con "Continue editing".
+   */
   canSendRow(request: SignatureRequest): boolean {
-    return request.status === 'ready';
+    return request.status === 'ready' && !!request.hasSignatureField;
   }
 
   onSendClick(request: SignatureRequest, event: MouseEvent): void {
     event.stopPropagation();
     this.openMenuId.set(null);
     this.sendRequested.emit(request);
+  }
+
+  /** Editar/borrar solo aplica a un borrador sin enviar (Draft/Ready). */
+  canEditDraft(request: SignatureRequest): boolean {
+    return request.status === 'draft' || request.status === 'ready';
+  }
+
+  onContinueClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.continueRequested.emit(request);
+  }
+
+  onEditClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.editRequested.emit(request);
+  }
+
+  onDeleteClick(request: SignatureRequest, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.deleteRequested.emit(request);
   }
 
   onResendClick(request: SignatureRequest, event: MouseEvent): void {

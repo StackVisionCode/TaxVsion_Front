@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap } from 'rxjs';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { SmsService } from './sms.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import {
   SendSmsBatchResponse,
   SetSmsConsentRequest,
@@ -48,6 +49,7 @@ export interface SmsSendRecipient {
 @Injectable({ providedIn: 'root' })
 export class SmsStore {
   private readonly service = inject(SmsService);
+  private readonly directory = inject(CustomerDirectoryStore);
 
   // ---------- Listado de mensajes ----------
   private readonly _customerId = signal<string | null>(null);
@@ -68,6 +70,10 @@ export class SmsStore {
   readonly page = this._page.asReadonly();
   readonly size = this._size.asReadonly();
   readonly items = this._items.asReadonly();
+
+  /** Mapa customerId → nombre, resuelto vía el directorio compartido solo para los ids del listado. */
+  private readonly _names = signal<Map<string, string>>(new Map());
+  readonly contactsById = this._names.asReadonly();
   readonly totalCount = this._totalCount.asReadonly();
   readonly totalPages = this._totalPages.asReadonly();
   readonly listLoading = this._listLoading.asReadonly();
@@ -104,15 +110,6 @@ export class SmsStore {
   readonly optTotalPages = this._optTotalPages.asReadonly();
   readonly optLoading = this._optLoading.asReadonly();
   readonly optError = this._optError.asReadonly();
-
-  // ---------- Clientes (picker del compose) ----------
-  private readonly _contacts = signal<SmsContact[]>([]);
-  private readonly _contactsLoaded = signal(false);
-  readonly contacts = this._contacts.asReadonly();
-  /** Solo clientes texteables (teléfono E.164 válido en la ficha). */
-  readonly textableContacts = computed<SmsContact[]>(() =>
-    this._contacts().filter(contact => contact.phoneE164 !== null),
-  );
 
   // ---------- Picker del compose (búsqueda server-side, alcanza TODOS los clientes) ----------
   private readonly _pickerResults = signal<SmsContact[]>([]);
@@ -158,6 +155,7 @@ export class SmsStore {
       .subscribe(result => {
         if (!result) return;
         this._items.set(result.items);
+        this.resolveNames(result.items);
         this._totalCount.set(result.totalCount);
         this._totalPages.set(result.totalPages);
         this._page.set(result.page);
@@ -205,7 +203,7 @@ export class SmsStore {
         debounceTime(250),
         distinctUntilChanged(),
         switchMap(term =>
-          this.service.searchCustomers(term).pipe(catchError(() => of(null))),
+          this.directory.search({ term, status: 'NotArchived', size: 15 }).pipe(catchError(() => of(null))),
         ),
         takeUntilDestroyed(),
       )
@@ -251,6 +249,19 @@ export class SmsStore {
   goToPage(page: number): void {
     this._page.set(page);
     this.load$.next();
+  }
+
+  /** Resuelve los nombres de los customerIds del listado vía el directorio (cacheado); merge en el mapa. */
+  private resolveNames(items: SmsMessageSummary[]): void {
+    const ids = [...new Set(items.map(item => item.customerId).filter(Boolean))];
+    if (ids.length === 0) {
+      return;
+    }
+    this.directory.byId(ids).subscribe(resolved => {
+      const merged = new Map(this._names());
+      resolved.forEach((customer, id) => merged.set(id, customer.displayName));
+      this._names.set(merged);
+    });
   }
 
   setCustomer(customerId: string | null): void {
@@ -321,18 +332,6 @@ export class SmsStore {
     this.pickerSearch$.next(term);
   }
 
-  loadContacts(): void {
-    if (this._contactsLoaded()) return;
-    this.service
-      .listCustomers()
-      .pipe(catchError(() => of(null)))
-      .subscribe(result => {
-        if (!result) return;
-        const contacts = result.items.map(toSmsContact).sort((a, b) => a.name.localeCompare(b.name));
-        this._contacts.set(contacts);
-        this._contactsLoaded.set(true);
-      });
-  }
 
   // ---------- Envío (compose) ----------
 

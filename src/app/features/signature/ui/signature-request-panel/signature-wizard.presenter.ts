@@ -108,7 +108,6 @@ export function defaultRules(): RequestRules {
     autoReminder: true,
     reminderIntervalHours: 48, // cada 2 días
     certificate: true,
-    includePreparerSignature: false,
     sendSignedDocument: true,
     sendCertificate: false,
     signingPin: null,

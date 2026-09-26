@@ -94,9 +94,9 @@ export interface CreateCatalogItemRequest {
 }
 
 /**
- * PUT /catalog/items/{id} — NO acepta sku, kind, precio ni trackInventory: el SKU y el tipo son
- * inmutables tras crear, y el precio va por PUT /{id}/price. `attributes: null` CONSERVA los
- * atributos actuales (una lista los reemplaza).
+ * PUT /catalog/items/{id} — NO acepta sku ni precio (SKU inmutable; precio va por PUT /{id}/price).
+ * `trackInventory` YA es editable (un producto puede empezar/dejar de rastrear stock). `attributes: null`
+ * CONSERVA los atributos actuales (una lista los reemplaza).
  */
 export interface UpdateCatalogItemRequest {
   name: string;
@@ -105,6 +105,7 @@ export interface UpdateCatalogItemRequest {
   categoryId: string;
   unit: string | null;
   taxRateBasisPoints: number;
+  trackInventory: boolean;
   imageUrl: string | null;
   attributes: CatalogAttributeRequest[] | null;
 }
@@ -167,6 +168,17 @@ export interface CatalogFormValue {
   /** Solo se aplica al crear: el kind es inmutable en el backend. */
   kind: CatalogItemKind;
   isActive: boolean;
+  // ---- Detalles solo de Product (ignorados en Service). Solo se aplican al CREAR. ----
+  /** Código único por tenant (el backend lo normaliza a mayúsculas). */
+  sku?: string | null;
+  /** Costo en dólares (para margen); usa la misma moneda que el precio. */
+  costAmount?: number | null;
+  /** Unidad de medida (ej. "each", "box", "hour"). */
+  unit?: string | null;
+  /** Si Inventory debe rastrear existencias (default true para productos). */
+  trackInventory?: boolean;
+  /** Cantidad inicial recibida (solo Product con inventario); genera el primer movimiento de stock. */
+  stockQuantity?: number | null;
 }
 
 /** CatalogItemDto → fila del catálogo, resolviendo el nombre de la categoría. */

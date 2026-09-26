@@ -4,6 +4,7 @@ import { firstValueFrom, map, switchMap } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { MeetingChatMessageDto } from './meeting.model';
@@ -930,7 +931,13 @@ export class ActiveMeetingService {
     if (!meetingId || !trimmed) {
       return;
     }
-    this.rtc.chatSend(meetingId, trimmed).catch(() => this.toast.error('Message could not be sent.'));
+    this.rtc
+      .chatSend(meetingId, trimmed)
+      .catch(err =>
+        this.toast.error(
+          isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : 'Message could not be sent.',
+        ),
+      );
   }
 
   // ---------- Grabación (con consentimiento) ----------

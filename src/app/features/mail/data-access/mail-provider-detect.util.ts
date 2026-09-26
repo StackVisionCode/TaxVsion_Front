@@ -119,6 +119,35 @@ export function domainOf(email: string | null | undefined): string | null {
   return email.slice(at + 1).trim().toLowerCase();
 }
 
+/** Opción del dropdown de proveedor del alta manual (F3): etiqueta legible + su preset IMAP/SMTP. */
+export interface ManualProviderOption {
+  id: string;
+  label: string;
+  preset: ImapSmtpPreset;
+}
+
+/**
+ * Proveedores ofrecidos en el <select> del formulario manual. Elegir uno prellena host/puerto/
+ * cifrado; "Other" deja los campos en blanco para un servidor propio. El orden pone primero los
+ * más comunes en un despacho (Microsoft 365 / Gmail Workspace).
+ */
+export const MANUAL_PROVIDER_OPTIONS: readonly ManualProviderOption[] = [
+  { id: 'office365', label: 'Microsoft 365 / Outlook', preset: OFFICE365_PRESET },
+  { id: 'gmail', label: 'Gmail / Google Workspace', preset: GMAIL_PRESET },
+  { id: 'yahoo', label: 'Yahoo Mail', preset: YAHOO_PRESET },
+  { id: 'icloud', label: 'iCloud Mail', preset: ICLOUD_PRESET },
+  { id: 'zoho', label: 'Zoho Mail', preset: ZOHO_PRESET },
+  { id: 'custom', label: 'Other (IMAP/SMTP)', preset: GENERIC_MANUAL_PRESET },
+] as const;
+
+/** Empareja un preset con la opción del dropdown que lo produjo (por host IMAP); null si es genérico. */
+export function providerOptionIdFor(preset: ImapSmtpPreset | null): string | null {
+  if (!preset || !preset.imapHost) {
+    return null;
+  }
+  return MANUAL_PROVIDER_OPTIONS.find(option => option.preset.imapHost === preset.imapHost)?.id ?? null;
+}
+
 export function detectProvider(email: string | null | undefined): ProviderDetection {
   const domain = domainOf(email);
 

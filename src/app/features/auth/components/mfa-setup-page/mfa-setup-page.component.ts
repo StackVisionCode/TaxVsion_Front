@@ -6,7 +6,6 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { toDataURL } from 'qrcode';
 import { AuthService } from '@core/auth/auth.service';
 import { MfaService } from '@core/auth/mfa.service';
-import { CheckoutIntentService } from '@core/billing/checkout-intent.service';
 import { SetupTotpResponse } from '@core/auth/mfa.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
@@ -31,7 +30,6 @@ export class MfaSetupPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly mfa = inject(MfaService);
-  private readonly checkoutIntent = inject(CheckoutIntentService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly setup = signal<SetupTotpResponse | null>(null);
@@ -96,9 +94,7 @@ export class MfaSetupPageComponent implements OnInit {
 
   onFinish(): void {
     this.auth.completeMfaEnrollment();
-    // Si el usuario venía del alta con un plan elegido, va al checkout a pagarlo; si no, al dashboard.
-    const target = this.checkoutIntent.intent() ? '/checkout' : '/dashboard';
-    void this.router.navigateByUrl(target);
+    void this.router.navigateByUrl('/dashboard');
   }
 
   /** Descarga los 10 códigos de recuperación como .txt para que el usuario los guarde offline. */

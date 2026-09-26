@@ -51,7 +51,8 @@
           [class.border-gray-100]="!last">{{ member.activity }}</td>
         <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl relative"
           [class.border-b]="!last" [class.border-gray-100]="!last">
-          <div *ngIf="member.id !== currentUserId" class="relative inline-block" [attr.data-dropdown]="'member-menu-' + member.id">
+          <div *ngIf="member.id !== currentUserId && !(member.kind === 'user' && member.status === 'removed')"
+            class="relative inline-block" [attr.data-dropdown]="'member-menu-' + member.id">
             <button type="button" (click)="toggleMenu(member)"
               class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors ml-auto"
               aria-label="Member actions">
@@ -71,6 +72,11 @@
                   <ion-icon [name]="member.status === 'suspended' ? 'play-circle-outline' : 'pause-circle-outline'"
                     class="text-sm text-gray-400"></ion-icon>
                   {{ member.status === 'suspended' ? 'Reactivate' : 'Suspend' }}
+                </button>
+                <button type="button" (click)="offboard.emit(member); closeMenu()"
+                  class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                  <ion-icon name="person-remove-outline" class="text-sm text-red-400"></ion-icon>
+                  Remove from office
                 </button>
               </ng-container>
               <ng-container *ngIf="member.kind === 'invitation'">

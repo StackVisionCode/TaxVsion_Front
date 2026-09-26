@@ -1,0 +1,186 @@
+<app-modal [isOpen]="isOpen" heading="My signatures"
+  subheading="Reusable signatures stamped on documents you prepare" size="lg" (closed)="close()">
+  <div class="mt-2 space-y-5">
+    <p *ngIf="error()" class="rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-medium text-red-600">{{ error() }}</p>
+
+    <!-- Gobernanza (solo admin): permitir que los empleados usen su propia firma -->
+    <div *ngIf="isAdmin() && store.signatureSettings() as settings"
+      class="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+      <button type="button" (click)="toggleAllowOwnSignature()" [disabled]="togglingGovernance()"
+        class="flex flex-1 items-center gap-3 text-left disabled:opacity-60">
+        <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
+          [ngClass]="settings.allowEmployeeOwnSignature ? 'bg-brand-bold' : 'bg-gray-300'">
+          <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
+            [ngClass]="settings.allowEmployeeOwnSignature ? 'left-[18px]' : 'left-0.5'"></span>
+        </span>
+        <span class="min-w-0">
+          <span class="block text-xs font-semibold text-gray-800">Let employees use their own signature</span>
+          <span class="block text-[11px] text-gray-500">
+            On: each employee stamps their personal signature. Off: everyone uses the office signature. (Admins are always allowed.)
+          </span>
+        </span>
+      </button>
+    </div>
+
+    <!-- Mis firmas: solo si el tenant permite firma propia (el admin siempre); si no, se usa la de oficina. -->
+    <div *ngIf="canManageOwn()">
+      <div class="mb-2 flex items-center justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Your signatures</h4>
+        <button type="button" (click)="openAdd('user')"
+          class="flex items-center gap-1 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          Add signature
+        </button>
+      </div>
+
+      <div *ngIf="myProfiles().length === 0"
+        class="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-xs text-gray-400">
+        No signatures yet. Add one — draw, type or upload — and it will be saved for reuse.
+      </div>
+
+      <ul *ngIf="myProfiles().length > 0" class="space-y-2">
+        <li *ngFor="let profile of myProfiles()"
+          class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 px-3 py-2">
+          <!-- Preview -->
+          <div class="flex h-12 w-24 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-white">
+            <img *ngIf="previewFor(profile) as url; else noPreview" [src]="url" alt="Signature"
+              class="max-h-10 max-w-[88px] object-contain" [class.opacity-40]="profile.isArchived" />
+            <ng-template #noPreview>
+              <ion-icon name="image-outline" class="text-lg text-gray-300"></ion-icon>
+            </ng-template>
+          </div>
+
+          <!-- Nombre / edición inline -->
+          <div class="min-w-0 flex-1 basis-48">
+            <ng-container *ngIf="editingId() === profile.id; else nameRead">
+              <div class="flex items-center gap-2">
+                <input type="text" [ngModel]="editLabel()" (ngModelChange)="editLabel.set($event)"
+                  (keydown.enter)="confirmRename(profile)" name="renameSignature" maxlength="80" autofocus
+                  class="flex-1 rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+                <button type="button" (click)="confirmRename(profile)" [disabled]="busyId() === profile.id"
+                  class="rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">Save</button>
+                <button type="button" (click)="cancelRename()" [disabled]="busyId() === profile.id"
+                  class="rounded-full px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 transition-colors">Cancel</button>
+              </div>
+            </ng-container>
+            <ng-template #nameRead>
+              <div class="flex items-center gap-2">
+                <span class="min-w-0 flex-1 truncate text-sm font-medium"
+                  [ngClass]="profile.isArchived ? 'text-gray-400' : 'text-gray-800'">{{ profile.label }}</span>
+                <span *ngIf="profile.isDefault"
+                  class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Default</span>
+                <span *ngIf="profile.isArchived"
+                  class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Archived</span>
+              </div>
+            </ng-template>
+          </div>
+
+          <!-- Acciones -->
+          <div *ngIf="editingId() !== profile.id" class="ml-auto flex shrink-0 items-center gap-1">
+            <button *ngIf="!profile.isDefault && !profile.isArchived" type="button" (click)="setDefault(profile)"
+              [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">Set default</button>
+            <button type="button" (click)="startRename(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">Rename</button>
+            <button type="button" (click)="toggleArchive(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors"
+              [ngClass]="profile.isArchived ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'">
+              {{ profile.isArchived ? 'Restore' : 'Archive' }}
+            </button>
+            <button type="button" (click)="remove(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors">Delete</button>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Empleado con la firma propia apagada: solo usa la de oficina. -->
+    <div *ngIf="!canManageOwn()"
+      class="flex items-start gap-2 rounded-2xl border border-dashed border-gray-200 px-4 py-3 text-xs text-gray-500">
+      <ion-icon name="business-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
+      <span>Your office uses a shared office signature. Personal signatures are turned off for employees.</span>
+    </div>
+
+    <!-- Firmas de oficina: gestionables por admin, solo lectura para el resto -->
+    <div *ngIf="officeProfiles().length > 0 || isAdmin()">
+      <div class="mb-2 flex items-center justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Office signatures</h4>
+        <button *ngIf="isAdmin()" type="button" (click)="openAdd('office')"
+          class="flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          Add office signature
+        </button>
+      </div>
+
+      <div *ngIf="officeProfiles().length === 0"
+        class="rounded-2xl border border-dashed border-gray-200 px-4 py-5 text-center text-xs text-gray-400">
+        No office signature yet. Add one for the whole office to use.
+      </div>
+
+      <ul *ngIf="officeProfiles().length > 0" class="space-y-2">
+        <li *ngFor="let profile of officeProfiles()"
+          class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2">
+          <div class="flex h-12 w-24 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-white">
+            <img *ngIf="previewFor(profile) as url; else noPreviewOffice" [src]="url" alt="Office signature"
+              class="max-h-10 max-w-[88px] object-contain" [class.opacity-40]="profile.isArchived" />
+            <ng-template #noPreviewOffice>
+              <ion-icon name="image-outline" class="text-lg text-gray-300"></ion-icon>
+            </ng-template>
+          </div>
+
+          <div class="min-w-0 flex-1 basis-48">
+            <ng-container *ngIf="editingId() === profile.id; else officeNameRead">
+              <div class="flex items-center gap-2">
+                <input type="text" [ngModel]="editLabel()" (ngModelChange)="editLabel.set($event)"
+                  (keydown.enter)="confirmRename(profile)" name="renameOffice" maxlength="80" autofocus
+                  class="flex-1 rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+                <button type="button" (click)="confirmRename(profile)" [disabled]="busyId() === profile.id"
+                  class="rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">Save</button>
+                <button type="button" (click)="cancelRename()" [disabled]="busyId() === profile.id"
+                  class="rounded-full px-2 py-1.5 text-xs text-gray-500 hover:text-gray-800 transition-colors">Cancel</button>
+              </div>
+            </ng-container>
+            <ng-template #officeNameRead>
+              <div class="flex items-center gap-2">
+                <span class="min-w-0 flex-1 truncate text-sm font-medium"
+                  [ngClass]="profile.isArchived ? 'text-gray-400' : 'text-gray-700'">{{ profile.label }}</span>
+                <span class="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Office</span>
+                <span *ngIf="profile.isDefault"
+                  class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Default</span>
+                <span *ngIf="profile.isArchived"
+                  class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Archived</span>
+              </div>
+            </ng-template>
+          </div>
+
+          <div *ngIf="isAdmin() && editingId() !== profile.id" class="ml-auto flex shrink-0 items-center gap-1">
+            <button *ngIf="!profile.isDefault && !profile.isArchived" type="button" (click)="setDefault(profile)"
+              [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">Set default</button>
+            <button type="button" (click)="startRename(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors">Rename</button>
+            <button type="button" (click)="toggleArchive(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors"
+              [ngClass]="profile.isArchived ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'">
+              {{ profile.isArchived ? 'Restore' : 'Archive' }}
+            </button>
+            <button type="button" (click)="remove(profile)" [disabled]="busyId() === profile.id"
+              class="rounded-full px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors">Delete</button>
+          </div>
+        </li>
+      </ul>
+      <p *ngIf="!isAdmin()" class="mt-1 text-[11px] text-gray-400">Office signatures are managed by an administrator.</p>
+    </div>
+  </div>
+
+  <div class="mt-5 flex justify-end">
+    <button type="button" (click)="close()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      Done
+    </button>
+  </div>
+</app-modal>
+
+<!-- Generador de firma embebido: dibujar / escribir / subir → se persiste al confirmar -->
+<app-signature-creator [isOpen]="adding()" [busy]="savingAdd()" (closed)="closeAdd()"
+  (created)="onSignatureCreated($event)"></app-signature-creator>

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { ClientItem, ClientTableComponent } from '../../ui/client-table/client-table.component';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
+import { AssignDialogClient, ClientAssignDialogComponent } from '../../ui/client-assign-dialog/client-assign-dialog.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -42,6 +43,7 @@ const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived'
     PaginationComponent,
     ConfirmDialogComponent,
     ModalComponent,
+    ClientAssignDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-directory-page.component.html',
@@ -78,6 +80,8 @@ export class ClientDirectoryPageComponent {
   readonly canManage = this.caps.canManage;
   readonly canChangeStatus = this.caps.canChangeStatus;
   readonly canImport = this.caps.canImport;
+  readonly canAssignPreparer = this.caps.canAssignPreparer;
+  readonly canViewAssignees = this.caps.canViewAssignees;
 
   // Búsqueda (input local + debounce hacia el server).
   readonly searchInput = signal('');
@@ -93,6 +97,12 @@ export class ClientDirectoryPageComponent {
   readonly pendingDelete = signal<ClientItem | null>(null);
   readonly bulkFailures = signal<BulkStatusFailure[] | null>(null);
   private bulkSucceeded = 0;
+
+  // Diálogo de asignación (single = un cliente; bulk = varios seleccionados).
+  readonly assignOpen = signal(false);
+  readonly assignMode = signal<'single' | 'bulk'>('single');
+  readonly assignClient = signal<AssignDialogClient | null>(null);
+  readonly assignCustomerIds = signal<string[]>([]);
 
   readonly showingLabel = computed(() => {
     const total = this.totalCount();
@@ -244,6 +254,35 @@ export class ClientDirectoryPageComponent {
   openCreatePanel(): void {
     this.editingClient.set(null);
     this.isPanelOpen.set(true);
+  }
+
+  /** Kebab de fila → gestionar los asignados de UN cliente. */
+  openAssign(client: ClientItem): void {
+    this.assignMode.set('single');
+    this.assignClient.set({ id: client.id, displayName: client.displayName });
+    this.assignOpen.set(true);
+  }
+
+  /** Barra bulk → repartir los seleccionados a un miembro del staff. */
+  openBulkAssign(): void {
+    if (this.selected().size === 0) {
+      return;
+    }
+    this.assignMode.set('bulk');
+    this.assignCustomerIds.set([...this.selected()]);
+    this.assignOpen.set(true);
+  }
+
+  /** Al cerrar el diálogo: si hubo cambios, refresca el listado (y limpia la selección en bulk). */
+  onAssignClosed(changed: boolean): void {
+    this.assignOpen.set(false);
+    if (!changed) {
+      return;
+    }
+    if (this.assignMode() === 'bulk') {
+      this.clearSelection();
+    }
+    this.store.reloadList();
   }
 
   openEditPanel(client: ClientItem): void {

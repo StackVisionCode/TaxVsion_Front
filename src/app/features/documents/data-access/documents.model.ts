@@ -13,12 +13,36 @@ export interface FolderResponse {
   relativePath: string;
   category: string | null;
   createdAtUtc: string;
+  /** true si la carpeta tiene un link de compartir vigente (lo marca el listado). */
+  isShared?: boolean;
 }
 
-/** GET /storage/folders?parentFolderId=&ownerType=&ownerId= */
+/** Opciones de paginación + filtro/orden server-side para GET /storage/folders. */
+export interface FolderContentsQueryOpts {
+  skip?: number;
+  take?: number;
+  /** FolderType visibles (el explorador manda el set "user-facing"). */
+  folderTypes?: string[];
+  taxYears?: number[];
+  /** Extensiones en mayúscula (PDF, XLSX…). */
+  extensions?: string[];
+  /** FileStatus del backend (Available, Infected…). */
+  statuses?: string[];
+  /** 'Name' | 'Modified' | 'Size'. */
+  sort?: string;
+  desc?: boolean;
+}
+
+/** GET /storage/folders?parentFolderId=&ownerType=&ownerId=&skip=&take= */
 export interface FolderContentsResponse {
   subfolders: FolderResponse[];
   files: FileResponse[];
+  /** Totales sin paginar (para los controles de página). Opcionales por compat con respuestas viejas. */
+  folderCount?: number;
+  fileCount?: number;
+  totalCount?: number;
+  skip?: number;
+  take?: number | null;
 }
 
 /** Body de POST /storage/folders. */
@@ -42,6 +66,10 @@ export interface RecycleBinItemResponse {
   sizeBytes: number;
   softDeletedAtUtc: string;
   softDeleteExpiresAtUtc: string;
+  /** 'File' | 'Folder'. Una carpeta borrada es una sola entrada que restaura todo su contenido. */
+  itemType?: string;
+  /** Para carpetas: cuántos archivos contiene el batch. */
+  itemCount?: number;
 }
 
 // ---------- Formateo para UI ----------
@@ -158,7 +186,7 @@ export function emptyFilters(): FileFilters {
 }
 
 /** FolderType de cara al usuario (los que el explorer navega/muestra en raíz). Espejo de SystemFolderCatalog del backend. */
-const USER_FACING_FOLDER_TYPES: ReadonlySet<FolderType> = new Set<FolderType>([
+export const USER_FACING_FOLDER_TYPES: readonly FolderType[] = [
   'Documents',
   'Receipts',
   'Invoices',
@@ -166,15 +194,37 @@ const USER_FACING_FOLDER_TYPES: ReadonlySet<FolderType> = new Set<FolderType>([
   'EmailOutgoing',
   'Tasks',
   'Signatures',
-]);
+];
+
+const USER_FACING_FOLDER_TYPE_SET: ReadonlySet<FolderType> = new Set(USER_FACING_FOLDER_TYPES);
 
 export function isUserFacingFolderType(folderType: FolderType): boolean {
-  return USER_FACING_FOLDER_TYPES.has(folderType);
+  return USER_FACING_FOLDER_TYPE_SET.has(folderType);
+}
+
+/** Traduce el estado visible (chip) a los FileStatus del backend que lo componen. */
+export function displayStatusToFileStatuses(status: FileDisplayStatus): FileStatus[] {
+  switch (status) {
+    case 'ready':
+      return ['Available'];
+    case 'blocked':
+      return ['Infected', 'BlockedByPolicy'];
+    case 'uploading':
+      return ['PendingUpload'];
+    default:
+      return ['PendingScan', 'Scanning', 'ScanFailed', 'PendingReview'];
+  }
 }
 
 // ---------- Compartir (share links) ----------
 
-export type ShareVisibility = 'TenantOnly' | 'SpecificUsers' | 'TenantCustomers' | 'ExternalRecipients' | 'Public';
+export type ShareVisibility =
+  | 'TenantOnly'
+  | 'SpecificUsers'
+  | 'TenantCustomers'
+  | 'ExternalRecipients'
+  | 'ExternalLink'
+  | 'Public';
 export type SharePermission = 'View' | 'Download';
 
 /** POST /storage/files/{id}/shares */
@@ -187,6 +237,14 @@ export interface CreateShareLinkRequest {
   recipientEmails?: string[] | null;
   /** 'Es' | 'En' — idioma del email al destinatario externo (solo ExternalRecipients). */
   recipientLanguage?: string | null;
+}
+
+/** POST /storage/folders/{id}/shares — como el de file + semántica propia de carpeta. */
+export interface CreateFolderShareLinkRequest extends CreateShareLinkRequest {
+  /** Cubre todo el subárbol (true) o solo el contenido directo (false). */
+  isRecursive: boolean;
+  /** Cubre lo que se agregue después de crear el link (true) o solo lo que ya existía (false). */
+  appliesToFutureItems: boolean;
 }
 
 /** ShareLinkResponse (subset que usa el front). */
@@ -203,6 +261,8 @@ export interface ShareLinkResponse {
   accessCount: number;
   status: string;
   createdAtUtc: string;
+  isRecursive: boolean;
+  appliesToFutureItems: boolean;
 }
 
 /** Respuesta de crear un link — plainToken SOLO al crear. */

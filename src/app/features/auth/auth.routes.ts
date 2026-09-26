@@ -64,11 +64,8 @@ export const AUTH_ROUTES: Routes = [
     title: 'Set up two-step verification',
   },
   // OJO: aquí NO va ninguna ruta 'register'. AUTH_ROUTES se monta en `path: ''`
-  // (app.routes.ts) ANTES del `path: 'register'` real, así que un hijo 'register'
-  // eclipsaba al alta de verdad — el comprador que venía del email post-pago
-  // ({RegistrationUrlBase}/register?token=…) aterrizaba en un formulario simulado
-  // que anunciaba "Account created!" sin crear tenant ni cuenta.
-  // El alta real vive en features/onboarding (REGISTER_ROUTES → RegisterEntryComponent).
+  // (app.routes.ts) ANTES del `path: 'register'` que reenvía al Landing, así que un hijo
+  // 'register' lo eclipsaría y el enlace del correo post-pago no llegaría al alta real.
   {
     path: 'forgot-password',
     canActivate: [guestGuard, officeGuard],

@@ -26,14 +26,6 @@ export interface PagedResult<T> {
   hasPrevious: boolean;
 }
 
-/** Subset mínimo de GET /customers para el picker de cliente (réplica, no import de features/clients). */
-export interface MailCustomerSummary {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  status: 'Active' | 'Inactive' | 'Archived';
-}
-
 // ---------- Connectors (`/connectors`) ----------
 
 /** Espejo de TaxVision.Connectors.Domain.Shared.ProviderCode. `Imap` solo llega vía /accounts/manual. */
@@ -51,6 +43,13 @@ export interface MailAccount {
   status: MailAccountStatus;
   connectedAtUtc: string | null;
   createdAtUtc: string;
+  /**
+   * Buzón de OFICINA (compartido) vs PERSONAL. `isOffice` lo calcula el backend a partir de
+   * `ownerUserId` (null = oficina, con valor = personal de ese usuario). El list del backend ya
+   * scopea a oficina + propios, así que un buzón no-oficina de esta lista es siempre el del usuario.
+   */
+  isOffice: boolean;
+  ownerUserId: string | null;
 }
 
 /** POST /connectors/accounts — el frontend REDIRIGE el navegador a authorizationUrl (no es fetch). */
@@ -76,6 +75,12 @@ export interface ConnectManualAccountRequest {
   smtpUseStartTls: boolean;
   smtpUsername: string;
   smtpPassword: string;
+  /**
+   * true = buzón de OFICINA (compartido): el backend salta el guard de identidad, así que
+   * `emailAddress` puede ser distinto del email de login. false = personal: el guard exige que sea
+   * el propio email de login. Default backend = false (personal).
+   */
+  asOffice: boolean;
 }
 
 /** POST /connectors/accounts/manual — a diferencia de OAuth NO redirige: la cuenta queda creada al 200. */

@@ -9,8 +9,9 @@ import {
   CreateSignatureRequestBody,
   ListSignatureRequestsParams,
   PlaceFieldBody,
+  PreparerFieldResponse,
   SignatureAnalyticsSummary,
-  SignatureCustomersPage,
+  SignatureFieldKind,
   SignatureFieldResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
@@ -25,6 +26,13 @@ import {
   TemplateFieldCreatedResponse,
   TemplateListResult,
   TemplateSlotCreatedResponse,
+  SignatureCategoriesResult,
+  SignatureCategoryOption,
+  SignatureProfile,
+  SignatureProfileScope,
+  SignatureProfilesResult,
+  SignatureSettings,
+  UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
   ValidateDocumentResponse,
@@ -33,8 +41,6 @@ import {
 /**
  * Cliente HTTP fino sobre TaxVision.Signature.Api (`/signature` vía Gateway, mismo
  * patrón que clients.service). Incluye además:
- * - `searchCustomers`: subset de GET /customers para los pickers del wizard (espejo
- *   local, sin import cruzado de features).
  * - `uploadOriginalDocument`: cadena presigned de CloudStorage (initiate → MinIO →
  *   complete) con `ownerType: 'Signature'` + `folderType: 'Signatures'` — los mismos
  *   valores que usa el propio backend de Signature al subir sealed/certificate.
@@ -108,11 +114,118 @@ export class SignatureService {
     if (params.size) {
       query = query.set('size', params.size);
     }
+    if (params.editableOnly) {
+      query = query.set('editableOnly', true);
+    }
     return this.http.get<SignatureRequestListResult>(`${this.base}/requests`, { params: query });
   }
 
   getById(id: string): Observable<SignatureRequestDetail> {
     return this.http.get<SignatureRequestDetail>(`${this.base}/requests/${id}`);
+  }
+
+  /** PUT /signature/requests/{id} — edita la metadata de un borrador (Draft/Ready). */
+  update(id: string, body: UpdateSignatureRequestBody): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${id}`, body);
+  }
+
+  /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */
+  deleteRequest(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${id}`);
+  }
+
+  // ---------- Categorías del tenant (14.5) ----------
+
+  /** GET /signature/categories — categorías de sistema + custom del tenant. */
+  listCategories(includeArchived = false): Observable<SignatureCategoriesResult> {
+    const params = includeArchived ? new HttpParams().set('includeArchived', true) : undefined;
+    return this.http.get<SignatureCategoriesResult>(`${this.base}/categories`, { params });
+  }
+
+  /** POST /signature/categories — crea una categoría custom. */
+  createCategory(name: string): Observable<SignatureCategoryOption> {
+    return this.http.post<SignatureCategoryOption>(`${this.base}/categories`, { name });
+  }
+
+  /** PUT /signature/categories/{id} — renombra una categoría custom (no toca el histórico, que guarda el nombre congelado). */
+  renameCategory(id: string, name: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/categories/${id}`, { name });
+  }
+
+  /** POST /signature/categories/{id}/archive — la saca del picker sin borrar nada. */
+  archiveCategory(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/categories/${id}/archive`, {});
+  }
+
+  /** POST /signature/categories/{id}/unarchive — la vuelve a mostrar en el picker. */
+  unarchiveCategory(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/categories/${id}/unarchive`, {});
+  }
+
+  // ---------- Firmas reutilizables del preparador/oficina (My Signature) ----------
+
+  /** GET /signature/profiles — firmas visibles (propias + oficina). */
+  listSignatureProfiles(includeArchived = false): Observable<SignatureProfilesResult> {
+    const params = includeArchived ? new HttpParams().set('includeArchived', true) : undefined;
+    return this.http.get<SignatureProfilesResult>(`${this.base}/profiles`, { params });
+  }
+
+  /** GET /signature/profiles/effective — la firma que se estamparía por el usuario actual. */
+  getEffectiveSignature(): Observable<SignatureProfile> {
+    return this.http.get<SignatureProfile>(`${this.base}/profiles/effective`);
+  }
+
+  /** POST /signature/profiles — crea una firma (imagen PNG en base64, sin el prefijo data-url). */
+  createSignatureProfile(body: {
+    label: string;
+    scope: SignatureProfileScope;
+    imageBase64: string;
+  }): Observable<SignatureProfile> {
+    return this.http.post<SignatureProfile>(`${this.base}/profiles`, body);
+  }
+
+  /** PUT /signature/profiles/{id} — renombra. */
+  renameSignatureProfile(id: string, label: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/profiles/${id}`, { label });
+  }
+
+  /** POST /signature/profiles/{id}/default — marca como la por defecto de su ámbito. */
+  setDefaultSignatureProfile(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/profiles/${id}/default`, {});
+  }
+
+  archiveSignatureProfile(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/profiles/${id}/archive`, {});
+  }
+
+  unarchiveSignatureProfile(id: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/profiles/${id}/unarchive`, {});
+  }
+
+  deleteSignatureProfile(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/profiles/${id}`);
+  }
+
+  // ---------- Configuración del tenant (gobernanza; solo admin) ----------
+
+  /** GET /signature/settings — requiere permiso SettingsManage (admin). */
+  getSignatureSettings(): Observable<SignatureSettings> {
+    return this.http.get<SignatureSettings>(`${this.base}/settings`);
+  }
+
+  /** PUT /signature/settings — reemplaza toda la configuración (semántica PUT del backend). */
+  updateSignatureSettings(body: {
+    allowedVerificationChannels: string[];
+    defaultVerificationChannel: string;
+    defaultTokenExpirationHours: number;
+    remindersEnabledByDefault: boolean;
+    generateCertificateByDefault: boolean;
+    documentLimits: { maxPdfBytes: number; maxImageBytes: number; maxPagesPerDocument: number };
+    retentionPolicy: { retentionYears: number; allowPurge: boolean };
+    defaultReminderIntervalHours: number;
+    allowEmployeeOwnSignature: boolean;
+  }): Observable<void> {
+    return this.http.put<void>(`${this.base}/settings`, body);
   }
 
   addSigner(requestId: string, body: AddSignerBody): Observable<SignerResponse> {
@@ -133,6 +246,25 @@ export class SignatureService {
 
   removeField(requestId: string, signerId: string, fieldId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/requests/${requestId}/signers/${signerId}/fields/${fieldId}`);
+  }
+
+  // ---------- Campos del preparador (canal paralelo, Form 8879) ----------
+
+  /** POST /signature/requests/{id}/preparer-fields — coloca un campo del preparador. */
+  placePreparerField(
+    requestId: string,
+    body: { kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
+  ): Observable<PreparerFieldResponse> {
+    return this.http.post<PreparerFieldResponse>(`${this.base}/requests/${requestId}/preparer-fields`, body);
+  }
+
+  removePreparerField(requestId: string, fieldId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/preparer-fields/${fieldId}`);
+  }
+
+  /** PUT /signature/requests/{id}/preparer-signature — congela qué firma se estampará (null = la efectiva). */
+  setPreparerSignature(requestId: string, signatureFileId: string | null): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/preparer-signature`, { signatureFileId });
   }
 
   /** POST /signature/requests/{id}/send → 202; requiere estado Ready (archivo ya Available). */
@@ -286,6 +418,18 @@ export class SignatureService {
     return this.http.delete<void>(`${this.base}/templates/${templateId}/fields/${fieldId}`);
   }
 
+  /** POST /signature/templates/{id}/preparer-fields — predefine el campo de firma del preparador (14.5 F7). */
+  placeTemplatePreparerField(
+    templateId: string,
+    body: { kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
+  ): Observable<{ id: string }> {
+    return this.http.post<{ id: string }>(`${this.base}/templates/${templateId}/preparer-fields`, body);
+  }
+
+  removeTemplatePreparerField(templateId: string, fieldId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/templates/${templateId}/preparer-fields/${fieldId}`);
+  }
+
   /** POST /signature/templates/{id}/publish → 204. Exige ≥1 slot y ≥1 campo Signature/Initials. */
   publishTemplate(templateId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/templates/${templateId}/publish`, {});
@@ -308,14 +452,4 @@ export class SignatureService {
     return this.http.get<SignatureAnalyticsSummary>(`${this.base}/analytics/summary`, { params: query });
   }
 
-  // ---------- Customers (picker del wizard) ----------
-
-  /** GET /customers — subset espejo de Customer.Api para no importar entre features. */
-  searchCustomers(term?: string, size = 200): Observable<SignatureCustomersPage> {
-    let query = new HttpParams().set('status', 'NotArchived').set('size', size);
-    if (term) {
-      query = query.set('term', term);
-    }
-    return this.http.get<SignatureCustomersPage>(this.api.tenantUrl('/customers'), { params: query });
-  }
 }

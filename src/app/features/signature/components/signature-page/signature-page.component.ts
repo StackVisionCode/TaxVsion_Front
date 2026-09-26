@@ -6,22 +6,27 @@ import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
-import { CreatedSignature, SignatureCreatorComponent } from '../../ui/signature-creator/signature-creator.component';
+import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-manager/signature-profiles-manager.component';
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
+import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
+import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
+  SIGNATURE_CATEGORIES,
+  SIGNATURE_CATEGORY_LABEL,
+  SignatureCategory,
+  TOKEN_EXPIRATION_DEFAULT_HOURS,
   TOKEN_EXPIRATION_MAX_HOURS,
   TOKEN_EXPIRATION_MIN_HOURS,
 } from '../../data-access/signature.model';
 
 const STATUS_FILTERS: SignatureStatusFilter[] = [
   'All',
-  'Draft',
-  'Ready',
+  'Drafts',
   'InProgress',
   'Completed',
   'Rejected',
@@ -31,6 +36,7 @@ const STATUS_FILTERS: SignatureStatusFilter[] = [
 
 const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   All: 'All',
+  Drafts: 'Drafts',
   Draft: 'Draft',
   Ready: 'Ready',
   InProgress: 'In Progress',
@@ -59,10 +65,12 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
-    SignatureCreatorComponent,
+    SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
     SignatureTemplatePickerComponent,
+    SignatureCategoryPickerComponent,
+    SignatureCategoryManagerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
@@ -74,12 +82,15 @@ export class SignaturePageComponent {
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
+  /** Id del borrador a continuar en el wizard (null = crear uno nuevo). */
+  readonly continueRequestId = signal<string | null>(null);
 
-  /** Generador de firmas (adaptado del CRM legado): modal + firma propia del preparador. */
-  readonly isCreatorOpen = signal(false);
+  /** Gestión de "My Signatures" (firmas reutilizables del preparador, persistidas). */
+  readonly isProfilesManagerOpen = signal(false);
   /** Modal para crear la solicitud a partir de una plantilla guardada. */
   readonly isTemplatePickerOpen = signal(false);
-  readonly mySignature = signal<CreatedSignature | null>(null);
+  /** Modal de gestión de categorías del tenant (renombrar/archivar). */
+  readonly isCategoryManagerOpen = signal(false);
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
@@ -110,12 +121,32 @@ export class SignaturePageComponent {
   /** Envío de una solicitud Ready desde el detalle (Ready → InProgress). */
   readonly sendingRequest = signal(false);
 
+  // ---------- Editar borrador (metadata) ----------
+  readonly editTarget = signal<SignatureRequest | null>(null);
+  readonly editTitle = signal('');
+  readonly editNotes = signal('');
+  readonly editCategory = signal<SignatureCategory>('Fiscal');
+  readonly editDueDate = signal('');
+  readonly categories = SIGNATURE_CATEGORIES;
+  readonly isEditValid = computed(() => {
+    const length = this.editTitle().trim().length;
+    return length >= 3 && length <= 300;
+  });
+
+  // ---------- Borrar borrador ----------
+  readonly deleteTarget = signal<SignatureRequest | null>(null);
+
   readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
   readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
+
+  categoryLabel(category: SignatureCategory): string {
+    return SIGNATURE_CATEGORY_LABEL[category];
+  }
 
   constructor() {
     this.store.refresh();
     this.store.loadStats();
+    this.store.loadSignatureProfiles();
   }
 
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
@@ -172,11 +203,19 @@ export class SignaturePageComponent {
   }
 
   openCreatePanel(): void {
+    this.continueRequestId.set(null);
+    this.isPanelOpen.set(true);
+  }
+
+  /** Reabre el wizard rehidratado para continuar un borrador (firmantes/campos). */
+  openContinuePanel(request: SignatureRequest): void {
+    this.continueRequestId.set(request.id);
     this.isPanelOpen.set(true);
   }
 
   closePanel(): void {
     this.isPanelOpen.set(false);
+    this.continueRequestId.set(null);
   }
 
   openTemplatePicker(): void {
@@ -185,6 +224,14 @@ export class SignaturePageComponent {
 
   closeTemplatePicker(): void {
     this.isTemplatePickerOpen.set(false);
+  }
+
+  openCategoryManager(): void {
+    this.isCategoryManagerOpen.set(true);
+  }
+
+  closeCategoryManager(): void {
+    this.isCategoryManagerOpen.set(false);
   }
 
   /**
@@ -201,34 +248,121 @@ export class SignaturePageComponent {
     );
   }
 
-  openCreator(): void {
-    this.isCreatorOpen.set(true);
+  openProfilesManager(): void {
+    this.isProfilesManagerOpen.set(true);
   }
 
-  closeCreator(): void {
-    this.isCreatorOpen.set(false);
-  }
-
-  /**
-   * La imagen se queda SOLO en memoria de esta pantalla.
-   *
-   * Ningún endpoint de Signature acepta un binario de firma: `SetPreparerBody`
-   * son tres strings y `preparer/sign` va sin body, así que no hay dónde
-   * enviarla. Decir "saved" prometía una persistencia que no existe — se pierde
-   * al recargar. Tampoco se guarda en localStorage a propósito: una firma
-   * manuscrita es un dato sensible y ahí la leería cualquier script de la página.
-   */
-  handleSignatureCreated(signature: CreatedSignature): void {
-    this.mySignature.set(signature);
-    this.closeCreator();
-    this.showToast('Signature ready — kept on this screen only, not stored on the server');
+  closeProfilesManager(): void {
+    this.isProfilesManagerOpen.set(false);
   }
 
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */
   handleSent(): void {
     this.closePanel();
-    this.store.reloadTop();
+    // La solicitud enviada queda InProgress: cae en "All" (no en el filtro previo, p. ej. Drafts).
+    this.store.setStatusFilter('All');
     this.showToast('Signature request sent — signers were notified by email');
+  }
+
+  /** El wizard guardó la solicitud como borrador sin enviarla. */
+  handleDraftSaved(): void {
+    this.closePanel();
+    // Cae en la pestaña Drafts (donde está el borrador recién guardado), no en el filtro previo.
+    this.store.setStatusFilter('Drafts');
+    this.showToast('Saved as draft — finish it from the Drafts tab when you are ready');
+  }
+
+  // ---------- Editar borrador (metadata) ----------
+
+  openEditModal(request: SignatureRequest): void {
+    this.actionError.set('');
+    this.editTitle.set(request.documentName);
+    this.editNotes.set(request.notes ?? '');
+    this.editCategory.set((request.category as SignatureCategory) ?? 'Fiscal');
+    this.editDueDate.set(request.dueDate ?? '');
+    this.editTarget.set(request);
+  }
+
+  closeEditModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.editTarget.set(null);
+  }
+
+  confirmEdit(): void {
+    const target = this.editTarget();
+    if (!target || this.actionBusy() || !this.isEditValid()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store
+      .updateRequest(target.id, {
+        title: this.editTitle().trim(),
+        description: this.editNotes().trim() || null,
+        category: this.editCategory(),
+        tokenExpirationHours: this.dueDateToHours(this.editDueDate()),
+      })
+      .subscribe({
+        next: () => {
+          this.actionBusy.set(false);
+          this.editTarget.set(null);
+          this.showToast(`Draft "${this.editTitle().trim()}" updated`);
+        },
+        error: err => {
+          this.actionBusy.set(false);
+          this.actionError.set(toApiError(err).message);
+        },
+      });
+  }
+
+  /** Fecha de expiración → horas desde ahora (rango del dominio); sin fecha = default. */
+  private dueDateToHours(due: string): number {
+    if (!due) {
+      return TOKEN_EXPIRATION_DEFAULT_HOURS;
+    }
+    const endOfDay = new Date(`${due}T23:59:59`);
+    const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
+    return Math.min(Math.max(hours, TOKEN_EXPIRATION_MIN_HOURS), TOKEN_EXPIRATION_MAX_HOURS);
+  }
+
+  // ---------- Borrar borrador ----------
+
+  openDeleteModal(request: SignatureRequest): void {
+    this.actionError.set('');
+    this.deleteTarget.set(request);
+  }
+
+  closeDeleteModal(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.deleteTarget.set(null);
+  }
+
+  confirmDelete(): void {
+    const target = this.deleteTarget();
+    if (!target || this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store.deleteRequest(target.id).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.deleteTarget.set(null);
+        if (this.previewRequest()?.id === target.id) {
+          this.previewRequest.set(null);
+        }
+        this.showToast(`Draft "${target.documentName}" deleted`);
+      },
+      error: err => {
+        this.actionBusy.set(false);
+        // El backend explica por qué no se puede borrar (p. ej. ya enviada/completada).
+        this.actionError.set(toApiError(err).message);
+      },
+    });
   }
 
   openPreview(request: SignatureRequest): void {
@@ -496,6 +630,10 @@ export class SignaturePageComponent {
   }
 
   // ---------- Descargas (CloudStorage download-url) ----------
+
+  downloadOriginal(request: SignatureRequest): void {
+    this.openDownload(request.originalFileId ?? null, 'Original document');
+  }
 
   downloadSealed(request: SignatureRequest): void {
     this.openDownload(request.sealedFileId ?? null, 'Signed document');

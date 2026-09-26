@@ -29,14 +29,6 @@ export interface TaskBoardApiResponse {
   totalCount: number;
 }
 
-/** Subset mínimo de GET /customers para el picker de cliente (réplica, no import de features/clients). */
-export interface TaskClientSummary {
-  id: string;
-  displayName: string;
-  primaryEmail: string;
-  status: 'Active' | 'Inactive' | 'Archived';
-}
-
 /** Fila mínima de GET /auth/users — solo para resolver nombre del asignado en las tarjetas (best-effort). */
 export interface TaskUserSummary {
   id: string;

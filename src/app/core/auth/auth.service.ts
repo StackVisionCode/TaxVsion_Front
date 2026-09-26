@@ -6,6 +6,7 @@ import { TokenService } from './token.service';
 import { ApiConfigService } from '../config/api-config.service';
 import { TenantBrandingService } from '../theme/tenant-branding.service';
 import {
+  AccountHandoffResponse,
   AuthTokens,
   ForgotPasswordRequest,
   LoginRequest,
@@ -14,12 +15,14 @@ import {
   MfaVerifyResponse,
   RefreshRequest,
   ResetPasswordRequest,
+  ValidateResetTokenRequest,
   TakeoverSessionRequest,
   TermsAcceptanceResponse,
   TermsAcceptanceStatusResponse,
   TermsVersionResponse,
 } from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
+import { AccountKind } from './central-login.model';
 
 /** Desenlace del login, ya interpretado por el servicio (el componente solo enruta). */
 export type LoginOutcome =
@@ -182,13 +185,38 @@ export class AuthService {
     );
   }
 
-  /** Siempre resuelve (202 anti-enumeración): el backend nunca revela si el email existe. */
-  forgotPassword(email: string): Observable<void> {
-    const req: ForgotPasswordRequest = { email, tenantId: environment.tenantId || null };
+  /**
+   * Siempre resuelve (202 anti-enumeración): el backend nunca revela si el email existe. `accountKind` dice
+   * qué cuenta se resetea: la del espacio de trabajo, o la del portal cuando se llega desde el login de clientes.
+   * En la dirección de una oficina el reset es solo de esa oficina; en la entrada general va al host de sistema
+   * y cubre todas las oficinas del email, aunque el navegador recuerde una.
+   */
+  forgotPassword(email: string, accountKind: AccountKind = 'Staff'): Observable<void> {
+    const req: ForgotPasswordRequest = { email, accountKind };
     if (environment.authMock) {
       return defer(() => of(void 0));
     }
-    return defer(() => this.http.post<void>(`${this.base}/auth/password/forgot`, req));
+    return defer(() => {
+      const base = this.api.officeFromHost() ? this.api.tenantBase() : this.api.systemBase();
+      return this.http.post<void>(`${base}/auth/password/forgot`, req);
+    });
+  }
+
+  /**
+   * "Manage subscription": vale de un solo uso (60 s) para abrir el Account del Landing sobre ESTA misma
+   * sesión, sin takeover. Solo TenantAdmin con `billing.view`; el backend responde 403 al resto.
+   */
+  requestAccountHandoff(): Observable<AccountHandoffResponse> {
+    return defer(() => this.http.post<AccountHandoffResponse>(`${this.base}/auth/account/handoff`, {}));
+  }
+
+  /** ¿El enlace de reset todavía sirve? Resuelve si sí; falla con `Auth.InvalidResetToken` si caducó, ya se usó o fue anulado. No lo consume. */
+  validateResetToken(token: string): Observable<void> {
+    const req: ValidateResetTokenRequest = { token };
+    if (environment.authMock) {
+      return defer(() => of(void 0));
+    }
+    return defer(() => this.http.post<void>(`${this.base}/auth/password/reset/validate`, req));
   }
 
   /** `token` sale del query param `?token=` del link emailado (`/reset-password?token=...`), no de un código tipeado. */

@@ -194,4 +194,80 @@
       </ng-template>
     </div>
   </div>
+
+  <!-- Assigned staff (solo admin/view_all) -->
+  @if (canViewAssignees()) {
+    <div class="bg-white rounded-[28px] p-6">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Assigned staff</h2>
+          <p class="mt-1 text-sm text-gray-500">Who can see and work this client</p>
+        </div>
+        @if (canAssignPreparer()) {
+          <button
+            type="button"
+            (click)="openAssign()"
+            class="flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-sm font-semibold text-brand-bold transition-colors hover:bg-indigo-100"
+          >
+            <ion-icon name="settings-outline"></ion-icon> Manage
+          </button>
+        }
+      </div>
+
+      @if (assigneeRows().length > 0) {
+        <div class="mt-5 flex flex-col gap-2">
+          @for (row of assigneeRows(); track row.userId) {
+            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                [ngClass]="row.member?.avatarColor ?? 'bg-slate-400'"
+                >{{ row.member?.initials ?? '?' }}</span
+              >
+              <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                  <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
+                  @if (row.member && !row.member.isActive) {
+                    <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600">Suspended</span>
+                  }
+                </p>
+                <p class="truncate text-xs text-gray-400">{{ row.member?.email }}</p>
+              </div>
+              @if (row.isPrimary) {
+                <span
+                  class="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-brand-bold"
+                >
+                  <ion-icon name="star"></ion-icon> Primary
+                </span>
+              } @else {
+                <span class="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-400">Access</span>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="mt-5 rounded-2xl border border-gray-100 px-4 py-8 text-center">
+          <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
+          <p class="mt-2 text-sm text-gray-500">No one is assigned yet</p>
+          @if (canAssignPreparer()) {
+            <button
+              type="button"
+              (click)="openAssign()"
+              class="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+            >
+              <ion-icon name="add-outline"></ion-icon> Assign staff
+            </button>
+          } @else {
+            <p class="mt-1 text-xs text-gray-400">An admin can assign staff to this client.</p>
+          }
+        </div>
+      }
+    </div>
+
+    <app-client-assign-dialog
+      mode="single"
+      [isOpen]="assignOpen()"
+      [client]="{ id: client.id, displayName: client.displayName }"
+      (closed)="onAssignClosed($event)"
+    ></app-client-assign-dialog>
+  }
 </div>

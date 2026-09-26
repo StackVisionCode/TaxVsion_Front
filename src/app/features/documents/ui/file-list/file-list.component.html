@@ -22,7 +22,12 @@
     @for (folder of subfolders; track folder.id) {
       <button type="button" (click)="action.emit({ kind: 'open-folder', folder })"
         class="doc-row flex flex-col gap-2 rounded-2xl border border-gray-100 bg-white p-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50">
-        <span class="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder" class="text-lg"></ion-icon></span>
+        <span class="flex items-start justify-between">
+          <span class="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder" class="text-lg"></ion-icon></span>
+          @if (folder.isShared) {
+            <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+          }
+        </span>
         <span class="truncate text-sm font-semibold text-gray-800">{{ folder.name }}</span>
         <span class="text-xs text-gray-400">Folder</span>
       </button>
@@ -39,6 +44,7 @@
         <div class="flex items-center gap-1.5 text-xs text-gray-400">
           <span>{{ size(file) }}</span>
           @if (status(file) !== 'ready') { <span>·</span><span class="capitalize">{{ status(file) }}</span> }
+          @if (file.isShared) { <span>·</span><span class="inline-flex items-center gap-0.5 font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span> }
         </div>
       </div>
     }
@@ -72,6 +78,9 @@
               <button type="button" (click)="action.emit({ kind: 'open-folder', folder })" class="flex min-w-0 items-center gap-2.5 text-left">
                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder" class="text-base"></ion-icon></span>
                 <span class="truncate font-semibold text-gray-800 group-hover:text-indigo-700">{{ folder.name }}</span>
+                @if (folder.isShared) {
+                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+                }
               </button>
             </td>
             <td class="hide-md hide-xs px-3 py-2.5 text-gray-400">Folder</td>
@@ -87,6 +96,7 @@
               } @else {
                 <div class="row-actions inline-flex items-center gap-0.5">
                   <button type="button" (click)="action.emit({ kind: 'rename-folder', folder })" title="Rename" aria-label="Rename folder" class="qbtn"><ion-icon name="create-outline"></ion-icon></button>
+                  <button type="button" (click)="action.emit({ kind: 'share-folder', folder })" title="Share" aria-label="Share folder" class="qbtn"><ion-icon name="share-social-outline"></ion-icon></button>
                   <button type="button" (click)="action.emit({ kind: 'move-folder', folder })" title="Move" aria-label="Move folder" class="qbtn"><ion-icon name="arrow-redo-outline"></ion-icon></button>
                   <button type="button" (click)="action.emit({ kind: 'delete-folder', folder })" title="Delete" aria-label="Delete folder" class="qbtn qbtn-danger"><ion-icon name="trash-outline"></ion-icon></button>
                 </div>
@@ -104,6 +114,9 @@
               <div class="flex min-w-0 items-center gap-2.5">
                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon [name]="fileIcon(file.originalName)" class="text-base"></ion-icon></span>
                 <button type="button" (click)="action.emit({ kind: 'select-file', file })" (dblclick)="action.emit({ kind: 'preview-file', file })" class="truncate text-left font-semibold text-gray-800 group-hover:text-indigo-700">{{ file.originalName }}</button>
+                @if (file.isShared) {
+                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+                }
               </div>
             </td>
             <td class="hide-md hide-xs px-3 py-2.5 text-gray-600">{{ extOf(file.originalName) }}</td>

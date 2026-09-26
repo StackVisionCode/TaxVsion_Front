@@ -1,19 +1,33 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Subject, debounceTime, distinctUntilChanged, of, switchMap, catchError, map } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  debounceTime,
+  distinctUntilChanged,
+  of,
+  switchMap,
+  catchError,
+  map,
+  tap,
+  throwError,
+} from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { parseUtcDateOrNull, utcTime } from '@shared/utils/utc-date.util';
 import { BillingService } from './billing.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   BillingCatalogItem,
-  BillingCustomerSummary,
   EMPTY_ISSUER_PROFILE,
   InvoiceBranding,
   InvoiceDetail,
   InvoiceLineDraft,
   InvoiceStatus,
+  InvoiceStatusHistoryEntry,
   InvoiceSummary,
   IssuerProfile,
+  NewCatalogItemInput,
   PaymentConfig,
   PaymentLink,
   PaymentLinkStatus,
@@ -63,6 +77,7 @@ export interface InvoiceMetrics {
 @Injectable()
 export class BillingStore {
   private readonly service = inject(BillingService);
+  private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
 
   // ---------- Facturas ----------
@@ -150,7 +165,10 @@ export class BillingStore {
   });
 
   readonly metrics = computed<InvoiceMetrics>(() => {
-    const invoices = this._invoices();
+    // Los cards resumen EXACTAMENTE lo que muestra la tabla: se calculan sobre el conjunto
+    // filtrado (estado + nº + rango de fechas), no sobre todo el lote cargado. Sin filtros
+    // activos, `filteredInvoices()` es el lote completo → mismo resultado que antes.
+    const invoices = this.filteredInvoices();
     // Un borrador todavía no debe nada: no se emitió. `Voided` tampoco cuenta.
     const billable = invoices.filter(inv => inv.status !== 'Draft' && inv.status !== 'Voided');
 
@@ -336,8 +354,36 @@ export class BillingStore {
   private readonly _selectedInvoice = signal<InvoiceSummary | null>(null);
   readonly selectedInvoice = this._selectedInvoice.asReadonly();
 
+  // Rastro de auditoría de estado (item 6.2) + enlaces de reemisión (6.3) de la factura seleccionada —
+  // se traen del endpoint /detail (el summary no los incluye).
+  private readonly _selectedHistory = signal<InvoiceStatusHistoryEntry[]>([]);
+  private readonly _selectedHistoryLoading = signal(false);
+  private readonly _selectedReplacesId = signal<string | null>(null);
+  private readonly _selectedReplacedById = signal<string | null>(null);
+  readonly selectedHistory = this._selectedHistory.asReadonly();
+  readonly selectedHistoryLoading = this._selectedHistoryLoading.asReadonly();
+  readonly selectedReplacesId = this._selectedReplacesId.asReadonly();
+  readonly selectedReplacedById = this._selectedReplacedById.asReadonly();
+
   selectInvoice(invoice: InvoiceSummary | null): void {
     this._selectedInvoice.set(invoice);
+    this._selectedHistory.set([]);
+    this._selectedReplacesId.set(null);
+    this._selectedReplacedById.set(null);
+    if (!invoice) {
+      return;
+    }
+    // El listado/summary no trae el historial ni los enlaces de reemisión: se leen del detalle.
+    this._selectedHistoryLoading.set(true);
+    this.service.getInvoiceDetail(invoice.id).subscribe({
+      next: detail => {
+        this._selectedHistory.set(detail.statusHistory ?? []);
+        this._selectedReplacesId.set(detail.replacesInvoiceId ?? null);
+        this._selectedReplacedById.set(detail.replacedByInvoiceId ?? null);
+        this._selectedHistoryLoading.set(false);
+      },
+      error: () => this._selectedHistoryLoading.set(false),
+    });
   }
 
   // ---------- Crear factura ----------
@@ -351,7 +397,7 @@ export class BillingStore {
    * una sola dirección: una vez creada, la factura ya no se puede editar.
    */
   createInvoice(
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -434,7 +480,7 @@ export class BillingStore {
   /** Guarda los cambios de una factura editable (borrador o emitida sin pagos). */
   updateInvoice(
     invoiceId: string,
-    customer: BillingCustomerSummary,
+    customer: CustomerSummary,
     customerTaxId: string,
     currency: string,
     lines: InvoiceLineDraft[],
@@ -536,9 +582,53 @@ export class BillingStore {
     });
   }
 
+  /**
+   * Cambio de estado MANUAL de una factura (item 6.2). El backend solo permite transiciones legales
+   * (hoy Issued⇄Sent) y audita cada una. Refresca la fila al terminar (el estado cambió).
+   */
+  changeInvoiceStatus(invoiceId: string, toStatus: InvoiceStatus, reason: string | null, onDone: () => void): void {
+    this._busyInvoiceId.set(invoiceId);
+    this.service.changeInvoiceStatus(invoiceId, toStatus, reason).subscribe({
+      next: () => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Invoice status updated.');
+        onDone();
+        this.refreshInvoice(invoiceId);
+        this.loadInvoices(true);
+      },
+      error: err => {
+        this._busyInvoiceId.set(null);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
+  /**
+   * Reemisión enlazada (item 6.3): anula la factura y crea un BORRADOR de reemplazo que arrastra el pago
+   * cobrado. Al terminar, recarga el listado y abre el reemplazo en el editor (vía `onReplacementReady`) para
+   * corregirlo antes de emitir.
+   */
+  reissueInvoice(invoiceId: string, reason: string | null, onReplacementReady: () => void): void {
+    this._busyInvoiceId.set(invoiceId);
+    this.service.reissueInvoice(invoiceId, reason).subscribe({
+      next: result => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Invoice voided. A draft replacement was created — correct it and issue.');
+        this._selectedInvoice.set(null);
+        this.loadInvoices(true);
+        // Abre el borrador de reemplazo en el formulario de edición para corregirlo.
+        this.beginEdit(result.replacementInvoiceId, onReplacementReady);
+      },
+      error: err => {
+        this._busyInvoiceId.set(null);
+        this.toast.error(toUserMessage(err));
+      },
+    });
+  }
+
   // ---------- Búsqueda de clientes (typeahead server-side) ----------
 
-  private readonly _customerResults = signal<BillingCustomerSummary[]>([]);
+  private readonly _customerResults = signal<CustomerSummary[]>([]);
   private readonly _customerSearching = signal(false);
   private readonly _customerSearch$ = new Subject<string>();
 
@@ -553,13 +643,42 @@ export class BillingStore {
 
   private readonly _catalogResults = signal<BillingCatalogItem[]>([]);
   private readonly _catalogSearching = signal(false);
+  private readonly _catalogCreating = signal(false);
   private readonly _catalogSearch$ = new Subject<string>();
 
   readonly catalogResults = this._catalogResults.asReadonly();
   readonly catalogSearching = this._catalogSearching.asReadonly();
+  readonly catalogCreating = this._catalogCreating.asReadonly();
 
   searchCatalog(term: string): void {
     this._catalogSearch$.next(term.trim());
+  }
+
+  /**
+   * Alta rápida de un producto/servicio SIN salir del formulario de factura. El backend exige una
+   * categoría, así que se resuelve (o se crea al vuelo) una categoría "General" y se usa su id. Al
+   * terminar, se prepende el ítem a los resultados del picker (aparece al instante) y devuelve el ítem
+   * creado para que el formulario lo agregue a la línea en curso. Un fallo muestra toast y se propaga.
+   */
+  createCatalogItem(input: NewCatalogItemInput): Observable<BillingCatalogItem> {
+    this._catalogCreating.set(true);
+    return this.service.listCatalogCategories().pipe(
+      switchMap(categories => {
+        const general = categories.find(c => c.name.trim().toLowerCase() === 'general');
+        return general ? of(general) : this.service.createCatalogCategory('General');
+      }),
+      switchMap(category => this.service.createCatalogItem(input, category.id)),
+      tap(created => {
+        this._catalogCreating.set(false);
+        // Aparece de inmediato en el picker (sin esperar la re-búsqueda) y sin duplicar.
+        this._catalogResults.update(items => [created, ...items.filter(item => item.id !== created.id)]);
+      }),
+      catchError(err => {
+        this._catalogCreating.set(false);
+        this.toast.error(toUserMessage(err));
+        return throwError(() => err);
+      }),
+    );
   }
 
   // ---------- Proveedor de cobro ----------
@@ -709,6 +828,7 @@ export class BillingStore {
           phone: profile.phone || '',
           email: profile.email || '',
           website: profile.website || '',
+          defaultCurrency: profile.defaultCurrency || 'USD',
         }),
       // El backend sintetiza un perfil vacío cuando no hay fila: un error acá no es "no existe".
       error: () => this._issuer.set({ ...EMPTY_ISSUER_PROFILE }),
@@ -865,7 +985,9 @@ export class BillingStore {
         distinctUntilChanged(),
         switchMap(term => {
           this._customerSearching.set(true);
-          return this.service.searchCustomers(term).pipe(catchError(() => of<BillingCustomerSummary[]>([])));
+          return this.directory
+            .search({ term, status: 'NotArchived', size: 20 })
+            .pipe(map(p => p.items), catchError(() => of<CustomerSummary[]>([])));
         }),
       )
       .subscribe(items => {
@@ -878,7 +1000,8 @@ export class BillingStore {
     this._catalogSearch$
       .pipe(
         debounceTime(250),
-        distinctUntilChanged(),
+        // Sin distinctUntilChanged: reabrir el picker reemite el mismo término ('') y DEBE recargar
+        // el catálogo, para que un producto/servicio recién creado aparezca sin refrescar la página.
         switchMap(term => {
           this._catalogSearching.set(true);
           return this.service.searchCatalogItems(term).pipe(

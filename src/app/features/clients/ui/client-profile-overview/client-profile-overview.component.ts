@@ -1,9 +1,13 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, inject } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
-import { CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
+import { CustomerAssignee, CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
 import { ApiTaskPriority } from '../../data-access/client-work.model';
 import { ClientOverviewStore } from '../../data-access/client-overview.store';
+import { ClientPermissions } from '../../data-access/client-permissions';
+import { ClientsStore } from '../../data-access/clients.store';
+import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
+import { ClientAssignDialogComponent } from '../client-assign-dialog/client-assign-dialog.component';
 import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
 import { formatPhoneForDisplay } from '../../utils/customer-form-normalizers';
 
@@ -52,7 +56,7 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
  */
 @Component({
   selector: 'app-client-profile-overview',
-  imports: [CommonModule, CountUpDirective],
+  imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-overview.component.html',
 })
@@ -60,10 +64,39 @@ export class ClientProfileOverviewComponent implements OnChanges {
   @Input() client!: ClientProfile;
 
   readonly summary = inject(ClientOverviewStore);
+  private readonly staff = inject(StaffDirectoryStore);
+  private readonly perms = inject(ClientPermissions);
+  private readonly store = inject(ClientsStore);
+
+  // Roster de asignados (solo admin/view_all lo ve; el backend no lo envía a un no-admin).
+  readonly canViewAssignees = this.perms.canViewAssignees;
+  readonly canAssignPreparer = this.perms.canAssignPreparer;
+  private readonly _assignees = signal<CustomerAssignee[]>([]);
+  readonly assignOpen = signal(false);
+
+  /** Asignados resueltos a staff (reactivo al directorio: los avatares se rellenan al cargar). */
+  readonly assigneeRows = computed(() => {
+    const byId = new Map(this.staff.members().map(m => [m.userId, m]));
+    return this._assignees().map(a => ({ userId: a.userId, isPrimary: a.isPrimary, member: byId.get(a.userId) }));
+  });
 
   ngOnChanges(): void {
     if (this.client?.id) {
       this.summary.load(this.client.id);
+      this._assignees.set(this.client.assignees ?? []);
+      this.staff.ensureLoaded();
+    }
+  }
+
+  openAssign(): void {
+    this.assignOpen.set(true);
+  }
+
+  /** Al cerrar el diálogo: si hubo cambios, re-lee los asignados para refrescar la tarjeta. */
+  onAssignClosed(changed: boolean): void {
+    this.assignOpen.set(false);
+    if (changed && this.client?.id) {
+      this.store.getById(this.client.id).subscribe(detail => this._assignees.set(detail.assignees ?? []));
     }
   }
 
