@@ -23,6 +23,7 @@ import {
   TOKEN_EXPIRATION_MAX_HOURS,
   TOKEN_EXPIRATION_MIN_HOURS,
 } from '../../data-access/signature.model';
+import { SignatureCapabilities } from '../../data-access/signature-permissions';
 
 const STATUS_FILTERS: SignatureStatusFilter[] = [
   'All',
@@ -76,6 +77,9 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   templateUrl: './signature-page.component.html',
 })
 export class SignaturePageComponent {
+  /** B6 — la cabecera mostraba las 5 acciones a todos; las plantillas daban 403 al empleado. */
+  protected readonly can = inject(SignatureCapabilities);
+
   readonly store = inject(SignatureStore);
 
   readonly statusFilters = STATUS_FILTERS;

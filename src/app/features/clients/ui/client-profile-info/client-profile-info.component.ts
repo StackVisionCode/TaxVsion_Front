@@ -22,6 +22,10 @@ export class ClientProfileInfoComponent {
   @Input() revealingTaxId = false;
   /** true = el usuario puede crear/editar el perfil fiscal (customers.manage + admin). */
   @Input() canEditFiscal = false;
+  /** `customers.manage`: sin él, los lápices de editar no se muestran (el backend da 403). */
+  @Input() canManage = false;
+  /** `customers.fiscalprofile.reveal`: permiso PROPIO, no alcanza con poder editar al cliente. */
+  @Input() canReveal = false;
 
   @Output() revealTaxId = new EventEmitter<string>();
   @Output() editFiscal = new EventEmitter<void>();

@@ -19,6 +19,7 @@ import { BusinessStructure, ClientItem, ClientType } from '../client-table/clien
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { toApiError } from '@core/models/api-error.model';
 import { ClientSaveOptions, ClientsStore } from '../../data-access/clients.store';
+import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsService } from '../../data-access/clients.service';
 import { CatalogOption, CatalogPickerComponent } from '../catalog-picker/catalog-picker.component';
 import {
@@ -88,6 +89,18 @@ interface DuplicateMatch {
 })
 export class ClientFormPanelComponent implements OnChanges {
   private readonly store = inject(ClientsStore);
+  private readonly caps = inject(ClientPermissions);
+
+  /**
+   * B5 — el SSN/EIN y el toggle Active se guardan con DOS llamadas aparte, cada una con su
+   * permiso. A quien no puede hacerlas no se le muestran los campos: antes los llenaba, el alta
+   * decía "guardado" y el dato se perdía sin decir nada (el 403 se tragaba con un `catchError`).
+   */
+  readonly canSetFiscal = this.caps.canSetFiscalProfile;
+  readonly canChangeStatus = this.caps.canChangeStatus;
+
+  /** Lo que el servidor no aceptó del último guardado. Null = se guardó todo. */
+  readonly partialSaveWarning = this.store.partialSaveWarning;
   private readonly clientsService = inject(ClientsService);
   private readonly router = inject(Router);
 

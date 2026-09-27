@@ -17,8 +17,11 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
 import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 import { SeatsPanelComponent } from '../../ui/seats-panel/seats-panel.component';
+import { UserManagementCapabilities } from '../../data-access/user-management-permissions';
+import { RolesPanelComponent } from '../../ui/roles-panel/roles-panel.component';
+import { RolesStore } from '../../data-access/roles.store';
 
-type TeamTab = 'members' | 'invitations' | 'seats';
+type TeamTab = 'members' | 'invitations' | 'roles' | 'seats';
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -47,11 +50,17 @@ const SEARCH_DEBOUNCE_MS = 300;
     SeatsPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
+    RolesPanelComponent,
   ],
+  // B9 — el store de roles vive con la pantalla, no en root: salir de acá tira su estado.
+  providers: [RolesStore],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-management-page.component.html',
 })
 export class UserManagementPageComponent {
+  /** B6 — la §34 marcaba esta pantalla entera como "todo visible". */
+  protected readonly can = inject(UserManagementCapabilities);
+
   private readonly store = inject(UserManagementStore);
   private readonly seatStore = inject(SeatPurchaseStore);
   private readonly toastService = inject(ToastService);

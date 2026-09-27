@@ -52,13 +52,26 @@ describe('UserManagementService — permission overrides', () => {
     expect(received).toEqual(expected);
   });
 
-  it('setPermissionOverrides PUTs the deny set as { deniedPermissionIds }', () => {
+  it('setPermissionOverrides manda el motivo y la expiración, y también la forma simple', () => {
+    // B9 — el backend prefiere `denies` (con motivo y vencimiento); `deniedPermissionIds` se manda
+    // igual para que un servidor que todavía no la entienda siga funcionando.
     let completed = false;
-    service.setPermissionOverrides('u1', ['p1', 'p2']).subscribe(() => (completed = true));
+    service
+      .setPermissionOverrides('u1', [
+        { permissionId: 'p1', reason: 'On leave', expiresAtUtc: '2026-12-31T23:59:59Z' },
+        { permissionId: 'p2', reason: null, expiresAtUtc: null },
+      ])
+      .subscribe(() => (completed = true));
 
     const request = httpMock.expectOne(`${base}/users/u1/permission-overrides`);
     expect(request.request.method).toBe('PUT');
-    expect(request.request.body).toEqual({ deniedPermissionIds: ['p1', 'p2'] });
+    expect(request.request.body).toEqual({
+      denies: [
+        { permissionId: 'p1', reason: 'On leave', expiresAtUtc: '2026-12-31T23:59:59Z' },
+        { permissionId: 'p2', reason: null, expiresAtUtc: null },
+      ],
+      deniedPermissionIds: ['p1', 'p2'],
+    });
     request.flush(null);
 
     expect(completed).toBe(true);
@@ -68,7 +81,7 @@ describe('UserManagementService — permission overrides', () => {
     service.setPermissionOverrides('u1', []).subscribe();
 
     const request = httpMock.expectOne(`${base}/users/u1/permission-overrides`);
-    expect(request.request.body).toEqual({ deniedPermissionIds: [] });
+    expect(request.request.body).toEqual({ denies: [], deniedPermissionIds: [] });
     request.flush(null);
   });
 });

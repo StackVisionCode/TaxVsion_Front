@@ -81,6 +81,8 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   @Output() loadMoreRequested = new EventEmitter<void>();
   @Output() restoreRequested = new EventEmitter<string>();
   @Output() purgeRequested = new EventEmitter<string>();
+  /** B6 — restaurar y borrar para siempre exigen `correspondence.manage`, no `read`. */
+  @Input() canManage = true;
 
   readonly search = signal('');
 

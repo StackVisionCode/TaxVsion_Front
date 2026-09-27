@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { PermissionService } from '@core/auth/permission.service';
 import { DocumentsService } from '@features/documents/data-access/documents.service';
 import { AuthService } from '@core/auth/auth.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -22,6 +23,7 @@ const MANAGE_PERMISSION = 'cloudstorage.settings.manage';
   styleUrl: './public-sharing-setting.component.css',
 })
 export class PublicSharingSettingComponent {
+  private readonly perms = inject(PermissionService);
   private readonly documents = inject(DocumentsService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
@@ -31,7 +33,7 @@ export class PublicSharingSettingComponent {
   readonly saving = signal(false);
 
   /** Solo con el permiso de gestión se puede cambiar; el resto lo ve en lectura. */
-  readonly canManage = computed(() => this.auth.currentUser()?.permissions?.includes(MANAGE_PERMISSION) ?? false);
+  readonly canManage = computed(() => this.perms.has(MANAGE_PERMISSION));
 
   constructor() {
     this.documents.getUsage().subscribe({

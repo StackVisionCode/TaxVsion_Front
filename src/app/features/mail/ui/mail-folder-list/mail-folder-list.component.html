@@ -1,5 +1,5 @@
 <div class="flex flex-col gap-4">
-  <button type="button" (click)="compose()" [disabled]="composeDisabled"
+  <button *ngIf="canCompose" type="button" (click)="compose()" [disabled]="composeDisabled"
     class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-bold px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 disabled:hover:bg-brand-bold transition-colors">
     <ion-icon name="create-outline" class="text-base"></ion-icon>
     Compose

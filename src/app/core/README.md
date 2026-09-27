@@ -2,7 +2,7 @@
 
 Singletons de infraestructura. Cero UI. `core/*` nunca importa de `features/*` ni de `shared/ui/*`.
 
-- `auth/` — token.service, auth.guard, role.guard, permission.guard.
+- `auth/` — token.service, auth.guard, role.guard. El acceso por feature vive en `access/` (B4).
 - `http/` — interceptores funcionales (`HttpInterceptorFn`): auth, error, ensamblados en `http.providers.ts`.
 - `errors/` — manejo global de errores.
 - `realtime/` — infraestructura de sockets transversal.

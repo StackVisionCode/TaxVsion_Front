@@ -68,6 +68,8 @@ export class TaskDetailDrawerComponent implements OnChanges {
 
   /** Tarjeta del tablero (nombres ya resueltos). null = drawer cerrado. */
   @Input() task: TaskItem | null = null;
+  /** B6 — el detalle se puede MIRAR con `tasks.read`; editarlo pide `tasks.write`. */
+  @Input() canWrite = true;
 
   @Output() closed = new EventEmitter<void>();
   @Output() editRequested = new EventEmitter<TaskItem>();

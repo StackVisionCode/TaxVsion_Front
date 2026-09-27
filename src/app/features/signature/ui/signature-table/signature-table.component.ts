@@ -1,6 +1,7 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
+import { SignatureCapabilities } from '../../data-access/signature-permissions';
 
 export type SignerStatus = 'pending' | 'signed' | 'rejected' | 'expired';
 
@@ -118,6 +119,13 @@ export function isActionableStatus(status: SignatureStatus): boolean {
   templateUrl: './signature-table.component.html',
 })
 export class SignatureTableComponent {
+  /**
+   * B6 — hasta acá las acciones de fila se decidían SOLO por el estado de la solicitud. El estado
+   * dice si la acción tiene sentido; el permiso, si esta persona puede hacerla. Hacían falta las
+   * dos: "Cancel" y "Extend" se ofrecían a todos y el backend contestaba 403.
+   */
+  private readonly can = inject(SignatureCapabilities);
+
   @Input() requests: SignatureRequest[] = [];
   @Output() previewRequested = new EventEmitter<SignatureRequest>();
   @Output() sendRequested = new EventEmitter<SignatureRequest>();
@@ -235,11 +243,13 @@ export class SignatureTableComponent {
   }
 
   canCancel(request: SignatureRequest): boolean {
-    return this.isSent(request);
+    return this.isSent(request) && this.can.canCancel();
   }
 
   canExtend(request: SignatureRequest): boolean {
-    return this.isSent(request);
+    // `signature.request.expire`, NO `request.cancel`: darle más días a una solicitud y matarla
+    // son decisiones distintas y el backend las separa.
+    return this.isSent(request) && this.can.canExtend();
   }
 
   /**
@@ -252,12 +262,16 @@ export class SignatureTableComponent {
    * (pending/in-progress) o cerrada, no se ofrece: fijarlo daba error en el backend.
    */
   canManagePin(request: SignatureRequest): boolean {
-    return request.status === 'draft' || request.status === 'ready';
+    return (request.status === 'draft' || request.status === 'ready') && this.can.canCreate();
   }
 
   /** Solo tiene sentido reenviar cuando la solicitud está en curso y queda alguien pendiente. */
   canResend(request: SignatureRequest): boolean {
-    return request.status === 'in-progress' && request.signers.some(s => s.status === 'pending');
+    return (
+      request.status === 'in-progress' &&
+      request.signers.some(s => s.status === 'pending') &&
+      this.can.canResend()
+    );
   }
 
   hasSealed(request: SignatureRequest): boolean {
@@ -288,7 +302,7 @@ export class SignatureTableComponent {
    * Un borrador incompleto (sin campos) no ofrece Enviar: hay que terminarlo con "Continue editing".
    */
   canSendRow(request: SignatureRequest): boolean {
-    return request.status === 'ready' && !!request.hasSignatureField;
+    return request.status === 'ready' && !!request.hasSignatureField && this.can.canCreate();
   }
 
   onSendClick(request: SignatureRequest, event: MouseEvent): void {
@@ -299,7 +313,7 @@ export class SignatureTableComponent {
 
   /** Editar/borrar solo aplica a un borrador sin enviar (Draft/Ready). */
   canEditDraft(request: SignatureRequest): boolean {
-    return request.status === 'draft' || request.status === 'ready';
+    return (request.status === 'draft' || request.status === 'ready') && this.can.canCreate();
   }
 
   onContinueClick(request: SignatureRequest, event: MouseEvent): void {

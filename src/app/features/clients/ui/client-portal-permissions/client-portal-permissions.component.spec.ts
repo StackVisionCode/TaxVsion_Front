@@ -45,8 +45,10 @@ describe('ClientPortalPermissionsComponent', () => {
               { id: 'p9', code: 'portal.miles.use', module: 'portal', description: '', isCustomerPortal: true },
               { id: 'p8', code: 'customers.view', module: 'customers', description: '', isCustomerPortal: false },
             ]),
-      setPermissionOverrides: (_userId: string, denied: string[]) => {
-        saved.push([...denied].sort());
+      // B9: la firma pasó de ids sueltos a denies con motivo y vencimiento. Acá solo interesan
+      // los ids, así que se extraen.
+      setPermissionOverrides: (_userId: string, denies: readonly { permissionId: string }[]) => {
+        saved.push(denies.map(deny => deny.permissionId).sort());
         return of(undefined);
       },
     };

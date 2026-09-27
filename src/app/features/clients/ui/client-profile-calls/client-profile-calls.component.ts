@@ -1,8 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, SimpleChanges, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CallsService } from '@core/communication/calls.service';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { CallKind, CustomerCallItem, CustomerCallsStats } from '@core/communication/call.model';
+import { AccessStore } from '@core/access/access.store';
 
 /**
  * Pestaña "Calls" del perfil de cliente. El historial in-app se atribuye al cliente por su UserId de
@@ -17,6 +18,16 @@ import { CallKind, CustomerCallItem, CustomerCallsStats } from '@core/communicat
   templateUrl: './client-profile-calls.component.html',
 })
 export class ClientProfileCallsComponent implements OnChanges {
+  private readonly access = inject(AccessStore);
+
+  /**
+   * B6 — audio y vídeo son permisos SEPARADOS en el backend
+   * (`communication.call.start` y `communication.videocall.start`): se puede tener uno sin el otro,
+   * y hasta acá se ofrecían los dos botones a cualquiera.
+   */
+  protected readonly canStartAudio = computed(() => this.access.can('communication.call.start'));
+  protected readonly canStartVideo = computed(() => this.access.can('communication.videocall.start'));
+
   private readonly calls = inject(CallsService);
   private readonly activeCall = inject(ActiveCallService);
 

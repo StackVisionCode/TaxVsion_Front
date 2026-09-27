@@ -66,19 +66,25 @@
 
     <div class="mt-5 flex flex-wrap gap-2">
       @if (ready) {
-        <button type="button" (click)="download.emit(file)"
-          class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
-          <ion-icon name="download-outline"></ion-icon> Download
+        @if (canDownload) {
+          <button type="button" (click)="download.emit(file)"
+            class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
+            <ion-icon name="download-outline"></ion-icon> Download
+          </button>
+        }
+      }
+      @if (canMove) {
+        <button type="button" (click)="move.emit(file)"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+          <ion-icon name="arrow-redo-outline"></ion-icon> Move
         </button>
       }
-      <button type="button" (click)="move.emit(file)"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
-        <ion-icon name="arrow-redo-outline"></ion-icon> Move
-      </button>
-      <button type="button" (click)="remove.emit(file)"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 hover:border-red-100">
-        <ion-icon name="trash-outline"></ion-icon> Delete
-      </button>
+      @if (canDelete) {
+        <button type="button" (click)="remove.emit(file)"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 hover:border-red-100">
+          <ion-icon name="trash-outline"></ion-icon> Delete
+        </button>
+      }
     </div>
 
     <!-- Links compartidos: ver y revocar lo que se creó sobre este archivo. El link completo no se
@@ -111,10 +117,12 @@
                     {{ share.accessCount }}@if (share.maxAccessCount) { / {{ share.maxAccessCount }} } opened
                   </p>
                 </div>
-                <button type="button" (click)="revokeShare.emit(share.id)" title="Revoke" aria-label="Revoke link"
-                  class="shrink-0 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-100 hover:bg-red-50">
-                  Revoke
-                </button>
+                @if (canRevokeShare) {
+                  <button type="button" (click)="revokeShare.emit(share.id)" title="Revoke" aria-label="Revoke link"
+                    class="shrink-0 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-100 hover:bg-red-50">
+                    Revoke
+                  </button>
+                }
               </div>
             </li>
           }

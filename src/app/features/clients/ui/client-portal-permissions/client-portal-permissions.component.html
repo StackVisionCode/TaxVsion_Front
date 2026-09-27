@@ -41,11 +41,16 @@
         </span>
 
         <!-- Interruptor maestro del módulo -->
-        <span class="sw" [title]="moduleAllowed(module) ? 'Restrict everything here' : 'Restore everything here'">
+        <!-- `label`, no `span`: el <input> del interruptor es 0x0 con opacity 0 (lo visible es `.track`),
+             así que sin la asociación del label un clic del usuario no llega al control. Las filas
+             funcionaban porque la fila entera ERA un label; la cabecera del módulo no, y por eso el
+             maestro parecía muerto. -->
+        <label class="sw" (click)="$event.stopPropagation()"
+          [title]="moduleAllowed(module) ? 'Restrict everything here' : 'Restore everything here'">
           <input type="checkbox" [attr.aria-label]="'Allow all of ' + module.label" [checked]="moduleAllowed(module)"
             (change)="setModuleAllowed(module, $any($event.target).checked)" />
           <span class="track"></span>
-        </span>
+        </label>
       </div>
 
       <!-- Capacidades -->

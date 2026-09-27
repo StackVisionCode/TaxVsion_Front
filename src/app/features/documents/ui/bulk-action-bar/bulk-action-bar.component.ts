@@ -13,9 +13,9 @@ import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitte
     <div class="bulk-bar pointer-events-auto flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 pl-4 shadow-lg">
       <span class="whitespace-nowrap text-sm font-bold text-gray-800">{{ count }} selected</span>
       <span class="mx-0.5 h-5 w-px bg-gray-200"></span>
-      <button type="button" (click)="download.emit()" class="bulk-btn"><ion-icon name="download-outline"></ion-icon> Download</button>
-      <button type="button" (click)="move.emit()" class="bulk-btn"><ion-icon name="arrow-redo-outline"></ion-icon> Move</button>
-      <button type="button" (click)="delete.emit()" class="bulk-btn bulk-btn-danger"><ion-icon name="trash-outline"></ion-icon> Delete</button>
+      @if (canDownload) { <button type="button" (click)="download.emit()" class="bulk-btn"><ion-icon name="download-outline"></ion-icon> Download</button> }
+      @if (canMove) { <button type="button" (click)="move.emit()" class="bulk-btn"><ion-icon name="arrow-redo-outline"></ion-icon> Move</button> }
+      @if (canDelete) { <button type="button" (click)="delete.emit()" class="bulk-btn bulk-btn-danger"><ion-icon name="trash-outline"></ion-icon> Delete</button> }
       <span class="mx-0.5 h-5 w-px bg-gray-200"></span>
       <button type="button" (click)="clear.emit()" class="rounded-full px-3 py-1.5 text-sm font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800">
         Clear
@@ -69,6 +69,10 @@ import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitte
 })
 export class BulkActionBarComponent {
   @Input() count = 0;
+  /** B6 — cada acción en lote tiene su permiso; la barra solo muestra las que se pueden hacer. */
+  @Input() canDownload = true;
+  @Input() canMove = true;
+  @Input() canDelete = true;
   @Output() download = new EventEmitter<void>();
   @Output() move = new EventEmitter<void>();
   @Output() delete = new EventEmitter<void>();

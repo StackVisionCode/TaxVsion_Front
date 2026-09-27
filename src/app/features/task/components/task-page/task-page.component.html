@@ -145,7 +145,7 @@
       <!-- Board / List -->
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         @if (viewMode() === 'board') {
-          <app-task-board [tasks]="visibleTasks()" [labelOverrides]="store.labelOverrides()"
+          <app-task-board [tasks]="visibleTasks()" [labelOverrides]="store.labelOverrides()" [canWrite]="canWrite()"
             (taskOpened)="openDrawer($event)" (statusChanged)="changeStatus($event)"></app-task-board>
         } @else {
           <app-task-list [tasks]="visibleTasks()" (taskOpened)="openDrawer($event)"
@@ -173,7 +173,7 @@
 <app-task-labels-modal [isOpen]="isLabelsOpen()" (closed)="closeLabels()"></app-task-labels-modal>
 
 <!-- Detail drawer (click en una tarjeta) -->
-<app-task-detail-drawer [task]="drawerTask()" (closed)="closeDrawer()"
+<app-task-detail-drawer [task]="drawerTask()" [canWrite]="canWrite()" (closed)="closeDrawer()"
   (editRequested)="editFromDrawer($event)" (changed)="onDrawerChanged()"></app-task-detail-drawer>
 
 <!-- Create / edit overlay -->

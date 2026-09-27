@@ -92,7 +92,7 @@
         </div>
       </div>
 
-      <button type="button" (click)="openEditPanel()"
+      <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
         class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
         <ion-icon name="create-outline" class="text-base"></ion-icon>
         Edit
@@ -101,7 +101,7 @@
 
     <!-- Tab nav -->
     <div class="mt-6 flex flex-wrap gap-2">
-      <ng-container *ngFor="let item of navItems">
+      <ng-container *ngFor="let item of navItems()">
         <!-- Single tab -->
         <button *ngIf="item.kind === 'tab'" type="button" (click)="selectTab(item.id)"
           class="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
@@ -156,14 +156,15 @@
         (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
         (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
       <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
-        [canEditFiscal]="canEditFiscal()" (revealTaxId)="handleRevealTaxId($event)"
+        [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
+        (revealTaxId)="handleRevealTaxId($event)"
         (editFiscal)="openFiscalForm()" (edit)="openEditPanel()"></app-client-profile-info>
     </div>
   }
 
   <!-- Info ▸ Family: hogar fiscal (cónyuge + dependientes) -->
   @if (activeTab() === 'family') {
-    <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()"
+    <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()" [canManage]="canManage()"
       (saveRelation)="handleSaveRelation($event)"
       (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
   }

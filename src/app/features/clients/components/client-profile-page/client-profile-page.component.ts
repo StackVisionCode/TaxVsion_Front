@@ -2,6 +2,8 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, effect, inje
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { AccessStore } from '@core/access/access.store';
+import { AccessRequirement } from '@core/access/features';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
 import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
@@ -105,6 +107,21 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   { kind: 'tab', id: 'portal', label: 'Portal' },
 ];
 
+/**
+ * B5 — qué hace falta para que una pestaña tenga contenido. Lo que no está acá no depende de
+ * nada: Overview, Details y Family son el propio cliente, y quien llegó a esta pantalla ya pasó
+ * por `customers.view`; Invoices, Bank y Mileage son estados vacíos declarados, sin backend
+ * todavía. Lo que se gatea es lo que llama a OTRO servicio y hoy contesta 403 en silencio.
+ */
+const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
+  documents: { module: 'documents', anyOf: ['cloudstorage.file.view'] },
+  work: { module: 'planner', anyOf: ['tasks.read'] },
+  notes: { module: 'planner', anyOf: ['notes.read'] },
+  reminders: { module: 'planner', anyOf: ['reminders.read'] },
+  communication: { module: 'email', anyOf: ['correspondence.read'] },
+  calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
+};
+
 const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 /**
@@ -171,8 +188,28 @@ export class ClientProfilePageComponent {
 
   /** Puede crear/editar el perfil fiscal (customers.manage + actor admin). */
   readonly canEditFiscal = this.caps.canSetFiscalProfile;
+  /** Editar el cliente, sus direcciones, contactos y el hogar fiscal. */
+  readonly canManage = this.caps.canManage;
+  /** Destapar SSN/EIN. Permiso propio: poder editar al cliente NO alcanza. */
+  readonly canReveal = this.caps.canRevealFiscal;
 
-  readonly navItems = PROFILE_NAV;
+  private readonly access = inject(AccessStore);
+
+  /**
+   * La fila de pestañas, ya filtrada. Un grupo cuyas pestañas se fueron todas desaparece con
+   * ellas: un desplegable vacío es peor que no tener el desplegable.
+   */
+  readonly navItems = computed<ClientProfileNavEntry[]>(() =>
+    PROFILE_NAV.map(entry =>
+      entry.kind === 'tab' ? entry : { ...entry, tabs: entry.tabs.filter(tab => this.canOpen(tab.id)) },
+    ).filter(entry => (entry.kind === 'tab' ? this.canOpen(entry.id) : entry.tabs.length > 0)),
+  );
+
+  private canOpen(id: ClientProfileTabId): boolean {
+    const requirement = TAB_ACCESS[id];
+    return requirement === undefined || this.access.canUse(requirement);
+  }
+
   readonly activeTab = signal<ClientProfileTabId>('overview');
 
   /** Label del grupo (Finance/Activity) cuyo dropdown está abierto, o null si ninguno. */
@@ -507,6 +544,11 @@ export class ClientProfilePageComponent {
   }
 
   selectTab(id: ClientProfileTabId): void {
+    // Nunca se abre lo que la fila no muestra: el deep link `?tab=notes` de mañana, o un estado
+    // viejo cuando el plan cambia en vivo, entrarían por acá.
+    if (!this.canOpen(id)) {
+      return;
+    }
     this.activeTab.set(id);
     this.openGroupLabel.set(null);
   }

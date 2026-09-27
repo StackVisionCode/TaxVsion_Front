@@ -28,6 +28,7 @@ import {
   invoicesToCsv,
   paymentLinkUrl,
 } from '../../data-access/billing.model';
+import { AdminCapabilities } from '@core/access/admin-capabilities';
 
 /** Pestañas de la sección. */
 type BillingTab = 'invoices' | 'links';
@@ -60,6 +61,9 @@ type BillingTab = 'invoices' | 'links';
   templateUrl: './billing-page.component.html',
 })
 export class BillingPageComponent implements OnInit {
+  /** B6 — los links de pago son `payment_client.payment_link.manage`, no `invoicing.*`. */
+  protected readonly can = inject(AdminCapabilities);
+
   readonly store = inject(BillingStore);
 
   /**

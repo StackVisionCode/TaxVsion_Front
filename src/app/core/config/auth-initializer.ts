@@ -1,5 +1,6 @@
 import { EnvironmentProviders, inject, provideAppInitializer } from '@angular/core';
 import { catchError, of } from 'rxjs';
+import { AccessStore } from '@core/access/access.store';
 import { AuthService } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
 
@@ -14,6 +15,7 @@ export function provideAuthInitializer(): EnvironmentProviders {
   return provideAppInitializer(() => {
     const tokenService = inject(TokenService);
     const auth = inject(AuthService);
+    const access = inject(AccessStore);
     if (!tokenService.isAuthenticated()) {
       return;
     }
@@ -22,6 +24,10 @@ export function provideAuthInitializer(): EnvironmentProviders {
     // (AuthService.termsStatus) en vez de abrir una segunda en serie: eso es un round-trip
     // menos antes de pintar el shell. No se espera aquí a propósito — no debe bloquear.
     auth.termsStatus().subscribe({ error: () => {} });
+    // El bootstrap de acceso (permisos efectivos + módulos del plan) va en paralelo y tampoco
+    // bloquea: si el backend todavía no tiene A5, el store se queda con su respaldo y la UI se
+    // comporta como hasta ahora.
+    access.load();
     return auth.me().pipe(catchError(() => of(null)));
   });
 }

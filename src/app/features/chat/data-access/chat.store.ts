@@ -1,3 +1,4 @@
+import { PermissionService } from '@core/auth/permission.service';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, Subscription, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -73,6 +74,7 @@ function formatDateGroup(iso: string): string {
  */
 @Injectable({ providedIn: 'root' })
 export class ChatStore {
+  private readonly perms = inject(PermissionService);
   private readonly chatService = inject(ChatService);
   private readonly socket = inject(ChatSocketService);
   private readonly auth = inject(AuthService);
@@ -140,17 +142,17 @@ export class ChatStore {
 
   /** communication.group.create solo lo tiene Tenant Admin por defecto — ver MeResponse.permissions. */
   readonly canCreateGroups = computed(
-    () => this.auth.currentUser()?.permissions.includes('communication.group.create') ?? false,
+    () => this.perms.has('communication.group.create'),
   );
 
   /** Permiso para iniciar llamadas de audio 1:1 (el backend exige communication.call.start en initiate). */
   readonly canStartAudioCall = computed(
-    () => this.auth.currentUser()?.permissions.includes('communication.call.start') ?? false,
+    () => this.perms.has('communication.call.start'),
   );
 
   /** Permiso para iniciar videollamadas 1:1 (el backend exige communication.videocall.start en initiate con kind Video). */
   readonly canStartVideoCall = computed(
-    () => this.auth.currentUser()?.permissions.includes('communication.videocall.start') ?? false,
+    () => this.perms.has('communication.videocall.start'),
   );
 
   // ---------- Adjuntos ----------

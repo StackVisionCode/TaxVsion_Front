@@ -25,6 +25,11 @@ export class FileDetailsPanelComponent {
   @Input() locationText = '';
   @Input() shares: ShareLinkResponse[] = [];
   @Input() sharesLoading = false;
+  /** B6 — las acciones del panel, cada una con el permiso del endpoint que llama. */
+  @Input() canDownload = true;
+  @Input() canMove = true;
+  @Input() canDelete = true;
+  @Input() canRevokeShare = true;
   @Output() closed = new EventEmitter<void>();
   @Output() download = new EventEmitter<FileResponse>();
   @Output() move = new EventEmitter<FileResponse>();

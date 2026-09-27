@@ -52,6 +52,8 @@ export interface SaveRelationPayload {
 export class ClientProfileFamilyComponent implements OnChanges {
   @Input() client: ClientProfile | null = null;
   @Input() saving = false;
+  /** `customers.manage`: el hogar fiscal se puede MIRAR con `customers.view`, no editar. */
+  @Input() canManage = false;
   @Input() saveError: string | null = null;
 
   @Output() saveRelation = new EventEmitter<SaveRelationPayload>();

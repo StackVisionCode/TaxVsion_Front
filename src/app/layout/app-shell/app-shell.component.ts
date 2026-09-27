@@ -31,6 +31,7 @@ import { ChatSocketService } from '@features/chat/data-access/chat-socket.servic
 import { ChatStore } from '@features/chat/data-access/chat.store';
 import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
+import { AccessSyncService } from '@core/access/access-sync.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AuthService } from '@core/auth/auth.service';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
@@ -58,6 +59,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly chatStore = inject(ChatStore);
   private readonly notificationsStore = inject(NotificationsStore);
   private readonly sessionRevocation = inject(SessionRevocationService);
+  private readonly accessSync = inject(AccessSyncService);
   private readonly branding = inject(TenantBrandingService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -132,6 +134,9 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.activeCall.bindGlobalListeners();
     // Notificaciones reales en vivo (campana del navbar) + badge de no-leídos del chat (sidebar).
     this.notificationsStore.startRealtime();
+    // B8 — el acceso se mantiene al día solo: `access.changed`, foco, reconexión y renovación de
+    // token. Sin esto, quitarle un permiso a alguien exigía pedirle que recargara la página.
+    this.accessSync.start(this.destroyRef);
     this.chatStore.primeForBadge();
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))

@@ -27,6 +27,9 @@ import {
 
 const PAGE = 100;
 
+/** Las listas que acompañan a la de campañas. Cada una se pide aparte y puede fallar sola. */
+export type CampaignSubResource = 'lists' | 'contacts' | 'senders' | 'runs' | 'schedules' | 'templates';
+
 /**
  * Store del módulo Campaigns (servicio orquestador `TaxVision.Campaigns`). Guarda el estado de
  * lectura de los cuatro recursos como signals y expone acciones que refrescan el recurso afectado.
@@ -64,6 +67,31 @@ export class CampaignsStore {
   private readonly _runs = signal<CampaignRunResponse[]>([]);
   private readonly _schedules = signal<CampaignScheduleResponse[]>([]);
   private readonly _templates = signal<EmailTemplateSummary[]>([]);
+  /**
+   * B5 — por qué falló cada sub-lista, o null si está bien.
+   *
+   * Las seis se cargaban con `error: () => {}`: un 403 dejaba la lista vacía y la pantalla decía
+   * "no hay remitentes" cuando lo cierto era "no pudimos preguntarlo". Un vacío inventado es peor
+   * que un error: el usuario no sabe que tiene que hacer algo.
+   */
+  private readonly _subErrors = signal<Readonly<Record<CampaignSubResource, string | null>>>({
+    lists: null,
+    contacts: null,
+    senders: null,
+    runs: null,
+    schedules: null,
+    templates: null,
+  });
+  readonly subErrors = this._subErrors.asReadonly();
+
+  private failed(resource: CampaignSubResource) {
+    return (e: unknown) => this._subErrors.update(all => ({ ...all, [resource]: toApiError(e).message }));
+  }
+
+  private loaded(resource: CampaignSubResource) {
+    this._subErrors.update(all => ({ ...all, [resource]: null }));
+  }
+
   readonly lists = this._lists.asReadonly();
   readonly contacts = this._contacts.asReadonly();
   readonly senders = this._senders.asReadonly();
@@ -82,7 +110,13 @@ export class CampaignsStore {
   }
 
   loadTemplates(): void {
-    this.service.listTemplates().subscribe({ next: t => this._templates.set(t ?? []), error: () => {} });
+    this.service.listTemplates().subscribe({
+      next: t => {
+        this._templates.set(t ?? []);
+        this.loaded('templates');
+      },
+      error: this.failed('templates'),
+    });
   }
 
   setStatusFilter(s: ApiCampaignStatus | 'all'): void {
@@ -111,20 +145,50 @@ export class CampaignsStore {
     });
   }
   loadLists(): void {
-    this.service.listContactLists(1, PAGE).subscribe({ next: p => this._lists.set(p.items), error: () => {} });
+    this.service.listContactLists(1, PAGE).subscribe({
+      next: p => {
+        this._lists.set(p.items);
+        this.loaded('lists');
+      },
+      error: this.failed('lists'),
+    });
   }
   loadContacts(): void {
-    this.service.listContacts(1, PAGE).subscribe({ next: p => this._contacts.set(p.items), error: () => {} });
+    this.service.listContacts(1, PAGE).subscribe({
+      next: p => {
+        this._contacts.set(p.items);
+        this.loaded('contacts');
+      },
+      error: this.failed('contacts'),
+    });
   }
   loadSenders(): void {
-    this.service.listSenders(undefined, 1, PAGE).subscribe({ next: p => this._senders.set(p.items), error: () => {} });
+    this.service.listSenders(undefined, 1, PAGE).subscribe({
+      next: p => {
+        this._senders.set(p.items);
+        this.loaded('senders');
+      },
+      error: this.failed('senders'),
+    });
   }
   loadRuns(campaignId: string): void {
     this._runs.set([]);
-    this.service.listRuns(campaignId, 1, 50).subscribe({ next: p => this._runs.set(p.items), error: () => {} });
+    this.service.listRuns(campaignId, 1, 50).subscribe({
+      next: p => {
+        this._runs.set(p.items);
+        this.loaded('runs');
+      },
+      error: this.failed('runs'),
+    });
   }
   loadSchedules(campaignId: string): void {
-    this.service.listSchedules(campaignId, 1, 50).subscribe({ next: p => this._schedules.set(p.items), error: () => {} });
+    this.service.listSchedules(campaignId, 1, 50).subscribe({
+      next: p => {
+        this._schedules.set(p.items);
+        this.loaded('schedules');
+      },
+      error: this.failed('schedules'),
+    });
   }
 
   // ---------- actions (return Observable so the page can toast/close) ----------

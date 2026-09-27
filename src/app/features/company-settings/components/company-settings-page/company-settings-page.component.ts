@@ -9,6 +9,7 @@ import {
   BrandSurface,
 } from '../../data-access/company-settings.model';
 import { CompanySettingsStore } from '../../data-access/company-settings.store';
+import { AdminCapabilities } from '@core/access/admin-capabilities';
 
 /**
  * Página del módulo Company Settings: identidad legal de la firma (Billing) + marca del tenant
@@ -22,6 +23,12 @@ import { CompanySettingsStore } from '../../data-access/company-settings.store';
   templateUrl: './company-settings-page.component.html',
 })
 export class CompanySettingsPageComponent {
+  /**
+   * B6 — la §34 marcaba que el empleado PODÍA cambiar el emisor legal. El perfil legal pide
+   * `invoicing.issuer.manage` (permiso propio) y la marca, `branding.manage`.
+   */
+  protected readonly can = inject(AdminCapabilities);
+
   readonly store = inject(CompanySettingsStore);
   private readonly theme = inject(ThemeService);
 
