@@ -45,14 +45,22 @@ const catalog: PermissionInfo[] = [
 ];
 
 class FakeUserManagementService {
-  lastSaved: { userId: string; deniedIds: string[] } | null = null;
+  lastSaved: {
+    userId: string;
+    deniedIds: string[];
+    denies: { permissionId: string; reason: string | null; expiresAtUtc: string | null }[];
+  } | null = null;
 
   getEffectiveAccess(): Observable<UserEffectiveAccess> {
     return of(access());
   }
 
-  setPermissionOverrides(userId: string, deniedPermissionIds: string[]): Observable<void> {
-    this.lastSaved = { userId, deniedIds: [...deniedPermissionIds] };
+  /** B9: la firma pasó a denies con motivo y vencimiento; el fake guarda ambas cosas. */
+  setPermissionOverrides(
+    userId: string,
+    denies: readonly { permissionId: string; reason: string | null; expiresAtUtc: string | null }[],
+  ): Observable<void> {
+    this.lastSaved = { userId, deniedIds: denies.map(deny => deny.permissionId), denies: [...denies] };
     return of(undefined);
   }
 }

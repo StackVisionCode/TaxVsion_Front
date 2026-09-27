@@ -2,6 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@an
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { DocumentsPermissions } from '../../data-access/documents-permissions';
 import { DocumentsStore } from '../../data-access/documents.store';
 import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
 import {
@@ -54,6 +55,9 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
 export class DocumentsPageComponent {
+  /** B6 — qué acciones puede ofrecer esta pantalla. Antes no se gateaba ninguna. */
+  protected readonly can = inject(DocumentsPermissions);
+
   private readonly store = inject(DocumentsStore);
 
   // Estado del store expuesto al template.
@@ -109,7 +113,18 @@ export class DocumentsPageComponent {
   readonly createdShare = this.store.createdShare;
   readonly fileShares = this.store.fileShares;
   readonly fileSharesLoading = this.store.fileSharesLoading;
-  readonly publicSharingAllowed = computed(() => this.usage()?.allowPublicShareLinks ?? false);
+  /**
+   * B5 — tres estados, no un booleano. `GET /storage/usage` pide `cloudstorage.settings.manage`:
+   * un empleado recibe 403 y `usage()` queda en null. Con el booleano de antes eso se leía como
+   * "la oficina lo tiene apagado", que es una afirmación que la aplicación no puede hacer.
+   */
+  readonly publicSharing = computed<'enabled' | 'disabled' | 'unknown'>(() => {
+    const usage = this.usage();
+    if (!usage) {
+      return 'unknown';
+    }
+    return usage.allowPublicShareLinks ? 'enabled' : 'disabled';
+  });
 
   // Estado local de la vista (menús/diálogos).
   readonly newMenuOpen = signal(false);

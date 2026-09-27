@@ -1,11 +1,12 @@
 import { Injectable, Signal, computed, inject } from '@angular/core';
+import { AccessStore } from '@core/access/access.store';
 import { AuthService } from './auth.service';
 
 /**
- * Lectura de autorización del usuario autenticado. Fuente de verdad: el `MeResponse`
- * que expone `AuthService.currentUser` (roles/permissions/actorType vienen del JWT
- * verificado por el backend). El frontend SOLO mejora la UX ocultando/deshabilitando
- * lo que el backend igualmente rechazaría — nunca reemplaza la autorización del server.
+ * Fachada de lectura sobre {@link AccessStore}, que es la fuente única. Se conserva la API que ya
+ * usan las pantallas para no tocarlas una por una; lo que cambió es de dónde sale la respuesta.
+ * El frontend SOLO mejora la UX ocultando/deshabilitando lo que el backend igualmente rechazaría —
+ * nunca reemplaza la autorización del server.
  *
  * Todo es reactivo: cada método lee la signal `currentUser`, así que un template que
  * llame `perms.has(...)` o un `effect` que dependa de él se recalcula solo al cambiar
@@ -13,35 +14,32 @@ import { AuthService } from './auth.service';
  */
 @Injectable({ providedIn: 'root' })
 export class PermissionService {
+  private readonly access = inject(AccessStore);
   private readonly auth = inject(AuthService);
 
-  private readonly permissionSet = computed(() => new Set(this.auth.currentUser()?.permissions ?? []));
+  // Los roles siguen saliendo del perfil de sesión: el bootstrap de acceso no los trae, y no debería
+  // — se decide por código de permission, nunca por nombre de rol.
   private readonly roleSet = computed(() => new Set(this.auth.currentUser()?.roles ?? []));
 
   /** actorType del usuario (`TenantEmployee` | `TenantAdmin` | `PlatformAdmin` | `CustomerPortal` | …) o null si no hay sesión. */
-  readonly actorType: Signal<string | null> = computed(() => this.auth.currentUser()?.actorType ?? null);
+  readonly actorType: Signal<string | null> = this.access.actorType;
 
   /** Actor administrativo del tenant: varias operaciones (status, portal-invite, fiscal-set, import) lo exigen además del permiso. */
-  readonly isAdmin: Signal<boolean> = computed(() => {
-    const actor = this.actorType();
-    return actor === 'TenantAdmin' || actor === 'PlatformAdmin';
-  });
+  readonly isAdmin: Signal<boolean> = this.access.isAdmin;
 
   /** True si el usuario tiene el permiso exacto (p.ej. `customers.manage`). */
   has(permission: string): boolean {
-    return this.permissionSet().has(permission);
+    return this.access.can(permission);
   }
 
   /** True si tiene al menos uno de los permisos. */
   hasAny(permissions: readonly string[]): boolean {
-    const set = this.permissionSet();
-    return permissions.some(p => set.has(p));
+    return permissions.length > 0 && this.access.canAny(permissions);
   }
 
   /** True si tiene todos los permisos. */
   hasAll(permissions: readonly string[]): boolean {
-    const set = this.permissionSet();
-    return permissions.every(p => set.has(p));
+    return this.access.canAll(permissions);
   }
 
   /** True si el actorType actual está entre los dados. */

@@ -14,7 +14,7 @@
         <h2 class="text-xl font-bold text-gray-900">Spouse</h2>
         <p class="mt-1 text-sm text-gray-500">Spousal information on file</p>
       </div>
-      <button *ngIf="!spouse()" type="button" (click)="openAddSpouse()"
+      <button *ngIf="canManage && !spouse()" type="button" (click)="openAddSpouse()"
         class="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
         <ion-icon name="add-outline" class="text-base"></ion-icon> Add
       </button>
@@ -30,11 +30,11 @@
       </div>
       <span *ngIf="age(sp.dateOfBirth) as spouseAge" class="shrink-0 text-xs text-gray-500">{{ spouseAge }} yrs</span>
       <div class="shrink-0 flex items-center gap-1">
-        <button type="button" (click)="openEditSpouse()" aria-label="Edit spouse"
+        <button *ngIf="canManage" type="button" (click)="openEditSpouse()" aria-label="Edit spouse"
           class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors duration-200">
           <ion-icon name="create-outline" class="text-base"></ion-icon>
         </button>
-        <button type="button" (click)="requestDeleteSpouse()" aria-label="Remove spouse"
+        <button *ngIf="canManage" type="button" (click)="requestDeleteSpouse()" aria-label="Remove spouse"
           class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors duration-200">
           <ion-icon name="trash-outline" class="text-base"></ion-icon>
         </button>
@@ -54,7 +54,7 @@
         <h2 class="text-xl font-bold text-gray-900">Dependents <span class="text-base font-semibold text-gray-400">({{ dependents().length }})</span></h2>
         <p class="mt-1 text-sm text-gray-500">Household dependents on file</p>
       </div>
-      <button type="button" (click)="openAddDependent()"
+      <button *ngIf="canManage" type="button" (click)="openAddDependent()"
         class="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors duration-200">
         <ion-icon name="add-outline" class="text-base"></ion-icon> Add
       </button>
@@ -78,11 +78,11 @@
         </div>
         <span *ngIf="age(dependent.dateOfBirth) as depAge" class="shrink-0 text-xs text-gray-500">{{ depAge }} yrs</span>
         <div class="shrink-0 flex items-center gap-1">
-          <button type="button" (click)="openEditDependent(dependent)" aria-label="Edit dependent"
+          <button *ngIf="canManage" type="button" (click)="openEditDependent(dependent)" aria-label="Edit dependent"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors duration-200">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
           </button>
-          <button type="button" (click)="requestDeleteDependent(dependent)" aria-label="Remove dependent"
+          <button *ngIf="canManage" type="button" (click)="requestDeleteDependent(dependent)" aria-label="Remove dependent"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors duration-200">
             <ion-icon name="trash-outline" class="text-base"></ion-icon>
           </button>

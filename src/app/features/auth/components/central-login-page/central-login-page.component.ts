@@ -88,6 +88,11 @@ export class CentralLoginPageComponent {
   /** Oficina elegida que está pidiendo MFA (su tenantId), y el código tecleado. */
   readonly mfaOfficeId = signal<string | null>(null);
   readonly mfaCode = signal('');
+  /**
+   * "No volver a pedirme el código en este navegador". El backend solo lo honra si el código fue
+   * del autenticador — uno de recuperación es de emergencia y no marca el equipo.
+   */
+  readonly rememberDevice = signal(false);
 
   /** Catálogo de planes: se elige antes de arrancar el alta (mismo flujo que el login directo). */
   readonly isPlanPickerOpen = signal(false);
@@ -140,6 +145,7 @@ export class CentralLoginPageComponent {
       // Revela el campo de código para esta oficina; el canje espera al submit del MFA.
       this.mfaOfficeId.set(this.officeKey(office));
       this.mfaCode.set('');
+      this.rememberDevice.set(false);
       return;
     }
     this.requestHandoff(office.tenantId, null, office.isClientPortal);
@@ -152,7 +158,7 @@ export class CentralLoginPageComponent {
       this.formError.set('Enter your verification code.');
       return;
     }
-    this.requestHandoff(office.tenantId, code, office.isClientPortal);
+    this.requestHandoff(office.tenantId, code, office.isClientPortal, this.rememberDevice());
   }
 
   /** Una misma oficina puede aparecer dos veces (espacio de trabajo y portal del cliente). */
@@ -160,9 +166,14 @@ export class CentralLoginPageComponent {
     return `${office.tenantId}:${office.isClientPortal ? 'portal' : 'staff'}`;
   }
 
+  toggleRememberDevice(): void {
+    this.rememberDevice.update(value => !value);
+  }
+
   cancelMfa(): void {
     this.mfaOfficeId.set(null);
     this.mfaCode.set('');
+    this.rememberDevice.set(false);
     this.formError.set(null);
   }
 
@@ -191,11 +202,12 @@ export class CentralLoginPageComponent {
     chosenTenantId: string,
     mfaCode: string | null,
     isClientPortal: boolean,
+    rememberDevice = false,
   ): void {
     this.formError.set(null);
     this.isBusy.set(true);
     this.centralLogin
-      .handoff(this.sessionRef, chosenTenantId, mfaCode, isClientPortal ? 'Portal' : 'Staff')
+      .handoff(this.sessionRef, chosenTenantId, mfaCode, isClientPortal ? 'Portal' : 'Staff', rememberDevice)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (view) => this.redirectToOffice(view.subdomain, view.ticket, isClientPortal),

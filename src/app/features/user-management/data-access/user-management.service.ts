@@ -5,16 +5,20 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import {
   AssignRolesRequest,
   CreateInvitationRequest,
+  CreateRoleRequest,
   CreateInvitationResponse,
   EligibleSuccessor,
   InvitationStatus,
   InvitationSummary,
   OffboardImpactItem,
   PagedResult,
+  PermissionDeny,
   PermissionInfo,
   RoleSummary,
+  RoleUser,
   SetPermissionOverridesRequest,
   TenantLimits,
+  UpdateRoleRequest,
   UserEffectiveAccess,
   UserSummary,
   actorTypeLabel,
@@ -207,8 +211,45 @@ export class UserManagementService {
    * PUT /auth/users/{id}/permission-overrides — 204 No Content. Deny-only, replace-set: `deniedPermissionIds`
    * fully replaces the user's deny set (an empty array clears every override). Requires permission roles.manage.
    */
-  setPermissionOverrides(userId: string, deniedPermissionIds: string[]): Observable<void> {
-    const body: SetPermissionOverridesRequest = { deniedPermissionIds };
+  setPermissionOverrides(userId: string, denies: readonly PermissionDeny[]): Observable<void> {
+    // Se manda la forma rica (`denies`) y también la simple: el backend prefiere la primera, y la
+    // segunda mantiene compatible a un servidor que todavía no la entienda.
+    const body: SetPermissionOverridesRequest = {
+      denies: [...denies],
+      deniedPermissionIds: denies.map(deny => deny.permissionId),
+    };
     return this.http.put<void>(`${this.base}/users/${userId}/permission-overrides`, body);
+  }
+
+  // ---------- B9: CRUD de roles custom (A4) ----------
+
+  /** GET /auth/roles/{id}/users — quiénes tienen el rol. Sin esto, desactivarlo era a ciegas. */
+  getRoleUsers(roleId: string): Observable<RoleUser[]> {
+    return this.http.get<RoleUser[]>(`${this.base}/roles/${roleId}/users`);
+  }
+
+  createRole(request: CreateRoleRequest): Observable<RoleSummary> {
+    return this.http.post<RoleSummary>(`${this.base}/roles`, request);
+  }
+
+  /** Solo nombre y descripción; los permisos van por su propio endpoint. */
+  updateRole(roleId: string, request: UpdateRoleRequest): Observable<RoleSummary> {
+    return this.http.put<RoleSummary>(`${this.base}/roles/${roleId}`, request);
+  }
+
+  /** Reemplaza el conjunto ENTERO de permisos del rol. Por ID, igual que el alta. */
+  setRolePermissions(roleId: string, permissionIds: readonly string[]): Observable<void> {
+    return this.http.put<void>(`${this.base}/roles/${roleId}/permissions`, {
+      permissionIds: [...permissionIds],
+    });
+  }
+
+  /** Lo saca de servicio sin borrarlo: el historial de quién lo tuvo se conserva. */
+  deactivateRole(roleId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/roles/${roleId}`);
+  }
+
+  reactivateRole(roleId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/roles/${roleId}/reactivate`, {});
   }
 }

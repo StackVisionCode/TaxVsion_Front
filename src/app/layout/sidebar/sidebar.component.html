@@ -78,51 +78,49 @@
           [style.height.px]="indicatorHeight()"
         ></div>
 
-        <div *ngFor="let item of menuItems(); trackBy: trackByIndex" class="relative">
-          <ng-container *ngIf="canShowItem(item)">
-            <button
-              #itemButton
-              type="button"
-              (click)="handleMenuClick($event, item)"
-              (mouseenter)="onMenuItemMouseEnter($event, item)"
-              (focus)="onMenuItemFocus(item)"
-              (mouseleave)="onMenuItemMouseLeave(item)"
-              [disabled]="!isClickable()"
-              class="relative flex items-center rounded-full cursor-pointer transition-colors duration-200"
-              [ngClass]="{
-                'w-full gap-3 px-4 py-2.5': isExpanded(),
-                'mx-auto h-10 w-10 justify-center': !isExpanded(),
-                'text-white': item.isActive,
-                'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
-              }"
+        <div *ngFor="let item of visibleItems(); trackBy: trackByRoute" class="relative">
+          <button
+            #itemButton
+            type="button"
+            (click)="handleMenuClick($event, item)"
+            (mouseenter)="onMenuItemMouseEnter($event, item)"
+            (focus)="onMenuItemFocus(item)"
+            (mouseleave)="onMenuItemMouseLeave(item)"
+            [disabled]="!isClickable()"
+            class="relative flex items-center rounded-full cursor-pointer transition-colors duration-200"
+            [ngClass]="{
+              'w-full gap-3 px-4 py-2.5': isExpanded(),
+              'mx-auto h-10 w-10 justify-center': !isExpanded(),
+              'text-white': item.isActive,
+              'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
+            }"
+          >
+            <ion-icon
+              [name]="item.icon"
+              class="text-lg shrink-0 pointer-events-none"
+              [ngClass]="[
+                item.isActive ? 'text-white' : 'text-gray-500',
+                item.isActive ? 'icon-pop' : '',
+              ]"
+            ></ion-icon>
+
+            <span
+              *ngIf="isExpanded()"
+              class="text-sm font-medium truncate pointer-events-none select-none"
             >
-              <ion-icon
-                [name]="item.icon"
-                class="text-lg shrink-0 pointer-events-none"
-                [ngClass]="[
-                  item.isActive ? 'text-white' : 'text-gray-500',
-                  item.isActive ? 'icon-pop' : '',
-                ]"
-              ></ion-icon>
+              {{ item.label }}
+            </span>
 
-              <span
-                *ngIf="isExpanded()"
-                class="text-sm font-medium truncate pointer-events-none select-none"
-              >
-                {{ item.label }}
-              </span>
-
-              <!-- Unread count badge (p. ej. chat) -->
-              <span
-                *ngIf="item.badge"
-                class="pointer-events-none absolute flex items-center justify-center rounded-full bg-orange-500 font-bold leading-none text-white ring-2 ring-white"
-                [ngClass]="{
-                  'top-0 right-0 h-[16px] min-w-[16px] px-1 text-[9px]': !isExpanded(),
-                  'top-1.5 right-2.5 h-[18px] min-w-[18px] px-1 text-[10px]': isExpanded(),
-                }"
-              >{{ item.badge > 9 ? '9+' : item.badge }}</span>
-            </button>
-          </ng-container>
+            <!-- Unread count badge (p. ej. chat) -->
+            <span
+              *ngIf="item.badge"
+              class="pointer-events-none absolute flex items-center justify-center rounded-full bg-orange-500 font-bold leading-none text-white ring-2 ring-white"
+              [ngClass]="{
+                'top-0 right-0 h-[16px] min-w-[16px] px-1 text-[9px]': !isExpanded(),
+                'top-1.5 right-2.5 h-[18px] min-w-[18px] px-1 text-[10px]': isExpanded(),
+              }"
+            >{{ item.badge > 9 ? '9+' : item.badge }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -131,25 +129,23 @@
 
 <ng-template #mobileSidebar>
   <div class="flex flex-col gap-1">
-    <div *ngFor="let item of menuItems(); trackBy: trackByIndex">
-      <ng-container *ngIf="canShowItem(item)">
-        <button
-          type="button"
-          (click)="handleMenuClick($event, item)"
-          class="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
-          [ngClass]="{
-            'bg-brand-bold text-white': item.isActive,
-            'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
-          }"
-        >
-          <ion-icon
-            [name]="item.icon"
-            class="text-lg shrink-0"
-            [ngClass]="item.isActive ? 'text-white' : 'text-gray-500'"
-          ></ion-icon>
-          <span class="flex-1 text-left truncate">{{ item.label }}</span>
-        </button>
-      </ng-container>
+    <div *ngFor="let item of visibleItems(); trackBy: trackByRoute">
+      <button
+        type="button"
+        (click)="handleMenuClick($event, item)"
+        class="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
+        [ngClass]="{
+          'bg-brand-bold text-white': item.isActive,
+          'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900': !item.isActive,
+        }"
+      >
+        <ion-icon
+          [name]="item.icon"
+          class="text-lg shrink-0"
+          [ngClass]="item.isActive ? 'text-white' : 'text-gray-500'"
+        ></ion-icon>
+        <span class="flex-1 text-left truncate">{{ item.label }}</span>
+      </button>
     </div>
   </div>
 </ng-template>

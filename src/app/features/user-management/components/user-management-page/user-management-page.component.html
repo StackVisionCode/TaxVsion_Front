@@ -45,7 +45,15 @@
             : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
           Invitations ({{ invitationsTotal() }})
         </button>
-        <button type="button" (click)="setTab('seats')"
+        <!-- B9: la pestaña de roles. Es `roles.manage`, un permiso distinto de ver el equipo. -->
+        <button *ngIf="can.canManageRoles()" type="button" (click)="setTab('roles')"
+          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          [ngClass]="tab() === 'roles'
+            ? 'border-brand-bold bg-brand-bold text-white'
+            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+          Roles
+        </button>
+        <button *ngIf="can.canManageSeats()" type="button" (click)="setTab('seats')"
           class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
           [ngClass]="tab() === 'seats'
             ? 'border-brand-bold bg-brand-bold text-white'
@@ -64,12 +72,12 @@
       </div>
 
       <div class="ml-auto flex items-center gap-2">
-        <button type="button" (click)="openSeatModal()"
+        <button *ngIf="can.canManageSeats()" type="button" (click)="openSeatModal()"
           class="flex items-center gap-2 rounded-full border border-brand-bold/30 px-4 py-2 text-sm font-semibold text-brand-bold hover:bg-brand-bold/5 transition-colors">
           <ion-icon name="ticket-outline" class="text-base"></ion-icon>
           Buy seats
         </button>
-        <button type="button" (click)="openInvitePanel()"
+        <button *ngIf="can.canInvite()" type="button" (click)="openInvitePanel()"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
           <ion-icon name="person-add-outline" class="text-base"></ion-icon>
           Invite member
@@ -82,10 +90,16 @@
       <p *ngIf="membersLoading()" class="mb-3 text-sm text-gray-400">Loading members…</p>
       <p *ngIf="membersError()" class="mb-3 text-sm text-red-600">{{ membersError() }}</p>
       <app-user-table [members]="members()" [currentUserId]="currentUserId()"
+        [canInvite]="can.canInvite()" [canManageUsers]="can.canManageUsers()" [canManageRoles]="can.canManageRoles()"
         emptyMessage="No team members match your search" (editRoles)="openAccessDrawer($event)"
         (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)"></app-user-table>
       <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
         (pageChange)="onMembersPageChange($event)"></app-pagination>
+    </div>
+
+    <!-- Roles tab (B9): CRUD de roles de la oficina. -->
+    <div *ngIf="tab() === 'roles'" class="mt-5">
+      <app-roles-panel></app-roles-panel>
     </div>
 
     <!-- Invitations tab: GET /auth/invitations?status=Pending -->
@@ -93,6 +107,7 @@
       <p *ngIf="invitationsLoading()" class="mb-3 text-sm text-gray-400">Loading invitations…</p>
       <p *ngIf="invitationsError()" class="mb-3 text-sm text-red-600">{{ invitationsError() }}</p>
       <app-user-table [members]="visibleInvitations()" [currentUserId]="currentUserId()"
+        [canInvite]="can.canInvite()" [canManageUsers]="can.canManageUsers()" [canManageRoles]="can.canManageRoles()"
         emptyMessage="No pending invitations" (resendInvite)="resendInvite($event)"
         (cancelInvite)="cancelInvite($event)"></app-user-table>
       <app-pagination [currentPage]="invitationsPage()" [totalItems]="invitationsTotal()" [pageSize]="pageSize"

@@ -43,7 +43,13 @@ const SECURE_LINK_MAX_DAYS = 30;
 export class ShareDialogComponent implements OnChanges {
   @Input() file: FileResponse | null = null;
   @Input() folder: FolderResponse | null = null;
-  @Input() publicAllowed = false;
+  /**
+   * Si la oficina permite enlaces públicos. Tres estados y no un booleano: el ajuste se lee de
+   * `GET /storage/usage`, que exige `cloudstorage.settings.manage`. Un empleado recibe 403, y con
+   * un booleano eso se volvía `false` — o sea, la pantalla afirmaba "Turned off by your firm"
+   * cuando en realidad no había podido preguntarlo. Ahora "no lo sé" se dice.
+   */
+  @Input() publicSharing: 'enabled' | 'disabled' | 'unknown' = 'unknown';
   @Input() shares: ShareLinkResponse[] = [];
   @Output() created = new EventEmitter<CreateShareLinkRequest>();
   @Output() createdFolder = new EventEmitter<CreateFolderShareLinkRequest>();
@@ -132,7 +138,9 @@ export class ShareDialogComponent implements OnChanges {
         description: 'Anyone with the link can open it — no email needed. Always expires and can be revoked.',
       },
     ];
-    if (this.publicAllowed) {
+    // Con 'unknown' no se ofrece: proponer un enlace público que el backend va a rechazar es peor
+    // que no proponerlo. El aviso de abajo explica por qué no está.
+    if (this.publicSharing === 'enabled') {
       options.push({
         id: 'Public',
         title: 'Anyone with the link',

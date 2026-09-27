@@ -154,11 +154,20 @@
 
   <div class="mt-6 flex items-center gap-2 border-t border-gray-100 pt-4">
     <span class="text-sm font-semibold text-gray-700">Public links</span>
-    <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="publicAllowed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'">{{ publicAllowed ? 'Enabled' : 'Disabled' }}</span>
-    @if (!publicAllowed) {
+    <span class="rounded-full px-2 py-0.5 text-xs font-semibold"
+      [class]="publicSharing === 'enabled' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'">
+      {{ publicSharing === 'enabled' ? 'Enabled' : publicSharing === 'disabled' ? 'Disabled' : 'Unknown' }}
+    </span>
+    @if (publicSharing === 'disabled') {
       <span class="flex items-center gap-1.5 text-xs text-gray-500">
         <ion-icon name="lock-closed-outline" class="text-sm"></ion-icon>
         Turned off by your firm — only people who sign in can open "Anyone with the link" shares.
+      </span>
+    }
+    @if (publicSharing === 'unknown') {
+      <span class="flex items-center gap-1.5 text-xs text-gray-500">
+        <ion-icon name="help-circle-outline" class="text-sm"></ion-icon>
+        We could not check this setting, so public links are not offered here. Ask your office administrator.
       </span>
     }
   </div>

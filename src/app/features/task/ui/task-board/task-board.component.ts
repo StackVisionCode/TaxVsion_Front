@@ -33,6 +33,12 @@ export class TaskBoardComponent implements OnChanges {
   @Input() tasks: TaskItem[] = [];
   /** Renombres de columna por tenant (label del catálogo). null = nombres por defecto. */
   @Input() labelOverrides: ReadonlyMap<TaskStatus, string> | null = null;
+  /**
+   * B6 — arrastrar una tarjeta a otra columna CAMBIA el estado de la tarea: es una escritura
+   * (`tasks.write`), no una acción de vista. Sin esto, quien solo puede leer arrastraba la
+   * tarjeta, la veía moverse y el backend la devolvía a su sitio con un 403.
+   */
+  @Input() canWrite = true;
   @Output() taskOpened = new EventEmitter<TaskItem>();
   @Output() statusChanged = new EventEmitter<{ id: string; status: TaskStatus }>();
 

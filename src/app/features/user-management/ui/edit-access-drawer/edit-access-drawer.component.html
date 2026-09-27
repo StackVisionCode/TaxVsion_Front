@@ -151,7 +151,11 @@
         </span>
 
         <!-- Module master toggle: restrict/restore the whole module at once. -->
-        <span class="sw" (click)="$event.stopPropagation()" [title]="moduleAllowed(module) ? 'Restrict whole module' : 'Restore whole module'">
+        <!-- `label`, no `span`: el <input> del interruptor es 0x0 con opacity 0 (lo visible es `.track`),
+             así que sin la asociación del label un clic del usuario no llega al control. Las filas
+             funcionaban porque la fila entera ERA un label; la cabecera del módulo no, y por eso el
+             maestro parecía muerto. -->
+        <label class="sw" (click)="$event.stopPropagation()" [title]="moduleAllowed(module) ? 'Restrict whole module' : 'Restore whole module'">
           <input
             type="checkbox"
             [attr.aria-label]="'Allow all of ' + module.label"
@@ -159,7 +163,7 @@
             (change)="setModuleAllowed(module, $any($event.target).checked)"
           />
           <span class="track"></span>
-        </span>
+        </label>
 
         <svg class="chev flex-shrink-0 text-slate-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M6 9l6 6 6-6" />
@@ -168,10 +172,15 @@
 
       <!-- Module body -->
       <div *ngIf="isOpen(module.key)" class="border-t border-slate-100">
-        <label
+        <!-- La fila ya NO es un <label> que envuelve todo. Lo era, y con el detalle de motivo y
+             vencimiento abierto pasaban dos cosas: el interruptor se iba al centro vertical de una
+             fila alta y quedaba pegado a "Why and until when", y un clic dentro del detalle podia
+             volcarse al checkbox del label. Ahora el label abarca solo nombre + interruptor. -->
+        <div
           *ngFor="let row of module.rows"
-          class="perm-row flex items-center gap-3 border-t border-slate-100 px-3.5 py-2.5 first:border-t-0"
+          class="perm-row border-t border-slate-100 px-3.5 py-2.5 first:border-t-0"
         >
+          <label class="flex items-center gap-3">
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
               {{ row.label }}
@@ -185,10 +194,21 @@
                 class="rounded-full border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-400"
                 >Not in their roles</span
               >
+              <!-- Dormido: el rol se lo da, el plan no lo habilita. No es un problema que se
+                   arregle desde acá, así que se marca y no se esconde. -->
+              <span
+                *ngIf="row.dormant"
+                class="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700"
+                >Dormant</span
+              >
             </div>
             <div class="mt-px text-[11.5px] text-slate-500">
               {{ row.code }}<span *ngIf="row.locked"> · add a role that includes it to enable</span>
+              <span *ngIf="row.dormant"> · not in the office plan, so it does nothing today</span>
             </div>
+
+            <!-- Motivo y vencimiento del deny. Solo cuando está restringido: un deny sin motivo
+                 escrito es un misterio para quien lo herede dentro de seis meses. -->
           </div>
 
           <span class="sw">
@@ -201,7 +221,42 @@
             />
             <span class="track"></span>
           </span>
-        </label>
+          </label>
+
+          <!-- Motivo y vencimiento: DEBAJO de la fila y fuera del label. -->
+          <ng-container *ngIf="!row.locked && isDenied(row.permissionId)">
+            <button
+              type="button"
+              (click)="toggleDetail(row.permissionId)"
+              class="mt-1.5 text-[11.5px] font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            >
+              {{ detailFor() === row.permissionId ? 'Hide details' : 'Why and until when' }}
+            </button>
+            <div *ngIf="detailFor() === row.permissionId" class="mt-2 flex flex-col gap-2 pr-14">
+              <input
+                type="text"
+                [attr.aria-label]="'Reason for restricting ' + row.label"
+                placeholder="Why is this restricted?"
+                [ngModel]="reasonFor(row.permissionId)"
+                (ngModelChange)="setReason(row.permissionId, $event)"
+                [ngModelOptions]="{ standalone: true }"
+                class="h-9 w-full rounded-lg border border-slate-200 px-2.5 text-[12.5px] outline-none focus:border-slate-300"
+              />
+              <label class="flex items-center gap-2 text-[11.5px] text-slate-500">
+                Until
+                <input
+                  type="date"
+                  [attr.aria-label]="'Restriction expiry for ' + row.label"
+                  [ngModel]="expiresFor(row.permissionId)"
+                  (ngModelChange)="setExpiry(row.permissionId, $event)"
+                  [ngModelOptions]="{ standalone: true }"
+                  class="h-9 rounded-lg border border-slate-200 px-2.5 text-[12.5px] outline-none focus:border-slate-300"
+                />
+                <span class="text-slate-400">empty = no end date</span>
+              </label>
+            </div>
+          </ng-container>
+        </div>
       </div>
     </section>
   </div>
@@ -210,6 +265,9 @@
   <div class="flex items-center gap-3.5 border-t border-slate-200 bg-white px-5 py-3.5">
     <div class="flex-1 text-[12.5px] leading-snug text-slate-500">
       <b [class.text-rose-600]="deniedCount() > 0" [class.text-slate-600]="deniedCount() === 0">{{ summary() }}</b>
+      <!-- El `perm_v`. Al guardar sube, y los tokens viejos de esta persona empiezan a dar 401
+           TokenStale: verlo es cómo se comprueba que el cambio salió de verdad. -->
+      <span class="ml-2 text-slate-400">Access version {{ permissionsVersion() }}</span>
     </div>
     <button
       type="button"

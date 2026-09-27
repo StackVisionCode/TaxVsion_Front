@@ -1,3 +1,4 @@
+import { PermissionService } from '@core/auth/permission.service';
 import { Injectable, computed, inject, signal, type WritableSignal } from '@angular/core';
 import { Observable, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -57,6 +58,7 @@ export interface InviteeSearchResult {
  */
 @Injectable({ providedIn: 'root' })
 export class MeetingsStore {
+  private readonly perms = inject(PermissionService);
   private readonly service = inject(MeetingsService);
   private readonly auth = inject(AuthService);
   private readonly storage = inject(CloudStorageUploadService);
@@ -82,7 +84,7 @@ export class MeetingsStore {
 
   /** El backend exige `communication.meeting.create` para agendar. */
   readonly canCreate = computed(
-    () => this.auth.currentUser()?.permissions.includes('communication.meeting.create') ?? false,
+    () => this.perms.has('communication.meeting.create'),
   );
 
   readonly upcoming = computed<MeetingItem[]>(() => this.mapScope(this._upcoming()));

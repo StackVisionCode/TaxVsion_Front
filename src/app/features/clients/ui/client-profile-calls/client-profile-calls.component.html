@@ -27,12 +27,12 @@
       </div>
       <!-- Call this client (audio / video) -->
       <div *ngIf="hasPortalAccount()" class="flex shrink-0 items-center gap-2">
-        <button type="button" (click)="startCall('Audio')" [disabled]="callInProgress"
+        <button *ngIf="canStartAudio()" type="button" (click)="startCall('Audio')" [disabled]="callInProgress"
           title="Call" aria-label="Call client"
           class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40">
           <ion-icon name="call-outline" class="text-lg"></ion-icon>
         </button>
-        <button type="button" (click)="startCall('Video')" [disabled]="callInProgress"
+        <button *ngIf="canStartVideo()" type="button" (click)="startCall('Video')" [disabled]="callInProgress"
           title="Video call" aria-label="Video call client"
           class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40">
           <ion-icon name="videocam-outline" class="text-lg"></ion-icon>

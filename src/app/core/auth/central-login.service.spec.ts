@@ -28,7 +28,13 @@ describe('CentralLoginService', () => {
     service.discover('ana@example.com', 'secret', 'Portal').subscribe();
 
     const req = http.expectOne(`${systemBase}/auth/discover-login`);
-    expect(req.request.body).toEqual({ email: 'ana@example.com', password: 'secret', accountKind: 'Portal' });
+    expect(req.request.body).toEqual({
+      email: 'ana@example.com',
+      password: 'secret',
+      accountKind: 'Portal',
+      // Sin dispositivo marcado viaja null; el backend decide si exime del código.
+      deviceToken: null,
+    });
     req.flush({ subdomain: null, ticket: null, discoverySessionRef: 'ref', offices: [], isClientPortal: null });
   });
 
@@ -49,7 +55,46 @@ describe('CentralLoginService', () => {
       chosenTenantId: 'tenant-1',
       mfaCode: null,
       accountKind: 'Portal',
+      rememberDevice: false,
     });
     req.flush({ subdomain: 'acme', ticket: 't' });
+  });
+
+  // ---------- Dispositivo de confianza ----------
+
+  it('reenvía el dispositivo marcado para que el backend pueda eximir del código', () => {
+    localStorage.setItem('tvf.auth.deviceToken', 'trusted-abc');
+
+    service.discover('ana@example.com', 'secret').subscribe();
+
+    const req = http.expectOne(`${systemBase}/auth/discover-login`);
+    expect(req.request.body.deviceToken).toBe('trusted-abc');
+    req.flush({ subdomain: null, ticket: null, discoverySessionRef: 'ref', offices: [], isClientPortal: null });
+    localStorage.removeItem('tvf.auth.deviceToken');
+  });
+
+  it('pide recordar el dispositivo al resolver el código', () => {
+    service.handoff('ref', 'tenant-1', '123456', 'Staff', true).subscribe();
+
+    const req = http.expectOne(`${systemBase}/auth/session/handoff`);
+    expect(req.request.body.rememberDevice).toBe(true);
+    req.flush({ subdomain: 'acme', ticket: 't' });
+  });
+
+  it('el canje guarda el dispositivo que devuelve el backend', () => {
+    // Es lo que hace que el PRÓXIMO login no pida código. Sobrevive al logout a propósito: el
+    // dispositivo es del navegador, no de la sesión.
+    service.exchangeTicket('t').subscribe();
+
+    http.expectOne(req => req.url.endsWith('/auth/session/from-ticket')).flush({
+      accessToken: 'a',
+      refreshToken: 'r',
+      expiresInSeconds: 900,
+      mfaSetupRequired: false,
+      deviceToken: 'nuevo-device',
+    });
+
+    expect(localStorage.getItem('tvf.auth.deviceToken')).toBe('nuevo-device');
+    localStorage.removeItem('tvf.auth.deviceToken');
   });
 });

@@ -4,7 +4,7 @@
       <h3 class="text-lg font-bold text-gray-900">Reminders</h3>
       <p class="mt-1 text-sm text-gray-500">{{ visibleReminders().length }} total items</p>
     </div>
-    <button type="button" (click)="openCreate()"
+    <button *ngIf="canWrite()" type="button" (click)="openCreate()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
       <ion-icon name="add-outline" class="text-base"></ion-icon>
       New Reminder
@@ -122,7 +122,7 @@
             <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
               <div class="flex items-center justify-end gap-2">
                 <!-- Editar: título/cuerpo siempre que no sea terminal; fecha/hora solo si aún se puede reprogramar -->
-                <button *ngIf="reminder.canEditSubject" type="button" (click)="openEdit(reminder)"
+                <button *ngIf="reminder.canEditSubject && canWrite()" type="button" (click)="openEdit(reminder)"
                   [disabled]="store.isBusy(reminder.id)"
                   class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
                   aria-label="Edit reminder">
@@ -131,7 +131,7 @@
 
                 <!-- Snooze: SOLO sobre un recordatorio ya disparado (el aggregate exige Status == Fired) -->
                 <div *ngIf="reminder.canSnooze" class="relative" data-dropdown="reminder-snooze">
-                  <button type="button" (click)="toggleSnoozeMenu(reminder)" [disabled]="store.isBusy(reminder.id)"
+                  <button *ngIf="canWrite()" type="button" (click)="toggleSnoozeMenu(reminder)" [disabled]="store.isBusy(reminder.id)"
                     class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
                     aria-label="Snooze reminder">
                     <ion-icon name="time-outline" class="text-sm"></ion-icon>
@@ -146,7 +146,7 @@
                 </div>
 
                 <!-- Dismiss: Fired o Snoozed -->
-                <button *ngIf="reminder.canDismiss" type="button" (click)="dismiss(reminder)"
+                <button *ngIf="reminder.canDismiss && canWrite()" type="button" (click)="dismiss(reminder)"
                   [disabled]="store.isBusy(reminder.id)"
                   class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 transition-colors"
                   aria-label="Dismiss reminder">

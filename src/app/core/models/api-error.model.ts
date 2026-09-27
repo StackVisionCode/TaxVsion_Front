@@ -8,7 +8,24 @@ import { readThrottle, throttleMessage } from '@core/errors/throttling';
 export interface ApiError {
   code: string;
   message: string;
+  /**
+   * Por qué se denegó, cuando el backend lo dice (403 en RFC 9457). Es lo que permite distinguir
+   * "no tenés el permiso" de "tu plan no lo incluye": hasta A5 los dos llegaban como un 403
+   * indistinguible y la UI solo podía mostrar el mismo mensaje genérico para ambos.
+   */
+  reason?: AuthorizationReason;
+  /** Módulo que falta, solo cuando `reason` es `module`. Sirve para nombrar el plan en la UI. */
+  module?: string;
+  /** Permission que exigía el endpoint, cuando el backend lo declara. Para diagnóstico, no para UI. */
+  permission?: string;
 }
+
+/**
+ * Vocabulario cerrado del backend (`AuthorizationDenialReasons`). Se decide por acá y NUNCA por el
+ * texto del mensaje, que es copy y cambia.
+ */
+export const AUTHORIZATION_REASONS = ['permission', 'actor_type', 'not_declared', 'surface', 'module'] as const;
+export type AuthorizationReason = (typeof AUTHORIZATION_REASONS)[number];
 
 /** RFC-7807 ProblemDetails: solo aparece en 500 / ConflictException (409). */
 export interface ProblemDetails {
@@ -50,7 +67,10 @@ export function toApiError(err: unknown): ApiError {
       const code = (err.error as { code?: string } | null)?.code ?? `Http.${err.status}`;
       return { code, message: throttleMessage(throttle) };
     }
-    const body = err.error as (Partial<ApiError & ProblemDetails> & { error?: string; type?: string }) | string | null;
+    const body = err.error as
+      | (Partial<ApiError & ProblemDetails> & { error?: string; type?: string })
+      | string
+      | null;
     if (body && typeof body === 'object') {
       // Algunos endpoints (Gateway TenantHostGuard, Signature host-guard) usan la clave `error`
       // en vez de `code` para el discriminador — ej. { error: "tenant_host_mismatch", message }.
@@ -62,7 +82,10 @@ export function toApiError(err: unknown): ApiError {
       }
       return {
         code,
+        // RFC 9457 llama `detail` a lo que este sistema viene llamando `message`; el backend manda
+        // los dos para no romper a las pantallas ya desplegadas.
         message: body.message ?? body.detail ?? body.title ?? SAFE_FALLBACK_MESSAGE,
+        ...authorizationFields(body),
       };
     }
     // Con `responseType: 'text'` Angular NO parsea el cuerpo, así que un error del
@@ -80,6 +103,38 @@ export function toApiError(err: unknown): ApiError {
     };
   }
   return { code: 'Unknown', message: SAFE_FALLBACK_MESSAGE };
+}
+
+/** Copia los campos de autorización solo si el backend los mandó y son del vocabulario conocido. */
+function authorizationFields(
+  body: Partial<ApiError> | null,
+): Pick<ApiError, 'reason' | 'module' | 'permission'> {
+  const fields: Pick<ApiError, 'reason' | 'module' | 'permission'> = {};
+  if (body?.reason && (AUTHORIZATION_REASONS as readonly string[]).includes(body.reason)) {
+    fields.reason = body.reason;
+  }
+  if (typeof body?.module === 'string' && body.module) {
+    fields.module = body.module;
+  }
+  if (typeof body?.permission === 'string' && body.permission) {
+    fields.permission = body.permission;
+  }
+  return fields;
+}
+
+/**
+ * La pregunta que de verdad hace la UI ante un 403: esto es una pantalla COMERCIAL ("tu plan no lo
+ * incluye", con botón de mejorar) o una de ACCESO ("pedile a tu administrador"). Un backend viejo
+ * que todavía no manda `reason` cae en la de acceso, que es la más conservadora.
+ */
+export function isModuleUnavailable(err: unknown): boolean {
+  return toApiError(err).reason === 'module';
+}
+
+/** El módulo que falta, para nombrarlo en la pantalla comercial. */
+export function missingModule(err: unknown): string | null {
+  const apiError = toApiError(err);
+  return apiError.reason === 'module' ? (apiError.module ?? null) : null;
 }
 
 /** `type` como código solo si es uno nuestro (`Auth.X`), no la URL de un ProblemDetails de ASP.NET. */

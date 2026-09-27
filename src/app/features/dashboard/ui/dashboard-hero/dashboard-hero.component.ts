@@ -1,6 +1,8 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnInit, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { AccessStore } from '@core/access/access.store';
+import { AccessRequirement } from '@core/access/features';
 import { DashboardInvoicesStore, formatCents } from '../../data-access/dashboard-invoices.store';
 import { TaskStore } from '../../../task/data-access/task.store';
 
@@ -15,7 +17,12 @@ interface HeroStat {
   /** Página real a la que lleva la flecha. */
   link: string;
   linkLabel: string;
+  /** Qué hace falta para que la cifra exista. La tarjeta no se pinta sin eso. */
+  needs: AccessRequirement;
 }
+
+const TASKS: AccessRequirement = { module: 'planner', anyOf: ['tasks.read'] };
+const INVOICING: AccessRequirement = { module: null, anyOf: ['invoicing.view'] };
 
 /** Marcador de "sin dato" — nunca un 0 ni una cifra de relleno. */
 const NO_VALUE = '—';
@@ -48,8 +55,16 @@ export class DashboardHeroComponent implements OnInit {
 
   private readonly invoices = inject(DashboardInvoicesStore);
   private readonly tasks = inject(TaskStore);
+  private readonly access = inject(AccessStore);
 
-  readonly stats = computed<HeroStat[]>(() => [
+  /**
+   * El hero no se esconde entero aunque el usuario no tenga ninguna de las tres cifras: lleva el
+   * saludo y es lo primero que se ve. Lo que se filtra son las TARJETAS, para no dejar tres "—"
+   * con un error debajo que no se arregla recargando.
+   */
+  readonly stats = computed<HeroStat[]>(() => this.allStats().filter(stat => this.access.canUse(stat.needs)));
+
+  private readonly allStats = computed<HeroStat[]>(() => [
     {
       title: 'Overdue Tasks',
       subtitle: 'Past their due date',
@@ -58,6 +73,7 @@ export class DashboardHeroComponent implements OnInit {
       bg: 'bg-indigo-50',
       link: '/task',
       linkLabel: 'Go to tasks',
+      needs: TASKS,
     },
     {
       title: 'Outstanding Invoices',
@@ -67,6 +83,7 @@ export class DashboardHeroComponent implements OnInit {
       bg: 'bg-indigo-100',
       link: '/billing',
       linkLabel: 'Go to billing',
+      needs: INVOICING,
     },
     {
       title: 'Revenue This Month',
@@ -76,13 +93,19 @@ export class DashboardHeroComponent implements OnInit {
       bg: 'bg-gray-200',
       link: '/billing',
       linkLabel: 'Go to billing',
+      needs: INVOICING,
     },
   ]);
 
   ngOnInit(): void {
-    // Ambos stores son idempotentes: si otro widget ya los cargó, no repiten la llamada.
-    this.tasks.init();
-    this.invoices.load();
+    // Solo lo que se va a mostrar. Los stores son idempotentes: si otro widget ya los cargó, no
+    // repiten la llamada.
+    if (this.access.canUse(TASKS)) {
+      this.tasks.init();
+    }
+    if (this.access.canUse(INVOICING)) {
+      this.invoices.load();
+    }
   }
 
   /**

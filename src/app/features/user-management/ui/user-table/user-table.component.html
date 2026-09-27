@@ -62,25 +62,25 @@
             <div *ngIf="openMenuId() === member.id"
               class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg text-left">
               <ng-container *ngIf="member.kind === 'user'">
-                <button type="button" (click)="editRoles.emit(member); closeMenu()"
+                <button *ngIf="canManageRoles" type="button" (click)="editRoles.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <ion-icon name="options-outline" class="text-sm text-gray-400"></ion-icon>
                   Edit access
                 </button>
-                <button type="button" (click)="toggleSuspend.emit(member); closeMenu()"
+                <button *ngIf="canManageUsers" type="button" (click)="toggleSuspend.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <ion-icon [name]="member.status === 'suspended' ? 'play-circle-outline' : 'pause-circle-outline'"
                     class="text-sm text-gray-400"></ion-icon>
                   {{ member.status === 'suspended' ? 'Reactivate' : 'Suspend' }}
                 </button>
-                <button type="button" (click)="offboard.emit(member); closeMenu()"
+                <button *ngIf="canManageUsers" type="button" (click)="offboard.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
                   <ion-icon name="person-remove-outline" class="text-sm text-red-400"></ion-icon>
                   Remove from office
                 </button>
               </ng-container>
               <ng-container *ngIf="member.kind === 'invitation'">
-                <button type="button" (click)="resendInvite.emit(member); closeMenu()"
+                <button *ngIf="canInvite" type="button" (click)="resendInvite.emit(member); closeMenu()"
                   class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <ion-icon name="mail-outline" class="text-sm text-gray-400"></ion-icon>
                   Resend invite

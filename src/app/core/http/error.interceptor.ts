@@ -4,10 +4,11 @@ import { Observable, catchError, switchMap, throwError, timer } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { isRefreshRejected } from '@core/auth/refresh-failure';
 import { TokenService } from '@core/auth/token.service';
+import { EntitlementsNoticeService } from '@core/access/entitlements-notice.service';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { readThrottle } from '@core/errors/throttling';
-import { toApiError } from '@core/models/api-error.model';
+import { isModuleUnavailable, missingModule, toApiError } from '@core/models/api-error.model';
 
 /**
  * Endpoints anónimos: un 401 aquí es un fallo legítimo, no dispara refresh. Los de token por correo (reset,
@@ -39,6 +40,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const tokenService = inject(TokenService);
   const subscriptionStatus = inject(SubscriptionStatusStore);
   const throttleNotice = inject(ThrottleNoticeService);
+  const entitlements = inject(EntitlementsNoticeService);
 
   const handleError = (err: unknown, request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> => {
     // Suscripción de la firma en lapso (Expiración/Dunning, Fase 5). A diferencia del portal, al staff
@@ -46,6 +48,14 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     // el banner global aparezca y ofrezca renovar. El backend lo devuelve como 403 con este code.
     if (err instanceof HttpErrorResponse && toApiError(err).code === 'Auth.SubscriptionInactive') {
       subscriptionStatus.markBlockedFromError();
+      return throwError(() => err);
+    }
+
+    // B7 — el 403 del gate de módulo NO es "no tenés permiso": la oficina no contrató el módulo. La
+    // salida es comercial, no pedirle acceso al administrador, y además significa que nuestra lista
+    // de módulos quedó vieja. El error se sigue propagando: cada pantalla decide qué pintar.
+    if (isModuleUnavailable(err)) {
+      entitlements.notify(missingModule(err));
       return throwError(() => err);
     }
 
@@ -72,8 +82,14 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     if (!is401 || isAnonAuthEndpoint || !tokenService.getRefreshToken()) {
       return throwError(() => err);
     }
+    // El `catchError` va sobre el REFRESH y nada más. Estaba después del `switchMap`, así que
+    // también atrapaba el error del REINTENTO — y como `isRefreshRejected` da true para 400/401/403,
+    // un 403 legítimo del reintento se leía como "la sesión terminó" y cerraba sesión con recarga
+    // dura. Cuanto mejor funciona el RBAC, más se dispara: al revocar una permission, la siguiente
+    // petición da 401 `TokenStale` → refresh CORRECTO → reintento 403 → la pestaña se venía abajo.
+    //
+    // Encontrado en vivo en el Portal (QA de C9, 2026-09-27) con la misma forma; acá estaba igual.
     return auth.refresh().pipe(
-      switchMap(tokens => next(request.clone({ setHeaders: { Authorization: `Bearer ${tokens.accessToken}` } }))),
       catchError(refreshErr => {
         if (!isRefreshRejected(refreshErr)) {
           const refreshThrottle = readThrottle(refreshErr);
@@ -89,6 +105,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         window.location.assign('/login');
         return throwError(() => refreshErr);
       }),
+      // El reintento va DESPUÉS: su error se propaga tal cual, para que la pantalla lo muestre.
+      switchMap(tokens => next(request.clone({ setHeaders: { Authorization: `Bearer ${tokens.accessToken}` } }))),
     );
   };
 

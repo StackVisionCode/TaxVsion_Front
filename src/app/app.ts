@@ -1,4 +1,5 @@
 import { Component, DestroyRef, afterNextRender, inject, signal } from '@angular/core';
+import { SESSION_EXPIRED_REASON } from '@core/auth/session-notice';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
@@ -61,6 +62,6 @@ export class App {
     this.auth.logoutLocal();
     // Recarga dura (no navegación SPA): la sesión expiró, así que además de ir a /login se destruyen
     // los stores providedIn:'root' para que el próximo usuario de esta pestaña arranque limpio.
-    window.location.assign('/login?reason=session_expired');
+    window.location.assign(`/login?reason=${SESSION_EXPIRED_REASON}`);
   }
 }

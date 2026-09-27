@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, computed, effect, inject } from '@angular/core';
+import { PermissionService } from '@core/auth/permission.service';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '@core/auth/auth.service';
 import { ActiveCallService } from '../active-call.service';
@@ -18,6 +19,7 @@ import { SrcObjectDirective } from '../src-object.directive';
   templateUrl: './call-overlay.component.html',
 })
 export class CallOverlayComponent implements OnDestroy {
+  private readonly perms = inject(PermissionService);
   private readonly call = inject(ActiveCallService);
   private readonly auth = inject(AuthService);
 
@@ -76,7 +78,7 @@ export class CallOverlayComponent implements OnDestroy {
   readonly canRecord = computed(
     () =>
       typeof MediaRecorder !== 'undefined' &&
-      (this.auth.currentUser()?.permissions.includes('communication.call.record') ?? false),
+      (this.perms.has('communication.call.record')),
   );
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
   readonly isRecordingBusy = computed(() => ['Requesting', 'Stopping', 'Processing'].includes(this.recordingState()));
@@ -112,7 +114,7 @@ export class CallOverlayComponent implements OnDestroy {
     () =>
       this.isActive() &&
       !this.isVideo() &&
-      (this.auth.currentUser()?.permissions.includes('communication.videocall.start') ?? false),
+      (this.perms.has('communication.videocall.start')),
   );
 
   /** Texto de estado accesible (no solo color). */

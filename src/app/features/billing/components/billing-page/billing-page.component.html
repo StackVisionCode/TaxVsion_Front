@@ -139,7 +139,7 @@
   <!-- ---------------- Links de pago ---------------- -->
   <app-payment-links-panel *ngIf="tab() === 'links'" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
     [error]="store.linksError()" [statusFilter]="store.linkStatusFilter()" [page]="store.linkPage()"
-    [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()"
+    [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()" [canManage]="can.canManagePaymentLinks()"
     (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
     (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>

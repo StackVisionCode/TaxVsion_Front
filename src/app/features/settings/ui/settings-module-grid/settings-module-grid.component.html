@@ -3,7 +3,7 @@
   <p class="mt-1 text-sm text-gray-500">Configure how each module behaves for your firm</p>
 
   <div class="mt-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
-    <ng-container *ngFor="let module of modules">
+    <ng-container *ngFor="let module of modules()">
       <!-- Módulo con ruta propia (ej. Storage): navega en vez de seleccionar un panel local. -->
       <a *ngIf="module.routerLink; else localModule" [routerLink]="module.routerLink"
         class="group relative rounded-2xl border border-gray-100 p-4 text-left transition-colors hover:bg-gray-50">

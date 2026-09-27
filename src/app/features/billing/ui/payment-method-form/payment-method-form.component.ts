@@ -39,6 +39,8 @@ export class PaymentMethodFormComponent {
   @Input() configs: PaymentConfig[] = [];
   @Input() loading = false;
   @Input() saving = false;
+  /** B6 — configurar Stripe/PayPal es `payment_client.config.manage`; sin él solo se mira. */
+  @Input() canManage = true;
 
   @Output() providerSaveRequested = new EventEmitter<ProviderCredentials>();
   @Output() providerToggleRequested = new EventEmitter<PaymentConfig>();

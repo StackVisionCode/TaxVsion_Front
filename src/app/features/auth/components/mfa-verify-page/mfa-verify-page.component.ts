@@ -51,15 +51,15 @@ export class MfaVerifyPageComponent implements OnDestroy {
   readonly methodsLabel = computed(() => {
     const methods = this.pending()?.methods ?? [];
     if (methods.includes('Totp')) {
-      return 'Ingresa el código de tu app de autenticación.';
+      return 'Enter the code from your authenticator app.';
     }
     if (methods.includes('Email')) {
-      return 'Ingresa el código que enviamos a tu correo.';
+      return 'Enter the code we sent to your email.';
     }
     if (methods.includes('Sms')) {
-      return 'Ingresa el código que enviamos por SMS.';
+      return 'Enter the code we sent by SMS.';
     }
-    return 'Ingresa tu código de verificación.';
+    return 'Enter your verification code.';
   });
 
   readonly form: FormGroup = this.fb.group({
@@ -95,7 +95,7 @@ export class MfaVerifyPageComponent implements OnDestroy {
     }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.formError.set('Completa el código correctamente.');
+      this.formError.set('Enter the complete code.');
       return;
     }
 

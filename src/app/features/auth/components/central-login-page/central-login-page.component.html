@@ -176,6 +176,17 @@
               placeholder="123456"
               class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
             />
+            <!-- Marcar el equipo evita el código en los próximos inicios de sesión DESDE ESTE
+                 navegador. El backend decide si lo honra. -->
+            <label class="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer">
+              <input
+                type="checkbox"
+                [checked]="rememberDevice()"
+                (change)="toggleRememberDevice()"
+                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500/30"
+              />
+              Don't ask for a code on this device again
+            </label>
             <button
               type="button"
               (click)="submitMfa(office)"

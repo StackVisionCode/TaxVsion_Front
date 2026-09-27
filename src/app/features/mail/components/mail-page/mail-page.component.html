@@ -275,6 +275,7 @@
       <div class="mt-4">
         <app-mail-folder-list [folders]="folders()" [activeFolderId]="store.activeFolderId()"
           [composeDisabled]="!canCompose()" (folderSelected)="selectFolder($event)"
+          [canCompose]="can.canCompose()"
           (composeClicked)="openCompose()"></app-mail-folder-list>
       </div>
 
@@ -393,6 +394,7 @@
         [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
         [showTrashActions]="store.activeFolderId() === 'trash'"
         (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
+        [canManage]="can.canManage()"
         (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
         (loadMoreRequested)="loadMoreList()"></app-mail-list>
     </div>

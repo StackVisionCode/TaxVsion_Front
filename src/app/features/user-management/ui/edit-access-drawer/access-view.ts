@@ -23,6 +23,13 @@ export interface AccessRow {
   label: string;
   description: string;
   locked: boolean;
+  /**
+   * B9 — el rol se lo concede, pero el plan de la oficina no habilita su módulo: el permiso está
+   * DORMIDO. No es un error ni algo que el administrador tenga que arreglar acá, y por eso se marca
+   * en vez de esconderse: si mañana la oficina contrata el módulo, se despierta solo. Restringirlo
+   * igual es válido — el deny sobrevive al cambio de plan.
+   */
+  dormant: boolean;
 }
 
 /** One module accordion: a friendly header + its granted (toggleable) and locked rows. */
@@ -50,7 +57,8 @@ const MODULE_META: Record<string, ModuleMeta> = {
   clients: { label: 'Clients', description: 'Client directory, records and data', icon: 'clients' },
   tasks: { label: 'Tasks', description: 'Create, assign and close tasks', icon: 'tasks' },
   communication: { label: 'Communication', description: 'Email, chat and client meetings', icon: 'communication' },
-  comms: { label: 'Communication', description: 'Email, chat and client meetings', icon: 'communication' },
+  comms: { label: 'Communication', description: 'Chat and calls with clients', icon: 'communication' },
+  meetings: { label: 'Meetings', description: 'Video meetings with clients', icon: 'communication' },
   email: { label: 'Communication', description: 'Email, chat and client meetings', icon: 'communication' },
   support: { label: 'Support', description: 'Support tickets and agent queue', icon: 'communication' },
   campaigns: { label: 'Campaigns', description: 'Email campaigns and audiences', icon: 'mail' },
@@ -156,6 +164,8 @@ export function buildAccessView(
   grantedModules: readonly UserAccessModule[],
   catalog: readonly PermissionInfo[],
   actorType: string,
+  /** Módulos que el plan de la oficina habilita. `null` = todavía no se sabe: no se marca nada. */
+  enabledModules: ReadonlySet<string> | null = null,
 ): AccessModuleView[] {
   const isPortalSeat = actorType === 'CustomerPortal';
 
@@ -165,6 +175,18 @@ export function buildAccessView(
       grantedIds.add(permission.permissionId);
     }
   }
+
+  /** El módulo con el que el gate de entitlements mide cada permiso, por id. */
+  const gateModuleById = new Map<string, string | null>(
+    catalog.map(permission => [permission.id, permission.gateModule ?? null]),
+  );
+  const isDormant = (permissionId: string): boolean => {
+    if (enabledModules === null) {
+      return false;
+    }
+    const gate = gateModuleById.get(permissionId);
+    return !!gate && !enabledModules.has(gate);
+  };
 
   const lockedByModule = new Map<string, PermissionInfo[]>();
   for (const permission of catalog) {
@@ -184,6 +206,7 @@ export function buildAccessView(
         label: labelFromCode(permission.code),
         description: permission.description,
         locked: false,
+        dormant: isDormant(permission.permissionId),
       }))
       .sort((a, b) => a.code.localeCompare(b.code));
 
@@ -194,6 +217,7 @@ export function buildAccessView(
         label: labelFromCode(permission.code),
         description: permission.description,
         locked: true,
+        dormant: isDormant(permission.id),
       }))
       .sort((a, b) => a.code.localeCompare(b.code));
 

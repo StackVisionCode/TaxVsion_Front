@@ -10,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { PermissionService } from '@core/auth/permission.service';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
@@ -29,6 +30,7 @@ import { meetingAvatarColorFor, meetingInitialsFor } from '../../data-access/mee
   templateUrl: './meeting-room.component.html',
 })
 export class MeetingRoomComponent {
+  private readonly perms = inject(PermissionService);
   private readonly meeting = inject(ActiveMeetingService);
   private readonly auth = inject(AuthService);
 
@@ -63,7 +65,7 @@ export class MeetingRoomComponent {
   readonly canRecord = computed(
     () =>
       typeof MediaRecorder !== 'undefined' &&
-      (this.auth.currentUser()?.permissions.includes('communication.meeting.record') ?? false),
+      (this.perms.has('communication.meeting.record')),
   );
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
   readonly isRecordingBusy = computed(() => ['Requesting', 'Stopping', 'Processing'].includes(this.recordingState()));

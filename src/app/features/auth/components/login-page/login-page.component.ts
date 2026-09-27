@@ -25,6 +25,7 @@ import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.se
 import { landingUrl } from '@core/config/landing';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
+import { loginNoticeFor } from '@core/auth/session-notice';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import {
@@ -93,6 +94,11 @@ export class LoginPageComponent {
       this.api.setSlug(office);
     }
 
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (reason) {
+      this.notice.set(loginNoticeFor(reason));
+    }
+
     // Marca pre-login: en el subdominio de una oficina, pinta el tema/logo/favicon de ESA oficina
     // antes de autenticar (endpoint anónimo). Sin slug (app.*) no hace nada → marca del sistema.
     this.branding.applyForSurface('Crm');
@@ -105,6 +111,14 @@ export class LoginPageComponent {
 
   readonly showPassword = signal(false);
   readonly formError = signal<string | null>(null);
+
+  /**
+   * Por qué se volvió a login. Se llega acá con la sesión ya cerrada y sin explicación: sin este
+   * aviso, al usuario le parece que la aplicación se cayó sola. No es un error suyo, así que no se
+   * pinta como el `formError`.
+   */
+  readonly notice = signal<string | null>(null);
+
   readonly isTyping = signal(false);
 
   /** Fase de la coreografía de salida del login. */

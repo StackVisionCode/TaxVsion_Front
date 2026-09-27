@@ -111,7 +111,7 @@
       <span *ngIf="!companyName().trim() && !store.profileLoading()" class="text-xs text-gray-400">
         Company name is required
       </span>
-      <button type="button" (click)="saveProfile()" [disabled]="!canSaveProfile"
+      <button *ngIf="can.canManageIssuerProfile()" type="button" (click)="saveProfile()" [disabled]="!canSaveProfile"
         class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
         {{ store.profileSaving() ? 'Saving…' : 'Save changes' }}
       </button>
@@ -161,11 +161,11 @@
 
       <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center gap-3">
-          <button type="button" (click)="logoInput.click()" [disabled]="store.assetBusy() === 'logo'"
+          <button *ngIf="can.canManageBranding()" type="button" (click)="logoInput.click()" [disabled]="store.assetBusy() === 'logo'"
             class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
             {{ store.assetBusy() === 'logo' ? 'Uploading…' : store.logo() ? 'Replace logo' : 'Upload logo' }}
           </button>
-          <button *ngIf="store.logo()" type="button" (click)="removeAsset('logo')" [disabled]="store.assetBusy() === 'logo'"
+          <button *ngIf="store.logo() && can.canManageBranding()" type="button" (click)="removeAsset('logo')" [disabled]="store.assetBusy() === 'logo'"
             class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
             Remove
           </button>
@@ -208,7 +208,7 @@
             class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
             {{ store.assetBusy() === 'favicon' ? 'Uploading…' : store.favicon() ? 'Replace favicon' : 'Upload favicon' }}
           </button>
-          <button *ngIf="store.favicon()" type="button" (click)="removeAsset('favicon')" [disabled]="store.assetBusy() === 'favicon'"
+          <button *ngIf="store.favicon() && can.canManageBranding()" type="button" (click)="removeAsset('favicon')" [disabled]="store.assetBusy() === 'favicon'"
             class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
             Remove
           </button>
@@ -268,11 +268,11 @@
     </p>
 
     <div class="mt-5 flex flex-wrap items-center justify-end gap-3">
-      <button type="button" (click)="resetColors()" [disabled]="!canSaveColors"
+      <button *ngIf="can.canManageBranding()" type="button" (click)="resetColors()" [disabled]="!canSaveColors"
         class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
         Reset to default
       </button>
-      <button type="button" (click)="saveColors()" [disabled]="!canSaveColors"
+      <button *ngIf="can.canManageBranding()" type="button" (click)="saveColors()" [disabled]="!canSaveColors"
         class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
         {{ store.colorsSaving() ? 'Saving…' : 'Save colors' }}
       </button>

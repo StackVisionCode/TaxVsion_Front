@@ -52,6 +52,8 @@ export class MailFolderListComponent implements OnChanges, AfterViewInit {
   @Input() composeDisabled = false;
   @Output() folderSelected = new EventEmitter<string>();
   @Output() composeClicked = new EventEmitter<void>();
+  /** B6 — redactar exige `correspondence.compose`. */
+  @Input() canCompose = true;
 
   @ViewChild('folderNav') private navRef?: ElementRef<HTMLElement>;
   @ViewChildren('folderButton') private folderButtons?: QueryList<ElementRef<HTMLElement>>;

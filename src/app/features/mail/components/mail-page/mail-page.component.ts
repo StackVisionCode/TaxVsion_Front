@@ -27,6 +27,7 @@ import {
   initialsFor,
 } from '../../data-access/mail.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -60,6 +61,9 @@ import { CustomerSummary } from '@core/customers/customer-summary.model';
   styleUrl: './mail-page.component.css',
 })
 export class MailPageComponent implements OnInit, OnDestroy {
+  /** B6 — "Delete forever" se ofrecía a todos; es `correspondence.manage`. */
+  protected readonly can = inject(CorrespondenceCapabilities);
+
   readonly store = inject(MailStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

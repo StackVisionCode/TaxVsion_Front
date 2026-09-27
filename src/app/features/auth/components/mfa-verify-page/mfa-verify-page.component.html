@@ -5,26 +5,26 @@
   <div class="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl shadow-brand-light/40 px-8 sm:px-10 py-10">
     <app-brand-logo />
 
-    <h1 class="mt-4 text-2xl font-bold text-gray-900">Verificación en dos pasos</h1>
+    <h1 class="mt-4 text-2xl font-bold text-gray-900">Two-step verification</h1>
     <p class="mt-2 text-sm text-gray-500">{{ methodsLabel() }}</p>
 
     @if (!expired()) {
-      <p class="mt-1 text-xs text-gray-400">El código expira en {{ remainingSeconds() }}s.</p>
+      <p class="mt-1 text-xs text-gray-400">This code expires in {{ remainingSeconds() }}s.</p>
     } @else {
-      <p class="mt-1 text-xs font-medium text-red-600">El código expiró. Vuelve a iniciar sesión.</p>
+      <p class="mt-1 text-xs font-medium text-red-600">The code expired. Sign in again.</p>
     }
 
     <form [formGroup]="form" class="mt-8 space-y-5" (ngSubmit)="onSubmit()">
       @if (!useRecovery()) {
         <div class="space-y-1.5">
-          <label for="code" class="block text-sm font-medium text-gray-800">Código de verificación</label>
+          <label for="code" class="block text-sm font-medium text-gray-800">Verification code</label>
           <input type="text" id="code" formControlName="code" inputmode="numeric" autocomplete="one-time-code"
             maxlength="6" placeholder="000000"
             class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
         </div>
       } @else {
         <div class="space-y-1.5">
-          <label for="recoveryCode" class="block text-sm font-medium text-gray-800">Código de recuperación</label>
+          <label for="recoveryCode" class="block text-sm font-medium text-gray-800">Recovery code</label>
           <input type="text" id="recoveryCode" formControlName="recoveryCode" autocomplete="off"
             placeholder="XXXXXXXX"
             class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors" />
@@ -35,7 +35,7 @@
         <label class="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer">
           <input type="checkbox" [checked]="rememberDevice()" (change)="toggleRememberDevice()"
             class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500/30" />
-          Recordar este dispositivo por 30 días
+          Don't ask for a code on this device again
         </label>
       }
 
@@ -49,14 +49,14 @@
           <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
           <span>Verificando...</span>
         } @else {
-          <span>Verificar</span>
+          <span>Verify</span>
         }
       </button>
     </form>
 
     <div class="mt-6 flex items-center justify-between text-sm">
       <button type="button" (click)="toggleRecovery()" class="font-medium text-indigo-600 hover:text-indigo-500">
-        {{ useRecovery() ? 'Usar código de la app' : 'Usar código de recuperación' }}
+        {{ useRecovery() ? 'Use the code from your app' : 'Use a recovery code' }}
       </button>
       <a routerLink="/login" class="font-medium text-gray-500 hover:text-gray-700">Volver</a>
     </div>

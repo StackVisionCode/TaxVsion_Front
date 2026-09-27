@@ -52,6 +52,11 @@ export interface HandoffSession {
   takeoverRequired?: boolean;
   takeoverTicket?: string | null;
   takeoverTicketExpiresInSeconds?: number | null;
+  /**
+   * Dispositivo de confianza recién creado, solo si se pidió "recordar este dispositivo" al
+   * resolver el segundo factor. Se guarda en este origen y se reenvía en el próximo discover.
+   */
+  deviceToken?: string | null;
 }
 
 /** Desenlace del discover ya interpretado por el servicio (el componente solo enruta). */
