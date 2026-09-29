@@ -143,7 +143,7 @@ export const routes: Routes = [
       import('./features/invoice-checkout/components/invoice-checkout-page/invoice-checkout-page.component').then(
         m => m.InvoiceCheckoutPageComponent
       ),
-    title: 'Pagar factura',
+    title: 'Pay invoice',
   },
   {
     path: '',
