@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -61,7 +62,7 @@ const ADDRESS_KINDS: { value: AddressKind; label: string }[] = [
  */
 @Component({
   selector: 'app-client-profile-contact-details',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-contact-details.component.html',
   styleUrl: './client-profile-contact-details.component.css',

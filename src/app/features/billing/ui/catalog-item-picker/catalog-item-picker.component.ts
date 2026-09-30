@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -44,7 +45,7 @@ export interface CatalogQuickCreate {
  */
 @Component({
   selector: 'app-catalog-item-picker',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './catalog-item-picker.component.html',
 })

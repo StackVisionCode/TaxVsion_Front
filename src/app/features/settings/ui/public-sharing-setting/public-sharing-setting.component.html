@@ -20,19 +20,14 @@
     </div>
 
     <!-- Interruptor -->
-    <button
-      type="button"
-      role="switch"
-      [attr.aria-checked]="allowed()"
-      [disabled]="!canManage() || loading() || saving()"
-      (click)="toggle()"
-      class="switch mt-0.5 shrink-0"
-      [class.switch-on]="allowed()"
-      [class.switch-busy]="loading() || saving()"
-      aria-label="Toggle public share links"
-    >
-      <span class="switch-knob"></span>
-    </button>
+    <app-switch
+      class="mt-0.5"
+      [checked]="allowed()"
+      [disabled]="!canManage()"
+      [busy]="loading() || saving()"
+      (checkedChange)="toggle()"
+      ariaLabel="Toggle public share links"
+    ></app-switch>
   </div>
 
   <div class="mt-3 border-t border-gray-100 pt-3">

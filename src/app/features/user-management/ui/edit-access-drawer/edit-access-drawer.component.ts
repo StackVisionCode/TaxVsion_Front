@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -28,7 +29,7 @@ import { AccessStore } from '@core/access/access.store';
  */
 @Component({
   selector: 'app-edit-access-drawer',
-  imports: [CommonModule, FormsModule],
+  imports: [SwitchComponent, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [EditAccessStore],
   templateUrl: './edit-access-drawer.component.html',

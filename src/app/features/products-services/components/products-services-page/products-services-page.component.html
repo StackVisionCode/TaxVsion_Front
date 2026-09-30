@@ -123,16 +123,11 @@
             (ngModelChange)="newCost.set($event)"
             class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
         </div>
-        <button type="button" (click)="newTrackInventory.set(!newTrackInventory())"
-          class="flex h-10 items-center justify-between rounded-full border border-gray-200 bg-white px-4 transition-colors"
-          role="switch" [attr.aria-checked]="newTrackInventory()" aria-label="Toggle inventory tracking">
+        <label class="flex h-10 cursor-pointer items-center justify-between rounded-full border border-gray-200 bg-white px-4">
           <span class="text-sm text-gray-600">Track stock</span>
-          <span class="relative flex h-5 w-9 items-center rounded-full transition-colors"
-            [ngClass]="newTrackInventory() ? 'bg-brand-bold' : 'bg-gray-300'">
-            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-              [ngClass]="newTrackInventory() ? 'translate-x-4' : 'translate-x-0.5'"></span>
-          </span>
-        </button>
+          <app-switch size="sm" [checked]="newTrackInventory()" (checkedChange)="newTrackInventory.set($event)"
+            ariaLabel="Track stock"></app-switch>
+        </label>
         <!-- Cantidad inicial recibida: solo tiene sentido si se rastrea el stock -->
         <div *ngIf="newTrackInventory()"
           class="col-span-2 h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
@@ -171,12 +166,7 @@
         <p class="text-sm font-medium text-gray-900">{{ newActive() ? 'Active' : 'Inactive' }}</p>
         <p class="text-xs text-gray-500">Inactive entries stay hidden from billing</p>
       </div>
-      <button type="button" (click)="newActive.set(!newActive())" role="switch" [attr.aria-checked]="newActive()"
-        class="relative flex h-6 w-11 items-center rounded-full transition-colors"
-        [ngClass]="newActive() ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle active status">
-        <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-          [ngClass]="newActive() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-      </button>
+      <app-switch [checked]="newActive()" (checkedChange)="newActive.set($event)" ariaLabel="Active"></app-switch>
     </div>
 
     <!-- Error del backend al guardar (el modal queda abierto para corregir) -->

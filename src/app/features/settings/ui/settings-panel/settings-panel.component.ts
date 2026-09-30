@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -136,7 +137,7 @@ const PANELS: Record<string, PanelConfig> = {
  */
 @Component({
   selector: 'app-settings-panel',
-  imports: [CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './settings-panel.component.html',
 })

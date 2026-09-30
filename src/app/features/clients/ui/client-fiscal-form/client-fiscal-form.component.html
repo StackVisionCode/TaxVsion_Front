@@ -104,12 +104,7 @@
         <span class="block text-sm font-medium text-gray-700">Returning client</span>
         <span class="block text-xs text-gray-400">Filed with this office in a prior year (not a first-time client).</span>
       </span>
-      <button type="button" (click)="isReturning.set(!isReturning())" class="relative h-6 w-11 shrink-0 rounded-full transition-colors"
-        [ngClass]="isReturning() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" aria-label="Returning client"
-        [attr.aria-checked]="isReturning()">
-        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-          [ngClass]="isReturning() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-      </button>
+      <app-switch [checked]="isReturning()" (checkedChange)="isReturning.set($event)" ariaLabel="Returning client"></app-switch>
     </label>
 
     <div class="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">

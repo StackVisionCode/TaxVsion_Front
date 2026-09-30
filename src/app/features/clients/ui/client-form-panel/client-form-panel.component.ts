@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -82,7 +83,7 @@ interface DuplicateMatch {
  */
 @Component({
   selector: 'app-client-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, CatalogPickerComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, CatalogPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-form-panel.component.html',
   styleUrl: './client-form-panel.component.css',

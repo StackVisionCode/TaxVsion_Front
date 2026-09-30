@@ -74,13 +74,7 @@
           <p class="text-sm font-medium text-gray-900">Track stock</p>
           <p class="text-xs text-gray-500">Keep on-hand quantities for this product</p>
         </div>
-        <button type="button" (click)="trackInventory.set(!trackInventory())" role="switch"
-          [attr.aria-checked]="trackInventory()"
-          class="relative flex h-6 w-11 items-center rounded-full transition-colors"
-          [ngClass]="trackInventory() ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle stock tracking">
-          <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-            [ngClass]="trackInventory() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-        </button>
+        <app-switch [checked]="trackInventory()" (checkedChange)="trackInventory.set($event)" ariaLabel="Track stock"></app-switch>
       </div>
 
       <div *ngIf="trackInventory()" class="grid grid-cols-2 gap-3">
@@ -107,12 +101,7 @@
           <p class="text-sm font-medium text-gray-900">{{ status() === 'active' ? 'Active' : 'Inactive' }}</p>
           <p class="text-xs text-gray-500">Inactive products stay hidden from clients</p>
         </div>
-        <button type="button" (click)="toggleStatus()" role="switch" [attr.aria-checked]="status() === 'active'"
-          class="relative flex h-6 w-11 items-center rounded-full transition-colors"
-          [ngClass]="status() === 'active' ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle active status">
-          <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-            [ngClass]="status() === 'active' ? 'translate-x-5' : 'translate-x-0.5'"></span>
-        </button>
+        <app-switch [checked]="status() === 'active'" (checkedChange)="toggleStatus()" ariaLabel="Active"></app-switch>
       </div>
 
       <p *ngIf="errorMessage" class="px-2 text-sm text-red-600">{{ errorMessage }}</p>

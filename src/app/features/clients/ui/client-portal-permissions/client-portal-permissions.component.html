@@ -45,17 +45,17 @@
              así que sin la asociación del label un clic del usuario no llega al control. Las filas
              funcionaban porque la fila entera ERA un label; la cabecera del módulo no, y por eso el
              maestro parecía muerto. -->
-        <label class="sw" (click)="$event.stopPropagation()"
+        <span class="inline-flex" (click)="$event.stopPropagation()"
           [title]="moduleAllowed(module) ? 'Restrict everything here' : 'Restore everything here'">
-          <input type="checkbox" [attr.aria-label]="'Allow all of ' + module.label" [checked]="moduleAllowed(module)"
-            (change)="setModuleAllowed(module, $any($event.target).checked)" />
-          <span class="track"></span>
-        </label>
+          <app-switch [checked]="moduleAllowed(module)" (checkedChange)="setModuleAllowed(module, $event)"
+            [ariaLabel]="'Allow all of ' + module.label"></app-switch>
+        </span>
       </div>
 
       <!-- Capacidades -->
       <label *ngFor="let row of module.rows"
-        class="perm-row flex items-center gap-3 border-t border-gray-100 px-4 py-2.5">
+        class="perm-row flex items-center gap-3 border-t border-gray-100 px-4 py-2.5"
+        [class.perm-denied]="!row.locked && isDenied(row.permissionId)" [class.perm-locked]="row.locked">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-gray-800">
             {{ row.label }}
@@ -69,12 +69,8 @@
           </div>
         </div>
 
-        <span class="sw">
-          <input type="checkbox" [disabled]="row.locked" [attr.aria-label]="row.label"
-            [checked]="!row.locked && !isDenied(row.permissionId)"
-            (change)="setAllowed(row.permissionId, $any($event.target).checked)" />
-          <span class="track"></span>
-        </span>
+        <app-switch [checked]="!row.locked && !isDenied(row.permissionId)" [disabled]="row.locked"
+          (checkedChange)="setAllowed(row.permissionId, $event)" [ariaLabel]="row.label"></app-switch>
       </label>
     </section>
 

@@ -125,11 +125,7 @@
     </div>
     <label class="flex cursor-pointer items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
       <span class="text-sm font-medium text-gray-700">Set as primary</span>
-      <button type="button" (click)="addrPrimary.set(!addrPrimary())" class="relative h-6 w-11 rounded-full transition-colors"
-        [ngClass]="addrPrimary() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="addrPrimary()">
-        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-          [ngClass]="addrPrimary() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-      </button>
+      <app-switch [checked]="addrPrimary()" (checkedChange)="addrPrimary.set($event)" ariaLabel="Set as primary"></app-switch>
     </label>
     @if (addrErr()) { <p class="field-err text-sm text-red-600">{{ addrErr() }}</p> }
   </div>
@@ -163,11 +159,7 @@
       name="cpLabel" class="h-11 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
     <label class="flex cursor-pointer items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
       <span class="text-sm font-medium text-gray-700">Set as primary</span>
-      <button type="button" (click)="cpPrimary.set(!cpPrimary())" class="relative h-6 w-11 rounded-full transition-colors"
-        [ngClass]="cpPrimary() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="cpPrimary()">
-        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-          [ngClass]="cpPrimary() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-      </button>
+      <app-switch [checked]="cpPrimary()" (checkedChange)="cpPrimary.set($event)" ariaLabel="Set as primary"></app-switch>
     </label>
     @if (cpErr()) { <p class="field-err text-sm text-red-600">{{ cpErr() }}</p> }
   </div>

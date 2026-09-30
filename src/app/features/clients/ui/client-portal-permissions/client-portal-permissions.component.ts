@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { catchError, of } from 'rxjs';
@@ -19,7 +20,7 @@ const ROLES_MANAGE = 'roles.manage';
  */
 @Component({
   selector: 'app-client-portal-permissions',
-  imports: [CommonModule],
+  imports: [SwitchComponent, CommonModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [EditAccessStore],
   templateUrl: './client-portal-permissions.component.html',

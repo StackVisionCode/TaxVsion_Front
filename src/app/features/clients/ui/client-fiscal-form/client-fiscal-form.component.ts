@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -106,7 +107,7 @@ function sameSpouse(a: SpouseFields, b: SpouseFields): boolean {
  */
 @Component({
   selector: 'app-client-fiscal-form',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-fiscal-form.component.html',
   styleUrl: './client-fiscal-form.component.css',

@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -138,7 +139,7 @@ export interface NormalizedPlacedField {
  */
 @Component({
   selector: 'app-signature-pdf-editor',
-  imports: [CommonModule, FormsModule, ModalComponent, CdkDropList, CdkDrag, CdkDragHandle],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, CdkDropList, CdkDrag, CdkDragHandle],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-pdf-editor.component.html',
   styleUrl: './signature-pdf-editor.component.css',

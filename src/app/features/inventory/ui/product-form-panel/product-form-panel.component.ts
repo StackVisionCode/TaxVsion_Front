@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -35,7 +36,7 @@ import {
  */
 @Component({
   selector: 'app-product-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './product-form-panel.component.html',
 })

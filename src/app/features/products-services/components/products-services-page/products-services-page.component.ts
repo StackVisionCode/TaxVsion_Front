@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -17,7 +18,7 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
  */
 @Component({
   selector: 'app-products-services-page',
-  imports: [CommonModule, FormsModule, ServiceCatalogComponent, ModalComponent, ConfirmDialogComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ServiceCatalogComponent, ModalComponent, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './products-services-page.component.html',
 })

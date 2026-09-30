@@ -119,12 +119,8 @@
           </div>
           <div class="flex flex-col justify-center">
             <label class="block text-xs font-medium text-gray-500">Track inventory</label>
-            <button type="button" (click)="newTrackInventory.set(!newTrackInventory())" [disabled]="creating"
-              class="relative mt-2 inline-flex h-6 w-11 items-center rounded-full transition-colors"
-              [ngClass]="newTrackInventory() ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle inventory tracking">
-              <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                [ngClass]="newTrackInventory() ? 'translate-x-6' : 'translate-x-1'"></span>
-            </button>
+            <app-switch class="mt-2" [checked]="newTrackInventory()" (checkedChange)="newTrackInventory.set($event)"
+              [disabled]="creating" ariaLabel="Track inventory"></app-switch>
           </div>
         </div>
       </div>
