@@ -14,21 +14,12 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { captureActiveElement, focusablesIn, setBodyScrollLock, trapTabKey } from '../../utils/overlay.util';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 
 /** Id incremental para asociar `aria-labelledby` con el título de cada instancia. */
 let modalInstanceSeq = 0;
-
-/** Selector de elementos enfocables dentro del panel (para el foco inicial y el focus-trap). */
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'textarea:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
 
 /** Ancho máximo del panel por tamaño (Tailwind). */
 const SIZE_CLASSES: Record<ModalSize, string> = {
@@ -51,18 +42,8 @@ function prefersReducedMotion(): boolean {
   }
 }
 
-/**
- * Bloqueo de scroll del fondo con contador: mientras haya ≥1 modal montado, el body no scrollea
- * (el contenido de detrás no se mueve al abrir un modal). El contador cubre modales anidados/apilados.
- */
-let openModalCount = 0;
-function setBodyScrollLock(locked: boolean): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  openModalCount = Math.max(0, openModalCount + (locked ? 1 : -1));
-  document.body.style.overflow = openModalCount > 0 ? 'hidden' : '';
-}
+// Bloqueo de scroll (contador compartido con app-drawer), enfocables y focus-trap viven en
+// shared/utils/overlay.util.ts; el comportamiento del modal no cambia.
 
 /**
  * Shell de modal reusable (estilo "Aether"): backdrop oscuro que cierra al
@@ -174,24 +155,7 @@ export class ModalComponent implements OnChanges, OnDestroy {
     if (!this.rendered() || !panel) {
       return;
     }
-    const focusables = this.focusables();
-    if (focusables.length === 0) {
-      event.preventDefault();
-      panel.focus();
-      return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement as HTMLElement | null;
-    const insidePanel = active !== null && panel.contains(active);
-
-    if (event.shiftKey && (active === first || !insidePanel)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
+    trapTabKey(event, panel);
   }
 
   close(): void {
@@ -200,8 +164,8 @@ export class ModalComponent implements OnChanges, OnDestroy {
 
   private captureAndFocus(): void {
     // En el momento de abrir, el foco sigue en el disparador (el DOM del modal aún no lo tiene).
-    const active = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
-    if (active && active !== document.body) {
+    const active = captureActiveElement();
+    if (active) {
       this.returnFocusTo = active;
     }
     // El contenido proyectado se pinta tras este ciclo; se difiere el foco para encontrarlo montado.
@@ -222,13 +186,7 @@ export class ModalComponent implements OnChanges, OnDestroy {
   }
 
   private focusables(): HTMLElement[] {
-    const panel = this.panelRef?.nativeElement;
-    if (!panel) {
-      return [];
-    }
-    return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-      el => el.offsetParent !== null || el === document.activeElement,
-    );
+    return focusablesIn(this.panelRef?.nativeElement);
   }
 
   private beginClose(): void {
