@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { toApiError } from '@core/models/api-error.model';
+import { formatMoney } from '@shared/utils/format.util';
 
 /** Meses que pinta el gráfico de ingresos del dashboard. */
 const MONTHS_IN_CHART = 6;
@@ -37,11 +38,8 @@ export interface MonthlyRevenueBucket {
  * (`totalCents`, `amountDueCents`, `amountPaidCents`), nunca en unidades.
  */
 export function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency || 'USD',
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
+  // Cifras redondas (sin centavos) en el dashboard: se redondea a unidades antes del formateo común.
+  return formatMoney(Math.round(cents / 100), currency, { minFraction: 0 });
 }
 
 /**

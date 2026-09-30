@@ -1,8 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { InvoiceMetricsComponent } from '../../ui/invoice-metrics/invoice-metrics.component';
 import { InvoiceAction, InvoiceTableComponent } from '../../ui/invoice-table/invoice-table.component';
 import { InvoiceFormPanelComponent, InvoiceFormSubmit } from '../../ui/invoice-form-panel/invoice-form-panel.component';
@@ -47,6 +50,9 @@ type BillingTab = 'invoices' | 'links';
     CommonModule,
     FormsModule,
     PaginationComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    StateBlockComponent,
     InvoiceMetricsComponent,
     InvoiceTableComponent,
     InvoiceFormPanelComponent,
@@ -76,6 +82,19 @@ export class BillingPageComponent implements OnInit {
   readonly takeOptions = TAKE_OPTIONS;
   readonly statusTabs: InvoiceStatusFilter[] = ['All', ...FILTERABLE_STATUSES];
 
+  readonly tabOptions: FilterChipOption<BillingTab>[] = [
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'links', label: 'Payment links' },
+  ];
+
+  /** Pestañas de estado con su contador (solo cuando hay alguna factura en ese estado). */
+  readonly statusTabOptions = computed<FilterChipOption<InvoiceStatusFilter>[]>(() =>
+    this.statusTabs.map(status => {
+      const count = this.store.statusCounts()[status] ?? 0;
+      return { id: status, label: this.statusTabLabel(status), count: count > 0 ? count : null };
+    }),
+  );
+
   // Modales
   readonly formOpen = signal(false);
   readonly paymentTarget = signal<InvoiceSummary | null>(null);
@@ -101,10 +120,6 @@ export class BillingPageComponent implements OnInit {
 
   statusTabLabel(status: InvoiceStatusFilter): string {
     return status === 'All' ? 'All' : invoiceStatusLabel(status as InvoiceStatus);
-  }
-
-  statusTabCount(status: InvoiceStatusFilter): number {
-    return this.store.statusCounts()[status] ?? 0;
   }
 
   /** Texto del vacío: distingue "no hay ninguna" de "los filtros no dejan pasar nada". */

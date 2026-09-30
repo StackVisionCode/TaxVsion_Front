@@ -1,5 +1,6 @@
 import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { AVATAR_PALETTE, initialsOf } from '@shared/utils/avatar.util';
 import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
 
 /**
@@ -553,17 +554,6 @@ export interface ListSignatureRequestsParams {
 
 // ---------- Adaptadores backend -> shapes de UI existentes ----------
 
-const SIGNER_AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
-function initialsOf(name: string): string {
-  return name
-    .split(' ')
-    .map(part => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 export function apiStatusToUi(status: ApiSignatureRequestStatus): SignatureStatus {
   switch (status) {
     case 'Draft':
@@ -602,7 +592,7 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
     name: signer.fullName,
     initials: initialsOf(signer.fullName),
     email: signer.email,
-    color: SIGNER_AVATAR_COLORS[index % SIGNER_AVATAR_COLORS.length],
+    color: AVATAR_PALETTE[index % AVATAR_PALETTE.length],
     status: apiSignerStatusToUi(signer.status),
     signedAt: signer.signedAtUtc ? signer.signedAtUtc.slice(0, 10) : null,
   };

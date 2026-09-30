@@ -5,11 +5,8 @@ import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { UserManagementService } from '../../../user-management/data-access/user-management.service';
-import {
-  UserSummary,
-  deriveInitials,
-  pickAvatarColor,
-} from '../../../user-management/data-access/user-management.model';
+import { UserSummary } from '../../../user-management/data-access/user-management.model';
+import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
 import { WorkflowStore } from '../../data-access/workflow.store';
 import { WorkflowCollaborator, WorkflowCollaboratorRole } from '../../data-access/workflow.model';
 
@@ -140,11 +137,11 @@ export class WorkflowShareModalComponent {
   }
 
   initials(name: string): string {
-    return deriveInitials(name);
+    return initialsOf(name);
   }
 
   color(seed: string): string {
-    return pickAvatarColor(seed);
+    return avatarColorFor(seed);
   }
 
   @Output() closed = new EventEmitter<void>();

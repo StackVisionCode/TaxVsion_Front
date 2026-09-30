@@ -4,11 +4,7 @@
     <!-- Estado + importe -->
     <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-brand-white px-5 py-4">
       <div>
-        <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-          [ngClass]="statusChip(inv.status)">
-          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(inv.status)"></span>
-          {{ statusLabel(inv.status) }}
-        </span>
+        <app-status-pill [tone]="statusTone(inv.status)" [soft]="true">{{ statusLabel(inv.status) }}</app-status-pill>
         <p class="mt-2 text-sm text-gray-500">Created {{ longDate(inv.createdAtUtc) }}</p>
       </div>
       <div class="text-right">

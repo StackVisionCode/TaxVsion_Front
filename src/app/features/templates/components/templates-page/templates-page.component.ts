@@ -1,12 +1,15 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toApiError } from '@core/models/api-error.model';
 import { TemplateCardGridComponent } from '../../ui/template-card-grid/template-card-grid.component';
 import { TemplateFormPanelComponent } from '../../ui/template-form-panel/template-form-panel.component';
 import { TemplatePreviewComponent } from '../../ui/template-preview/template-preview.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { TemplatesStore } from '../../data-access/templates.store';
 import { Template, TemplateFormValue } from '../../data-access/templates.model';
 
@@ -28,12 +31,15 @@ type CategoryFilter = 'All' | string;
   selector: 'app-templates-page',
   imports: [
     CommonModule,
-    FormsModule,
     RouterLink,
     TemplateCardGridComponent,
     TemplateFormPanelComponent,
     TemplatePreviewComponent,
     ConfirmDialogComponent,
+    StatCardsComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './templates-page.component.html',
@@ -62,7 +68,9 @@ export class TemplatesPageComponent implements OnInit {
     this.store.init();
   }
 
-  readonly categoryFilters = computed<CategoryFilter[]>(() => ['All', ...this.store.categories()]);
+  readonly categoryFilters = computed<FilterChipOption<CategoryFilter>[]>(() =>
+    ['All', ...this.store.categories()].map(category => ({ id: category, label: category })),
+  );
 
   readonly archiveMessage = computed(() => {
     const template = this.pendingArchive();
@@ -76,6 +84,12 @@ export class TemplatesPageComponent implements OnInit {
     () => this.store.templates().filter(template => template.status === 'published').length,
   );
   readonly draftCount = computed(() => this.store.templates().filter(template => template.status === 'draft').length);
+
+  readonly statItems = computed<StatCardItem[]>(() => [
+    { label: 'Total templates', value: this.totalCount() },
+    { label: 'Published', value: this.publishedCount() },
+    { label: 'Drafts', value: this.draftCount() },
+  ]);
 
   readonly visibleTemplates = computed<Template[]>(() => {
     const query = this.search().trim().toLowerCase();

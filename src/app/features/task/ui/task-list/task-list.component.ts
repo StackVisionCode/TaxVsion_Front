@@ -11,6 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { ApiTaskPriority, TaskItem, TaskStatus } from '../../data-access/task.model';
 import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 type SortKey = 'due' | 'priority' | 'title';
 
@@ -22,7 +23,7 @@ type SortKey = 'due' | 'priority' | 'title';
 @Component({
   selector: 'app-task-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.css',

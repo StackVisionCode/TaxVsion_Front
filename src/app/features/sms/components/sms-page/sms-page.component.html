@@ -44,65 +44,22 @@
   <!-- Panel -->
   <section class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 sm:p-6">
     <!-- Tabs -->
-    <div class="inline-flex rounded-full bg-gray-100 p-1">
-      <button
-        type="button"
-        (click)="setTab('messages')"
-        [class]="activeTab() === 'messages' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
-        class="rounded-full px-4 py-1.5 text-sm font-semibold transition">
-        Messages
-      </button>
-      <button
-        type="button"
-        (click)="setTab('optouts')"
-        [class]="activeTab() === 'optouts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
-        class="rounded-full px-4 py-1.5 text-sm font-semibold transition">
-        Opt-outs
-      </button>
-    </div>
+    <app-segmented [options]="tabs" [value]="activeTab()" (valueChange)="setTab($event)"></app-segmented>
 
     <!-- ============ MESSAGES ============ -->
     @if (activeTab() === 'messages') {
       <!-- filters -->
       <div class="mt-5 flex flex-wrap items-center gap-2">
-        <div class="flex flex-wrap gap-2">
-          @for (f of statusFilters; track f.value) {
-            <button
-              type="button"
-              (click)="setStatus(f.value)"
-              [class]="store.status() === f.value ? 'bg-brand-bold text-white border-brand-bold' : 'text-gray-600 border-gray-200 hover:bg-gray-50'"
-              class="rounded-full border px-3.5 py-1.5 text-xs font-semibold transition">
-              {{ f.label }}
-            </button>
-          }
-        </div>
-        <div class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-2">
-          <svg viewBox="0 0 24 24" class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" stroke-linecap="round" />
-          </svg>
-          <input
-            type="text"
-            [ngModel]="searchText()"
-            (ngModelChange)="onSearch($event)"
-            placeholder="Search client, phone or text…"
-            aria-label="Search messages by client, phone or text"
-            class="w-40 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-gray-400 sm:w-56" />
-        </div>
+        <app-filter-chips size="sm" [options]="statusFilters" [value]="store.status()" (valueChange)="setStatus($event)"></app-filter-chips>
+        <app-search-input class="ml-auto" widthClass="w-40 sm:w-56" placeholder="Search client, phone or text…"
+          ariaLabel="Search messages by client, phone or text" [debounceMs]="searchDebounceMs" [value]="searchText()"
+          (valueChange)="onSearch($event)"></app-search-input>
       </div>
 
       <!-- states -->
-      @if (store.listLoading() && store.items().length === 0) {
-        <div class="py-16 text-center text-sm text-gray-400">Loading messages…</div>
-      } @else if (store.listError()) {
-        <div class="py-16 text-center">
-          <p class="text-sm font-medium text-gray-700">
-            {{ store.listErrorKind() === 'network' ? 'Can’t reach the server right now.' : 'Something went wrong loading messages.' }}
-          </p>
-          <button type="button" (click)="store.reloadList()" class="mt-3 rounded-full bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Try again</button>
-        </div>
-      } @else if (store.items().length === 0) {
-        <div class="py-16 text-center text-sm text-gray-400">No messages yet.</div>
-      } @else {
+      <app-state-block [loading]="store.listLoading() && store.items().length === 0" [error]="listErrorText()"
+        [empty]="store.items().length === 0" variant="inline" loadingText="Loading messages…" retryLabel="Try again"
+        icon="chatbubble-ellipses-outline" emptyTitle="No messages yet." (retry)="store.reloadList()">
         <!-- desktop table -->
         <div class="mt-4 hidden overflow-x-auto md:block">
           <table class="w-full border-collapse">
@@ -120,9 +77,7 @@
                 <tr (click)="openDetail(m)" class="cursor-pointer border-b border-gray-50 text-sm transition hover:bg-gray-50">
                   <td class="px-3 py-3">
                     <div class="flex items-center gap-2.5">
-                      <span class="grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white {{ avatarColor(m.customerId) }}">
-                        {{ initials(clientName(m.recipientName, m.customerId, m.to)) }}
-                      </span>
+                      <app-avatar [name]="clientName(m.recipientName, m.customerId, m.to)" [seed]="m.customerId" size="sm"></app-avatar>
                       <span class="font-medium text-gray-700">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
                     </div>
                   </td>
@@ -136,10 +91,7 @@
                     </div>
                   </td>
                   <td class="px-3 py-3">
-                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {{ statusChip(m.status).chip }}">
-                      <span class="h-1.5 w-1.5 rounded-full {{ statusChip(m.status).dot }}"></span>
-                      {{ statusChip(m.status).label }}
-                    </span>
+                    <app-status-pill [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
                   </td>
                   <td class="px-3 py-3 text-gray-400">{{ m.createdAtUtc | date: 'short' }}</td>
                 </tr>
@@ -154,15 +106,10 @@
             <button type="button" (click)="openDetail(m)" class="block w-full rounded-2xl border border-gray-100 p-4 text-left transition active:bg-gray-50">
               <div class="flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2.5">
-                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white {{ avatarColor(m.customerId) }}">
-                    {{ initials(clientName(m.recipientName, m.customerId, m.to)) }}
-                  </span>
+                  <app-avatar [name]="clientName(m.recipientName, m.customerId, m.to)" [seed]="m.customerId" sizeClass="h-9 w-9 text-xs"></app-avatar>
                   <span class="truncate font-semibold text-gray-800">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
                 </div>
-                <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {{ statusChip(m.status).chip }}">
-                  <span class="h-1.5 w-1.5 rounded-full {{ statusChip(m.status).dot }}"></span>
-                  {{ statusChip(m.status).label }}
-                </span>
+                <app-status-pill class="shrink-0" [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
               </div>
               <p class="mt-2 line-clamp-2 text-sm text-gray-600">{{ m.body }}</p>
               <div class="mt-1 text-xs text-gray-400">{{ m.createdAtUtc | date: 'short' }}</div>
@@ -178,26 +125,19 @@
             [pageSize]="store.size()"
             (pageChange)="onPage($event)" />
         </div>
-      }
+      </app-state-block>
     }
 
     <!-- ============ OPT-OUTS ============ -->
     @if (activeTab() === 'optouts') {
       <div class="mt-5 flex flex-wrap items-center gap-2">
         <p class="text-sm text-gray-500">Clients are added here automatically when they reply <b class="font-semibold text-gray-700">STOP</b>.</p>
-        <div class="ml-auto flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-2">
-          <svg viewBox="0 0 24 24" class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" stroke-linecap="round" />
-          </svg>
-          <input type="text" [ngModel]="optSearchText()" (ngModelChange)="onOptSearch($event)" placeholder="Search phone…" aria-label="Search opt-outs by phone" class="w-40 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-gray-400 sm:w-56" />
-        </div>
+        <app-search-input class="ml-auto" widthClass="w-40 sm:w-56" placeholder="Search phone…" ariaLabel="Search opt-outs by phone"
+          [debounceMs]="searchDebounceMs" [value]="optSearchText()" (valueChange)="onOptSearch($event)"></app-search-input>
       </div>
 
-      @if (store.optLoading() && store.optItems().length === 0) {
-        <div class="py-16 text-center text-sm text-gray-400">Loading…</div>
-      } @else if (store.optItems().length === 0) {
-        <div class="py-16 text-center text-sm text-gray-400">No opt-outs yet.</div>
-      } @else {
+      <app-state-block [loading]="store.optLoading() && store.optItems().length === 0" [empty]="store.optItems().length === 0"
+        variant="inline" icon="hand-left-outline" emptyTitle="No opt-outs yet.">
         <div class="mt-4 overflow-x-auto">
           <table class="w-full border-collapse">
             <thead>
@@ -214,9 +154,9 @@
                   <td class="px-3 py-3 tabular-nums text-gray-700">{{ o.phoneE164 }}</td>
                   <td class="px-3 py-3">
                     @if (o.status === 'OptedOut') {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>Opted out</span>
+                      <app-status-pill [toneClass]="pill('bg-amber-50 text-amber-700')" dotClass="bg-amber-500">Opted out</app-status-pill>
                     } @else {
-                      <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Subscribed</span>
+                      <app-status-pill [toneClass]="pill('bg-emerald-50 text-emerald-700')" dotClass="bg-emerald-500">Subscribed</app-status-pill>
                     }
                   </td>
                   <td class="px-3 py-3 text-gray-400">{{ o.updatedAtUtc | date: 'short' }}</td>
@@ -235,7 +175,7 @@
         <div class="mt-4">
           <app-pagination [currentPage]="store.optPage()" [totalItems]="store.optTotalCount()" [pageSize]="25" (pageChange)="store.goToOptPage($event)" />
         </div>
-      }
+      </app-state-block>
     }
   </section>
 </div>
@@ -254,25 +194,8 @@
           </span>
         }
       </div>
-      <div class="relative mt-1.5">
-        <input
-          type="text"
-          [ngModel]="pickerQuery()"
-          (ngModelChange)="onPickerInput($event)"
-          (focus)="pickerOpen.set(true)"
-          placeholder="Search a client by name or phone…"
-          class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-bold" />
-        @if (pickerOpen() && pickerResults().length > 0) {
-          <div class="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-gray-100 bg-white shadow-lg">
-            @for (c of pickerResults(); track c.id) {
-              <button type="button" (click)="addRecipient(c); pickerOpen.set(false)" class="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50">
-                <span class="grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold text-white {{ avatarColor(c.id) }}">{{ initials(c.name) }}</span>
-                <span class="min-w-0"><span class="block truncate text-sm font-medium text-gray-800">{{ c.name }}</span><span class="block text-xs text-gray-400 tabular-nums">{{ c.phoneRaw }}</span></span>
-              </button>
-            }
-          </div>
-        }
-      </div>
+      <app-customer-picker class="mt-1.5" variant="inline" placeholder="Search a client by name or phone…"
+        [filter]="pickerFilter" (selectedChange)="onPickCustomer($event)"></app-customer-picker>
     </div>
 
     <!-- message -->
@@ -312,47 +235,26 @@
 </app-modal>
 
 <!-- ============ DETAIL SLIDE-OVER ============ -->
-@if (detailOpen()) {
-  <div class="fixed inset-0 z-40 bg-gray-900/40" (click)="closeDetail()"></div>
-  <aside class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl">
-    <div class="flex items-start justify-between border-b border-gray-100 px-6 py-5">
-      <div>
-        @if (detail(); as d) {
-          <h4 class="text-base font-bold text-gray-900">{{ clientName(d.recipientName, d.customerId, d.to) }}</h4>
-          <p class="mt-0.5 text-xs text-gray-400 tabular-nums">{{ d.to }}</p>
-        } @else {
-          <h4 class="text-base font-bold text-gray-900">Message</h4>
-        }
+<app-drawer [isOpen]="detailOpen()" width="md" bodyClass="px-6 py-5"
+  [heading]="detail() ? clientName(detail()!.recipientName, detail()!.customerId, detail()!.to) : 'Message'"
+  [subheading]="detail()?.to ?? ''" (closed)="closeDetail()">
+  @if (detailLoading()) {
+    <div class="py-10 text-center text-sm text-gray-400">Loading…</div>
+  } @else if (detail(); as d) {
+    <div class="rounded-2xl rounded-bl bg-indigo-50 px-4 py-3 text-sm text-gray-800">{{ d.body }}</div>
+    <div class="mt-1 text-right text-[11px] text-gray-400">{{ d.createdAtUtc | date: 'short' }}</div>
+
+    <div class="mt-5 rounded-xl bg-gray-50 p-4">
+      <div class="flex items-center gap-2">
+        <app-status-pill [toneClass]="pill(statusChip(d.status).chip)" [dotClass]="statusChip(d.status).dot">{{ statusChip(d.status).label }}</app-status-pill>
       </div>
-      <button type="button" (click)="closeDetail()" aria-label="Close" class="grid h-8 w-8 place-items-center rounded-full text-gray-400 hover:bg-gray-100">×</button>
+      <p class="mt-2 text-sm text-gray-600">{{ reasonText(d.status) }}</p>
     </div>
-    <div class="flex-1 overflow-auto px-6 py-5">
-      @if (detailLoading()) {
-        <div class="py-10 text-center text-sm text-gray-400">Loading…</div>
-      } @else if (detail(); as d) {
-        <div class="rounded-2xl rounded-bl bg-indigo-50 px-4 py-3 text-sm text-gray-800">{{ d.body }}</div>
-        <div class="mt-1 text-right text-[11px] text-gray-400">{{ d.createdAtUtc | date: 'short' }}</div>
 
-        <div class="mt-5 rounded-xl bg-gray-50 p-4">
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold {{ statusChip(d.status).chip }}">
-              <span class="h-1.5 w-1.5 rounded-full {{ statusChip(d.status).dot }}"></span>{{ statusChip(d.status).label }}
-            </span>
-          </div>
-          <p class="mt-2 text-sm text-gray-600">{{ reasonText(d.status) }}</p>
-        </div>
-
-        <dl class="mt-4 space-y-2 text-sm">
-          <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Sent</dt><dd class="text-gray-700">{{ d.createdAtUtc | date: 'medium' }}</dd></div>
-          @if (d.deliveredAtUtc) { <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Delivered</dt><dd class="text-gray-700">{{ d.deliveredAtUtc | date: 'medium' }}</dd></div> }
-          @if (d.media.length > 0) { <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Attachment</dt><dd class="text-gray-700">{{ d.media.length }} file(s)</dd></div> }
-        </dl>
-      }
-    </div>
-  </aside>
-}
-
-<!-- Toast -->
-@if (toast(); as t) {
-  <div class="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-lg">{{ t }}</div>
-}
+    <dl class="mt-4 space-y-2 text-sm">
+      <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Sent</dt><dd class="text-gray-700">{{ d.createdAtUtc | date: 'medium' }}</dd></div>
+      @if (d.deliveredAtUtc) { <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Delivered</dt><dd class="text-gray-700">{{ d.deliveredAtUtc | date: 'medium' }}</dd></div> }
+      @if (d.media.length > 0) { <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Attachment</dt><dd class="text-gray-700">{{ d.media.length }} file(s)</dd></div> }
+    </dl>
+  }
+</app-drawer>

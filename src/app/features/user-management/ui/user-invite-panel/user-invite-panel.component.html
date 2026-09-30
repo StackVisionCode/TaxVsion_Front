@@ -30,7 +30,7 @@
       </div>
 
       <!-- Roles dropdown (multi-select sobre GET /auth/roles) -->
-      <div class="relative" data-dropdown="member-role">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isRoleOpen()" (appClickOutside)="isRoleOpen.set(false)">
         <button type="button" (click)="toggleRoleDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span class="truncate text-left">{{ selectedRolesLabel() }}</span>

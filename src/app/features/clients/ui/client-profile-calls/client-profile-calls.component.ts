@@ -1,5 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, SimpleChanges, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { CallsService } from '@core/communication/calls.service';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { CallKind, CustomerCallItem, CustomerCallsStats } from '@core/communication/call.model';
@@ -13,7 +15,7 @@ import { AccessStore } from '@core/access/access.store';
  */
 @Component({
   selector: 'app-client-profile-calls',
-  imports: [CommonModule],
+  imports: [CommonModule, StatCardsComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-calls.component.html',
 })
@@ -39,6 +41,16 @@ export class ClientProfileCallsComponent implements OnChanges {
   readonly items = signal<CustomerCallItem[]>([]);
   readonly stats = signal<CustomerCallsStats>({ total: 0, completed: 0, missed: 0, avgDurationSeconds: null });
   readonly hasPortalAccount = signal(false);
+
+  readonly statCards = computed<StatCardItem[]>(() => {
+    const stats = this.stats();
+    return [
+      { label: 'Total calls', value: stats.total },
+      { label: 'Completed', value: stats.completed },
+      { label: 'Missed', value: stats.missed },
+      { label: 'Avg. duration', value: this.avgDurationLabel() },
+    ];
+  });
   private clientUserId: string | null = null;
 
   /** Deshabilita los botones mientras yo esté en otra llamada. */

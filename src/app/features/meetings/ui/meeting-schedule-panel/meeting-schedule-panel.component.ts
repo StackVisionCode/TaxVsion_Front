@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -13,7 +12,11 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
+import { ClipboardService } from '@shared/services/clipboard.service';
 import { toApiError } from '@core/models/api-error.model';
 import { InviteeSearchResult, MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import {
@@ -22,8 +25,6 @@ import {
   MeetingInvitationListItem,
   MeetingInviteeDraft,
   MeetingItem,
-  meetingAvatarColorFor,
-  meetingInitialsFor,
 } from '../../data-access/meeting.model';
 
 const INVITEE_SEARCH_DEBOUNCE_MS = 250;
@@ -49,7 +50,7 @@ type InvitationState = 'active' | 'used' | 'revoked' | 'expired';
  */
 @Component({
   selector: 'app-meeting-schedule-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, StatusPillComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-schedule-panel.component.html',
 })
@@ -67,6 +68,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   @Output() rescheduleRequested = new EventEmitter<{ meeting: MeetingItem; scheduledForUtc: string | null }>();
 
   private readonly store = inject(MeetingsStore);
+  private readonly clipboard = inject(ClipboardService);
 
   /** Signal propia porque `meeting` es un @Input plano (mismo criterio que task-create-panel). */
   readonly isEditMode = signal(false);
@@ -128,14 +130,6 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="meeting-invitee"]')) {
-      this.isInviteeOpen.set(false);
-    }
-  }
-
   // ---------- Picker ----------
 
   onInviteeSearchChange(term: string): void {
@@ -193,14 +187,6 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     this.invitees.update(list => list.filter((_, i) => i !== index));
   }
 
-  initialsFor(name: string): string {
-    return meetingInitialsFor(name);
-  }
-
-  colorFor(seed: string): string {
-    return meetingAvatarColorFor(seed);
-  }
-
   kindLabel(kind: MeetingInviteeDraft['kind']): string {
     switch (kind) {
       case 'employee':
@@ -244,6 +230,20 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       return 'expired';
     }
     return 'active';
+  }
+
+  /** Tono de la píldora de cada invitación existente. */
+  invitationTone(invitation: MeetingInvitationListItem): StatusTone {
+    switch (this.invitationState(invitation)) {
+      case 'active':
+        return 'success';
+      case 'used':
+        return 'brand';
+      case 'revoked':
+        return 'danger';
+      default:
+        return 'muted';
+    }
   }
 
   invitationLabel(invitation: MeetingInvitationListItem): string {
@@ -294,7 +294,10 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   // ---------- Copiar links ----------
 
   copyToClipboard(key: string, text: string): void {
-    navigator.clipboard?.writeText(text).then(() => {
+    void this.clipboard.copy(text).then(copied => {
+      if (!copied) {
+        return;
+      }
       this.copiedKey.set(key);
       setTimeout(() => {
         if (this.copiedKey() === key) {

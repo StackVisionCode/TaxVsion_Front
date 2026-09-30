@@ -25,13 +25,12 @@ import {
   formatEinForDisplay,
   formatSsnForDisplay,
   isValidEmail,
-  isValidPhone,
   isValidTaxIdentifier,
   normalizeEmailToApi,
-  normalizePhoneToApi,
   serializeDateOnly,
   taxIdentifierDigits,
 } from '../../utils/customer-form-normalizers';
+import { isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
 
 const FILING_STATUSES: { value: string; label: string }[] = [
   { value: 'Single', label: 'Single' },

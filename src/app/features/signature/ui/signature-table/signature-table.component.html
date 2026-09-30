@@ -28,11 +28,8 @@
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
           <div class="flex -space-x-2">
-            <span *ngFor="let signer of visibleSigners(request)"
-              class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white"
-              [ngClass]="signer.color" [title]="signer.name">
-              {{ signer.initials }}
-            </span>
+            <app-avatar *ngFor="let signer of visibleSigners(request)" [name]="signer.name" [colorClass]="signer.color"
+              [title]="signer.name" sizeClass="h-8 w-8 border-2 border-white text-[10px]" />
             <span *ngIf="extraSignersCount(request) > 0"
               class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-600">
               +{{ extraSignersCount(request) }}
@@ -41,11 +38,8 @@
         </td>
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
-          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="statusChip(request.status)">
-            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(request.status)"></span>
-            {{ statusLabel(request.status) }}
-          </span>
+          <app-status-pill [tone]="statusPill[request.status].tone" [toneClass]="statusPill[request.status].toneClass ?? ''"
+            [dotClass]="statusPill[request.status].dotClass ?? ''">{{ statusLabel[request.status] }}</app-status-pill>
         </td>
         <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
@@ -57,85 +51,67 @@
         </td>
         <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
           [class.border-b]="!last" [class.border-gray-100]="!last">
-          <div class="relative inline-block text-left" data-dropdown="signature-menu">
-            <button type="button" (click)="toggleMenu(request, $event)"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              aria-label="Signature request options">
-              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+          <app-dropdown-menu ariaLabel="Signature request options" panelClass="w-48"
+            (openChange)="onMenuOpenChange(request, $event)">
+            <button appMenuItem type="button" (click)="previewRequested.emit(request)">
+              <ion-icon name="eye-outline" class="text-base"></ion-icon>
+              View
             </button>
-            <div *ngIf="openMenuId() === request.id"
-              class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-              <button type="button" (click)="onViewClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="eye-outline" class="text-base"></ion-icon>
-                View
-              </button>
-              <button *ngIf="canEditDraft(request)" type="button" (click)="onContinueClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
-                <ion-icon name="brush-outline" class="text-base"></ion-icon>
-                Continue editing
-              </button>
-              <button *ngIf="canEditDraft(request)" type="button" (click)="onEditClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="create-outline" class="text-base"></ion-icon>
-                Edit details
-              </button>
-              <button *ngIf="canSendRow(request)" type="button" (click)="onSendClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-brand-bold hover:bg-brand-white transition-colors">
-                <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
-                Send to signers
-              </button>
-              <button *ngIf="canResend(request)" type="button" (click)="onResendClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
-                Resend reminder
-              </button>
-              <button *ngIf="canExtend(request)" type="button" (click)="onExtendClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="time-outline" class="text-base"></ion-icon>
-                Extend expiration
-              </button>
-              <!-- PIN del preparador: es la única verificación de identidad que
-                   el backend exige al firmar, y solo se activa si el staff lo fija. -->
-              <button *ngIf="canManagePin(request)" type="button" (click)="onPinClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="key-outline" class="text-base"></ion-icon>
-                {{ request.requiresPractitionerPin ? 'Change or remove PIN' : 'Set signing PIN' }}
-              </button>
-              <button *ngIf="canManagePin(request)" type="button" (click)="onPreparerClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
-                Preparer (Form 8879)
-              </button>
-              <button *ngIf="hasSealed(request)" type="button" (click)="onDownloadSealedClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="download-outline" class="text-base"></ion-icon>
-                Download signed
-              </button>
-              <button *ngIf="hasCertificate(request)" type="button" (click)="onDownloadCertificateClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
-                Download certificate
-              </button>
-              <button *ngIf="canCancel(request)" type="button" (click)="onCancelClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
-                <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
-                Cancel request
-              </button>
-              <button *ngIf="canEditDraft(request)" type="button" (click)="onDeleteClick(request, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
-                <ion-icon name="trash-outline" class="text-base"></ion-icon>
-                Delete draft
-              </button>
-            </div>
-          </div>
+            <button *ngIf="canEditDraft(request)" appMenuItem type="button" class="font-medium !text-brand-bold"
+              (click)="continueRequested.emit(request)">
+              <ion-icon name="brush-outline" class="text-base"></ion-icon>
+              Continue editing
+            </button>
+            <button *ngIf="canEditDraft(request)" appMenuItem type="button" (click)="editRequested.emit(request)">
+              <ion-icon name="create-outline" class="text-base"></ion-icon>
+              Edit details
+            </button>
+            <button *ngIf="canSendRow(request)" appMenuItem type="button" class="font-medium !text-brand-bold"
+              (click)="sendRequested.emit(request)">
+              <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+              Send to signers
+            </button>
+            <button *ngIf="canResend(request)" appMenuItem type="button" (click)="resendRequested.emit(request)">
+              <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+              Resend reminder
+            </button>
+            <button *ngIf="canExtend(request)" appMenuItem type="button" (click)="extendRequested.emit(request)">
+              <ion-icon name="time-outline" class="text-base"></ion-icon>
+              Extend expiration
+            </button>
+            <!-- PIN del preparador: es la única verificación de identidad que
+                 el backend exige al firmar, y solo se activa si el staff lo fija. -->
+            <button *ngIf="canManagePin(request)" appMenuItem type="button" (click)="pinRequested.emit(request)">
+              <ion-icon name="key-outline" class="text-base"></ion-icon>
+              {{ request.requiresPractitionerPin ? 'Change or remove PIN' : 'Set signing PIN' }}
+            </button>
+            <button *ngIf="canManagePin(request)" appMenuItem type="button" (click)="preparerRequested.emit(request)">
+              <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
+              Preparer (Form 8879)
+            </button>
+            <button *ngIf="hasSealed(request)" appMenuItem type="button" (click)="downloadSealedRequested.emit(request)">
+              <ion-icon name="download-outline" class="text-base"></ion-icon>
+              Download signed
+            </button>
+            <button *ngIf="hasCertificate(request)" appMenuItem type="button"
+              (click)="downloadCertificateRequested.emit(request)">
+              <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
+              Download certificate
+            </button>
+            <button *ngIf="canCancel(request)" appMenuItem [danger]="true" type="button" (click)="cancelRequested.emit(request)">
+              <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
+              Cancel request
+            </button>
+            <button *ngIf="canEditDraft(request)" appMenuItem [danger]="true" type="button" (click)="deleteRequested.emit(request)">
+              <ion-icon name="trash-outline" class="text-base"></ion-icon>
+              Delete draft
+            </button>
+          </app-dropdown-menu>
         </td>
       </tr>
     </tbody>
   </table>
 
-  <div *ngIf="requests.length === 0" class="px-4 py-10 text-center">
-    <ion-icon name="create-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">No signature requests match your search</p>
-  </div>
+  <app-state-block *ngIf="requests.length === 0" [empty]="true" variant="inline" icon="create-outline"
+    emptyTitle="No signature requests match your search" />
 </div>

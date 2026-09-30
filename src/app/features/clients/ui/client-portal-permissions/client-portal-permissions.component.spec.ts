@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { PermissionService } from '@core/auth/permission.service';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementService } from '../../../user-management/data-access/user-management.service';
 import { UserEffectiveAccess } from '../../../user-management/data-access/user-management.model';
 import { ClientPortalPermissionsComponent } from './client-portal-permissions.component';

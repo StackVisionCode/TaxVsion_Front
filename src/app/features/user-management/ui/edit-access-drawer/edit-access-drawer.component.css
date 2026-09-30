@@ -1,6 +1,6 @@
 /*
  * Drawer visuals that Tailwind utilities don't express cleanly: the toggle switch, the deny-row
- * highlight (via :has()), the accordion chevron, and the slide-in. Brand colour reads the same theme
+ * highlight (via :has()), and the accordion chevron. Brand colour reads the same theme
  * variables ThemeService writes (so the switch follows the tenant's primary); the deny colour is a fixed
  * semantic red, independent of the accent.
  */
@@ -10,31 +10,6 @@
   --deny: #e0483d;
   --deny-bg: #fef3f2;
   --deny-border: #f8d5d1;
-}
-
-/* Backdrop + drawer slide-in (respecting reduced motion). */
-.backdrop {
-  animation: fade-in 0.18s ease-out;
-}
-.drawer {
-  animation: slide-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes slide-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .backdrop,
-  .drawer {
-    animation: none;
-  }
 }
 
 /* Row states: a granted-but-restricted row turns red; a locked row dims. */

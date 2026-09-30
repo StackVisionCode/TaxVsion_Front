@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -14,9 +13,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ClientProfile } from '../../models/client-profile.model';
 import { AddRelationRequest, RelationResponse, RelationPurpose } from '../../data-access/clients.model';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 
 const RELATIONSHIPS = ['Spouse', 'Child', 'Parent', 'Other'];
 const PAGE_SIZE = 6;
@@ -44,7 +45,7 @@ export interface SaveRelationPayload {
  */
 @Component({
   selector: 'app-client-profile-family',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, PaginationComponent, AvatarComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-family.component.html',
   styleUrl: './client-profile-family.component.css',
@@ -119,14 +120,6 @@ export class ClientProfileFamilyComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="dependent-relationship"]')) {
-      this.isRelationshipOpen.set(false);
-    }
-  }
-
   age(dateOfBirth: string | null | undefined): number | null {
     if (!dateOfBirth) {
       return null;
@@ -139,16 +132,6 @@ export class ClientProfileFamilyComponent implements OnChanges {
       age--;
     }
     return age;
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
   }
 
   // --- Dependent actions ---

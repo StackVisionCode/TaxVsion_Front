@@ -46,4 +46,17 @@ describe('DropzoneComponent', () => {
     expect(accepted).toEqual([]);
     expect((el.querySelector('input[type=file]') as HTMLInputElement).disabled).toBe(true);
   });
+
+  it('un clic en la zona abre el selector; uno en un botón proyectado no', () => {
+    const { el } = setup({});
+    const input = el.querySelector('input[type=file]') as HTMLInputElement;
+    const opened = vi.spyOn(input, 'click');
+    (el.querySelector('p') as HTMLElement).click();
+    expect(opened).toHaveBeenCalledTimes(1);
+
+    const button = document.createElement('button');
+    el.querySelector('[appFileDrop], div')!.appendChild(button);
+    button.click();
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
 });

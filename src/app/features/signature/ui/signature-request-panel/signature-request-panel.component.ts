@@ -17,9 +17,7 @@ import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
-import { SignatureClientPickerComponent } from '../signature-client-picker/signature-client-picker.component';
 import { SignatureWizardDocumentStepComponent } from '../signature-wizard-document-step/signature-wizard-document-step.component';
-import { pushRecentClient, readRecentClients } from '../../utils/recent-clients.util';
 import { SignatureWizardReviewStepComponent } from '../signature-wizard-review-step/signature-wizard-review-step.component';
 import { NormalizedPlacedField, SignaturePdfEditorComponent } from '../signature-pdf-editor/signature-pdf-editor.component';
 import {
@@ -45,6 +43,7 @@ import {
   TOKEN_EXPIRATION_MAX_HOURS,
   TOKEN_EXPIRATION_MIN_HOURS,
   channelToVerificationMethod,
+  customerToWizardClient,
   fieldTypeToKind,
 } from '../../data-access/signature.model';
 import {
@@ -55,7 +54,9 @@ import {
   emptySendState,
 } from '../../data-access/signature.store';
 import { buildDraftHydration } from '../../utils/draft-hydration.util';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { ToastService } from '@shared/ui/toast/toast.service';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -79,7 +80,6 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     CommonModule,
     FormsModule,
     SignatureWizardClientStepComponent,
-    SignatureClientPickerComponent,
     SignatureWizardDocumentStepComponent,
     SignatureWizardReviewStepComponent,
     SignaturePdfEditorComponent,
@@ -102,6 +102,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   readonly store = inject(SignatureStore);
   private readonly toast = inject(ToastService);
+  private readonly directory = inject(CustomerDirectoryStore);
 
   readonly currentStep = signal<WizardStep>(1);
   /** Rehidratando un borrador (fetch del detalle + bytes del PDF). */
@@ -116,10 +117,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Ids originales del borrador (para el diff al guardar/enviar). null = creación nueva. */
   private original: DraftEditOriginal | null = null;
   readonly selectedClient = signal<WizardClient | null>(null);
-  /** Modal de búsqueda de cliente (vive en la raíz del panel, fuera de la tarjeta animada). */
-  readonly clientPickerOpen = signal(false);
-  /** Últimos clientes elegidos, para el acceso rápido del paso 1. */
-  readonly recentClients = signal<WizardClient[]>(readRecentClients());
+  /** Últimos clientes elegidos (recientes del directorio compartido), para el acceso rápido del paso 1. */
+  readonly recentClients = computed(() => this.directory.recent());
   readonly selectedDocument = signal<WizardDocument | null>(null);
   readonly title = signal('');
   readonly category = signal<SignatureCategory>('Fiscal');
@@ -384,15 +383,10 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     }
   }
 
-  onClientSelected(client: WizardClient): void {
-    this.selectedClient.set(client);
-    this.recentClients.set(pushRecentClient(this.recentClients(), client));
-  }
-
-  /** El picker devolvió un cliente: se elige y se cierra el modal. */
-  onClientPicked(client: WizardClient): void {
-    this.onClientSelected(client);
-    this.clientPickerOpen.set(false);
+  /** Cliente elegido en el paso 1 (buscador o recientes): se sube a los recientes del directorio. */
+  onClientPicked(customer: CustomerSummary): void {
+    this.directory.addRecent(customer);
+    this.selectedClient.set(customerToWizardClient(customer));
   }
 
   onDocumentSelected(doc: WizardDocument): void {
@@ -410,9 +404,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     if (!this.canProceed()) {
       return;
     }
-    // El buscador del paso 1 es typeahead server-side y deja `store.customers()` con las
-    // últimas coincidencias; al avanzar restauramos el lote completo para que el <select>
-    // de firmantes extra del editor (paso 3) no quede reducido a esa búsqueda.
+    // Al salir del paso 1 se (re)carga el lote de browse de `store.customers()`: lo usa el
+    // buscador de firmantes extra del editor (paso 3).
     if (this.currentStep() === 1) {
       this.store.queryCustomers('');
     }

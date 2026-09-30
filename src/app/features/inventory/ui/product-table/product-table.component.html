@@ -26,7 +26,7 @@
         </td>
         <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
           [class.border-b]="!last" [class.border-gray-100]="!last">
-          {{ formatCurrency(product.price, product.currency) }}
+          {{ product.price | money: product.currency }}
         </td>
         <td class="px-4 py-3.5 text-right text-gray-700 transition-colors group-hover:bg-gray-50"
           [class.border-b]="!last" [class.border-gray-100]="!last">
@@ -36,73 +36,54 @@
           [class.border-gray-100]="!last">
           <span class="flex items-center gap-2">
             <span class="font-semibold text-gray-900">{{ product.stockQuantity }}</span>
-            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-              [ngClass]="stockChip(product)">
-              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="stockDot(product)"></span>
-              {{ stockLabel(product) }}
-            </span>
+            <app-status-pill [tone]="stockTone(product)">{{ stockLabel(product) }}</app-status-pill>
           </span>
         </td>
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
-          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="statusChip(product.status)">
-            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(product.status)"></span>
-            {{ statusLabel(product.status) }}
-          </span>
+          <app-status-pill [tone]="statusTone(product.status)">{{ statusLabel(product.status) }}</app-status-pill>
         </td>
         <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
-          <div class="relative inline-block text-left" data-dropdown="product-menu">
-            <button type="button" (click)="toggleMenu(product, $event)"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              aria-label="Product options">
-              <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+          <app-dropdown-menu panelClass="w-52" ariaLabel="Product options">
+            <button appMenuItem type="button" (click)="editRequested.emit(product)">
+              <ion-icon name="create-outline" class="text-base"></ion-icon>
+              Edit
             </button>
-            <div *ngIf="openMenuId() === product.id"
-              class="absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-              <button type="button" (click)="onEditClick(product, $event)"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <ion-icon name="create-outline" class="text-base"></ion-icon>
-                Edit
-              </button>
 
-              <!-- Adjust stock: stepper inline +/- -->
-              <div class="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
-                <span class="flex items-center gap-2 text-sm text-gray-700">
-                  <ion-icon name="swap-vertical-outline" class="text-base"></ion-icon>
-                  Adjust stock
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <button type="button" (click)="onAdjust(product, -1, $event)"
-                    [disabled]="product.stockQuantity <= 0"
-                    class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white transition-colors"
-                    aria-label="Decrease stock">
-                    <ion-icon name="remove-outline" class="text-sm"></ion-icon>
-                  </button>
-                  <span class="w-6 text-center text-sm font-semibold text-gray-900">{{ product.stockQuantity }}</span>
-                  <button type="button" (click)="onAdjust(product, 1, $event)"
-                    class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-                    aria-label="Increase stock">
-                    <ion-icon name="add-outline" class="text-sm"></ion-icon>
-                  </button>
-                </span>
-              </div>
-
-              <button type="button" (click)="onDeleteClick(product, $event)"
-                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
-                <ion-icon name="trash-outline" class="text-base"></ion-icon>
-                Delete
-              </button>
+            <!-- Adjust stock: stepper inline +/- (no es appMenuItem: no cierra el menú) -->
+            <div class="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
+              <span class="flex items-center gap-2 text-sm text-gray-700">
+                <ion-icon name="swap-vertical-outline" class="text-base"></ion-icon>
+                Adjust stock
+              </span>
+              <span class="flex items-center gap-1.5">
+                <button type="button" (click)="onAdjust(product, -1)"
+                  [disabled]="product.stockQuantity <= 0"
+                  class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white transition-colors"
+                  aria-label="Decrease stock">
+                  <ion-icon name="remove-outline" class="text-sm"></ion-icon>
+                </button>
+                <span class="w-6 text-center text-sm font-semibold text-gray-900">{{ product.stockQuantity }}</span>
+                <button type="button" (click)="onAdjust(product, 1)"
+                  class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                  aria-label="Increase stock">
+                  <ion-icon name="add-outline" class="text-sm"></ion-icon>
+                </button>
+              </span>
             </div>
-          </div>
+
+            <button appMenuItem [danger]="true" type="button" class="border-t border-gray-100"
+              (click)="deleteRequested.emit(product)">
+              <ion-icon name="trash-outline" class="text-base"></ion-icon>
+              Delete
+            </button>
+          </app-dropdown-menu>
         </td>
       </tr>
     </tbody>
   </table>
 
-  <div *ngIf="products.length === 0" class="px-4 py-10 text-center">
-    <ion-icon name="cube-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">No products match your search</p>
-  </div>
+  <app-state-block *ngIf="products.length === 0" variant="inline" [empty]="true" icon="cube-outline"
+    emptyTitle="No products match your search"></app-state-block>
 </div>

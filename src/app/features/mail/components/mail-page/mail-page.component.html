@@ -280,73 +280,11 @@
       </div>
 
       <!-- Selector de cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un cliente.
-           Combobox (no <select>): encabezado con el cliente activo → popover con búsqueda server-side,
-           recientes y navegación por teclado (↑/↓/Enter/Esc). -->
+           Picker compartido (búsqueda server-side, recientes del directorio y teclado ↑/↓/Enter/Esc). -->
       <div class="mt-5">
         <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
-
-        <!-- Encabezado: cliente activo (avatar + nombre + email) -->
-        <button *ngIf="!customerPickerOpen()" type="button" (click)="openCustomerPicker()"
-          class="mt-2 flex w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50">
-          <span *ngIf="store.selectedCustomer() as c; else noClientAvatar"
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-            [ngClass]="avatarColor(c.displayName)">{{ avatarInitials(c.displayName) }}</span>
-          <ng-template #noClientAvatar>
-            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100">
-              <ion-icon name="person-outline" class="text-base text-gray-400"></ion-icon>
-            </span>
-          </ng-template>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold"
-              [ngClass]="store.selectedCustomer() ? 'text-gray-900' : 'text-gray-500'">
-              {{ store.selectedCustomerName() || 'Select a client' }}
-            </span>
-            <span *ngIf="store.selectedCustomer()?.primaryEmail as email" class="block truncate text-[11px] text-gray-400">{{ email }}</span>
-          </span>
-          <ion-icon name="chevron-expand-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
-        </button>
-
-        <!-- Popover: búsqueda + recientes/resultados -->
-        <div *ngIf="customerPickerOpen()" class="relative mt-2">
-          <ion-icon name="search-outline" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
-          <input #customerInput id="mailCustomer" type="text" name="mailCustomerSearch" autocomplete="off"
-            aria-label="Search a client" [ngModel]="store.customerQuery()" (ngModelChange)="onCustomerQuery($event)"
-            (blur)="closeCustomerPickerSoon()" (keydown.escape)="closeCustomerPicker()"
-            (keydown.arrowDown)="$event.preventDefault(); moveHighlight(1)"
-            (keydown.arrowUp)="$event.preventDefault(); moveHighlight(-1)"
-            (keydown.enter)="$event.preventDefault(); pickHighlighted()"
-            placeholder="Search clients by name or email…"
-            class="h-10 w-full rounded-2xl border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder-gray-500 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold transition-colors" />
-
-          <div class="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-xl">
-            <div *ngIf="store.customerSearchLoading()" class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-              <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
-            </div>
-
-            <p *ngIf="showingRecents()" class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Recent</p>
-
-            <button *ngFor="let customer of comboItems(); let i = index" type="button"
-              (mousedown)="$event.preventDefault()" (mouseenter)="highlightedIndex.set(i)" (click)="pickCustomer(customer)"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
-              [class.bg-gray-50]="i === highlightedIndex()">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-                [ngClass]="avatarColor(customer.displayName)">{{ avatarInitials(customer.displayName) }}</span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm"
-                  [ngClass]="customer.id === store.selectedCustomerId() ? 'font-semibold text-brand-bold' : 'text-gray-800'">
-                  {{ customer.displayName }}
-                </span>
-                <span *ngIf="customer.primaryEmail" class="block truncate text-[11px] text-gray-400">{{ customer.primaryEmail }}</span>
-              </span>
-              <ion-icon *ngIf="customer.id === store.selectedCustomerId()" name="checkmark-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
-            </button>
-
-            <div *ngIf="!store.customerSearchLoading() && comboItems().length === 0"
-              class="px-3 py-6 text-center text-xs text-gray-400">
-              {{ store.customerQuery().trim() ? 'No clients match your search' : 'Start typing to find a client' }}
-            </div>
-          </div>
-        </div>
+        <app-customer-picker class="mt-2" [selected]="store.selectedCustomer()"
+          placeholder="Search clients by name or email…" (selectedChange)="onCustomerChange($event)"></app-customer-picker>
       </div>
 
       <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->

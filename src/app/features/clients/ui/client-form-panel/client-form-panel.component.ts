@@ -3,7 +3,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -22,7 +21,8 @@ import { toApiError } from '@core/models/api-error.model';
 import { ClientSaveOptions, ClientsStore } from '../../data-access/clients.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsService } from '../../data-access/clients.service';
-import { CatalogOption, CatalogPickerComponent } from '../catalog-picker/catalog-picker.component';
+import { TypeaheadComponent } from '@shared/ui/typeahead/typeahead.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import {
   ApiBusinessStructure,
   CreateCustomerRequest,
@@ -32,18 +32,16 @@ import {
 } from '../../data-access/clients.model';
 import {
   formatEinForDisplay,
-  formatPhoneForDisplay,
   formatSsnForDisplay,
   isFutureDate,
   isValidEmail,
-  isValidPhone,
   isValidTaxIdentifier,
   NAME_MAX_LENGTH,
   normalizeEmailToApi,
-  normalizePhoneToApi,
   serializeDateOnly,
   taxIdentifierDigits,
 } from '../../utils/customer-form-normalizers';
+import { formatPhoneForDisplay, isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
 
 const BUSINESS_STRUCTURES: BusinessStructure[] = ['LLC', 'S-Corp', 'C-Corp', 'Partnership', 'Sole Proprietorship'];
 
@@ -68,6 +66,13 @@ const CHANNELS: { value: PreferredChannel; label: string }[] = [
   { value: 'Call', label: 'Phone call' },
 ];
 
+/** Una opción de catálogo (ocupación / actividad NAICS), normalizada para el typeahead. */
+export interface CatalogOption {
+  id: string;
+  label: string;
+  hint?: string | null;
+}
+
 interface DuplicateMatch {
   existingId: string | null;
   existingName: string;
@@ -83,7 +88,7 @@ interface DuplicateMatch {
  */
 @Component({
   selector: 'app-client-form-panel',
-  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, CatalogPickerComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, TypeaheadComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-form-panel.component.html',
   styleUrl: './client-form-panel.component.css',
@@ -151,6 +156,10 @@ export class ClientFormPanelComponent implements OnChanges {
     this.clientsService
       .listBusinessActivities(q)
       .pipe(map(list => list.map(a => ({ id: a.id, label: a.description, hint: a.naicsCode }))));
+
+  /** Texto e identidad de una opción de catálogo para el typeahead. */
+  readonly catalogLabel = (option: CatalogOption): string => option.label;
+  readonly catalogId = (option: CatalogOption): string => option.id;
 
   readonly isStructureOpen = signal(false);
   /** El usuario eligió una estructura en este formulario (en edición, la actual no se conoce). */
@@ -227,14 +236,6 @@ export class ClientFormPanelComponent implements OnChanges {
       },
       error: () => undefined,
     });
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="client-structure"]')) {
-      this.isStructureOpen.set(false);
-    }
   }
 
   setClientType(type: ClientType): void {

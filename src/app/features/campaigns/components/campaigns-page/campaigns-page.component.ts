@@ -1,8 +1,15 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import { CampaignsStore } from '../../data-access/campaigns.store';
 import {
   ApiCampaignStatus,
@@ -28,7 +35,17 @@ const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor
  */
 @Component({
   selector: 'app-campaigns-page',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    SegmentedComponent,
+    StatCardsComponent,
+    StateBlockComponent,
+    StatusPillComponent,
+  ],
   templateUrl: './campaigns-page.component.html',
 })
 export class CampaignsPageComponent implements OnInit, OnDestroy {
@@ -48,7 +65,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   readonly selected = signal<CampaignResponse | null>(null);
   readonly selectedRun = signal<CampaignRunResponse | null>(null);
 
-  readonly statusChips: (ApiCampaignStatus | 'all')[] = ['all', 'Draft', 'Ready', 'Scheduled', 'Archived'];
+  readonly statusChips: FilterChipOption<ApiCampaignStatus | 'all'>[] = [
+    { id: 'all', label: 'All' },
+    { id: 'Draft', label: 'Draft' },
+    { id: 'Ready', label: 'Ready' },
+    { id: 'Scheduled', label: 'Scheduled' },
+    { id: 'Archived', label: 'Archived' },
+  ];
+  readonly audienceTabs: SegmentedOption<'lists' | 'contacts'>[] = [
+    { id: 'lists', label: 'Lists' },
+    { id: 'contacts', label: 'Contacts' },
+  ];
 
   // ---------- modals ----------
   readonly showNew = signal(false);
@@ -80,6 +107,13 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   readonly audienceSize = computed(
     () => this.store.lists().reduce((a, l) => a + l.memberCount, 0) + this.store.contacts().length,
   );
+
+  readonly stats = computed<StatCardItem[]>(() => [
+    { label: 'Active campaigns', value: this.activeCount(), tone: 'white' },
+    { label: 'Contact lists', value: this.store.subErrors().lists ? null : this.store.lists().length, tone: 'indigo-50' },
+    { label: 'Sender profiles', value: this.store.subErrors().senders ? null : this.store.senders().length, tone: 'white' },
+    { label: 'Audience (contacts)', value: this.audienceSize(), tone: 'indigo-50' },
+  ]);
 
   ngOnInit(): void {
     this.store.init();
@@ -531,10 +565,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
    * Necesario porque las fechas cargadas de EF vienen SIN sufijo 'Z' → Angular las tomaría como local.
    */
   local(s: string | null | undefined): Date | null {
-    if (!s) return null;
-    const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? null : d;
+    return parseUtcDateOrNull(s);
+  }
+
+  /** Clases de color de las píldoras de campaigns (sin borde visible, en negrita) sobre `app-status-pill`. */
+  pill(colorClass: string): string {
+    return `${colorClass} border-transparent font-bold`;
   }
 
   settled(r: CampaignRunResponse): number {

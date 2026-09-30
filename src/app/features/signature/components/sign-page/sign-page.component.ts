@@ -13,14 +13,14 @@ import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
-import { SignaturePadComponent } from '../../../../shared/ui/signature-pad/signature-pad.component';
+import { SignaturePadComponent } from '@shared/ui/signature-pad/signature-pad.component';
 import { SignDocumentViewComponent } from '../../ui/sign-document-view/sign-document-view.component';
 import { maskEmail } from '../../utils/mask-email.util';
 import { UsedLinkRecord, markLinkUsed, readUsedLink } from '../../utils/used-link.util';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
-import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 import {
   AuditChainVerificationResponse,
   PublicSignerFieldView,

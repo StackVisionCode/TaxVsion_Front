@@ -20,7 +20,8 @@
       </div>
 
       <!-- Category dropdown (id real del backend + alta inline) -->
-      <div class="relative" data-dropdown="product-category">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isCategoryOpen()"
+        (appClickOutside)="isCategoryOpen.set(false)">
         <button type="button" (click)="toggleCategoryDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span [class.text-gray-400]="!categoryId()">{{ categoryLabel() }}</span>

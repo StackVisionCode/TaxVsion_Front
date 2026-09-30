@@ -11,8 +11,7 @@ export const EMAIL_MAX_LENGTH = 254;
 export const COUNTRY_CODE_LENGTH = 2;
 
 // ---------------- Teléfono (PhoneNumber.cs) ----------------
-// Movido a shared/utils/phone.util.ts (lo usan otros módulos); se re-exporta para no romper imports.
-export { normalizePhoneToApi, isValidPhone, formatPhoneForDisplay } from '@shared/utils/phone.util';
+// Vive en `@shared/utils/phone.util` (normalizePhoneToApi / isValidPhone / formatPhoneForDisplay).
 
 // ---------------- Email (EmailAddress.cs) ----------------
 // Create(raw): trim; rechaza si vacío, len > 254, sin '@', o '@' al inicio/fin.

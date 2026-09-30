@@ -6,7 +6,8 @@ import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { NoteResponse } from '../../../clients/data-access/client-notes.model';
 import { DashboardNotesService } from '../../data-access/dashboard-notes.service';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { formatRelativeTime } from '@shared/utils/format.util';
 
 /** Cuántas notas se traen y se listan en el widget. */
 const PAGE_SIZE = 8;
@@ -33,7 +34,7 @@ const DOT_COLORS = ['rgb(var(--color-indigo-600-rgb, 30 70 107))', '#FB923C', '#
  */
 @Component({
   selector: 'app-dashboard-notes',
-  imports: [CommonModule, FormsModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, FormsModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-notes.component.html',
 })
@@ -119,21 +120,10 @@ export class DashboardNotesComponent implements OnInit {
   }
 
   relativeTime(isoUtc: string): string {
-    const then = new Date(isoUtc).getTime();
-    if (Number.isNaN(then)) {
-      return '';
-    }
-    const minutes = Math.floor(Math.max(0, Date.now() - then) / 60_000);
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(then).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatRelativeTime(isoUtc);
   }
 
-  private loadNotes(): void {
+  loadNotes(): void {
     this.loading.set(true);
     this.error.set(null);
     this.service.listMine(1, PAGE_SIZE).subscribe({

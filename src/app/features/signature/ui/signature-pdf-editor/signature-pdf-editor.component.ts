@@ -39,14 +39,13 @@ import {
   FIELD_TYPE_CIRCLE,
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
-  avatarColor,
   clientTypeBadge,
   defaultRules,
-  initialsOf,
   kindCircle,
   kindIcon,
 } from '../signature-request-panel/signature-wizard.presenter';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -139,7 +138,7 @@ export interface NormalizedPlacedField {
  */
 @Component({
   selector: 'app-signature-pdf-editor',
-  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, CdkDropList, CdkDrag, CdkDragHandle],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, AvatarComponent, CdkDropList, CdkDrag, CdkDragHandle],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-pdf-editor.component.html',
   styleUrl: './signature-pdf-editor.component.css',
@@ -369,15 +368,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
     return this.store.customers().filter(c => !taken.has(c.email.trim().toLowerCase()));
   });
 
-  /** Color de avatar estable por id de cliente (hash → paleta), igual que el picker del paso 1. */
-  avatarFor(client: WizardClient): string {
-    let hash = 0;
-    for (let i = 0; i < client.id.length; i++) {
-      hash = (hash * 31 + client.id.charCodeAt(i)) | 0;
-    }
-    return avatarColor(Math.abs(hash));
-  }
-
   /** Elegir un cliente del buscador: autollena nombre/email/teléfono (editables) y cierra la lista. */
   pickRegisteredClient(client: WizardClient): void {
     this.draftClientId.set(client.id);
@@ -489,10 +479,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
 
   isClientSigner(signer: EditorSigner): boolean {
     return signer.id.startsWith('client:');
-  }
-
-  initials(name: string): string {
-    return initialsOf(name);
   }
 
   setActiveSigner(id: string): void {

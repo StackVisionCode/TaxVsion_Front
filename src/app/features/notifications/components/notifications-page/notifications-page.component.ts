@@ -1,6 +1,10 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import {
   AppNotification,
   NotificationListComponent,
@@ -26,14 +30,25 @@ type NotificationFilter = 'all' | 'unread';
  */
 @Component({
   selector: 'app-notifications-page',
-  imports: [CommonModule, FormsModule, NotificationListComponent],
+  imports: [
+    CommonModule,
+    NotificationListComponent,
+    FilterChipsComponent,
+    LoadMoreComponent,
+    SearchInputComponent,
+    StatCardsComponent,
+    StateBlockComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './notifications-page.component.html',
 })
 export class NotificationsPageComponent implements OnInit {
   private readonly store = inject(NotificationsStore);
 
-  readonly filters: NotificationFilter[] = ['all', 'unread'];
+  readonly filters: FilterChipOption<NotificationFilter>[] = [
+    { id: 'all', label: 'All' },
+    { id: 'unread', label: 'Unread' },
+  ];
   readonly activeFilter = signal<NotificationFilter>('all');
   readonly search = signal('');
 
@@ -61,6 +76,13 @@ export class NotificationsPageComponent implements OnInit {
     return this.store.items().filter(n => n.createdAt >= cutoff).length;
   });
 
+  readonly stats = computed<StatCardItem[]>(() => [
+    { label: 'Total', value: this.totalCount() },
+    { label: 'Unread', value: this.unreadCount() },
+    { label: 'Today', value: this.todayCount() },
+    { label: 'This week', value: this.thisWeekCount() },
+  ]);
+
   readonly visibleNotifications = computed<AppNotification[]>(() => {
     const query = this.search().trim().toLowerCase();
     const filter = this.activeFilter();
@@ -79,10 +101,6 @@ export class NotificationsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.loadFirstPage();
-  }
-
-  filterLabel(filter: NotificationFilter): string {
-    return filter === 'all' ? 'All' : 'Unread';
   }
 
   setFilter(filter: NotificationFilter): void {

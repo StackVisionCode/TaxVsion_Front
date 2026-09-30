@@ -25,21 +25,11 @@
   </div>
 
   <!-- Filtros de estado (los estados reales del backend) -->
-  <div class="mt-4 flex flex-wrap items-center gap-2">
-    <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
-      class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-      [ngClass]="statusFilter() === option.value ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      {{ option.label }}
-    </button>
-  </div>
+  <app-filter-chips class="mt-4" size="sm" [options]="statusFilters" [value]="statusFilter()"
+    (valueChange)="setStatusFilter($event)" />
 
   <div class="mt-3 flex flex-wrap items-center gap-2">
-    <div class="flex h-9 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-      <ion-icon name="search-outline" class="mr-2 text-sm text-gray-400"></ion-icon>
-      <input type="text" placeholder="Search reminders" [ngModel]="search()" name="search"
-        (ngModelChange)="setSearch($event)"
-        class="h-full w-44 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-    </div>
+    <app-search-input placeholder="Search reminders" widthClass="w-44" [value]="search()" (valueChange)="setSearch($event)" />
     <label class="flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer">
       <span class="text-xs text-gray-400">From</span>
       <input type="date" [ngModel]="fromDate()" name="fromDate" (ngModelChange)="setFromDate($event)"
@@ -63,19 +53,8 @@
   </div>
 
   <!-- Estados de carga / error del listado -->
-  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-    Loading reminders…
-  </div>
-
-  <div *ngIf="!store.loading() && store.error() as err"
-    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-    <p class="text-sm text-red-600">{{ err }}</p>
-    <button type="button" (click)="retry()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-      Retry
-    </button>
-  </div>
+  <app-state-block *ngIf="store.loading() || store.error()" class="mt-5 block" variant="inline"
+    loadingText="Loading reminders…" [loading]="store.loading()" [error]="store.error()" (retry)="retry()"></app-state-block>
 
   <!-- Tabla -->
   <ng-container *ngIf="!store.loading() && !store.error()">
@@ -113,11 +92,7 @@
               </span>
             </td>
             <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
-              <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-                [ngClass]="reminder.statusChip">
-                <span class="h-1.5 w-1.5 rounded-full" [ngClass]="reminder.statusDot"></span>
-                {{ reminder.statusLabel }}
-              </span>
+              <app-status-pill [toneClass]="reminder.statusChip" [dotClass]="reminder.statusDot">{{ reminder.statusLabel }}</app-status-pill>
             </td>
             <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors" [class.border-b]="!last" [class.border-gray-100]="!last">
               <div class="flex items-center justify-end gap-2">
@@ -130,20 +105,16 @@
                 </button>
 
                 <!-- Snooze: SOLO sobre un recordatorio ya disparado (el aggregate exige Status == Fired) -->
-                <div *ngIf="reminder.canSnooze" class="relative" data-dropdown="reminder-snooze">
-                  <button *ngIf="canWrite()" type="button" (click)="toggleSnoozeMenu(reminder)" [disabled]="store.isBusy(reminder.id)"
+                <app-dropdown-menu *ngIf="reminder.canSnooze && canWrite()" panelClass="w-40" [disabled]="store.isBusy(reminder.id)">
+                  <button menuTrigger type="button" [disabled]="store.isBusy(reminder.id)"
                     class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-                    aria-label="Snooze reminder">
+                    aria-label="Snooze reminder" aria-haspopup="menu">
                     <ion-icon name="time-outline" class="text-sm"></ion-icon>
                   </button>
-                  <div *ngIf="openSnoozeId() === reminder.id"
-                    class="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-                    <button *ngFor="let option of snoozeOptions" type="button" (click)="snooze(reminder, option.minutes)"
-                      class="flex w-full items-center px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      {{ option.label }}
-                    </button>
-                  </div>
-                </div>
+                  <button *ngFor="let option of snoozeOptions" appMenuItem type="button" (click)="snooze(reminder, option.minutes)">
+                    {{ option.label }}
+                  </button>
+                </app-dropdown-menu>
 
                 <!-- Dismiss: Fired o Snoozed -->
                 <button *ngIf="reminder.canDismiss && canWrite()" type="button" (click)="dismiss(reminder)"
@@ -166,12 +137,8 @@
         </tbody>
       </table>
 
-      <div *ngIf="visibleReminders().length === 0" class="px-4 py-10 text-center">
-        <ion-icon name="alarm-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">
-          {{ store.reminders().length === 0 ? 'You have no reminders yet' : 'No reminders match your filters' }}
-        </p>
-      </div>
+      <app-state-block *ngIf="visibleReminders().length === 0" [empty]="true" variant="inline" icon="alarm-outline"
+        [emptyTitle]="store.reminders().length === 0 ? 'You have no reminders yet' : 'No reminders match your filters'"></app-state-block>
     </div>
 
     <app-pagination [currentPage]="currentPage()" [totalItems]="visibleReminders().length" [pageSize]="pageSize"

@@ -121,8 +121,7 @@
       </p>
       <div class="flex flex-col gap-2">
         <div *ngFor="let p of waitingParticipants()" class="flex items-center gap-2">
-          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-            [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+          <app-avatar [name]="p.displayName" [seed]="p.userId" size="sm" />
           <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">{{ p.displayName }}</span>
           <button type="button" (click)="deny(p.userId)"
             class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-white transition-colors">
@@ -176,7 +175,7 @@
             <video [srcObject]="cameraStreamFor(p.userId)" autoplay playsinline
               class="h-full w-full object-cover" [class.hidden]="!p.videoEnabled || !cameraStreamFor(p.userId)"></video>
             <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center">
-              <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white" [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+              <app-avatar [name]="p.displayName" [seed]="p.userId" size="md" />
             </div>
             <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
               {{ p.displayName }} <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-[10px]"></ion-icon>
@@ -213,8 +212,7 @@
             <video [srcObject]="cameraStreamFor(p.userId)" autoplay playsinline
               class="h-full w-full rounded-2xl object-cover" [class.hidden]="!p.videoEnabled || !cameraStreamFor(p.userId)"></video>
             <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
-              <span class="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white"
-                [ngClass]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+              <app-avatar [name]="p.displayName" [seed]="p.userId" size="xl" />
             </div>
             <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
               {{ p.displayName }}
@@ -224,30 +222,25 @@
             <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
 
             <!-- Menú de host por participante (swallow del click para que no dispare el spotlight del tile) -->
-            <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2" data-dropdown="meeting-peer-menu">
-              <button type="button" (click)="toggleMenu(p.userId, $event)" aria-label="Participant options"
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
-                <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
-              </button>
-              <div *ngIf="openMenuUserId() === p.userId"
-                class="absolute right-0 top-9 z-10 w-44 overflow-hidden rounded-2xl border border-gray-100 bg-white py-1 text-left shadow-xl">
-                <button *ngIf="p.role === 'Attendee'" type="button" (click)="promote(p.userId)"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2">
+              <app-dropdown-menu ariaLabel="Participant options" panelClass="w-44 py-1 text-left">
+                <button menuTrigger type="button" aria-label="Participant options" aria-haspopup="menu"
+                  class="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
+                  <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
+                </button>
+                <button *ngIf="p.role === 'Attendee'" appMenuItem type="button" (click)="promote(p.userId)">
                   <ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host
                 </button>
-                <button *ngIf="p.role === 'Cohost'" type="button" (click)="demote(p.userId)"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <button *ngIf="p.role === 'Cohost'" appMenuItem type="button" (click)="demote(p.userId)">
                   <ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host
                 </button>
-                <button type="button" (click)="makeHost(p.userId)"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <button appMenuItem type="button" (click)="makeHost(p.userId)">
                   <ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host
                 </button>
-                <button type="button" (click)="remove(p.userId)"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                <button appMenuItem [danger]="true" type="button" (click)="remove(p.userId)">
                   <ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove
                 </button>
-              </div>
+              </app-dropdown-menu>
             </div>
           </div>
         </div>

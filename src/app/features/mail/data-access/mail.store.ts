@@ -243,28 +243,15 @@ export class MailStore {
   readonly selectedCustomerId = this._selectedCustomerId.asReadonly();
   readonly activeFolderId = this._activeFolderId.asReadonly();
 
-  // ---------- Typeahead de clientes (reemplaza el <select> que cargaba máx 200) ----------
-  // El backend acepta `term`, así que la búsqueda es server-side: escala a cualquier cantidad de
-  // clientes sin traerlos todos al DOM. `_customers` (boot) queda solo para el nombre por defecto.
-  private readonly _customerQuery = signal('');
+  // ---------- Cliente activo ----------
+  // La búsqueda y los recientes viven en `app-customer-picker` + CustomerDirectoryStore (compartidos
+  // con el resto de módulos). `_customers` (boot) queda solo para el cliente por defecto.
   private readonly _selectedCustomer = signal<CustomerSummary | null>(null);
-  private readonly _customerResults = signal<CustomerSummary[]>([]);
-  private readonly _customerSearchLoading = signal(false);
-  private readonly _customerSearch$ = new Subject<string>();
 
-  /** Clientes elegidos recientemente (persistidos en localStorage): cambiar de bandeja en un clic. */
-  private static readonly RECENTS_KEY = 'mail.recentCustomers';
-  private static readonly RECENTS_MAX = 6;
-  private readonly _recentCustomers = signal<CustomerSummary[]>(this.loadRecentCustomers());
-
-  readonly customerQuery = this._customerQuery.asReadonly();
-  /** Cliente activo completo (nombre + email + avatar), para el encabezado del selector. */
+  /** Cliente activo completo (nombre + email + avatar), para el chip del selector. */
   readonly selectedCustomer = this._selectedCustomer.asReadonly();
   /** Nombre del cliente activo (compat con lo existente). */
   readonly selectedCustomerName = computed(() => this._selectedCustomer()?.displayName ?? null);
-  readonly customerResults = this._customerResults.asReadonly();
-  readonly customerSearchLoading = this._customerSearchLoading.asReadonly();
-  readonly recentCustomers = this._recentCustomers.asReadonly();
 
   // ---------- Autocompletar destinatarios del composer (To/Cc) ----------
   // Stream aparte del anterior: el del rail fija el cliente DUEÑO del hilo, mientras que este
@@ -397,38 +384,11 @@ export class MailStore {
     }
     this.initialized = true;
     this.subscribeIncomingMailRealtime();
-    this.wireCustomerSearch();
     this.wireRecipientSearch();
     this.refreshBoot();
   }
 
-  /** Búsqueda de clientes server-side, debounced. Cancela la anterior (switchMap) y traga errores. */
-  private wireCustomerSearch(): void {
-    this._customerSearch$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap(term => {
-          this._customerSearchLoading.set(true);
-          return this.directory.search({ term, status: 'NotArchived', size: 200 }).pipe(
-            map(result => result.items),
-            catchError(() => of<CustomerSummary[]>([])),
-          );
-        }),
-      )
-      .subscribe(items => {
-        this._customerResults.set(items);
-        this._customerSearchLoading.set(false);
-      });
-  }
-
-  /** Cambió el texto del buscador de clientes (dispara la búsqueda debounced). */
-  onCustomerQueryChange(term: string): void {
-    this._customerQuery.set(term);
-    this._customerSearch$.next(term.trim());
-  }
-
-  /** Mismo mecanismo que el buscador del rail, pero alimentando el autocompletar de To/Cc. */
+  /** Búsqueda server-side debounced (cancela la anterior y traga errores) del autocompletar de To/Cc. */
   private wireRecipientSearch(): void {
     this._recipientSearch$
       .pipe(
@@ -453,44 +413,10 @@ export class MailStore {
     this._recipientSearch$.next(term.trim());
   }
 
-  /** Al enfocar sin texto: muestra los primeros resultados (término vacío = top N del backend). */
-  openCustomerSearch(): void {
-    if (this._customerResults().length === 0) {
-      this._customerSearch$.next('');
-    }
-  }
-
-  /** Elige un cliente del typeahead: fija el cliente activo, lo sube a recientes y carga sus hilos. */
+  /** Fija el cliente activo (elegido en el picker, que ya lo sube a recientes) y carga sus hilos. */
   pickCustomer(customer: CustomerSummary): void {
     this._selectedCustomer.set(customer);
-    this.pushRecentCustomer(customer);
-    this._customerQuery.set('');
-    this._customerResults.set([]);
     this.selectCustomer(customer.id);
-  }
-
-  /** Sube un cliente al tope de recientes (dedupe por id, cap RECENTS_MAX) y persiste. */
-  private pushRecentCustomer(customer: CustomerSummary): void {
-    const next = [customer, ...this._recentCustomers().filter(c => c.id !== customer.id)].slice(
-      0,
-      MailStore.RECENTS_MAX,
-    );
-    this._recentCustomers.set(next);
-    try {
-      localStorage.setItem(MailStore.RECENTS_KEY, JSON.stringify(next));
-    } catch {
-      // Modo privado / storage bloqueado: recientes es solo una conveniencia, se ignora.
-    }
-  }
-
-  private loadRecentCustomers(): CustomerSummary[] {
-    try {
-      const raw = localStorage.getItem(MailStore.RECENTS_KEY);
-      const parsed = raw ? (JSON.parse(raw) as CustomerSummary[]) : [];
-      return Array.isArray(parsed) ? parsed.filter(c => c && c.id && c.displayName) : [];
-    } catch {
-      return [];
-    }
   }
 
   /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
@@ -534,7 +460,7 @@ export class MailStore {
         }
         if (!this._selectedCustomerId() && customers.items.length > 0) {
           // Arranca en el cliente reciente más reciente si sigue existiendo; si no, el primero.
-          const recent = this._recentCustomers()[0];
+          const recent = this.directory.recent()[0];
           const initial =
             (recent && customers.items.find(c => c.id === recent.id)) ?? recent ?? customers.items[0];
           this._selectedCustomerId.set(initial.id);

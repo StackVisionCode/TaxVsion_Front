@@ -16,7 +16,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { SignatureProfile, SignatureProfileScope } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import { PermissionService } from '../../../../core/auth/permission.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../signature-creator/signature-creator.component';
 
 /**

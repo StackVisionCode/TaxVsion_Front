@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CustomerAssignee } from '../../data-access/clients.model';
 import { ClientsStore } from '../../data-access/clients.store';
@@ -29,7 +30,7 @@ interface AssigneeRow {
  */
 @Component({
   selector: 'app-client-assign-dialog',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-assign-dialog.component.html',
 })

@@ -1,8 +1,7 @@
 /**
  * Teléfonos: normalización al formato del backend y presentación.
  *
- * Movido tal cual desde `features/clients/utils/customer-form-normalizers.ts` (que re-exporta estas
- * funciones para no romper a nadie). Replica el Value Object `PhoneNumber.cs` de Customer:
+ * Movido tal cual desde `features/clients/utils/customer-form-normalizers.ts`. Replica el Value Object `PhoneNumber.cs` de Customer:
  * Create(raw) descarta todo salvo '+' y dígitos, luego exige ^\+[1-9]\d{6,14}$ (E.164 estricto).
  * No auto-agrega país: sin '+' se rechaza. Canónico = E.164.
  */

@@ -1,6 +1,9 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SupportStatus, SupportTicket, canReopenTicket } from '../../data-access/support.model';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 
 interface StatusMeta {
   label: string;
@@ -25,7 +28,7 @@ const STATUS_META: Record<SupportStatus, StatusMeta> = {
  */
 @Component({
   selector: 'app-support-ticket-list',
-  imports: [CommonModule],
+  imports: [CommonModule, StatusPillComponent, StateBlockComponent, PaginationComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './support-ticket-list.component.html',
 })
@@ -65,15 +68,9 @@ export class SupportTicketListComponent {
     return ticket.id.slice(0, 8);
   }
 
-  previousPage(): void {
-    if (this.page > 1 && !this.loading) {
-      this.pageChange.emit(this.page - 1);
-    }
-  }
-
-  nextPage(): void {
-    if (this.page < this.totalPages && !this.loading) {
-      this.pageChange.emit(this.page + 1);
+  onPageChange(page: number): void {
+    if (!this.loading) {
+      this.pageChange.emit(page);
     }
   }
 }

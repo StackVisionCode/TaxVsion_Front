@@ -1,7 +1,9 @@
-import {
+import type {
   AppNotification,
   NotificationType,
 } from '../ui/notification-list/notification-list.component';
+import { formatRelativeTime } from '@shared/utils/format.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 /**
  * Contratos del backend de notificaciones (Communication, Fastify/TS vía
@@ -88,33 +90,6 @@ export function typeForKind(kind: string, priority: NotificationPriority): Notif
   return priority === 'High' || priority === 'Urgent' ? 'system_alert' : 'general';
 }
 
-/** "Just now" / "20m ago" / "3h ago" / "Yesterday" / "3 days ago" / fecha. */
-export function relativeTimeLabel(isoUtc: string, nowMs: number = Date.now()): string {
-  const then = new Date(isoUtc).getTime();
-  if (Number.isNaN(then)) {
-    return '';
-  }
-  const minutes = Math.floor(Math.max(0, nowMs - then) / 60_000);
-  if (minutes < 1) {
-    return 'Just now';
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days === 1) {
-    return 'Yesterday';
-  }
-  if (days < 7) {
-    return `${days} days ago`;
-  }
-  return new Date(then).toLocaleDateString();
-}
-
 /** Icono ion por tipo — compartido por el centro de notificaciones y la campana del navbar. */
 export function notificationIcon(type: NotificationType): string {
   switch (type) {
@@ -182,8 +157,8 @@ export function dtoToAppNotification(dto: NotificationDto): AppNotification {
     type: typeForKind(dto.kind, dto.priority),
     title: dto.title,
     message: dto.body,
-    time: relativeTimeLabel(dto.createdAtUtc),
-    createdAt: new Date(dto.createdAtUtc).getTime(),
+    time: formatRelativeTime(dto.createdAtUtc),
+    createdAt: parseUtcDate(dto.createdAtUtc).getTime(),
     isRead: dto.readAtUtc !== null,
   };
 }

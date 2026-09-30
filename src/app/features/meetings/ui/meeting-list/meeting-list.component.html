@@ -1,8 +1,4 @@
 <div class="flex flex-col gap-3">
-  <div *ngIf="meetings.length === 0" class="rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-500">
-    No meetings found.
-  </div>
-
   <div *ngFor="let meeting of meetings; trackBy: trackByMeetingId" (click)="onRowClick(meeting)"
     class="rounded-2xl border border-gray-100 p-4 transition-colors"
     [ngClass]="canManage(meeting) ? 'cursor-pointer hover:bg-gray-50' : ''">
@@ -10,17 +6,9 @@
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
           <p class="truncate text-sm font-semibold text-gray-900">{{ meeting.title }}</p>
-          <span class="flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            [ngClass]="{
-              'border-indigo-200 text-indigo-600': meeting.status === 'upcoming',
-              'border-emerald-200 text-emerald-600': meeting.status === 'live',
-              'border-gray-200 text-gray-500': meeting.status === 'ended',
-              'border-red-200 text-red-500': meeting.status === 'cancelled'
-            }">
-            <span *ngIf="meeting.status === 'live'"
-              class="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-            {{ statusLabel(meeting.status) }}
-          </span>
+          <!-- Solo "Live" lleva punto (pulsante) -->
+          <app-status-pill [tone]="statusTone(meeting.status)" [dot]="meeting.status === 'live'"
+            dotClass="bg-emerald-600 animate-pulse">{{ statusLabel(meeting.status) }}</app-status-pill>
         </div>
 
         <!-- Código de sala: es lo que se comparte para entrar por /by-code -->
@@ -77,26 +65,16 @@
         </button>
 
         <!-- Menú: solo host + Scheduled (reschedule/cancel son host-only y solo desde Scheduled) -->
-        <div *ngIf="canManage(meeting)" class="relative" data-dropdown="meeting-menu">
-          <button type="button" (click)="toggleMenu(meeting, $event)"
-            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-            aria-label="Meeting options">
-            <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+        <app-dropdown-menu *ngIf="canManage(meeting)" ariaLabel="Meeting options" panelClass="w-44">
+          <button appMenuItem type="button" (click)="onManageClick(meeting, $event)">
+            <ion-icon name="create-outline" class="text-base"></ion-icon>
+            Manage
           </button>
-          <div *ngIf="openMenuId() === meeting.id"
-            class="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-            <button type="button" (click)="onManageClick(meeting, $event)"
-              class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <ion-icon name="create-outline" class="text-base"></ion-icon>
-              Manage
-            </button>
-            <button type="button" (click)="onCancelClick(meeting, $event)"
-              class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
-              <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
-              Cancel
-            </button>
-          </div>
-        </div>
+          <button appMenuItem [danger]="true" type="button" (click)="onCancelClick(meeting, $event)">
+            <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
+            Cancel
+          </button>
+        </app-dropdown-menu>
       </div>
     </div>
   </div>

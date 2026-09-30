@@ -1,27 +1,12 @@
 <div class="flex flex-col h-full">
   <!-- Search pill (filtra client-side lo ya cargado: el listado del backend no acepta término) -->
-  <div class="mb-3 shrink-0 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-    <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-    <input type="text" placeholder="Search loaded mail" [ngModel]="search()" name="search"
-      (ngModelChange)="onSearchChange($event)"
-      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-  </div>
+  <app-search-input class="mb-3 shrink-0" widthClass="w-full" placeholder="Search loaded mail" [value]="search()"
+    (valueChange)="onSearchChange($event)"></app-search-input>
 
-  <!-- Carga inicial -->
-  <div *ngIf="loading && filteredRows().length === 0"
-    class="flex flex-1 min-h-0 items-center justify-center gap-2 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-    Loading…
-  </div>
-
-  <!-- Error del listado con reintento -->
-  <div *ngIf="!loading && error as listError"
-    class="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-6 text-center">
-    <p class="text-sm text-red-600">{{ listError }}</p>
-    <button type="button" (click)="retryRequested.emit()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-      Retry
-    </button>
+  <!-- Carga inicial / error del listado con reintento -->
+  <div *ngIf="(loading && filteredRows().length === 0) || (!loading && error)"
+    class="flex flex-1 min-h-0 flex-col justify-center">
+    <app-state-block [loading]="loading" [error]="error" variant="inline" (retry)="retryRequested.emit()"></app-state-block>
   </div>
 
   <!-- Listado -->
@@ -36,8 +21,7 @@
     <button #rowButton *ngFor="let row of filteredRows(); trackBy: trackByRowId" type="button" (click)="select(row.id)"
       class="relative z-10 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors"
       [ngClass]="row.id === selectedId ? 'text-white' : 'hover:bg-gray-50 text-gray-700'">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-        [ngClass]="row.avatarColor">{{ row.initials }}</span>
+      <app-avatar [name]="row.avatarName" size="md" [colorClass]="row.avatarColor"></app-avatar>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">
@@ -87,14 +71,10 @@
       </div>
     </button>
 
-    <p *ngIf="filteredRows().length === 0" class="px-3 py-6 text-center text-sm text-gray-400">{{ emptyText }}</p>
+    <app-state-block *ngIf="filteredRows().length === 0" [empty]="true" variant="inline" icon="mail-outline"
+      [emptyTitle]="emptyText"></app-state-block>
 
     <!-- Paginación incremental del listado activo -->
-    <div *ngIf="hasMore" class="mt-2 flex justify-center pb-1">
-      <button type="button" (click)="loadMoreRequested.emit()" [disabled]="loading || loadingMore"
-        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-        {{ loading || loadingMore ? 'Loading…' : 'Load more' }}
-      </button>
-    </div>
+    <app-load-more class="pb-1" [hasMore]="hasMore" [loading]="loading || loadingMore" (load)="loadMoreRequested.emit()"></app-load-more>
   </div>
 </div>

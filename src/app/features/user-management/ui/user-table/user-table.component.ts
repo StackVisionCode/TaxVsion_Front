@@ -1,5 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { actorTypeLabel } from '../../data-access/user-management.model';
 
 export type MemberStatus = 'active' | 'invited' | 'suspended' | 'removed';
@@ -37,12 +41,12 @@ const ROLE_CHIP_PALETTE = [
  * cuyo contenido depende del origen: usuarios → Edit roles / Suspend-Reactivate
  * (PATCH deactivate/reactivate); invitaciones → Resend / Cancel invite. La fila
  * del usuario logueado (`currentUserId`) no muestra menú — nadie se suspende ni
- * se recorta roles a sí mismo desde acá. El menú abierto se rastrea con una
- * signal y se cierra al hacer click fuera de la fila correspondiente.
+ * se recorta roles a sí mismo desde acá. El menú es el `app-dropdown-menu` compartido
+ * (cierra al pulsar fuera, con Escape o al elegir una acción).
  */
 @Component({
   selector: 'app-user-table',
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent, DropdownMenuComponent, MenuItemDirective, StateBlockComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-table.component.html',
 })
@@ -64,28 +68,6 @@ export class UserTableComponent {
   @Output() toggleSuspend = new EventEmitter<TeamMember>();
   @Output() offboard = new EventEmitter<TeamMember>();
   @Output() cancelInvite = new EventEmitter<TeamMember>();
-
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const openId = this.openMenuId();
-    if (!openId) {
-      return;
-    }
-    const target = event.target as HTMLElement;
-    if (!target.closest(`[data-dropdown="member-menu-${openId}"]`)) {
-      this.openMenuId.set(null);
-    }
-  }
-
-  toggleMenu(member: TeamMember): void {
-    this.openMenuId.update(current => (current === member.id ? null : member.id));
-  }
-
-  closeMenu(): void {
-    this.openMenuId.set(null);
-  }
 
   /** Chip determinístico por nombre de rol (los roles del tenant son dinámicos, no un enum fijo). */
   roleChip(roleName: string): string {
@@ -130,34 +112,18 @@ export class UserTableComponent {
     }
   }
 
-  statusChip(status: MemberStatus): string {
+  /** Tono de la píldora de estado (`soft`). Removed es terminal: gris apagado, no el rojo de suspended. */
+  statusTone(status: MemberStatus): StatusTone {
     switch (status) {
       case 'active':
-        return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-      case 'invited':
-        return 'border-gray-200 bg-gray-100 text-gray-600';
+        return 'success';
       case 'suspended':
-        return 'border-red-200 bg-red-50 text-red-700';
-      // Removed (offboarded) es terminal: neutro, no rojo — no es un estado accionable como suspended.
+        return 'danger';
       case 'removed':
-        return 'border-gray-300 bg-gray-100 text-gray-500';
-      default:
-        return 'border-gray-200 bg-gray-50 text-gray-600';
-    }
-  }
-
-  statusDotClass(status: MemberStatus): string {
-    switch (status) {
-      case 'active':
-        return 'bg-emerald-500';
+        return 'muted';
       case 'invited':
-        return 'bg-gray-400';
-      case 'suspended':
-        return 'bg-red-500';
-      case 'removed':
-        return 'bg-gray-400';
       default:
-        return 'bg-gray-400';
+        return 'neutral';
     }
   }
 }

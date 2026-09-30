@@ -3,11 +3,12 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, 
 import { CommonModule } from '@angular/common';
 import { catchError, of } from 'rxjs';
 import { PermissionService } from '@core/auth/permission.service';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { EditAccessStore } from '../../../user-management/data-access/edit-access.store';
 import { PermissionInfo } from '../../../user-management/data-access/user-management.model';
 import { UserManagementService } from '../../../user-management/data-access/user-management.service';
 import { AccessModuleView, buildAccessView } from '../../../user-management/ui/edit-access-drawer/access-view';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /** El backend gatea leer y guardar accesos con este permiso. */
 const ROLES_MANAGE = 'roles.manage';
@@ -20,7 +21,7 @@ const ROLES_MANAGE = 'roles.manage';
  */
 @Component({
   selector: 'app-client-portal-permissions',
-  imports: [SwitchComponent, CommonModule],
+  imports: [SwitchComponent, CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [EditAccessStore],
   templateUrl: './client-portal-permissions.component.html',

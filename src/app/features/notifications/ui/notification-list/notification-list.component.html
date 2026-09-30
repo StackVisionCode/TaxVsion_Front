@@ -25,25 +25,14 @@
     <span class="shrink-0 text-xs text-gray-400">{{ notification.time }}</span>
 
     <!-- Ghost "..." menu — solo para no leídas (la única acción HTTP del backend es mark-as-read) -->
-    <div *ngIf="!notification.isRead" class="relative shrink-0 text-left" data-dropdown="notification-menu">
-      <button type="button" (click)="toggleMenu(notification, $event)"
-        class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-        aria-label="Notification options">
-        <ion-icon name="ellipsis-horizontal-outline" class="text-base"></ion-icon>
+    <app-dropdown-menu *ngIf="!notification.isRead" class="shrink-0" ariaLabel="Notification options" panelClass="w-48">
+      <button appMenuItem type="button" (click)="onMarkReadClick(notification)">
+        <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+        Mark as read
       </button>
-      <div *ngIf="openMenuId() === notification.id"
-        class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-        <button type="button" (click)="onMarkReadClick(notification, $event)"
-          class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50">
-          <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
-          Mark as read
-        </button>
-      </div>
-    </div>
+    </app-dropdown-menu>
   </div>
 
-  <div *ngIf="notifications.length === 0" class="px-4 py-12 text-center">
-    <ion-icon name="notifications-off-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">No notifications to show</p>
-  </div>
+  <app-state-block *ngIf="notifications.length === 0" [empty]="true" variant="inline"
+    icon="notifications-off-outline" emptyTitle="No notifications to show"></app-state-block>
 </div>

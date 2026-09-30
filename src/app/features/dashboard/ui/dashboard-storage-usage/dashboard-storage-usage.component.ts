@@ -1,6 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { UsedStorageCardComponent } from '../../../../shared/ui/used-storage-card/used-storage-card.component';
+import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-storage-card.component';
 import { StorageStore } from '../../../storage/data-access/storage.store';
 
 /**

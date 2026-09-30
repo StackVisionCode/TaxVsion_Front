@@ -1,3 +1,6 @@
+import { formatMoney } from '@shared/utils/format.util';
+import { StatusTone } from '@shared/ui/status-pill/status-pill.component';
+
 /**
  * Espejos del contrato HTTP de la sección de facturación. Tres servicios distintos, todos reales:
  *
@@ -472,13 +475,9 @@ export function draftTotals(lines: InvoiceLineDraft[]): LineTotals {
   );
 }
 
-/** Centavos → texto de moneda. Con decimales, a diferencia del widget del dashboard. */
+/** Centavos → texto de moneda (delegado en el `formatMoney` compartido). */
 export function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency || 'USD',
-    minimumFractionDigits: 2,
-  }).format((cents ?? 0) / 100);
+  return formatMoney(cents, currency, { fromCents: true });
 }
 
 // ---------- Helpers de presentación ----------
@@ -502,49 +501,36 @@ export function invoiceStatusLabel(status: InvoiceStatus): string {
   }
 }
 
-/** Clases del chip de estado (borde + fondo + texto) y del punto, en el estilo de las otras tablas. */
-export function invoiceStatusChip(status: InvoiceStatus): string {
+/** Tono de `app-status-pill` (variante `soft`) por estado de factura. */
+export function invoiceStatusTone(status: InvoiceStatus): StatusTone {
   switch (status) {
     case 'Paid':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      return 'success';
     case 'PartiallyPaid':
-      return 'border-amber-200 bg-amber-50 text-amber-700';
+      return 'warning';
     case 'Issued':
     case 'Sent':
-      return 'border-indigo-200 bg-indigo-50 text-brand-bold';
+      return 'brand';
     case 'Voided':
-      return 'border-gray-200 bg-gray-50 text-gray-500';
+      return 'muted';
     default:
-      return 'border-gray-200 bg-white text-gray-600';
+      return 'neutral';
   }
 }
 
-export function invoiceStatusDot(status: InvoiceStatus): string {
-  switch (status) {
-    case 'Paid':
-      return 'bg-emerald-500';
-    case 'PartiallyPaid':
-      return 'bg-amber-500';
-    case 'Issued':
-    case 'Sent':
-      return 'bg-brand-bold';
-    default:
-      return 'bg-gray-300';
-  }
-}
-
-export function paymentLinkStatusChip(status: PaymentLinkStatus): string {
+/** Tono de `app-status-pill` (variante `soft`) por estado del link de pago. */
+export function paymentLinkStatusTone(status: PaymentLinkStatus): StatusTone {
   switch (status) {
     case 'Active':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      return 'success';
     case 'Used':
-      return 'border-indigo-200 bg-indigo-50 text-brand-bold';
+      return 'brand';
     case 'Expired':
-      return 'border-amber-200 bg-amber-50 text-amber-700';
+      return 'warning';
     case 'Revoked':
-      return 'border-gray-200 bg-gray-50 text-gray-500';
+      return 'muted';
     default:
-      return 'border-gray-200 bg-white text-gray-600';
+      return 'neutral';
   }
 }
 

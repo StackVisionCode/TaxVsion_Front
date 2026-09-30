@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { ProfileStore } from '../../data-access/profile.store';
 import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two-step-verification.component';
 import {
@@ -15,10 +18,7 @@ import {
 /** Paso del flujo inline de cambio de email/teléfono. */
 type ContactFlowStep = 'idle' | 'editing' | 'confirming';
 
-interface Toast {
-  message: string;
-  kind: 'success' | 'error';
-}
+type ToastKind = 'success' | 'error';
 
 /**
  * Página del módulo Profile (estilo "Aether"): tarjeta de encabezado con
@@ -38,13 +38,14 @@ interface Toast {
  */
 @Component({
   selector: 'app-profile-page',
-  imports: [CommonModule, FormsModule, TwoStepVerificationComponent],
+  imports: [CommonModule, FormsModule, TwoStepVerificationComponent, AvatarComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
 })
 export class ProfilePageComponent {
   private readonly auth = inject(AuthService);
   readonly store = inject(ProfileStore);
+  private readonly toast = inject(ToastService);
 
   readonly isOwner = true;
   readonly avatarColor = 'bg-indigo-600';
@@ -75,15 +76,6 @@ export class ProfilePageComponent {
 
   readonly fullName = computed(() => `${this.firstName()} ${this.lastName()}`.trim());
 
-  readonly initials = computed(() => {
-    const first = this.firstName().trim();
-    const last = this.lastName().trim();
-    if (first && last) {
-      return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
-    }
-    return (first || last || 'U').slice(0, 2).toUpperCase();
-  });
-
   // ---------------------------------------------------------------------------
   // Avatar: SOLO vista previa local. No existe endpoint de backend para subir la
   // foto todavía, así que nada se persiste ni se afirma como "guardado".
@@ -106,33 +98,25 @@ export class ProfilePageComponent {
   // Información personal (PUT /auth/users/me/profile)
   // ---------------------------------------------------------------------------
   readonly savingProfile = signal(false);
-  readonly profileToast = signal<Toast | null>(null);
-  private profileToastTimer?: ReturnType<typeof setTimeout>;
 
   saveProfile(): void {
     const name = this.firstName().trim();
     const lastName = this.lastName().trim();
     if (!name || !lastName) {
-      this.showProfileToast('First and last name are required', 'error');
+      this.notify('First and last name are required', 'error');
       return;
     }
     this.savingProfile.set(true);
     this.store.saveProfile({ name, lastName }).subscribe({
       next: () => {
         this.savingProfile.set(false);
-        this.showProfileToast('Profile updated', 'success');
+        this.notify('Profile updated', 'success');
       },
       error: err => {
         this.savingProfile.set(false);
-        this.showProfileToast(toApiError(err).message, 'error');
+        this.notify(toApiError(err).message, 'error');
       },
     });
-  }
-
-  private showProfileToast(message: string, kind: Toast['kind']): void {
-    this.profileToast.set({ message, kind });
-    clearTimeout(this.profileToastTimer);
-    this.profileToastTimer = setTimeout(() => this.profileToast.set(null), 4000);
   }
 
   // ---------------------------------------------------------------------------
@@ -193,7 +177,7 @@ export class ProfilePageComponent {
       next: () => {
         this.emailBusy.set(false);
         this.emailStep.set('idle');
-        this.showProfileToast('Email updated', 'success');
+        this.notify('Email updated', 'success');
       },
       error: err => {
         this.emailBusy.set(false);
@@ -257,7 +241,7 @@ export class ProfilePageComponent {
       next: () => {
         this.phoneBusy.set(false);
         this.phoneStep.set('idle');
-        this.showProfileToast('Phone number verified', 'success');
+        this.notify('Phone number verified', 'success');
       },
       error: err => {
         this.phoneBusy.set(false);
@@ -274,42 +258,34 @@ export class ProfilePageComponent {
   readonly newPassword = signal('');
   readonly confirmPassword = signal('');
   readonly changingPassword = signal(false);
-  readonly passwordToast = signal<Toast | null>(null);
-  private passwordToastTimer?: ReturnType<typeof setTimeout>;
 
   updatePassword(): void {
     if (!this.currentPassword() || !this.newPassword() || !this.confirmPassword()) {
-      this.showPasswordToast('All password fields are required', 'error');
+      this.notify('All password fields are required', 'error');
       return;
     }
     if (this.newPassword() !== this.confirmPassword()) {
-      this.showPasswordToast('New password and confirmation do not match', 'error');
+      this.notify('New password and confirmation do not match', 'error');
       return;
     }
     if (this.newPassword().length < PASSWORD_MIN_LENGTH) {
-      this.showPasswordToast(`Password must contain at least ${PASSWORD_MIN_LENGTH} characters`, 'error');
+      this.notify(`Password must contain at least ${PASSWORD_MIN_LENGTH} characters`, 'error');
       return;
     }
     this.changingPassword.set(true);
     this.store.changePassword(this.currentPassword(), this.newPassword()).subscribe({
       next: () => {
         this.changingPassword.set(false);
-        this.showPasswordToast('Password updated successfully', 'success');
+        this.notify('Password updated successfully', 'success');
         this.currentPassword.set('');
         this.newPassword.set('');
         this.confirmPassword.set('');
       },
       error: err => {
         this.changingPassword.set(false);
-        this.showPasswordToast(toApiError(err).message, 'error');
+        this.notify(toApiError(err).message, 'error');
       },
     });
-  }
-
-  private showPasswordToast(message: string, kind: Toast['kind']): void {
-    this.passwordToast.set({ message, kind });
-    clearTimeout(this.passwordToastTimer);
-    this.passwordToastTimer = setTimeout(() => this.passwordToast.set(null), 4000);
   }
 
   // ---------------------------------------------------------------------------
@@ -317,8 +293,6 @@ export class ProfilePageComponent {
   // ---------------------------------------------------------------------------
   readonly revokingSessionId = signal<string | null>(null);
   readonly revokingOthers = signal(false);
-  readonly sessionsToast = signal<Toast | null>(null);
-  private sessionsToastTimer?: ReturnType<typeof setTimeout>;
 
   deviceLabel(session: UserSession): string {
     return sessionDeviceLabel(session);
@@ -341,11 +315,11 @@ export class ProfilePageComponent {
     this.store.revokeSession(session.id).subscribe({
       next: () => {
         this.revokingSessionId.set(null);
-        this.showSessionsToast('Session signed out', 'success');
+        this.notify('Session signed out', 'success');
       },
       error: err => {
         this.revokingSessionId.set(null);
-        this.showSessionsToast(toApiError(err).message, 'error');
+        this.notify(toApiError(err).message, 'error');
       },
     });
   }
@@ -355,18 +329,21 @@ export class ProfilePageComponent {
     this.store.revokeOtherSessions().subscribe({
       next: () => {
         this.revokingOthers.set(false);
-        this.showSessionsToast('Signed out on all other devices', 'success');
+        this.notify('Signed out on all other devices', 'success');
       },
       error: err => {
         this.revokingOthers.set(false);
-        this.showSessionsToast(toApiError(err).message, 'error');
+        this.notify(toApiError(err).message, 'error');
       },
     });
   }
 
-  private showSessionsToast(message: string, kind: Toast['kind']): void {
-    this.sessionsToast.set({ message, kind });
-    clearTimeout(this.sessionsToastTimer);
-    this.sessionsToastTimer = setTimeout(() => this.sessionsToast.set(null), 4000);
+  /** Feedback de las acciones de la página: toast global (antes, una píldora por tarjeta). */
+  private notify(message: string, kind: ToastKind): void {
+    if (kind === 'success') {
+      this.toast.success(message);
+    } else {
+      this.toast.error(message);
+    }
   }
 }

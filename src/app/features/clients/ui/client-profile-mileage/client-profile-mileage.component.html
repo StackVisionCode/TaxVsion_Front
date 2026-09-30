@@ -3,20 +3,7 @@
     Se conserva el marco de las stat cards, pero en "—": no hay servicio de mileage, así
     que ni viajes, ni millas, ni reembolso estimado pueden calcularse.
   -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Trips logged</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Total miles</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Est. reimbursement</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">—</p>
-    </div>
-  </div>
+  <app-stat-cards [items]="stats"></app-stat-cards>
 
   <div class="bg-white rounded-[28px] p-6">
     <h2 class="text-xl font-bold text-gray-900">Trips</h2>
@@ -30,9 +17,7 @@
       </p>
     </div>
 
-    <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-12 text-center">
-      <ion-icon name="car-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No mileage data to show for this client</p>
-    </div>
+    <app-state-block class="mt-4 block" [empty]="true" icon="car-outline"
+      emptyTitle="No mileage data to show for this client"></app-state-block>
   </div>
 </div>

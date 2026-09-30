@@ -82,7 +82,7 @@
         class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors resize-none"></textarea>
 
       <!-- Picker de invitados: directorio (employees/customers) + externos por email -->
-      <div class="relative" data-dropdown="meeting-invitee">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isInviteeOpen()" (appClickOutside)="isInviteeOpen.set(false)">
         <div class="h-10 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
           <input type="text" placeholder="Invite by name or email" [ngModel]="inviteeSearch()"
             (ngModelChange)="onInviteeSearchChange($event)" (keydown.enter)="addExternal()"
@@ -95,8 +95,7 @@
             <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Team</p>
             <button *ngFor="let entry of inviteeResults().employees" type="button" (click)="addEmployee(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                [ngClass]="colorFor(entry.userId)">{{ initialsFor(entry.displayName) }}</span>
+              <app-avatar [name]="entry.displayName" [seed]="entry.userId" size="xs" />
               <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
               <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
             </button>
@@ -106,8 +105,7 @@
             <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
             <button *ngFor="let entry of inviteeResults().customers" type="button" (click)="addCustomer(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                [ngClass]="colorFor(entry.customerId)">{{ initialsFor(entry.displayName) }}</span>
+              <app-avatar [name]="entry.displayName" [seed]="entry.customerId" size="xs" />
               <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
               <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
             </button>
@@ -130,8 +128,7 @@
       <div *ngIf="invitees().length > 0" class="flex flex-wrap gap-2">
         <span *ngFor="let invitee of invitees(); let i = index"
           class="flex items-center gap-2 rounded-full border border-gray-200 pl-1 pr-3 py-1 text-xs font-medium text-gray-700">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            [ngClass]="colorFor(invitee.userId || invitee.email || invitee.name)">{{ initialsFor(invitee.name) }}</span>
+          <app-avatar [name]="invitee.name" [seed]="invitee.userId || invitee.email || invitee.name" size="xs" />
           {{ invitee.name }}
           <span class="text-[10px] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
           <button type="button" (click)="removeInvitee(i)" class="text-gray-400 hover:text-gray-700"
@@ -227,15 +224,9 @@
                 <p class="text-[11px] text-gray-400">{{ invitation.inviteeKind }}</p>
               </div>
               <div class="flex shrink-0 items-center gap-2">
-                <span class="rounded-full border px-2 py-0.5 text-[10px] font-medium"
-                  [ngClass]="{
-                    'border-emerald-200 text-emerald-600': invitationState(invitation) === 'active',
-                    'border-indigo-200 text-indigo-600': invitationState(invitation) === 'used',
-                    'border-red-200 text-red-500': invitationState(invitation) === 'revoked',
-                    'border-gray-200 text-gray-400': invitationState(invitation) === 'expired'
-                  }">
+                <app-status-pill [tone]="invitationTone(invitation)" size="xs" [dot]="false">
                   {{ invitationState(invitation) | titlecase }}
-                </span>
+                </app-status-pill>
                 <button *ngIf="invitationState(invitation) === 'active'" type="button"
                   (click)="revokeInvitation(invitation)" [disabled]="invitationsBusy()"
                   class="text-xs font-medium text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">

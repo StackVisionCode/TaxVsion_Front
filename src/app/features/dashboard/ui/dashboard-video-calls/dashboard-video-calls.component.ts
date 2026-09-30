@@ -3,12 +3,11 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MeetingsStore } from '../../../meetings/data-access/meetings.store';
 import { MeetingItem } from '../../../meetings/data-access/meeting.model';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 /** Cuántas reuniones caben en el widget. */
 const MAX_ROWS = 5;
-
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 /**
  * Widget "Video Calls".
@@ -33,7 +32,7 @@ const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-
  */
 @Component({
   selector: 'app-dashboard-video-calls',
-  imports: [CommonModule, RouterLink, DashboardWidgetStateComponent],
+  imports: [CommonModule, RouterLink, StateBlockComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-video-calls.component.html',
 })
@@ -63,20 +62,12 @@ export class DashboardVideoCallsComponent implements OnInit {
     this.store.loadScope('upcoming');
   }
 
+  retry(): void {
+    this.store.loadScope('upcoming', true);
+  }
+
   trackByCallId(_index: number, call: MeetingItem): string {
     return call.id;
-  }
-
-  avatarBg(index: number): string {
-    return AVATAR_COLORS[index % AVATAR_COLORS.length];
-  }
-
-  initialsOf(title: string): string {
-    const parts = title.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) {
-      return '?';
-    }
-    return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
   }
 
   /** Línea de estado: en curso con participantes reales, o cuándo está agendada. */

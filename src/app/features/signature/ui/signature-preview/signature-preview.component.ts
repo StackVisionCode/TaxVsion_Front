@@ -1,7 +1,10 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SignatureRequest, SignatureStatus, Signer, SignerStatus } from '../signature-table/signature-table.component';
+import { SignatureRequest, Signer, SignerStatus } from '../signature-table/signature-table.component';
 import { SignatureStore } from '../../data-access/signature.store';
+import { SIGNATURE_STATUS_LABEL, SIGNATURE_STATUS_PILL, SignatureStatusPill } from '../../utils/signature-status.util';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 
 /**
  * Vista previa de solo lectura de una solicitud de firma (mismo patrón
@@ -15,7 +18,7 @@ import { SignatureStore } from '../../data-access/signature.store';
  */
 @Component({
   selector: 'app-signature-preview',
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-preview.component.html',
 })
@@ -55,66 +58,8 @@ export class SignaturePreviewComponent {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   }
 
-  statusLabel(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-        return 'Draft';
-      case 'ready':
-        return 'Ready';
-      case 'pending':
-        return 'Pending';
-      case 'in-progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-      case 'canceled':
-        return 'Canceled';
-      case 'expired':
-        return 'Expired';
-    }
-  }
-
-  statusChip(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-      case 'canceled':
-        return 'border-gray-300 text-gray-500';
-      case 'ready':
-        return 'border-indigo-100 text-blue-600';
-      case 'completed':
-        return 'border-emerald-200 text-emerald-600';
-      case 'pending':
-        return 'border-orange-200 text-orange-500';
-      case 'in-progress':
-        return 'border-indigo-200 text-indigo-500';
-      case 'rejected':
-        return 'border-red-200 text-red-500';
-      case 'expired':
-        return 'border-amber-200 text-amber-600';
-    }
-  }
-
-  statusDot(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-      case 'canceled':
-        return 'bg-gray-400';
-      case 'ready':
-        return 'bg-blue-500';
-      case 'completed':
-        return 'bg-emerald-500';
-      case 'pending':
-        return 'bg-orange-500';
-      case 'in-progress':
-        return 'bg-indigo-500';
-      case 'rejected':
-        return 'bg-red-500';
-      case 'expired':
-        return 'bg-amber-500';
-    }
-  }
+  readonly statusLabel = SIGNATURE_STATUS_LABEL;
+  readonly statusPill = SIGNATURE_STATUS_PILL;
 
   /**
    * Estado a mostrar por firmante: si la solicitud terminó (canceled/expired/rejected) y el firmante
@@ -179,18 +124,18 @@ export class SignaturePreviewComponent {
   }
 
   /** Chip del firmante (reusa la paleta de estados de solicitud). */
-  signerChip(status: SignerStatus | 'canceled'): string {
+  signerPill(status: SignerStatus | 'canceled'): SignatureStatusPill {
     switch (status) {
       case 'signed':
-        return this.statusChip('completed');
+        return SIGNATURE_STATUS_PILL.completed;
       case 'rejected':
-        return this.statusChip('rejected');
+        return SIGNATURE_STATUS_PILL.rejected;
       case 'expired':
-        return this.statusChip('expired');
+        return SIGNATURE_STATUS_PILL.expired;
       case 'pending':
-        return this.statusChip('pending');
+        return SIGNATURE_STATUS_PILL.pending;
       case 'canceled':
-        return this.statusChip('canceled');
+        return SIGNATURE_STATUS_PILL.canceled;
     }
   }
 

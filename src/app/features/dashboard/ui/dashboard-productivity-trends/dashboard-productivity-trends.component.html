@@ -4,7 +4,7 @@
   <p class="mt-1 text-sm text-gray-500">Daily focus hours</p>
 
   <!-- Sin time tracking en la plataforma: estado vacío en lugar de un gráfico inventado -->
-  <app-dashboard-widget-state icon="time-outline" title="Time tracking isn't available yet"
-    message="Focus hours aren't recorded anywhere yet, so there are no trends to chart."
-    minHeight="13rem"></app-dashboard-widget-state>
+  <app-state-block [empty]="true" variant="inline" icon="time-outline" emptyTitle="Time tracking isn't available yet"
+    emptyMessage="Focus hours aren't recorded anywhere yet, so there are no trends to chart."
+    minHeight="13rem"></app-state-block>
 </div>

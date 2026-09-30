@@ -19,7 +19,7 @@ import {
   MonthlyRevenueBucket,
   formatCents,
 } from '../../data-access/dashboard-invoices.store';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 interface SummaryItem {
   label: string;
@@ -52,7 +52,7 @@ interface SummaryItem {
  */
 @Component({
   selector: 'app-dashboard-invoices-chart',
-  imports: [CommonModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-invoices-chart.component.html',
   styleUrl: './dashboard-invoices-chart.component.css',
@@ -131,6 +131,10 @@ export class DashboardInvoicesChartComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.store.load();
+  }
+
+  retry(): void {
+    this.store.load(true);
   }
 
   ngAfterViewInit(): void {

@@ -2,11 +2,8 @@
   <!-- Header card -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex flex-wrap items-center gap-5">
-      <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full text-2xl font-bold text-white"
-        [ngClass]="avatarPhotoUrl() ? '' : avatarColor">
-        <img *ngIf="avatarPhotoUrl(); else avatarInitials" [src]="avatarPhotoUrl()" alt="Profile photo" class="h-full w-full object-cover" />
-        <ng-template #avatarInitials>{{ initials() }}</ng-template>
-      </div>
+      <app-avatar [name]="fullName()" [imageUrl]="avatarPhotoUrl()" sizeClass="h-20 w-20 text-2xl"
+        [colorClass]="avatarColor" />
 
       <div class="min-w-0 flex-1">
         <h2 class="text-xl font-bold text-gray-900">{{ fullName() }}</h2>
@@ -38,15 +35,6 @@
         <h2 class="text-xl font-bold text-gray-900">Personal information</h2>
         <p class="mt-1 text-sm text-gray-500">Update your name; email and phone changes require verification</p>
       </div>
-      <span *ngIf="profileToast() as toast"
-        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
-        [ngClass]="toast.kind === 'success'
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-          : 'bg-red-50 text-red-700 border-red-100'">
-        <ion-icon [name]="toast.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
-          class="text-sm"></ion-icon>
-        {{ toast.message }}
-      </span>
     </div>
 
     <div class="mt-5 grid gap-3 sm:grid-cols-2">
@@ -198,15 +186,6 @@
         <h2 class="text-xl font-bold text-gray-900">Security</h2>
         <p class="mt-1 text-sm text-gray-500">Change your password</p>
       </div>
-      <span *ngIf="passwordToast() as toast"
-        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
-        [ngClass]="toast.kind === 'success'
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-          : 'bg-red-50 text-red-700 border-red-100'">
-        <ion-icon [name]="toast.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
-          class="text-sm"></ion-icon>
-        {{ toast.message }}
-      </span>
     </div>
 
     <div class="mt-5 flex flex-col gap-3 max-w-md">
@@ -252,15 +231,6 @@
         <p class="mt-1 text-sm text-gray-500">Devices currently signed in to your account</p>
       </div>
       <div class="flex items-center gap-2">
-        <span *ngIf="sessionsToast() as toast"
-          class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border"
-          [ngClass]="toast.kind === 'success'
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-            : 'bg-red-50 text-red-700 border-red-100'">
-          <ion-icon [name]="toast.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
-            class="text-sm"></ion-icon>
-          {{ toast.message }}
-        </span>
         <button type="button" (click)="signOutEverywhereElse()"
           [disabled]="revokingOthers() || store.sessionsLoading()"
           class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
@@ -270,23 +240,10 @@
       </div>
     </div>
 
-    <p *ngIf="store.sessionsLoading()" class="mt-4 text-sm text-gray-400">Loading sessions…</p>
-
-    <div *ngIf="!store.sessionsLoading() && store.sessionsError() as err" class="mt-4 flex flex-wrap items-center gap-3">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="store.loadSessions()"
-        class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-        <ion-icon name="refresh-outline" class="text-xs"></ion-icon>
-        Retry
-      </button>
-    </div>
-
-    <p *ngIf="!store.sessionsLoading() && !store.sessionsError() && store.sessions().length === 0"
-      class="mt-4 text-sm text-gray-400">
-      No active sessions found.
-    </p>
-
-    <div *ngIf="!store.sessionsLoading() && store.sessions().length > 0" class="mt-4 divide-y divide-gray-100">
+    <app-state-block class="mt-4 block" variant="inline" [loading]="store.sessionsLoading()"
+      [error]="store.sessionsError()" [empty]="store.sessions().length === 0" loadingText="Loading sessions…"
+      icon="desktop-outline" emptyTitle="No active sessions found." (retry)="store.loadSessions()">
+    <div class="divide-y divide-gray-100">
       <div *ngFor="let session of store.sessions(); trackBy: trackSession"
         class="flex flex-wrap items-center gap-3 py-3">
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
@@ -315,5 +272,6 @@
         </button>
       </div>
     </div>
+    </app-state-block>
   </div>
 </div>

@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
-import { FileResponse, displayStatus, formatBytes, isFileReady } from '../../data-access/documents.model';
+import { formatBytes } from '@shared/utils/format.util';
+import { FileResponse, displayStatus, isFileReady } from '../../data-access/documents.model';
 
 /**
  * Vista rápida de un archivo. La URL de descarga se presigna como "attachment"

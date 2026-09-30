@@ -15,13 +15,13 @@ import {
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
   clientTypeBadge,
-  initialsOf,
   kindChip,
   kindCircle,
   kindIcon,
 } from '../signature-request-panel/signature-wizard.presenter';
 import { SignatureCategory } from '../../data-access/signature.model';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
 
@@ -34,7 +34,7 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
-  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent],
+  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-review-step.component.html',
   styleUrl: './signature-wizard-review-step.component.css',
@@ -60,10 +60,6 @@ export class SignatureWizardReviewStepComponent {
   /** Etiquetas de los canales habilitados, para la tarjeta de reglas. */
   channelLabels(): string {
     return (this.rules?.channels ?? []).map(ch => CHANNEL_META[ch].label).join(' · ');
-  }
-
-  initials(name: string): string {
-    return initialsOf(name);
   }
 
   typeBadge(client: WizardClient): string {

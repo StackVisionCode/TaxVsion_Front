@@ -147,62 +147,29 @@
 }
 
 <!-- ---------- Confirmar la baja ---------- -->
-@if (pendingDeactivate(); as role) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4">
-    <div class="absolute inset-0 bg-gray-900/30" (click)="cancelDeactivate()"></div>
-    <div class="relative w-full max-w-sm rounded-[24px] bg-white p-6 shadow-2xl">
-      <h3 class="text-base font-bold text-gray-900">Deactivate {{ role.name }}?</h3>
-      <p class="mt-2 text-sm text-gray-500">
-        The role stops applying right away. It is not deleted — you can put it back in service later.
+<app-confirm-dialog [isOpen]="!!pendingDeactivate()" [heading]="'Deactivate ' + (pendingDeactivate()?.name ?? '') + '?'"
+  message="The role stops applying right away. It is not deleted — you can put it back in service later."
+  confirmLabel="Deactivate" [busy]="store.saving()" (confirmed)="doDeactivate()" (cancelled)="cancelDeactivate()">
+  <!-- Cuánta gente pierde acceso. Sin esto, desactivar un rol era a ciegas. -->
+  @if (pendingDeactivate(); as role) {
+    @if (affectedCount(role.id); as count) {
+      <p class="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+        {{ count }} {{ count === 1 ? 'person loses' : 'people lose' }} the access this role gives.
       </p>
-      <!-- Cuánta gente pierde acceso. Sin esto, desactivar un rol era a ciegas. -->
-      @if (affectedCount(role.id); as count) {
-        <p class="mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          {{ count }} {{ count === 1 ? 'person loses' : 'people lose' }} the access this role gives.
-        </p>
-      }
-      <div class="mt-6 flex justify-end gap-2">
-        <button type="button" (click)="cancelDeactivate()"
-          class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100">
-          Cancel
-        </button>
-        <button type="button" (click)="doDeactivate()" [disabled]="store.saving()"
-          class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50">
-          Deactivate
-        </button>
-      </div>
-    </div>
-  </div>
-}
+    }
+  }
+</app-confirm-dialog>
 
 <!-- ---------- La copia no sale igual: avisar antes ---------- -->
-@if (pendingDuplicate(); as role) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4">
-    <div class="absolute inset-0 bg-gray-900/30" (click)="cancelDuplicate()"></div>
-    <div class="relative w-full max-w-md rounded-[24px] bg-white p-6 shadow-2xl">
-      <h3 class="text-base font-bold text-gray-900">Copy {{ role.name }}?</h3>
-      <p class="mt-2 text-sm text-gray-500">
-        {{ droppedOnDuplicate().length }} of its {{ role.permissionCodes.length }} permissions cannot be
-        granted from inside your office today, so the copy will not include them:
-      </p>
-      <ul class="mt-3 max-h-40 overflow-y-auto rounded-xl bg-gray-50 px-4 py-2.5">
-        @for (code of droppedOnDuplicate(); track code) {
-          <li class="font-mono text-[11px] text-gray-500">{{ code }}</li>
-        }
-      </ul>
-      <div class="mt-6 flex justify-end gap-2">
-        <button type="button" (click)="cancelDuplicate()"
-          class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100">
-          Cancel
-        </button>
-        <button type="button" (click)="confirmDuplicate()" [disabled]="store.saving()"
-          class="rounded-xl bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
-          Copy anyway
-        </button>
-      </div>
-    </div>
-  </div>
-}
+<app-confirm-dialog [isOpen]="!!pendingDuplicate()" tone="primary" icon="copy-outline"
+  [heading]="'Copy ' + (pendingDuplicate()?.name ?? '') + '?'" [message]="duplicateMessage()"
+  confirmLabel="Copy anyway" [busy]="store.saving()" (confirmed)="confirmDuplicate()" (cancelled)="cancelDuplicate()">
+  <ul class="max-h-40 overflow-y-auto rounded-xl bg-gray-50 px-4 py-2.5">
+    @for (code of droppedOnDuplicate(); track code) {
+      <li class="font-mono text-[11px] text-gray-500">{{ code }}</li>
+    }
+  </ul>
+</app-confirm-dialog>
 
 @if (editorOpen()) {
   <app-role-editor-drawer [role]="editing()" (closed)="closeEditor()" (saved)="onSaved()" />

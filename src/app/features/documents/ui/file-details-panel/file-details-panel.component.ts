@@ -1,10 +1,10 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
+import { formatBytes } from '@shared/utils/format.util';
 import {
   FileResponse,
   ShareLinkResponse,
   ShareVisibility,
   displayStatus,
-  formatBytes,
   isFileReady,
 } from '../../data-access/documents.model';
 

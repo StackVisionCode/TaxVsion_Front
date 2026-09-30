@@ -31,7 +31,7 @@
 
     <div class="grid grid-cols-2 gap-3">
       <!-- Priority dropdown -->
-      <div class="relative" data-dropdown="work-priority">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isPriorityOpen()" (appClickOutside)="isPriorityOpen.set(false)">
         <button type="button" (click)="togglePriorityDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span>{{ priority() }}</span>
@@ -48,7 +48,7 @@
       </div>
 
       <!-- Status dropdown -->
-      <div class="relative" data-dropdown="work-status">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isStatusOpen()" (appClickOutside)="isStatusOpen.set(false)">
         <button type="button" (click)="toggleStatusDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span>{{ statusLabel(status()) }}</span>
@@ -74,14 +74,15 @@
     </div>
 
     <!-- Assignee (type-ahead sobre el directorio de empleados) -->
-    <div class="relative" data-dropdown="work-assignee">
+    <div class="relative" appClickOutside [clickOutsideEnabled]="isAssigneeOpen()" (appClickOutside)="isAssigneeOpen.set(false)">
       <button type="button" (click)="toggleAssigneeDropdown()"
         class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
         <span class="flex items-center gap-2">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            [ngClass]="assigneeColor()">
-            {{ assigneeInitials() }}
-          </span>
+          @if (assignee(); as current) {
+            <app-avatar [name]="current.displayName" [seed]="current.userId" sizeClass="h-6 w-6 text-[10px]" />
+          } @else {
+            <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+          }
           {{ assignee()?.displayName ?? 'Unassigned' }}
         </span>
         <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
@@ -105,10 +106,7 @@
           <button *ngFor="let member of assigneeResults()" type="button"
             (click)="selectAssignee({ userId: member.userId, displayName: member.displayName })"
             class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-              [ngClass]="colorOf(member.userId)">
-              {{ initialsOf(member.displayName) }}
-            </span>
+            <app-avatar [name]="member.displayName" [seed]="member.userId" sizeClass="h-6 w-6 text-[10px]" />
             <span class="min-w-0 truncate text-left">
               {{ member.displayName }}
               <span class="block truncate text-xs text-gray-400">{{ member.email }}</span>

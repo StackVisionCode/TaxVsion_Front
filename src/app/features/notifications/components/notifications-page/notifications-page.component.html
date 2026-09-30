@@ -1,23 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Total</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Unread</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ unreadCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Today</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ todayCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">This week</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ thisWeekCount() }}</p>
-    </div>
-  </div>
+  <app-stat-cards [items]="stats()"></app-stat-cards>
 
   <!-- Notifications card -->
   <div class="bg-white rounded-[28px] p-6">
@@ -35,19 +18,10 @@
 
     <!-- Filter bar -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <button *ngFor="let option of filters" type="button" (click)="setFilter(option)"
-        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="activeFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        {{ filterLabel(option) }}
-      </button>
+      <app-filter-chips [options]="filters" [value]="activeFilter()" (valueChange)="setFilter($event)"></app-filter-chips>
 
-      <div
-        class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 transition-colors focus-within:border-gray-300">
-        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-        <input type="text" placeholder="Search notifications" [ngModel]="search()" name="search"
-          (ngModelChange)="search.set($event)"
-          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
+      <app-search-input class="ml-auto" placeholder="Search notifications" [value]="search()"
+        (valueChange)="search.set($event)"></app-search-input>
     </div>
 
     <!-- List + states -->
@@ -66,24 +40,14 @@
       </div>
 
       <!-- Loading (página 1) -->
-      <div *ngIf="loading()" class="px-4 py-12 text-center">
-        <ion-icon name="sync-outline" class="animate-spin text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">Loading notifications…</p>
-      </div>
-
-      <ng-container *ngIf="!loading()">
+      <app-state-block [loading]="loading()" variant="inline" loadingText="Loading notifications…">
         <!-- La lista trae su propio empty state ("No notifications to show") -->
         <app-notification-list *ngIf="!error() || totalCount() > 0" [notifications]="visibleNotifications()"
           (markRead)="markRead($event)"></app-notification-list>
 
         <!-- Server-side pagination -->
-        <div *ngIf="hasMore() && !error()" class="mt-4 flex justify-center">
-          <button type="button" (click)="loadMore()" [disabled]="loadingMore()"
-            class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
-            {{ loadingMore() ? 'Loading…' : 'Load more' }}
-          </button>
-        </div>
-      </ng-container>
+        <app-load-more [hasMore]="hasMore() && !error()" [loading]="loadingMore()" (load)="loadMore()"></app-load-more>
+      </app-state-block>
     </div>
   </div>
 </div>

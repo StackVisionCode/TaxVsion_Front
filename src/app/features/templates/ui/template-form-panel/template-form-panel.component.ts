@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -12,7 +11,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { Template, TemplateFormValue } from '../../data-access/templates.model';
 
 /** Sugerencias de categoría; en el backend el campo es texto libre, no un enum. */
@@ -32,7 +32,7 @@ const CATEGORY_SUGGESTIONS = ['Email', 'Letter', 'Invoice Note', 'Reminder'];
  */
 @Component({
   selector: 'app-template-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './template-form-panel.component.html',
 })
@@ -78,14 +78,6 @@ export class TemplateFormPanelComponent implements OnChanges {
     // se precarga, salvo que el usuario ya haya empezado a escribir.
     if (changes['body'] && this.body !== null && !this.bodyDraft()) {
       this.bodyDraft.set(this.body);
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="template-category"]')) {
-      this.isCategoryOpen.set(false);
     }
   }
 

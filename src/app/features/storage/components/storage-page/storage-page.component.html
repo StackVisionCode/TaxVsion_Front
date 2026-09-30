@@ -57,15 +57,8 @@
       </div>
 
       <!-- Error del desglose por categoría -->
-      <div *ngIf="!store.groupsLoading() && store.groupsError()"
-        class="mt-5 flex flex-col items-center justify-center rounded-[24px] bg-white p-8 text-center">
-        <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">{{ store.groupsError() }}</p>
-        <button type="button" (click)="store.loadGroups()"
-          class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
-          Retry
-        </button>
-      </div>
+      <app-state-block *ngIf="!store.groupsLoading() && store.groupsError()" class="mt-5 block"
+        [error]="store.groupsError()" (retry)="store.loadGroups()"></app-state-block>
 
       <div *ngIf="!store.groupsLoading() && !store.groupsError()"
         class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
@@ -127,14 +120,8 @@
       </div>
 
       <!-- Error de la tabla del modo activo -->
-      <div *ngIf="!tableLoading() && tableError()" class="px-4 py-10 text-center">
-        <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">{{ tableError() }}</p>
-        <button type="button" (click)="retryTable()"
-          class="mt-4 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors">
-          Retry
-        </button>
-      </div>
+      <app-state-block *ngIf="!tableLoading() && tableError()" class="mt-4 block" [error]="tableError()"
+        (retry)="retryTable()"></app-state-block>
 
       <div *ngIf="!tableLoading() && !tableError()" class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
@@ -211,11 +198,8 @@
               <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
                 [class.border-gray-100]="!last">
                 <span class="flex items-center gap-2">
-                  <span
-                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
-                    [ngClass]="item.sharedByColor">
-                    {{ item.sharedByInitials }}
-                  </span>
+                  <app-avatar class="rounded-full ring-2 ring-white" [name]="item.sharedByName" [seed]="item.sharedById"
+                    sizeClass="h-7 w-7 text-[10px]"></app-avatar>
                   <span class="truncate text-sm text-gray-700">{{ item.sharedByName }}</span>
                 </span>
               </td>
@@ -252,23 +236,13 @@
           </tbody>
         </table>
 
-        <div *ngIf="rowCount() === 0" class="px-4 py-10 text-center">
-          <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">
-            {{ isCategoryView() ? 'No files in ' + selectedCategory() : 'No files have been shared with you yet' }}
-          </p>
-        </div>
+        <app-state-block *ngIf="rowCount() === 0" [empty]="true" variant="inline" icon="folder-open-outline"
+          [emptyTitle]="isCategoryView() ? 'No files in ' + selectedCategory() : 'No files have been shared with you yet'"></app-state-block>
       </div>
 
       <app-pagination *ngIf="!tableLoading() && !tableError()" [currentPage]="currentPage()"
         [totalItems]="rowCount()" [pageSize]="pageSize"
         (pageChange)="currentPage.set($event)"></app-pagination>
     </div>
-  </div>
-
-  <!-- Toast transitorio de error de descarga -->
-  <div *ngIf="store.downloadError()"
-    class="fixed bottom-6 right-6 z-50 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-medium text-white shadow-lg">
-    {{ store.downloadError() }}
   </div>
 </div>

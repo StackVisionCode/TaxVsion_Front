@@ -3,10 +3,10 @@
   <p class="mt-1 text-sm text-gray-500">Latest e-signature activity</p>
 
   <!-- Cargando / error o falta de permiso en Signature / sin solicitudes -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || documents().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Signature requests aren't available" icon="create-outline"
-    title="No signature requests yet" message="Documents you send for signature will be listed here."
-    minHeight="13rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || documents().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="create-outline"
+    emptyTitle="No signature requests yet" emptyMessage="Documents you send for signature will be listed here."
+    minHeight="13rem" (retry)="load()"></app-state-block>
 
   <!-- Solicitudes reales de firma -->
   <div *ngIf="!loading() && !error() && documents().length > 0" class="mt-4 flex flex-col">
@@ -29,9 +29,9 @@
       </div>
 
       <!-- Status chip -->
-      <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" [ngClass]="statusChipClass(doc.status)">
+      <app-status-pill class="shrink-0" [tone]="statusTone(doc.status)" [dot]="false">
         {{ statusLabel(doc.status) }}
-      </span>
+      </app-status-pill>
     </a>
   </div>
 </div>

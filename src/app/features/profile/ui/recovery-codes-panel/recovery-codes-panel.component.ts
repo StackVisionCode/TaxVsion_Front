@@ -1,5 +1,6 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnDestroy, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ClipboardService } from '@shared/services/clipboard.service';
 
 /**
  * Panel presentacional de códigos de recuperación: se muestra UNA sola vez
@@ -15,6 +16,8 @@ import { CommonModule } from '@angular/common';
   styleUrl: './recovery-codes-panel.component.css',
 })
 export class RecoveryCodesPanelComponent implements OnDestroy {
+  private readonly clipboard = inject(ClipboardService);
+
   @Input() codes: string[] = [];
 
   readonly copied = signal(false);
@@ -25,23 +28,19 @@ export class RecoveryCodesPanelComponent implements OnDestroy {
     clearTimeout(this.copyTimer);
   }
 
-  copyCodes(): void {
+  async copyCodes(): Promise<void> {
     const text = this.codes.join('\n');
     if (!text) {
       return;
     }
     this.copyError.set(null);
-    // El portapapeles solo existe en contextos seguros; si falla, el usuario
-    // todavía puede seleccionar los códigos a mano o descargarlos.
-    const clipboard = navigator.clipboard;
-    if (!clipboard) {
+    // ClipboardService cae al fallback de <textarea> fuera de contextos seguros; si ambos fallan,
+    // el usuario todavía puede seleccionar los códigos a mano o descargarlos.
+    if (await this.clipboard.copy(text)) {
+      this.flagCopied();
+    } else {
       this.copyError.set('Copy failed — select the codes manually or download them.');
-      return;
     }
-    clipboard
-      .writeText(text)
-      .then(() => this.flagCopied())
-      .catch(() => this.copyError.set('Copy failed — select the codes manually or download them.'));
   }
 
   /** Descarga los códigos como .txt para guardarlos offline. */

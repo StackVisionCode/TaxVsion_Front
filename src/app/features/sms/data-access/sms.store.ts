@@ -1,19 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, tap } from 'rxjs';
+import { Observable, Subject, catchError, map, of, switchMap, tap } from 'rxjs';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { SmsService } from './sms.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import {
   SendSmsBatchResponse,
   SetSmsConsentRequest,
-  SmsContact,
   SmsMessageSummary,
   SmsOptOutFilter,
   SmsOptOutSummary,
   SmsStats,
   SmsStatusFilter,
-  toSmsContact,
 } from './sms.model';
 
 /** Tamaños de página del selector "rows per page". */
@@ -111,11 +109,6 @@ export class SmsStore {
   readonly optLoading = this._optLoading.asReadonly();
   readonly optError = this._optError.asReadonly();
 
-  // ---------- Picker del compose (búsqueda server-side, alcanza TODOS los clientes) ----------
-  private readonly _pickerResults = signal<SmsContact[]>([]);
-  readonly pickerResults = this._pickerResults.asReadonly();
-  private readonly pickerSearch$ = new Subject<string>();
-
   private readonly _sending = signal(false);
   readonly sending = this._sending.asReadonly();
 
@@ -193,25 +186,6 @@ export class SmsStore {
         this._optTotalPages.set(result.totalPages);
         this._optPage.set(result.page);
         this._optLoading.set(false);
-      });
-
-    // Picker del compose: búsqueda server-side (debounce + switchMap cancela la anterior). Solo
-    // clientes texteables (con teléfono E.164 válido). Alcanza TODOS los clientes, no solo los 200 de
-    // la primera página.
-    this.pickerSearch$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap(term =>
-          this.directory.search({ term, status: 'NotArchived', size: 15 }).pipe(catchError(() => of(null))),
-        ),
-        takeUntilDestroyed(),
-      )
-      .subscribe(result => {
-        if (!result) return;
-        this._pickerResults.set(
-          result.items.map(toSmsContact).filter(c => c.phoneE164 !== null),
-        );
       });
   }
 
@@ -323,13 +297,6 @@ export class SmsStore {
         this.loadStats();
       }),
     );
-  }
-
-  // ---------- Clientes (compose) ----------
-
-  /** Dispara la búsqueda server-side del picker (el pipeline la debouncea y cancela la anterior). */
-  searchPicker(term: string): void {
-    this.pickerSearch$.next(term);
   }
 
 

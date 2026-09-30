@@ -1,59 +1,17 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Total services</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.total() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Active</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Avg. price</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">${{ avgPrice() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Categories</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ store.categories().length }}</p>
-    </div>
-  </div>
+  <app-stat-cards [items]="stats()"></app-stat-cards>
 
   <!-- Estado de carga / error del catálogo -->
-  <div *ngIf="store.loading()" class="bg-white rounded-[28px] p-6">
-    <div class="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-      Loading catalog…
-    </div>
-  </div>
-
-  <div *ngIf="!store.loading() && store.error() as err" class="bg-white rounded-[28px] p-6">
-    <div class="flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="store.refresh()"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        Retry
-      </button>
-    </div>
+  <div *ngIf="store.loading() || store.error()" class="bg-white rounded-[28px] p-6">
+    <app-state-block [loading]="store.loading()" [error]="store.error()" loadingText="Loading catalog…"
+      (retry)="store.refresh()"></app-state-block>
   </div>
 
   <!-- Pestañas por tipo: separa Productos y Servicios (cada uno conserva sus categorías) -->
   <div *ngIf="!store.loading() && !store.error()" class="mb-4 flex flex-wrap items-center gap-2">
-    <button type="button" (click)="kindFilter.set('all')"
-      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="kindFilter() === 'all' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      All <span class="ml-1 opacity-70">{{ store.entries().length }}</span>
-    </button>
-    <button type="button" (click)="kindFilter.set('Product')"
-      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="kindFilter() === 'Product' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      Products <span class="ml-1 opacity-70">{{ productCount() }}</span>
-    </button>
-    <button type="button" (click)="kindFilter.set('Service')"
-      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="kindFilter() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-      Services <span class="ml-1 opacity-70">{{ serviceCount() }}</span>
-    </button>
+    <app-filter-chips size="sm" [options]="kindOptions()" [value]="kindFilter()"
+      (valueChange)="kindFilter.set($event)"></app-filter-chips>
     <button type="button" (click)="openCategories()"
       class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
       <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
@@ -92,18 +50,8 @@
     </div>
 
     <!-- Kind: inmutable tras crear (el backend no tiene endpoint para cambiarlo) -->
-    <div *ngIf="!editingService()" class="flex items-center gap-2">
-      <button type="button" (click)="newKind.set('Service')"
-        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="newKind() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        Service
-      </button>
-      <button type="button" (click)="newKind.set('Product')"
-        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="newKind() === 'Product' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        Product
-      </button>
-    </div>
+    <app-filter-chips *ngIf="!editingService()" size="sm" [options]="newKindOptions" [value]="newKind()"
+      (valueChange)="newKind.set($event)"></app-filter-chips>
 
     <!-- Detalles solo de PRODUCTO (un servicio es intangible: sin SKU/costo/unidad/stock). Solo al crear. -->
     <div *ngIf="showProductDetails()" class="rounded-2xl border border-gray-100 bg-brand-white p-3">

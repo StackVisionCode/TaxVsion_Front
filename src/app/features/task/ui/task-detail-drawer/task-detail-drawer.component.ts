@@ -28,7 +28,10 @@ import {
 import { priorityChipClass } from '@core/tasks/task-format';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
-import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { formatBytes } from '@shared/utils/format.util';
+import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 
 interface SubtaskRow {
   id: string;
@@ -55,10 +58,9 @@ interface BlockerRow {
 @Component({
   selector: 'app-task-detail-drawer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DrawerComponent, AvatarComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-detail-drawer.component.html',
-  styleUrl: './task-detail-drawer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskDetailDrawerComponent implements OnChanges {
@@ -72,6 +74,11 @@ export class TaskDetailDrawerComponent implements OnChanges {
   @Input() canWrite = true;
 
   @Output() closed = new EventEmitter<void>();
+  /**
+   * La tarea que se pinta. Conserva la última al cerrar (`task` → null) para que el `app-drawer`
+   * anime la salida con el contenido en vez de un panel vacío.
+   */
+  readonly shown = signal<TaskItem | null>(null);
   @Output() editRequested = new EventEmitter<TaskItem>();
   /** Algo cambió que afecta al tablero (subtarea completada, dependencia) → el padre refresca. */
   @Output() changed = new EventEmitter<void>();
@@ -116,6 +123,7 @@ export class TaskDetailDrawerComponent implements OnChanges {
     if (changes['task']) {
       const task = this.task;
       if (task) {
+        this.shown.set(task);
         this.fetch(task.id);
       } else {
         this.detail.set(null);
@@ -480,18 +488,20 @@ export class TaskDetailDrawerComponent implements OnChanges {
     }
   }
 
-  statusColor(status: ApiTaskStatus): string {
+  /** Tono de la píldora de estado (`app-status-pill` soft, sin punto). */
+  statusTone(status: ApiTaskStatus): StatusTone {
     switch (status) {
-      case 'NotStarted':
-        return 'bg-gray-100 text-gray-600';
       case 'InProgress':
-        return 'bg-indigo-100 text-indigo-700';
+        return 'brand';
       case 'WaitingOnClient':
-        return 'bg-amber-100 text-amber-700';
+        return 'warning';
       case 'Completed':
-        return 'bg-emerald-100 text-emerald-700';
+        return 'success';
       case 'Cancelled':
-        return 'bg-gray-100 text-gray-400';
+        return 'muted';
+      case 'NotStarted':
+      default:
+        return 'neutral';
     }
   }
 

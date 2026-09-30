@@ -6,6 +6,8 @@ import {
   ClientEmailThreadRow,
   ClientThreadStatusFilter,
 } from '../../data-access/client-communication.model';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 
 /**
  * Pestaña "Communication" del perfil de cliente, cableada contra Correspondence.Api
@@ -26,7 +28,7 @@ import {
  */
 @Component({
   selector: 'app-client-profile-communication',
-  imports: [CommonModule],
+  imports: [CommonModule, StateBlockComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-communication.component.html',
 })

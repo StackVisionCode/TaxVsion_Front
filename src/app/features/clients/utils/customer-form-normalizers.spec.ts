@@ -2,19 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   bitmaskToPurposes,
   formatEinForDisplay,
-  formatPhoneForDisplay,
   formatSsnForDisplay,
   hasPurpose,
   isFutureDate,
   isValidEmail,
-  isValidPhone,
   isValidTaxIdentifier,
   normalizeEmailToApi,
-  normalizePhoneToApi,
   purposesToBitmask,
   serializeDateOnly,
   taxIdentifierDigits,
 } from './customer-form-normalizers';
+import { formatPhoneForDisplay, isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
 
 describe('phone (PhoneNumber VO: strip to +/digits, ^\\+[1-9]\\d{6,14}$)', () => {
   it('normaliza descartando formato humano', () => {

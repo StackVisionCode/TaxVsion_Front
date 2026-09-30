@@ -1,5 +1,6 @@
 import { AfterViewChecked, Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, Input, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { SmsThreadMessage, SmsUiStatus } from '../../data-access/sms.model';
 
 /**
@@ -13,7 +14,7 @@ import { SmsThreadMessage, SmsUiStatus } from '../../data-access/sms.model';
  */
 @Component({
   selector: 'app-sms-thread',
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sms-thread.component.html',
 })
@@ -26,16 +27,6 @@ export class SmsThreadComponent implements AfterViewChecked {
 
   ngAfterViewChecked(): void {
     this.scrollAnchor?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
   }
 
   statusIcon(status: SmsUiStatus): string {

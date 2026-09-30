@@ -13,25 +13,8 @@
   }
 }
 
-.wk-menu {
-  animation: wk-menu-in 130ms ease both;
-  transform-origin: top right;
-}
-
-@keyframes wk-menu-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .wk-row,
-  .wk-menu {
+  .wk-row {
     animation: none;
   }
 }

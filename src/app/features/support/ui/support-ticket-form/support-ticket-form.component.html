@@ -28,7 +28,7 @@
       </div>
 
       <!-- Category dropdown -->
-      <div class="relative" data-dropdown="ticket-category">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isCategoryOpen()" (appClickOutside)="isCategoryOpen.set(false)">
         <button type="button" (click)="toggleCategoryDropdown()"
           class="flex h-10 w-full sm:w-48 items-center justify-between gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           {{ categoryLabel() }}

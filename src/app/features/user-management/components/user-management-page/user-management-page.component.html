@@ -1,23 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Total members</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Active</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ activeCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Pending invites</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ pendingInvitesCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Seats left{{ limits()?.planCode ? ' · ' + limits()?.planCode : '' }}</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ seatsLeft() }}</p>
-    </div>
-  </div>
+  <app-stat-cards [items]="stats()" />
 
   <!-- Team card -->
   <div class="bg-white rounded-[28px] p-6">
@@ -30,46 +13,11 @@
 
     <!-- Filter bar -->
     <div class="mt-4 flex flex-wrap items-center gap-3">
-      <div class="flex items-center gap-2">
-        <button type="button" (click)="setTab('members')"
-          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-          [ngClass]="tab() === 'members'
-            ? 'border-brand-bold bg-brand-bold text-white'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
-          Members ({{ membersTotal() }})
-        </button>
-        <button type="button" (click)="setTab('invitations')"
-          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-          [ngClass]="tab() === 'invitations'
-            ? 'border-brand-bold bg-brand-bold text-white'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
-          Invitations ({{ invitationsTotal() }})
-        </button>
-        <!-- B9: la pestaña de roles. Es `roles.manage`, un permiso distinto de ver el equipo. -->
-        <button *ngIf="can.canManageRoles()" type="button" (click)="setTab('roles')"
-          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-          [ngClass]="tab() === 'roles'
-            ? 'border-brand-bold bg-brand-bold text-white'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
-          Roles
-        </button>
-        <button *ngIf="can.canManageSeats()" type="button" (click)="setTab('seats')"
-          class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-          [ngClass]="tab() === 'seats'
-            ? 'border-brand-bold bg-brand-bold text-white'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
-          Seats
-        </button>
-      </div>
+      <!-- B9: la pestaña Roles es `roles.manage`, un permiso distinto de ver el equipo (ver tabOptions). -->
+      <app-filter-chips size="sm" [options]="tabOptions()" [value]="tab()" (valueChange)="setTab($event)" />
 
-      <div class="relative w-full sm:w-64">
-        <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-          <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
-          <input type="text" placeholder="Search members..." [ngModel]="search()" name="search"
-            (ngModelChange)="onSearchChange($event)"
-            class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-      </div>
+      <app-search-input class="w-full sm:w-64" widthClass="w-full" placeholder="Search members..." [value]="search()"
+        (valueChange)="onSearchChange($event)" />
 
       <div class="ml-auto flex items-center gap-2">
         <button *ngIf="can.canManageSeats()" type="button" (click)="openSeatModal()"

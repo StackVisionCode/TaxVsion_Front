@@ -71,8 +71,7 @@
     <!-- Step 1: client -->
     <div *ngIf="currentStep() === 1" class="step-content">
       <app-signature-wizard-client-step [selected]="selectedClient()" [recent]="recentClients()"
-        (changeRequested)="clientPickerOpen.set(true)"
-        (recentPicked)="onClientSelected($event)"></app-signature-wizard-client-step>
+        (picked)="onClientPicked($event)"></app-signature-wizard-client-step>
     </div>
 
     <!-- Step 2: document -->
@@ -151,11 +150,6 @@
   <span class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
   <p class="mt-4 text-sm font-medium text-gray-500">Loading draft…</p>
 </div>
-
-<!-- Buscador de cliente: en la raíz del panel a propósito — su overlay `position: fixed`
-     se rompería dentro de la tarjeta animada del wizard (ancestro con transform). -->
-<app-signature-client-picker [isOpen]="clientPickerOpen()" [selectedId]="selectedClient()?.id ?? null"
-  (closed)="clientPickerOpen.set(false)" (picked)="onClientPicked($event)"></app-signature-client-picker>
 
 <!-- Coreografía de envío: el papel se crea, se firma y sale (pantalla completa) -->
 <div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95"

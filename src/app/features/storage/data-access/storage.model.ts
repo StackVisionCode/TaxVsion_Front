@@ -174,9 +174,8 @@ export interface SharedWithMeItem {
   permission: SharePermission;
   status: ShareLinkEffectiveStatus;
   sharedByName: string;
-  sharedByInitials: string;
-  /** Clase Tailwind de fondo del avatar, estable por usuario. */
-  sharedByColor: string;
+  /** userId de quien compartió: semilla estable del color del avatar. */
+  sharedById: string;
   sharedAtUtc: string;
   /** null cuando no se pudo resolver la metadata del archivo (o es carpeta). */
   sizeBytes: number | null;
@@ -199,35 +198,4 @@ export function formatLastUpdate(iso: string): string {
     .toLowerCase();
   const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return `${time}, ${day}`;
-}
-
-/** Iniciales para el avatar de quien compartió ('Maria Alvarez' → 'MA'). */
-export function initialsOf(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return '?';
-  }
-  const first = parts[0][0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '';
-  return `${first}${last}`.toUpperCase() || '?';
-}
-
-/** Paleta de avatares (misma que los contactos del mock); estable por userId. */
-const AVATAR_COLORS = [
-  'bg-brand-bold',
-  'bg-sky-700',
-  'bg-brand-ink',
-  'bg-slate-500',
-  'bg-indigo-400',
-  'bg-cyan-800',
-  'bg-slate-700',
-  'bg-indigo-600',
-];
-
-export function avatarColorFor(userId: string): string {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }

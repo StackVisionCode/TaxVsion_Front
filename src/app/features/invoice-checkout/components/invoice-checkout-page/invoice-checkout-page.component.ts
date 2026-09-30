@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { formatMoney } from '@shared/utils/format.util';
 import { Stripe, StripeCardElement, StripeElements, loadStripe } from '@stripe/stripe-js';
 import { InvoiceCheckoutService } from '../../data-access/invoice-checkout.service';
 import { CheckoutPhase, InvoiceCheckout, InvoiceCheckoutMethod } from '../../data-access/invoice-checkout.model';
@@ -77,7 +78,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   readonly amountLabel = computed(() => {
     const c = this.checkout();
     if (!c) return '';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: c.currency }).format(c.amountCents / 100);
+    return formatMoney(c.amountCents, c.currency, { fromCents: true });
   });
 
   ngOnInit(): void {

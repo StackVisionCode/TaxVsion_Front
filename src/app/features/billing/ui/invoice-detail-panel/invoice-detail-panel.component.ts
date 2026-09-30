@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { STATUS_TONES, StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   InvoicePaymentMethod,
@@ -9,8 +10,7 @@ import {
   InvoiceSummary,
   formatCents,
   invoiceStatusLabel,
-  invoiceStatusChip,
-  invoiceStatusDot,
+  invoiceStatusTone,
 } from '../../data-access/billing.model';
 
 /**
@@ -23,7 +23,7 @@ import {
  */
 @Component({
   selector: 'app-invoice-detail-panel',
-  imports: [CommonModule, ModalComponent],
+  imports: [CommonModule, ModalComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-detail-panel.component.html',
 })
@@ -64,12 +64,13 @@ export class InvoiceDetailPanelComponent {
     return invoiceStatusLabel(status);
   }
 
-  statusChip(status: InvoiceStatus): string {
-    return invoiceStatusChip(status);
+  statusTone(status: InvoiceStatus): StatusTone {
+    return invoiceStatusTone(status);
   }
 
+  /** Punto de color del historial de estados (mismo tono que la píldora). */
   statusDot(status: InvoiceStatus): string {
-    return invoiceStatusDot(status);
+    return STATUS_TONES[invoiceStatusTone(status)].dot;
   }
 
   methodLabel(method: InvoicePaymentMethod | null | undefined): string {

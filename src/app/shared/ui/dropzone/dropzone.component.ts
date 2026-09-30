@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { FileDropDirective } from '../../directives/file-drop.directive';
 import { formatBytes } from '../../utils/format.util';
@@ -25,8 +25,9 @@ export interface DropzoneRejection {
  * - Inputs: `accept`, `multiple` (true), `maxBytes` (0 = sin límite), `label` ('Drag files here'),
  *   `hint`, `browseLabel` ('Browse files'), `icon` ('cloud-upload-outline'), `disabled`.
  *
- * Normalizado: upload-dialog usaba `rounded-2xl` + `border-indigo-500 bg-indigo-50` y toda la zona como
- * `<label>`; aquí solo el botón abre el selector (como client-import) para no abrirlo al soltar.
+ * Normalizado: upload-dialog usaba `rounded-2xl` + `border-indigo-500 bg-indigo-50`. Con `clickable`
+ * (true por defecto) un clic en cualquier parte de la zona abre el selector, igual que "Browse files";
+ * los clics sobre botones, enlaces o controles del contenido proyectado no lo abren.
  */
 @Component({
   selector: 'app-dropzone',
@@ -36,7 +37,9 @@ export interface DropzoneRejection {
   template: `
     <div appFileDrop #drop="appFileDrop" [accept]="accept" [multiple]="multiple" [fileDropDisabled]="disabled"
       (appFileDrop)="onAccepted($event)" (appFileDropRejected)="onTypeRejected($event)"
+      (click)="onZoneClick($event)"
       class="rounded-[24px] border-2 border-dashed p-8 text-center transition-colors"
+      [class.cursor-pointer]="clickable && !disabled"
       [ngClass]="drop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'"
       [class.opacity-60]="disabled">
       <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface-strong">
@@ -51,7 +54,7 @@ export interface DropzoneRejection {
         [ngClass]="disabled ? 'pointer-events-none opacity-60' : 'cursor-pointer'">
         <ion-icon name="folder-open-outline" class="text-base"></ion-icon>
         {{ browseLabel }}
-        <input type="file" class="hidden" [attr.accept]="accept || null" [multiple]="multiple" [disabled]="disabled"
+        <input #fileInput type="file" class="hidden" [attr.accept]="accept || null" [multiple]="multiple" [disabled]="disabled"
           (change)="onInputChange($event)" />
       </label>
       <ng-content></ng-content>
@@ -68,10 +71,25 @@ export class DropzoneComponent {
   @Input() browseLabel = 'Browse files';
   @Input() icon = 'cloud-upload-outline';
   @Input() disabled = false;
+  /** Clic en cualquier parte de la zona abre el selector de archivos (no solo el botón). */
+  @Input() clickable = true;
   @Output() readonly files = new EventEmitter<File[]>();
   @Output() readonly rejected = new EventEmitter<DropzoneRejection[]>();
 
   @ViewChild('drop', { static: true }) private drop!: FileDropDirective;
+  @ViewChild('fileInput', { static: true }) private fileInput!: ElementRef<HTMLInputElement>;
+
+  onZoneClick(event: MouseEvent): void {
+    if (!this.clickable || this.disabled) {
+      return;
+    }
+    // El botón "Browse files" (label) y los controles proyectados ya manejan su propio clic.
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, a, input, label, select, textarea')) {
+      return;
+    }
+    this.fileInput.nativeElement.click();
+  }
 
   onInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;

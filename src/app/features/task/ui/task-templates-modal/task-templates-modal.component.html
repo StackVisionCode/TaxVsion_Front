@@ -99,22 +99,10 @@
           <p class="text-xs text-gray-500">Applying will create {{ selected()!.steps.length }} chained task(s) for the client.</p>
         </div>
 
-        <div class="relative">
+        <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Client</label>
-          <input type="text" [ngModel]="clientSearch()" (ngModelChange)="onClientSearch($event)" placeholder="Search clients…"
-            class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
-          @if (clientResults().length > 0) {
-            <ul class="absolute z-10 mt-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-              @for (c of clientResults(); track c.id) {
-                <li>
-                  <button type="button" (click)="chooseClient(c)"
-                    class="w-full truncate px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                    {{ c.displayName }} <span class="text-gray-400">· {{ c.primaryEmail }}</span>
-                  </button>
-                </li>
-              }
-            </ul>
-          }
+          <app-customer-picker [selected]="selectedClient()" placeholder="Search clients…"
+            (selectedChange)="selectedClient.set($event)" />
         </div>
 
         <div class="grid grid-cols-2 gap-3">

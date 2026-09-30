@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { ChatMessage } from '../chat-thread/chat-thread.component';
 import {
   ConversationKind,
@@ -37,7 +38,7 @@ export interface ChatConversation {
  */
 @Component({
   selector: 'app-chat-conversation-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, AvatarComponent, SearchInputComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-conversation-list.component.html',
 })
@@ -97,13 +98,4 @@ export class ChatConversationListComponent {
     return this.lastMessage(conv)?.time ?? '';
   }
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
 }

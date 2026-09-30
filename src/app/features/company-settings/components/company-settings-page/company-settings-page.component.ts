@@ -10,6 +10,7 @@ import {
 } from '../../data-access/company-settings.model';
 import { CompanySettingsStore } from '../../data-access/company-settings.store';
 import { AdminCapabilities } from '@core/access/admin-capabilities';
+import { ToastService } from '@shared/ui/toast/toast.service';
 
 /**
  * Página del módulo Company Settings: identidad legal de la firma (Billing) + marca del tenant
@@ -31,6 +32,7 @@ export class CompanySettingsPageComponent {
 
   readonly store = inject(CompanySettingsStore);
   private readonly theme = inject(ThemeService);
+  private readonly toast = inject(ToastService);
 
   readonly assetMaxSizeKb = Math.round(ASSET_MAX_SIZE_BYTES / 1024);
 
@@ -60,9 +62,6 @@ export class CompanySettingsPageComponent {
 
   /** Error de validación local del archivo (tipo/tamaño), previo a tocar el backend. */
   readonly assetFileError = signal<string | null>(null);
-
-  readonly toast = signal<string | null>(null);
-  private toastTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     this.store.loadAll();
@@ -220,8 +219,6 @@ export class CompanySettingsPageComponent {
   }
 
   private showToast(message: string): void {
-    this.toast.set(message);
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => this.toast.set(null), 2500);
+    this.toast.success(message);
   }
 }

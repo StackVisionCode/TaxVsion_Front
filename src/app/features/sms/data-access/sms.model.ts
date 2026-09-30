@@ -8,6 +8,7 @@
  */
 
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { avatarColorFor } from '@shared/utils/avatar.util';
 
 // ---------- Enums del backend (TaxVision.Sms.Domain) ----------
 
@@ -243,26 +244,6 @@ export function apiStatusToUi(status: SmsApiStatus): SmsUiStatus {
     case 'Undeliverable':
       return 'failed';
   }
-}
-
-const AVATAR_COLORS = [
-  'bg-brand-bold',
-  'bg-sky-700',
-  'bg-brand-ink',
-  'bg-slate-500',
-  'bg-indigo-400',
-  'bg-cyan-800',
-  'bg-slate-700',
-  'bg-indigo-600',
-];
-
-/** Color estable por cliente: hash simple del id sobre la paleta de avatares. */
-export function avatarColorFor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 /** Hora local corta para las burbujas ("9:05 AM"). */

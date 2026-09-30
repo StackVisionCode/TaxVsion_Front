@@ -40,10 +40,13 @@
           </div>
 
           <!-- Assignee avatar -->
-          <span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white"
-            [ngClass]="task.assigneeColor" [title]="task.assigneeName">
-            {{ task.assigneeInitials }}
-          </span>
+          @if (task.assigneeUserId) {
+            <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" sizeClass="h-7 w-7 text-[11px]"
+              [title]="task.assigneeName" />
+          } @else {
+            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+              [title]="task.assigneeName">—</span>
+          }
         </div>
       </div>
 

@@ -3,13 +3,8 @@
   <div class="mt-5">
     <!-- Modo LISTA: buscar y elegir del catálogo -->
     <ng-container *ngIf="!showCreate()">
-    <div class="relative">
-      <ion-icon name="search-outline"
-        class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
-      <input type="text" name="catalogSearch" autocomplete="off" placeholder="Search by name…"
-        [ngModel]="query()" (ngModelChange)="onQuery($event)"
-        class="h-11 w-full rounded-full border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-    </div>
+    <app-search-input widthClass="w-full" placeholder="Search by name…" [value]="query()"
+      (valueChange)="onQuery($event)"></app-search-input>
 
     <div class="mt-4 max-h-80 overflow-y-auto">
       <div *ngIf="searching && items.length === 0" class="flex items-center gap-2 px-1 py-6 text-sm text-gray-400">
@@ -33,11 +28,9 @@
         <span class="shrink-0 text-sm font-semibold text-gray-900">{{ price(item) }}</span>
       </button>
 
-      <div *ngIf="!searching && items.length === 0" class="px-4 py-10 text-center">
-        <ion-icon name="cube-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">No catalog items match that search</p>
-        <p class="mt-1 text-xs text-gray-400">You can still type the line by hand.</p>
-      </div>
+      <app-state-block *ngIf="!searching && items.length === 0" variant="inline" [empty]="true" icon="cube-outline"
+        emptyTitle="No catalog items match that search"
+        emptyMessage="You can still type the line by hand."></app-state-block>
     </div>
 
     <div class="mt-5 flex items-center justify-between border-t border-gray-100 pt-4">

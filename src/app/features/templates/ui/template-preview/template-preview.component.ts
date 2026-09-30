@@ -1,6 +1,13 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Template, TemplateUiStatus } from '../../data-access/templates.model';
+import {
+  TEMPLATE_STATUS_LABEL,
+  TEMPLATE_STATUS_PILL,
+  Template,
+  templateCategoryChip,
+} from '../../data-access/templates.model';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
  * Vista previa de solo lectura de una plantilla (patrón "takeover", intercambiado
@@ -13,7 +20,7 @@ import { Template, TemplateUiStatus } from '../../data-access/templates.model';
  */
 @Component({
   selector: 'app-template-preview',
-  imports: [CommonModule],
+  imports: [CommonModule, StatusPillComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './template-preview.component.html',
 })
@@ -26,40 +33,9 @@ export class TemplatePreviewComponent {
   @Output() editRequested = new EventEmitter<Template>();
   @Output() retryBody = new EventEmitter<Template>();
 
-  categoryChip(category: string): string {
-    const key = category.toLowerCase();
-    if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
-    if (key.includes('letter')) return 'border-orange-200 text-orange-500';
-    if (key.includes('invoice') || key.includes('billing')) return 'border-brand-border text-brand-bold';
-    if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
-    return 'border-gray-200 text-gray-500';
-  }
-
-  statusChip(status: TemplateUiStatus): string {
-    switch (status) {
-      case 'published':
-        return 'border-emerald-200 text-emerald-600';
-      case 'archived':
-        return 'border-gray-200 text-gray-400';
-      case 'draft':
-        return 'border-gray-300 text-gray-500';
-    }
-  }
-
-  statusDot(status: TemplateUiStatus): string {
-    return status === 'published' ? 'bg-emerald-500' : 'bg-gray-400';
-  }
-
-  statusLabel(status: TemplateUiStatus): string {
-    switch (status) {
-      case 'published':
-        return 'Published';
-      case 'archived':
-        return 'Archived';
-      case 'draft':
-        return 'Draft';
-    }
-  }
+  readonly categoryChip = templateCategoryChip;
+  readonly statusLabel = TEMPLATE_STATUS_LABEL;
+  readonly statusPill = TEMPLATE_STATUS_PILL;
 
   formatDate(iso: string): string {
     if (!iso) {

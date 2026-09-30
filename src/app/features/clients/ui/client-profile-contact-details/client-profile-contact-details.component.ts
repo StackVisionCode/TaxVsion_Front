@@ -22,12 +22,10 @@ import {
 } from '../../data-access/clients.model';
 import {
   COUNTRY_CODE_LENGTH,
-  formatPhoneForDisplay,
   isValidEmail,
-  isValidPhone,
   normalizeEmailToApi,
-  normalizePhoneToApi,
 } from '../../utils/customer-form-normalizers';
+import { formatPhoneForDisplay, isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
 
 export interface SaveAddressPayload {
   id: string | null;

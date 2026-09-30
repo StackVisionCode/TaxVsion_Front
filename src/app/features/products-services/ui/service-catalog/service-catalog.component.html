@@ -15,22 +15,10 @@
 
   <!-- Search + category filters + view toggle -->
   <div class="mt-4 flex flex-wrap items-center gap-3">
-    <div class="relative w-full sm:w-64">
-      <div class="h-9 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-        <ion-icon name="search-outline" class="absolute left-3.5 text-sm text-gray-400 pointer-events-none"></ion-icon>
-        <input type="text" placeholder="Search services..." [ngModel]="searchTerm()"
-          (ngModelChange)="onSearchChange($event)"
-          class="w-full h-full bg-transparent pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-      </div>
-    </div>
+    <app-search-input class="w-full sm:w-64" widthClass="w-full" placeholder="Search services..."
+      [value]="searchTerm()" (valueChange)="onSearchChange($event)"></app-search-input>
 
-    <div class="flex flex-wrap items-center gap-2">
-      <button *ngFor="let filter of filters()" type="button" (click)="setFilter(filter)"
-        class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-        [ngClass]="activeFilter() === filter ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-        {{ filter }}
-      </button>
-    </div>
+    <app-filter-chips size="sm" [options]="filters()" [value]="activeFilter()" (valueChange)="setFilter($event)"></app-filter-chips>
 
     <div class="ml-auto flex items-center rounded-full border border-gray-200 p-0.5">
       <button type="button" (click)="viewMode.set('table')"
@@ -82,13 +70,10 @@
             </span>
           </td>
           <td class="px-4 py-3.5 text-right font-bold text-gray-900 group-hover:bg-gray-50 transition-colors"
-            [class.border-b]="!last" [class.border-gray-100]="!last">${{ service.price }}</td>
+            [class.border-b]="!last" [class.border-gray-100]="!last">{{ service.price | money: service.currency }}</td>
           <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
             [class.border-gray-100]="!last">
-            <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
-              <span class="h-1.5 w-1.5 rounded-full" [ngClass]="service.status === 'active' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
-              {{ statusLabel(service.status) }}
-            </span>
+            <app-status-pill [tone]="statusTone(service.status)">{{ statusLabel(service.status) }}</app-status-pill>
           </td>
           <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
             [class.border-b]="!last" [class.border-gray-100]="!last">
@@ -110,21 +95,13 @@
     </table>
 
     <!-- Empty states: catálogo vacío (tenant nuevo) vs búsqueda sin resultados -->
-    <div *ngIf="filteredServices().length === 0" class="px-4 py-10 text-center">
-      <ion-icon [name]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">
-        {{ isCatalogEmpty() ? 'No services yet — add your first one to get started' : 'No services match your search' }}
-      </p>
-    </div>
+    <app-state-block *ngIf="filteredServices().length === 0" variant="inline" [empty]="true"
+      [icon]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" [emptyTitle]="emptyTitle()"></app-state-block>
   </div>
 
   <!-- Grid view -->
-  <div *ngIf="viewMode() === 'grid' && filteredServices().length === 0" class="mt-4 px-4 py-10 text-center">
-    <ion-icon [name]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">
-      {{ isCatalogEmpty() ? 'No services yet — add your first one to get started' : 'No services match your search' }}
-    </p>
-  </div>
+  <app-state-block *ngIf="viewMode() === 'grid' && filteredServices().length === 0" class="mt-4 block" variant="inline"
+    [empty]="true" [icon]="isCatalogEmpty() ? 'pricetags-outline' : 'search-outline'" [emptyTitle]="emptyTitle()"></app-state-block>
   <div *ngIf="viewMode() === 'grid'" class="mt-4 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
     <div *ngFor="let service of pagedServices()" class="rounded-2xl border border-gray-100 p-4">
       <div class="flex items-center gap-3">
@@ -137,10 +114,8 @@
         </span>
       </div>
       <div class="mt-3 flex items-center justify-between">
-        <span class="text-lg font-bold text-gray-900">${{ service.price }}</span>
-        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
-          {{ statusLabel(service.status) }}
-        </span>
+        <span class="text-lg font-bold text-gray-900">{{ service.price | money: service.currency }}</span>
+        <app-status-pill [tone]="statusTone(service.status)" [dot]="false">{{ statusLabel(service.status) }}</app-status-pill>
       </div>
       <div class="mt-3 flex items-center gap-2">
         <button type="button" (click)="editService.emit(service)"

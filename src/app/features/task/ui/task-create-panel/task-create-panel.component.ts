@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -14,7 +13,10 @@ import {
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { TaskStore } from '../../data-access/task.store';
 import {
   ApiTaskPriority,
@@ -23,8 +25,6 @@ import {
   TaskFormValue,
   TaskItem,
   TaskStatus,
-  avatarColorFor,
-  initialsFor,
 } from '../../data-access/task.model';
 
 const PRIORITIES: ApiTaskPriority[] = ['Low', 'Normal', 'High', 'Urgent'];
@@ -38,7 +38,8 @@ interface AssigneeOption {
 /**
  * Overlay de creación/edición del módulo Task contra la API real. Mismo patrón visual
  * que antes (tarjeta centrada, píldoras con dropdown propio), pero:
- *  - Cliente: picker sobre GET /customers (el backend pide `customerId`, no texto libre).
+ *  - Cliente: `app-customer-picker` compartido (búsqueda server-side en GET /customers; el backend
+ *    pide `customerId`, no texto libre).
  *  - Asignado: type-ahead sobre GET /communication/directory/employees.
  *  - Estado "Waiting on Client": exige el detalle de lo pedido (`expectedItems`) y un cliente.
  *  - En edición aparecen además "Cancel task…" (razón obligatoria) y "Delete".
@@ -46,7 +47,7 @@ interface AssigneeOption {
  */
 @Component({
   selector: 'app-task-create-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, CustomerPickerComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-create-panel.component.html',
 })
@@ -74,7 +75,6 @@ export class TaskCreatePanelComponent implements OnChanges {
   readonly status = signal<TaskStatus>('not-started');
   readonly expectedItems = signal('');
   readonly selectedClient = signal<CustomerSummary | null>(null);
-  readonly clientSearch = signal('');
   readonly assignee = signal<AssigneeOption | null>(null);
   readonly assigneeSearch = signal('');
   readonly assigneeResults = signal<EmployeeDirectoryEntry[]>([]);
@@ -82,7 +82,6 @@ export class TaskCreatePanelComponent implements OnChanges {
   readonly isPriorityOpen = signal(false);
   readonly isStatusOpen = signal(false);
   readonly isAssigneeOpen = signal(false);
-  readonly isClientOpen = signal(false);
   readonly isCancelOpen = signal(false);
   readonly cancelReason = signal('');
   readonly isDeleteArmed = signal(false);
@@ -91,12 +90,6 @@ export class TaskCreatePanelComponent implements OnChanges {
 
   /** Signal propia porque `task` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
-
-  readonly filteredClients = computed<CustomerSummary[]>(() => {
-    const query = this.clientSearch().trim().toLowerCase();
-    const all = this.store.clients();
-    return query ? all.filter(client => client.displayName.toLowerCase().includes(query)) : all;
-  });
 
   readonly canSave = computed(() => {
     if (this.title().trim().length === 0) {
@@ -122,23 +115,6 @@ export class TaskCreatePanelComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="task-priority"]')) {
-      this.isPriorityOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="task-status"]')) {
-      this.isStatusOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="task-assignee"]')) {
-      this.isAssigneeOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="task-client"]')) {
-      this.isClientOpen.set(false);
-    }
-  }
-
   togglePriorityDropdown(): void {
     const next = !this.isPriorityOpen();
     this.closeAllDropdowns();
@@ -157,12 +133,6 @@ export class TaskCreatePanelComponent implements OnChanges {
     this.isAssigneeOpen.set(next);
   }
 
-  toggleClientDropdown(): void {
-    const next = !this.isClientOpen();
-    this.closeAllDropdowns();
-    this.isClientOpen.set(next);
-  }
-
   selectPriority(priority: ApiTaskPriority): void {
     this.priority.set(priority);
     this.isPriorityOpen.set(false);
@@ -175,8 +145,6 @@ export class TaskCreatePanelComponent implements OnChanges {
 
   selectClient(client: CustomerSummary | null): void {
     this.selectedClient.set(client);
-    this.isClientOpen.set(false);
-    this.clientSearch.set('');
   }
 
   selectAssignee(option: AssigneeOption | null): void {
@@ -208,24 +176,6 @@ export class TaskCreatePanelComponent implements OnChanges {
 
   statusLabel(status: TaskStatus): string {
     return this.statuses.find(column => column.id === status)?.label ?? status;
-  }
-
-  assigneeInitials(): string {
-    const current = this.assignee();
-    return current ? initialsFor(current.displayName) : '—';
-  }
-
-  assigneeColor(): string {
-    const current = this.assignee();
-    return current ? avatarColorFor(current.userId) : 'bg-gray-300';
-  }
-
-  initialsOf(name: string): string {
-    return initialsFor(name);
-  }
-
-  colorOf(userId: string): string {
-    return avatarColorFor(userId);
   }
 
   close(): void {
@@ -278,7 +228,6 @@ export class TaskCreatePanelComponent implements OnChanges {
     this.isPriorityOpen.set(false);
     this.isStatusOpen.set(false);
     this.isAssigneeOpen.set(false);
-    this.isClientOpen.set(false);
   }
 
   private resetForm(): void {
@@ -316,7 +265,6 @@ export class TaskCreatePanelComponent implements OnChanges {
       this.selectedClient.set(null);
       this.assignee.set(null);
     }
-    this.clientSearch.set('');
     this.assigneeSearch.set('');
     this.assigneeResults.set([]);
     this.isCancelOpen.set(false);

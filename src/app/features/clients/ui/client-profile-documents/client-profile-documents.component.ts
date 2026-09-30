@@ -1,7 +1,9 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PermissionService } from '@core/auth/permission.service';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { FileDropDirective } from '@shared/directives/file-drop.directive';
 import { ClientDocumentsStore } from '../../data-access/client-documents.store';
 import { ClientDocumentItem } from '../../data-access/client-documents.model';
 
@@ -24,7 +26,7 @@ const FILE_DELETE = 'cloudstorage.file.delete';
  */
 @Component({
   selector: 'app-client-profile-documents',
-  imports: [CommonModule, ConfirmDialogComponent],
+  imports: [CommonModule, ConfirmDialogComponent, StateBlockComponent, FileDropDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-documents.component.html',
   styleUrl: './client-profile-documents.component.css',
@@ -41,7 +43,6 @@ export class ClientProfileDocumentsComponent implements OnChanges {
   readonly canDownload = computed(() => this.perms.has(FILE_DOWNLOAD));
   readonly canDelete = computed(() => this.perms.has(FILE_DELETE));
 
-  readonly isDragging = signal(false);
   readonly pendingDelete = signal<ClientDocumentItem | null>(null);
   readonly pendingDeleteMessage = computed(() => {
     const doc = this.pendingDelete();
@@ -65,31 +66,6 @@ export class ClientProfileDocumentsComponent implements OnChanges {
     if (input.files && input.files.length > 0) {
       this.store.uploadFiles(input.files);
       input.value = '';
-    }
-  }
-
-  onDragOver(event: DragEvent): void {
-    if (!this.canUpload()) {
-      return;
-    }
-    event.preventDefault();
-    this.isDragging.set(true);
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    this.isDragging.set(false);
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.isDragging.set(false);
-    if (!this.canUpload()) {
-      return;
-    }
-    const files = event.dataTransfer?.files;
-    if (files && files.length > 0) {
-      this.store.uploadFiles(files);
     }
   }
 
