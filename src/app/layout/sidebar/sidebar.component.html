@@ -1,7 +1,8 @@
 <ng-container *ngIf="!isMobile; else mobileSidebar">
   <div
     class="relative hidden md:flex md:flex-col shrink-0 bg-white rounded-[24px] shadow-sm transition-[width] duration-200 sticky top-4 h-[calc(100vh-2rem)] z-40"
-    [ngClass]="{ 'w-64': isExpanded(), 'w-16': !isExpanded() }"
+    [style.width.px]="currentWidth()"
+    (transitionend)="onSidebarTransitionEnd($event)"
   >
     <!-- Brand block -->
     <div
@@ -16,7 +17,7 @@
             *ngIf="logoUrl() && !showLogoFallback(); else expandedFallback"
             [src]="logoUrl()"
             alt="Logo"
-            class="h-10 max-w-[180px] object-contain"
+            class="h-10 max-w-full object-contain"
             (error)="showLogoFallback.set(true)"
           />
           <ng-template #expandedFallback>
@@ -105,6 +106,7 @@
             ></ion-icon>
 
             <span
+              #itemLabel
               *ngIf="isExpanded()"
               class="text-sm font-medium truncate pointer-events-none select-none"
             >
