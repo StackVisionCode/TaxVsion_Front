@@ -3,6 +3,7 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { environment } from '@env/environment';
 import { routes } from './app.routes';
 import { NotFoundPageComponent } from './shared/ui/not-found-page/not-found-page.component';
 
@@ -41,7 +42,6 @@ describe('app.routes', () => {
    */
   const publicLinks = [
     '/login',
-    '/register?token=abc',
     '/accept-invitation?token=abc',
     '/confirm-email?token=abc',
     '/reset-password?token=abc',
@@ -59,6 +59,20 @@ describe('app.routes', () => {
       expect(component).not.toBeInstanceOf(NotFoundPageComponent);
     });
   }
+
+  it('los enlaces viejos del alta se reenvían al Landing con la misma ruta y query', async () => {
+    const originalLocation = window.location;
+    const replace = vi.fn();
+    Object.defineProperty(window, 'location', { value: { ...originalLocation, replace }, writable: true, configurable: true });
+    try {
+      await harness.navigateByUrl('/register/complete?token=abc');
+
+      expect(replace).toHaveBeenCalledWith(`${environment.landingUrl}/register/complete?token=abc`);
+      expect(TestBed.inject(Router).url).not.toContain('/register');
+    } finally {
+      Object.defineProperty(window, 'location', { value: originalLocation, writable: true, configurable: true });
+    }
+  });
 
   it('la raíz lleva al login cuando no hay params del callback OAuth', async () => {
     const router = TestBed.inject(Router);

@@ -15,9 +15,13 @@ import { PaginationComponent } from '../../../../shared/ui/pagination/pagination
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
-import { SeatPurchaseStore } from '../../../subscription/data-access/seat-purchase.store';
+import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
+import { SeatsPanelComponent } from '../../ui/seats-panel/seats-panel.component';
+import { UserManagementCapabilities } from '../../data-access/user-management-permissions';
+import { RolesPanelComponent } from '../../ui/roles-panel/roles-panel.component';
+import { RolesStore } from '../../data-access/roles.store';
 
-type TeamTab = 'members' | 'invitations';
+type TeamTab = 'members' | 'invitations' | 'roles' | 'seats';
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -43,13 +47,20 @@ const SEARCH_DEBOUNCE_MS = 300;
     EditAccessDrawerComponent,
     OffboardDialogComponent,
     SeatPurchaseModalComponent,
+    SeatsPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
+    RolesPanelComponent,
   ],
+  // B9 — el store de roles vive con la pantalla, no en root: salir de acá tira su estado.
+  providers: [RolesStore],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-management-page.component.html',
 })
 export class UserManagementPageComponent {
+  /** B6 — la §34 marcaba esta pantalla entera como "todo visible". */
+  protected readonly can = inject(UserManagementCapabilities);
+
   private readonly store = inject(UserManagementStore);
   private readonly seatStore = inject(SeatPurchaseStore);
   private readonly toastService = inject(ToastService);
@@ -320,7 +331,7 @@ export class UserManagementPageComponent {
     this.pendingCancel.set(null);
   }
 
-  // Toast global compartido (app-toast-host, montado una vez en el shell): flotante y visible en toda
+  // Toast global compartido (app-toast-host, montado una vez en la raíz): flotante y visible en toda
   // la app, a diferencia del chip inline anterior que estaba pegado al título y era fácil no verlo —
   // p.ej. al remover un miembro parecía que "no avisaba nada".
   private showToast(message: string, kind: 'success' | 'error' = 'success'): void {

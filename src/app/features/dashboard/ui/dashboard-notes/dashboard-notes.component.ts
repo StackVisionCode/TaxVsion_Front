@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { PermissionService } from '@core/auth/permission.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
@@ -37,6 +38,7 @@ const DOT_COLORS = ['rgb(var(--color-indigo-600-rgb, 30 70 107))', '#FB923C', '#
   templateUrl: './dashboard-notes.component.html',
 })
 export class DashboardNotesComponent implements OnInit {
+  private readonly perms = inject(PermissionService);
   private readonly service = inject(DashboardNotesService);
   private readonly auth = inject(AuthService);
 
@@ -50,7 +52,7 @@ export class DashboardNotesComponent implements OnInit {
 
   /** Crear notas exige `notes.manage`: sin él no se muestra el compositor. */
   readonly canCreate = computed(
-    () => this.auth.currentUser()?.permissions.includes('notes.manage') ?? false,
+    () => this.perms.has('notes.manage'),
   );
 
   ngOnInit(): void {

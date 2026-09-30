@@ -1,3 +1,4 @@
+import { PermissionService } from '@core/auth/permission.service';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -36,6 +37,7 @@ const NOTES_VIEW_ALL = 'notes.view_all';
  */
 @Injectable({ providedIn: 'root' })
 export class ClientNotesStore {
+  private readonly perms = inject(PermissionService);
   private readonly service = inject(ClientNotesService);
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);
@@ -58,7 +60,7 @@ export class ClientNotesStore {
 
   /** Autor + `notes.view_all` salen de /auth/me, que el initializer ya resolvió al arrancar. */
   private readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
-  private readonly hasViewAll = computed(() => this.auth.currentUser()?.permissions?.includes(NOTES_VIEW_ALL) ?? false);
+  private readonly hasViewAll = computed(() => this.perms.has(NOTES_VIEW_ALL));
 
   readonly notes = computed<ClientNoteCard[]>(() => {
     const names = this._userNames();

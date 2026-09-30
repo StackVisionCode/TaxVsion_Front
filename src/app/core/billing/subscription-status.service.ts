@@ -24,16 +24,4 @@ export class SubscriptionStatusService {
   getMySubscription(): Observable<MySubscription> {
     return this.http.get<MySubscription>(`${this.base}/subscriptions/me`);
   }
-
-  /** Inicia el checkout de renovación self-service; devuelve la URL de redirect del provider. */
-  startRenewCheckout(req: StartRenewCheckoutRequest): Observable<StartRenewCheckoutResponse> {
-    return this.http.post<StartRenewCheckoutResponse>(`${this.base}/subscriptions/me/renew-checkout`, req);
-  }
-
-  /** Estado de una intención de renovación — se poll-ea al volver del redirect. */
-  getRenewCheckoutStatus(intentId: string): Observable<RenewCheckoutStatusResponse> {
-    return this.http.get<RenewCheckoutStatusResponse>(
-      `${this.base}/subscriptions/me/renew-checkout/${intentId}`,
-    );
-  }
 }

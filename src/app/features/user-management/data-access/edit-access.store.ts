@@ -17,6 +17,12 @@ import {
  * deny set. It is NOT `providedIn: 'root'` on purpose — the drawer component provides it, so each open
  * starts from a clean baseline and dirty tracking is isolated per drawer instance.
  */
+/** Lo que acompaña a un deny: por qué y hasta cuándo. */
+interface DenyDetail {
+  reason: string;
+  expiresAtUtc: string | null;
+}
+
 @Injectable()
 export class EditAccessStore {
   private readonly service = inject(UserManagementService);
@@ -35,6 +41,16 @@ export class EditAccessStore {
   private readonly _denied = signal<ReadonlySet<string>>(new Set());
   private readonly _baseline = signal<ReadonlySet<string>>(new Set());
 
+  /**
+   * B9 — el motivo y el vencimiento de cada deny. Va aparte del conjunto de ids a propósito: el
+   * conjunto es lo que mueven los interruptores y lo que compara `dirty`, y meterle objetos adentro
+   * rompería las dos cosas.
+   *
+   * El backend todavía no devuelve el motivo de un deny existente, así que al abrir el cajón estos
+   * campos arrancan vacíos: se ven y se escriben al editar. No se inventa un motivo que no vino.
+   */
+  private readonly _denyDetails = signal<ReadonlyMap<string, DenyDetail>>(new Map());
+
   readonly userId = this._userId.asReadonly();
   readonly actorType = this._actorType.asReadonly();
   readonly roles = this._roles.asReadonly();
@@ -52,6 +68,37 @@ export class EditAccessStore {
 
   isDenied(permissionId: string): boolean {
     return this._denied().has(permissionId);
+  }
+
+  /** El motivo escrito para este deny, o cadena vacía. */
+  reasonFor(permissionId: string): string {
+    return this._denyDetails().get(permissionId)?.reason ?? '';
+  }
+
+  /** La fecha de vencimiento (`yyyy-MM-dd`) o cadena vacía = indefinido. */
+  expiresFor(permissionId: string): string {
+    const iso = this._denyDetails().get(permissionId)?.expiresAtUtc;
+    return iso ? iso.slice(0, 10) : '';
+  }
+
+  setReason(permissionId: string, reason: string): void {
+    this.updateDetail(permissionId, detail => ({ ...detail, reason }));
+  }
+
+  /** `date` en `yyyy-MM-dd`; vacío = sin vencimiento. Se guarda al final del día, en UTC. */
+  setExpiry(permissionId: string, date: string): void {
+    this.updateDetail(permissionId, detail => ({
+      ...detail,
+      expiresAtUtc: date ? `${date}T23:59:59Z` : null,
+    }));
+  }
+
+  private updateDetail(permissionId: string, change: (detail: DenyDetail) => DenyDetail): void {
+    this._denyDetails.update(all => {
+      const next = new Map(all);
+      next.set(permissionId, change(all.get(permissionId) ?? { reason: '', expiresAtUtc: null }));
+      return next;
+    });
   }
 
   /** True when every permission in the module is denied — drives the module master-toggle state. */
@@ -124,7 +171,14 @@ export class EditAccessStore {
     }
     this._saving.set(true);
     this._error.set(null);
-    return this.service.setPermissionOverrides(userId, [...this._denied()]).pipe(
+    const details = this._denyDetails();
+    const denies = [...this._denied()].map(permissionId => ({
+      permissionId,
+      reason: details.get(permissionId)?.reason?.trim() || null,
+      expiresAtUtc: details.get(permissionId)?.expiresAtUtc || null,
+    }));
+
+    return this.service.setPermissionOverrides(userId, denies).pipe(
       tap({
         next: () => {
           this._baseline.set(new Set(this._denied()));

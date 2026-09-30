@@ -7,6 +7,7 @@ import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientPortalStore } from '../../data-access/client-portal.store';
+import { ClientPortalPermissionsComponent } from '../client-portal-permissions/client-portal-permissions.component';
 import { portalStatusChipClass, portalStatusLabel } from '../../data-access/client-portal.model';
 
 /** Permisos de Auth para gestionar el acceso de portal (BuildingBlocks.Authorization). */
@@ -22,10 +23,12 @@ const USERS_MANAGE = 'users.manage';
  *  - Invitar: Customer.Api `POST /customers/{id}/portal-invitations` (perm `customers.manage`+admin).
  *  - Reenviar/cancelar invitación: Auth (perm `users.invite`+admin). Activar/desactivar usuario:
  *    Auth (perm `users.manage`).
+ *  - Qué puede hacer dentro del portal: sección aparte, gateada por `roles.manage`. Un cliente no es
+ *    compañero de oficina, así que su acceso no se toca desde la pantalla de equipo.
  */
 @Component({
   selector: 'app-client-profile-portal',
-  imports: [CommonModule, ConfirmDialogComponent],
+  imports: [CommonModule, ConfirmDialogComponent, ClientPortalPermissionsComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-portal.component.html',
   styleUrl: './client-profile-portal.component.css',
@@ -81,10 +84,12 @@ export class ClientProfilePortalComponent implements OnChanges {
     }
     this.busy.set(true);
     this.store.invite().subscribe({
-      next: outcome => {
+      next: status => {
         this.busy.set(false);
-        if (outcome === 'already-has-access') {
+        if (status === 'AlreadyActive') {
           this.toast.info('This client already has portal access.');
+        } else if (status === 'Resent') {
+          this.toast.success('Invitation sent again');
         } else {
           this.toast.success('Portal invitation sent');
         }

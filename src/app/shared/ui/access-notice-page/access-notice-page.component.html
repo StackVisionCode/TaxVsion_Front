@@ -1,0 +1,42 @@
+<div class="flex min-h-[70vh] items-center justify-center px-4 py-10">
+  <div class="w-full max-w-md rounded-[28px] bg-white p-8 text-center shadow-sm">
+    <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface">
+      <ion-icon [name]="icon()" class="text-2xl text-brand-bold"></ion-icon>
+    </span>
+
+    <h1 class="mt-5 text-xl font-bold text-gray-900">{{ title() }}</h1>
+    <p class="mt-2 text-sm leading-relaxed text-gray-500">{{ message() }}</p>
+
+    <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <!-- El plan y los add-ons se contratan en el Account, con esta misma sesión. Solo se le
+           ofrece a quien puede pagar: al resto no se le muestran precios. -->
+      <button *ngIf="kind() === 'not-available' && canManageBilling()" type="button"
+        (click)="manageSubscription()" [disabled]="handoff.opening()"
+        class="w-full rounded-xl bg-brand-bold px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-60 sm:w-auto">
+        {{ handoff.opening() ? 'Opening…' : 'Manage subscription' }}
+      </button>
+      <a *ngIf="kind() === 'not-available' && canManageBilling()" routerLink="/plans"
+        class="w-full rounded-xl border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto">
+        See plans
+      </a>
+
+      <button *ngIf="kind() === 'error'" type="button" (click)="retry()"
+        class="w-full rounded-xl bg-brand-bold px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink sm:w-auto">
+        Try again
+      </button>
+
+      <a routerLink="/dashboard"
+        class="w-full rounded-xl px-6 py-3 text-sm font-semibold transition-colors sm:w-auto"
+        [ngClass]="kind() === 'forbidden'
+          ? 'bg-brand-bold text-white hover:bg-brand-ink'
+          : 'border border-gray-200 text-gray-700 hover:bg-gray-100'">
+        Go to dashboard
+      </a>
+
+      <button type="button" (click)="goBack()"
+        class="w-full rounded-xl border border-gray-200 px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:w-auto">
+        Go back
+      </button>
+    </div>
+  </div>
+</div>

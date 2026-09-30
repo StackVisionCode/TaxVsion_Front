@@ -15,6 +15,7 @@ import {
   toLocalDateInput,
   toLocalTimeInput,
 } from '../../data-access/client-reminders.model';
+import { AccessStore } from '@core/access/access.store';
 
 const PAGE_SIZE = 6;
 
@@ -42,6 +43,14 @@ const PAGE_SIZE = 6;
   templateUrl: './client-profile-reminders.component.html',
 })
 export class ClientProfileRemindersComponent implements OnInit {
+  private readonly access = inject(AccessStore);
+
+  /**
+   * B6 — la lista es `reminders.read`, pero crear, editar, posponer y descartar son
+   * `reminders.write`. Se ofrecían todos por igual.
+   */
+  protected readonly canWrite = computed(() => this.access.can('reminders.write'));
+
   /**
    * Lo recibe del perfil pero NO se usa: Reminder no tiene vínculo con Customer (ver el
    * comentario de la clase). Se conserva para no romper el binding del padre y para el día

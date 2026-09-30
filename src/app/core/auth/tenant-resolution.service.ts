@@ -39,4 +39,12 @@ export class TenantResolutionService {
       catchError((err: HttpErrorResponse) => (err.status === 404 ? of(false) : throwError(() => err))),
     );
   }
+
+  /** Nombre de la oficina del subdominio actual (mismo by-host same-origin); null si no se pudo saber. */
+  currentOfficeName(): Observable<string | null> {
+    return this.http.get<{ name: string }>(this.api.tenantUrl('/auth/tenant-resolution/by-host')).pipe(
+      map(office => office.name || null),
+      catchError(() => of(null)),
+    );
+  }
 }

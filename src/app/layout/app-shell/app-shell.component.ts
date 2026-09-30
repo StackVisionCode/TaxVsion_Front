@@ -23,7 +23,6 @@ import {
 import { filter, map, of, switchMap, timer } from 'rxjs';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
@@ -32,6 +31,7 @@ import { ChatSocketService } from '@features/chat/data-access/chat-socket.servic
 import { ChatStore } from '@features/chat/data-access/chat.store';
 import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
+import { AccessSyncService } from '@core/access/access-sync.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AuthService } from '@core/auth/auth.service';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
@@ -47,7 +47,6 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
     RouterOutlet,
     NavbarComponent,
     SidebarComponent,
-    ToastHostComponent,
     CallOverlayComponent,
     SubscriptionBannerComponent,
   ],
@@ -60,6 +59,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly chatStore = inject(ChatStore);
   private readonly notificationsStore = inject(NotificationsStore);
   private readonly sessionRevocation = inject(SessionRevocationService);
+  private readonly accessSync = inject(AccessSyncService);
   private readonly branding = inject(TenantBrandingService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -125,7 +125,6 @@ export class AppShellComponent implements OnInit, OnDestroy {
     // Ciclo de vida de la suscripción (Expiración/Dunning, Fase 5): carga el estado para el banner global
     // y, si volvemos de un hosted-checkout de renovación, retoma el poll de la intención pendiente.
     this.subscriptionStatus.load();
-    this.subscriptionStatus.resumePendingRenewCheckout();
 
     // Sesión única: abre el socket de tiempo real al entrar al shell y escucha `session.revoked`
     // (logout forzado si el usuario abre otra sesión en otro dispositivo). connect() es idempotente,
@@ -135,6 +134,9 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.activeCall.bindGlobalListeners();
     // Notificaciones reales en vivo (campana del navbar) + badge de no-leídos del chat (sidebar).
     this.notificationsStore.startRealtime();
+    // B8 — el acceso se mantiene al día solo: `access.changed`, foco, reconexión y renovación de
+    // token. Sin esto, quitarle un permiso a alguien exigía pedirle que recargara la página.
+    this.accessSync.start(this.destroyRef);
     this.chatStore.primeForBadge();
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))

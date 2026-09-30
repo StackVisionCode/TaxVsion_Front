@@ -19,7 +19,12 @@
                 >{{ row.member?.initials ?? '?' }}</span
               >
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-gray-900">{{ row.member?.name ?? 'Unknown user' }}</p>
+                <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
+                  <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
+                  @if (row.member && !row.member.isActive) {
+                    <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600">Suspended</span>
+                  }
+                </p>
                 <p class="truncate text-xs text-gray-500">{{ row.member?.email }}</p>
               </div>
               @if (row.isPrimary) {

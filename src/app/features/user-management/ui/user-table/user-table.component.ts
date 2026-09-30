@@ -50,6 +50,15 @@ export class UserTableComponent {
   @Input() members: TeamMember[] = [];
   @Input() currentUserId: string | null = null;
   @Input() emptyMessage = 'No team members found';
+  /**
+   * B6 — cada acción de fila con su permiso. Los cuatro son distintos en el backend: reenviar una
+   * invitación es `users.invite`, suspender y dar de baja es `users.manage`, y tocar roles es
+   * `roles.manage`.
+   */
+  @Input() canInvite = true;
+  @Input() canManageUsers = true;
+  @Input() canManageRoles = true;
+
   @Output() editRoles = new EventEmitter<TeamMember>();
   @Output() resendInvite = new EventEmitter<TeamMember>();
   @Output() toggleSuspend = new EventEmitter<TeamMember>();

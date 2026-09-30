@@ -52,6 +52,8 @@ export class PaymentLinksPanelComponent {
   @Input() page = 1;
   @Input() hasMore = false;
   @Input() creating = false;
+  /** B6 — crear y revocar links de pago exige `payment_client.payment_link.manage`. */
+  @Input() canManage = true;
 
   @Output() statusFilterChanged = new EventEmitter<PaymentLinkStatus | null>();
   @Output() pageChanged = new EventEmitter<number>();
@@ -163,6 +165,7 @@ export class PaymentLinksPanelComponent {
   }
 
   canRevoke(link: PaymentLink): boolean {
-    return link.status === 'Active';
+    // El estado dice si tiene sentido; el permiso, si esta persona puede hacerlo.
+    return link.status === 'Active' && this.canManage;
   }
 }

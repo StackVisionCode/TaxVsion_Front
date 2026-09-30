@@ -1,11 +1,12 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
+import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, throwError, Subject } from 'rxjs';
 import { environment } from '@env/environment';
 import { TokenService } from './token.service';
 import { ApiConfigService } from '../config/api-config.service';
 import { TenantBrandingService } from '../theme/tenant-branding.service';
 import {
+  AccountHandoffResponse,
   AuthTokens,
   ForgotPasswordRequest,
   LoginRequest,
@@ -14,12 +15,14 @@ import {
   MfaVerifyResponse,
   RefreshRequest,
   ResetPasswordRequest,
+  ValidateResetTokenRequest,
   TakeoverSessionRequest,
   TermsAcceptanceResponse,
   TermsAcceptanceStatusResponse,
   TermsVersionResponse,
 } from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
+import { AccountKind } from './central-login.model';
 
 /** Desenlace del login, ya interpretado por el servicio (el componente solo enruta). */
 export type LoginOutcome =
@@ -75,6 +78,17 @@ export class AuthService {
   /** Refresh en vuelo compartido (single-flight) para 401 concurrentes. */
   private refreshInFlight: Observable<AuthTokens> | null = null;
 
+  /**
+   * Emite cada vez que el token se renueva con éxito. Lo escucha B8 para volver a pedir el
+   * bootstrap de acceso: un 401 `Auth.TokenStale` significa justamente que los permisos del token
+   * quedaron viejos, así que lo que la UI tiene en memoria también.
+   *
+   * Es un Subject y no una llamada directa al `AccessStore` a propósito: el store ya depende de
+   * este servicio, y llamarlo desde acá cerraría el círculo.
+   */
+  private readonly _refreshed = new Subject<void>();
+  readonly refreshed$ = this._refreshed.asObservable();
+
   login(req: LoginRequest): Observable<LoginOutcome> {
     if (environment.authMock) {
       return defer(() => {
@@ -86,7 +100,9 @@ export class AuthService {
     // en producción, donde el tenant se resuelve por Host) rompe la deserialización y
     // devuelve 400. Se omite el campo salvo que traiga un valor real.
     const { tenantId, ...rest } = req;
-    const body = tenantId ? { ...rest, tenantId } : rest;
+    // El dispositivo de confianza va SIEMPRE que exista: es lo que decide si el backend pide el
+    // segundo factor. Sin mandarlo, marcarlo no servía de nada y el código se pedía igual.
+    const body = { ...(tenantId ? { ...rest, tenantId } : rest), deviceToken: this.tokenService.getDeviceToken() };
     // `defer` para que un fallo al componer la URL (tenantBase() lanza si no hay oficina
     // resuelta) viaje por el canal de error del Observable. Sin esto la excepción es
     // síncrona, escapa al `subscribe({ error })` del componente y el botón de login se
@@ -149,7 +165,10 @@ export class AuthService {
     this.refreshInFlight = this.http
       .post<AuthTokens>(`${this.base}/auth/refresh`, { refreshToken } satisfies RefreshRequest)
       .pipe(
-        tap(tokens => this.tokenService.setSession(tokens)),
+        tap(tokens => {
+          this.tokenService.setSession(tokens);
+          this._refreshed.next();
+        }),
         finalize(() => {
           this.refreshInFlight = null;
         }),
@@ -182,13 +201,38 @@ export class AuthService {
     );
   }
 
-  /** Siempre resuelve (202 anti-enumeración): el backend nunca revela si el email existe. */
-  forgotPassword(email: string): Observable<void> {
-    const req: ForgotPasswordRequest = { email, tenantId: environment.tenantId || null };
+  /**
+   * Siempre resuelve (202 anti-enumeración): el backend nunca revela si el email existe. `accountKind` dice
+   * qué cuenta se resetea: la del espacio de trabajo, o la del portal cuando se llega desde el login de clientes.
+   * En la dirección de una oficina el reset es solo de esa oficina; en la entrada general va al host de sistema
+   * y cubre todas las oficinas del email, aunque el navegador recuerde una.
+   */
+  forgotPassword(email: string, accountKind: AccountKind = 'Staff'): Observable<void> {
+    const req: ForgotPasswordRequest = { email, accountKind };
     if (environment.authMock) {
       return defer(() => of(void 0));
     }
-    return defer(() => this.http.post<void>(`${this.base}/auth/password/forgot`, req));
+    return defer(() => {
+      const base = this.api.officeFromHost() ? this.api.tenantBase() : this.api.systemBase();
+      return this.http.post<void>(`${base}/auth/password/forgot`, req);
+    });
+  }
+
+  /**
+   * "Manage subscription": vale de un solo uso (60 s) para abrir el Account del Landing sobre ESTA misma
+   * sesión, sin takeover. Solo TenantAdmin con `billing.view`; el backend responde 403 al resto.
+   */
+  requestAccountHandoff(): Observable<AccountHandoffResponse> {
+    return defer(() => this.http.post<AccountHandoffResponse>(`${this.base}/auth/account/handoff`, {}));
+  }
+
+  /** ¿El enlace de reset todavía sirve? Resuelve si sí; falla con `Auth.InvalidResetToken` si caducó, ya se usó o fue anulado. No lo consume. */
+  validateResetToken(token: string): Observable<void> {
+    const req: ValidateResetTokenRequest = { token };
+    if (environment.authMock) {
+      return defer(() => of(void 0));
+    }
+    return defer(() => this.http.post<void>(`${this.base}/auth/password/reset/validate`, req));
   }
 
   /** `token` sale del query param `?token=` del link emailado (`/reset-password?token=...`), no de un código tipeado. */

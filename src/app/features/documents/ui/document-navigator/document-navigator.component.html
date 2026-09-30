@@ -59,6 +59,10 @@
     </button>
   </div>
 
+  <!-- La tarjeta solo existe si HAY dato. `GET /storage/usage` pide `cloudstorage.settings.manage`:
+       a un empleado le responde 403 y `usage` queda en null, con lo que esto pintaba
+       "0.0 GB of — GB used" — una cifra inventada para alguien que además no puede consultarla. -->
+  @if (usage) {
   <button type="button" (click)="openStorage.emit()"
     class="flex flex-col gap-1.5 border-t border-gray-100 px-3.5 py-3 text-left transition-colors hover:bg-gray-50">
     <span class="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
@@ -69,4 +73,5 @@
     </span>
     <span class="text-[11px] text-gray-400">{{ usedGb }} GB of {{ maxGb }} GB used</span>
   </button>
+  }
 </nav>

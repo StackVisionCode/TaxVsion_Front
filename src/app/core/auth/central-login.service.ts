@@ -6,6 +6,7 @@ import { ApiConfigService } from '../config/api-config.service';
 import { TokenService } from './token.service';
 import { AuthTokens } from './auth.model';
 import {
+  AccountKind,
   DiscoverLoginResponse,
   DiscoverOutcome,
   HandoffSession,
@@ -24,19 +25,39 @@ export class CentralLoginService {
   private readonly api = inject(ApiConfigService);
   private readonly tokenService = inject(TokenService);
 
-  /** Paso 1: password contra cada oficina. */
-  discover(email: string, password: string): Observable<DiscoverOutcome> {
+  /**
+   * Paso 1: password contra cada oficina. `accountKind` acota a un tipo de cuenta (el login del portal pide
+   * solo cuentas Portal); sin él se autentican ambas y una oficina puede aparecer dos veces.
+   */
+  discover(email: string, password: string, accountKind?: AccountKind): Observable<DiscoverOutcome> {
     return this.http
-      .post<DiscoverLoginResponse>(`${this.api.systemBase()}/auth/discover-login`, { email, password })
+      .post<DiscoverLoginResponse>(`${this.api.systemBase()}/auth/discover-login`, {
+        email,
+        password,
+        accountKind,
+        // Si este navegador ya quedó marcado como de confianza, el backend omite el segundo factor.
+        // Viaja siempre: quién es su dueño lo decide el servidor, no el cliente.
+        deviceToken: this.tokenService.getDeviceToken(),
+      })
       .pipe(map(res => interpret(res)));
   }
 
   /** Paso 2 (selector/MFA): elige oficina y resuelve el segundo factor; devuelve el vale. */
-  handoff(sessionRef: string, chosenTenantId: string, mfaCode: string | null): Observable<HandoffTicketView> {
+  handoff(
+    sessionRef: string,
+    chosenTenantId: string,
+    mfaCode: string | null,
+    accountKind: AccountKind,
+    rememberDevice = false,
+  ): Observable<HandoffTicketView> {
     return this.http.post<HandoffTicketView>(`${this.api.systemBase()}/auth/session/handoff`, {
       discoverySessionRef: sessionRef,
       chosenTenantId,
       mfaCode: mfaCode || null,
+      accountKind,
+      // El backend solo lo honra si de verdad hubo reto y el código fue del autenticador: un código
+      // de recuperación no deja el equipo marcado.
+      rememberDevice,
     });
   }
 
@@ -86,6 +107,9 @@ function toTokens(session: HandoffSession): AuthTokens {
     accessToken: session.accessToken!,
     refreshToken: session.refreshToken!,
     expiresInSeconds: session.expiresInSeconds,
+    // `TokenService` lo persiste aparte y lo conserva al cerrar sesión: es del navegador, no de
+    // la sesión.
+    deviceToken: session.deviceToken ?? null,
   };
 }
 

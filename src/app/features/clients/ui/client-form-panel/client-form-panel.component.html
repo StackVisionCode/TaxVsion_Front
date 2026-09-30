@@ -95,10 +95,10 @@
 
         <div class="grid grid-cols-2 gap-3">
           <!-- En edición el SSN se cambia desde "Tax profile": el PUT reemplaza el perfil fiscal entero -->
-          <div *ngIf="isEditMode(); else ssnField"
+          <div *ngIf="isEditMode() || !canSetFiscal(); else ssnField"
             class="flex h-11 items-center gap-2 rounded-full border border-dashed border-gray-200 px-4 text-xs text-gray-400">
             <ion-icon name="shield-checkmark-outline" class="shrink-0 text-sm"></ion-icon>
-            <span class="truncate">SSN is edited from Tax profile</span>
+            <span class="truncate">{{ canSetFiscal() ? 'SSN is edited from Tax profile' : 'SSN is set by an administrator' }}</span>
           </div>
           <ng-template #ssnField>
           <div>
@@ -137,10 +137,10 @@
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <div *ngIf="isEditMode(); else einField"
+          <div *ngIf="isEditMode() || !canSetFiscal(); else einField"
             class="flex h-11 items-center gap-2 rounded-full border border-dashed border-gray-200 px-4 text-xs text-gray-400">
             <ion-icon name="shield-checkmark-outline" class="shrink-0 text-sm"></ion-icon>
-            <span class="truncate">EIN is edited from Tax profile</span>
+            <span class="truncate">{{ canSetFiscal() ? 'EIN is edited from Tax profile' : 'EIN is set by an administrator' }}</span>
           </div>
           <ng-template #einField>
           <div>
@@ -234,8 +234,10 @@
         </label>
       </div>
 
-      <!-- Active toggle -->
-      <div class="flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
+      <!-- Active toggle. Cambiar el estado es una llamada aparte con su propio permiso: si no se
+           puede hacer, mostrar el interruptor solo promete algo que no va a pasar. -->
+      <div *ngIf="canChangeStatus()"
+        class="flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
         <span class="text-sm font-medium text-gray-700">Active client</span>
         <button type="button" (click)="isActive.set(!isActive())" class="relative h-6 w-11 rounded-full transition-colors"
           [ngClass]="isActive() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="isActive()">
@@ -246,6 +248,11 @@
     </div>
 
     @if (saveError()) { <p class="field-err mt-3 text-sm text-red-600">{{ saveError() }}</p> }
+    <!-- El alta salió, pero algo de lo que se pidió no entró. Decirlo es el punto: antes se
+         perdía en silencio. -->
+    @if (partialSaveWarning()) {
+      <p class="mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">{{ partialSaveWarning() }}</p>
+    }
 
     <div class="mt-5 flex items-center justify-end gap-2">
       <button type="button" (click)="close()"

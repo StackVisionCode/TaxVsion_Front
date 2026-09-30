@@ -1,3 +1,5 @@
+import { landingUrl } from '@core/config/landing';
+
 /**
  * Contratos del backend Growth (bounded context Referrals) expuestos vía Gateway.
  *
@@ -92,12 +94,7 @@ export function referralCodeIdempotencyKey(tenantId: string, userId: string, pro
   return `referral-code:v1:${tenantId}:${programId}:${userId}`;
 }
 
-/**
- * Enlace compartible. El wizard pago-primero vive en `/register`; el backend no
- * documenta un formato de link de referido, así que se asume `?referral=<code>`.
- * OJO (follow-up): hoy el wizard de /register NO lee `?referral=` ni manda
- * referralCode en el checkout (solo la página vieja de /onboarding lee `?ref=`).
- */
+/** Enlace compartible al alta del Landing, que precarga el código en el checkout. */
 export function buildReferralLink(referralCode: string): string {
-  return `${window.location.origin}/register?referral=${encodeURIComponent(referralCode)}`;
+  return landingUrl(`/register?referral=${encodeURIComponent(referralCode)}`);
 }

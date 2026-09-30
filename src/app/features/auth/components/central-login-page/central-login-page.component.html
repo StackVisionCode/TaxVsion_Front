@@ -119,6 +119,7 @@
           <p class="mt-6 text-center text-sm text-gray-600">
             <a
               routerLink="/forgot-password"
+              [queryParams]="portal ? { account: 'portal' } : null"
               class="font-semibold text-indigo-600 hover:text-indigo-500"
               >Forgot your password?</a
             >
@@ -175,6 +176,17 @@
               placeholder="123456"
               class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
             />
+            <!-- Marcar el equipo evita el código en los próximos inicios de sesión DESDE ESTE
+                 navegador. El backend decide si lo honra. -->
+            <label class="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer">
+              <input
+                type="checkbox"
+                [checked]="rememberDevice()"
+                (change)="toggleRememberDevice()"
+                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500/30"
+              />
+              Don't ask for a code on this device again
+            </label>
             <button
               type="button"
               (click)="submitMfa(office)"
@@ -223,7 +235,7 @@
           }
 
           <ul class="mt-6 space-y-3">
-            @for (office of offices(); track office.tenantId) {
+            @for (office of offices(); track officeKey(office)) {
               <li class="rounded-xl border border-gray-200 overflow-hidden">
                 <button
                   type="button"
@@ -238,6 +250,11 @@
                     <span class="block text-xs text-gray-500 truncate"
                       >{{ office.subdomain }}.taxproffice.com</span
                     >
+                    @if (office.isClientPortal) {
+                      <span class="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600"
+                        >Client portal</span
+                      >
+                    }
                   </span>
                   <span class="flex items-center gap-2 shrink-0">
                     @if (office.mfaRequired) {
@@ -253,16 +270,16 @@
                   </span>
                 </button>
 
-                @if (mfaOfficeId() === office.tenantId) {
+                @if (mfaOfficeId() === officeKey(office)) {
                   <div class="px-4 pb-4 pt-1 space-y-3 bg-indigo-50/40">
                     <label
-                      [for]="'mfa-' + office.tenantId"
+                      [for]="'mfa-' + officeKey(office)"
                       class="block text-xs font-medium text-gray-700"
                     >
                       Enter your verification code
                     </label>
                     <input
-                      [id]="'mfa-' + office.tenantId"
+                      [id]="'mfa-' + officeKey(office)"
                       type="text"
                       inputmode="numeric"
                       autocomplete="one-time-code"

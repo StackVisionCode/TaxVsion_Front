@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject } from '@angular/core';
 import {
   FileResponse,
   FolderResponse,
@@ -8,6 +8,7 @@ import {
   isFileReady,
   kindFromFileName,
 } from '../../data-access/documents.model';
+import { DocumentsPermissions } from '../../data-access/documents-permissions';
 
 /** Acción emitida por una fila; la página (contenedor smart) la ejecuta contra el store. */
 export type FileRowAction =
@@ -44,6 +45,12 @@ const KIND_ICON: Record<string, string> = {
   styleUrl: './file-list.component.css',
 })
 export class FileListComponent {
+  /**
+   * B6 — las acciones de fila se gatean acá y no por `@Input`: son ocho botones en dos vistas y
+   * pasarlas una por una desde la página solo multiplica los sitios donde olvidarse de una.
+   */
+  protected readonly can = inject(DocumentsPermissions);
+
   @Input() subfolders: FolderResponse[] = [];
   @Input() files: FileResponse[] = [];
   @Input() loading = false;

@@ -50,11 +50,18 @@ export interface PortalUserResponse {
   customerId: string | null;
 }
 
-/** Respuesta de `POST /customers/{id}/portal-invitations` (202). */
+/**
+ * Desenlace de pedir el acceso al portal: se envió la invitación, se reenvió la que estaba pendiente, o el
+ * cliente ya tiene su portal activo (no se envía nada).
+ */
+export type PortalInvitationStatus = 'Invited' | 'Resent' | 'AlreadyActive';
+
+/** Respuesta de `POST /customers/{id}/portal-invitations` (200). Los rechazos llegan como error con motivo. */
 export interface RequestPortalInvitationResponse {
   customerId: string;
   email: string;
-  status: string;
+  status: PortalInvitationStatus;
+  expiresAtUtc: string | null;
 }
 
 // ---------- Estado derivado ----------

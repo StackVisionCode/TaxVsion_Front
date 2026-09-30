@@ -85,13 +85,70 @@ export interface RoleSummary {
   assignableActorTypes: UserActorType[];
 }
 
-/** GET /auth/permissions (PermissionResponse) — catálogo global, no por tenant. */
+/**
+ * GET /auth/permissions (PermissionResponse) — el catálogo con las banderas del techo de delegación.
+ *
+ * Las banderas son ADITIVAS: el backend viejo devuelve solo los cinco campos de siempre, así que
+ * todas son opcionales y el picker las trata con el valor más permisivo cuando faltan (si no sabe
+ * que algo no es concedible, deja intentarlo y el backend decide).
+ */
 export interface PermissionInfo {
   id: string;
   code: string;
   module: string;
   description: string;
   isCustomerPortal: boolean;
+  /**
+   * Si HOY el tenant puede ponerlo en un rol custom: catálogo ∩ asignable ∩ tier ∩ módulo
+   * habilitado − PlatformOnly − peligrosas − reservadas. Es la única bandera que hay que mirar
+   * para decidir si se ofrece; las otras existen para poder decir POR QUÉ no.
+   */
+  grantable?: boolean;
+  /** Exclusivo de la plataforma: ningún rol de tenant puede tenerlo. */
+  platformOnly?: boolean;
+  /** De riesgo alto: solo por asignación explícita al rol raíz, nunca en un rol custom. */
+  isDangerous?: boolean;
+  /** Declarado pero sin ningún endpoint que lo exija todavía. */
+  isReserved?: boolean;
+  /** El tenant no puede asignarlo por sí mismo. */
+  isAssignableByTenant?: boolean;
+  /** Tier mínimo de plan que lo expone (0 = Starter). */
+  minPlanTier?: number;
+  /** Módulo con el que lo mide el gate de entitlements, o null si es transversal. */
+  gateModule?: string | null;
+  /** Actor types que pueden llegar a tenerlo a través de un rol. */
+  allowedActorTypes?: string[];
+}
+
+/** Por qué un permiso no se puede conceder hoy. Null = sí se puede. */
+export type NotGrantableReason = 'platform' | 'dangerous' | 'reserved' | 'plan' | 'not_assignable';
+
+/** Un usuario con el rol asignado (GET /auth/roles/{id}/users). */
+export interface RoleUser {
+  id: string;
+  name: string;
+  lastName: string;
+  email: string;
+  actorType: string;
+  isActive: boolean;
+}
+
+/**
+ * Body de `POST /auth/roles`. El backend recibe los **ids** de los permisos, no sus códigos
+ * (`CreateRoleRequest(..., IReadOnlyList<Guid> PermissionIds, ...)`). Los códigos son lo que se
+ * muestra y lo que devuelve el rol; la traducción la hace `RolesStore` con el catálogo.
+ */
+export interface CreateRoleRequest {
+  name: string;
+  description: string | null;
+  permissionIds: string[];
+  /** Actor type destino; null se valida contra staff. */
+  targetActorType?: string | null;
+}
+
+export interface UpdateRoleRequest {
+  name: string;
+  description: string | null;
 }
 
 /** GET /auth/tenants/limits (TenantLimitsResponse): plan, asientos usados/disponibles e invitaciones. */
@@ -151,7 +208,19 @@ export interface UserEffectiveAccess {
  * replace-set: the given ids fully replace the previous deny set; an empty array clears every override.
  */
 export interface SetPermissionOverridesRequest {
-  deniedPermissionIds: string[];
+  deniedPermissionIds?: string[];
+  /**
+   * La forma con razón y expiración. Si viene, el backend usa ésta y NO `deniedPermissionIds`.
+   * Se manda siempre desde B9: un deny sin motivo escrito es un misterio para quien lo herede.
+   */
+  denies?: PermissionDeny[];
+}
+
+/** Un deny con su motivo y su vencimiento. Sin `expiresAtUtc` es indefinido. */
+export interface PermissionDeny {
+  permissionId: string;
+  reason: string | null;
+  expiresAtUtc: string | null;
 }
 
 // ---------- Offboarding (punto 3.2): preview de impacto + sucesor ----------

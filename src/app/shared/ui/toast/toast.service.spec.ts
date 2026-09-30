@@ -46,4 +46,63 @@ describe('ToastService', () => {
     svc.dismiss(id); // ya saliendo → retiro inmediato
     expect(svc.toasts()).toHaveLength(0);
   });
+
+  // Varios widgets fallando a la vez apilaban un toast idéntico por fallo.
+  it('does not stack identical toasts: the visible one just lives longer', () => {
+    const svc = new ToastService();
+    svc.error('Something went wrong. Please try again.');
+    vi.advanceTimersByTime(3000);
+    svc.error('Something went wrong. Please try again.');
+
+    expect(svc.toasts()).toHaveLength(1);
+    vi.advanceTimersByTime(3000); // la vida se reinició con el segundo
+    expect(svc.toasts()[0].leaving).toBeFalsy();
+  });
+
+  it('countdown shows a single keyed toast that counts down and closes at zero', () => {
+    const svc = new ToastService();
+    svc.countdown('throttle', 'info', 3, s => `Try again in ${s}s`);
+
+    expect(svc.toasts()).toHaveLength(1);
+    expect(svc.toasts()[0]).toMatchObject({ key: 'throttle', message: 'Try again in 3s' });
+
+    vi.advanceTimersByTime(1000);
+    expect(svc.toasts()[0].message).toBe('Try again in 2s');
+
+    vi.advanceTimersByTime(2000); // llega a 0 → sale
+    vi.advanceTimersByTime(200);
+    expect(svc.toasts()).toHaveLength(0);
+  });
+
+  it('a second countdown with the same key extends the wait instead of stacking', () => {
+    const svc = new ToastService();
+    svc.countdown('throttle', 'info', 2, s => `${s}`);
+    svc.countdown('throttle', 'info', 10, s => `${s}`);
+
+    expect(svc.toasts()).toHaveLength(1);
+    expect(svc.toasts()[0].message).toBe('10');
+  });
+
+  it('while a countdown is visible, screen toasts saying the same thing are absorbed', () => {
+    const svc = new ToastService();
+    svc.error('Too fast.'); // ya estaba en pantalla antes del aviso
+    svc.countdown('throttle', 'info', 30, s => `Too fast. Wait ${s}s`, ['Too fast.']);
+
+    svc.error('Too fast.'); // lo que levanta la pantalla después del mismo 429
+    svc.error('Other error');
+
+    vi.advanceTimersByTime(200); // termina la salida del toast reemplazado
+    expect(svc.toasts().map(t => t.message)).toEqual(['Too fast. Wait 30s', 'Other error']);
+  });
+
+  it('dismissing a countdown by hand stops its ticking', () => {
+    const svc = new ToastService();
+    svc.countdown('throttle', 'info', 30, s => `${s}`, ['x']);
+
+    svc.dismiss(svc.toasts()[0].id);
+    vi.advanceTimersByTime(5000);
+    svc.error('x'); // ya no hay aviso activo que lo absorba
+
+    expect(svc.toasts().map(t => t.message)).toEqual(['x']);
+  });
 });

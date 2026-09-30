@@ -32,32 +32,32 @@
             class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
             <ion-icon name="ribbon-outline" class="text-base text-brand-bold"></ion-icon>
             <span class="text-xs font-medium text-gray-600">Default signature: {{ sig.label }}</span>
-            <button type="button" (click)="openProfilesManager()"
+            <button *ngIf="can.canManagePreparerProfiles()" type="button" (click)="openProfilesManager()"
               class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Manage</button>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button type="button" (click)="openProfilesManager()"
+          <button *ngIf="can.canManagePreparerProfiles()" type="button" (click)="openProfilesManager()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             My signature
           </button>
-          <button type="button" (click)="openTemplatePicker()"
+          <button *ngIf="can.canCreate()" type="button" (click)="openTemplatePicker()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="documents-outline" class="text-base"></ion-icon>
             From template
           </button>
-          <a routerLink="/signature/templates"
+          <a *ngIf="can.canEditTemplates()" routerLink="/signature/templates"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="settings-outline" class="text-base"></ion-icon>
             Manage templates
           </a>
-          <button type="button" (click)="openCategoryManager()"
+          <button *ngIf="can.canCreate()" type="button" (click)="openCategoryManager()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
             Categories
           </button>
-          <button type="button" (click)="openCreatePanel()"
+          <button *ngIf="can.canCreate()" type="button" (click)="openCreatePanel()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
             New Signature Request

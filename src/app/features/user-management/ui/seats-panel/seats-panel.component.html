@@ -1,0 +1,140 @@
+<p *ngIf="store.actionError() as error"
+  class="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+  {{ error }}
+</p>
+
+<p *ngIf="store.loading()" class="mb-3 text-sm text-gray-400">Loading seats…</p>
+
+<div *ngIf="store.error() as error" class="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+  <p>{{ error }}</p>
+  <button type="button" (click)="store.load()"
+    class="mt-3 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
+    Retry
+  </button>
+</div>
+
+<ng-container *ngIf="!store.loading() && !store.error()">
+  <div *ngIf="store.seats().length > 0; else noSeats" class="overflow-x-auto">
+    <table class="w-full min-w-[680px] text-left text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
+          <th class="pb-2 font-medium">Type</th>
+          <th class="pb-2 font-medium">Status</th>
+          <th class="pb-2 font-medium">Assigned to</th>
+          <th class="pb-2 font-medium">Renews</th>
+          <th class="pb-2 font-medium text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let seat of store.seats()" class="border-b border-gray-50 last:border-0">
+          <td class="py-3 pr-4 font-medium text-gray-900">{{ seat.type }}</td>
+          <td class="py-3 pr-4">
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium"
+              [ngClass]="{
+                'bg-emerald-50 text-emerald-700': tone(seat.status) === 'active',
+                'bg-amber-50 text-amber-700': tone(seat.status) === 'warning',
+                'bg-gray-100 text-gray-500': tone(seat.status) === 'ended' || tone(seat.status) === 'neutral'
+              }">
+              {{ seat.status }}
+            </span>
+          </td>
+          <td class="py-3 pr-4 text-gray-700">{{ userLabel(seat.currentUserId) }}</td>
+          <td class="py-3 pr-4 text-gray-500">
+            {{ date(seat.nextRenewalAtUtc) ? (date(seat.nextRenewalAtUtc) | date: 'mediumDate') : '—' }}
+            <span *ngIf="!seat.autoRenew" class="ml-1 text-xs text-amber-600">(manual)</span>
+          </td>
+          <td class="py-3 text-right">
+            <div class="flex items-center justify-end gap-1">
+              <button type="button" (click)="openAssign(seat)" [disabled]="store.busy()"
+                class="rounded-full px-3 py-1 text-xs font-medium text-brand-bold transition-colors hover:bg-gray-50 disabled:opacity-50">
+                {{ seat.currentUserId ? 'Reassign' : 'Assign' }}
+              </button>
+              <button *ngIf="seat.currentUserId" type="button" (click)="openRelease(seat)" [disabled]="store.busy()"
+                class="rounded-full px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50">
+                Release
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #noSeats>
+    <p class="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
+      No seats yet. Buy one to assign it to a teammate.
+    </p>
+  </ng-template>
+
+  <app-pagination [currentPage]="store.page()" [totalItems]="store.total()" [pageSize]="store.pageSize"
+    (pageChange)="store.load($event)" class="mt-2 block"></app-pagination>
+</ng-container>
+
+<app-modal [isOpen]="assignTarget() !== null" [heading]="isReassign() ? 'Reassign seat' : 'Assign seat'" size="md"
+  (closed)="assignTarget.set(null)">
+  <div class="space-y-4">
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Teammate</label>
+      <select [ngModel]="assignUserId()" (ngModelChange)="assignUserId.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option value="">Select a teammate…</option>
+        <option *ngFor="let user of teammates()" [value]="user.id">
+          {{ user.name }} — {{ user.email }}
+        </option>
+      </select>
+      <p *ngIf="teammates().length === 0" class="text-xs text-amber-700">
+        The teammate list couldn't be loaded, so there's nobody to pick here.
+      </p>
+    </div>
+
+    <div *ngIf="isReassign()" class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Reason <span class="text-gray-400">(optional)</span></label>
+      <input type="text" [ngModel]="assignReason()" (ngModelChange)="assignReason.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+
+    <p *ngIf="store.actionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="assignTarget.set(null)" [disabled]="store.busy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmAssign()" [disabled]="!assignUserId() || store.busy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.busy() ? 'Saving…' : (isReassign() ? 'Reassign' : 'Assign') }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<app-modal [isOpen]="releaseTarget() !== null" heading="Release seat" size="md" (closed)="releaseTarget.set(null)">
+  <div class="space-y-4">
+    <p class="text-sm text-gray-600">
+      This frees the seat from {{ userLabel(releaseTarget()?.currentUserId ?? null) }}. It stays on your plan and can
+      be assigned again.
+    </p>
+    <div class="space-y-1.5">
+      <label class="block text-sm font-medium text-gray-800">Reason <span class="text-gray-400">(optional)</span></label>
+      <input type="text" [ngModel]="releaseReason()" (ngModelChange)="releaseReason.set($event)"
+        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+    </div>
+
+    <p *ngIf="store.actionError() as error" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </p>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+      <button type="button" (click)="releaseTarget.set(null)" [disabled]="store.busy()"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+        Cancel
+      </button>
+      <button type="button" (click)="confirmRelease()" [disabled]="store.busy()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+        {{ store.busy() ? 'Releasing…' : 'Release' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

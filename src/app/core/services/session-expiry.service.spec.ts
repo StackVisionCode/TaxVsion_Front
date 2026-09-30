@@ -82,6 +82,18 @@ describe('SessionExpiryService', () => {
     expect(extended).toHaveBeenCalledTimes(1);
   });
 
+  it('un refresh que falló de forma pasajera (429/503/red) se reintenta en el próximo chequeo', () => {
+    const extended = vi.fn();
+    service.sessionExtended$.subscribe(extended);
+
+    tokens.remaining = 60;
+    vi.advanceTimersByTime(10_000);
+    service.refreshFailed();
+    vi.advanceTimersByTime(10_000);
+
+    expect(extended).toHaveBeenCalledTimes(2);
+  });
+
   it('muestra el aviso tras superar la inactividad', () => {
     const states: boolean[] = [];
     service.expiryState$.subscribe(s => states.push(s.show));

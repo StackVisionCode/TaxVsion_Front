@@ -1,7 +1,8 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
-import { permissionGuard } from '@core/auth/permission.guard';
+import { accessCanActivateChild, accessCanMatch } from '@core/access/access.guard';
+import { redirectToLandingGuard } from '@core/config/landing';
 
 /**
  * Convención de precarga (ver `PacedPreloadStrategy` en core/performance):
@@ -35,24 +36,11 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
   },
   {
-    // Alta self-service pública (fuera del shell/authGuard): plan → cuenta → MFA → pago.
-    path: 'signup',
-    data: { preload: false },
-    loadChildren: () => import('./features/signup/signup.routes').then(m => m.SIGNUP_ROUTES),
-  },
-  {
-    // Alta PAGO-PRIMERO pública (fuera del shell/authGuard): email OTP → plan → códigos+pago (Stripe
-    // o cubierto 100%) → email de registro. Ejercita el flujo /onboarding/* con gift/promo/referido.
-    path: 'onboarding',
-    data: { preload: false },
-    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.ONBOARDING_ROUTES),
-  },
-  {
-    // Link emailado post-pago ({RegistrationUrlBase}/register?token=...) y, sin token, el wizard
-    // de compra nuevo. Fuera del shell/authGuard: el comprador todavía no tiene cuenta.
+    // El alta vive en el Landing. Los enlaces viejos a /register* (correo post-pago, referidos
+    // compartidos) se reenvían allí con la misma ruta y query.
     path: 'register',
-    data: { preload: false },
-    loadChildren: () => import('./features/onboarding/onboarding.routes').then(m => m.REGISTER_ROUTES),
+    canActivate: [redirectToLandingGuard],
+    children: [{ path: '**', children: [] }],
   },
   {
     // Canje de invitación de equipo: el invitado llega del correo que emite Notification
@@ -155,83 +143,94 @@ export const routes: Routes = [
       import('./features/invoice-checkout/components/invoice-checkout-page/invoice-checkout-page.component').then(
         m => m.InvoiceCheckoutPageComponent
       ),
-    title: 'Pagar factura',
+    title: 'Pay invoice',
   },
   {
     path: '',
     component: AppShellComponent,
-    canActivateChild: [authGuard],
+    canActivateChild: [authGuard, accessCanActivateChild],
     children: [
       {
         path: 'dashboard',
+        data: { feature: 'dashboard' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/dashboard/dashboard.routes').then(m => m.DASHBOARD_ROUTES),
       },
       {
         // Facturación del tenant: facturas (Billing), links de pago y proveedor de cobro
         // (PaymentClient) y datos de la empresa que se estampan en el PDF (Billing + Documents).
         path: 'billing',
+        data: { feature: 'billing' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/billing/billing.routes').then(m => m.BILLING_ROUTES),
       },
       {
         path: 'plans',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'plans' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/plans/plans.routes').then(m => m.PLANS_ROUTES),
       },
       {
-        // Arrastra el SDK de Stripe y solo se visita desde el flujo de compra.
-        path: 'checkout',
-        data: { preload: false },
-        loadChildren: () => import('./features/checkout/checkout.routes').then(m => m.CHECKOUT_ROUTES),
-      },
-      {
-        path: 'subscription',
-        data: { preloadPriority: 'low' },
-        loadChildren: () =>
-          import('./features/subscription/subscription.routes').then(m => m.SUBSCRIPTION_ROUTES),
-      },
-      {
         path: 'workflow',
+        data: { feature: 'workflow' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/workflow/workflow.routes').then(m => m.WORKFLOW_ROUTES),
       },
       {
         path: 'documents',
+        data: { feature: 'documents' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/documents/documents.routes').then(m => m.DOCUMENTS_ROUTES),
       },
       {
         path: 'support',
+        data: { feature: 'support' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/support/support.routes').then(m => m.SUPPORT_ROUTES),
       },
       {
         path: 'settings',
+        data: { feature: 'settings' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/settings/settings.routes').then(m => m.SETTINGS_ROUTES),
       },
       {
         path: 'products-services',
+        data: { feature: 'catalog' },
+        canMatch: [accessCanMatch],
         loadChildren: () =>
           import('./features/products-services/products-services.routes').then(m => m.PRODUCTS_SERVICES_ROUTES),
       },
       {
         path: 'ai-assistant',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'ai-assistant' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/ai-assistant/ai-assistant.routes').then(m => m.AI_ASSISTANT_ROUTES),
       },
       {
         path: 'chat',
+        data: { feature: 'chat' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/chat/chat.routes').then(m => m.CHAT_ROUTES),
       },
       {
         path: 'email',
+        data: { feature: 'email' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/mail/mail.routes').then(m => m.MAIL_ROUTES),
       },
       {
         path: 'task',
+        data: { feature: 'task' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/task/task.routes').then(m => m.TASK_ROUTES),
       },
       {
         // mediasoup-client pesa ~316 kB sin comprimir y solo lo necesita quien entra a una
         // videollamada. Se precarga a demanda desde el hover del sidebar.
         path: 'meetings',
-        data: { preload: false },
+        data: { preload: false, feature: 'meetings' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/meetings/meetings.routes').then(m => m.MEETINGS_ROUTES),
       },
       {
@@ -242,65 +241,110 @@ export const routes: Routes = [
       },
       {
         path: 'campaigns',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'campaigns' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/campaigns/campaigns.routes').then(m => m.CAMPAIGNS_ROUTES),
       },
       {
         // Arrastra pdf.js: es el chunk más grande de la app (~430 kB sin comprimir). Se
         // precarga a demanda desde el hover del sidebar.
         path: 'signature',
-        data: { preload: false },
+        data: { preload: false, feature: 'signature' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/signature/signature.routes').then(m => m.SIGNATURE_ROUTES),
       },
       {
         path: 'clients',
+        data: { feature: 'clients' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/clients/clients.routes').then(m => m.CLIENTS_ROUTES),
       },
       {
         path: 'profile',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'profile' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/profile/profile.routes').then(m => m.PROFILE_ROUTES),
       },
       {
         path: 'company/users',
+        data: { feature: 'users' },
+        canMatch: [accessCanMatch],
         loadChildren: () =>
           import('./features/user-management/user-management.routes').then(m => m.USER_MANAGEMENT_ROUTES),
       },
       {
         path: 'company/settings',
+        data: { feature: 'company-settings' },
+        canMatch: [accessCanMatch],
         loadChildren: () =>
           import('./features/company-settings/company-settings.routes').then(m => m.COMPANY_SETTINGS_ROUTES),
       },
       {
         path: 'notifications',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'notifications' },
+        canMatch: [accessCanMatch],
         loadChildren: () =>
           import('./features/notifications/notifications.routes').then(m => m.NOTIFICATIONS_ROUTES),
       },
       {
         path: 'referrals',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'referrals' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/referrals/referrals.routes').then(m => m.REFERRALS_ROUTES),
       },
       {
         path: 'inventory',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'inventory' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/inventory/inventory.routes').then(m => m.INVENTORY_ROUTES),
       },
       {
         path: 'storage',
+        data: { feature: 'storage' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/storage/storage.routes').then(m => m.STORAGE_ROUTES),
       },
       {
         path: 'sms',
-        data: { preloadPriority: 'low' },
-        canActivate: [permissionGuard('sms.read')],
+        data: { preloadPriority: 'low', feature: 'sms' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/sms/sms.routes').then(m => m.SMS_ROUTES),
       },
       {
         path: 'templates',
-        data: { preloadPriority: 'low' },
+        data: { preloadPriority: 'low', feature: 'templates' },
+        canMatch: [accessCanMatch],
         loadChildren: () => import('./features/templates/templates.routes').then(m => m.TEMPLATES_ROUTES),
+      },
+      // Avisos de acceso. Van DENTRO del shell para que el usuario conserve el menú y pueda irse a
+      // otra parte, y sin `feature` para que el guard nunca las bloquee: una pantalla de aviso que
+      // se gatea a sí misma es un bucle de redirecciones.
+      {
+        path: 'forbidden',
+        data: { preload: false, kind: 'forbidden' },
+        loadComponent: () =>
+          import('./shared/ui/access-notice-page/access-notice-page.component').then(
+            m => m.AccessNoticePageComponent,
+          ),
+        title: 'No access',
+      },
+      {
+        path: 'not-available',
+        data: { preload: false, kind: 'not-available' },
+        loadComponent: () =>
+          import('./shared/ui/access-notice-page/access-notice-page.component').then(
+            m => m.AccessNoticePageComponent,
+          ),
+        title: 'Not in your plan',
+      },
+      {
+        path: 'error',
+        data: { preload: false, kind: 'error' },
+        loadComponent: () =>
+          import('./shared/ui/access-notice-page/access-notice-page.component').then(
+            m => m.AccessNoticePageComponent,
+          ),
+        title: 'Service unavailable',
       },
     ],
   },

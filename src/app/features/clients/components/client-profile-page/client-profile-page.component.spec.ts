@@ -88,7 +88,17 @@ async function setup(): Promise<{ component: ClientProfilePageComponent; store: 
     imports: [ClientProfilePageComponent],
     providers: [
       { provide: ClientsStore, useValue: store },
-      { provide: ClientPermissions, useValue: { canSetFiscalProfile: signal(true) } },
+      // canViewAssignees: el overview lo lee desde que existe la sección de asignados (Client Assignment).
+      {
+        provide: ClientPermissions,
+        useValue: {
+          canSetFiscalProfile: signal(true),
+          canViewAssignees: signal(false),
+          // B5: la cabecera y las pestañas Info/Family consultan estas dos.
+          canManage: signal(true),
+          canRevealFiscal: signal(true),
+        },
+      },
       { provide: ActivatedRoute, useValue: { paramMap: of(paramMap), snapshot: { paramMap } } },
     ],
   });

@@ -6,6 +6,7 @@ import { environment } from '@env/environment';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { TenantBrandingService } from '../theme/tenant-branding.service';
+import { ApiConfigService } from '../config/api-config.service';
 import { LoginRequest, LoginResponse } from './auth.model';
 
 describe('AuthService', () => {
@@ -138,5 +139,72 @@ describe('AuthService', () => {
       environment.production = originalProduction;
       environment.apiUrl = originalApiUrl;
     }
+  });
+
+  // Regresión: en dev se mandaba environment.tenantId y el reset buscaba al usuario solo en esa oficina.
+  it('el olvido de contraseña no manda la oficina en el body', () => {
+    environment.authMock = false;
+
+    service.forgotPassword('a@b.com').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/auth/password/forgot`);
+    expect(req.request.body).toEqual({ email: 'a@b.com', accountKind: 'Staff' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
+  });
+
+  // "Manage subscription": el vale sale de la sesión del CRM; el Landing lo canjea al llegar.
+  it('pide el vale para abrir el Account del Landing', () => {
+    environment.authMock = false;
+
+    service.requestAccountHandoff().subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/auth/account/handoff`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ ticket: 'tk-1', expiresInSeconds: 60 });
+  });
+
+  it('valida el enlace de reset sin mandar contraseña', () => {
+    environment.authMock = false;
+
+    service.validateResetToken('raw-1').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/auth/password/reset/validate`);
+    expect(req.request.body).toEqual({ token: 'raw-1' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
+  describe('olvido de contraseña en producción', () => {
+    const originalProduction = environment.production;
+    let api: ApiConfigService;
+
+    beforeEach(() => {
+      environment.production = true;
+      environment.authMock = false;
+      api = TestBed.inject(ApiConfigService);
+    });
+
+    afterEach(() => (environment.production = originalProduction));
+
+    it('en la dirección de una oficina va al host de esa oficina', () => {
+      vi.spyOn(api, 'officeFromHost').mockReturnValue('coretaxpro');
+      api.setSlug('coretaxpro');
+
+      service.forgotPassword('a@b.com').subscribe();
+
+      httpMock
+        .expectOne(`https://coretaxpro.${environment.baseDomain}/auth/password/forgot`)
+        .flush(null, { status: 202, statusText: 'Accepted' });
+    });
+
+    it('en la entrada general va al host de sistema aunque el navegador recuerde una oficina', () => {
+      vi.spyOn(api, 'officeFromHost').mockReturnValue(null);
+      api.setSlug('otra-oficina');
+
+      service.forgotPassword('a@b.com').subscribe();
+
+      httpMock
+        .expectOne(`https://${environment.systemHost}/auth/password/forgot`)
+        .flush(null, { status: 202, statusText: 'Accepted' });
+    });
   });
 });

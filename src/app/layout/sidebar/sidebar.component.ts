@@ -24,18 +24,20 @@ import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
-import { PermissionService } from '@core/auth/permission.service';
+import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import { ChatStore } from '@features/chat/data-access/chat.store';
 
 /**
- * Visual port of the production sidebar. Role/permission-based menu
- * filtering (AuthorizationService/AppRole) and the onboarding product tour
- * (TourService/AppTourStep) were removed entirely -- there is no auth system
- * or tour engine yet, so every menu item is shown unconditionally. Submenu
- * expand/collapse is kept as local UI state (pure signals, no backend)
- * even though none of the current placeholder items use a submenu, since
- * the original component supports it and future menu items might.
+ * El menu del CRM. Cada entrada declara QUE feature es (`featureId`) y el registro
+ * `core/access/features` dice que modulo del plan y que permissions hacen falta; quien contesta es
+ * el `AccessStore`. Acá solo viven el orden, la etiqueta y el icono.
+ *
+ * Antes la lista se mostraba entera y sin condiciones, con una sola excepcion escrita a mano
+ * (`requiredPermissions` en SMS). El resultado era el caso 4 del Anexo C: el empleado veia Meetings
+ * en el menu, entraba, y recien ahi el backend le contestaba 403.
+ *
+ * El submenu se conserva como estado local de UI aunque hoy ninguna entrada lo use.
  */
 @Component({
   selector: 'app-sidebar',
@@ -56,7 +58,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly chatStore = inject(ChatStore);
   private readonly injector = inject(Injector);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
-  private readonly perms = inject(PermissionService);
+  private readonly access = inject(AccessStore);
   private readonly destroy$ = new Subject<void>();
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
@@ -112,25 +114,34 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly indicatorReady = signal(false);
 
   readonly menuItems = signal<MenuItem[]>([
-    { label: 'Dashboard', icon: 'speedometer-outline', route: '/dashboard', isActive: false },
-    { label: 'Mail', icon: 'mail-outline', route: '/email' },
-    { label: 'Task', icon: 'checkmark-done-outline', route: '/task' },
-    { label: 'Clients', icon: 'people-outline', route: '/clients' },
-    { label: 'Documents', icon: 'document-text-outline', route: '/documents' },
-    { label: 'Billing', icon: 'receipt-outline', route: '/billing' },
-    { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services' },
-    { label: 'Inventory', icon: 'cube-outline', route: '/inventory' },
-    { label: 'Signature', icon: 'create-outline', route: '/signature' },
-    { label: 'SMS', icon: 'chatbox-ellipses-outline', route: '/sms', requiredPermissions: ['sms.read'] },
-    { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat' },
-    { label: 'Meetings', icon: 'videocam-outline', route: '/meetings' },
-    { label: 'Support', icon: 'headset-outline', route: '/support' },
-    { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns' },
-    { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', isSpecial: true },
-    { label: 'Workflow', icon: 'git-network-outline', route: '/workflow' },
-    { label: 'Subscription', icon: 'card-outline', route: '/subscription' },
-    { label: 'Settings', icon: 'settings-outline', route: '/settings' },
+    { label: 'Dashboard', icon: 'speedometer-outline', route: '/dashboard', featureId: 'dashboard', isActive: false },
+    { label: 'Mail', icon: 'mail-outline', route: '/email', featureId: 'email' },
+    { label: 'Task', icon: 'checkmark-done-outline', route: '/task', featureId: 'task' },
+    { label: 'Clients', icon: 'people-outline', route: '/clients', featureId: 'clients' },
+    { label: 'Documents', icon: 'document-text-outline', route: '/documents', featureId: 'documents' },
+    { label: 'Billing', icon: 'receipt-outline', route: '/billing', featureId: 'billing' },
+    { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services', featureId: 'catalog' },
+    { label: 'Inventory', icon: 'cube-outline', route: '/inventory', featureId: 'inventory' },
+    { label: 'Signature', icon: 'create-outline', route: '/signature', featureId: 'signature' },
+    { label: 'SMS', icon: 'chatbox-ellipses-outline', route: '/sms', featureId: 'sms' },
+    { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat', featureId: 'chat' },
+    { label: 'Meetings', icon: 'videocam-outline', route: '/meetings', featureId: 'meetings' },
+    { label: 'Support', icon: 'headset-outline', route: '/support', featureId: 'support' },
+    { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns', featureId: 'campaigns' },
+    { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', featureId: 'ai-assistant', isSpecial: true },
+    { label: 'Workflow', icon: 'git-network-outline', route: '/workflow', featureId: 'workflow' },
+    { label: 'Settings', icon: 'settings-outline', route: '/settings', featureId: 'settings' },
   ]);
+
+  /**
+   * Lo que se pinta. Es un `computed`, asi que cuando el bootstrap de acceso llega el menu se
+   * reacomoda solo, sin recargar la pagina.
+   *
+   * El filtro se hace ACA y no con un `*ngIf` dentro del `*ngFor`: con el `*ngIf`, la lista de
+   * botones del DOM quedaba mas corta que `menuItems()` y el pill deslizante, que busca el indice
+   * en la lista completa, se posaba sobre la fila equivocada en cuanto se ocultaba una entrada.
+   */
+  readonly visibleItems = computed(() => this.menuItems().filter(item => this.canShowItem(item)));
 
   ngOnInit(): void {
     // La sidebar arranca YA en su estado final. Antes se expandía en un setTimeout DESPUÉS
@@ -177,14 +188,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canShowItem(item: MenuItem): boolean {
-    // Los ítems sin requiredPermissions se muestran siempre; los que lo declaran se gatean
-    // por el permiso real de la sesión (p. ej. SMS → sms.read).
-    const required = item.requiredPermissions;
-    return !required || required.length === 0 || this.perms.hasAny(required);
+    return this.access.canUseId(item.featureId);
   }
 
-  canShowSubItem(_subItem: SubMenuItem): boolean {
-    return true;
+  canShowSubItem(subItem: SubMenuItem): boolean {
+    return this.access.canUseId(subItem.featureId);
   }
 
   /**
@@ -393,7 +401,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       return;
     }
 
-    const activeIndex = this.menuItems().findIndex((item) => item.isActive);
+    // Sobre la lista VISIBLE: es la que tiene un boton por fila en el DOM.
+    const activeIndex = this.visibleItems().findIndex((item) => item.isActive);
     const activeButton = activeIndex >= 0 ? buttons[activeIndex]?.nativeElement : undefined;
     if (!activeButton) {
       this.indicatorReady.set(false);

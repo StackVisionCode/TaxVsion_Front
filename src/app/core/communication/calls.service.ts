@@ -159,7 +159,10 @@ export class CallsService {
   private async emitOrThrow<T>(event: string, payload: object): Promise<T> {
     const ack = (await this.realtime.emitAck<T>(event, payload)) as SocketAck<T>;
     if (!ack.ok) {
-      throw new Error(ack.message || ack.code);
+      // Se conserva el `code` (igual que MeetingRtcService) para distinguir p.ej. Call.RateLimited.
+      const err = new Error(ack.message || ack.code) as Error & { code?: string };
+      err.code = ack.code;
+      throw err;
     }
     return ack.value;
   }

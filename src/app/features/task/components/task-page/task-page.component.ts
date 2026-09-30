@@ -16,6 +16,7 @@ import { ApiTaskPriority, TaskFormValue, TaskItem, TaskStatus } from '../../data
 import { HasPermissionDirective } from '@shared/directives/has-permission.directive';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { AccessStore } from '@core/access/access.store';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
 
@@ -46,6 +47,13 @@ type PriorityFilter = 'All' | ApiTaskPriority;
   templateUrl: './task-page.component.html',
 })
 export class TaskPageComponent {
+  /**
+   * B6 — la cabecera ya se gateaba con `*appHasPermission`; el tablero y el cajón no. Arrastrar
+   * una tarjeta es una escritura, aunque no lo parezca.
+   */
+  private readonly access = inject(AccessStore);
+  protected readonly canWrite = computed(() => this.access.can('tasks.write'));
+
   readonly store = inject(TaskStore);
   private readonly toast = inject(ToastService);
 

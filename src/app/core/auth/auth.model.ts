@@ -1,3 +1,5 @@
+import { AccountKind } from './central-login.model';
+
 /** Cuerpo de POST /auth/login. `tenantId` es obligatorio (lo aporta environment). */
 export interface LoginRequest {
   /**
@@ -56,10 +58,14 @@ export interface RefreshRequest {
   refreshToken: string;
 }
 
-/** Cuerpo de POST /auth/password/forgot. Siempre responde 202, exista o no el email (anti-enumeración). */
+/**
+ * Cuerpo de POST /auth/password/forgot. Siempre responde 202, exista o no el email (anti-enumeración). Sin
+ * oficina: el backend manda un link por cada cuenta del email.
+ */
 export interface ForgotPasswordRequest {
   email: string;
-  tenantId?: string | null;
+  /** Staff (espacio de trabajo) o Portal: la misma persona puede tener ambas cuentas con el mismo email. */
+  accountKind?: AccountKind;
 }
 
 /**
@@ -70,6 +76,17 @@ export interface ForgotPasswordRequest {
 export interface ResetPasswordRequest {
   token: string;
   newPassword: string;
+}
+
+/** Cuerpo de POST /auth/password/reset/validate: el mismo token del enlace, sin contraseña. */
+export interface ValidateResetTokenRequest {
+  token: string;
+}
+
+/** Respuesta de POST /auth/account/handoff: vale de un solo uso para abrir el Account del Landing. */
+export interface AccountHandoffResponse {
+  ticket: string;
+  expiresInSeconds: number;
 }
 
 export interface Tenant {

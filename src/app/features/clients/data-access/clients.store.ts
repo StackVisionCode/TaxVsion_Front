@@ -35,6 +35,17 @@ export const LIST_PAGE_SIZES = [10, 25, 50, 100] as const;
 const DEFAULT_SIZE = 25;
 const DEFAULT_STATUS: CustomerStatusFilter = 'NotArchived';
 
+/** El aviso exacto de lo que no se guardó, en inglés y sin jerga de API. */
+function partialSaveWarning(statusApplied: boolean, fiscalApplied: boolean): string | null {
+  if (statusApplied && fiscalApplied) {
+    return null;
+  }
+  const lost = [!statusApplied ? 'the active status' : null, !fiscalApplied ? 'the tax ID' : null]
+    .filter(Boolean)
+    .join(' and ');
+  return `The client was saved, but ${lost} could not be updated. Try again from the client profile.`;
+}
+
 export interface ClientSaveOptions {
   /** SSN/ITIN o EIN a persistir vía PUT fiscal-profile. Vacío = no tocar el perfil fiscal. Best-effort (requiere TenantAdmin). */
   taxIdentifier: string;
@@ -331,30 +342,68 @@ export class ClientsStore {
     return this.service.revokeAccess(id, userId).pipe(tap(() => this.afterAssignmentMutation(id)));
   }
 
-  /** Tras crear/actualizar: aplica el toggle Active/Inactive del form y, si hay SSN/EIN, el perfil fiscal. Ambos best-effort. */
+  /**
+   * Tras crear/actualizar: aplica el toggle Active/Inactive y, si hay SSN/EIN, el perfil fiscal.
+   * Son dos llamadas aparte y cualquiera puede fallar sin tumbar el alta, que ya ocurrió.
+   *
+   * B5 — lo que NO se hace más: dar por hecho que salieron bien. Antes se devolvía
+   * `isActive: options.isActive` pasara lo que pasara, así que un 403 en `changeStatus` dejaba la
+   * fila pintada como activa mientras el backend la tenía inactiva, y el usuario no se enteraba.
+   * Ahora el estado que se devuelve es el que el servidor confirmó, y lo que se perdió se avisa.
+   *
+   * El otro lado del arreglo está en el formulario: los campos que el usuario no puede guardar ya
+   * no se muestran, así que estos fallos dejan de ser "no tenías permiso" y pasan a ser errores
+   * de verdad.
+   */
   private finishSave(customer: Customer, options: ClientSaveOptions): Observable<ClientItem> {
     const item = customerToClientItem(customer);
     const statusAction = this.statusActionFor(customer.status, options.isActive);
-    const statusCall = statusAction
-      ? this.service.changeStatus(customer.id, statusAction).pipe(catchError(() => of(undefined)))
-      : of(undefined);
+    const statusCall: Observable<boolean> = statusAction
+      ? this.service.changeStatus(customer.id, statusAction).pipe(
+          map(() => true),
+          catchError(() => of(false)),
+        )
+      : of(true);
 
     const taxIdentifier = options.taxIdentifier.trim();
-    const fiscalCall = taxIdentifier
-      ? this.service
-          .setFiscalProfile(customer.id, {
-            subjectKind: options.subjectKind,
-            taxIdentifier,
-            isReturningCustomer: false,
-          })
-          // PUT fiscal-profile requiere rol TenantAdmin — un TenantEmployee recibe 403 sin bloquear el guardado.
-          .pipe(catchError(() => of(undefined)))
-      : of(undefined);
 
     return statusCall.pipe(
-      switchMap(() => fiscalCall),
-      map(() => ({ ...item, isActive: options.isActive })),
+      switchMap(statusApplied => {
+        const fiscalCall: Observable<boolean> = taxIdentifier
+          ? this.service
+              .setFiscalProfile(customer.id, {
+                subjectKind: options.subjectKind,
+                taxIdentifier,
+                isReturningCustomer: false,
+              })
+              .pipe(
+                map(() => true),
+                catchError(() => of(false)),
+              )
+          : of(true);
+
+        return fiscalCall.pipe(
+          map(fiscalApplied => {
+            this._partialSaveWarning.set(partialSaveWarning(statusApplied, fiscalApplied));
+            // El estado real: el pedido solo si el servidor lo aceptó.
+            const isActive = statusApplied ? options.isActive : customer.status === 'Active';
+            return { ...item, isActive };
+          }),
+        );
+      }),
     );
+  }
+
+  private readonly _partialSaveWarning = signal<string | null>(null);
+
+  /**
+   * Qué quedó sin guardar en el último alta o edición, para que el formulario lo diga. Null = todo
+   * se guardó. Se limpia al abrir el formulario.
+   */
+  readonly partialSaveWarning = this._partialSaveWarning.asReadonly();
+
+  clearPartialSaveWarning(): void {
+    this._partialSaveWarning.set(null);
   }
 
   private statusActionFor(current: CustomerStatus, desiredActive: boolean): CustomerStatusAction | null {

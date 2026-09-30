@@ -5,6 +5,12 @@
  */
 
 /** Una oficina donde el password calzó, ofrecible en el selector. */
+/**
+ * Staff (espacio de trabajo) o Portal (cliente): la misma persona puede tener ambas cuentas en una oficina,
+ * con el mismo email. Viaja como string en el contrato de Auth.
+ */
+export type AccountKind = 'Staff' | 'Portal';
+
 export interface DiscoverOffice {
   tenantId: string;
   subdomain: string;
@@ -46,6 +52,11 @@ export interface HandoffSession {
   takeoverRequired?: boolean;
   takeoverTicket?: string | null;
   takeoverTicketExpiresInSeconds?: number | null;
+  /**
+   * Dispositivo de confianza recién creado, solo si se pidió "recordar este dispositivo" al
+   * resolver el segundo factor. Se guarda en este origen y se reenvía en el próximo discover.
+   */
+  deviceToken?: string | null;
 }
 
 /** Desenlace del discover ya interpretado por el servicio (el componente solo enruta). */

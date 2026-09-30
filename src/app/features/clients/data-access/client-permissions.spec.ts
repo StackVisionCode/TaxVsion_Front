@@ -40,21 +40,31 @@ describe('ClientPermissions (capacidades derivadas del contrato)', () => {
     expect(caps.canChangeStatus()).toBe(false);
     expect(caps.canInvitePortal()).toBe(false);
     expect(caps.canSetFiscalProfile()).toBe(false);
+    // Sin `customers.import` no se ofrece, tenga o no manage.
     expect(caps.canImport()).toBe(false);
   });
 
-  it('admin con manage: además status/portal/fiscal-set/import', () => {
-    fake.set(['customers.view', 'customers.manage'], true);
+  it('admin con manage e import: status/portal/fiscal-set/import', () => {
+    fake.set(['customers.view', 'customers.manage', 'customers.import'], true);
     expect(caps.canChangeStatus()).toBe(true);
     expect(caps.canInvitePortal()).toBe(true);
     expect(caps.canSetFiscalProfile()).toBe(true);
     expect(caps.canImport()).toBe(true);
   });
 
-  it('admin SIN manage: import sí, pero status/fiscal-set no (falta el permiso)', () => {
+  it('admin SIN el permiso de import: NO se le ofrece importar', () => {
+    // Antes bastaba con ser admin y el botón daba 403: `CustomerImportsController` exige
+    // `[HasPermission(customers.import)]` ADEMÁS del actor type.
     fake.set([], true);
-    expect(caps.canImport()).toBe(true);
+    expect(caps.canImport()).toBe(false);
     expect(caps.canChangeStatus()).toBe(false);
     expect(caps.canSetFiscalProfile()).toBe(false);
+  });
+
+  it('empleado CON el permiso de import: SÍ puede', () => {
+    // La decisión vive en el permiso. `CustomerImportsController` admite TenantEmployee, así que un
+    // rol custom con `customers.import` habilita la importación de verdad.
+    fake.set(['customers.view', 'customers.import'], false);
+    expect(caps.canImport()).toBe(true);
   });
 });

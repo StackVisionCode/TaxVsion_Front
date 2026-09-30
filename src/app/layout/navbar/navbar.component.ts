@@ -12,6 +12,8 @@ import {
   notificationIconBg,
   notificationIconText,
 } from '@features/notifications/data-access/notifications.model';
+import { AccessStore } from '@core/access/access.store';
+import { AccountHandoffStore } from '@core/billing/account-handoff.store';
 
 /** Pestañas de la campana. No hay "Mentions": este producto no genera menciones. */
 export type NotificationTab = 'all' | 'unread' | 'alerts';
@@ -54,6 +56,8 @@ export class NavbarComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly notificationsStore = inject(NotificationsStore);
+  private readonly access = inject(AccessStore);
+  readonly handoff = inject(AccountHandoffStore);
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 
@@ -259,6 +263,25 @@ export class NavbarComponent {
     if (img) {
       img.style.display = 'none';
     }
+  }
+
+  /** Si una entrada del menu de usuario se muestra, segun el registro de features. */
+  canUse(featureId: string): boolean {
+    return this.access.canUseId(featureId);
+  }
+
+  /**
+   * El Account se abre con `billing.view`, no con el actor type. Es el mismo criterio del backend,
+   * donde el permiso es `IsAssignableByTenant:false`: solo lo trae el rol raiz de la oficina, asi
+   * que el `isAdmin()` que habia acá no agregaba nada y contradecia la regla ("sale de los
+   * permisos, nunca del actor type").
+   */
+  canManageSubscription(): boolean {
+    return this.access.canManageBilling();
+  }
+
+  manageSubscription(): void {
+    this.handoff.open();
   }
 
   logout(): void {

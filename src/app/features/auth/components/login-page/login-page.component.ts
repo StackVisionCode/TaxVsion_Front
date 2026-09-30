@@ -22,8 +22,10 @@ import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
+import { landingUrl } from '@core/config/landing';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
+import { loginNoticeFor } from '@core/auth/session-notice';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import {
@@ -92,6 +94,11 @@ export class LoginPageComponent {
       this.api.setSlug(office);
     }
 
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (reason) {
+      this.notice.set(loginNoticeFor(reason));
+    }
+
     // Marca pre-login: en el subdominio de una oficina, pinta el tema/logo/favicon de ESA oficina
     // antes de autenticar (endpoint anónimo). Sin slug (app.*) no hace nada → marca del sistema.
     this.branding.applyForSurface('Crm');
@@ -104,6 +111,14 @@ export class LoginPageComponent {
 
   readonly showPassword = signal(false);
   readonly formError = signal<string | null>(null);
+
+  /**
+   * Por qué se volvió a login. Se llega acá con la sesión ya cerrada y sin explicación: sin este
+   * aviso, al usuario le parece que la aplicación se cayó sola. No es un error suyo, así que no se
+   * pinta como el `formError`.
+   */
+  readonly notice = signal<string | null>(null);
+
   readonly isTyping = signal(false);
 
   /** Fase de la coreografía de salida del login. */
@@ -133,23 +148,12 @@ export class LoginPageComponent {
    * params (no por estado en memoria) para que el enlace sea compartible y sobreviva a
    * un refresco a mitad del alta.
    *
-   * El alta vive en el SITIO PÚBLICO (`{landingUrl}/register`), no en esta app, así que
-   * se sale con `window.location` en vez del Router: son dominios distintos y el Router
-   * solo enruta dentro del SPA. Sin `landingUrl` configurado (dev) se usa la ruta
-   * interna, para no obligar a saltar a un sitio externo mientras se desarrolla.
+   * El alta vive en el Landing (otro origen), así que se sale con `window.location` y no con el Router.
    */
   startSignup(choice: PlanChoice): void {
     this.closePlanPicker();
     const params = new URLSearchParams({ plan: choice.plan.id, cycle: choice.cycle });
-
-    const landing = environment.landingUrl?.trim().replace(/\/$/, '');
-    if (landing) {
-      window.location.assign(`${landing}/register?${params}`);
-      return;
-    }
-    void this.router.navigate(['/onboarding'], {
-      queryParams: { plan: choice.plan.id, cycle: choice.cycle },
-    });
+    window.location.assign(landingUrl(`/register?${params}`));
   }
 
   togglePasswordVisibility(): void {

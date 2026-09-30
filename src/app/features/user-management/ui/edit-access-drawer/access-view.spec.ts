@@ -117,4 +117,102 @@ describe('buildAccessView', () => {
     expect(labels).toContain('Download file');
     expect(labels).toContain('View customers');
   });
+
+  // ---------- B9: permisos dormidos ----------
+
+  it('marca como dormido el permiso cuyo módulo el plan no habilita', () => {
+    // El rol se lo concede y el backend lo tiene, pero hoy no hace nada. Marcarlo evita la pregunta
+    // "¿por qué tiene este permiso y no funciona?" — y esconderlo la haría peor.
+    const granted = [
+      {
+        module: 'campaigns',
+        permissions: [
+          { permissionId: 'p1', code: 'campaigns.view', module: 'campaigns', description: 'See campaigns', denied: false },
+        ],
+      },
+    ];
+    const catalog = [
+      {
+        id: 'p1',
+        code: 'campaigns.view',
+        module: 'campaigns',
+        description: 'See campaigns',
+        isCustomerPortal: false,
+        gateModule: 'campaigns',
+      },
+    ];
+
+    const view = buildAccessView(granted, catalog, 'TenantEmployee', new Set(['customers']));
+
+    expect(view[0].rows[0].dormant).toBe(true);
+  });
+
+  it('con el módulo contratado no está dormido', () => {
+    const granted = [
+      {
+        module: 'campaigns',
+        permissions: [
+          { permissionId: 'p1', code: 'campaigns.view', module: 'campaigns', description: 'See campaigns', denied: false },
+        ],
+      },
+    ];
+    const catalog = [
+      {
+        id: 'p1',
+        code: 'campaigns.view',
+        module: 'campaigns',
+        description: 'See campaigns',
+        isCustomerPortal: false,
+        gateModule: 'campaigns',
+      },
+    ];
+
+    const view = buildAccessView(granted, catalog, 'TenantEmployee', new Set(['campaigns']));
+
+    expect(view[0].rows[0].dormant).toBe(false);
+  });
+
+  it('sin saber los módulos del plan, no se marca nada', () => {
+    // "Todavía no sé" no es "no lo tiene": inventar un "Dormant" sería peor que no decir nada.
+    const granted = [
+      {
+        module: 'campaigns',
+        permissions: [
+          { permissionId: 'p1', code: 'campaigns.view', module: 'campaigns', description: 'See campaigns', denied: false },
+        ],
+      },
+    ];
+    const catalog = [
+      {
+        id: 'p1',
+        code: 'campaigns.view',
+        module: 'campaigns',
+        description: 'See campaigns',
+        isCustomerPortal: false,
+        gateModule: 'campaigns',
+      },
+    ];
+
+    const view = buildAccessView(granted, catalog, 'TenantEmployee', null);
+
+    expect(view[0].rows[0].dormant).toBe(false);
+  });
+
+  it('un permiso transversal nunca está dormido', () => {
+    const granted = [
+      {
+        module: 'profile',
+        permissions: [
+          { permissionId: 'p1', code: 'profile.read', module: 'profile', description: 'See profile', denied: false },
+        ],
+      },
+    ];
+    const catalog = [
+      { id: 'p1', code: 'profile.read', module: 'profile', description: 'See profile', isCustomerPortal: false, gateModule: null },
+    ];
+
+    const view = buildAccessView(granted, catalog, 'TenantEmployee', new Set([]));
+
+    expect(view[0].rows[0].dormant).toBe(false);
+  });
 });

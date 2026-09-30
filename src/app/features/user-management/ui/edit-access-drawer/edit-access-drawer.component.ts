@@ -17,6 +17,7 @@ import { TeamMember } from '../user-table/user-table.component';
 import { EditAccessStore } from '../../data-access/edit-access.store';
 import { PermissionInfo, actorTypeLabel } from '../../data-access/user-management.model';
 import { AccessModuleView, buildAccessView } from './access-view';
+import { AccessStore } from '@core/access/access.store';
 
 /**
  * The "Edit access" drawer: a right-side panel (full-screen on mobile) where an admin restricts, for one
@@ -35,6 +36,14 @@ import { AccessModuleView, buildAccessView } from './access-view';
 })
 export class EditAccessDrawerComponent implements OnInit {
   private readonly store = inject(EditAccessStore);
+  private readonly access = inject(AccessStore);
+
+  /**
+   * B9 — el `perm_v` del usuario, que se muestra en el pie. No es decorado: cuando un administrador
+   * cambia el acceso de alguien, ese número sube y los tokens viejos de esa persona empiezan a dar
+   * 401 `Auth.TokenStale`. Verlo es la forma de saber que el cambio salió de verdad.
+   */
+  readonly permissionsVersion = this.store.permissionsVersion;
 
   @Input({ required: true }) member!: TeamMember;
   /** Full permission catalog (GET /auth/permissions) — used to render the locked "not in her roles" rows. */
@@ -52,6 +61,29 @@ export class EditAccessDrawerComponent implements OnInit {
   readonly dirty = this.store.dirty;
 
   readonly search = signal('');
+
+  /** La fila cuyo motivo y vencimiento están abiertos para editar. */
+  readonly detailFor = signal<string | null>(null);
+
+  reasonFor(permissionId: string): string {
+    return this.store.reasonFor(permissionId);
+  }
+
+  expiresFor(permissionId: string): string {
+    return this.store.expiresFor(permissionId);
+  }
+
+  setReason(permissionId: string, reason: string): void {
+    this.store.setReason(permissionId, reason);
+  }
+
+  setExpiry(permissionId: string, date: string): void {
+    this.store.setExpiry(permissionId, date);
+  }
+
+  toggleDetail(permissionId: string): void {
+    this.detailFor.set(this.detailFor() === permissionId ? null : permissionId);
+  }
   private readonly openKeys = signal<ReadonlySet<string>>(new Set());
   private accordionInitialized = false;
 
@@ -59,7 +91,12 @@ export class EditAccessDrawerComponent implements OnInit {
 
   /** All module views for the loaded user (granted + locked), before the text filter. */
   private readonly allModules = computed<AccessModuleView[]>(() =>
-    buildAccessView(this.store.modules(), this.catalog, this.store.actorType() || this.member.actorType),
+    buildAccessView(
+      this.store.modules(),
+      this.catalog,
+      this.store.actorType() || this.member.actorType,
+      this.access.enabledModules(),
+    ),
   );
 
   /** Module views after applying the search box (matches module label/key or any row label/code). */

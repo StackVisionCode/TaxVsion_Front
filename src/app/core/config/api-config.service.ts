@@ -45,6 +45,14 @@ export class ApiConfigService {
     this._slug.set(tenantSlugFromHost());
   }
 
+  /**
+   * Oficina cuya dirección sirve la app (`<slug>.taxproffice.com`), o null en la entrada general (app.*) y en dev.
+   * A diferencia de {@link slug}, ignora la oficina recordada de otra sesión.
+   */
+  officeFromHost(): string | null {
+    return tenantSlugFromHost();
+  }
+
   /** Base para endpoints del sistema (sin tenant). */
   systemBase(): string {
     return environment.production ? `https://${environment.systemHost}` : environment.apiUrl;

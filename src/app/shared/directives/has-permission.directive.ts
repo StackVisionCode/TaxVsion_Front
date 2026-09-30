@@ -7,40 +7,54 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { PermissionService } from '@core/auth/permission.service';
+import { AccessStore } from '@core/access/access.store';
+import { AccessRequirement } from '@core/access/features';
 
 /**
- * Directiva estructural para mostrar un elemento solo si el usuario tiene el permiso
- * (o al menos uno de una lista). Reactiva: si cambia la sesión, la vista se agrega o
- * retira sola.
+ * Directiva estructural para mostrar un elemento solo si el usuario puede usarlo. Reactiva: si
+ * cambia la sesión o el plan, la vista se agrega o se retira sola.
  *
- * Uso:
+ * Tres formas, de menos a más precisa:
  *   <button *appHasPermission="'customers.manage'">New client</button>
- *   <button *appHasPermission="['customers.manage','customers.view']">…</button>  // hasAny
+ *   <button *appHasPermission="['customers.manage','customers.view']">…</button>   // con uno alcanza
+ *   <button *appHasPermission="{ module: 'documents', anyOf: ['cloudstorage.file.delete'] }">…</button>
  *
- * Es solo UX: el backend sigue siendo la autoridad. Para reglas compuestas (permiso +
- * actor admin) usa las señales de capacidad de la feature con `@if`, no esta directiva.
+ * La tercera es la que hace falta cuando la acción además depende del plan de la oficina: con las
+ * dos primeras, un permiso que el usuario tiene pero cuyo módulo no está contratado mostraba el
+ * botón igual. B6 la agregó para no tener que elegir entre esta directiva y un `@if` a mano.
+ *
+ * Es solo UX: el backend sigue siendo la autoridad. Para reglas compuestas que además exigen actor
+ * administrativo (p. ej. `customers.manage` + TA) se usan las señales de capacidad de la feature
+ * con `@if` — el actor type no es un permiso y no entra acá.
  */
+export type PermissionRequirement = string | readonly string[] | AccessRequirement;
+
 @Directive({ selector: '[appHasPermission]', standalone: true })
 export class HasPermissionDirective {
   private readonly tpl = inject(TemplateRef<unknown>);
   private readonly vcr = inject(ViewContainerRef);
-  private readonly perms = inject(PermissionService);
+  private readonly access = inject(AccessStore);
 
-  private readonly required = signal<string | readonly string[]>([]);
+  private readonly required = signal<PermissionRequirement>([]);
   private visible = false;
 
   @Input({ required: true })
-  set appHasPermission(value: string | readonly string[]) {
+  set appHasPermission(value: PermissionRequirement) {
     this.required.set(value);
   }
 
   constructor() {
-    effect(() => {
-      const req = this.required();
-      const allowed = Array.isArray(req) ? this.perms.hasAny(req) : this.perms.has(req as string);
-      this.sync(allowed);
-    });
+    effect(() => this.sync(this.allowed(this.required())));
+  }
+
+  private allowed(requirement: PermissionRequirement): boolean {
+    if (typeof requirement === 'string') {
+      return this.access.can(requirement);
+    }
+    if (Array.isArray(requirement)) {
+      return this.access.canAny(requirement);
+    }
+    return this.access.canUse(requirement as AccessRequirement);
   }
 
   private sync(allowed: boolean): void {

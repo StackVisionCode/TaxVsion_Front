@@ -194,6 +194,14 @@ export class SessionExpiryService implements OnDestroy {
     this.sessionExpired.next();
   }
 
+  /**
+   * El refresh falló de forma pasajera (429/503/red): se libera el candado para que el próximo
+   * chequeo lo reintente antes de que venza el token. Si no, la sesión moría al vencer.
+   */
+  refreshFailed(): void {
+    this.refreshInFlight = false;
+  }
+
   /** Resetea el aviso (p. ej. tras un refresh exitoso, silencioso o explícito). */
   resetWarning(): void {
     this.stopCountdown();

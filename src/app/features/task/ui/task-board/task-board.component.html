@@ -13,7 +13,7 @@
     <!-- Column cards: cada columna es un drop list conectado a las demás -->
     <div class="task-dropzone flex flex-1 flex-col gap-3 rounded-xl" cdkDropList [id]="dropListIdFor(column.id)"
       [cdkDropListData]="bucketFor(column.id)" (cdkDropListDropped)="onDrop($event, column.id)">
-      <div *ngFor="let task of bucketFor(column.id); trackBy: trackByTaskId" cdkDrag [cdkDragData]="task"
+      <div *ngFor="let task of bucketFor(column.id); trackBy: trackByTaskId" cdkDrag [cdkDragDisabled]="!canWrite" [cdkDragData]="task"
         (cdkDragEnded)="onDragEnded()" (click)="openTask(task)"
         class="task-card cursor-grab rounded-2xl border border-gray-100 bg-white p-4 hover:border-gray-200 hover:shadow-sm active:cursor-grabbing">
         <p class="text-sm font-semibold text-gray-900">{{ task.title }}</p>

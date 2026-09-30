@@ -7,6 +7,7 @@ export const CustomersPermissions = {
   Manage: 'customers.manage',
   PreparerManage: 'customers.preparer.manage',
   FiscalReveal: 'customers.fiscalprofile.reveal',
+  Import: 'customers.import',
 } as const;
 
 /**
@@ -51,6 +52,15 @@ export class ClientPermissions {
    * El backend además no envía los asignados a un no-admin, así que esto solo evita pintar la columna. */
   readonly canViewAssignees: Signal<boolean> = computed(() => this.perms.isAdmin());
 
-  /** Import: solo administrador del tenant (backend gatea por rol TenantAdmin). */
-  readonly canImport: Signal<boolean> = computed(() => this.perms.isAdmin());
+  /**
+   * Importar clientes: SOLO el permiso. Nada de actor type.
+   *
+   * Dos arreglos en uno. Antes esto era `perms.isAdmin()` a secas, así que un administrador SIN
+   * `customers.import` veía el botón y recibía 403, y el permiso no hacía nada en la UI. Y el
+   * backend tampoco ayudaba: `CustomerImportsController` exigía además
+   * `[AllowActorTypes(TenantAdmin, PlatformAdmin)]`, con lo que darle el permiso a un empleado era
+   * inútil. Ese atributo ahora admite `TenantEmployee`, así que la decisión vive donde debe: en el
+   * permiso, que un administrador concede con un rol custom.
+   */
+  readonly canImport: Signal<boolean> = computed(() => this.perms.has(CustomersPermissions.Import));
 }

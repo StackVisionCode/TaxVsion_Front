@@ -1,11 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, forkJoin, map, of, tap } from 'rxjs';
-export type InviteOutcome = 'sent' | 'already-has-access';
 import { toApiError } from '@core/models/api-error.model';
 import { ClientPortalService } from './client-portal.service';
 import {
   InvitationResponse,
   PortalAccess,
+  PortalInvitationStatus,
   PortalUserResponse,
   derivePortalAccess,
 } from './client-portal.model';
@@ -25,18 +25,11 @@ export class ClientPortalStore {
 
   private readonly _invitations = signal<InvitationResponse[]>([]);
   private readonly _users = signal<PortalUserResponse[]>([]);
-  private readonly _emailInUse = signal(false);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
 
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
-  /**
-   * El email del cliente YA es un usuario de portal del tenant (aunque el usuario no esté ligado a ESTE
-   * customerId). Auth dedup-ea las invitaciones por email, así que en este caso invitar es un no-op
-   * silencioso → la UI muestra "already has portal access" en vez de un botón de invitar condenado.
-   */
-  readonly emailInUse = this._emailInUse.asReadonly();
 
   readonly access = computed<PortalAccess>(() =>
     derivePortalAccess(this._invitations(), this._users(), this.fallbackEmail),
@@ -47,7 +40,6 @@ export class ClientPortalStore {
       this.customerId = customerId;
       this._invitations.set([]);
       this._users.set([]);
-      this._emailInUse.set(false);
     }
     this.fallbackEmail = email;
     this.refresh();
@@ -59,22 +51,14 @@ export class ClientPortalStore {
     }
     this._loading.set(true);
     this._error.set(null);
-    const email = (this.fallbackEmail || '').trim().toLowerCase();
     forkJoin({
       // Tolera 403 (permiso parcial): la lista que no se puede leer queda vacía.
       invitations: this.service.listInvitations(this.customerId).pipe(catchError(() => of(null))),
       users: this.service.listUsers(this.customerId).pipe(catchError(() => of(null))),
-      // Detecta el email-en-uso across-tenant (independiente del customerId). Tolera 403.
-      emailUsers: email ? this.service.searchUsersByEmail(email).pipe(catchError(() => of(null))) : of(null),
     }).subscribe({
-      next: ({ invitations, users, emailUsers }) => {
+      next: ({ invitations, users }) => {
         this._invitations.set(invitations?.items ?? []);
         this._users.set(users?.items ?? []);
-        this._emailInUse.set(
-          (emailUsers?.items ?? []).some(
-            u => u.actorType === 'CustomerPortal' && (u.email ?? '').trim().toLowerCase() === email,
-          ),
-        );
         this._loading.set(false);
       },
       error: err => {
@@ -84,15 +68,14 @@ export class ClientPortalStore {
     });
   }
 
-  invite(): Observable<InviteOutcome> {
-    // Si el email ya es usuario de portal del tenant, invitar sería un no-op (Auth lo descarta por email):
-    // no publicamos y devolvemos el desenlace para que la UI diga "already has portal access".
-    if (this._emailInUse()) {
-      return of<InviteOutcome>('already-has-access');
-    }
+  /**
+   * Pide el acceso al portal. El backend decide y lo dice: invitado, reenviado (había una invitación
+   * pendiente) o ya activo. Un rechazo (email del portal de otro cliente, acceso desactivado) llega como error.
+   */
+  invite(): Observable<PortalInvitationStatus> {
     return this.service.invite(this.customerId).pipe(
       tap(() => this.refresh()),
-      map<unknown, InviteOutcome>(() => 'sent'),
+      map(response => response.status),
     );
   }
 
