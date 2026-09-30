@@ -11,7 +11,7 @@
     </div>
     <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Avg. price</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ avgPrice() }}</p>
+      <p class="mt-2 text-3xl font-bold text-gray-900">${{ avgPrice() }}</p>
     </div>
     <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Categories</p>
@@ -54,7 +54,7 @@
       [ngClass]="kindFilter() === 'Service' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
       Services <span class="ml-1 opacity-70">{{ serviceCount() }}</span>
     </button>
-    <button *ngIf="canManageCategories()" type="button" (click)="openCategories()"
+    <button type="button" (click)="openCategories()"
       class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
       <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
       Manage categories
@@ -63,8 +63,7 @@
 
   <!-- Catalog -->
   <app-service-catalog *ngIf="!store.loading() && !store.error()" [services]="filteredEntries()"
-    [categories]="store.categoryNames()" [canCreate]="can.canWrite()" [canEdit]="can.canWrite()"
-    [canDelete]="can.canDelete()" (addService)="openAddPanel()"
+    [categories]="store.categoryNames()" (addService)="openAddPanel()"
     (editService)="openEditPanel($event)" (deleteService)="requestDelete($event)"></app-service-catalog>
 </div>
 
@@ -79,9 +78,9 @@
     </div>
 
     <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-      <span class="pl-4 text-sm text-gray-400">{{ formCurrency() }}</span>
+      <span class="pl-4 text-sm text-gray-400">$</span>
       <input type="number" placeholder="Price" [ngModel]="newPrice()" (ngModelChange)="newPrice.set($event)"
-        class="w-full h-full bg-transparent pl-2 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+        class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
     </div>
 
     <!-- Tax por defecto del ítem (%). La factura lo toma al agregarlo; 0 = sin impuesto. -->
@@ -119,10 +118,10 @@
             class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
         </div>
         <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-          <span class="pl-4 text-sm text-gray-400">{{ formCurrency() }}</span>
+          <span class="pl-4 text-sm text-gray-400">$</span>
           <input type="number" min="0" step="0.01" placeholder="Cost" [ngModel]="newCost()"
             (ngModelChange)="newCost.set($event)"
-            class="w-full h-full bg-transparent pl-2 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+            class="w-full h-full bg-transparent pl-1 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
         </div>
         <button type="button" (click)="newTrackInventory.set(!newTrackInventory())"
           class="flex h-10 items-center justify-between rounded-full border border-gray-200 bg-white px-4 transition-colors"
@@ -135,7 +134,7 @@
           </span>
         </button>
         <!-- Cantidad inicial recibida: solo tiene sentido si se rastrea el stock -->
-        <div *ngIf="newTrackInventory() && can.canAdjustStock()"
+        <div *ngIf="newTrackInventory()"
           class="col-span-2 h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
           <span class="pl-4 text-sm text-gray-400">Qty received</span>
           <input type="number" min="0" step="1" placeholder="0" [ngModel]="newStockQuantity()"
@@ -207,8 +206,8 @@
 <app-modal [isOpen]="isCategoriesOpen()" heading="Categories"
   subheading="Rename or remove your product & service categories" size="md" (closed)="closeCategories()">
   <div class="mt-4 flex flex-col gap-3">
-    <!-- Alta rápida (catalog.write) -->
-    <div *ngIf="can.canWrite()" class="flex items-center gap-2">
+    <!-- Alta rápida -->
+    <div class="flex items-center gap-2">
       <div class="h-10 flex-1 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
         <input type="text" placeholder="New category name" [ngModel]="newCategoryName()"
           (ngModelChange)="newCategoryName.set($event)"
@@ -250,12 +249,12 @@
         </ng-container>
         <ng-template #readRow>
           <span class="flex-1 truncate px-2 text-sm text-gray-700">{{ cat.name }}</span>
-          <button *ngIf="can.canWrite()" type="button" (click)="startEditCategory(cat)"
+          <button type="button" (click)="startEditCategory(cat)"
             class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
             aria-label="Rename category">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
           </button>
-          <button *ngIf="can.canDelete()" type="button" (click)="requestDeleteCategory(cat)"
+          <button type="button" (click)="requestDeleteCategory(cat)"
             class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
             aria-label="Delete category">
             <ion-icon name="trash-outline" class="text-base"></ion-icon>

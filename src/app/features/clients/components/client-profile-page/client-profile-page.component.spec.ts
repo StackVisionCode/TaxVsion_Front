@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { vi } from 'vitest';
 import { ClientProfilePageComponent } from './client-profile-page.component';
 import { ClientsStore } from '../../data-access/clients.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
@@ -10,12 +9,8 @@ import {
   AddRelationRequest,
   CustomerDetailResponse,
   RelationResponse,
-  RevealedTaxIdentifierResponse,
   SetRelationFiscalProfileRequest,
-  UpdateCustomerRequest,
 } from '../../data-access/clients.model';
-import { ClientSaveOptions } from '../../data-access/clients.store';
-import { ClientItem } from '../../ui/client-table/client-table.component';
 
 const SPOUSE: RelationResponse = {
   id: 'rel-spouse',
@@ -36,14 +31,11 @@ function detail(relations: RelationResponse[]): CustomerDetailResponse {
     status: 'Active',
     displayName: 'Juan Pérez',
     primaryEmail: 'juan@example.com',
-    primaryPhone: '+15551234567',
+    primaryPhone: null,
     language: 'Es',
     preferredChannel: 'Email',
-    occupationId: 'occ-1',
-    occupationName: 'Nurse',
-    firstName: 'Juan',
-    middleName: null,
-    lastName: 'Pérez',
+    occupationId: null,
+    occupationName: null,
     principalBusinessActivityId: null,
     principalBusinessActivityName: null,
     createdAtUtc: '2026-01-01T00:00:00Z',
@@ -86,17 +78,6 @@ class FakeClientsStore {
     this.calls.push('relationFiscal');
     this.relationFiscal = { relationId, req };
     return of({});
-  }
-
-  updated: { req: UpdateCustomerRequest; options: ClientSaveOptions } | null = null;
-
-  updateClient(_id: string, req: UpdateCustomerRequest, options: ClientSaveOptions): Observable<ClientItem> {
-    this.updated = { req, options };
-    return of({} as ClientItem);
-  }
-
-  revealTaxIdentifier(id: string): Observable<RevealedTaxIdentifierResponse> {
-    return of({ customerId: id, subjectKind: 'Individual', taxIdentifier: '123-45-6789' });
   }
 }
 
@@ -167,52 +148,5 @@ describe('ClientProfilePageComponent — edición de relaciones', () => {
     expect(component.savingFiscal()).toBe(false);
     expect(component.isFiscalFormOpen()).toBe(false);
     expect(component.spouseRelation()?.id).toBe('rel-new');
-  });
-});
-
-describe('ClientProfilePageComponent · edición por sección y reveal', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    TestBed.resetTestingModule();
-  });
-
-  it('guardar "Personal details" conserva email, teléfono y ocupación del detalle actual', async () => {
-    const { component, store } = await setup();
-    component.openSectionEdit('personal');
-    const initial = component.sectionInitial();
-    if (initial?.section !== 'personal') {
-      throw new Error('se esperaba el borrador de Personal details');
-    }
-
-    component.handleSaveSection({ ...initial, firstName: 'Juana' });
-
-    expect(store.updated?.req).toEqual(
-      expect.objectContaining({
-        firstName: 'Juana',
-        lastName: 'Pérez',
-        primaryEmail: 'juan@example.com',
-        primaryPhone: '+15551234567',
-        occupationId: 'occ-1',
-      }),
-    );
-    // Ni estado ni SSN: la edición por sección no toca lo que no es suyo.
-    expect(store.updated?.options).toEqual({ taxIdentifier: '', subjectKind: 'Individual', isActive: true });
-    expect(component.editSection()).toBeNull();
-  });
-
-  it('el SSN revelado se re-enmascara solo a los 30 s y al cambiar de pestaña', async () => {
-    const { component } = await setup();
-    vi.useFakeTimers();
-
-    component.handleRevealTaxId('c1');
-    expect(component.revealedTaxId()).toBe('123-45-6789');
-    vi.advanceTimersByTime(29_000);
-    expect(component.revealedTaxId()).toBe('123-45-6789');
-    vi.advanceTimersByTime(1_500);
-    expect(component.revealedTaxId()).toBeNull();
-
-    component.handleRevealTaxId('c1');
-    component.selectTab('info');
-    expect(component.revealedTaxId()).toBeNull();
   });
 });

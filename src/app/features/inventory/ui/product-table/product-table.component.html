@@ -53,7 +53,7 @@
         </td>
         <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
-          <div *ngIf="hasActions" class="relative inline-block text-left" data-dropdown="product-menu">
+          <div class="relative inline-block text-left" data-dropdown="product-menu">
             <button type="button" (click)="toggleMenu(product, $event)"
               class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               aria-label="Product options">
@@ -61,15 +61,14 @@
             </button>
             <div *ngIf="openMenuId() === product.id"
               class="absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-              <button *ngIf="canEdit" type="button" (click)="onEditClick(product, $event)"
+              <button type="button" (click)="onEditClick(product, $event)"
                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                 <ion-icon name="create-outline" class="text-base"></ion-icon>
                 Edit
               </button>
 
               <!-- Adjust stock: stepper inline +/- -->
-              <div *ngIf="canAdjust" class="flex items-center justify-between px-4 py-2.5"
-                [class.border-t]="canEdit" [class.border-gray-100]="canEdit">
+              <div class="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
                 <span class="flex items-center gap-2 text-sm text-gray-700">
                   <ion-icon name="swap-vertical-outline" class="text-base"></ion-icon>
                   Adjust stock
@@ -90,9 +89,8 @@
                 </span>
               </div>
 
-              <button *ngIf="canDelete" type="button" (click)="onDeleteClick(product, $event)"
-                [class.border-t]="canEdit || canAdjust" [class.border-gray-100]="canEdit || canAdjust"
-                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
+              <button type="button" (click)="onDeleteClick(product, $event)"
+                class="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-50 transition-colors">
                 <ion-icon name="trash-outline" class="text-base"></ion-icon>
                 Delete
               </button>

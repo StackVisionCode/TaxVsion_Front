@@ -8,7 +8,6 @@ import {
   CatalogItemKind,
   categoryChipClass,
   categoryCircleClass,
-  formatCatalogPrice,
   kindIcon,
 } from '../../data-access/catalog.model';
 
@@ -40,11 +39,6 @@ export class ServiceCatalogComponent {
   @Input() set categories(value: string[]) {
     this.categoriesSig.set(value ?? []);
   }
-
-  /** Item 2.1 — permisos resueltos por la página contenedora (catalog.write / catalog.delete). */
-  @Input() canCreate = true;
-  @Input() canEdit = true;
-  @Input() canDelete = true;
 
   @Output() addService = new EventEmitter<void>();
   @Output() editService = new EventEmitter<CatalogEntry>();
@@ -107,11 +101,6 @@ export class ServiceCatalogComponent {
     return status === 'active'
       ? 'border-emerald-200 text-emerald-600'
       : 'border-gray-300 text-gray-500';
-  }
-
-  /** Precio con la moneda PROPIA del ítem (el histórico conserva la suya). */
-  price(entry: CatalogEntry): string {
-    return formatCatalogPrice(entry.price, entry.currency);
   }
 
   statusLabel(status: CatalogEntryStatus): string {

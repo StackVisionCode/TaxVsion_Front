@@ -1,6 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { NETWORK_ERROR_CODE, SERVICE_UNAVAILABLE_MESSAGE, toApiError } from '@core/models/api-error.model';
-import { GENERIC_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE, messageForStatus } from './friendly-http-message';
 import { readThrottle, throttleMessage } from './throttling';
 
 /**
@@ -15,7 +13,7 @@ import { readThrottle, throttleMessage } from './throttling';
  */
 const USER_ERROR_MESSAGES: Record<string, string> = {
   // Red / conexión
-  [NETWORK_ERROR_CODE]: NETWORK_ERROR_MESSAGE,
+  [NETWORK_ERROR_CODE]: "We couldn't reach the server. Check your connection and try again.",
   // 503 transitorio que no es load shedding (servicio caído, denylist de sesión sin Redis).
   'Http.503': SERVICE_UNAVAILABLE_MESSAGE,
   'Auth.SessionDenylistUnavailable': SERVICE_UNAVAILABLE_MESSAGE,
@@ -90,6 +88,8 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   'Auth.Forbidden': "You don't have permission to do that.",
 };
 
+/** Mensaje genérico cuando el código no está catalogado (nunca filtra detalle técnico). */
+const GENERIC_MESSAGE = 'Something went wrong. Please try again.';
 
 /**
  * Deriva un mensaje LIMPIO para el usuario a partir de cualquier error HTTP.
@@ -101,10 +101,5 @@ export function toUserMessage(err: unknown): string {
     return throttleMessage(throttle);
   }
   const { code } = toApiError(err);
-  const catalogued = USER_ERROR_MESSAGES[code];
-  if (catalogued) {
-    return catalogued;
-  }
-  // Código no catalogado: el mensaje amable de su status HTTP (nunca el texto crudo del backend).
-  return err instanceof HttpErrorResponse ? messageForStatus(err.status) : GENERIC_ERROR_MESSAGE;
+  return USER_ERROR_MESSAGES[code] ?? GENERIC_MESSAGE;
 }

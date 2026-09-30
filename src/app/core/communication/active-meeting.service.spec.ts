@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Subject, of, throwError } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActiveMeetingService } from './active-meeting.service';
 import { MeetingRtcService } from './meeting-rtc.service';
@@ -59,11 +59,6 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     onTranscriptReady: noop,
     onParticipantDenied: noop,
     onCancelled: noop,
-    onMeetingEnded: noop,
-    isConnected: () => true,
-    raiseHand: vi.fn(),
-    chatSend: vi.fn().mockResolvedValue(undefined),
-    leave: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -72,7 +67,7 @@ function configureWith(rtc: ReturnType<typeof fakeRtc>) {
     providers: [
       ActiveMeetingService,
       { provide: MeetingRtcService, useValue: rtc },
-      { provide: MeetingSfuService, useValue: { leave: vi.fn() } },
+      { provide: MeetingSfuService, useValue: {} },
       { provide: CallsService, useValue: { getIceServers: () => of({ iceServers: [] }) } },
       { provide: CallRecordingService, useValue: {} },
       { provide: AuthService, useValue: { currentUser: () => ({ id: 'me' }) } },
@@ -125,155 +120,5 @@ describe('ActiveMeetingService.join', () => {
     await service.submitPasscode('1234');
     expect(service.phase()).toBe('joined');
     expect(rtc.join).toHaveBeenLastCalledWith('m1', { passcode: '1234' });
-  });
-});
-
-/** Doble con Subjects CAPTURABLES para empujar eventos del server en los tests. */
-function controllableRtc(joinAck: MeetingJoinAck) {
-  const base = fakeRtc(joinAck);
-  const participantChanged = new Subject<unknown>();
-  const chatNew = new Subject<unknown>();
-  const meetingEnded = new Subject<{ meetingId: string }>();
-  return {
-    rtc: {
-      ...base,
-      onParticipantChanged: () => participantChanged,
-      onChatMessageNew: () => chatNew,
-      onMeetingEnded: () => meetingEnded,
-    },
-    participantChanged,
-    chatNew,
-    meetingEnded,
-  };
-}
-
-function chatDto(id: string, body: string, senderId = 'other') {
-  return {
-    id,
-    conversationId: 'c1',
-    senderId,
-    senderDisplayName: 'Ana',
-    kind: 'Text',
-    body,
-    attachmentFileId: null,
-    createdAtUtc: '2026-09-27T10:00:00Z',
-    isEdited: false,
-    isDeleted: false,
-  };
-}
-
-describe('ActiveMeetingService — room lifecycle & realtime', () => {
-  it('ends the room when the host ends the meeting via HTTP (meeting.ended to the personal room)', async () => {
-    // Regresión "tuve que recargar para terminar": POST /end no emite meeting.state.changed a la room.
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    ctl.meetingEnded.next({ meetingId: 'other-meeting' });
-    expect(service.phase()).toBe('joined');
-
-    ctl.meetingEnded.next({ meetingId: 'm1' });
-    expect(service.phase()).toBe('ended');
-  });
-
-  it('leave() tears down locally at once even if the server never acks meeting.leave', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    ctl.rtc.leave = vi.fn().mockReturnValue(new Promise(() => undefined)); // nunca responde
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    await service.leave();
-
-    expect(service.phase()).toBe('idle');
-    expect(service.meetingId()).toBeNull();
-    expect(ctl.rtc.leave).toHaveBeenCalledWith('m1');
-  });
-
-  it('reconciles my raised hand with the server echo (participant.changed)', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    service.toggleHandRaise();
-    expect(service.handRaised()).toBe(true);
-    expect(ctl.rtc.raiseHand).toHaveBeenCalledWith('m1', true);
-
-    // El server dice que NO está levantada (p. ej. otra pestaña la bajó): gana el server.
-    ctl.participantChanged.next({
-      meetingId: 'm1',
-      sequence: 0,
-      participant: { ...soloSnapshot().participants[0], handRaised: false },
-    });
-    expect(service.handRaised()).toBe(false);
-    expect(service.raisedHands()).toHaveLength(0);
-  });
-
-  it('does not raise the hand (and warns) when the socket is offline', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    ctl.rtc.isConnected = () => false;
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    service.toggleHandRaise();
-
-    expect(service.handRaised()).toBe(false);
-    expect(ctl.rtc.raiseHand).not.toHaveBeenCalled();
-    expect(TestBed.inject(ToastService).error).toHaveBeenCalled();
-  });
-
-  it('routes reaction messages to floating reactions instead of the chat list', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot({ conversationId: 'c1' }) });
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    ctl.chatNew.next(chatDto('r1', '🎉'));
-    ctl.chatNew.next(chatDto('t1', 'hello'));
-
-    expect(service.reactions().map(r => r.emoji)).toEqual(['🎉']);
-    expect(service.chatMessages().map(m => m.text)).toEqual(['hello']);
-    expect(service.chatMessages()[0].senderId).toBe('other');
-  });
-
-  it('sends a reaction over the meeting chat with a cooldown', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    const { service } = configureWith(ctl.rtc as never);
-    await service.join('m1', 'Consulta');
-
-    service.sendReaction('👍');
-    service.sendReaction('🔥'); // dentro del cooldown: ignorada
-    service.sendReaction('not-a-reaction');
-
-    expect(ctl.rtc.chatSend).toHaveBeenCalledTimes(1);
-    expect(ctl.rtc.chatSend).toHaveBeenCalledWith('m1', '👍');
-    expect(service.reactions()).toHaveLength(1);
-    expect(service.reactions()[0].isMine).toBe(true);
-  });
-
-  it('endForAll() stays in the room and warns when the server fails', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    const { service } = configureWith(ctl.rtc as never);
-    const http = TestBed.inject(HttpClient) as unknown as { post: ReturnType<typeof vi.fn> };
-    http.post = vi.fn().mockReturnValue(throwError(() => new Error('500')));
-    await service.join('m1', 'Consulta');
-
-    const ended = await service.endForAll();
-
-    expect(ended).toBe(false);
-    expect(service.phase()).toBe('joined');
-    expect(service.ending()).toBe(false);
-  });
-
-  it('endForAll() leaves after the server confirms', async () => {
-    const ctl = controllableRtc({ requiresAdmission: false, snapshot: soloSnapshot() });
-    const { service } = configureWith(ctl.rtc as never);
-    const http = TestBed.inject(HttpClient) as unknown as { post: ReturnType<typeof vi.fn> };
-    http.post = vi.fn().mockReturnValue(of({ endedAtUtc: 'x', durationSeconds: 1 }));
-    await service.join('m1', 'Consulta');
-
-    const ended = await service.endForAll();
-
-    expect(ended).toBe(true);
-    expect(http.post).toHaveBeenCalledWith('https://x/communication/meetings/m1/end', {});
-    expect(service.phase()).toBe('idle');
   });
 });

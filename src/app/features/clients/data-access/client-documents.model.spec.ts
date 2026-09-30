@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FileResponse, FileStatus } from '@core/cloud-storage/cloud-storage.model';
-import { docDisplayStatus, docKind, folderNameError, toClientDocumentItem, trimPath } from './client-documents.model';
+import { docDisplayStatus, docKind, toClientDocumentItem } from './client-documents.model';
 
 function makeFile(overrides: Partial<FileResponse> = {}): FileResponse {
   return {
@@ -69,26 +69,5 @@ describe('toClientDocumentItem', () => {
     const item = toClientDocumentItem(makeFile({ createdAtUtc: '2026-01-01T00:00:00Z', scannedAtUtc: '2026-06-15T00:00:00Z' }));
     expect(item.dateLabel).toContain('2026');
     expect(item.dateLabel).toContain('Jun');
-  });
-});
-
-describe('client-documents.model · carpetas', () => {
-  const path = [
-    { id: 'f1', name: '2025' },
-    { id: 'f2', name: 'W-2' },
-    { id: 'f3', name: 'Scans' },
-  ];
-
-  it('trimPath corta el breadcrumb en el escalón elegido (-1 = raíz)', () => {
-    expect(trimPath(path, -1)).toEqual([]);
-    expect(trimPath(path, 0)).toEqual([{ id: 'f1', name: '2025' }]);
-    expect(trimPath(path, 2)).toEqual(path);
-  });
-
-  it('folderNameError valida vacío, largo y barras', () => {
-    expect(folderNameError('  ')).toBe('Enter a folder name.');
-    expect(folderNameError('a/b')).toContain('slashes');
-    expect(folderNameError('x'.repeat(256))).toContain('255');
-    expect(folderNameError(' Tax 2025 ')).toBeNull();
   });
 });

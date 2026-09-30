@@ -14,53 +14,12 @@ import { CallsService } from './calls.service';
 import { CallRecordingService } from './call-recording.service';
 import { IceServer } from './call.model';
 import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
-import { AudioLevelMonitor } from './audio-level-monitor';
-import { BandwidthGovernor, ConnectionBars, StatsCounters, scoreConnection, summarizeStats } from './connection-quality.util';
-import { REACTION_COOLDOWN_MS, REACTION_TTL_MS, isMeetingReaction } from './meeting-reactions';
-
-/** Clave del propio usuario en los mapas de calidad/hablando cuando aún no se conoce el userId. */
-export const LOCAL_MEDIA_KEY = '__local__';
-
-/** Cada cuánto se muestrean las stats WebRTC y se re-sincronizan los analizadores de audio. */
-const STATS_INTERVAL_MS = 2000;
-/** Tope para esperar acks del server al salir/terminar: pasado esto se sigue igual (fallback). */
-const LEAVE_ACK_TIMEOUT_MS = 4000;
-const END_ACK_TIMEOUT_MS = 8000;
-
-/** Resuelve con la promesa o, si tarda más de `ms`, con `fallback` (nunca deja colgado al llamante). */
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise<T>(resolve => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise.then(
-      value => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback);
-      },
-    );
-  });
-}
-
-/** Reacción flotante en pantalla (llega por el chat del meeting, ver meeting-reactions.ts). */
-export interface MeetingFloatingReaction {
-  id: string;
-  emoji: string;
-  senderName: string;
-  isMine: boolean;
-  /** Posición horizontal (% del ancho) para que varias reacciones no se encimen. */
-  offsetPct: number;
-}
 
 export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | 'joined' | 'unsupported' | 'ended';
 
 /** Mensaje del chat del meeting, ya en shape de vista. */
 export interface MeetingChatMessage {
   id: string;
-  /** userId del remitente — la UI lo cruza con el roster para el badge de rol (Host/Co-host). */
-  senderId: string;
   senderName: string;
   text: string;
   time: string;
@@ -99,8 +58,6 @@ interface PeerConn {
   cameraSender: RTCRtpSender | null;
   /** Sender de la PANTALLA (2º m-line de video pre-creado; replaceTrack para compartir sin renegociar). */
   screenSender: RTCRtpSender | null;
-  /** Estado de límites de envío aplicado al cameraSender (modo bajo ancho de banda). */
-  lowBandwidthApplied: boolean;
 }
 
 /**
@@ -149,29 +106,6 @@ export class ActiveMeetingService {
   /** Chat del meeting (live-only en este slice: mensajes desde que entraste). */
   readonly chatMessages = signal<MeetingChatMessage[]>([]);
 
-  /** Reacciones flotantes vivas (se auto-eliminan a los REACTION_TTL_MS). */
-  readonly reactions = signal<MeetingFloatingReaction[]>([]);
-  private lastReactionAt = 0;
-  private readonly reactionTimers = new Set<ReturnType<typeof setTimeout>>();
-
-  /** Hay un "terminar para todos" en vuelo (deshabilita el botón). */
-  readonly ending = signal(false);
-
-  // ---------- Calidad de conexión / hablando (todo LOCAL, nada se transmite) ----------
-  private readonly audioMonitor = new AudioLevelMonitor();
-  /** userIds que están hablando ahora (el propio usuario bajo su userId o LOCAL_MEDIA_KEY). */
-  readonly speakingUserIds = this.audioMonitor.speaking;
-  /** Barras de calidad por userId (el propio bajo su userId o LOCAL_MEDIA_KEY). */
-  readonly connectionQuality = signal<ReadonlyMap<string, ConnectionBars>>(new Map());
-  /** Modo bajo ancho de banda activo (se bajó el video saliente y se piden capas bajas). */
-  readonly lowBandwidth = signal(false);
-  private readonly bandwidthGovernor = new BandwidthGovernor();
-  private readonly statsPrev = new Map<string, StatsCounters>();
-  private statsTimer: ReturnType<typeof setInterval> | null = null;
-  private statsBusy = false;
-  /** Reintento del raise-hand si el eco del server no confirma el cambio. */
-  private handConfirmTimer: ReturnType<typeof setTimeout> | null = null;
-
   // ---------- Grabación ----------
   readonly recordingState = signal<MeetingRecordingState>('Idle');
   /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
@@ -196,10 +130,6 @@ export class ActiveMeetingService {
   readonly remoteParticipants = computed(() => this.joinedParticipants().filter(p => p.userId !== this.myUserId()));
   /** En sala de espera (solo el host los ve para admitir/denegar). */
   readonly waitingParticipants = computed(() => this.participants().filter(p => p.status === 'Waiting'));
-  /** Participantes dentro con la mano levantada (para el contador y la lista). */
-  readonly raisedHands = computed(() => this.joinedParticipants().filter(p => p.handRaised));
-  /** Clave del propio usuario en `speakingUserIds`/`connectionQuality`. */
-  readonly localMediaKey = computed(() => this.myUserId() ?? LOCAL_MEDIA_KEY);
 
   private readonly peerConns = new Map<string, PeerConn>();
   private iceServers: IceServer[] = [];
@@ -235,11 +165,8 @@ export class ActiveMeetingService {
       if (dto.meetingId !== this.meetingId()) {
         return;
       }
-      const previous = this.participants().find(x => x.userId === dto.participant.userId);
       this.applyParticipantChange(dto.participant);
       const p = dto.participant;
-      this.notifyHandChange(previous, p);
-      this.syncAudioMonitor();
       if (p.userId === this.myUserId() || this.strategy() === 'Sfu') {
         return; // en SFU el media lo maneja mediasoup (consumers), no el mesh
       }
@@ -276,13 +203,6 @@ export class ActiveMeetingService {
 
     this.rtc.onChatMessageNew().subscribe(dto => {
       if (dto.conversationId !== this.conversationId()) {
-        return;
-      }
-      if (!dto.isDeleted && isMeetingReaction(dto.body)) {
-        // Reacción (viaja por el chat, ver meeting-reactions.ts). La propia ya se pintó optimista.
-        if (dto.senderId !== this.myUserId()) {
-          this.pushReaction(dto.id, dto.body!.trim(), dto.senderDisplayName, false);
-        }
         return;
       }
       this.chatMessages.update(list => {
@@ -373,44 +293,6 @@ export class ActiveMeetingService {
       this.phase.set('ended');
       this.stopLocalMedia();
     });
-
-    // "End meeting" del host por HTTP: el backend solo avisa `meeting.ended` a la room personal de cada
-    // participante (no a la room del meeting). Sin esto los demás se quedaban dentro hasta recargar.
-    this.rtc.onMeetingEnded().subscribe(dto => {
-      if (dto.meetingId !== this.meetingId() || this.phase() === 'idle' || this.phase() === 'ended') {
-        return;
-      }
-      this.phase.set('ended');
-      this.stopLocalMedia();
-    });
-
-    // Cerrar la pestaña / recargar a mitad de meeting: avisar el leave (best-effort) para que el resto
-    // pode el tile ya, sin esperar el "grace" de desconexión del server.
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pagehide', () => {
-        const id = this.meetingId();
-        if (id && this.phase() !== 'idle') {
-          void this.rtc.leave(id).catch(() => undefined);
-        }
-      });
-    }
-  }
-
-  /**
-   * Mano levantada: (1) reconcilia MI estado con el eco del server (el toggle local era solo optimista
-   * y podía quedar desincronizado), y (2) avisa al host/co-host cuando alguien la levanta — antes el
-   * único indicador era un ✋ diminuto en el nombre del tile, invisible con pantalla compartida.
-   */
-  private notifyHandChange(previous: MeetingParticipantDto | undefined, next: MeetingParticipantDto): void {
-    if (next.userId === this.myUserId()) {
-      if (next.status === 'Joined') {
-        this.handRaised.set(next.handRaised);
-      }
-      return;
-    }
-    if (next.status === 'Joined' && next.handRaised && !(previous?.handRaised ?? false) && this.isHost()) {
-      this.toast.info(`✋ ${next.displayName} raised their hand.`);
-    }
   }
 
   /**
@@ -431,12 +313,7 @@ export class ActiveMeetingService {
     this.yourRole.set(snap.yourRole);
     this.isLocked.set(snap.isLocked);
     this.participants.set(snap.participants);
-    const me = snap.participants.find(p => p.userId === this.myUserId());
-    if (me) {
-      this.handRaised.set(me.handRaised);
-    }
     this.phase.set('joined');
-    this.startStatsLoop();
 
     if (snap.strategy === 'Sfu') {
       void this.startSfu(); // >4: media por mediasoup (no mesh)
@@ -580,12 +457,7 @@ export class ActiveMeetingService {
       this.yourRole.set(snapshot.yourRole);
       this.isLocked.set(snapshot.isLocked);
       this.participants.set(snapshot.participants);
-      const me = snapshot.participants.find(p => p.userId === this.myUserId());
-      if (me) {
-        this.handRaised.set(me.handRaised); // el server es la fuente de verdad tras el corte
-      }
       this.reconcileMeshPeers(snapshot.participants);
-      this.syncAudioMonitor();
     } catch {
       // Best-effort: si el rejoin falla (ya no sos participante / meeting terminó), no rompemos el
       // estado local; el próximo evento o una recarga lo resuelven.
@@ -646,7 +518,6 @@ export class ActiveMeetingService {
       isSettingRemoteAnswerPending: false,
       cameraSender: null,
       screenSender: null,
-      lowBandwidthApplied: false,
     };
     this.peerConns.set(peerUserId, conn);
 
@@ -805,152 +676,6 @@ export class ActiveMeetingService {
     });
   }
 
-  // ---------- Calidad de conexión, "hablando" y modo bajo ancho de banda (LOCAL) ----------
-
-  /**
-   * Arranca el muestreo periódico: stats WebRTC → barras por tile (+ modo bajo ancho de banda) y
-   * re-sincronización de los analizadores de audio (una pista remota puede llegar después del join).
-   * Nada de esto se emite al server: es solo para el que mira. No-op sin WebRTC (tests con jsdom).
-   */
-  private startStatsLoop(): void {
-    if (this.statsTimer || typeof RTCPeerConnection === 'undefined') {
-      return;
-    }
-    this.syncAudioMonitor();
-    this.statsTimer = setInterval(() => {
-      this.syncAudioMonitor();
-      void this.sampleStats();
-    }, STATS_INTERVAL_MS);
-  }
-
-  private stopStatsLoop(): void {
-    if (this.statsTimer) {
-      clearInterval(this.statsTimer);
-      this.statsTimer = null;
-    }
-    this.statsPrev.clear();
-    this.statsBusy = false;
-    this.connectionQuality.set(new Map());
-    this.bandwidthGovernor.reset();
-    this.lowBandwidth.set(false);
-  }
-
-  /** Fuentes de audio a medir: la mía (si no estoy muteado) y la cámara de cada remoto con audio. */
-  private syncAudioMonitor(): void {
-    if (this.phase() !== 'joined') {
-      return;
-    }
-    const sources = new Map<string, MediaStream | null>();
-    sources.set(this.localMediaKey(), this.audioEnabled() ? this.localStream() : null);
-    const peers = this.peers();
-    for (const p of this.remoteParticipants()) {
-      sources.set(p.userId, p.audioEnabled ? (peers.get(p.userId)?.cameraStream ?? null) : null);
-    }
-    this.audioMonitor.sync(sources);
-  }
-
-  private async sampleStats(): Promise<void> {
-    if (this.statsBusy || this.phase() !== 'joined') {
-      return;
-    }
-    this.statsBusy = true;
-    try {
-      const next = new Map<string, ConnectionBars>();
-      const localKey = this.localMediaKey();
-      const localStats: unknown[] = [];
-      if (this.strategy() === 'Sfu') {
-        for (const p of this.remoteParticipants()) {
-          const stats = await this.sfu.getPeerStats(p.userId);
-          if (stats.length) {
-            next.set(p.userId, this.scoreSample(p.userId, stats, 'inbound'));
-          }
-        }
-        localStats.push(...(await this.sfu.getLocalStats()));
-      } else {
-        for (const [userId, conn] of this.peerConns) {
-          if (conn.pc.connectionState === 'closed') {
-            continue;
-          }
-          const entries = [...(await conn.pc.getStats()).values()];
-          next.set(userId, this.scoreSample(userId, entries, 'inbound'));
-          localStats.push(...entries); // mi envío = agregado de todos los PCs (peor RTT/pérdida)
-        }
-      }
-      if (localStats.length) {
-        next.set(localKey, this.scoreSample(localKey, localStats, 'outbound'));
-      }
-      if (this.phase() !== 'joined') {
-        return; // salí mientras se medía
-      }
-      this.connectionQuality.set(next);
-      await this.applyBandwidthPolicy(next.get(localKey) ?? 0);
-    } catch {
-      /* stats best-effort: un PC cerrándose no rompe nada */
-    } finally {
-      this.statsBusy = false;
-    }
-  }
-
-  private scoreSample(key: string, stats: unknown[], direction: 'inbound' | 'outbound'): ConnectionBars {
-    const prevKey = `${key}:${direction}`;
-    const { counters, metrics } = summarizeStats(stats, direction, this.statsPrev.get(prevKey) ?? null);
-    this.statsPrev.set(prevKey, counters);
-    return scoreConnection(metrics);
-  }
-
-  /**
-   * Modo bajo ancho de banda con histéresis (BandwidthGovernor): con conexión mala sostenida baja el
-   * video SALIENTE (mesh: `setParameters` del cameraSender con menos bitrate/resolución/fps; SFU: solo
-   * la capa de simulcast más baja) y la UI pide capas bajas a los consumers remotos. Se restaura sola
-   * cuando la calidad se recupera. La pantalla compartida no se degrada (texto ilegible).
-   */
-  private async applyBandwidthPolicy(localBars: ConnectionBars): Promise<void> {
-    const change = this.bandwidthGovernor.feed(localBars);
-    if (change) {
-      this.lowBandwidth.set(change === 'enter');
-    }
-    const low = this.lowBandwidth();
-    if (this.strategy() === 'Sfu') {
-      if (change || low) {
-        await this.sfu.setLowBandwidth(low); // idempotente en mediasoup-client
-      }
-      return;
-    }
-    for (const conn of this.peerConns.values()) {
-      if (conn.lowBandwidthApplied !== low) {
-        await this.applySenderLimits(conn, low);
-      }
-    }
-  }
-
-  private async applySenderLimits(conn: PeerConn, low: boolean): Promise<void> {
-    const sender = conn.cameraSender;
-    if (!sender) {
-      return;
-    }
-    try {
-      const params = sender.getParameters();
-      if (!params.encodings || params.encodings.length === 0) {
-        return; // aún sin negociar: se reintenta en el próximo muestreo
-      }
-      for (const enc of params.encodings) {
-        if (low) {
-          enc.maxBitrate = 200_000;
-          enc.scaleResolutionDownBy = 2;
-          enc.maxFramerate = 15;
-        } else {
-          delete enc.maxBitrate;
-          delete enc.maxFramerate;
-          enc.scaleResolutionDownBy = 1;
-        }
-      }
-      await sender.setParameters(params);
-      conn.lowBandwidthApplied = low;
-    } catch {
-      /* el navegador rechazó los parámetros: se reintenta en el próximo muestreo */
-    }
-  }
-
   // ---------- Controles de media ----------
 
   /**
@@ -1005,7 +730,6 @@ export class ActiveMeetingService {
       ?.getAudioTracks()
       .forEach(t => (t.enabled = enabled));
     this.publishMediaStatus();
-    this.syncAudioMonitor();
   }
 
   async toggleVideo(): Promise<void> {
@@ -1051,34 +775,14 @@ export class ActiveMeetingService {
     this.publishMediaStatus();
   }
 
-  /**
-   * Levantar/bajar la mano. `meeting.raise_hand` es un emit SIN ack: si el socket no está conectado se
-   * pierde en silencio y la mano quedaba "levantada" solo en MI pantalla. Ahora: se avisa si no hay
-   * conexión, el valor local es optimista y se confirma con el eco `meeting.participant.changed` del
-   * server (ver notifyHandChange); si el eco no llega en unos segundos se re-emite una vez.
-   */
   toggleHandRaise(): void {
     const meetingId = this.meetingId();
-    if (!meetingId || this.phase() !== 'joined') {
-      return;
-    }
-    if (!this.rtc.isConnected()) {
-      this.toast.error('You are offline. Try again in a moment.');
+    if (!meetingId) {
       return;
     }
     const raised = !this.handRaised();
     this.handRaised.set(raised);
     this.rtc.raiseHand(meetingId, raised);
-    if (this.handConfirmTimer) {
-      clearTimeout(this.handConfirmTimer);
-    }
-    this.handConfirmTimer = setTimeout(() => {
-      this.handConfirmTimer = null;
-      const serverValue = this.participants().find(p => p.userId === this.myUserId())?.handRaised;
-      if (this.meetingId() === meetingId && this.handRaised() === raised && serverValue !== raised) {
-        this.rtc.raiseHand(meetingId, raised);
-      }
-    }, 4000);
   }
 
   private publishMediaStatus(): void {
@@ -1195,7 +899,6 @@ export class ActiveMeetingService {
     const myId = this.myUserId();
     return {
       id: dto.id,
-      senderId: dto.senderId,
       senderName: dto.senderDisplayName,
       text: dto.isDeleted ? '(message deleted)' : (dto.body ?? ''),
       time: new Date(dto.createdAtUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
@@ -1210,10 +913,7 @@ export class ActiveMeetingService {
       .get<{ items: MeetingChatMessageDto[] }>(url, { params: new HttpParams().set('take', 50) })
       .subscribe({
         next: page => {
-          const history = [...page.items]
-            .reverse() // DESC→ASC
-            .filter(dto => dto.isDeleted || !isMeetingReaction(dto.body)) // las reacciones no son mensajes
-            .map(dto => this.toChatView(dto));
+          const history = [...page.items].reverse().map(dto => this.toChatView(dto)); // DESC→ASC
           this.chatMessages.update(live => {
             const liveIds = new Set(live.map(m => m.id));
             const olderNew = history.filter(m => !liveIds.has(m.id));
@@ -1238,42 +938,6 @@ export class ActiveMeetingService {
           isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : 'Message could not be sent.',
         ),
       );
-  }
-
-  // ---------- Reacciones ----------
-
-  /**
-   * Envía una reacción a todos (por el chat del meeting, único canal broadcast que acepta el server).
-   * Se pinta optimista; con cooldown para no chocar con el rate limit del chat del meeting.
-   */
-  sendReaction(emoji: string): void {
-    const meetingId = this.meetingId();
-    if (!meetingId || this.phase() !== 'joined' || !isMeetingReaction(emoji)) {
-      return;
-    }
-    const now = Date.now();
-    if (now - this.lastReactionAt < REACTION_COOLDOWN_MS) {
-      return;
-    }
-    this.lastReactionAt = now;
-    this.pushReaction(`local-${now}`, emoji, 'You', true);
-    this.rtc
-      .chatSend(meetingId, emoji)
-      .catch(err =>
-        this.toast.error(
-          isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : 'Reaction could not be sent.',
-        ),
-      );
-  }
-
-  private pushReaction(id: string, emoji: string, senderName: string, isMine: boolean): void {
-    const offsetPct = 8 + Math.floor(Math.random() * 30);
-    this.reactions.update(list => [...list.slice(-19), { id, emoji, senderName, isMine, offsetPct }]);
-    const timer = setTimeout(() => {
-      this.reactionTimers.delete(timer);
-      this.reactions.update(list => list.filter(r => r.id !== id));
-    }, REACTION_TTL_MS);
-    this.reactionTimers.add(timer);
   }
 
   // ---------- Grabación (con consentimiento) ----------
@@ -1408,64 +1072,32 @@ export class ActiveMeetingService {
     run(meetingId).catch(() => this.toast.error('That action could not be completed.'));
   }
 
-  /**
-   * Salir del meeting. El teardown LOCAL es inmediato y no depende del server: se cierran peers /
-   * transports SFU, se detienen los tracks (cámara/mic/pantalla) y la fase vuelve a 'idle' en el mismo
-   * tick, así la UI sale de la sala aunque el ack de `meeting.leave` tarde o falle (antes, con grabación
-   * en curso se esperaba el ack de stop — hasta 10 s — antes de soltar nada, y parecía colgado).
-   * El aviso al backend y la subida de la grabación siguen en background con timeout.
-   */
   async leave(): Promise<void> {
     const meetingId = this.meetingId();
-    // Si estoy grabando: `recording.stop()` detiene el MediaRecorder YA (sincrónico) y el blob llega
-    // después; se marca que ya no soy el que graba para que reset() no lo pare dos veces.
-    let pendingBlob: Promise<Blob | null> | null = null;
+    // Si estoy grabando, capturo el blob ANTES de cortar los tracks (la subida va en background).
+    let pendingBlob: Blob | null = null;
     if (this.isRecordingRequester() && this.recordingState() === 'Recording') {
       if (meetingId) {
-        void this.rtc.stopRecording(meetingId).catch(() => undefined);
+        try {
+          await this.rtc.stopRecording(meetingId);
+        } catch {
+          /* noop */
+        }
       }
-      pendingBlob = withTimeout(this.recording.stop(), 10_000, null);
-      this._recordingRequesterId.set(null);
+      pendingBlob = await this.recording.stop();
     }
-    // Reset LOCAL SINCRÓNICO (phase→'idle' YA): si el usuario vuelve a entrar enseguida, el guard de
-    // join() ya ve 'idle' y no queda ningún reset tardío en vuelo que lo eche.
+    // Reset LOCAL SINCRÓNICO (phase→'idle' YA). Antes se hacía `await rtc.leave()` y LUEGO reset(), así
+    // que phase quedaba en 'joined' unos ms; si el usuario le daba a Join enseguida, el guard de join()
+    // (`if phase !== 'idle' return`) descartaba ese Join en silencio y el reset() tardío lo sacaba ("la
+    // primera me saca; a la segunda sí"). Reseteando sync, al re-entrar phase ya es 'idle' → entra a la
+    // primera y no queda ningún reset en vuelo que lo eche. El aviso de leave al backend va en background.
     this.reset();
     if (meetingId) {
-      void withTimeout(this.rtc.leave(meetingId), LEAVE_ACK_TIMEOUT_MS, undefined);
+      void this.rtc.leave(meetingId).catch(() => undefined);
       if (pendingBlob) {
-        void pendingBlob.then(blob => {
-          if (blob) {
-            void this.uploadAndAttach(meetingId, blob);
-          }
-        });
+        void this.uploadAndAttach(meetingId, pendingBlob);
       }
     }
-  }
-
-  /**
-   * Terminar el meeting para TODOS (host/co-host): `POST /communication/meetings/{id}/end` y luego salir.
-   * Con timeout: si el server no responde, se avisa y el usuario sigue dentro (puede reintentar o salir).
-   * Devuelve true si terminó.
-   */
-  async endForAll(): Promise<boolean> {
-    const meetingId = this.meetingId();
-    if (!meetingId || !this.isHost() || this.ending()) {
-      return false;
-    }
-    this.ending.set(true);
-    const url = this.api.tenantUrl(`/communication/meetings/${meetingId}/end`);
-    const ok = await withTimeout(
-      firstValueFrom(this.http.post(url, {})).then(() => true),
-      END_ACK_TIMEOUT_MS,
-      false,
-    );
-    this.ending.set(false);
-    if (!ok) {
-      this.toast.error('Could not end the meeting for everyone. Please try again.');
-      return false;
-    }
-    await this.leave();
-    return true;
   }
 
   /**
@@ -1475,12 +1107,6 @@ export class ActiveMeetingService {
    * solo ponía phase='ended' y la cámara seguía prendida. `reset()` lo repite al cerrar del todo (idempotente).
    */
   private stopLocalMedia(): void {
-    this.stopStatsLoop();
-    this.audioMonitor.dispose();
-    if (this.handConfirmTimer) {
-      clearTimeout(this.handConfirmTimer);
-      this.handConfirmTimer = null;
-    }
     this.sfu.leave();
     this.peerConns.forEach(conn => conn.pc.close());
     this.peerConns.clear();
@@ -1508,10 +1134,6 @@ export class ActiveMeetingService {
     this.finalizeRecordingBackground();
     this.stopLocalMedia();
     this.chatMessages.set([]);
-    this.reactionTimers.forEach(t => clearTimeout(t));
-    this.reactionTimers.clear();
-    this.reactions.set([]);
-    this.ending.set(false);
     this.chatHistoryLoaded = false;
     this.iceServers = [];
     this.phase.set('idle');

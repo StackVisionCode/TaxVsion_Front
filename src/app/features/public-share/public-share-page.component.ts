@@ -4,7 +4,6 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
-import { FileViewerComponent, FileViewerItem, detectViewerKind } from '@shared/ui/index';
 
 /** Descriptor no sensible que devuelve GET /storage/public/{token}/meta (link de archivo). */
 interface ShareMeta {
@@ -59,7 +58,7 @@ type ShareMode = 'file' | 'folder';
 @Component({
   selector: 'app-public-share-page',
   standalone: true,
-  imports: [FormsModule, BrandLogoComponent, FileViewerComponent],
+  imports: [FormsModule, BrandLogoComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './public-share-page.component.html',
   styleUrl: './public-share-page.component.css',
@@ -81,13 +80,6 @@ export class PublicSharePageComponent implements OnInit {
   readonly password = signal('');
   readonly passwordError = signal(false);
   readonly submitting = signal(false);
-
-  // Visor global: PDF/imagen/texto se ven en la página, sin descargar. El resolver del backend
-  // responde 302 a la URL presignada y `fetch` lo sigue.
-  readonly viewerOpen = signal(false);
-  readonly viewerFiles = signal<FileViewerItem[]>([]);
-  readonly viewerIndex = signal(0);
-  readonly viewerAllowsDownload = signal(false);
 
   ngOnInit(): void {
     this.token = this.route.snapshot.paramMap.get('token') ?? '';
@@ -161,32 +153,6 @@ export class PublicSharePageComponent implements OnInit {
     });
   }
 
-  /** Abre el visor con los archivos previsualizables de la carpeta actual, desde el elegido. */
-  previewFolderFile(fileId: string): void {
-    const files = (this.folder()?.files ?? []).filter(file => this.canPreview(file.name, file.contentType));
-    const index = files.findIndex(file => file.fileId === fileId);
-    if (index < 0) {
-      return;
-    }
-    const pw = this.unlockedPassword ?? undefined;
-    try {
-      this.viewerFiles.set(
-        files.map(file => ({
-          name: file.name,
-          contentType: file.contentType,
-          sizeBytes: file.sizeBytes,
-          url: this.resolverUrl(pw, file.fileId),
-        })),
-      );
-    } catch {
-      this.state.set('unavailable');
-      return;
-    }
-    this.viewerIndex.set(index);
-    this.viewerAllowsDownload.set(this.folderAllowsDownload());
-    this.viewerOpen.set(true);
-  }
-
   downloadFolderFile(fileId: string): void {
     try {
       window.location.href = this.resolverUrl(this.unlockedPassword ?? undefined, fileId);
@@ -216,38 +182,10 @@ export class PublicSharePageComponent implements OnInit {
 
   open(): void {
     try {
-      window.location.href = this.resolverUrl(this.unlockedPassword ?? undefined);
+      window.location.href = this.resolverUrl();
     } catch {
       this.state.set('unavailable');
     }
-  }
-
-  /** true si el visor sabe mostrar este tipo (PDF, imagen, texto o CSV). */
-  canPreview(name?: string | null, contentType?: string | null): boolean {
-    return detectViewerKind(name ?? '', contentType) !== 'unsupported';
-  }
-
-  previewFile(): void {
-    const meta = this.meta();
-    if (!meta) {
-      return;
-    }
-    try {
-      this.viewerFiles.set([
-        {
-          name: meta.fileName ?? 'Document',
-          contentType: meta.contentType,
-          sizeBytes: meta.sizeBytes,
-          url: this.resolverUrl(this.unlockedPassword ?? undefined),
-        },
-      ]);
-    } catch {
-      this.state.set('unavailable');
-      return;
-    }
-    this.viewerIndex.set(0);
-    this.viewerAllowsDownload.set(!this.isViewOnly());
-    this.viewerOpen.set(true);
   }
 
   // ---------- Contraseña ----------
@@ -303,18 +241,10 @@ export class PublicSharePageComponent implements OnInit {
         this.submitting.set(false);
         return;
       }
+      window.location.href = target;
     } catch {
-      // Sin respuesta legible (CORS/red): se sigue igual; el resolver volverá a validar.
+      window.location.href = target;
     }
-    this.unlockedPassword = pw;
-    this.submitting.set(false);
-    // Si el visor sabe mostrarlo, se queda en la página (ver o descargar); si no, descarga directa.
-    if (this.canPreview(this.meta()?.fileName, this.meta()?.contentType)) {
-      this.state.set('ready');
-      this.previewFile();
-      return;
-    }
-    window.location.href = target;
   }
 
   // ---------- URLs ----------

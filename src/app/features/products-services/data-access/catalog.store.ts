@@ -7,9 +7,9 @@ import {
   CatalogFormValue,
   CatalogItemDto,
   CategoryDto,
+  DEFAULT_CURRENCY,
   toCatalogEntry,
 } from './catalog.model';
-import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 
 /**
  * Lote de carga: el backend recorta pageSize>200 a 50, así que 200 es el máximo real por
@@ -27,9 +27,6 @@ const FETCH_SIZE = 200;
 @Injectable({ providedIn: 'root' })
 export class CatalogStore {
   private readonly api = inject(CatalogApiService);
-  /** Moneda de la oficina para las altas (item 6.1); el histórico conserva la suya. */
-  private readonly officeCurrency = inject(OfficeCurrencyStore);
-  readonly defaultCurrency = this.officeCurrency.currency;
 
   // ---------- Estado crudo ----------
   private readonly _raw = signal<CatalogItemDto[]>([]);
@@ -70,7 +67,6 @@ export class CatalogStore {
   }
 
   refresh(): void {
-    this.officeCurrency.ensureLoaded();
     this._loading.set(true);
     this._error.set(null);
     forkJoin({
@@ -102,7 +98,6 @@ export class CatalogStore {
     const sku = isProduct && form.sku?.trim() ? form.sku.trim() : null;
     const costAmount = isProduct && form.costAmount != null && form.costAmount > 0 ? form.costAmount : null;
     const unit = isProduct && form.unit?.trim() ? form.unit.trim() : null;
-    const currency = this.officeCurrency.currency();
     return this.api
       .createItem({
         name: form.name.trim(),
@@ -112,9 +107,9 @@ export class CatalogStore {
         categoryId: form.categoryId,
         kind: form.kind,
         priceAmount: form.price,
-        priceCurrency: currency,
+        priceCurrency: DEFAULT_CURRENCY,
         costAmount,
-        costCurrency: costAmount != null ? currency : null,
+        costCurrency: costAmount != null ? DEFAULT_CURRENCY : null,
         unit,
         taxRateBasisPoints: Math.round((form.taxRatePercent || 0) * 100),
         trackInventory: isProduct ? (form.trackInventory ?? true) : false,

@@ -52,15 +52,8 @@
 
   <!-- Cuerpo: sidebar + superficie -->
   <div class="flex min-h-0 flex-1 gap-4 p-5">
-    <!-- Sidebar plegable (11.1): plegado queda un riel angosto que lo vuelve a abrir. -->
-    <button *ngIf="panels().leftCollapsed" type="button" (click)="toggleLeftPanel()"
-      class="panel-rail flex w-11 shrink-0 flex-col items-center gap-2 rounded-2xl border border-gray-100 py-3 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
-      aria-label="Show details and roles panel" title="Show details & roles">
-      <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
-      <ion-icon name="people-outline" class="text-base"></ion-icon>
-      <span class="[writing-mode:vertical-rl]">Details &amp; roles</span>
-    </button>
-    <aside *ngIf="!panels().leftCollapsed" class="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto">
+    <!-- Sidebar -->
+    <aside class="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto">
       <!-- Detalles -->
       <section class="rounded-2xl border border-gray-100 p-3">
         <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Details</h3>
@@ -89,19 +82,19 @@
           Require consent
           <input type="checkbox" [ngModel]="consent()" (ngModelChange)="consent.set($event)" class="accent-brand-bold" />
         </label>
-        <!-- 11.2: el certificado se genera siempre; ya no hay switch. -->
-        <p class="mb-2 flex items-center gap-1.5 text-xs font-medium text-gray-600">
-          <ion-icon name="ribbon-outline" class="text-sm text-brand-bold"></ion-icon>
-          Signature certificate always included
-        </p>
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          Generate certificate
+          <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="onCertificateToggle($event)" class="accent-brand-bold" />
+        </label>
         <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
           Email signed document to signers
           <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" class="accent-brand-bold" />
         </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium"
+          [class.text-gray-600]="certificate()" [class.text-gray-300]="!certificate()">
           Email certificate to signers
           <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
-            class="accent-brand-bold" />
+            [disabled]="!certificate()" class="accent-brand-bold" />
         </label>
         <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
           Auto-reminders
@@ -215,13 +208,6 @@
     <main class="flex min-w-0 flex-1 flex-col rounded-2xl border border-gray-100">
       <!-- Toolbar de campos -->
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2">
-        <!-- 11.1: plegar/desplegar el sidebar para agrandar el documento -->
-        <button type="button" (click)="toggleLeftPanel()"
-          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          [attr.aria-label]="panels().leftCollapsed ? 'Show details and roles panel' : 'Hide details and roles panel'"
-          [title]="panels().leftCollapsed ? 'Show details & roles' : 'Hide details & roles'">
-          <ion-icon [name]="panels().leftCollapsed ? 'chevron-forward-outline' : 'chevron-back-outline'" class="text-sm"></ion-icon>
-        </button>
         <!-- Sin roles: guía explícita en vez de botones deshabilitados sin explicación -->
         <div *ngIf="slots().length === 0" class="flex items-center gap-1.5 text-[11px] font-medium text-brand-bold">
           <ion-icon name="arrow-back-outline" class="text-sm"></ion-icon>
@@ -232,13 +218,9 @@
           <span class="mr-1 text-[11px] font-medium text-gray-400">
             Add field for <span class="font-semibold text-gray-700">{{ activeSlotLabel() }}</span>:
           </span>
-          <!-- 11.3: arrastrar a cualquier página o click = centro de la página visible -->
           <button *ngFor="let type of fieldTypes" type="button" (click)="addField(type)"
             [disabled]="activeSlotOrder() === null || !isDraft()"
-            [attr.draggable]="activeSlotOrder() !== null && isDraft() && pages().length > 0"
-            (dragstart)="onPaletteDragStart($event, 'signer', type)" (dragend)="onPaletteDragEnd()"
-            [title]="'Drag onto the document or click to add ' + fieldLabel[type]"
-            class="flex cursor-grab items-center gap-1 rounded-full active:cursor-grabbing border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
+            class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
             <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
             {{ fieldLabel[type] }}
           </button>
@@ -252,10 +234,7 @@
           </span>
           <button *ngFor="let type of preparerFieldTypes" type="button" (click)="addPreparerField(type)"
             [disabled]="pages().length === 0"
-            [attr.draggable]="pages().length > 0"
-            (dragstart)="onPaletteDragStart($event, 'preparer', type)" (dragend)="onPaletteDragEnd()"
-            [title]="'Drag onto the document or click to add a preparer ' + fieldLabel[type]"
-            class="flex cursor-grab items-center gap-1 rounded-full active:cursor-grabbing border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
+            class="flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
             <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
             {{ fieldLabel[type] }}
           </button>
@@ -293,13 +272,9 @@
       </div>
 
       <!-- Páginas -->
-      <div #surface class="flex-1 overflow-auto bg-gray-50 p-4">
+      <div class="flex-1 overflow-auto bg-gray-50 p-4">
         <div class="mx-auto flex max-w-3xl flex-col items-center gap-4">
-          <!-- Zona de drop (11.3): el campo arrastrado cae centrado bajo el puntero. -->
-          <div *ngFor="let page of pages()" class="doc-page relative shadow-sm" [attr.data-page]="page.page"
-            [class.drop-ready]="paletteDragging()" [class.drop-target]="dropTargetPage() === page.page"
-            (dragover)="onPageDragOver($event, page.page)" (dragleave)="onPageDragLeave($event, page.page)"
-            (drop)="onPageDrop($event, page.page)"
+          <div *ngFor="let page of pages()" class="relative shadow-sm"
             [style.width.px]="page.width" [style.height.px]="page.height">
             <img *ngIf="page.src" [src]="page.src" alt="Page {{ page.page }}" class="block h-full w-full select-none" draggable="false" />
             <div *ngIf="!page.src" class="flex h-full w-full items-center justify-center bg-white text-xs text-gray-300">

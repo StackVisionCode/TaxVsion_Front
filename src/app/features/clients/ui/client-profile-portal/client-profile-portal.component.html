@@ -104,7 +104,7 @@
     <!-- Nada que hacer y sin permiso de invitar -->
     <div *ngIf="access().status !== 'active' && access().status !== 'pending' && access().status !== 'deactivated' && !canInvite()"
       class="mt-4 rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400">
-      This client has no portal access. Inviting a client to the portal is available to office administrators.
+      This client has no portal access. Inviting a client to the portal is available to tenant administrators.
     </div>
   </ng-container>
 </div>

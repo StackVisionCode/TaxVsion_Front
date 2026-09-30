@@ -130,10 +130,9 @@
             <ion-icon name="notifications-outline" class="text-[11px]"></ion-icon>
             Auto reminder
           </span>
-          <!-- 11.2: el certificado se genera siempre; el badge informa además si se envía a los firmantes. -->
-          <span class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+          <span *ngIf="r.certificate" class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
             <ion-icon name="ribbon-outline" class="text-[11px]"></ion-icon>
-            {{ r.sendCertificate && r.certificate !== false ? 'Certificate · emailed to signers' : 'Certificate included' }}
+            Certificate
           </span>
         </div>
       </div>

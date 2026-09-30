@@ -28,10 +28,6 @@ import { Product, ProductStatus, StockBadge, stockLevel } from '../../data-acces
 })
 export class ProductTableComponent {
   @Input() products: Product[] = [];
-  /** Item 2.1 — permisos resueltos por la página (catalog.write / inventory.adjust / catalog.delete). */
-  @Input() canEdit = true;
-  @Input() canAdjust = true;
-  @Input() canDelete = true;
   @Output() editRequested = new EventEmitter<Product>();
   @Output() adjustRequested = new EventEmitter<{ product: Product; delta: number }>();
   @Output() deleteRequested = new EventEmitter<Product>();
@@ -44,11 +40,6 @@ export class ProductTableComponent {
     if (!target.closest('[data-dropdown="product-menu"]')) {
       this.openMenuId.set(null);
     }
-  }
-
-  /** Sin ninguna acción permitida el menú "..." no se pinta. */
-  get hasActions(): boolean {
-    return this.canEdit || this.canAdjust || this.canDelete;
   }
 
   trackByProductId(_index: number, product: Product): string {

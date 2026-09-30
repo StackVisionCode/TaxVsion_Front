@@ -69,7 +69,7 @@ const PANELS: Record<string, PanelConfig> = {
       icon: 'business-outline',
       label: 'Open company settings',
       description:
-        'Firm name, EIN, address, contact details, logo and brand colors are stored with your company profile.',
+        'Firm name, EIN, address, contact details, logo and tenant brand colors are stored with your company profile.',
       routerLink: '/company/settings',
     },
     fields: [

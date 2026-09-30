@@ -214,7 +214,14 @@
               <span>Profile</span>
             </a>
 
-            <!-- La gestión de usuarios se movió al sidebar ("Users"), con el mismo gate `users`. -->
+            <!-- Administracion de la oficina: solo para quien puede hacerla. Un empleado sin
+                 `users.view` entraba igual y se encontraba con la lista vacia. -->
+            <a *ngIf="canUse('users')" routerLink="/company/users"
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+              <ion-icon name="people-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
+              <span>User management</span>
+            </a>
+
             <a *ngIf="canUse('company-settings')" routerLink="/company/settings"
               class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
               <ion-icon name="business-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
@@ -229,10 +236,6 @@
               <ion-icon name="card-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
               <span>{{ handoff.opening() ? 'Opening…' : 'Manage subscription' }}</span>
             </button>
-            <p *ngIf="canManageSubscription() && handoff.error()" role="alert"
-              class="mx-3 mb-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
-              {{ handoff.error() }}
-            </p>
           </div>
 
           <div class="mx-1.5 border-t border-gray-100"></div>

@@ -1,7 +1,6 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
-  ElementRef,
   EventEmitter,
   HostListener,
   Input,
@@ -12,7 +11,6 @@ import {
   effect,
   inject,
   signal,
-  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -49,17 +47,6 @@ import {
 } from '../signature-request-panel/signature-wizard.presenter';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
-import {
-  FIELD_DRAG_MIME,
-  FieldPlacement,
-  FieldSize,
-  PageBox,
-  decodeFieldDrag,
-  dropPosition,
-  encodeFieldDrag,
-  visiblePlacement,
-} from '../../utils/field-placement.util';
-import { EditorPanelsState, readEditorPanels, writeEditorPanels } from '../../utils/editor-panels.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 
@@ -172,28 +159,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
 
   readonly pages = signal<RenderedPage[]>([]);
   readonly loading = signal(false);
-
-  /** Contenedor con scroll del documento: base del fallback "colocar en la página visible". */
-  @ViewChild('surface') private surfaceRef?: ElementRef<HTMLElement>;
-
-  // ---------- 11.1 paneles laterales plegables (recordados en localStorage) ----------
-  readonly panels = signal<EditorPanelsState>(readEditorPanels('request'));
-
-  toggleLeftPanel(): void {
-    this.panels.update(p => ({ ...p, leftCollapsed: !p.leftCollapsed }));
-    writeEditorPanels('request', this.panels());
-  }
-
-  toggleRightPanel(): void {
-    this.panels.update(p => ({ ...p, rightCollapsed: !p.rightCollapsed }));
-    writeEditorPanels('request', this.panels());
-  }
-
-  // ---------- 11.3 drag & drop desde la paleta ----------
-  /** true mientras se arrastra un campo de la paleta (resalta las páginas como zona de drop). */
-  readonly paletteDragging = signal(false);
-  /** Página bajo el puntero durante el drag (resaltado). */
-  readonly dropTargetPage = signal<number | null>(null);
   readonly loadError = signal('');
 
   /** Zoom del documento (1 = 100%); la escala efectiva de render es BASE_SCALE * zoom. */
@@ -392,13 +357,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
   /** Estado del directorio compartido para el buscador (store es privado; se exponen wrappers). */
   readonly customersLoading = this.store.customersLoading;
   readonly customersError = this.store.customersError;
-  /** Paginación server-side del directorio (10.1): "Load more" también en el modal Add signer. */
-  readonly customersHasMore = this.store.customersHasMore;
-  readonly customersLoadingMore = this.store.customersLoadingMore;
-
-  loadMoreClients(): void {
-    this.store.loadMoreCustomers();
-  }
 
   /** Reintenta cargar el directorio de clientes tras un error. */
   retryLoadClients(): void {
@@ -674,15 +632,9 @@ export class SignaturePdfEditorComponent implements OnChanges {
     this.rules.update(r => ({ ...r, reminderIntervalHours: clamped * 24 }));
   }
 
-  /**
-   * 11.2: el certificado se genera siempre en solicitudes nuevas. Solo un borrador antiguo hidratado con
-   * `generateCertificate = false` (inmutable en backend) no puede entregarlo: el backend rechazaría
-   * SetCertificateDelivery(true).
-   */
-  readonly legacyNoCertificate = computed(() => this.rules().certificate === false);
-
-  toggleRule(key: 'autoReminder' | 'sendSignedDocument' | 'sendCertificate'): void {
-    if (key === 'sendCertificate' && this.legacyNoCertificate()) {
+  toggleRule(key: 'autoReminder' | 'certificate' | 'sendSignedDocument' | 'sendCertificate'): void {
+    // Entregar el certificado exige que el certificado se genere: si está apagado, no se puede activar.
+    if (key === 'sendCertificate' && !this.rules().certificate) {
       return;
     }
     this.rules.update(r => ({ ...r, [key]: !r[key] }));
@@ -760,30 +712,27 @@ export class SignaturePdfEditorComponent implements OnChanges {
     return field.id;
   }
 
-  /**
-   * Coloca un campo del firmante activo. `at` viene del drop (posición exacta); sin él (click en la
-   * paleta) se centra en la página más visible del visor (11.3), no siempre en la página 1.
-   */
-  addField(type: FieldType, at?: FieldPlacement): void {
+  addField(type: FieldType): void {
+    const first = this.pages()[0];
     // Un campo de firmante NUNCA se asigna a la parte preparador: si el activo es 'preparer' (o nulo),
     // cae al primer firmante real. Evita que tras "Place my signature" los Add Field se creen como preparer.
     const active = this.activeSignerId();
     const signerId = active && active !== PREPARER_PARTY_ID ? active : (this.signers()[0]?.id ?? null);
-    const size = DEFAULT_SIZE[type];
-    const place = at ?? this.clickPlacement(size, 120);
-    if (!signerId || !place) {
+    if (!signerId || !first) {
       return;
     }
     // Reencauza el activo a un firmante real para la etiqueta "For:" y los siguientes campos.
     if (this.activeSignerId() !== signerId) {
       this.activeSignerId.set(signerId);
     }
+    const size = DEFAULT_SIZE[type];
+    const count = this.fields().length;
     const field: PlacedField = {
       id: `field-${this.seq++}`,
       type,
-      page: place.page,
-      x: place.x,
-      y: place.y,
+      page: first.page,
+      x: Math.max(8, (first.width - size.w) / 2),
+      y: clamp(120 + (count % 6) * 16, 8, first.height - size.h - 8),
       width: size.w,
       height: size.h,
       signerId,
@@ -793,18 +742,19 @@ export class SignaturePdfEditorComponent implements OnChanges {
   }
 
   /** Coloca un campo de firma del PREPARADOR (parte sintética, no un firmante). Requiere firma default. */
-  addPreparerField(at?: FieldPlacement): void {
-    const size = DEFAULT_SIZE.signature;
-    const place = at ?? this.clickPlacement(size, 180);
-    if (!place || !this.hasPreparerSignature()) {
+  addPreparerField(): void {
+    const first = this.pages()[0];
+    if (!first || !this.hasPreparerSignature()) {
       return;
     }
+    const size = DEFAULT_SIZE.signature;
+    const count = this.fields().length;
     const field: PlacedField = {
       id: `prep-${this.seq++}`,
       type: 'signature',
-      page: place.page,
-      x: place.x,
-      y: place.y,
+      page: first.page,
+      x: Math.max(8, (first.width - size.w) / 2),
+      y: clamp(180 + (count % 6) * 16, 8, first.height - size.h - 8),
       width: size.w,
       height: size.h,
       signerId: PREPARER_PARTY_ID,
@@ -820,94 +770,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
       }
     }
     this.emitCount();
-  }
-
-  /**
-   * Fallback de click: centro de la página más visible del visor. Si el DOM aún no está (o nada
-   * visible), cae al comportamiento anterior: página 1, centrado, escalonado por cantidad de campos.
-   */
-  private clickPlacement(size: FieldSize, baseY: number): FieldPlacement | null {
-    const surface = this.surfaceRef?.nativeElement;
-    if (surface) {
-      const visible = visiblePlacement(this.pageBoxes(surface), surface.getBoundingClientRect(), size);
-      if (visible) {
-        return visible;
-      }
-    }
-    const first = this.pages()[0];
-    if (!first) {
-      return null;
-    }
-    const count = this.fields().length;
-    return {
-      page: first.page,
-      x: Math.max(8, (first.width - size.w) / 2),
-      y: clamp(baseY + (count % 6) * 16, 8, first.height - size.h - 8),
-    };
-  }
-
-  /** Rectángulos de pantalla de las páginas renderizadas (marcadas con data-page). */
-  private pageBoxes(surface: HTMLElement): PageBox[] {
-    return Array.from(surface.querySelectorAll<HTMLElement>('[data-page]')).map(el => {
-      const r = el.getBoundingClientRect();
-      return { page: Number(el.dataset['page']), left: r.left, top: r.top, width: el.clientWidth, height: el.clientHeight };
-    });
-  }
-
-  // ---------- 11.3 drag & drop HTML5 desde la paleta ----------
-
-  onPaletteDragStart(event: DragEvent, kind: 'signer' | 'preparer', type: FieldType): void {
-    if (!event.dataTransfer) {
-      return;
-    }
-    event.dataTransfer.setData(FIELD_DRAG_MIME, encodeFieldDrag({ kind, type }));
-    event.dataTransfer.effectAllowed = 'copy';
-    this.paletteDragging.set(true);
-  }
-
-  onPaletteDragEnd(): void {
-    this.paletteDragging.set(false);
-    this.dropTargetPage.set(null);
-  }
-
-  /** Solo acepta drags de la paleta (MIME propio); archivos/texto externos se ignoran. */
-  onPageDragOver(event: DragEvent, page: number): void {
-    if (!event.dataTransfer?.types.includes(FIELD_DRAG_MIME)) {
-      return;
-    }
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-    if (this.dropTargetPage() !== page) {
-      this.dropTargetPage.set(page);
-    }
-  }
-
-  onPageDragLeave(event: DragEvent, page: number): void {
-    // dragleave también dispara al pasar sobre un hijo: solo se limpia al salir de la página de verdad.
-    const next = event.relatedTarget as Node | null;
-    if (next && (event.currentTarget as HTMLElement).contains(next)) {
-      return;
-    }
-    if (this.dropTargetPage() === page) {
-      this.dropTargetPage.set(null);
-    }
-  }
-
-  onPageDrop(event: DragEvent, page: number): void {
-    const payload = decodeFieldDrag(event.dataTransfer?.getData(FIELD_DRAG_MIME), this.fieldTypes);
-    this.onPaletteDragEnd();
-    if (!payload) {
-      return;
-    }
-    event.preventDefault();
-    const el = event.currentTarget as HTMLElement;
-    const r = el.getBoundingClientRect();
-    const box: PageBox = { page, left: r.left, top: r.top, width: el.clientWidth, height: el.clientHeight };
-    if (payload.kind === 'preparer') {
-      this.addPreparerField({ page, ...dropPosition(event.clientX, event.clientY, box, DEFAULT_SIZE.signature) });
-    } else {
-      this.addField(payload.type, { page, ...dropPosition(event.clientX, event.clientY, box, DEFAULT_SIZE[payload.type]) });
-    }
   }
 
   isPreparerField(field: PlacedField): boolean {

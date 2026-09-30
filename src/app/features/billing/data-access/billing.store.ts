@@ -13,10 +13,8 @@ import {
 } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
-import { utcTime } from '@shared/utils/utc-date.util';
-import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
+import { parseUtcDateOrNull, utcTime } from '@shared/utils/utc-date.util';
 import { BillingService } from './billing.service';
-import { InvoiceMetrics, summarizeInvoices } from './invoice-metrics';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
@@ -34,7 +32,6 @@ import {
   PaymentLink,
   PaymentLinkStatus,
   PaymentPurposeKind,
-  reissueBlockReason,
   toCents,
 } from './billing.model';
 
@@ -54,6 +51,16 @@ const POLL_INTERVAL_MS = 1500;
 /** Filtro de estado del listado; `All` no filtra. */
 export type InvoiceStatusFilter = InvoiceStatus | 'All';
 
+/** Agregados del listado, todos derivables de `InvoiceSummary` sin inventar nada. */
+export interface InvoiceMetrics {
+  outstandingCents: number;
+  collectedCents: number;
+  draftCount: number;
+  /** Media de días entre creación y cobro sobre las pagadas; null si todavía no hay ninguna. */
+  averageDaysToPay: number | null;
+  currency: string;
+}
+
 /**
  * Estado de la sección de facturación. Vive en la ruta (`providers` de `billing.routes.ts`), así
  * que muere al salir de `/billing`.
@@ -72,8 +79,6 @@ export class BillingStore {
   private readonly service = inject(BillingService);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
-  /** Moneda de la oficina compartida con Products & Services e Inventory (item 6.1). */
-  private readonly officeCurrency = inject(OfficeCurrencyStore);
 
   // ---------- Facturas ----------
 
@@ -159,14 +164,34 @@ export class BillingStore {
     return this.filteredInvoices().slice(start, start + PAGE_SIZE);
   });
 
-  /**
-   * Los cards resumen EXACTAMENTE lo que muestra la tabla: se calculan sobre el conjunto filtrado
-   * (estado + nº + rango de fechas), no sobre todo el lote cargado. Los importes se agrupan por
-   * moneda (item 6.1): la principal es la de la oficina y las demás se informan aparte, sin sumarlas.
-   */
-  readonly metrics = computed<InvoiceMetrics>(() =>
-    summarizeInvoices(this.filteredInvoices(), this.officeCurrency.currency()),
-  );
+  readonly metrics = computed<InvoiceMetrics>(() => {
+    // Los cards resumen EXACTAMENTE lo que muestra la tabla: se calculan sobre el conjunto
+    // filtrado (estado + nº + rango de fechas), no sobre todo el lote cargado. Sin filtros
+    // activos, `filteredInvoices()` es el lote completo → mismo resultado que antes.
+    const invoices = this.filteredInvoices();
+    // Un borrador todavía no debe nada: no se emitió. `Voided` tampoco cuenta.
+    const billable = invoices.filter(inv => inv.status !== 'Draft' && inv.status !== 'Voided');
+
+    let totalDays = 0;
+    let paidCount = 0;
+    for (const invoice of invoices) {
+      const paidAt = parseUtcDateOrNull(invoice.paidAtUtc);
+      const createdAt = parseUtcDateOrNull(invoice.createdAtUtc);
+      if (paidAt && createdAt) {
+        totalDays += (paidAt.getTime() - createdAt.getTime()) / 86_400_000;
+        paidCount++;
+      }
+    }
+
+    return {
+      outstandingCents: billable.reduce((sum, inv) => sum + inv.amountDueCents, 0),
+      collectedCents: invoices.reduce((sum, inv) => sum + inv.amountPaidCents, 0),
+      draftCount: invoices.filter(inv => inv.status === 'Draft').length,
+      averageDaysToPay: paidCount === 0 ? null : Math.round((totalDays / paidCount) * 10) / 10,
+      // Billing no expone una moneda de cuenta: se toma la de la primera factura.
+      currency: invoices[0]?.currency ?? 'USD',
+    };
+  });
 
   setStatusFilter(status: InvoiceStatusFilter): void {
     this._statusFilter.set(status);
@@ -583,30 +608,6 @@ export class BillingStore {
    * cobrado. Al terminar, recarga el listado y abre el reemplazo en el editor (vía `onReplacementReady`) para
    * corregirlo antes de emitir.
    */
-  /**
-   * Antes de ofrecer la reemisión se confirma con `/detail` que la factura no fue reemplazada ya (el
-   * summary del listado no trae ese enlace). Si el detalle no se puede leer, se deja seguir: el
-   * backend valida igual.
-   */
-  requestReissue(invoice: InvoiceSummary, onAllowed: () => void): void {
-    this._busyInvoiceId.set(invoice.id);
-    this.service.getInvoiceDetail(invoice.id).subscribe({
-      next: detail => {
-        this._busyInvoiceId.set(null);
-        const blocked = reissueBlockReason(detail);
-        if (blocked) {
-          this.toast.info(blocked);
-          return;
-        }
-        onAllowed();
-      },
-      error: () => {
-        this._busyInvoiceId.set(null);
-        onAllowed();
-      },
-    });
-  }
-
   reissueInvoice(invoiceId: string, reason: string | null, onReplacementReady: () => void): void {
     this._busyInvoiceId.set(invoiceId);
     this.service.reissueInvoice(invoiceId, reason).subscribe({
@@ -807,8 +808,6 @@ export class BillingStore {
   private readonly _savingCompany = signal(false);
 
   readonly issuer = this._issuer.asReadonly();
-  /** Moneda por defecto para altas nuevas (facturas, links de pago): la de la oficina. */
-  readonly defaultCurrency = this.officeCurrency.currency;
   readonly branding = this._branding.asReadonly();
   readonly savingCompany = this._savingCompany.asReadonly();
 
@@ -817,9 +816,7 @@ export class BillingStore {
 
   loadCompany(): void {
     this.service.getIssuerProfile().subscribe({
-      next: profile => {
-        // La moneda del perfil pasa a ser la moneda de la oficina para toda la app (item 6.1).
-        this.officeCurrency.set(profile.defaultCurrency);
+      next: profile =>
         this._issuer.set({
           name: profile.name || '',
           taxId: profile.taxId || '',
@@ -831,9 +828,8 @@ export class BillingStore {
           phone: profile.phone || '',
           email: profile.email || '',
           website: profile.website || '',
-          defaultCurrency: profile.defaultCurrency || this.officeCurrency.currency(),
-        });
-      },
+          defaultCurrency: profile.defaultCurrency || 'USD',
+        }),
       // El backend sintetiza un perfil vacío cuando no hay fila: un error acá no es "no existe".
       error: () => this._issuer.set({ ...EMPTY_ISSUER_PROFILE }),
     });
@@ -862,7 +858,6 @@ export class BillingStore {
         next: () => {
           this._savingCompany.set(false);
           this._issuer.set({ ...issuer });
-          this.officeCurrency.set(issuer.defaultCurrency);
           this._branding.set({ ...branding });
           this.toast.success('Company details saved. They will appear on the next invoices.');
         },

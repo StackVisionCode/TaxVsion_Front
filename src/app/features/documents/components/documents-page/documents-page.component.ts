@@ -14,13 +14,11 @@ import {
   ShareLinkResponse,
   formatBytes,
   formatDate,
-  isFileReady,
 } from '../../data-access/documents.model';
 import { DocumentNavigatorComponent } from '../../ui/document-navigator/document-navigator.component';
 import { FileListComponent, FileRowAction } from '../../ui/file-list/file-list.component';
 import { FileDetailsPanelComponent } from '../../ui/file-details-panel/file-details-panel.component';
 import { DocumentPreviewComponent } from '../../ui/document-preview/document-preview.component';
-import { FileViewerComponent, FileViewerDownload, FileViewerItem } from '@shared/ui/index';
 import { UploadDialogComponent } from '../../ui/upload-dialog/upload-dialog.component';
 import { MoveDialogComponent } from '../../ui/move-dialog/move-dialog.component';
 import { NamePromptDialogComponent } from '../../ui/name-prompt-dialog/name-prompt-dialog.component';
@@ -46,7 +44,6 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
     FileListComponent,
     FileDetailsPanelComponent,
     DocumentPreviewComponent,
-    FileViewerComponent,
     UploadDialogComponent,
     MoveDialogComponent,
     NamePromptDialogComponent,
@@ -145,12 +142,7 @@ export class DocumentsPageComponent {
   readonly pendingDeleteFolder = signal<FolderResponse | null>(null);
   readonly storageOpen = signal(false);
   readonly emptyTrashOpen = signal(false);
-  /** Archivo NO listo (procesando/bloqueado): se muestra la ficha de estado, no el visor. */
   readonly previewFile = signal<FileResponse | null>(null);
-  /** Visor global: la lista navegable (solo archivos listos) y la posición de apertura. */
-  readonly viewerFiles = signal<FileViewerItem[]>([]);
-  readonly viewerIndex = signal(0);
-  readonly viewerOpen = signal(false);
 
   readonly filterYears = [2025, 2024, 2023];
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
@@ -296,7 +288,7 @@ export class DocumentsPageComponent {
         this.store.toggleFileSelection(action.file.id);
         break;
       case 'preview-file':
-        this.openPreview(action.file);
+        this.previewFile.set(action.file);
         break;
       case 'download-file':
         this.store.downloadFile(action.file);
@@ -487,40 +479,6 @@ export class DocumentsPageComponent {
   }
 
   // ---------- Panel de detalles / preview ----------
-  /**
-   * Un archivo listo abre el visor, con anterior/siguiente sobre los archivos listos de la vista
-   * actual. Uno que todavía se procesa (o quedó bloqueado) sigue abriendo la ficha de estado.
-   */
-  openPreview(file: FileResponse): void {
-    if (!isFileReady(file.status)) {
-      this.previewFile.set(file);
-      return;
-    }
-    const pool = this.visibleFiles().filter(candidate => isFileReady(candidate.status));
-    const list = pool.some(candidate => candidate.id === file.id) ? pool : [file];
-    this.viewerFiles.set(list.map(candidate => this.toViewerItem(candidate)));
-    this.viewerIndex.set(list.findIndex(candidate => candidate.id === file.id));
-    this.viewerOpen.set(true);
-  }
-  closeViewer(): void {
-    this.viewerOpen.set(false);
-  }
-  /** La descarga desde el visor usa el mismo camino que la lista (URL presignada con el nombre real). */
-  downloadFromViewer(event: FileViewerDownload): void {
-    const file = event.item.ref as FileResponse | undefined;
-    if (file) {
-      this.store.downloadFile(file);
-    }
-  }
-  private toViewerItem(file: FileResponse): FileViewerItem {
-    return {
-      name: file.originalName,
-      contentType: file.detectedContentType ?? file.declaredContentType,
-      sizeBytes: file.sizeBytes,
-      resolveUrl: () => this.store.previewUrl(file.id),
-      ref: file,
-    };
-  }
   closeDetails(): void {
     this.store.clearSelection();
   }

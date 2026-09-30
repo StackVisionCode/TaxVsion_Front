@@ -21,13 +21,8 @@ class StoreStub {
   customers = signal<WizardClient[]>([]);
   customersLoading = signal(false);
   customersError = signal<string | null>(null);
-  customersHasMore = signal(false);
-  customersTotal = signal(0);
-  customersLoadingMore = signal(false);
-  customersMoreError = signal<string | null>(null);
   loadCustomers = vi.fn();
   queryCustomers = vi.fn();
-  loadMoreCustomers = vi.fn();
 }
 
 describe('SignatureClientPickerComponent', () => {
@@ -71,14 +66,6 @@ describe('SignatureClientPickerComponent', () => {
     c.select(chosen);
 
     expect(emitted).toEqual([chosen]);
-  });
-
-  it('loadMore delega en la paginación del store', () => {
-    const { c, store } = setup();
-
-    c.loadMore();
-
-    expect(store.loadMoreCustomers).toHaveBeenCalledTimes(1);
   });
 
   it('close emite closed', () => {

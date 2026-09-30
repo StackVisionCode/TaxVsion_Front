@@ -199,19 +199,6 @@ export class MeetingRtcService {
   onCancelled(): Observable<MeetingCancelledDto> {
     return this.realtime.on<MeetingCancelledDto>('meeting.cancelled');
   }
-  /**
-   * El meeting terminó para todos. OJO: el `POST /meetings/{id}/end` del backend NO emite
-   * `meeting.state.changed` a la room `m:` — solo este aviso (`meeting.ended`) a la room PERSONAL de
-   * cada participante/invitado. Sin escucharlo, quien estaba dentro se quedaba en la sala hasta recargar.
-   */
-  onMeetingEnded(): Observable<{ meetingId: string }> {
-    return this.realtime.on<{ meetingId: string }>('meeting.ended');
-  }
-
-  /** true si el socket compartido está conectado (los emits sin ack se pierden en silencio si no). */
-  isConnected(): boolean {
-    return this.realtime.connected();
-  }
 
   private async emitOrThrow<T>(event: string, payload: object): Promise<T> {
     const ack = (await this.realtime.emitAck<T>(event, payload)) as SocketAck<T>;

@@ -214,62 +214,6 @@ export class MeetingSfuService {
     }
   }
 
-  /**
-   * Stats de RECEPCIÓN de un peer (todas sus consumers: audio + cámara + pantalla), aplanadas en una
-   * lista de entradas de RTCStatsReport. Para el medidor de calidad local; [] si no hay consumers.
-   */
-  async getPeerStats(userId: string): Promise<unknown[]> {
-    const out: unknown[] = [];
-    for (const { userId: u, consumerId } of this.producerIndex.values()) {
-      if (u !== userId) {
-        continue;
-      }
-      const consumer = this.consumers.get(consumerId);
-      if (!consumer || consumer.closed) {
-        continue;
-      }
-      try {
-        (await consumer.getStats()).forEach(stat => out.push(stat));
-      } catch {
-        /* consumer cerrándose */
-      }
-    }
-    return out;
-  }
-
-  /** Stats de ENVÍO (mis producers) aplanadas — calidad de mi propio tile y modo bajo ancho de banda. */
-  async getLocalStats(): Promise<unknown[]> {
-    const out: unknown[] = [];
-    for (const producer of this.producers.values()) {
-      if (producer.closed) {
-        continue;
-      }
-      try {
-        (await producer.getStats()).forEach(stat => out.push(stat));
-      } catch {
-        /* producer cerrándose */
-      }
-    }
-    return out;
-  }
-
-  /**
-   * Modo bajo ancho de banda (envío): limita la cámara a la capa de simulcast más baja (¼ de
-   * resolución, ~150 kbps) con `setMaxSpatialLayer`; al salir vuelve a permitir las 3 capas. La
-   * pantalla no se toca (texto ilegible a baja resolución). Best-effort.
-   */
-  async setLowBandwidth(low: boolean): Promise<void> {
-    const camera = this.producers.get('camera');
-    if (!camera || camera.closed) {
-      return;
-    }
-    try {
-      await camera.setMaxSpatialLayer(low ? 0 : 2);
-    } catch (err) {
-      console.warn('[MeetingSfu] setMaxSpatialLayer failed:', err);
-    }
-  }
-
   private closeRemoteProducer(producerId: string): void {
     const entry = this.producerIndex.get(producerId);
     if (!entry) {

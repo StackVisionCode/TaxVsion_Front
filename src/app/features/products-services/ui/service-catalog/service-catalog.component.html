@@ -6,7 +6,7 @@
       <p class="mt-1 text-sm text-gray-500">Services and products offered to clients</p>
     </div>
 
-    <button *ngIf="canCreate" type="button" (click)="addService.emit()"
+    <button type="button" (click)="addService.emit()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
       <ion-icon name="add-outline" class="text-base"></ion-icon>
       Add service
@@ -82,7 +82,7 @@
             </span>
           </td>
           <td class="px-4 py-3.5 text-right font-bold text-gray-900 group-hover:bg-gray-50 transition-colors"
-            [class.border-b]="!last" [class.border-gray-100]="!last">{{ price(service) }}</td>
+            [class.border-b]="!last" [class.border-gray-100]="!last">${{ service.price }}</td>
           <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
             [class.border-gray-100]="!last">
             <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
@@ -93,12 +93,12 @@
           <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
             [class.border-b]="!last" [class.border-gray-100]="!last">
             <div class="flex items-center justify-end gap-1">
-              <button *ngIf="canEdit" type="button" (click)="editService.emit(service)"
+              <button type="button" (click)="editService.emit(service)"
                 class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
                 aria-label="Edit item">
                 <ion-icon name="create-outline" class="text-base"></ion-icon>
               </button>
-              <button *ngIf="canDelete" type="button" (click)="deleteService.emit(service)"
+              <button type="button" (click)="deleteService.emit(service)"
                 class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                 aria-label="Delete item">
                 <ion-icon name="trash-outline" class="text-base"></ion-icon>
@@ -137,18 +137,18 @@
         </span>
       </div>
       <div class="mt-3 flex items-center justify-between">
-        <span class="text-lg font-bold text-gray-900">{{ price(service) }}</span>
+        <span class="text-lg font-bold text-gray-900">${{ service.price }}</span>
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium" [ngClass]="statusChip(service.status)">
           {{ statusLabel(service.status) }}
         </span>
       </div>
       <div class="mt-3 flex items-center gap-2">
-        <button *ngIf="canEdit" type="button" (click)="editService.emit(service)"
+        <button type="button" (click)="editService.emit(service)"
           class="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-gray-200 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
           <ion-icon name="create-outline" class="text-sm"></ion-icon>
           Edit
         </button>
-        <button *ngIf="canDelete" type="button" (click)="deleteService.emit(service)"
+        <button type="button" (click)="deleteService.emit(service)"
           class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
           aria-label="Delete item">
           <ion-icon name="trash-outline" class="text-sm"></ion-icon>

@@ -15,8 +15,7 @@
 
   <!-- ---------------- Facturas ---------------- -->
   <ng-container *ngIf="tab() === 'invoices'">
-    <app-invoice-metrics [metrics]="store.metrics()" [loading]="store.invoicesLoading()"
-      [scopeLabel]="metricsScope" [filtered]="store.hasActiveFilters()"></app-invoice-metrics>
+    <app-invoice-metrics [metrics]="store.metrics()" [loading]="store.invoicesLoading()"></app-invoice-metrics>
 
     <div class="rounded-[28px] bg-white p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -36,8 +35,7 @@
             <ion-icon name="refresh-outline" class="text-base"
               [ngClass]="store.invoicesLoading() ? 'animate-spin' : ''"></ion-icon>
           </button>
-          <!-- Crear/emitir/cobrar exige invoicing.manage: sin él el backend responde 403 -->
-          <button *ngIf="can.canManageInvoices()" type="button" (click)="openForm()"
+          <button type="button" (click)="openForm()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
             New invoice
@@ -123,7 +121,7 @@
 
       <div *ngIf="!store.invoicesLoading() || store.invoices().length > 0" class="mt-4">
         <app-invoice-table [invoices]="store.pagedInvoices()" [busyInvoiceId]="store.busyInvoiceId()"
-          [canManage]="can.canManageInvoices()" [emptyText]="emptyText" (actionRequested)="onTableAction($event)"></app-invoice-table>
+          [emptyText]="emptyText" (actionRequested)="onTableAction($event)"></app-invoice-table>
       </div>
 
       <app-pagination [currentPage]="store.page()" [totalItems]="store.filteredInvoices().length"
@@ -142,7 +140,6 @@
   <app-payment-links-panel *ngIf="tab() === 'links'" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
     [error]="store.linksError()" [statusFilter]="store.linkStatusFilter()" [page]="store.linkPage()"
     [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()" [canManage]="can.canManagePaymentLinks()"
-    [defaultCurrency]="store.defaultCurrency()"
     (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
     (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
@@ -150,7 +147,7 @@
 
 <!-- Modales -->
 <app-invoice-form-panel [isOpen]="formOpen()" [editing]="store.editingDetail()"
-  [defaultCurrency]="store.defaultCurrency()"
+  [defaultCurrency]="store.issuer().defaultCurrency"
   [customerResults]="store.customerResults()"
   [customerSearching]="store.customerSearching()" [catalogResults]="store.catalogResults()"
   [catalogSearching]="store.catalogSearching()" [catalogCreating]="store.catalogCreating()"
@@ -164,7 +161,6 @@
   [busy]="store.busyInvoiceId() === store.selectedInvoice()?.id"
   [statusHistory]="store.selectedHistory()" [historyLoading]="store.selectedHistoryLoading()"
   [replacesInvoiceId]="store.selectedReplacesId()" [replacedByInvoiceId]="store.selectedReplacedById()"
-  [canManage]="can.canManageInvoices()"
   (closed)="closeDetail()"
   (issueRequested)="store.issue($event.id)" (pdfRequested)="store.openPdf($event)"
   (recordPaymentRequested)="paymentTarget.set($event)" (receiptRequested)="receiptTarget.set($event)"
@@ -183,19 +179,13 @@
   message="This draft will be permanently removed. This cannot be undone." confirmLabel="Delete"
   (confirmed)="confirmDelete()" (cancelled)="deleteTarget.set(null)"></app-confirm-dialog>
 
-<!-- Anular factura emitida: confirmación in-app con motivo opcional (queda en el historial) -->
-<app-reason-dialog [isOpen]="voidTarget() !== null" heading="Void invoice"
+<!-- Anular factura emitida: confirmación in-app -->
+<app-confirm-dialog [isOpen]="voidTarget() !== null" heading="Void invoice"
   message="The invoice will be marked as voided and any stock discounted on issue will be restored."
-  confirmLabel="Void invoice" (confirmed)="confirmVoid($event)" (cancelled)="voidTarget.set(null)"></app-reason-dialog>
+  confirmLabel="Void invoice" (confirmed)="confirmVoid()" (cancelled)="voidTarget.set(null)"></app-confirm-dialog>
 
-<!-- Reemitir (anular + reemplazo enlazado): el motivo es obligatorio (item 6.3) -->
-<app-reason-dialog [isOpen]="reissueTarget() !== null" heading="Reissue invoice"
+<!-- Reemitir (anular + reemplazo enlazado): confirmación in-app -->
+<app-confirm-dialog [isOpen]="reissueTarget() !== null" heading="Reissue invoice"
   message="The current invoice will be voided and a draft replacement will be created, carrying over any payment already collected. You can correct the draft before issuing it."
-  reasonLabel="Reason for reissuing" placeholder="e.g. Wrong billing address, corrected line items"
-  [minLength]="reissueReasonMinLength" confirmLabel="Void & create replacement"
-  (confirmed)="confirmReissue($event)" (cancelled)="reissueTarget.set(null)"></app-reason-dialog>
-
-<!-- Cambio de estado manual (item 6.2): motivo opcional -->
-<app-reason-dialog [isOpen]="statusTarget() !== null" [heading]="statusChangeHeading"
-  [message]="statusChangeMessage" tone="primary" confirmLabel="Change status"
-  (confirmed)="confirmStatusChange($event)" (cancelled)="statusTarget.set(null)"></app-reason-dialog>
+  confirmLabel="Void & create replacement" (confirmed)="confirmReissue()"
+  (cancelled)="reissueTarget.set(null)"></app-confirm-dialog>

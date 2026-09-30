@@ -61,8 +61,6 @@ export class MailReadingPaneComponent implements OnChanges {
   @Output() bodyRetryRequested = new EventEmitter<string>();
   @Output() attachmentsRetryRequested = new EventEmitter<string>();
   @Output() attachmentDownloadRequested = new EventEmitter<{ messageId: string; attachmentId: string }>();
-  /** Abrir el adjunto en el visor global (el contenedor resuelve la URL). */
-  @Output() attachmentPreviewRequested = new EventEmitter<{ messageId: string; attachmentId: string }>();
   @Output() replyStarted = new EventEmitter<string>();
   @Output() replyCancelled = new EventEmitter<void>();
   @Output() replySent = new EventEmitter<string>();
@@ -193,10 +191,6 @@ export class MailReadingPaneComponent implements OnChanges {
 
   downloadAttachment(messageId: string, attachmentId: string): void {
     this.attachmentDownloadRequested.emit({ messageId, attachmentId });
-  }
-
-  previewAttachment(messageId: string, attachmentId: string): void {
-    this.attachmentPreviewRequested.emit({ messageId, attachmentId });
   }
 
   archive(): void {

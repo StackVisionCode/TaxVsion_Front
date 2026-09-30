@@ -1,15 +1,7 @@
 <!-- Workspace contenido: bloque sólido a altura de viewport; cada columna scrollea por dentro. -->
 <div class="flex flex-col gap-4 lg:h-[72vh] lg:min-h-[560px] lg:flex-row">
-  <!-- Columna izquierda: Signers (crece, scrollea) + Add field (fija). Plegable (11.1): riel angosto. -->
-  <button *ngIf="panels().leftCollapsed" type="button" (click)="toggleLeftPanel()"
-    class="panel-rail flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-gray-100 px-3 py-2 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 lg:h-full lg:w-11 lg:flex-col lg:justify-start lg:px-0 lg:py-3"
-    aria-label="Show signers and fields panel" title="Show signers & fields">
-    <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
-    <ion-icon name="people-outline" class="text-base"></ion-icon>
-    <span class="lg:[writing-mode:vertical-rl]">Signers &amp; fields</span>
-    <span class="rounded-full bg-brand-bold px-1.5 py-0.5 text-[9px] font-semibold text-white">{{ fields().length }}</span>
-  </button>
-  <aside *ngIf="!panels().leftCollapsed" class="editor-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
+  <!-- Columna izquierda: Signers (crece, scrollea) + Add field (fija) -->
+  <aside class="editor-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
     <!-- Signers -->
     <div class="sidebar-section flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-100 p-3">
       <p class="flex shrink-0 items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -101,13 +93,9 @@
       <!-- Cuerpo scrolleable: campos + firma del preparador + hints -->
       <div class="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5">
         <div class="grid grid-cols-2 gap-1.5">
-          <!-- 11.3: arrastrar a cualquier página (se suelta donde cae) o click = centro de la página visible -->
           <button *ngFor="let t of fieldTypes" type="button" (click)="addField(t)"
             [disabled]="pages().length === 0 || !activeSignerId()"
-            [attr.draggable]="pages().length > 0 && !!activeSignerId()"
-            (dragstart)="onPaletteDragStart($event, 'signer', t)" (dragend)="onPaletteDragEnd()"
-            [title]="'Drag onto the document or click to add ' + fieldLabel[t]"
-            class="palette-item flex cursor-grab items-center gap-2 rounded-xl border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40 transition-colors">
+            class="flex items-center gap-2 rounded-xl border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors">
             <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
               <ion-icon [name]="fieldIcon[t]" class="text-sm text-gray-700"></ion-icon>
             </span>
@@ -137,9 +125,6 @@
               </option>
             </select>
             <button type="button" (click)="addPreparerField()" [disabled]="pages().length === 0 || !hasPreparerSignature()"
-              [attr.draggable]="pages().length > 0 && hasPreparerSignature()"
-              (dragstart)="onPaletteDragStart($event, 'preparer', 'signature')" (dragend)="onPaletteDragEnd()"
-              title="Drag onto the document or click to place your signature"
               class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 transition-colors">
               <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
               Place my signature
@@ -183,11 +168,8 @@
           <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
           Place at least one field on the document to continue.
         </p>
-        <p *ngIf="fields().length === 0 && pages().length > 0" class="mt-1.5 text-[11px] leading-snug text-gray-400">
-          Tip: drag a field onto any page to drop it exactly where you need it.
-        </p>
         <p *ngIf="fields().length > 0" class="mt-2.5 text-[11px] leading-snug text-gray-400">
-          Drag fields from here onto any page. On the page: drag to move, corner handle to resize, × to delete.
+          Drag to move, corner handle to resize, × to delete.
         </p>
       </div>
     </div>
@@ -198,13 +180,6 @@
     <!-- Toolbar -->
     <div class="flex shrink-0 items-center justify-between gap-3 rounded-t-2xl bg-brand-bold px-4 py-2.5 text-xs text-white">
       <span class="flex min-w-0 items-center gap-2">
-        <!-- 11.1: plegar/desplegar el panel izquierdo para agrandar el documento -->
-        <button type="button" (click)="toggleLeftPanel()"
-          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-          [attr.aria-label]="panels().leftCollapsed ? 'Show signers and fields panel' : 'Hide signers and fields panel'"
-          [title]="panels().leftCollapsed ? 'Show signers & fields' : 'Hide signers & fields'">
-          <ion-icon [name]="panels().leftCollapsed ? 'chevron-forward-outline' : 'chevron-back-outline'" class="text-sm"></ion-icon>
-        </button>
         <ion-icon [name]="document ? docIcon(document.kind) : 'document-text-outline'" class="shrink-0 text-sm"></ion-icon>
         <span class="truncate font-medium">{{ document?.name ?? 'Document' }}</span>
       </span>
@@ -219,13 +194,6 @@
             aria-label="Zoom in">+</button>
         </span>
         <span class="hidden text-white/60 sm:block">{{ pages().length }} {{ pages().length === 1 ? 'page' : 'pages' }}</span>
-        <!-- 11.1: plegar/desplegar el panel derecho (reglas + resumen) -->
-        <button type="button" (click)="toggleRightPanel()"
-          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-          [attr.aria-label]="panels().rightCollapsed ? 'Show rules and summary panel' : 'Hide rules and summary panel'"
-          [title]="panels().rightCollapsed ? 'Show rules & summary' : 'Hide rules & summary'">
-          <ion-icon [name]="panels().rightCollapsed ? 'chevron-back-outline' : 'chevron-forward-outline'" class="text-sm"></ion-icon>
-        </button>
       </span>
     </div>
 
@@ -239,7 +207,7 @@
     </div>
 
     <!-- Superficie del documento (scroll interno) -->
-    <div #surface class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-brand-white p-6">
+    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-brand-white p-6">
       <!-- Skeleton mientras renderiza -->
       <div *ngIf="loading()" class="mx-auto w-fit">
         <div class="h-[560px] w-[440px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
@@ -248,11 +216,7 @@
 
       <div *ngIf="!loading()" class="mx-auto flex w-fit flex-col items-center gap-2">
         <ng-container *ngFor="let pg of pages(); let last = last">
-          <!-- Zona de drop (11.3): el campo arrastrado desde la paleta cae centrado bajo el puntero. -->
-          <div class="doc-page relative shadow-sm transition-shadow" [attr.data-page]="pg.page"
-            [class.drop-ready]="paletteDragging()" [class.drop-target]="dropTargetPage() === pg.page"
-            (dragover)="onPageDragOver($event, pg.page)" (dragleave)="onPageDragLeave($event, pg.page)"
-            (drop)="onPageDrop($event, pg.page)"
+          <div class="doc-page relative shadow-sm"
             [style.width.px]="pg.width" [style.height.px]="pg.height" style="background: white;">
             <img *ngIf="pg.src" [src]="pg.src" [width]="pg.width" [height]="pg.height" alt="Document page {{ pg.page }}"
               draggable="false" class="block select-none" />
@@ -313,15 +277,8 @@
     </div>
   </div>
 
-  <!-- Columna derecha: Rules (fija) + Summary vivo (crece). Plegable (11.1): riel angosto. -->
-  <button *ngIf="panels().rightCollapsed" type="button" (click)="toggleRightPanel()"
-    class="panel-rail flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-gray-100 px-3 py-2 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 lg:h-full lg:w-11 lg:flex-col lg:justify-start lg:px-0 lg:py-3"
-    aria-label="Show rules and summary panel" title="Show rules & summary">
-    <ion-icon name="chevron-back-outline" class="text-sm"></ion-icon>
-    <ion-icon name="options-outline" class="text-base"></ion-icon>
-    <span class="lg:[writing-mode:vertical-rl]">Rules &amp; summary</span>
-  </button>
-  <aside *ngIf="!panels().rightCollapsed" class="rules-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
+  <!-- Columna derecha: Rules (fija) + Summary vivo (crece) -->
+  <aside class="rules-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
     <div class="sidebar-section flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3">
       <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Request rules</p>
 
@@ -375,16 +332,17 @@
           <span class="text-[10px] text-gray-400">day(s)</span>
         </div>
 
-        <!-- 11.2: el certificado de firma se genera SIEMPRE (ya no es opcional); solo se informa. -->
-        <div class="flex w-full items-center gap-2">
-          <span class="flex h-5 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-brand-bold">
-            <ion-icon name="ribbon-outline" class="text-xs"></ion-icon>
+        <button type="button" (click)="toggleRule('certificate')" class="flex w-full items-center gap-2 text-left">
+          <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
+            [ngClass]="rules().certificate ? 'bg-brand-bold' : 'bg-gray-200'">
+            <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
+              [ngClass]="rules().certificate ? 'left-[18px]' : 'left-0.5'"></span>
           </span>
           <span class="min-w-0">
-            <span class="block text-[11px] font-medium text-gray-700">Signature certificate included</span>
-            <span class="block text-[10px] text-gray-400">A PDF with the legal evidence is always generated</span>
+            <span class="block text-[11px] font-medium text-gray-700">Signature certificate</span>
+            <span class="block text-[10px] text-gray-400">PDF with legal evidence when done</span>
           </span>
-        </div>
+        </button>
 
         <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
         <ng-container *ngIf="canDeliverDocs()">
@@ -400,20 +358,16 @@
             </span>
           </button>
 
-          <!-- Independiente del certificado (siempre se genera). Solo un borrador ANTIGUO creado sin
-               certificado (GenerateCertificate es inmutable en backend) no puede entregarlo. -->
           <button type="button" (click)="toggleRule('sendCertificate')" class="flex w-full items-center gap-2 text-left"
-            [disabled]="legacyNoCertificate()" [class.opacity-50]="legacyNoCertificate()">
+            [disabled]="!rules().certificate" [class.opacity-50]="!rules().certificate">
             <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200"
-              [ngClass]="rules().sendCertificate && !legacyNoCertificate() ? 'bg-brand-bold' : 'bg-gray-200'">
+              [ngClass]="rules().sendCertificate && rules().certificate ? 'bg-brand-bold' : 'bg-gray-200'">
               <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200"
-                [ngClass]="rules().sendCertificate && !legacyNoCertificate() ? 'left-[18px]' : 'left-0.5'"></span>
+                [ngClass]="rules().sendCertificate && rules().certificate ? 'left-[18px]' : 'left-0.5'"></span>
             </span>
             <span class="min-w-0">
               <span class="block text-[11px] font-medium text-gray-700">Send certificate</span>
-              <span class="block text-[10px] text-gray-400">
-                {{ legacyNoCertificate() ? 'This older draft was created without a certificate' : 'Email the signature certificate to signers when complete' }}
-              </span>
+              <span class="block text-[10px] text-gray-400">Deliver the certificate to signers (needs the certificate on)</span>
             </span>
           </button>
         </ng-container>
@@ -562,15 +516,9 @@
             <ion-icon *ngIf="draftClientId() === c.id" name="checkmark-circle" class="shrink-0 text-base text-brand-bold"></ion-icon>
           </button>
 
-          <p *ngIf="signerClientResults().length === 0 && !customersHasMore()" class="px-3 py-4 text-center text-xs text-gray-400">
+          <p *ngIf="signerClientResults().length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
             No clients found. Type the details manually below.
           </p>
-          <button *ngIf="customersHasMore()" type="button" (click)="loadMoreClients()" [disabled]="customersLoadingMore()"
-            class="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-wait disabled:opacity-60 transition-colors">
-            <ion-icon [name]="customersLoadingMore() ? 'sync-outline' : 'chevron-down-outline'"
-              [class.animate-spin]="customersLoadingMore()" class="text-xs"></ion-icon>
-            {{ customersLoadingMore() ? 'Loading…' : 'Load more clients' }}
-          </button>
         </ng-container>
       </div>
     </div>

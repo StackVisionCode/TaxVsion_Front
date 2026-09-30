@@ -91,8 +91,6 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
 export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Cuando viene un id, el wizard se abre para CONTINUAR ese borrador (rehidratado), no para crear uno. */
   @Input() continueRequestId: string | null = null;
-  /** Cliente preseleccionado (deep link 7.2 desde el perfil del cliente); solo aplica al CREAR. */
-  @Input() initialClient: WizardClient | null = null;
 
   @Output() closed = new EventEmitter<void>();
   /** El backend ya mandó los emails (POST send → 202): el padre solo refresca y cierra. */
@@ -223,9 +221,6 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   }
 
   ngOnInit(): void {
-    if (!this.continueRequestId && this.initialClient) {
-      this.onClientSelected(this.initialClient);
-    }
     // Solo en modo CREAR (no continuar): si hay un snapshot de recuperación de una sesión anterior
     // (recarga/cierre accidental), ofrecemos restaurar el trabajo del editor.
     if (!this.continueRequestId) {
@@ -563,12 +558,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       tokenExpirationHours: this.tokenExpirationHours(),
       requiresSequentialSigning: rules?.sequential ?? true,
       requiresConsent: true,
-      // 11.2: el certificado de firma se genera SIEMPRE. Al editar un borrador antiguo creado sin él,
-      // el backend ignora este flag (GenerateCertificate es inmutable tras crear).
-      generateCertificate: true,
+      generateCertificate: rules?.certificate ?? true,
       sendSignedDocumentToSigners: rules?.sendSignedDocument ?? true,
-      // Entrega independiente; solo se anula en un borrador antiguo sin certificado (el backend la rechazaría).
-      sendCertificateToSigners: (rules?.sendCertificate ?? false) && rules?.certificate !== false,
+      sendCertificateToSigners: (rules?.sendCertificate ?? false) && (rules?.certificate ?? true),
       autoRemindersEnabled: rules?.autoReminder ?? true,
       reminderIntervalHours: rules?.reminderIntervalHours ?? 48,
       signingPin: rules?.signingPin?.trim() || null,

@@ -31,21 +31,6 @@ export function isValidPhone(raw: string | null | undefined): boolean {
   return E164_REGEX.test(normalizePhoneToApi(value));
 }
 
-/**
- * Normaliza a E.164 con la conveniencia US del worker de import (misma regla que el form panel):
- * 10 dígitos → +1XXXXXXXXXX, 11 con prefijo 1 → +1…; con '+' explícito respeta el VO estricto.
- * No valida: combinar con `isValidPhone`.
- */
-export function toApiPhoneWithUsDefault(raw: string | null | undefined): string {
-  const trimmed = String(raw ?? '').trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('+')) return normalizePhoneToApi(trimmed);
-  const digits = trimmed.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return normalizePhoneToApi(trimmed);
-}
-
 /** Formato de presentación. US (+1, 11 dígitos) → "+1 (809) 555-1234"; otros E.164 se muestran tal cual. */
 export function formatPhoneForDisplay(e164: string | null | undefined): string {
   const value = String(e164 ?? '');

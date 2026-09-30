@@ -1,12 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { MeetingListComponent } from '../../ui/meeting-list/meeting-list.component';
 import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/meeting-schedule-panel.component';
-import { MeetingRoomComponent } from '../meeting-room/meeting-room.component';
+import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
@@ -28,18 +27,14 @@ import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
 })
-export class MeetingsPageComponent implements OnInit, OnDestroy {
+export class MeetingsPageComponent implements OnInit {
   readonly store = inject(MeetingsStore);
   private readonly activeMeeting = inject(ActiveMeetingService);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
 
   readonly activeTab = signal<MeetingsScope>('upcoming');
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
-  /** Customer que llega pre-invitado desde el perfil del cliente. */
-  readonly presetCustomer = signal<{ customerId: string; name: string } | null>(null);
   readonly managingMeeting = signal<MeetingItem | null>(null);
   readonly panelBusy = signal(false);
   readonly panelError = signal<string | null>(null);
@@ -63,37 +58,6 @@ export class MeetingsPageComponent implements OnInit, OnDestroy {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
     this.store.loadStats();
-    this.openFromDeepLink();
-  }
-
-  /**
-   * `/meetings?schedule=1&customerId=<id>&customerName=<name>` (acción "Schedule meeting" del perfil
-   * del cliente): abre el panel de agendar con ese customer ya invitado y limpia la URL para que un
-   * reload no lo vuelva a abrir.
-   */
-  private openFromDeepLink(): void {
-    const params = this.route.snapshot.queryParamMap;
-    if (params.get('schedule') !== '1') {
-      return;
-    }
-    const customerId = params.get('customerId')?.trim();
-    this.openSchedulePanel();
-    if (customerId) {
-      this.presetCustomer.set({ customerId, name: params.get('customerName')?.trim() || 'Client' });
-    }
-    void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
-  }
-
-  /**
-   * Salir de la página con un meeting abierto (navegar a otra sección) = salir del meeting. Antes el
-   * ActiveMeetingService (root) quedaba en 'joined' sin sala visible: cámara/mic prendidos, sin audio
-   * (los `<video>` se destruyen) y, al volver, `join()` se ignoraba en silencio porque la fase no era
-   * 'idle' → había que recargar la página para poder entrar/terminar el meeting.
-   */
-  ngOnDestroy(): void {
-    if (this.activeMeeting.phase() !== 'idle') {
-      void this.activeMeeting.leave();
-    }
   }
 
   // ---------- Stats (sobre lo cargado del scope actual) ----------
@@ -141,7 +105,6 @@ export class MeetingsPageComponent implements OnInit, OnDestroy {
   // ---------- Panel de agendar / gestionar ----------
 
   openSchedulePanel(): void {
-    this.presetCustomer.set(null);
     this.managingMeeting.set(null);
     this.panelError.set(null);
     this.creationOutcome.set(null);
@@ -160,7 +123,6 @@ export class MeetingsPageComponent implements OnInit, OnDestroy {
       return;
     }
     this.isPanelOpen.set(false);
-    this.presetCustomer.set(null);
     this.managingMeeting.set(null);
     this.panelError.set(null);
     this.creationOutcome.set(null);
@@ -221,20 +183,12 @@ export class MeetingsPageComponent implements OnInit, OnDestroy {
 
   /** Entra a la sala real (Socket.IO): solo meetings Live. El ActiveMeetingService maneja el join/espera. */
   joinMeeting(meeting: MeetingItem): void {
-    // Una sesión previa a medio cerrar (p. ej. quedó en 'ended' o en otro meeting) se suelta primero:
-    // si no, el guard de join() (phase !== 'idle') descartaba el nuevo join en silencio.
-    if (this.activeMeeting.phase() !== 'idle') {
-      void this.activeMeeting.leave();
-    }
     this.activeRoomMeeting.set(meeting);
     void this.activeMeeting.join(meeting.id, meeting.title);
   }
 
   leaveMeeting(): void {
     this.activeRoomMeeting.set(null);
-    // El meeting pudo terminar mientras estábamos dentro: refrescar la lista para que la fila no quede "Live".
-    this.store.loadScope(this.activeTab(), true);
-    this.store.loadStats();
   }
 
   copyCode(meeting: MeetingItem): void {

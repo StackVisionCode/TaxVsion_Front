@@ -36,8 +36,6 @@ export class InvoiceDetailPanelComponent {
   /** Reemisión (item 6.3): esta factura reemplaza a otra / fue reemplazada por otra. */
   @Input() replacesInvoiceId: string | null = null;
   @Input() replacedByInvoiceId: string | null = null;
-  /** `invoicing.manage`: sin él no se ofrece emitir ni registrar cobros. */
-  @Input() canManage = true;
 
   @Output() closed = new EventEmitter<void>();
   @Output() issueRequested = new EventEmitter<InvoiceSummary>();
@@ -82,12 +80,12 @@ export class InvoiceDetailPanelComponent {
   }
 
   get canIssue(): boolean {
-    return this.canManage && this.invoice?.status === 'Draft';
+    return this.invoice?.status === 'Draft';
   }
 
   get canRecordPayment(): boolean {
     const invoice = this.invoice;
-    return this.canManage && !!invoice && invoice.status !== 'Draft' && invoice.status !== 'Voided' && invoice.amountDueCents > 0;
+    return !!invoice && invoice.status !== 'Draft' && invoice.status !== 'Voided' && invoice.amountDueCents > 0;
   }
 
   /**

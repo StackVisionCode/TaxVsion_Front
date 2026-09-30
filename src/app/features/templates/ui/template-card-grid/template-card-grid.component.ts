@@ -22,8 +22,6 @@ import { Template, TemplateUiStatus } from '../../data-access/templates.model';
 export class TemplateCardGridComponent {
   @Input() templates: Template[] = [];
   @Input() emptyMessage = 'No templates match your search';
-  /** Sin `notification.template.manage` no hay menú de acciones (editar/publicar/archivar). */
-  @Input() canManage = true;
   @Output() previewRequested = new EventEmitter<Template>();
   @Output() editRequested = new EventEmitter<Template>();
   @Output() publishRequested = new EventEmitter<Template>();

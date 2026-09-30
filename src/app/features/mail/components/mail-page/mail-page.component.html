@@ -175,7 +175,7 @@
 
     <!-- Buzones del tenant: estado real + acciones (reauth para los que tienen token sin watch, disconnect) -->
     <div *ngIf="store.accounts().length > 0" class="mt-6 border-t border-gray-100 pt-5">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Mailboxes in your office</p>
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Mailboxes on this tenant</p>
       <div class="mt-3 flex flex-col gap-2">
         <div *ngFor="let account of store.accounts()"
           class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
@@ -414,8 +414,7 @@
           [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
           [canReply]="!!store.activeAccountId()" (messageToggled)="toggleMessage($event)"
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
-          (attachmentDownloadRequested)="downloadAttachment($event)"
-          (attachmentPreviewRequested)="previewAttachment($event)" (replyStarted)="startReply($event)"
+          (attachmentDownloadRequested)="downloadAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
           (unarchiveRequested)="unarchiveThread()" (deleteMessageRequested)="trashMessage($event)"
           (messageReadStateToggled)="toggleMessageRead($event)" (threadReadStateToggled)="setThreadRead($event)"
@@ -431,7 +430,3 @@
   <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
   Message sent
 </div>
-
-<!-- Visor global de adjuntos (PDF, imágenes, texto/CSV; el resto ofrece Download) -->
-<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
-  (closed)="viewerOpen.set(false)" (indexChange)="viewerIndex.set($event)" (download)="downloadFromViewer($event)" />

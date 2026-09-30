@@ -8,9 +8,7 @@ import { Directive, ElementRef, Input, OnDestroy, inject } from '@angular/core';
  * Además re-engancha el `srcObject` cuando cambia el SET de tracks del MISMO stream:
  * un track de video agregado tarde (p. ej. "subir a cámara" a mitad de llamada, o el
  * screenshare/nuevo productor en meetings) no siempre hace que un `<video>` ya montado
- * empiece a pintar. En `<audio>` solo se re-engancha si cambió el set de pistas de AUDIO (p. ej. la
- * pista remota llegó después de montar el elemento, típico en mesh/SFU): así un video que entra o
- * sale del mismo stream no corta el sonido.
+ * empiece a pintar. Se limita a `<video>` para no cortar el audio de un `<audio>`.
  */
 @Directive({
   selector: '[srcObject]',
@@ -19,8 +17,6 @@ import { Directive, ElementRef, Input, OnDestroy, inject } from '@angular/core';
 export class SrcObjectDirective implements OnDestroy {
   private readonly el = inject(ElementRef<HTMLMediaElement>);
   private stream: MediaStream | null = null;
-  /** Ids de las pistas de audio con las que se enganchó el `<audio>` por última vez. */
-  private audioTrackIds = '';
   private readonly onTracksChanged = (): void => this.repoke();
 
   @Input() set srcObject(stream: MediaStream | null) {
@@ -34,7 +30,6 @@ export class SrcObjectDirective implements OnDestroy {
       stream.addEventListener('removetrack', this.onTracksChanged);
     }
     const media = this.el.nativeElement as HTMLMediaElement;
-    this.audioTrackIds = this.currentAudioIds();
     if (media.srcObject !== stream) {
       media.srcObject = stream;
     }
@@ -54,24 +49,9 @@ export class SrcObjectDirective implements OnDestroy {
   /** Fuerza al `<video>` a re-evaluar sus tracks (null→stream) cuando llega/ se va uno tarde. */
   private repoke(): void {
     const media = this.el.nativeElement as HTMLMediaElement;
-    if (!this.stream) {
-      return;
-    }
-    if (media.tagName === 'VIDEO') {
+    if (media.tagName === 'VIDEO' && this.stream) {
       media.srcObject = null;
       media.srcObject = this.stream;
-      return;
     }
-    const ids = this.currentAudioIds();
-    if (media.tagName === 'AUDIO' && ids !== this.audioTrackIds) {
-      this.audioTrackIds = ids;
-      media.srcObject = null;
-      media.srcObject = this.stream;
-      void media.play?.()?.catch(() => undefined);
-    }
-  }
-
-  private currentAudioIds(): string {
-    return (this.stream?.getAudioTracks() ?? []).map(t => t.id).join(',');
   }
 }

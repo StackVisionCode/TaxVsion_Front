@@ -5,12 +5,12 @@ import { InventoryApiService } from './inventory.service';
 import {
   CatalogCategorySummary,
   CatalogItemSummary,
+  DEFAULT_CURRENCY,
   Product,
   ProductFormValue,
   StockLevelDto,
   toProduct,
 } from './inventory.model';
-import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 
 /** Lote de carga: el backend recorta pageSize>200 a 50, así que 200 es el máximo real. */
 const FETCH_SIZE = 200;
@@ -26,9 +26,6 @@ const FETCH_SIZE = 200;
 @Injectable({ providedIn: 'root' })
 export class InventoryStore {
   private readonly api = inject(InventoryApiService);
-  /** Moneda de la oficina para las altas (item 6.1). */
-  private readonly officeCurrency = inject(OfficeCurrencyStore);
-  readonly defaultCurrency = this.officeCurrency.currency;
 
   // ---------- Estado crudo ----------
   private readonly _items = signal<CatalogItemSummary[]>([]);
@@ -70,7 +67,6 @@ export class InventoryStore {
   }
 
   refresh(): void {
-    this.officeCurrency.ensureLoaded();
     this._loading.set(true);
     this._error.set(null);
     forkJoin({
@@ -132,7 +128,7 @@ export class InventoryStore {
         categoryId: form.categoryId,
         kind: 'Product',
         priceAmount: form.price,
-        priceCurrency: this.officeCurrency.currency(),
+        priceCurrency: DEFAULT_CURRENCY,
         costAmount: null,
         costCurrency: null,
         unit: null,

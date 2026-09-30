@@ -105,7 +105,7 @@
 </div>
 
 <!-- Agendar (create + invitaciones) / gestionar (re-agendar + invitaciones) -->
-<app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [presetCustomer]="presetCustomer()" [busy]="panelBusy()"
+<app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [busy]="panelBusy()"
   [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
 

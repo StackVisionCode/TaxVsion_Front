@@ -620,14 +620,6 @@ export class DocumentsStore {
     });
   }
 
-  /**
-   * URL presignada para PREVISUALIZAR (el visor la baja con `fetch`, así que el
-   * content-disposition=attachment no molesta). Se pide al abrir cada archivo: vencen en minutos.
-   */
-  previewUrl(fileId: string): Observable<string> {
-    return this.cloudStorage.getDownloadUrl(fileId).pipe(map(res => res.downloadUrl));
-  }
-
   private triggerDownload(url: string, filename = ''): void {
     const anchor = document.createElement('a');
     anchor.href = url;

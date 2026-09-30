@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { FileViewerComponent, FileViewerDownload, FileViewerItem } from '@shared/ui/index';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
@@ -56,7 +55,6 @@ import { CorrespondenceCapabilities } from '../../data-access/correspondence-per
     MailReadingPaneComponent,
     MailComposeComponent,
     MailConnectManualComponent,
-    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -87,19 +85,6 @@ export class MailPageComponent implements OnInit, OnDestroy {
     // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
     this.store.init();
     this.consumeOAuthCallback();
-    this.consumeComposeLink();
-  }
-
-  /** `?compose=1&customerId=&to=` desde el perfil del cliente; se limpia la URL tras leerlo. */
-  private consumeComposeLink(): void {
-    const params = this.route.snapshot.queryParamMap;
-    const customerId = params.get('customerId')?.trim();
-    if (params.get('compose') !== '1' || !customerId) {
-      return;
-    }
-    this.selectedDraftId.set(null);
-    this.store.openComposeFor(customerId, params.get('to')?.trim() || null);
-    void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
   }
 
   ngOnDestroy(): void {
@@ -622,37 +607,6 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   downloadAttachment(event: { messageId: string; attachmentId: string }): void {
     this.store.downloadAttachment(event.messageId, event.attachmentId);
-  }
-
-  // ---------- Visor de adjuntos ----------
-  readonly viewerOpen = signal(false);
-  readonly viewerFiles = signal<FileViewerItem[]>([]);
-  readonly viewerIndex = signal(0);
-
-  /** Abre el visor con los adjuntos no bloqueados del mensaje, empezando por el elegido. */
-  previewAttachment(event: { messageId: string; attachmentId: string }): void {
-    const items = (this.store.attachments().get(event.messageId)?.items ?? []).filter(
-      item => item.downloadStatus !== 'Blocked',
-    );
-    const index = items.findIndex(item => item.attachmentId === event.attachmentId);
-    if (index < 0) {
-      return;
-    }
-    this.viewerFiles.set(
-      items.map(item => ({
-        name: item.filename,
-        contentType: item.contentType,
-        sizeBytes: item.sizeBytes,
-        resolveUrl: () => this.store.attachmentUrl(event.messageId, item.attachmentId),
-        ref: { messageId: event.messageId, attachmentId: item.attachmentId },
-      })),
-    );
-    this.viewerIndex.set(index);
-    this.viewerOpen.set(true);
-  }
-
-  downloadFromViewer(event: FileViewerDownload): void {
-    this.downloadAttachment(event.item.ref as { messageId: string; attachmentId: string });
   }
 
   loadMoreMessages(): void {

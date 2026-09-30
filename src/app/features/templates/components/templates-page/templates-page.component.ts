@@ -8,21 +8,9 @@ import { TemplateFormPanelComponent } from '../../ui/template-form-panel/templat
 import { TemplatePreviewComponent } from '../../ui/template-preview/template-preview.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { TemplatesStore } from '../../data-access/templates.store';
-import { TemplatesPermissions } from '../../data-access/templates-permissions';
 import { Template, TemplateFormValue } from '../../data-access/templates.model';
 
 type CategoryFilter = 'All' | string;
-
-/** Tarjeta del hub: un tipo de plantilla y a dónde se administra. */
-interface TemplateHubCard {
-  readonly id: 'email' | 'signature' | 'task';
-  readonly title: string;
-  readonly description: string;
-  readonly icon: string;
-  /** null = se administra en esta misma página (correos de notificación). */
-  readonly link: string | null;
-  readonly queryParams?: Record<string, string>;
-}
 
 /**
  * Página del módulo Templates conectada a Notification
@@ -35,9 +23,6 @@ interface TemplateHubCard {
  *    recrear la plantilla y subir una versión nueva), así que esa acción se retiró.
  *  - Publicar es un paso explícito sobre una versión concreta.
  *  - Las plantillas `System` son de plataforma: se listan de solo lectura.
- *
- * Además es el HUB de plantillas: arriba lista todos los tipos (correo, firma, tareas) y cada
- * tarjeta lleva al módulo dueño. Solo UX: cada módulo sigue administrando las suyas.
  */
 @Component({
   selector: 'app-templates-page',
@@ -55,46 +40,6 @@ interface TemplateHubCard {
 })
 export class TemplatesPageComponent implements OnInit {
   readonly store = inject(TemplatesStore);
-  readonly permissions = inject(TemplatesPermissions);
-
-  private readonly allHubCards: readonly TemplateHubCard[] = [
-    {
-      id: 'email',
-      title: 'Notification emails',
-      description: 'Emails your office sends to clients and campaigns',
-      icon: 'mail-outline',
-      link: null,
-    },
-    {
-      id: 'signature',
-      title: 'Signature templates',
-      description: 'Reusable documents with signature fields already placed',
-      icon: 'create-outline',
-      link: '/signature/templates',
-    },
-    {
-      id: 'task',
-      title: 'Task templates',
-      description: 'Checklists you apply to start recurring work',
-      icon: 'checkmark-done-outline',
-      link: '/task',
-      queryParams: { open: 'templates' },
-    },
-  ];
-
-  /** Solo las tarjetas que el usuario puede abrir. */
-  readonly hubCards = computed(() =>
-    this.allHubCards.filter(card => {
-      switch (card.id) {
-        case 'email':
-          return this.permissions.canViewEmail();
-        case 'signature':
-          return this.permissions.canUseSignatureTemplates();
-        case 'task':
-          return this.permissions.canUseTaskTemplates();
-      }
-    }),
-  );
 
   readonly categoryFilter = signal<CategoryFilter>('All');
   readonly search = signal('');
@@ -114,10 +59,7 @@ export class TemplatesPageComponent implements OnInit {
   readonly pendingArchive = signal<Template | null>(null);
 
   ngOnInit(): void {
-    // Sin `notification.template.view` el GET contestaría 403: el hub muestra solo las otras tarjetas.
-    if (this.permissions.canViewEmail()) {
-      this.store.init();
-    }
+    this.store.init();
   }
 
   readonly categoryFilters = computed<CategoryFilter[]>(() => ['All', ...this.store.categories()]);

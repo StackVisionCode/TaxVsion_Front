@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { CampaignsStore } from '../../data-access/campaigns.store';
-import { CampaignsPermissions } from '../../data-access/campaigns-permissions';
 import {
   ApiCampaignStatus,
   ApiChannel,
@@ -34,8 +33,6 @@ const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor
 })
 export class CampaignsPageComponent implements OnInit, OnDestroy {
   readonly store = inject(CampaignsStore);
-  /** Gating por acción (patrón B6): sin `campaigns.manage` no se ofrece ninguna escritura. */
-  readonly perms = inject(CampaignsPermissions);
   private readonly toast = inject(ToastService);
 
   // view helpers (usados en el template)
@@ -215,9 +212,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   openNew(): void {
     this.editingId.set(null);
     this.newForm = this.blankCampaign();
-    if (this.perms.canPickTemplates()) {
-      this.store.loadTemplates();
-    }
+    this.store.loadTemplates();
     this.showNew.set(true);
   }
   openEditCampaign(c: CampaignResponse): void {
@@ -229,9 +224,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       message: c.message,
       channels: { Email: c.channels.includes('Email'), Sms: c.channels.includes('Sms') },
     };
-    if (this.perms.canPickTemplates()) {
-      this.store.loadTemplates();
-    }
+    this.store.loadTemplates();
     this.showNew.set(true);
   }
   markReady(c: CampaignResponse): void {

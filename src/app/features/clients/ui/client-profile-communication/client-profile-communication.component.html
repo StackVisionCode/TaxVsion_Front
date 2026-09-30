@@ -5,22 +5,13 @@
       <p class="mt-1 text-sm text-gray-500">Email threads exchanged with this client</p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2">
-      @if (composeLink; as link) {
-        <a [routerLink]="link.commands" [queryParams]="link.queryParams"
-          class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          <ion-icon name="mail-outline" class="text-base"></ion-icon>
-          Compose email
-        </a>
-      }
-      <!-- Estado REAL del hilo (EmailThreadStatus), no un filtro por canal inventado -->
-      <div class="flex items-center gap-1 rounded-full border border-gray-200 p-1">
-        <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
-          class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
-          [ngClass]="statusFilter() === option.value ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-          {{ option.label }}
-        </button>
-      </div>
+    <!-- Estado REAL del hilo (EmailThreadStatus), no un filtro por canal inventado -->
+    <div class="flex items-center gap-1 rounded-full border border-gray-200 p-1">
+      <button *ngFor="let option of statusFilters" type="button" (click)="setStatusFilter(option.value)"
+        class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+        [ngClass]="statusFilter() === option.value ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+        {{ option.label }}
+      </button>
     </div>
   </div>
 

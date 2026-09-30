@@ -21,10 +21,6 @@ import { maskEmail } from '../../utils/mask-email.util';
 import { UsedLinkRecord, markLinkUsed, readUsedLink } from '../../utils/used-link.util';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
 import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
-import { ApiConfigService } from '@core/config/api-config.service';
-import { environment } from '@env/environment';
-import { buildOfficePortalLoginUrl } from '../../utils/office-portal-url.util';
-import { ELECTRONIC_SIGNATURE_CERTIFICATE_NOTICE } from './sign-page.copy';
 import {
   AuditChainVerificationResponse,
   PublicSignerFieldView,
@@ -39,9 +35,6 @@ import {
 } from '../../data-access/public-signature.model';
 
 /** Pasos posibles del recorrido. Cuáles se muestran depende de lo que exija la solicitud. */
-/** 14.3 — Segundos antes de salir solo al portal de la oficina tras firmar. */
-const EXIT_COUNTDOWN_SECONDS = 10;
-
 type StepId = 'welcome' | 'consent' | 'verify' | 'verify-otp' | 'review' | 'sign' | 'done';
 
 /** Orden canónico de los pasos: usado para reubicar el paso actual cuando un gate se cierra. */
@@ -99,23 +92,8 @@ interface BlockedState {
 export class SignPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
-  private readonly apiConfig = inject(ApiConfigService);
 
   private token = '';
-
-  /** 14.4 — Texto (pendiente de revisión legal) sobre el certificado con el que se aplica la firma. */
-  readonly certificateNotice = ELECTRONIC_SIGNATURE_CERTIFICATE_NOTICE;
-
-  // ---------- 14.3 — Salida al portal de la oficina tras firmar ----------
-
-  /**
-   * Login del portal del cliente de ESTA oficina (slug del host; `PublicSignerView` no trae la
-   * oficina). null = no hay a dónde mandar al firmante: se oculta la cuenta atrás.
-   */
-  readonly officePortalUrl = buildOfficePortalLoginUrl(this.apiConfig.officeFromHost(), environment);
-  /** Segundos que faltan para salir al portal; null = sin cuenta atrás (cancelada o no aplica). */
-  readonly exitCountdown = signal<number | null>(null);
-  private exitTimer: ReturnType<typeof setInterval> | null = null;
 
   // ---------- Carga del contexto ----------
 
@@ -503,7 +481,6 @@ export class SignPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.stopExitCountdown();
     if (this.clockTimer !== null) {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
@@ -716,55 +693,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (!ok) {
       return;
     }
-    // La página expira: se marca el enlace como usado (recargar muestra "expired"). Nunca se manda
-    // a la raíz del host (para un firmante externo es el login del STAFF): la salida es al login
-    // del PORTAL DEL CLIENTE de la oficina, con cuenta atrás cancelable (14.3) y solo si se conoce.
+    // La página expira: se marca el enlace como usado (recargar muestra "expired") y NO se
+    // redirige a la raíz del host, que para un firmante externo es el login del staff.
     this.signedAtLocal.set(new Date().toISOString());
     this.justSigned.set(true);
     this.stepId.set('done');
-    this.startExitCountdown();
     await markLinkUsed(this.token, 'signed');
     await this.reloadContext();
     await this.loadAudit();
-  }
-
-  /** Arranca la cuenta atrás hacia el portal (si hay portal conocido). */
-  private startExitCountdown(): void {
-    if (!this.officePortalUrl) {
-      return;
-    }
-    this.stopExitCountdown();
-    this.exitCountdown.set(EXIT_COUNTDOWN_SECONDS);
-    this.exitTimer = setInterval(() => {
-      const left = (this.exitCountdown() ?? 0) - 1;
-      if (left <= 0) {
-        this.exitNow();
-        return;
-      }
-      this.exitCountdown.set(left);
-    }, 1000);
-  }
-
-  private stopExitCountdown(): void {
-    if (this.exitTimer !== null) {
-      clearInterval(this.exitTimer);
-      this.exitTimer = null;
-    }
-  }
-
-  /** "Stay on this page": cancela la redirección; el botón "Go to portal" sigue disponible. */
-  cancelExitCountdown(): void {
-    this.stopExitCountdown();
-    this.exitCountdown.set(null);
-  }
-
-  /** "Exit now" (o fin de la cuenta atrás): sale al login del portal de la oficina. */
-  exitNow(): void {
-    this.stopExitCountdown();
-    this.exitCountdown.set(null);
-    if (this.officePortalUrl) {
-      window.location.assign(this.officePortalUrl);
-    }
   }
 
   openReject(): void {

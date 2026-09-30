@@ -6,49 +6,6 @@
       Back to settings
     </a>
 
-    <!-- Hub: todos los tipos de plantilla. Cada tarjeta lleva al módulo dueño; la de correo es esta página. -->
-    <div class="bg-white rounded-[28px] p-6">
-      <h1 class="text-xl font-bold text-gray-900">Template library</h1>
-      <p class="mt-1 text-sm text-gray-500">Every kind of reusable template in your office, in one place</p>
-
-      <div class="mt-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-        <ng-container *ngFor="let card of hubCards()">
-          <a *ngIf="card.link; else currentCard" [routerLink]="card.link" [queryParams]="card.queryParams"
-            class="group flex items-start gap-3 rounded-2xl border border-gray-100 p-4 transition hover:border-gray-200 hover:shadow-sm">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-              <ion-icon [name]="card.icon" class="text-lg"></ion-icon>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="flex items-center gap-1 text-sm font-semibold text-gray-900">
-                {{ card.title }}
-                <ion-icon name="arrow-forward-outline"
-                  class="text-sm text-gray-400 transition-transform group-hover:translate-x-0.5"></ion-icon>
-              </span>
-              <span class="mt-0.5 block text-xs text-gray-500">{{ card.description }}</span>
-            </span>
-          </a>
-          <ng-template #currentCard>
-            <div class="flex items-start gap-3 rounded-2xl border border-brand-bold bg-brand-surface p-4" aria-current="page">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
-                <ion-icon [name]="card.icon" class="text-lg"></ion-icon>
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-gray-900">{{ card.title }}</span>
-                <span class="mt-0.5 block text-xs text-gray-500">{{ card.description }}</span>
-                <span class="mt-1 block text-[11px] font-medium text-brand-bold">Shown below</span>
-              </span>
-            </div>
-          </ng-template>
-        </ng-container>
-      </div>
-
-      <p *ngIf="hubCards().length === 0" class="mt-4 text-sm text-gray-500">
-        You don't have access to any templates yet. Ask your office admin for access.
-      </p>
-    </div>
-
-    <ng-container *ngIf="permissions.canViewEmail()">
-
     <!-- Stats row -->
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
       <div class="rounded-[24px] bg-indigo-50 p-5">
@@ -69,10 +26,10 @@
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 class="text-xl font-bold text-gray-900">Notification emails</h2>
-          <p class="mt-1 text-sm text-gray-500">Reusable email content for your office's notifications and campaigns</p>
+          <h2 class="text-xl font-bold text-gray-900">Templates</h2>
+          <p class="mt-1 text-sm text-gray-500">Reusable email content for your firm's campaigns</p>
         </div>
-        <button *ngIf="permissions.canManageEmail()" type="button" (click)="openCreatePanel()"
+        <button type="button" (click)="openCreatePanel()"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
           <ion-icon name="add-outline" class="text-base"></ion-icon>
           New template
@@ -124,18 +81,16 @@
       <!-- Grid -->
       <div *ngIf="!store.loading() && !store.error()" class="mt-5">
         <app-template-card-grid [templates]="visibleTemplates()" [emptyMessage]="emptyMessage()"
-          [canManage]="permissions.canManageEmail()"
           (previewRequested)="openPreview($event)" (editRequested)="openEditPanel($event)"
           (publishRequested)="publishTemplate($event)"
           (archiveRequested)="archiveTemplate($event)"></app-template-card-grid>
       </div>
     </div>
-    </ng-container>
   </ng-container>
 
   <ng-template #previewView>
     <app-template-preview [template]="previewTemplate()" [body]="activeBody()" [bodyLoading]="store.bodyLoading()"
-      [bodyError]="store.bodyError()" [canManage]="permissions.canManageEmail()" (back)="closePreview()" (editRequested)="editFromPreview($event)"
+      [bodyError]="store.bodyError()" (back)="closePreview()" (editRequested)="editFromPreview($event)"
       (retryBody)="reloadBody($event)"></app-template-preview>
   </ng-template>
 </div>

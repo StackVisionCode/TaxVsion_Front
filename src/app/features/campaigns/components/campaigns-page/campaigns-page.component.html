@@ -8,13 +8,11 @@
         No balances, no charges here.
       </p>
     </div>
-    @if (perms.canManage()) {
     <button
       class="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
       (click)="openNew()">
       <span class="text-lg leading-none">+</span> New campaign
     </button>
-    }
   </div>
 
   <!-- ===== stats ===== -->
@@ -100,9 +98,7 @@
                   </td>
                   <td class="py-3 px-3 text-gray-400">{{ local(c.updatedAtUtc) | date: 'MMM d, HH:mm' }}</td>
                   <td class="py-3 px-3 text-right" (click)="$event.stopPropagation()">
-                    @if (!perms.canManage()) {
-                      <span class="text-xs text-gray-400">View only</span>
-                    } @else if (c.status !== 'Archived') {
+                    @if (c.status !== 'Archived') {
                       <div class="flex flex-wrap justify-end gap-1">
                         <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSend(c)">Send</button>
                         <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSchedule(c)">Schedule</button>
@@ -193,14 +189,14 @@
           <button class="rounded-full px-3.5 py-1.5 text-xs font-semibold" [class]="audienceTab()==='lists' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'" (click)="audienceTab.set('lists')">Lists</button>
           <button class="rounded-full px-3.5 py-1.5 text-xs font-semibold" [class]="audienceTab()==='contacts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'" (click)="audienceTab.set('contacts')">Contacts</button>
         </div>
-        <div class="ml-auto flex gap-2" [class.hidden]="!perms.canManage()">
+        <div class="ml-auto flex gap-2">
           <button class="rounded-full border border-gray-200 px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openContact()">+ Contact</button>
           <button class="rounded-full border border-gray-200 px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport()">Import CSV</button>
         </div>
       </div>
 
       @if (audienceTab() === 'lists') {
-        <div class="flex items-center gap-2" [class.hidden]="!perms.canManage()">
+        <div class="flex items-center gap-2">
           <input #listName class="w-64 max-w-full rounded-full border border-gray-200 px-4 py-2 text-sm outline-none focus:border-blue-400" placeholder="New list name…" />
           <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="createList(listName.value); listName.value=''">Create list</button>
         </div>
@@ -218,7 +214,7 @@
                   <td class="py-3 px-3 font-semibold text-gray-900">{{ l.name }}</td>
                   <td class="py-3 px-3 tabular-nums text-gray-700">{{ l.memberCount }}</td>
                   <td class="py-3 px-3 text-gray-400">{{ l.description || '—' }}</td>
-                  <td class="py-3 px-3 text-right whitespace-nowrap" [class.invisible]="!perms.canManage()">
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
                     <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport(l.id)">Import</button>
                     <button class="ml-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditList(l)">Edit</button>
                     <button class="ml-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="deleteList(l)">Delete</button>
@@ -250,14 +246,14 @@
                         <button
                           class="rounded-full px-2.5 py-1 text-[11px] font-bold"
                           [class]="c.optedOutChannels.includes(ch) ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'"
-                          (click)="toggleOptOut(c, ch)" [disabled]="!perms.canManage()"
+                          (click)="toggleOptOut(c, ch)"
                           [title]="c.optedOutChannels.includes(ch) ? 'Opted out — click to opt in' : 'Subscribed — click to opt out'">
                           {{ ch }} {{ c.optedOutChannels.includes(ch) ? '✕' : '✓' }}
                         </button>
                       }
                     </div>
                   </td>
-                  <td class="py-3 px-3 text-right whitespace-nowrap" [class.invisible]="!perms.canManage()">
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
                     <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditContact(c)">Edit</button>
                     <button class="ml-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="removeContact(c)">Delete</button>
                   </td>
@@ -272,7 +268,7 @@
 
     <!-- ============ SENDERS ============ -->
     @if (tab() === 'senders') {
-      <div class="flex justify-end" [class.hidden]="!perms.canManage()">
+      <div class="flex justify-end">
         <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="openSender()">+ New sender</button>
       </div>
       <!-- La sub-lista no se pudo leer. Decirlo, en vez de pintar un vacío que
@@ -290,7 +286,7 @@
                 <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="channelClass(s.channel)">{{ s.channel }}</span></td>
                 <td class="py-3 px-3 text-gray-600">{{ s.senderRef }}</td>
                 <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'">{{ s.status }}</span></td>
-                <td class="py-3 px-3 text-right" [class.invisible]="!perms.canManage()"><button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="toggleSender(s.id, s.status !== 'Active')">{{ s.status==='Active' ? 'Disable' : 'Enable' }}</button></td>
+                <td class="py-3 px-3 text-right"><button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="toggleSender(s.id, s.status !== 'Active')">{{ s.status==='Active' ? 'Disable' : 'Enable' }}</button></td>
               </tr>
             } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No sender profiles yet.</td></tr> }
           </tbody>
@@ -323,7 +319,7 @@
                   <td class="py-3 px-3 text-gray-500">{{ s.contactListIds.length }} list(s){{ s.includeCustomers ? ' · clients' : '' }}</td>
                   <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'">{{ s.status }}</span></td>
                   <td class="py-3 px-3 text-gray-400">{{ local(s.nextFireAtUtc || s.lastFiredAtUtc) | date:'MMM d, HH:mm' }}</td>
-                  <td class="py-3 px-3 text-right" [class.invisible]="!perms.canManage()">
+                  <td class="py-3 px-3 text-right">
                     @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'pause')">Pause</button> }
                     @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'resume')">Resume</button> }
                   </td>

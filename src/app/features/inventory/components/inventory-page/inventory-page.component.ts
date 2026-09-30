@@ -8,7 +8,6 @@ import { PaginationComponent } from '../../../../shared/ui/pagination/pagination
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { InventoryStore } from '../../data-access/inventory.store';
 import { Product, ProductFormValue, stockLevel } from '../../data-access/inventory.model';
-import { InventoryPermissions } from '../../data-access/inventory-permissions';
 
 type CategoryFilter = 'All' | string;
 const PAGE_SIZE = 8;
@@ -35,8 +34,6 @@ const PAGE_SIZE = 8;
 })
 export class InventoryPageComponent implements OnInit {
   readonly store = inject(InventoryStore);
-  /** Item 2.1 — acciones gateadas por el permiso real del endpoint que llaman. */
-  readonly can = inject(InventoryPermissions);
 
   readonly activeCategory = signal<CategoryFilter>('All');
   readonly search = signal('');
@@ -71,24 +68,13 @@ export class InventoryPageComponent implements OnInit {
 
   readonly totalProducts = computed(() => this.store.products().length);
 
-  /**
-   * Solo suma los que llevan inventario (un ítem sin tracking no tiene cantidad real) y están en la
-   * moneda de la oficina: un precio en otra moneda no se suma como si fuera la misma unidad (item 6.1).
-   */
-  readonly totalStockValue = computed(() => {
-    const currency = this.store.defaultCurrency();
-    return this.store
+  /** Solo suma los que llevan inventario: un ítem sin tracking no tiene cantidad real. */
+  readonly totalStockValue = computed(() =>
+    this.store
       .products()
-      .filter(product => product.tracked && (product.currency || currency) === currency)
-      .reduce((sum, product) => sum + product.price * product.stockQuantity, 0);
-  });
-
-  /** Productos con stock en otra moneda, excluidos del valor total (se avisa en la tarjeta). */
-  readonly otherCurrencyCount = computed(() => {
-    const currency = this.store.defaultCurrency();
-    return this.store.products().filter(product => product.tracked && !!product.currency && product.currency !== currency)
-      .length;
-  });
+      .filter(product => product.tracked)
+      .reduce((sum, product) => sum + product.price * product.stockQuantity, 0),
+  );
 
   readonly lowStockCount = computed(
     () =>
@@ -137,26 +123,16 @@ export class InventoryPageComponent implements OnInit {
   }
 
   formatCurrency(amount: number): string {
-    return amount.toLocaleString('en-US', {
-      style: 'currency',
-      currency: this.store.defaultCurrency(),
-      minimumFractionDigits: 0,
-    });
+    return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
   }
 
   openCreatePanel(): void {
-    if (!this.can.canEditProducts()) {
-      return;
-    }
     this.editingProduct.set(null);
     this.panelError.set(null);
     this.isPanelOpen.set(true);
   }
 
   openEditPanel(product: Product): void {
-    if (!this.can.canEditProducts()) {
-      return;
-    }
     this.editingProduct.set(product);
     this.panelError.set(null);
     this.isPanelOpen.set(true);
@@ -199,9 +175,6 @@ export class InventoryPageComponent implements OnInit {
 
   /** Stepper +/- de la fila → POST /inventory/stock/adjust (delta con signo). */
   adjustStock(payload: { product: Product; delta: number }): void {
-    if (!this.can.canAdjustStock()) {
-      return;
-    }
     this.store.adjustStock(payload.product, payload.delta);
   }
 

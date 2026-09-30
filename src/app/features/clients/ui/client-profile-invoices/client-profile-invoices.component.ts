@@ -1,6 +1,4 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
 
 /**
  * Pestaña "Invoices" del perfil de cliente — VACÍA A PROPÓSITO, no es un olvido.
@@ -22,19 +20,13 @@ import { RouterModule } from '@angular/router';
  * Para completarla el backend necesita: `customerId` en `InvoiceSummaryResponse` y un
  * filtro `GET /billing/invoices?customerId=...` (o `GET /billing/customers/{id}/invoices`).
  * Los totales (facturado / pendiente) salen solos de ese listado.
- *
- * Tampoco hay botón "Create invoice": la página de Billing no lee query params (no hay
- * `?new=1&customerId=`), así que un enlace así abriría Billing sin precargar nada.
  */
 @Component({
   selector: 'app-client-profile-invoices',
-  imports: [CommonModule, RouterModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-invoices.component.html',
 })
 export class ClientProfileInvoicesComponent {
   /** Se conserva el binding del padre para el día en que Billing exponga el filtro por cliente. */
   @Input() clientId = '';
-  /** El contenedor decide si el usuario puede entrar a Billing (feature `billing`). */
-  @Input() canOpenBilling = false;
 }
