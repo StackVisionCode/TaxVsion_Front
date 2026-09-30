@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { PlansPageComponent } from './components/plans-page/plans-page.component';
 import { PlansStore } from './data-access/plans.store';
 
 export const PLANS_ROUTES: Routes = [
@@ -6,8 +7,7 @@ export const PLANS_ROUTES: Routes = [
     path: '',
     // El store vive solo mientras se está en esta rama de rutas.
     providers: [PlansStore],
-    loadComponent: () =>
-      import('./components/plans-page/plans-page.component').then(m => m.PlansPageComponent),
+    component: PlansPageComponent,
     title: 'Planes',
   },
 ];

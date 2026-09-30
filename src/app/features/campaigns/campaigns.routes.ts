@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { CampaignsPageComponent } from './components/campaigns-page/campaigns-page.component';
 
 export const CAMPAIGNS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/campaigns-page/campaigns-page.component').then(m => m.CampaignsPageComponent),
+    component: CampaignsPageComponent,
     title: 'Campaigns',
   },
 ];

@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { InventoryPageComponent } from './components/inventory-page/inventory-page.component';
 
 export const INVENTORY_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/inventory-page/inventory-page.component').then(m => m.InventoryPageComponent),
+    component: InventoryPageComponent,
     title: 'Inventory',
   },
 ];

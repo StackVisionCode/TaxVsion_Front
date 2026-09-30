@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { AiAssistantPageComponent } from './components/ai-assistant-page/ai-assistant-page.component';
 
 export const AI_ASSISTANT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/ai-assistant-page/ai-assistant-page.component').then(m => m.AiAssistantPageComponent),
+    component: AiAssistantPageComponent,
     title: 'AI Assistant',
   },
 ];

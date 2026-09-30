@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { SignaturePageComponent } from './components/signature-page/signature-page.component';
 
 export const SIGNATURE_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/signature-page/signature-page.component').then(m => m.SignaturePageComponent),
+    component: SignaturePageComponent,
     title: 'Signature',
   },
   {

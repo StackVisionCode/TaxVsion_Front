@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { TaskPageComponent } from './components/task-page/task-page.component';
 
 export const TASK_ROUTES: Routes = [
   {
@@ -6,8 +7,7 @@ export const TASK_ROUTES: Routes = [
     // regla de antes (`tasks.read`) más el módulo del plan, y explicando por qué en vez de
     // devolver al panel en silencio.
     path: '',
-    loadComponent: () =>
-      import('./components/task-page/task-page.component').then(m => m.TaskPageComponent),
+    component: TaskPageComponent,
     title: 'Task',
   },
 ];

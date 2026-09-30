@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { TemplatesPageComponent } from './components/templates-page/templates-page.component';
 
 export const TEMPLATES_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/templates-page/templates-page.component').then(m => m.TemplatesPageComponent),
+    component: TemplatesPageComponent,
     title: 'Templates',
   },
 ];

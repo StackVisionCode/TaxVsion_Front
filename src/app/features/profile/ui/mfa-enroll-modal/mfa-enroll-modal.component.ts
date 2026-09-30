@@ -14,7 +14,6 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { toDataURL } from 'qrcode';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { SetupTotpResponse } from '@core/auth/mfa.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -93,7 +92,9 @@ export class MfaEnrollModalComponent implements OnChanges {
         next: res => {
           this.setup.set(res);
           this.loadingSetup.set(false);
-          toDataURL(res.otpAuthUri, { width: 200, margin: 1 })
+          // La librería de QR solo se descarga al abrir el alta de MFA.
+          import('qrcode')
+            .then(({ toDataURL }) => toDataURL(res.otpAuthUri, { width: 200, margin: 1 }))
             .then(url => this.qrDataUrl.set(url))
             .catch(() => this.qrDataUrl.set(null));
         },

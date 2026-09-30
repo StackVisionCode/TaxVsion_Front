@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { ReferralsPageComponent } from './components/referrals-page/referrals-page.component';
 
 export const REFERRALS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/referrals-page/referrals-page.component').then(m => m.ReferralsPageComponent),
+    component: ReferralsPageComponent,
     title: 'Referrals',
   },
 ];

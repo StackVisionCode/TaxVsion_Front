@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { types as MsTypes } from 'mediasoup-client';
+import type { types as MsTypes } from 'mediasoup-client';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { SocketAck } from '@core/realtime/realtime.model';
 import { SfuNewProducerDto, SfuProducerClosedDto, SfuRemoteProducer } from './meeting.model';

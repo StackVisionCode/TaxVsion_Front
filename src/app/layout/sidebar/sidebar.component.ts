@@ -26,7 +26,7 @@ import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
-import { ChatStore } from '@features/chat/data-access/chat.store';
+import type { ChatStore } from '@features/chat/data-access/chat.store';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth } from './sidebar-width.util';
 
 /**
@@ -57,7 +57,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private readonly router = inject(Router);
   private readonly branding = inject(TenantBrandingService);
-  private readonly chatStore = inject(ChatStore);
+  /**
+   * El store del chat (y su servicio/directorio) no viaja en el bundle inicial: se descarga tras el
+   * primer render y hasta entonces el badge simplemente no se muestra.
+   */
+  private readonly chatStore = signal<ChatStore | null>(null);
   private readonly injector = inject(Injector);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly access = inject(AccessStore);
@@ -65,7 +69,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
   private readonly chatBadgeEffect = effect(() => {
-    const unread = this.chatStore.totalUnread();
+    const unread = this.chatStore()?.totalUnread() ?? 0;
     this.menuItems.update(items =>
       items.map(item => (item.route === '/chat' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
     );
@@ -184,6 +188,9 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     // vez, sin la ventana en la que el pill quedaba fuera de sitio.
     afterNextRender(
       () => {
+        void import('@features/chat/data-access/chat.store').then(m =>
+          this.chatStore.set(this.injector.get(m.ChatStore)),
+        );
         this.measureWidth();
         this.syncIndicator();
         this.observeListSize();
