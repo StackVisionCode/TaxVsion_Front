@@ -22,6 +22,8 @@ export class TemplatePreviewComponent {
   @Input() body: string | null = null;
   @Input() bodyLoading = false;
   @Input() bodyError: string | null = null;
+  /** Sin `notification.template.manage` la vista previa es de solo lectura. */
+  @Input() canManage = true;
   @Output() back = new EventEmitter<void>();
   @Output() editRequested = new EventEmitter<Template>();
   @Output() retryBody = new EventEmitter<Template>();

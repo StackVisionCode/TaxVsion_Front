@@ -96,7 +96,9 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: 'signatures',
     anyOf: ['signature.request.read'],
   },
-  { id: 'campaigns', label: 'Campaigns', route: 'campaigns', module: 'campaigns', anyOf: ['campaigns.view'] },
+  // `campaigns.manage` es el ÚNICO permiso del servicio Campaigns (todos sus endpoints, incluso listar,
+  // llevan [HasPermission("campaigns.manage")]); `campaigns.view` no existe en el catálogo de Auth.
+  { id: 'campaigns', label: 'Campaigns', route: 'campaigns', module: 'campaigns', anyOf: ['campaigns.manage'] },
   // SMS no es un módulo del plan: se cobra aparte por consumo.
   { id: 'sms', label: 'SMS', route: 'sms', module: null, anyOf: ['sms.read'] },
 
@@ -108,7 +110,7 @@ export const FEATURES: readonly FeatureDefinition[] = [
   { id: 'billing', label: 'Billing', route: 'billing', module: null, anyOf: ['invoicing.view'] },
 
   // ---- Administración de la oficina ----
-  { id: 'users', label: 'User management', route: 'company/users', module: null, anyOf: ['users.view'] },
+  { id: 'users', label: 'Users', route: 'company/users', module: null, anyOf: ['users.view'] },
   {
     id: 'company-settings',
     label: 'Company settings',
@@ -116,7 +118,22 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: null,
     anyOf: ['settings.manage', 'branding.manage'],
   },
-  { id: 'templates', label: 'Templates', route: 'templates', module: null, anyOf: ['notification.template.view'] },
+  // Hub de plantillas: correos de notificación (propios de /templates), plantillas de firma y de
+  // tareas (viven en sus módulos). Se entra con cualquiera de los tres; cada tarjeta se gatea sola.
+  {
+    id: 'templates',
+    label: 'Templates',
+    route: 'templates',
+    module: null,
+    anyOf: [
+      'notification.template.view',
+      'signature.template.create',
+      'signature.template.update',
+      'signature.template.delete',
+      'tasks.templates.manage',
+      'tasks.write',
+    ],
+  },
   { id: 'referrals', label: 'Referrals', route: 'referrals', module: null, anyOf: ['referrals.own.read'] },
 
   // ---- Sin backend todavía ----

@@ -5,64 +5,111 @@
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h3 class="text-lg font-bold text-gray-900">Documents</h3>
-      <p class="mt-1 text-sm text-gray-500">
-        Files stored for this client
-        <span *ngIf="store.total() > 0" class="text-gray-400">· {{ store.total() }}{{ store.maybeTruncated() ? '+' : '' }}</span>
-      </p>
+      <p class="mt-1 text-sm text-gray-500">Files and folders stored for {{ clientName || 'this client' }}</p>
     </div>
-    <label *ngIf="canUpload()"
-      class="flex cursor-pointer items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors"
-      [class.opacity-60]="store.uploading()">
-      <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
-      {{ store.uploading() ? 'Uploading…' : 'Upload' }}
-      <input type="file" multiple class="hidden" (change)="onFilePicked($event)" [disabled]="store.uploading()" />
-    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <button *ngIf="caps.canView && caps.canManageFolders" type="button" (click)="requestCreateFolder.emit()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        <ion-icon name="folder-outline" class="text-base"></ion-icon>
+        New folder
+      </button>
+      <label *ngIf="caps.canView && caps.canUpload"
+        class="flex cursor-pointer items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors"
+        [class.opacity-60]="uploading">
+        <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+        {{ uploading ? 'Uploading…' : 'Upload' }}
+        <input type="file" multiple class="hidden" (change)="onFilePicked($event)" [disabled]="uploading" />
+      </label>
+    </div>
   </div>
 
   <!-- Overlay de drag -->
   <div *ngIf="isDragging()"
     class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-bold bg-brand-white/80">
-    <p class="text-sm font-semibold text-brand-bold">Drop files to upload</p>
+    <p class="text-sm font-semibold text-brand-bold">Drop files to upload{{ path.length ? ' to ' + path[path.length - 1].name : '' }}</p>
   </div>
 
   <!-- Sin permiso -->
-  <div *ngIf="!canView()" class="mt-6 rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
+  <div *ngIf="!caps.canView" class="mt-6 rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
     You don't have permission to view this client's documents.
   </div>
 
-  <ng-container *ngIf="canView()">
+  <ng-container *ngIf="caps.canView">
+    <!-- Breadcrumbs -->
+    <nav aria-label="Folder path" class="mt-4 flex flex-wrap items-center gap-1 text-sm">
+      <button type="button" (click)="goToCrumb.emit(-1)"
+        class="flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
+        [ngClass]="path.length === 0 ? 'font-semibold text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'"
+        [attr.aria-current]="path.length === 0 ? 'page' : null">
+        <ion-icon name="home-outline" class="text-sm"></ion-icon>
+        All documents
+      </button>
+      <ng-container *ngFor="let crumb of path; let i = index; let last = last">
+        <ion-icon name="chevron-forward-outline" class="text-xs text-gray-300"></ion-icon>
+        <button type="button" (click)="goToCrumb.emit(i)"
+          class="max-w-[12rem] truncate rounded-full px-2.5 py-1 transition-colors"
+          [ngClass]="last ? 'font-semibold text-gray-900' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'"
+          [attr.aria-current]="last ? 'page' : null">
+          {{ crumb.name }}
+        </button>
+      </ng-container>
+    </nav>
+
     <!-- Cargando -->
-    <div *ngIf="store.loading() && store.total() === 0" class="mt-5 flex flex-col gap-2">
+    <div *ngIf="loading && isEmpty" class="mt-4 flex flex-col gap-2">
       <div class="h-14 animate-pulse rounded-2xl bg-gray-100"></div>
       <div class="h-14 animate-pulse rounded-2xl bg-gray-100"></div>
     </div>
 
     <!-- Error -->
-    <div *ngIf="store.error() as err" class="mt-5 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-      <p class="text-sm text-red-700">{{ err }}</p>
-      <button type="button" (click)="retry()"
+    <div *ngIf="error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+      <p class="text-sm text-red-700">{{ error }}</p>
+      <button type="button" (click)="retry.emit()"
         class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors">
         Try again
       </button>
     </div>
 
     <!-- Vacío -->
-    <div *ngIf="!store.loading() && !store.error() && store.total() === 0"
-      class="mt-5 rounded-2xl border border-dashed border-gray-200 p-10 text-center">
+    <div *ngIf="!loading && !error && isEmpty" class="mt-4 rounded-2xl border border-dashed border-gray-200 p-10 text-center">
       <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
         <ion-icon name="folder-open-outline" class="text-2xl"></ion-icon>
       </span>
-      <p class="mt-3 text-sm font-medium text-gray-900">No documents yet</p>
+      <p class="mt-3 text-sm font-medium text-gray-900">{{ path.length ? 'This folder is empty' : 'No documents yet' }}</p>
       <p class="mt-1 text-sm text-gray-400">
-        {{ canUpload() ? 'Upload a file or drag it here to store it for this client.' : 'No files stored for this client.' }}
+        {{ caps.canUpload ? 'Upload a file or drag it here.' : 'Nothing stored here yet.' }}
       </p>
     </div>
 
-    <!-- Lista -->
-    <div *ngIf="store.total() > 0" class="mt-5 flex flex-col gap-2">
-      <div *ngFor="let doc of store.documents(); trackBy: trackById"
+    <!-- Carpetas + archivos -->
+    <div *ngIf="!isEmpty" class="mt-4 flex flex-col gap-2" [class.opacity-70]="loading">
+      <!-- Carpetas -->
+      <div *ngFor="let folder of folders; trackBy: trackById"
+        class="doc-row group flex items-center gap-3 rounded-2xl border border-gray-100 p-3 transition-colors hover:border-gray-200">
+        <button type="button" (click)="openFolder.emit(folder)" class="flex min-w-0 flex-1 items-center gap-3 text-left"
+          [attr.aria-label]="'Open folder ' + folder.name">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
+            <ion-icon name="folder" class="text-lg"></ion-icon>
+          </span>
+          <span class="min-w-0">
+            <span class="block truncate text-sm font-semibold text-gray-900">{{ folder.name }}</span>
+            <span class="block text-xs text-gray-400">Folder · {{ folder.dateLabel }}</span>
+          </span>
+        </button>
+        <div class="flex shrink-0 items-center gap-1">
+          <button *ngIf="caps.canManageFolders" type="button" (click)="requestRenameFolder.emit(folder)" title="Rename folder"
+            [attr.aria-label]="'Rename folder ' + folder.name"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+            <ion-icon name="pencil-outline" class="text-base"></ion-icon>
+          </button>
+          <ion-icon name="chevron-forward-outline" class="text-sm text-gray-300"></ion-icon>
+        </div>
+      </div>
+
+      <!-- Archivos -->
+      <div *ngFor="let doc of documents; trackBy: trackById"
         class="doc-row group flex items-center gap-3 rounded-2xl border border-gray-100 p-3 transition-colors hover:border-gray-200"
-        [class.opacity-60]="store.isBusy(doc.id)">
+        [class.opacity-60]="isBusy(doc.id)">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" [ngClass]="iconTint(doc.kind)">
           <ion-icon [name]="doc.kindIcon" class="text-lg"></ion-icon>
         </span>
@@ -83,13 +130,18 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-1">
-          <button *ngIf="canDownload() && doc.isReady" type="button" (click)="download(doc)" [disabled]="store.isBusy(doc.id)"
-            title="Download"
+          <button *ngIf="caps.canDownload && canPreview(doc)" type="button" (click)="preview.emit(doc)" [disabled]="isBusy(doc.id)"
+            title="Preview" [attr.aria-label]="'Preview ' + doc.name"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors">
+            <ion-icon name="eye-outline" class="text-base"></ion-icon>
+          </button>
+          <button *ngIf="caps.canDownload && doc.isReady" type="button" (click)="download.emit(doc)" [disabled]="isBusy(doc.id)"
+            title="Download" [attr.aria-label]="'Download ' + doc.name"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors">
             <ion-icon name="download-outline" class="text-base"></ion-icon>
           </button>
-          <button *ngIf="canDelete()" type="button" (click)="requestDelete(doc)" [disabled]="store.isBusy(doc.id)"
-            title="Delete"
+          <button *ngIf="caps.canDelete" type="button" (click)="requestDelete(doc)" [disabled]="isBusy(doc.id)"
+            title="Delete" [attr.aria-label]="'Delete ' + doc.name"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors">
             <ion-icon name="trash-outline" class="text-base"></ion-icon>
           </button>
@@ -97,8 +149,8 @@
       </div>
 
       <!-- Aviso de truncado -->
-      <p *ngIf="store.maybeTruncated()" class="mt-1 px-2 text-xs text-gray-400">
-        Showing the {{ store.total() }} most recent files. Open the Documents module for the full history.
+      <p *ngIf="maybeTruncated" class="mt-1 px-2 text-xs text-gray-400">
+        Showing the first {{ folders.length + documents.length }} items in this folder. Open the Documents module for the full list.
       </p>
     </div>
   </ng-container>
@@ -107,3 +159,28 @@
 <!-- Confirmar borrado -->
 <app-confirm-dialog [isOpen]="pendingDelete() !== null" heading="Delete document" [message]="pendingDeleteMessage()"
   confirmLabel="Delete" (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)"></app-confirm-dialog>
+
+<!-- Crear / renombrar carpeta -->
+<app-modal [isOpen]="folderDialog !== null" [heading]="folderDialog?.mode === 'rename' ? 'Rename folder' : 'New folder'"
+  [subheading]="folderDialog?.mode === 'rename' ? '' : (path.length ? 'Inside ' + path[path.length - 1].name : 'In this client\'s documents')"
+  size="sm" (closed)="cancelFolderDialog.emit()">
+  <form class="mt-5 flex flex-col gap-3" (ngSubmit)="submitFolder()">
+    <div>
+      <div class="flex h-11 items-center rounded-full border bg-white px-4"
+        [ngClass]="folderNameErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+        <input type="text" name="folderName" placeholder="Folder name" maxlength="255" [ngModel]="folderName()"
+          (ngModelChange)="folderName.set($event); folderNameErr.set(null)" aria-label="Folder name"
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+      @if (folderNameErr()) { <p class="mt-1 px-4 text-xs text-red-600">{{ folderNameErr() }}</p> }
+    </div>
+    <div class="flex items-center justify-end gap-2">
+      <button type="button" (click)="cancelFolderDialog.emit()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+      <button type="submit" [disabled]="savingFolder"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+        {{ savingFolder ? 'Saving…' : (folderDialog?.mode === 'rename' ? 'Rename' : 'Create folder') }}
+      </button>
+    </div>
+  </form>
+</app-modal>

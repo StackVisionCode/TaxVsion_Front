@@ -12,6 +12,7 @@ import {
   of,
   retry,
   switchMap,
+  tap,
   throwError,
   timer,
 } from 'rxjs';
@@ -94,6 +95,8 @@ export interface ComposeState {
   loadError: string | null;
   sending: boolean;
   error: string | null;
+  /** Destinatario sugerido al abrir una redacción nueva (deep link desde el perfil del cliente). */
+  initialTo?: string | null;
 }
 
 /** Payload que el composer emite al presionar Send; el store corre la cadena real. */
@@ -1194,6 +1197,31 @@ export class MailStore {
   }
 
   /**
+   * URL presignada de un adjunto para el VISOR (sin disparar descarga). Mismo recorrido que
+   * `downloadAttachment`: los salientes ya están en CloudStorage; los entrantes se copian bajo
+   * demanda y se espera a que la URL esté lista (409 mientras tanto).
+   */
+  attachmentUrl(messageId: string, attachmentId: string): Observable<string> {
+    const message = this._messages().find(m => m.messageId === messageId);
+    if (message?.direction === 'Outbound') {
+      return this.uploads.getDownloadUrl(attachmentId).pipe(map(result => result.downloadUrl));
+    }
+    const item = this._attachments()
+      .get(messageId)
+      ?.items.find(att => att.attachmentId === attachmentId);
+    const url$ =
+      item?.downloadStatus === 'Downloaded'
+        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId)
+        : this.service
+            .requestAttachmentDownload(messageId, attachmentId)
+            .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
+    return url$.pipe(
+      tap(() => this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Downloaded' })),
+      map(result => result.downloadUrl),
+    );
+  }
+
+  /**
    * Dispara la descarga directa de la URL presignada sin abrir una pestaña (que expondría la URL).
    * CloudStorage sirve el archivo con `content-disposition: attachment`, así que el click en un anchor
    * oculto baja el archivo con su nombre real y NO navega ni deja una pestaña en blanco.
@@ -1470,6 +1498,29 @@ export class MailStore {
   openCompose(): void {
     this._reply.set(null);
     this._compose.set({ ...EMPTY_COMPOSE, open: true });
+  }
+
+  /**
+   * Deep link `/email?compose=1&customerId=<id>&to=<email>` (acción "Email" del perfil del cliente):
+   * fija ese cliente como activo y abre el composer con el destinatario prellenado.
+   */
+  openComposeFor(customerId: string, to: string | null): void {
+    this.directory.byId([customerId]).subscribe({
+      next: found => {
+        const customer = found.get(customerId);
+        if (customer) {
+          this.pickCustomer(customer);
+        } else {
+          this.selectCustomer(customerId);
+        }
+        this._reply.set(null);
+        this._compose.set({ ...EMPTY_COMPOSE, open: true, initialTo: to || customer?.primaryEmail || null });
+      },
+      error: () => {
+        this._reply.set(null);
+        this._compose.set({ ...EMPTY_COMPOSE, open: true, initialTo: to });
+      },
+    });
   }
 
   /** Retoma un draft existente desde la carpeta Drafts (GET /drafts/{id} para prellenar). */

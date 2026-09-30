@@ -1,4 +1,15 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 import { CustomerAssignee, CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
@@ -62,6 +73,19 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
 })
 export class ClientProfileOverviewComponent implements OnChanges {
   @Input() client!: ClientProfile;
+  /** SSN/EIN en claro tras el reveal auditado (lo maneja el contenedor, que también lo re-enmascara). */
+  @Input() revealedTaxId: string | null = null;
+  @Input() revealingTaxId = false;
+  /** `customers.fiscalprofile.reveal` — permiso propio, no alcanza con poder editar. */
+  @Input() canReveal = false;
+
+  /** Pide el reveal auditado (emite el id del cliente, igual que la pestaña Info). */
+  @Output() revealTaxId = new EventEmitter<string>();
+  /** Volver a enmascarar antes del auto re-mask. */
+  @Output() hideTaxId = new EventEmitter<void>();
+
+  /** Confirmación de un paso: el reveal queda registrado en el log de auditoría. */
+  readonly confirmingReveal = signal(false);
 
   readonly summary = inject(ClientOverviewStore);
   private readonly staff = inject(StaffDirectoryStore);
@@ -80,8 +104,8 @@ export class ClientProfileOverviewComponent implements OnChanges {
     return this._assignees().map(a => ({ userId: a.userId, isPrimary: a.isPrimary, member: byId.get(a.userId) }));
   });
 
-  ngOnChanges(): void {
-    if (this.client?.id) {
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['client'] && this.client?.id) {
       this.summary.load(this.client.id);
       this._assignees.set(this.client.assignees ?? []);
       this.staff.ensureLoaded();
@@ -172,6 +196,19 @@ export class ClientProfileOverviewComponent implements OnChanges {
       return '—';
     }
     return f.subjectKind === 'Business' ? `••-•••${f.taxIdentifierLast4}` : `•••-••-${f.taxIdentifierLast4}`;
+  }
+
+  requestReveal(): void {
+    this.confirmingReveal.set(true);
+  }
+
+  cancelReveal(): void {
+    this.confirmingReveal.set(false);
+  }
+
+  doReveal(): void {
+    this.confirmingReveal.set(false);
+    this.revealTaxId.emit(this.client.id);
   }
 
   filingLabel(): string {

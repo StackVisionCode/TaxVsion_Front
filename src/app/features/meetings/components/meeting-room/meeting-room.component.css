@@ -1,0 +1,193 @@
+/* Controles: tamaño en rem (escala con el zoom), 44px táctil mínimo en móvil. */
+.ctrl {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+@media (min-width: 640px) {
+  .ctrl {
+    height: 3rem;
+    width: 3rem;
+  }
+}
+.ctrl--idle {
+  background: rgb(var(--color-gray-100-rgb, 243 244 246));
+  color: rgb(var(--color-gray-700-rgb, 55 65 81));
+}
+.ctrl--idle:hover {
+  background: rgb(var(--color-gray-200-rgb, 229 231 235));
+}
+.ctrl--danger {
+  background: rgb(239 68 68);
+  color: #fff;
+}
+.ctrl--danger:hover {
+  background: rgb(220 38 38);
+}
+.ctrl--active {
+  background: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  color: #fff;
+}
+.ctrl--hand {
+  background: rgb(254 243 199);
+  color: rgb(180 83 9);
+  box-shadow: inset 0 0 0 2px rgb(251 191 36);
+}
+
+.badge {
+  position: absolute;
+  right: -0.125rem;
+  top: -0.125rem;
+  display: flex;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0 0.25rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Los tiles de la grilla cambian de tamaño suave al entrar/salir alguien (el tamaño lo fija el TS). */
+.tile-cell {
+  transition:
+    width 250ms ease,
+    height 250ms ease;
+}
+
+/* ---- Animaciones (animate.enter / animate.leave nativos de Angular, sin @angular/animations) ---- */
+.tile-enter {
+  animation: tile-in 260ms ease-out;
+}
+.tile-leave {
+  animation: tile-out 200ms ease-in forwards;
+}
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tile-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Cambio galería ↔ pantalla compartida / fijado: el escenario entra con un fundido + zoom sutil. */
+.stage-enter {
+  animation: stage-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes stage-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.panel-enter {
+  animation: panel-in 220ms ease-out;
+}
+.panel-leave {
+  animation: panel-out 160ms ease-in forwards;
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes panel-out {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+.popover-enter {
+  animation: popover-in 160ms ease-out;
+}
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* Reacción flotante: sube y se desvanece. */
+.reaction-float {
+  animation: reaction-rise 4s ease-out forwards;
+}
+@keyframes reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(-10%) scale(1.1);
+  }
+  20% {
+    transform: translateY(-20%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-260%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-cell,
+  .ctrl {
+    transition: none;
+  }
+  .tile-enter,
+  .tile-leave,
+  .stage-enter,
+  .panel-enter,
+  .panel-leave,
+  .popover-enter {
+    animation: none;
+  }
+  /* Sin desplazamiento: la reacción aparece y se desvanece en el lugar. */
+  .reaction-float {
+    animation: reaction-fade 4s linear forwards;
+  }
+  @keyframes reaction-fade {
+    0%,
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}

@@ -280,7 +280,7 @@
                     <p class="truncate text-sm font-semibold text-gray-800">{{ file.originalName }}</p>
                     <p class="text-xs text-gray-400">{{ date(file.createdAtUtc) }}</p>
                   </div>
-                  <button type="button" (click)="previewFile.set(file)" title="Preview"
+                  <button type="button" (click)="openPreview(file)" title="Preview"
                     class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"><ion-icon name="eye-outline"></ion-icon></button>
                 </div>
               }
@@ -461,6 +461,10 @@
 
 <!-- Preview -->
 <app-document-preview [file]="previewFile()" (closed)="previewFile.set(null)" (download)="downloadFile($event); previewFile.set(null)" />
+
+<!-- Visor global (PDF, imágenes, texto/CSV) para archivos listos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (closed)="closeViewer()" (indexChange)="viewerIndex.set($event)" (download)="downloadFromViewer($event)" />
 
 <!-- Diálogos -->
 <app-upload-dialog

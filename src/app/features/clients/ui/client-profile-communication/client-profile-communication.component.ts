@@ -1,5 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { WorkspaceLink } from '../../data-access/client-workspace-links';
 import { ClientCommunicationStore } from '../../data-access/client-communication.store';
 import {
   CLIENT_THREAD_STATUS_FILTERS,
@@ -26,12 +28,14 @@ import {
  */
 @Component({
   selector: 'app-client-profile-communication',
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-communication.component.html',
 })
 export class ClientProfileCommunicationComponent implements OnChanges {
   @Input() clientId = '';
+  /** Deep link a Mail con el redactor abierto para este cliente; null = sin permiso o sin email. */
+  @Input() composeLink: WorkspaceLink | null = null;
 
   readonly store = inject(ClientCommunicationStore);
 

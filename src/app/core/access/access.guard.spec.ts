@@ -89,7 +89,7 @@ describe('accessCanMatch', () => {
   // ---------- Caso 7 del Anexo C ----------
 
   it('con permiso y módulo, la URL directa entra', async () => {
-    const router = setup({ permissions: ['campaigns.view'], modules: ['campaigns'] });
+    const router = setup({ permissions: ['campaigns.manage'], modules: ['campaigns'] });
 
     await router.navigateByUrl('/campaigns');
 
@@ -109,7 +109,7 @@ describe('accessCanMatch', () => {
   it('sin el módulo del plan, termina en /not-available', async () => {
     // Tiene el permiso; lo que falta es que la oficina haya contratado el módulo. Mandarlo a
     // "pedile acceso al administrador" sería mandarlo a pedir lo que no soluciona nada.
-    const router = setup({ permissions: ['campaigns.view'], modules: [] });
+    const router = setup({ permissions: ['campaigns.manage'], modules: [] });
 
     await router.navigateByUrl('/campaigns');
 
@@ -140,7 +140,7 @@ describe('accessCanMatch', () => {
     // Sin la espera, la recarga dura de `/campaigns` se evalúa con cero permisos en mano y echa a
     // quien sí tenía acceso. El fixture arranca sin contestar y contesta a los 10 ms.
     const router = setup({
-      permissions: ['campaigns.view'],
+      permissions: ['campaigns.manage'],
       modules: ['campaigns'],
       bootstrapDelayMs: 10,
     });

@@ -45,6 +45,11 @@ export class InvoiceTableComponent {
   @Input() invoices: InvoiceSummary[] = [];
   @Input() busyInvoiceId: string | null = null;
   @Input() emptyText = 'No invoices yet';
+  /**
+   * `invoicing.manage` (emitir, editar, enviar, cobrar, anular, reemitir, cambiar estado). Sin él la
+   * fila solo ofrece lectura: ver detalle, copiar link, PDF y recibo.
+   */
+  @Input() canManage = true;
 
   @Output() actionRequested = new EventEmitter<{ action: InvoiceAction; invoice: InvoiceSummary }>();
 
@@ -95,49 +100,50 @@ export class InvoiceTableComponent {
   }
 
   canIssue(invoice: InvoiceSummary): boolean {
-    return invoice.status === 'Draft';
+    return this.canManage && invoice.status === 'Draft';
   }
 
   /** Cobrar a mano solo tiene sentido mientras quede saldo y la factura esté emitida. */
   canRecordPayment(invoice: InvoiceSummary): boolean {
-    return invoice.status !== 'Draft' && invoice.status !== 'Voided' && invoice.amountDueCents > 0;
+    return this.canManage && invoice.status !== 'Draft' && invoice.status !== 'Voided' && invoice.amountDueCents > 0;
   }
 
   /** Libertad total: se edita cualquier factura salvo una anulada. */
   canEdit(invoice: InvoiceSummary): boolean {
-    return invoice.status !== 'Voided';
+    return this.canManage && invoice.status !== 'Voided';
   }
 
   /** Enviar al cliente por correo: la factura debe estar emitida (con PDF) y no anulada. */
   canSend(invoice: InvoiceSummary): boolean {
-    return invoice.status !== 'Draft' && invoice.status !== 'Voided' && !!invoice.pdfFileId;
+    return this.canManage && invoice.status !== 'Draft' && invoice.status !== 'Voided' && !!invoice.pdfFileId;
   }
 
   /** Borrable (soft): solo borradores. Una emitida se anula, no se borra. */
   canDelete(invoice: InvoiceSummary): boolean {
-    return invoice.status === 'Draft';
+    return this.canManage && invoice.status === 'Draft';
   }
 
   /** Anulable: emitida/enviada/parcial/pagada (repone el stock descontado al emitir). */
   canVoid(invoice: InvoiceSummary): boolean {
-    return invoice.status !== 'Draft' && invoice.status !== 'Voided';
+    return this.canManage && invoice.status !== 'Draft' && invoice.status !== 'Voided';
   }
 
   /** Cambio de estado manual (item 6.2): marcar una emitida como "enviada al cliente". */
   canMarkSent(invoice: InvoiceSummary): boolean {
-    return invoice.status === 'Issued';
+    return this.canManage && invoice.status === 'Issued';
   }
 
   /** Cambio de estado manual (item 6.2): revertir "enviada" a "emitida" (no se envió al final). */
   canMarkIssued(invoice: InvoiceSummary): boolean {
-    return invoice.status === 'Sent';
+    return this.canManage && invoice.status === 'Sent';
   }
 
   /**
    * Reemisión (item 6.3): anular + reemplazo enlazado. Aplica a una factura ya emitida (no borrador) y no
-   * anulada. Si ya fue reemplazada, el backend lo rechaza (aquí no se ve ese dato en el summary).
+   * anulada. Una factura reemplazada queda anulada, así que aquí ya no aparece; el summary no trae el enlace,
+   * por eso la página lo confirma contra `/detail` antes de abrir el diálogo (`BillingStore.requestReissue`).
    */
   canReissue(invoice: InvoiceSummary): boolean {
-    return invoice.status !== 'Draft' && invoice.status !== 'Voided';
+    return this.canManage && invoice.status !== 'Draft' && invoice.status !== 'Voided';
   }
 }

@@ -35,6 +35,11 @@ export const SIGNATURE_PAGE_SIZE = 8;
 /** Reintentos de espera Draft→Ready antes de rendirse (el scan de CloudStorage es asíncrono). */
 const READY_POLL_MAX_ATTEMPTS = 10;
 const READY_POLL_INTERVAL_MS = 2000;
+/**
+ * Tamaño de página del picker de clientes (10.1): se pagina con "Load more". Antes se pedía un único
+ * lote de 200, que el backend recorta en silencio a 100 (CustomerReadService.MaxPageSize).
+ */
+const CUSTOMERS_PAGE_SIZE = 50;
 
 // 'Drafts' = borradores editables (Draft+Ready) vía editableOnly; el resto mapea 1:1 al status del backend.
 export type SignatureStatusFilter = 'All' | 'Drafts' | ApiSignatureRequestStatus;
@@ -245,6 +250,20 @@ export class SignatureStore {
   readonly customers = this._customers.asReadonly();
   readonly customersLoading = this._customersLoading.asReadonly();
   readonly customersError = this._customersError.asReadonly();
+
+  // Paginación del picker (10.1): páginas de CUSTOMERS_PAGE_SIZE con "Load more" en vez de un
+  // único lote gigante de 200 filas. `customersTerm` recuerda la búsqueda vigente para pedir la
+  // siguiente página del MISMO término.
+  private readonly _customersPage = signal(1);
+  private readonly _customersHasMore = signal(false);
+  private readonly _customersTotal = signal(0);
+  private readonly _customersLoadingMore = signal(false);
+  private readonly _customersMoreError = signal<string | null>(null);
+  private customersTerm: string | undefined;
+  readonly customersHasMore = this._customersHasMore.asReadonly();
+  readonly customersTotal = this._customersTotal.asReadonly();
+  readonly customersLoadingMore = this._customersLoadingMore.asReadonly();
+  readonly customersMoreError = this._customersMoreError.asReadonly();
 
   // ==================================================================
   // Listado
@@ -746,16 +765,73 @@ export class SignatureStore {
     this.fetchCustomers(term.trim() || undefined);
   }
 
+  /**
+   * Resuelve un cliente por id para el deep link `/signature?new=1&customerId=<id>` (7.2). Usa el
+   * cache compartido del directorio; `null` si no existe o no se pudo cargar.
+   */
+  resolveCustomer(customerId: string): Observable<WizardClient | null> {
+    return this.directory.byId([customerId]).pipe(
+      map(found => {
+        const customer = found.get(customerId);
+        return customer ? customerToWizardClient(customer) : null;
+      }),
+    );
+  }
+
+  /**
+   * Trae la página siguiente del término vigente y la AÑADE a la lista (dedup por id, por si el
+   * directorio cambió entre páginas). No-op si no hay más o ya hay una carga en curso.
+   */
+  loadMoreCustomers(): void {
+    if (!this._customersHasMore() || this._customersLoading() || this._customersLoadingMore()) {
+      return;
+    }
+    const seq = this.customersReqSeq; // no invalida la búsqueda vigente: sólo la extiende
+    const nextPage = this._customersPage() + 1;
+    this._customersLoadingMore.set(true);
+    this._customersMoreError.set(null);
+    this.directory
+      .search({ term: this.customersTerm, status: 'NotArchived', page: nextPage, size: CUSTOMERS_PAGE_SIZE })
+      .subscribe({
+        next: result => {
+          if (seq !== this.customersReqSeq) {
+            return; // el término cambió mientras llegaba: esta página ya no aplica
+          }
+          const seen = new Set(this._customers().map(c => c.id));
+          const extra = result.items.map(customerToWizardClient).filter(c => !seen.has(c.id));
+          this._customers.update(list => [...list, ...extra]);
+          this._customersPage.set(nextPage);
+          this._customersHasMore.set(result.hasMore);
+          this._customersTotal.set(result.totalCount);
+          this._customersLoadingMore.set(false);
+        },
+        error: err => {
+          if (seq !== this.customersReqSeq) {
+            return;
+          }
+          // Un fallo al paginar no borra lo ya cargado: se avisa y el botón permite reintentar.
+          this._customersLoadingMore.set(false);
+          this._customersMoreError.set(toApiError(err).message);
+        },
+      });
+  }
+
   private fetchCustomers(term?: string): void {
     const seq = ++this.customersReqSeq;
+    this.customersTerm = term;
     this._customersLoading.set(true);
+    this._customersLoadingMore.set(false);
+    this._customersMoreError.set(null);
     this._customersError.set(null);
-    this.directory.search({ term, status: 'NotArchived', size: 200 }).subscribe({
+    this.directory.search({ term, status: 'NotArchived', page: 1, size: CUSTOMERS_PAGE_SIZE }).subscribe({
       next: result => {
         if (seq !== this.customersReqSeq) {
           return; // llegó tarde: una búsqueda posterior ya manda
         }
         this._customers.set(result.items.map(customerToWizardClient));
+        this._customersPage.set(1);
+        this._customersHasMore.set(result.hasMore);
+        this._customersTotal.set(result.totalCount);
         this.customersLoaded = true;
         this._customersLoading.set(false);
       },
@@ -853,7 +929,8 @@ export class SignatureStore {
       onPhase?.('creating');
       // Metadata + flags de entrega/reminders (para que los toggles editados al continuar se guarden).
       // GenerateCertificate es inmutable tras crear; SetCertificateDelivery solo acepta true si aquél
-      // está activo, pero el editor no deja activar "send certificate" sin "generate", así que es coherente.
+      // está activo. Desde 11.2 todo borrador nuevo genera certificado; para uno antiguo sin él, el panel
+      // ya manda sendCertificateToSigners=false (ver legacyNoCertificate en el editor), así que es coherente.
       await firstValueFrom(
         this.service.update(requestId, {
           title: draft.title,

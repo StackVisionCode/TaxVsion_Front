@@ -132,11 +132,17 @@ export interface CreateCategoryRequest {
 
 // ---------- View-model del catálogo ----------
 
-/**
- * Moneda por defecto al crear ítems: la UI muestra "$" fijo y el dominio exige ISO 4217.
- * Al editar se conserva la moneda que ya tenga el ítem.
- */
-export const DEFAULT_CURRENCY = 'USD';
+// Moneda de las altas: la de la oficina (`OfficeCurrencyStore` en core, item 6.1). Al editar se
+// conserva la moneda que ya tenga el ítem.
+
+/** Precio con su moneda ISO-4217 ("$1,250.00", "€90.00"); si el código no es válido, número + código. */
+export function formatCatalogPrice(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount ?? 0);
+  } catch {
+    return `${amount ?? 0} ${currency}`;
+  }
+}
 
 export type CatalogEntryStatus = 'active' | 'inactive';
 

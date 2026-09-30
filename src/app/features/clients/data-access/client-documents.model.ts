@@ -88,3 +88,68 @@ export function toClientDocumentItem(file: FileResponse): ClientDocumentItem {
     isPending: isFilePending(file.status),
   };
 }
+
+// ---------- Carpetas (GET /storage/folders?ownerType=Customer&ownerId=) ----------
+
+/** Espejo mínimo de `FolderResponse` de CloudStorage. */
+export interface ClientFolderResponse {
+  id: string;
+  parentFolderId: string | null;
+  name: string;
+  relativePath: string;
+  category: string | null;
+  createdAtUtc: string;
+}
+
+/** Espejo mínimo de `FolderContentsResponse` (un nivel: subcarpetas + archivos). */
+export interface ClientFolderContents {
+  subfolders: ClientFolderResponse[];
+  files: FileResponse[];
+  folderCount?: number;
+  fileCount?: number;
+  totalCount?: number;
+}
+
+export interface ClientFolderItem {
+  id: string;
+  name: string;
+  dateLabel: string;
+}
+
+/** Un escalón del breadcrumb. La raíz ("All documents") es el breadcrumb vacío. */
+export interface ClientFolderCrumb {
+  id: string;
+  name: string;
+}
+
+export function toClientFolderItem(folder: ClientFolderResponse): ClientFolderItem {
+  return {
+    id: folder.id,
+    name: folder.name,
+    dateLabel: new Date(folder.createdAtUtc).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+  };
+}
+
+/** Navegar a un escalón del breadcrumb: corta el camino ahí (índice -1 = raíz). */
+export function trimPath(path: readonly ClientFolderCrumb[], index: number): ClientFolderCrumb[] {
+  return index < 0 ? [] : path.slice(0, index + 1);
+}
+
+/** Nombre de carpeta válido (lo mismo que exige el backend: no vacío, sin separadores, ≤ 255). */
+export function folderNameError(raw: string): string | null {
+  const name = raw.trim();
+  if (!name) {
+    return 'Enter a folder name.';
+  }
+  if (name.length > 255) {
+    return 'Use 255 characters or fewer.';
+  }
+  if (/[\\/]/.test(name)) {
+    return 'Folder names can’t contain slashes.';
+  }
+  return null;
+}

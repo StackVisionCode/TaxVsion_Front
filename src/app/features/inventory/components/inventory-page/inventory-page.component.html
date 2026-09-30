@@ -8,6 +8,10 @@
     <div class="rounded-[24px] bg-indigo-100 p-5">
       <p class="text-sm text-gray-600">Total stock value</p>
       <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatCurrency(totalStockValue()) }}</p>
+      <p *ngIf="otherCurrencyCount() > 0" class="mt-1 text-xs text-gray-500">
+        Excludes {{ otherCurrencyCount() }} {{ otherCurrencyCount() === 1 ? 'product' : 'products' }} priced in another
+        currency
+      </p>
     </div>
     <div class="rounded-[24px] bg-gray-200 p-5">
       <p class="text-sm text-gray-600">Low stock</p>
@@ -26,7 +30,7 @@
         <h2 class="text-xl font-bold text-gray-900">Inventory</h2>
         <p class="mt-1 text-sm text-gray-500">Track products, pricing and stock levels</p>
       </div>
-      <button type="button" (click)="openCreatePanel()"
+      <button *ngIf="can.canEditProducts()" type="button" (click)="openCreatePanel()"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="add-outline" class="text-base"></ion-icon>
         Add product
@@ -77,7 +81,8 @@
 
     <!-- Table -->
     <div *ngIf="!store.loading() && !store.error()" class="mt-5">
-      <app-product-table [products]="pagedProducts()" (editRequested)="openEditPanel($event)"
+      <app-product-table [products]="pagedProducts()" [canEdit]="can.canEditProducts()"
+        [canAdjust]="can.canAdjustStock()" [canDelete]="can.canDeleteProducts()" (editRequested)="openEditPanel($event)"
         (adjustRequested)="adjustStock($event)" (deleteRequested)="deleteProduct($event)"></app-product-table>
       <app-pagination [currentPage]="currentPage()" [totalItems]="visibleProducts().length" [pageSize]="pageSize"
         (pageChange)="currentPage.set($event)"></app-pagination>
@@ -87,7 +92,8 @@
 
 <!-- Create / edit overlay -->
 <app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="store.categories()"
-  [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
+  [saving]="panelSaving()" [errorMessage]="panelError()" [currency]="editingProduct()?.currency || store.defaultCurrency()"
+  [canAdjustStock]="can.canAdjustStock()" [canSetThresholds]="can.canSetThresholds()" (closed)="closePanel()" (saved)="handleSaved($event)"
   (categoryCreated)="handleCategoryCreated($event)"></app-product-form-panel>
 
 <!-- Delete confirmation -->

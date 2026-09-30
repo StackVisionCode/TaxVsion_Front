@@ -17,7 +17,12 @@
   </div>
 
   <p class="mt-3 text-xs text-gray-400">
-    {{ filtered().length }} {{ filtered().length === 1 ? 'client' : 'clients' }}
+    <ng-container *ngIf="store.customersTotal() > store.customers().length; else plainCount">
+      Showing {{ store.customers().length }} of {{ store.customersTotal() }} clients
+    </ng-container>
+    <ng-template #plainCount>
+      {{ filtered().length }} {{ filtered().length === 1 ? 'client' : 'clients' }}
+    </ng-template>
   </p>
 
   <!-- Loading -->
@@ -72,6 +77,17 @@
       <ion-icon name="people-outline" class="text-4xl text-gray-300"></ion-icon>
       <p class="mt-2 text-sm font-medium text-gray-600">No clients found</p>
       <p class="mt-1 text-xs text-gray-400">Try another name, email or filter</p>
+    </div>
+
+    <!-- Paginación server-side (10.1): la siguiente página del mismo término se añade a la lista -->
+    <div *ngIf="store.customersHasMore()" class="flex flex-col items-center gap-1 pb-1 pt-2">
+      <button type="button" (click)="loadMore()" [disabled]="store.customersLoadingMore()"
+        class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60">
+        <ion-icon [name]="store.customersLoadingMore() ? 'sync-outline' : 'chevron-down-outline'"
+          [class.animate-spin]="store.customersLoadingMore()" class="text-sm"></ion-icon>
+        {{ store.customersLoadingMore() ? 'Loading…' : 'Load more clients' }}
+      </button>
+      <p *ngIf="store.customersMoreError() as err" class="text-[11px] text-red-500">{{ err }}</p>
     </div>
   </div>
 </app-modal>

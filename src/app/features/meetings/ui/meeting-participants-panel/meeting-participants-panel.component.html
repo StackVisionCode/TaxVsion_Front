@@ -1,0 +1,99 @@
+<div class="flex h-full min-h-0 flex-col bg-white">
+  <div class="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+    <div class="min-w-0">
+      <h3 class="text-sm font-bold text-gray-900">Participants ({{ participants.length }})</h3>
+      @if (raisedCount > 0) {
+        <p class="text-[11px] font-medium text-amber-700">✋ {{ raisedCount }} {{ raisedCount === 1 ? 'hand' : 'hands' }} raised</p>
+      }
+    </div>
+    <button type="button" (click)="closed.emit()" aria-label="Close participants"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+      <ion-icon name="close-outline" class="text-lg"></ion-icon>
+    </button>
+  </div>
+
+  <div class="flex-1 overflow-y-auto px-2 py-2">
+    <!-- Sala de espera (host) -->
+    @if (isHost && waiting.length) {
+      <div class="mb-2 rounded-2xl border border-amber-100 bg-amber-50/60 p-2">
+        <p class="mb-1.5 px-1 text-[11px] font-semibold text-amber-700">Waiting to join ({{ waiting.length }})</p>
+        @for (p of waiting; track p.userId) {
+          <div class="flex items-center gap-2 px-1 py-1">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              [class]="avatarColor(p.userId)">{{ initials(p.displayName) }}</span>
+            <span class="min-w-0 flex-1 truncate text-sm text-gray-800" [title]="p.displayName">{{ p.displayName }}</span>
+            <button type="button" (click)="deny.emit(p.userId)"
+              class="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:bg-white transition-colors">Deny</button>
+            <button type="button" (click)="admit.emit(p.userId)"
+              class="rounded-full bg-brand-bold px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-ink transition-colors">Admit</button>
+          </div>
+        }
+      </div>
+    }
+
+    <ul class="flex flex-col">
+      @for (p of sorted; track p.userId) {
+        <li class="relative flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-gray-50" [class.bg-amber-50]="p.handRaised">
+          <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+            [class]="avatarColor(p.userId)" [class.ring-2]="speakingIds.has(p.userId)" [class.ring-brand-light]="speakingIds.has(p.userId)">
+            {{ initials(p.displayName) }}
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+              <span class="truncate" [title]="p.displayName">{{ p.displayName }}</span>
+              @if (isMe(p)) {<span class="shrink-0 text-[11px] font-normal text-gray-400">(you)</span>}
+            </p>
+            @if (roleLabel(p); as role) {
+              <span class="text-[11px] font-semibold text-brand-bold">{{ role }}</span>
+            }
+          </div>
+          @if (p.handRaised) {
+            <span class="shrink-0 text-base" title="Hand raised" aria-label="Hand raised">✋</span>
+          }
+          <ion-icon [name]="p.audioEnabled ? 'mic-outline' : 'mic-off-outline'" class="shrink-0 text-base"
+            [class.text-gray-400]="p.audioEnabled" [class.text-red-500]="!p.audioEnabled"
+            [attr.aria-label]="p.audioEnabled ? 'Microphone on' : 'Muted'"></ion-icon>
+          <ion-icon [name]="p.videoEnabled ? 'videocam-outline' : 'videocam-off-outline'" class="shrink-0 text-base"
+            [class.text-gray-400]="p.videoEnabled" [class.text-red-500]="!p.videoEnabled"
+            [attr.aria-label]="p.videoEnabled ? 'Camera on' : 'Camera off'"></ion-icon>
+          @if (!isMe(p)) {
+            <button type="button" (click)="pinToggle.emit(p.userId)" [attr.aria-pressed]="pinnedUserId === p.userId"
+              [attr.aria-label]="(pinnedUserId === p.userId ? 'Unpin ' : 'Pin ') + p.displayName"
+              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
+              [class]="pinnedUserId === p.userId ? 'bg-brand-bold text-white' : 'text-gray-400 hover:bg-gray-100'">
+              <ion-icon [name]="pinnedUserId === p.userId ? 'pin' : 'pin-outline'" class="text-sm"></ion-icon>
+            </button>
+          }
+          @if (isHost && !isMe(p)) {
+            <div class="relative" data-dropdown="meeting-peer-menu">
+              <button type="button" (click)="toggleMenu(p.userId)" aria-label="Participant options"
+                class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+                <ion-icon name="ellipsis-vertical" class="text-sm"></ion-icon>
+              </button>
+              @if (openMenuFor() === p.userId) {
+                <div class="absolute right-0 top-8 z-10 w-44 overflow-hidden rounded-2xl border border-gray-100 bg-white py-1 text-left shadow-xl">
+                  @if (p.role === 'Attendee') {
+                    <button type="button" (click)="run(promote, p.userId)" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host
+                    </button>
+                  }
+                  @if (p.role === 'Cohost') {
+                    <button type="button" (click)="run(demote, p.userId)" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host
+                    </button>
+                  }
+                  <button type="button" (click)="run(makeHost, p.userId)" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    <ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host
+                  </button>
+                  <button type="button" (click)="run(remove, p.userId)" class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                    <ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  </div>
+</div>

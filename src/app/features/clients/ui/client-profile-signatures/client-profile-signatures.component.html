@@ -1,0 +1,42 @@
+<div>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 class="text-lg font-bold text-gray-900">Signatures</h3>
+      <p class="mt-1 text-sm text-gray-500">E-signature requests for {{ clientName || 'this client' }}</p>
+    </div>
+    @if (newRequestLink; as link) {
+      <a [routerLink]="link.commands" [queryParams]="link.queryParams"
+        class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        New signature request
+      </a>
+    }
+  </div>
+
+  <div class="mt-5 rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
+    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
+      <ion-icon name="document-text-outline" class="text-2xl"></ion-icon>
+    </span>
+    <p class="mt-3 text-sm font-medium text-gray-900">This client's signature history is coming soon</p>
+    <p class="mx-auto mt-1 max-w-md text-sm text-gray-400">
+      For now, track requests on the Signature page. Once a document is signed, the signed copy and its certificate
+      are saved to this client's Documents, in the "Signed Documents" folder.
+    </p>
+    <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+      @if (canViewDocuments) {
+        <button type="button" (click)="viewDocuments.emit()"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="folder-open-outline" class="text-base"></ion-icon>
+          View signed documents
+        </button>
+      }
+      @if (canOpenSignatures) {
+        <a routerLink="/signature"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="open-outline" class="text-base"></ion-icon>
+          Open Signature
+        </a>
+      }
+    </div>
+  </div>
+</div>

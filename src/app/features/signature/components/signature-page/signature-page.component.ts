@@ -1,10 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
+import { WizardClient } from '../../ui/signature-request-panel/signature-wizard.model';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-manager/signature-profiles-manager.component';
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
@@ -12,6 +13,8 @@ import { SignatureCategoryPickerComponent } from '../../ui/signature-category-pi
 import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
 import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { SignatureDownloadKind, buildSignatureDownloadFilename } from '../../utils/download-filename.util';
+import { saveUrlAs } from '../../utils/save-file.util';
 import { toApiError } from '@core/models/api-error.model';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
@@ -88,6 +91,12 @@ export class SignaturePageComponent {
   readonly isPanelOpen = signal(false);
   /** Id del borrador a continuar en el wizard (null = crear uno nuevo). */
   readonly continueRequestId = signal<string | null>(null);
+  /** Cliente preseleccionado en el paso 1 al abrir el wizard por deep link (7.2). */
+  readonly initialClient = signal<WizardClient | null>(null);
+
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Gestión de "My Signatures" (firmas reutilizables del preparador, persistidas). */
   readonly isProfilesManagerOpen = signal(false);
@@ -151,6 +160,48 @@ export class SignaturePageComponent {
     this.store.refresh();
     this.store.loadStats();
     this.store.loadSignatureProfiles();
+    this.handleDeepLink();
+  }
+
+  /**
+   * 7.2 — Deep link desde el perfil del cliente: `/signature?new=1&customerId=<id>[&customerName=<n>]`
+   * abre el wizard de nueva solicitud con ese cliente preseleccionado en el paso 1. Los query params se
+   * consumen (se limpian con replaceUrl) para que recargar o volver atrás no reabra el wizard.
+   * `customerName` solo se usa para el aviso si el cliente no se pudo cargar.
+   */
+  private handleDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('new') !== '1') {
+      return;
+    }
+    const customerId = params.get('customerId')?.trim() || null;
+    const customerName = params.get('customerName')?.trim() || null;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { new: null, customerId: null, customerName: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    if (!this.can.canCreate()) {
+      return;
+    }
+    if (!customerId) {
+      this.openCreatePanel();
+      return;
+    }
+    const sub = this.store.resolveCustomer(customerId).subscribe({
+      next: client => {
+        if (!client) {
+          this.showToast(`Could not load ${customerName ?? 'that client'}. Pick the client manually.`);
+        }
+        this.openCreatePanel(client);
+      },
+      error: () => {
+        this.showToast(`Could not load ${customerName ?? 'that client'}. Pick the client manually.`);
+        this.openCreatePanel();
+      },
+    });
+    this.destroyRef.onDestroy(() => sub.unsubscribe());
   }
 
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
@@ -206,8 +257,9 @@ export class SignaturePageComponent {
     return value.toLocaleString('en-US');
   }
 
-  openCreatePanel(): void {
+  openCreatePanel(client: WizardClient | null = null): void {
     this.continueRequestId.set(null);
+    this.initialClient.set(client);
     this.isPanelOpen.set(true);
   }
 
@@ -220,6 +272,7 @@ export class SignaturePageComponent {
   closePanel(): void {
     this.isPanelOpen.set(false);
     this.continueRequestId.set(null);
+    this.initialClient.set(null);
   }
 
   openTemplatePicker(): void {
@@ -636,24 +689,29 @@ export class SignaturePageComponent {
   // ---------- Descargas (CloudStorage download-url) ----------
 
   downloadOriginal(request: SignatureRequest): void {
-    this.openDownload(request.originalFileId ?? null, 'Original document');
+    this.openDownload(request.originalFileId ?? null, 'Original document', request.documentName, 'original');
   }
 
   downloadSealed(request: SignatureRequest): void {
-    this.openDownload(request.sealedFileId ?? null, 'Signed document');
+    this.openDownload(request.sealedFileId ?? null, 'Signed document', request.documentName, 'signed');
   }
 
   downloadCertificate(request: SignatureRequest): void {
-    this.openDownload(request.certificateFileId ?? null, 'Certificate');
+    this.openDownload(request.certificateFileId ?? null, 'Certificate', request.documentName, 'certificate');
   }
 
-  private openDownload(fileId: string | null, label: string): void {
+  /**
+   * 12.3/12.4: guarda el archivo con un nombre derivado del título de la solicitud
+   * (p. ej. `2026_Individual_Tax_Return_Signed.pdf`). Si el blob no se puede bajar (CORS),
+   * `saveUrlAs` cae a abrir la URL presignada en otra pestaña como antes.
+   */
+  private openDownload(fileId: string | null, label: string, title: string, kind: SignatureDownloadKind): void {
     if (!fileId) {
       return;
     }
     this.store.getDownloadUrl(fileId).subscribe({
       next: url => {
-        window.open(url, '_blank', 'noopener');
+        void saveUrlAs(url, buildSignatureDownloadFilename(title, kind));
       },
       error: err => this.showToast(`${label}: ${toApiError(err).message}`),
     });

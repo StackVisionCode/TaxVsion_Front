@@ -83,7 +83,7 @@ export class ShareDialogComponent implements OnChanges {
       case 'SpecificUsers':
         return 'Specific people';
       default:
-        return 'Tenant members';
+        return 'Office team';
     }
   }
 
@@ -129,7 +129,7 @@ export class ShareDialogComponent implements OnChanges {
    */
   get accessOptions(): AccessOption[] {
     const options: AccessOption[] = [
-      { id: 'TenantOnly', title: 'Tenant members', description: 'Anyone signed in to your firm can open it.' },
+      { id: 'TenantOnly', title: 'Office team', description: 'Anyone signed in to your office can open it.' },
       { id: 'TenantCustomers', title: 'Client', description: 'The client sees it in their portal.' },
       { id: 'ExternalRecipients', title: 'External recipient', description: 'Only the email you enter can open it.' },
       {

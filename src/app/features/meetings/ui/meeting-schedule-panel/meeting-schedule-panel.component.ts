@@ -56,6 +56,8 @@ type InvitationState = 'active' | 'used' | 'revoked' | 'expired';
 export class MeetingSchedulePanelComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() meeting: MeetingItem | null = null;
+  /** Customer pre-invitado al crear (deep link `/meetings?schedule=1&customerId=`). */
+  @Input() presetCustomer: { customerId: string; name: string } | null = null;
   /** Guardado en curso (create/reschedule): deshabilita acciones. */
   @Input() busy = false;
   /** Error del último intento de crear/re-agendar; se muestra dentro del panel. */
@@ -124,6 +126,16 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       this.resetForm();
       if (this.isOpen && this.meeting?.isHost) {
         this.loadInvitations();
+      }
+      // Agendar desde el perfil del cliente: el customer llega ya invitado.
+      if (this.isOpen && !this.meeting && this.presetCustomer) {
+        this.addInvitee({
+          kind: 'customer',
+          userId: null,
+          customerId: this.presetCustomer.customerId,
+          email: null,
+          name: this.presetCustomer.name,
+        });
       }
     }
   }

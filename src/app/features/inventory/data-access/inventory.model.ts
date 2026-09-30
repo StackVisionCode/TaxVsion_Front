@@ -161,8 +161,8 @@ export interface CreateCategoryRequest {
 
 // ---------- View-model de la página ----------
 
-/** Moneda al crear productos: la UI muestra "$" fijo y el dominio exige ISO 4217. */
-export const DEFAULT_CURRENCY = 'USD';
+// Moneda de las altas: la de la oficina (`OfficeCurrencyStore` en core, item 6.1); cada producto
+// existente conserva la suya.
 
 export type ProductStatus = 'active' | 'inactive';
 

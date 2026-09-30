@@ -1,0 +1,67 @@
+<div class="tile relative h-full w-full overflow-hidden rounded-2xl bg-gray-900"
+  [class.tile--speaking]="speaking && audioOn" [class.tile--hand]="handRaised" [class.tile--pinned]="pinned">
+  <video [srcObject]="stream" autoplay playsinline muted
+    class="h-full w-full object-cover transition-opacity duration-300 motion-reduce:transition-none"
+    [class.-scale-x-100]="isLocal" [class.opacity-0]="!showVideo"></video>
+
+  <!-- Cámara apagada: avatar con indicador de "hablando" (anillo pulsante + barras) -->
+  @if (!showVideo) {
+    <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-800">
+      <span class="avatar relative flex items-center justify-center rounded-full font-bold text-white"
+        [class]="avatarClass" [class.avatar--compact]="compact" [class.avatar--speaking]="speaking && audioOn">
+        {{ isLocal ? 'You' : initials }}
+      </span>
+      @if (speaking && audioOn) {
+        <span class="speaking-bars flex items-end gap-0.5" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+      }
+    </div>
+  }
+
+  <!-- Arriba-izquierda: rol + mano levantada -->
+  <div class="absolute left-2 top-2 flex max-w-[70%] items-center gap-1">
+    @if (handRaised) {
+      <span class="hand-badge flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 font-semibold text-gray-900 shadow-sm"
+        [class]="compact ? 'text-[10px]' : 'text-xs'" title="Hand raised" aria-label="Hand raised">
+        ✋@if (!compact) {<span class="hidden sm:inline">Hand raised</span>}
+      </span>
+    }
+    @if (roleLabel && !compact) {
+      <span class="truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel }}</span>
+    }
+  </div>
+
+  <!-- Arriba-derecha: fijar + menú de host (proyectado) -->
+  <div class="absolute right-2 top-2 flex items-center gap-1">
+    @if (canPin) {
+      <button type="button" (click)="onPin($event)" [attr.aria-pressed]="pinned"
+        [attr.aria-label]="pinned ? 'Unpin ' + name : 'Pin ' + name" [title]="pinned ? 'Unpin' : 'Pin'"
+        class="pin-btn flex items-center justify-center rounded-full text-white backdrop-blur-sm transition-colors"
+        [class]="pinBtnClass">
+        <ion-icon [name]="pinned ? 'pin' : 'pin-outline'" class="text-sm"></ion-icon>
+      </button>
+    }
+    <ng-content select="[tileMenu]"></ng-content>
+  </div>
+
+  <!-- Abajo: nombre (truncado, tooltip con el nombre completo) + mic + calidad -->
+  <div class="absolute inset-x-2 bottom-2 flex items-end justify-between gap-2">
+    <div class="flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-black/45 font-medium text-white backdrop-blur-sm"
+      [class]="compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'" [title]="name">
+      <span class="min-w-0 truncate">{{ isLocal ? 'You' : name }}</span>
+      @if (!audioOn) {
+        <ion-icon name="mic-off-outline" class="shrink-0 text-xs text-red-300" aria-label="Muted"></ion-icon>
+      }
+    </div>
+    @if (quality > 0) {
+      <span class="flex h-5 shrink-0 items-end gap-0.5 rounded-full bg-black/45 px-1.5 pb-1 backdrop-blur-sm"
+        role="img" [attr.aria-label]="qualityText" [title]="qualityText">
+        @for (b of bars; track b) {
+          <span class="w-[3px] rounded-sm" [style.height.px]="3 + b * 2"
+            [class]="b <= quality ? qualityColor : 'bg-white/30'"></span>
+        }
+      </span>
+    }
+  </div>
+</div>

@@ -1,26 +1,40 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { map, of, switchMap } from 'rxjs';
+import { Observable, Subject, catchError, map, of, switchMap, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { toApiError } from '@core/models/api-error.model';
-import { FetchGate } from '@core/data/fetch-gate';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse, InitiateUploadRequest, isFilePending } from '@core/cloud-storage/cloud-storage.model';
 import { ClientDocumentsService } from './client-documents.service';
-import { ClientDocumentItem, toClientDocumentItem } from './client-documents.model';
+import {
+  ClientDocumentItem,
+  ClientFolderContents,
+  ClientFolderCrumb,
+  ClientFolderItem,
+  ClientFolderResponse,
+  toClientDocumentItem,
+  toClientFolderItem,
+  trimPath,
+} from './client-documents.model';
 
-/** El backend acota `take` a 100; es el tope de un cliente en esta vista plana. */
+/** Tope de una página del listado de carpeta (el backend acota `take`). */
 const FETCH_SIZE = 100;
 const MAX_STATUS_POLLS = 8;
 const STATUS_POLL_INTERVAL_MS = 3000;
+/** Volver a la pestaña dentro de este tiempo no repite el listado. */
+const FRESH_MS = 60_000;
 
 /**
- * Store de la pestaña "Documents" del perfil (CloudStorage vía `/storage/files?ownerType=Customer&ownerId=`).
+ * Store de la pestaña "Documents" del perfil, con NAVEGACIÓN POR CARPETAS del cliente.
  *
- * Listado REAL y por cliente (el filtro `ownerType`/`ownerId` es de staff — un actor de portal se
- * acota solo a lo suyo). Reutiliza el core `CloudStorageUploadService` para list/upload/download y
- * el complemento local para el borrado. `providedIn: 'root'` con estado por cliente: `load(id)`
- * limpia si cambió el cliente. Subir/borrar refrescan en background (nunca recarga de página);
- * el estado de un archivo recién subido se sondea (Processing→Ready) sin recargar.
+ * Antes era un feed plano (`GET /storage/files?ownerType=Customer&ownerId=`, todo en la raíz del
+ * bucket `Documents`). Ahora navega el árbol real del cliente con `GET /storage/folders`
+ * (`ownerType=Customer&ownerId=` + `parentFolderId`), un nivel por vez: subcarpetas + archivos,
+ * breadcrumbs, crear y renombrar carpetas. La subida deja el archivo en la carpeta ABIERTA
+ * (initiate → MinIO → complete → `PUT files/{id}/folder`), igual que el módulo Documents.
+ *
+ * Cada navegación entra por un `Subject` con `switchMap`: abrir carpetas rápido cancela el
+ * listado anterior y nunca pinta una respuesta vieja sobre la carpeta nueva.
  */
 @Injectable({ providedIn: 'root' })
 export class ClientDocumentsStore {
@@ -29,73 +43,162 @@ export class ClientDocumentsStore {
   private readonly toast = inject(ToastService);
 
   private customerId = '';
+  private loadedAt = 0;
 
-  private readonly _raw = signal<FileResponse[]>([]);
+  private readonly _path = signal<ClientFolderCrumb[]>([]);
+  private readonly _folders = signal<ClientFolderResponse[]>([]);
+  private readonly _files = signal<FileResponse[]>([]);
+  private readonly _totalCount = signal(0);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
   private readonly _uploadingCount = signal(0);
   private readonly _busyIds = signal<ReadonlySet<string>>(new Set());
+  private readonly _savingFolder = signal(false);
 
+  readonly path = this._path.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly savingFolder = this._savingFolder.asReadonly();
+  readonly busyIds = this._busyIds.asReadonly();
   readonly uploading = computed(() => this._uploadingCount() > 0);
 
-  readonly documents = computed<ClientDocumentItem[]>(() => this._raw().map(toClientDocumentItem));
-  readonly total = computed(() => this._raw().length);
-  readonly readyCount = computed(() => this._raw().filter(f => f.status === 'Available').length);
-  /** El listado va topado a 100: si llega justo el tope, puede haber más y la vista lo declara. */
-  readonly maybeTruncated = computed(() => this._raw().length >= FETCH_SIZE);
+  readonly currentFolderId = computed(() => this._path().at(-1)?.id ?? null);
+  readonly folders = computed<ClientFolderItem[]>(() => this._folders().map(toClientFolderItem));
+  readonly documents = computed<ClientDocumentItem[]>(() => this._files().map(toClientDocumentItem));
+  readonly total = computed(() => this._folders().length + this._files().length);
+  readonly readyCount = computed(() => this._files().filter(f => f.status === 'Available').length);
+  /** Hay más elementos en esta carpeta de los que caben en una página. */
+  readonly maybeTruncated = computed(() => this._totalCount() > this.total());
+
+  private readonly load$ = new Subject<{ customerId: string; folderId: string | null }>();
+
+  constructor() {
+    this.load$
+      .pipe(
+        tap(() => {
+          this._loading.set(true);
+          this._error.set(null);
+        }),
+        switchMap(({ customerId, folderId }) =>
+          this.local.getFolderContents(customerId, folderId, FETCH_SIZE).pipe(
+            catchError(err => {
+              this._error.set(toApiError(err).message);
+              return of(null);
+            }),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((contents: ClientFolderContents | null) => {
+        this._loading.set(false);
+        if (!contents) {
+          this.loadedAt = 0;
+          return;
+        }
+        this._folders.set(contents.subfolders ?? []);
+        this._files.set(contents.files ?? []);
+        this._totalCount.set(contents.totalCount ?? (contents.subfolders?.length ?? 0) + (contents.files?.length ?? 0));
+        this.loadedAt = Date.now();
+      });
+  }
 
   isBusy(id: string): boolean {
     return this._busyIds().has(id);
   }
 
   /**
-   * La pestaña se destruye y se recrea al cambiar de tab, así que `load()` se llamaba en
-   * cada ida y vuelta y repetía el listado completo. El gate distingue por cliente y por
-   * antigüedad; `refresh()` sigue siendo el camino forzado para el botón y las mutaciones.
+   * Al montar la pestaña. Cambiar de cliente vuelve a la raíz; volver al mismo cliente conserva la
+   * carpeta abierta y no repite el listado si está fresco.
    */
-  private readonly gate = new FetchGate();
-
   load(customerId: string): void {
     if (customerId !== this.customerId) {
       this.customerId = customerId;
-      this._raw.set([]);
+      this._path.set([]);
+      this._folders.set([]);
+      this._files.set([]);
+      this._totalCount.set(0);
+      this.loadedAt = 0;
     }
-    if (this.gate.shouldFetch(customerId)) {
-      this.doRefresh();
+    if (Date.now() - this.loadedAt > FRESH_MS) {
+      this.refresh();
     }
   }
 
-  /** Recarga forzada: botón de la vista y tras subir/borrar. Siempre va al backend. */
+  /** Recarga forzada de la carpeta abierta (botón y tras mutaciones). */
   refresh(): void {
-    if (this.gate.shouldFetch(this.customerId, true)) {
-      this.doRefresh();
+    if (this.customerId) {
+      this.load$.next({ customerId: this.customerId, folderId: this.currentFolderId() });
     }
   }
 
-  private doRefresh(): void {
-    if (!this.customerId) {
-      this.gate.settle(false);
+  // ---------- Navegación ----------
+
+  openFolder(folder: ClientFolderItem): void {
+    this._path.update(path => [...path, { id: folder.id, name: folder.name }]);
+    this.clearListing();
+    this.refresh();
+  }
+
+  /** Ir a un escalón del breadcrumb (-1 = raíz "All documents"). */
+  goToCrumb(index: number): void {
+    const next = trimPath(this._path(), index);
+    if (next.length === this._path().length) {
       return;
     }
-    this._loading.set(true);
-    this._error.set(null);
-    this.cloud.listFiles(0, FETCH_SIZE, 'Customer', this.customerId).subscribe({
-      next: files => {
-        this._raw.set(files);
-        this._loading.set(false);
-        this.gate.settle(true);
-      },
-      error: err => {
-        this._error.set(toApiError(err).message);
-        this._loading.set(false);
-        this.gate.settle(false);
-      },
-    });
+    this._path.set(next);
+    this.clearListing();
+    this.refresh();
   }
 
-  // ---------- Subida (presigned POST: initiate → MinIO → complete) ----------
+  private clearListing(): void {
+    this._folders.set([]);
+    this._files.set([]);
+    this._totalCount.set(0);
+  }
+
+  // ---------- Carpetas ----------
+
+  /** Crea una carpeta dentro de la abierta. Devuelve true si salió (el modal se cierra). */
+  createFolder(name: string): Observable<boolean> {
+    if (!this.customerId) {
+      return of(false);
+    }
+    this._savingFolder.set(true);
+    return this.local.createFolder(this.customerId, this.currentFolderId(), name.trim()).pipe(
+      map(() => {
+        this._savingFolder.set(false);
+        this.toast.success(`Folder "${name.trim()}" created`);
+        this.refresh();
+        return true;
+      }),
+      catchError(err => {
+        this._savingFolder.set(false);
+        this.toast.error(toApiError(err).message);
+        return of(false);
+      }),
+    );
+  }
+
+  renameFolder(folderId: string, newName: string): Observable<boolean> {
+    this._savingFolder.set(true);
+    return this.local.renameFolder(folderId, newName.trim()).pipe(
+      map(() => {
+        this._savingFolder.set(false);
+        // El breadcrumb también puede mostrar esa carpeta.
+        this._path.update(path => path.map(c => (c.id === folderId ? { ...c, name: newName.trim() } : c)));
+        this._folders.update(list => list.map(f => (f.id === folderId ? { ...f, name: newName.trim() } : f)));
+        this.toast.success('Folder renamed');
+        return true;
+      }),
+      catchError(err => {
+        this._savingFolder.set(false);
+        this.toast.error(toApiError(err).message);
+        return of(false);
+      }),
+    );
+  }
+
+  // ---------- Subida (presigned POST: initiate → MinIO → complete → carpeta) ----------
 
   uploadFiles(fileList: FileList | File[]): void {
     const files = Array.from(fileList);
@@ -103,10 +206,11 @@ export class ClientDocumentsStore {
       return;
     }
     this.toast.info(files.length === 1 ? 'Uploading 1 file' : `Uploading ${files.length} files`);
-    files.forEach(file => this.uploadOne(file));
+    const folderId = this.currentFolderId();
+    files.forEach(file => this.uploadOne(file, folderId));
   }
 
-  private uploadOne(file: File): void {
+  private uploadOne(file: File, folderId: string | null): void {
     const request: InitiateUploadRequest = {
       originalName: file.name,
       contentType: file.type || 'application/octet-stream',
@@ -126,6 +230,7 @@ export class ClientDocumentsStore {
         switchMap(initiated =>
           this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
             switchMap(() => this.cloud.completeUpload(initiated.fileId)),
+            switchMap(() => (folderId ? this.local.moveFileToFolder(initiated.fileId, folderId) : of(undefined))),
             map(() => initiated.fileId),
           ),
         ),
@@ -150,7 +255,7 @@ export class ClientDocumentsStore {
     setTimeout(() => {
       this.cloud.getFile(fileId).subscribe({
         next: file => {
-          this._raw.update(list => list.map(f => (f.id === file.id ? file : f)));
+          this._files.update(list => list.map(f => (f.id === file.id ? file : f)));
           if (isFilePending(file.status)) {
             this.pollFileStatus(fileId, attemptsLeft - 1);
           } else if (file.status === 'Available') {
@@ -163,16 +268,25 @@ export class ClientDocumentsStore {
     }, STATUS_POLL_INTERVAL_MS);
   }
 
-  // ---------- Descargar ----------
+  // ---------- Descargar / previsualizar ----------
 
   download(item: ClientDocumentItem): void {
+    this.withDownloadUrl(item, url => this.triggerDownload(url));
+  }
+
+  /** URL presignada de lectura, pedida recién al mostrar el archivo en el visor (vencen en minutos). */
+  downloadUrl(item: ClientDocumentItem): Observable<string> {
+    return this.cloud.getDownloadUrl(item.id).pipe(map(res => res.downloadUrl));
+  }
+
+  private withDownloadUrl(item: ClientDocumentItem, use: (url: string) => void): void {
     if (!item.isReady) {
       return;
     }
     this.markBusy(item.id, true);
     this.cloud.getDownloadUrl(item.id).subscribe({
       next: res => {
-        this.triggerDownload(res.downloadUrl);
+        use(res.downloadUrl);
         this.markBusy(item.id, false);
       },
       error: err => {
@@ -197,7 +311,8 @@ export class ClientDocumentsStore {
     this.markBusy(item.id, true);
     this.local.deleteFile(item.id).subscribe({
       next: () => {
-        this._raw.update(list => list.filter(f => f.id !== item.id));
+        this._files.update(list => list.filter(f => f.id !== item.id));
+        this._totalCount.update(n => Math.max(0, n - 1));
         this.markBusy(item.id, false);
         this.toast.success(`"${item.name}" moved to the recycle bin`);
       },

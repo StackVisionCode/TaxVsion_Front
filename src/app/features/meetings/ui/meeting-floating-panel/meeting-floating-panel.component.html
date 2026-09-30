@@ -1,0 +1,19 @@
+<!-- Asa de arrastre (mouse/touch con pointer events; flechas del teclado; doble click = re-acoplar) -->
+<div class="handle flex select-none items-center gap-1.5 px-2 py-1.5 text-white" tabindex="0" role="toolbar"
+  aria-label="Participant cameras. Drag, or use the arrow keys, to move the panel." title="Drag to move · double-click to dock"
+  (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)"
+  (pointercancel)="onPointerUp($event)" (keydown)="onHandleKeydown($event)" (dblclick)="dock()">
+  <ion-icon name="reorder-two-outline" class="shrink-0 text-sm text-white/60" aria-hidden="true"></ion-icon>
+  <span class="min-w-0 flex-1 truncate text-[11px] font-semibold">{{ title }} · {{ count }}</span>
+  <button type="button" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()"
+    [attr.aria-label]="collapsed() ? 'Show cameras' : 'Hide cameras'"
+    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 transition-colors">
+    <ion-icon [name]="collapsed() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-sm"></ion-icon>
+  </button>
+</div>
+
+@if (!collapsed()) {
+  <div class="flex flex-col gap-1.5 overflow-y-auto px-1.5 pb-1.5">
+    <ng-content></ng-content>
+  </div>
+}

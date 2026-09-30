@@ -13,6 +13,7 @@ import {
 } from '../../ui/record-payment-dialog/record-payment-dialog.component';
 import { ReceiptDialogComponent } from '../../ui/receipt-dialog/receipt-dialog.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { ReasonDialogComponent } from '../../ui/reason-dialog/reason-dialog.component';
 import {
   CreatePaymentLinkForm,
   PaymentLinksPanelComponent,
@@ -24,6 +25,7 @@ import {
   InvoiceSummary,
   PaymentLink,
   PaymentLinkStatus,
+  REISSUE_REASON_MIN_LENGTH,
   invoiceStatusLabel,
   invoicesToCsv,
   paymentLinkUrl,
@@ -55,6 +57,7 @@ type BillingTab = 'invoices' | 'links';
     ReceiptDialogComponent,
     PaymentLinksPanelComponent,
     ConfirmDialogComponent,
+    ReasonDialogComponent,
     RouterLink,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -84,6 +87,9 @@ export class BillingPageComponent implements OnInit {
   readonly deleteTarget = signal<InvoiceSummary | null>(null);
   readonly voidTarget = signal<InvoiceSummary | null>(null);
   readonly reissueTarget = signal<InvoiceSummary | null>(null);
+  /** Cambio de estado manual pendiente de confirmar (item 6.2), con motivo opcional. */
+  readonly statusTarget = signal<{ invoice: InvoiceSummary; toStatus: InvoiceStatus } | null>(null);
+  readonly reissueReasonMinLength = REISSUE_REASON_MIN_LENGTH;
 
   ngOnInit(): void {
     this.store.init();
@@ -151,13 +157,14 @@ export class BillingPageComponent implements OnInit {
         this.receiptTarget.set(invoice);
         break;
       case 'markSent':
-        this.store.changeInvoiceStatus(invoice.id, 'Sent', null, () => undefined);
+        this.statusTarget.set({ invoice, toStatus: 'Sent' });
         break;
       case 'markIssued':
-        this.store.changeInvoiceStatus(invoice.id, 'Issued', null, () => undefined);
+        this.statusTarget.set({ invoice, toStatus: 'Issued' });
         break;
       case 'reissue':
-        this.reissueTarget.set(invoice);
+        // Se confirma con /detail que no fue reemplazada ya antes de abrir el diálogo.
+        this.store.requestReissue(invoice, () => this.reissueTarget.set(invoice));
         break;
     }
   }
@@ -234,21 +241,52 @@ export class BillingPageComponent implements OnInit {
     this.deleteTarget.set(null);
   }
 
-  confirmVoid(): void {
+  confirmVoid(reason: string | null): void {
     const invoice = this.voidTarget();
     if (invoice) {
-      this.store.voidInvoice(invoice.id, null);
+      this.store.voidInvoice(invoice.id, reason);
     }
     this.voidTarget.set(null);
   }
 
-  confirmReissue(): void {
+  confirmReissue(reason: string | null): void {
     const invoice = this.reissueTarget();
     if (invoice) {
       // Anula la original y abre el borrador de reemplazo en el editor para corregirlo antes de emitir.
-      this.store.reissueInvoice(invoice.id, null, () => this.formOpen.set(true));
+      this.store.reissueInvoice(invoice.id, reason, () => this.formOpen.set(true));
     }
     this.reissueTarget.set(null);
+  }
+
+  /** Cambio de estado manual (item 6.2): el motivo es opcional y queda en el historial de la factura. */
+  confirmStatusChange(reason: string | null): void {
+    const target = this.statusTarget();
+    if (target) {
+      this.store.changeInvoiceStatus(target.invoice.id, target.toStatus, reason, () => undefined);
+    }
+    this.statusTarget.set(null);
+  }
+
+  get statusChangeHeading(): string {
+    return this.statusTarget()?.toStatus === 'Sent' ? 'Mark invoice as sent' : 'Revert to awaiting payment';
+  }
+
+  get statusChangeMessage(): string {
+    return this.statusTarget()?.toStatus === 'Sent'
+      ? 'The invoice will be marked as sent to the client. The change is recorded in its status history.'
+      : 'The invoice will go back to "Awaiting payment". The change is recorded in its status history.';
+  }
+
+  /**
+   * Alcance de las tarjetas (item 6.5): TODAS siguen los filtros del listado, así que el texto dice
+   * sobre qué conjunto se calcularon en vez de un genérico "las facturas cargadas".
+   */
+  get metricsScope(): string {
+    const count = this.store.filteredInvoices().length;
+    const noun = count === 1 ? 'invoice' : 'invoices';
+    return this.store.hasActiveFilters()
+      ? `${count} ${noun} matching current filters`
+      : `Last ${this.store.take()} invoices loaded (${count})`;
   }
 
   // ---------- Cobro manual ----------

@@ -1,5 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { readThrottle, throttleMessage } from '@core/errors/throttling';
+import {
+  GENERIC_ERROR_MESSAGE,
+  NETWORK_ERROR_MESSAGE,
+  SERVICE_UNAVAILABLE_MESSAGE,
+  firstHumanFieldError,
+  friendlyMessage,
+  looksTechnical,
+  messageForStatus,
+} from '@core/errors/friendly-http-message';
+
+export { SERVICE_UNAVAILABLE_MESSAGE, NETWORK_ERROR_MESSAGE };
 
 /**
  * Forma plana de error del backend (BuildingBlocks.Results.Error), serializada en
@@ -45,10 +56,7 @@ export const NETWORK_ERROR_CODE = 'Network.Unreachable';
  * (`"Http failure response for http://…: 500"`), lo que filtraría rutas
  * internas y GUIDs. Para el texto final de UI usar `toUserMessage`.
  */
-const SAFE_FALLBACK_MESSAGE = 'Something went wrong. Please try again.';
-
-/** 503 sin mensaje propio (servicio caído, denylist de sesión): transitorio, no es culpa del usuario. */
-export const SERVICE_UNAVAILABLE_MESSAGE = 'The service is temporarily unavailable. Please try again in a moment.';
+const SAFE_FALLBACK_MESSAGE = GENERIC_ERROR_MESSAGE;
 
 /**
  * Normaliza cualquier error HTTP a un `ApiError` con `code` + `message`.
@@ -58,7 +66,7 @@ export function toApiError(err: unknown): ApiError {
   if (err instanceof HttpErrorResponse) {
     // status 0 => no hubo respuesta (backend caído, CORS o sin red).
     if (err.status === 0) {
-      return { code: NETWORK_ERROR_CODE, message: SAFE_FALLBACK_MESSAGE };
+      return { code: NETWORK_ERROR_CODE, message: NETWORK_ERROR_MESSAGE };
     }
     // Rate limit / load shedding: el texto del backend era técnico ("user rate limit exceeded…",
     // "Fleet is overloaded…") y más de 200 pantallas muestran este `message` tal cual.
@@ -68,7 +76,7 @@ export function toApiError(err: unknown): ApiError {
       return { code, message: throttleMessage(throttle) };
     }
     const body = err.error as
-      | (Partial<ApiError & ProblemDetails> & { error?: string; type?: string })
+      | (Partial<ApiError & ProblemDetails> & { error?: string; type?: string; errors?: unknown })
       | string
       | null;
     if (body && typeof body === 'object') {
@@ -82,9 +90,7 @@ export function toApiError(err: unknown): ApiError {
       }
       return {
         code,
-        // RFC 9457 llama `detail` a lo que este sistema viene llamando `message`; el backend manda
-        // los dos para no romper a las pantallas ya desplegadas.
-        message: body.message ?? body.detail ?? body.title ?? SAFE_FALLBACK_MESSAGE,
+        message: backendMessage(err.status, body),
         ...authorizationFields(body),
       };
     }
@@ -92,17 +98,33 @@ export function toApiError(err: unknown): ApiError {
     // backend llega como la cadena JSON entera. Sin esto se le mostraba al usuario el
     // literal `{"code":"...","message":"..."}` (pasaba en el modal de términos del alta).
     if (typeof body === 'string' && body) {
-      const parsed = parseJsonError(body);
+      const parsed = parseJsonError(body, err.status);
       // Si NO es nuestro JSON de error, no mostramos el cuerpo crudo (podría traer detalle
-      // técnico); devolvemos el código HTTP y un genérico seguro.
-      return parsed ?? { code: `Http.${err.status}`, message: SAFE_FALLBACK_MESSAGE };
+      // técnico); devolvemos el código HTTP y el mensaje amable de su status.
+      return parsed ?? { code: `Http.${err.status}`, message: messageForStatus(err.status) };
     }
-    return {
-      code: `Http.${err.status}`,
-      message: err.status === 503 ? SERVICE_UNAVAILABLE_MESSAGE : SAFE_FALLBACK_MESSAGE,
-    };
+    return { code: `Http.${err.status}`, message: messageForStatus(err.status) };
   }
   return { code: 'Unknown', message: SAFE_FALLBACK_MESSAGE };
+}
+
+/**
+ * Texto a mostrar a partir del cuerpo del backend. RFC 9457 llama `detail` a lo que este sistema
+ * viene llamando `message`; el backend manda los dos. El texto se respeta si es humano; si es jerga
+ * técnica (o la frase por defecto de ASP.NET) cae al catálogo por status. Un 400 de validación de
+ * ASP.NET trae los mensajes por campo en `errors`: se muestra el primero que sea legible.
+ */
+function backendMessage(
+  status: number,
+  body: Partial<ApiError & ProblemDetails> & { errors?: unknown },
+): string {
+  const text = [body.message, body.detail, body.title].find(
+    candidate => typeof candidate === 'string' && !looksTechnical(candidate),
+  );
+  if (text) {
+    return text.trim();
+  }
+  return firstHumanFieldError(body.errors) ?? messageForStatus(status);
 }
 
 /** Copia los campos de autorización solo si el backend los mandó y son del vocabulario conocido. */
@@ -143,7 +165,7 @@ function errorCodeFromType(type: unknown): string | null {
 }
 
 /** `{"code":"...","message":"..."}` servido como texto plano → ApiError; null si no lo es. */
-function parseJsonError(raw: string): ApiError | null {
+function parseJsonError(raw: string, status: number): ApiError | null {
   const trimmed = raw.trim();
   if (!trimmed.startsWith('{')) {
     return null;
@@ -152,7 +174,7 @@ function parseJsonError(raw: string): ApiError | null {
     const parsed = JSON.parse(trimmed) as Partial<ApiError & ProblemDetails> & { error?: string };
     const message = parsed.message ?? parsed.detail ?? parsed.title;
     return parsed.code || parsed.error || message
-      ? { code: parsed.code ?? parsed.error ?? 'Unknown', message: message ?? 'Error desconocido.' }
+      ? { code: parsed.code ?? parsed.error ?? 'Unknown', message: friendlyMessage(status, message) }
       : null;
   } catch {
     return null;

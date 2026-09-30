@@ -158,6 +158,10 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
       if (this.prefilledDraftId !== null) {
         this.reset();
       }
+      const initialTo = this.state?.open ? this.state.initialTo?.trim() : '';
+      if (initialTo && !this.to().trim()) {
+        this.to.set(initialTo);
+      }
       return;
     }
     if (draft.draftId !== this.prefilledDraftId) {

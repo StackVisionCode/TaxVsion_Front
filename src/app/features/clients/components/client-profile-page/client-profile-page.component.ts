@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, effect, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -6,7 +6,7 @@ import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
-import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
+import { ClientDocumentsPanelComponent } from '../client-documents-panel/client-documents-panel.component';
 import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
 import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
@@ -41,6 +41,30 @@ import { Observable, finalize, map, of, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { ClientsService } from '../../data-access/clients.service';
+import { CatalogOption } from '../../ui/catalog-picker/catalog-picker.component';
+import {
+  ClientEditSection,
+  ClientSectionDraft,
+  buildSectionUpdate,
+  sectionDraftFromDetail,
+} from '../../data-access/client-section-edit.model';
+import { ClientSectionEditDialogComponent } from '../../ui/client-section-edit-dialog/client-section-edit-dialog.component';
+import { ClientSmsStore } from '../../data-access/client-sms.store';
+import { smsPhoneOptions } from '../../data-access/client-sms.model';
+import { ClientSmsComposeComponent, ClientSmsDraft } from '../../ui/client-sms-compose/client-sms-compose.component';
+import {
+  WORKSPACE_ACCESS,
+  WorkspaceLink,
+  composeEmailLink,
+  newSignatureRequestLink,
+  scheduleMeetingLink,
+} from '../../data-access/client-workspace-links';
+import { ClientProfileActionsComponent } from '../../ui/client-profile-actions/client-profile-actions.component';
+import { ClientProfileSignaturesComponent } from '../../ui/client-profile-signatures/client-profile-signatures.component';
+
+/** El SSN/EIN revelado se vuelve a enmascarar solo pasado este tiempo. */
+const REVEAL_TTL_MS = 30_000;
 
 export type ClientProfileTabId =
   | 'overview'
@@ -51,6 +75,7 @@ export type ClientProfileTabId =
   | 'work'
   | 'notes'
   | 'communication'
+  | 'signatures'
   | 'calls'
   | 'bank'
   | 'reminders'
@@ -100,6 +125,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
       { id: 'documents', label: 'Documents' },
       { id: 'notes', label: 'Notes' },
       { id: 'communication', label: 'Communication' },
+      { id: 'signatures', label: 'Signatures' },
       { id: 'calls', label: 'Calls' },
       { id: 'reminders', label: 'Reminders' },
     ],
@@ -119,6 +145,7 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   notes: { module: 'planner', anyOf: ['notes.read'] },
   reminders: { module: 'planner', anyOf: ['reminders.read'] },
   communication: { module: 'email', anyOf: ['correspondence.read'] },
+  signatures: WORKSPACE_ACCESS.signatureRead,
   calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
 };
 
@@ -142,8 +169,10 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
  *    Notes (`/notes?targetType=Customer&targetId=`), Communication
  *    (`/correspondence/customers/{id}/threads`), Work
  *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents
- *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff) y
+ *    (carpetas del cliente: `/storage/folders?ownerType=Customer&ownerId=`) y
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
+ *  - Signatures: crear con el cliente precargado (deep link) — el LISTADO por cliente está
+ *    bloqueado por el backend (sin filtro `customerId` en `/signature/requests`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
  *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
@@ -159,7 +188,7 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
     RouterModule,
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
-    ClientProfileDocumentsComponent,
+    ClientDocumentsPanelComponent,
     ClientProfileWorkComponent,
     ClientProfileRequestsComponent,
     ClientProfileInvoicesComponent,
@@ -175,6 +204,10 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
     ClientProfileContactDetailsComponent,
     ClientFiscalFormComponent,
     ClientFormPanelComponent,
+    ClientSectionEditDialogComponent,
+    ClientSmsComposeComponent,
+    ClientProfileActionsComponent,
+    ClientProfileSignaturesComponent,
     SkeletonComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -260,6 +293,54 @@ export class ClientProfilePageComponent {
 
   readonly revealedTaxId = signal<string | null>(null);
   readonly revealingTaxId = signal(false);
+  /** Timer del re-enmascarado automático del SSN/EIN revelado. */
+  private revealTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ---------- Workspace del cliente (acciones del header) ----------
+  private readonly clientsService = inject(ClientsService);
+  private readonly smsStore = inject(ClientSmsStore);
+
+  readonly canSendSms = computed(() => this.access.canUse(WORKSPACE_ACCESS.sms));
+  readonly canOpenBilling = computed(() => this.access.canUse(WORKSPACE_ACCESS.billing));
+  readonly canOpenSignatures = computed(() => this.access.canUse(WORKSPACE_ACCESS.signatureRead));
+  readonly canViewDocuments = computed(() => this.canOpen('documents'));
+
+  readonly emailLink = computed<WorkspaceLink | null>(() => {
+    const c = this.client();
+    return c && c.email && this.access.canUse(WORKSPACE_ACCESS.email) ? composeEmailLink(c.id, c.email) : null;
+  });
+  readonly meetingLink = computed<WorkspaceLink | null>(() => {
+    const c = this.client();
+    return c && this.access.canUse(WORKSPACE_ACCESS.meeting) ? scheduleMeetingLink(c.id, c.displayName) : null;
+  });
+  readonly signatureLink = computed<WorkspaceLink | null>(() => {
+    const c = this.client();
+    return c && this.access.canUse(WORKSPACE_ACCESS.signature) ? newSignatureRequestLink(c.id, c.displayName) : null;
+  });
+
+  // SMS directo
+  readonly isSmsOpen = signal(false);
+  readonly smsError = signal<string | null>(null);
+  readonly smsSending = this.smsStore.sending;
+  readonly smsPhoneOptions = computed(() => {
+    const c = this.client();
+    return c ? smsPhoneOptions(c) : [];
+  });
+
+  // Edición por sección (Info)
+  readonly editSection = signal<ClientEditSection | null>(null);
+  readonly sectionInitial = signal<ClientSectionDraft | null>(null);
+  readonly sectionLoading = signal(false);
+  readonly sectionSaving = signal(false);
+  readonly sectionError = signal<string | null>(null);
+
+  /** Buscadores de catálogo para los pickers del modal de sección (arrow = `this` estable). */
+  readonly searchOccupations = (q: string): Observable<CatalogOption[]> =>
+    this.clientsService.listOccupations(q).pipe(map(list => list.map(o => ({ id: o.id, label: o.name }))));
+  readonly searchBusinessActivities = (q: string): Observable<CatalogOption[]> =>
+    this.clientsService
+      .listBusinessActivities(q)
+      .pipe(map(list => list.map(a => ({ id: a.id, label: a.description, hint: a.naicsCode }))));
 
   readonly isFiscalFormOpen = signal(false);
   readonly savingFiscal = signal(false);
@@ -284,6 +365,8 @@ export class ClientProfilePageComponent {
   }
 
   constructor() {
+    // Salir del perfil (o destruirlo) nunca deja un SSN/EIN en claro ni un timer vivo.
+    inject(DestroyRef).onDestroy(() => this.clearRevealTimer());
     effect(() => {
       const id = this.paramMap().get('id');
       if (id) {
@@ -295,7 +378,7 @@ export class ClientProfilePageComponent {
   private loadClient(id: string): void {
     this.loading.set(true);
     this.loadError.set(null);
-    this.revealedTaxId.set(null);
+    this.hideTaxId();
     this.relationError.set(null);
     this.store.getById(id).subscribe({
       next: customer => {
@@ -467,12 +550,133 @@ export class ClientProfilePageComponent {
       next: response => {
         this.revealedTaxId.set(response.taxIdentifier);
         this.revealingTaxId.set(false);
+        // Re-enmascarado automático: el dato en claro no se queda en pantalla indefinidamente.
+        this.clearRevealTimer();
+        this.revealTimer = setTimeout(() => this.hideTaxId(), REVEAL_TTL_MS);
       },
       error: err => {
         this.revealingTaxId.set(false);
         this.toast.error(toApiError(err).message);
       },
     });
+  }
+
+  /** Vuelve a enmascarar el identificador (botón Hide, timer, cambio de pestaña o de cliente). */
+  hideTaxId(): void {
+    this.clearRevealTimer();
+    this.revealedTaxId.set(null);
+  }
+
+  private clearRevealTimer(): void {
+    if (this.revealTimer !== null) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
+  }
+
+  // ---------- Edición por sección (Contact / Personal / Business) ----------
+
+  /**
+   * Abre el modal de UNA sección. El borrador se precarga del detalle fresco (partes del nombre,
+   * ocupación, actividad — el `ClientProfile` de la vista no las trae).
+   */
+  openSectionEdit(section: ClientEditSection): void {
+    const client = this.client();
+    if (!client) {
+      return;
+    }
+    this.editSection.set(section);
+    this.sectionInitial.set(null);
+    this.sectionError.set(null);
+    this.sectionLoading.set(true);
+    this.store.getById(client.id).subscribe({
+      next: detail => {
+        this.sectionInitial.set(sectionDraftFromDetail(detail, section));
+        this.sectionLoading.set(false);
+      },
+      error: err => {
+        this.sectionLoading.set(false);
+        this.sectionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  closeSectionEdit(): void {
+    this.editSection.set(null);
+    this.sectionInitial.set(null);
+    this.sectionError.set(null);
+  }
+
+  /**
+   * Guarda una sección. El PATCH aplica siempre email/teléfono/idioma/canal/ocupación, así que se
+   * relee el detalle y se le superpone la sección (`buildSectionUpdate`) — editar el nombre no
+   * borra el teléfono. Estado y SSN no se tocan (isActive = el actual, sin tax id).
+   */
+  handleSaveSection(draft: ClientSectionDraft): void {
+    const client = this.client();
+    if (!client || this.sectionSaving()) {
+      return;
+    }
+    this.sectionSaving.set(true);
+    this.sectionError.set(null);
+    this.store
+      .getById(client.id)
+      .pipe(
+        switchMap(detail =>
+          this.store.updateClient(client.id, buildSectionUpdate(detail, draft), {
+            taxIdentifier: '',
+            subjectKind: detail.kind,
+            isActive: detail.status === 'Active',
+          }),
+        ),
+        finalize(() => this.sectionSaving.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.closeSectionEdit();
+          this.loadClient(client.id);
+          this.toast.success('Changes saved');
+        },
+        error: err => {
+          const apiError = toApiError(err);
+          this.sectionError.set(
+            apiError.code === 'Customer.EmailAlreadyInUse' ? 'This email already belongs to another client.' : apiError.message,
+          );
+        },
+      });
+  }
+
+  // ---------- SMS directo ----------
+
+  openSms(): void {
+    this.smsError.set(null);
+    this.isSmsOpen.set(true);
+  }
+
+  closeSms(): void {
+    this.isSmsOpen.set(false);
+  }
+
+  handleSendSms(draft: ClientSmsDraft): void {
+    const client = this.client();
+    if (!client || this.smsSending()) {
+      return;
+    }
+    this.smsError.set(null);
+    this.smsStore.send(client.id, draft.to, client.displayName, draft.body).subscribe(outcome => {
+      if (outcome.ok) {
+        this.isSmsOpen.set(false);
+        this.toast.success(outcome.message);
+      } else {
+        this.smsError.set(outcome.message);
+      }
+    });
+  }
+
+  /** Desde el modal de SMS sin número: abre la edición del contacto. */
+  smsToContactEdit(): void {
+    this.isSmsOpen.set(false);
+    this.openSectionEdit('contact');
   }
 
   // ---------- Perfil fiscal ----------
@@ -506,7 +710,7 @@ export class ClientProfilePageComponent {
       .subscribe({
         next: () => {
           this.isFiscalFormOpen.set(false);
-          this.revealedTaxId.set(null); // el id cambió; no dejar un reveal viejo colgado
+          this.hideTaxId(); // el id cambió; no dejar un reveal viejo colgado
           this.loadClient(client.id);
           this.toast.success('Tax profile saved');
         },
@@ -548,6 +752,10 @@ export class ClientProfilePageComponent {
     // viejo cuando el plan cambia en vivo, entrarían por acá.
     if (!this.canOpen(id)) {
       return;
+    }
+    if (id !== this.activeTab()) {
+      // Cambiar de pestaña re-enmascara: el dato en claro no viaja a otra vista.
+      this.hideTaxId();
     }
     this.activeTab.set(id);
     this.openGroupLabel.set(null);

@@ -92,11 +92,16 @@
         </div>
       </div>
 
-      <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
-        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-        <ion-icon name="create-outline" class="text-base"></ion-icon>
-        Edit
-      </button>
+      <!-- Acciones del workspace (cada una gateada por plan + permiso) + edición completa -->
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <app-client-profile-actions [canSms]="canSendSms()" [emailLink]="emailLink()" [meetingLink]="meetingLink()"
+          [signatureLink]="signatureLink()" (sendSms)="openSms()"></app-client-profile-actions>
+        <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <ion-icon name="create-outline" class="text-base"></ion-icon>
+          Edit
+        </button>
+      </div>
     </div>
 
     <!-- Tab nav -->
@@ -146,7 +151,8 @@
     que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
   -->
   @if (activeTab() === 'overview') {
-    <app-client-profile-overview [client]="c"></app-client-profile-overview>
+    <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
+      [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"></app-client-profile-overview>
   }
 
   @if (activeTab() === 'info') {
@@ -157,8 +163,8 @@
         (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
       <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
         [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
-        (revealTaxId)="handleRevealTaxId($event)"
-        (editFiscal)="openFiscalForm()" (edit)="openEditPanel()"></app-client-profile-info>
+        (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"
+        (editFiscal)="openFiscalForm()" (edit)="openSectionEdit($event)"></app-client-profile-info>
     </div>
   }
 
@@ -185,7 +191,7 @@
   @defer (when activeTab() === 'documents'; prefetch on idle) {
     @if (activeTab() === 'documents') {
       <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-documents [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-documents>
+        <app-client-documents-panel [clientId]="c.id" [clientName]="c.displayName"></app-client-documents-panel>
       </div>
     }
   } @placeholder {
@@ -197,7 +203,7 @@
   @defer (when activeTab() === 'invoices'; prefetch on idle) {
     @if (activeTab() === 'invoices') {
       <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-invoices [clientId]="c.id"></app-client-profile-invoices>
+        <app-client-profile-invoices [clientId]="c.id" [canOpenBilling]="canOpenBilling()"></app-client-profile-invoices>
       </div>
     }
   } @placeholder {
@@ -227,13 +233,27 @@
           [displayName]="c.displayName"
         ></app-client-chat-card>
         <div class="bg-white rounded-[28px] p-6">
-          <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
+          <app-client-profile-communication [clientId]="c.id" [composeLink]="emailLink()"></app-client-profile-communication>
         </div>
       </div>
     }
   } @placeholder {
     @if (activeTab() === 'communication') {
       <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
+
+  @defer (when activeTab() === 'signatures'; prefetch on idle) {
+    @if (activeTab() === 'signatures') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-signatures [clientName]="c.displayName" [newRequestLink]="signatureLink()"
+          [canOpenSignatures]="canOpenSignatures()" [canViewDocuments]="canViewDocuments()"
+          (viewDocuments)="selectTab('documents')"></app-client-profile-signatures>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'signatures') {
+      <app-skeleton variant="rows" minHeight="16rem" [rows]="3" />
     }
   }
 
@@ -302,6 +322,21 @@
   @defer (when isEditPanelOpen(); prefetch on idle) {
     <app-client-form-panel [isOpen]="isEditPanelOpen()" [client]="editClientItem()" (closed)="closeEditPanel()"
       (saved)="handleClientSaved($event)"></app-client-form-panel>
+  }
+
+  <!-- Edición por sección (Info: Contact / Personal / Business) -->
+  @defer (when editSection() !== null; prefetch on idle) {
+    <app-client-section-edit-dialog [isOpen]="editSection() !== null" [section]="editSection() ?? 'contact'"
+      [initial]="sectionInitial()" [loading]="sectionLoading()" [saving]="sectionSaving()" [error]="sectionError()"
+      [searchOccupations]="searchOccupations" [searchBusinessActivities]="searchBusinessActivities"
+      (save)="handleSaveSection($event)" (closed)="closeSectionEdit()"></app-client-section-edit-dialog>
+  }
+
+  <!-- SMS directo al cliente -->
+  @defer (when isSmsOpen(); prefetch on idle) {
+    <app-client-sms-compose [isOpen]="isSmsOpen()" [clientName]="c.displayName" [phoneOptions]="smsPhoneOptions()"
+      [sending]="smsSending()" [error]="smsError()" [canEditContact]="canManage()"
+      (send)="handleSendSms($event)" (closed)="closeSms()" (editContact)="smsToContactEdit()"></app-client-sms-compose>
   }
 
   <!-- Tax profile form -->

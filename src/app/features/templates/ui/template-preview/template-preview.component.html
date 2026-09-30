@@ -31,7 +31,7 @@
 
     <!-- Las System son de plataforma: no se editan desde el tenant -->
     <div class="flex items-center gap-2">
-      <button *ngIf="tpl.isEditable" type="button" (click)="edit(tpl)"
+      <button *ngIf="tpl.isEditable && canManage" type="button" (click)="edit(tpl)"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="create-outline" class="text-base"></ion-icon>
         Edit

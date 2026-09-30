@@ -1,6 +1,7 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
@@ -10,6 +11,7 @@ import {
   computed,
   inject,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -29,6 +31,17 @@ import {
 import { FieldType } from '../signature-request-panel/signature-wizard.model';
 import { FIELD_TYPE_ICON, FIELD_TYPE_LABEL } from '../signature-request-panel/signature-wizard.presenter';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
+import {
+  FIELD_DRAG_MIME,
+  FieldPlacement,
+  FieldSize,
+  PageBox,
+  decodeFieldDrag,
+  dropPosition,
+  encodeFieldDrag,
+  visiblePlacement,
+} from '../../utils/field-placement.util';
+import { EditorPanelsState, readEditorPanels, writeEditorPanels } from '../../utils/editor-panels.util';
 
 const MIN_W = 48;
 const MIN_H = 28;
@@ -149,7 +162,6 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   readonly expirationHours = signal(168);
   readonly sequential = signal(false);
   readonly consent = signal(true);
-  readonly certificate = signal(true);
   // Defaults de entrega/recordatorio que "from template" copia a la solicitud (mismos que la solicitud).
   readonly sendSignedDocument = signal(true);
   readonly sendCertificate = signal(false);
@@ -205,6 +217,22 @@ export class SignatureTemplateEditorComponent implements OnChanges {
 
   private drag: DragState | null = null;
   private seq = 0;
+
+  /** Contenedor con scroll de las páginas: base del fallback "colocar en la página visible" (11.3). */
+  @ViewChild('surface') private surfaceRef?: ElementRef<HTMLElement>;
+
+  // ---------- 11.1 panel lateral plegable (recordado en localStorage) ----------
+  // La plantilla no tiene columna derecha: reglas/defaults viven en el mismo sidebar izquierdo.
+  readonly panels = signal<EditorPanelsState>(readEditorPanels('template'));
+
+  toggleLeftPanel(): void {
+    this.panels.update(p => ({ ...p, leftCollapsed: !p.leftCollapsed }));
+    writeEditorPanels('template', this.panels());
+  }
+
+  // ---------- 11.3 drag & drop desde la paleta ----------
+  readonly paletteDragging = signal(false);
+  readonly dropTargetPage = signal<number | null>(null);
 
   // ---------- Derivados ----------
 
@@ -269,7 +297,6 @@ export class SignatureTemplateEditorComponent implements OnChanges {
     this.expirationHours.set(detail.defaultTokenExpirationHours);
     this.sequential.set(detail.requiresSequentialSigning);
     this.consent.set(detail.requiresConsent);
-    this.certificate.set(detail.generateCertificate);
     this.sendSignedDocument.set(detail.sendSignedDocumentToSigners);
     this.sendCertificate.set(detail.sendCertificateToSigners);
     this.autoReminders.set(detail.autoRemindersEnabled);
@@ -346,10 +373,11 @@ export class SignatureTemplateEditorComponent implements OnChanges {
           defaultTokenExpirationHours: this.expirationHours(),
           requiresSequentialSigning: this.sequential(),
           requiresConsent: this.consent(),
-          generateCertificate: this.certificate(),
+          // 11.2: el certificado se genera siempre (una plantilla antigua con false se corrige al guardar),
+          // así que la entrega a firmantes es independiente y siempre válida para el backend.
+          generateCertificate: true,
           sendSignedDocumentToSigners: this.sendSignedDocument(),
-          // El certificado solo se puede entregar si se genera (misma regla que el backend).
-          sendCertificateToSigners: this.certificate() && this.sendCertificate(),
+          sendCertificateToSigners: this.sendCertificate(),
           autoRemindersEnabled: this.autoReminders(),
           reminderIntervalHours: this.reminderIntervalHours(),
         }),
@@ -380,14 +408,6 @@ export class SignatureTemplateEditorComponent implements OnChanges {
       await this.reload();
       this.changed.emit();
     });
-  }
-
-  /** Al desactivar la generación del certificado, se fuerza a false la entrega del certificado. */
-  onCertificateToggle(enabled: boolean): void {
-    this.certificate.set(enabled);
-    if (!enabled) {
-      this.sendCertificate.set(false);
-    }
   }
 
   setReminderIntervalDays(days: number): void {
@@ -598,23 +618,23 @@ export class SignatureTemplateEditorComponent implements OnChanges {
     return field.localId;
   }
 
-  addField(type: FieldType): void {
+  /** `at` viene del drop (11.3); sin él (click) se centra en la página más visible del visor. */
+  addField(type: FieldType, at?: FieldPlacement): void {
     const slotOrder = this.activeSlotOrder();
-    const first = this.pages()[0];
-    if (slotOrder === null || !first) {
+    const size = DEFAULT_SIZE[type];
+    const place = at ?? this.clickPlacement(size, 120);
+    if (slotOrder === null || !place || !this.isDraft()) {
       return;
     }
-    const size = DEFAULT_SIZE[type];
-    const count = this.fields().length;
     this.fields.update(list => [
       ...list,
       {
         localId: `f-${this.seq++}`,
         slotOrder,
         type,
-        page: first.page,
-        x: Math.max(8, (first.width - size.w) / 2),
-        y: clamp(120 + (count % 6) * 16, 8, first.height - size.h - 8),
+        page: place.page,
+        x: place.x,
+        y: place.y,
         width: size.w,
         height: size.h,
       },
@@ -626,27 +646,104 @@ export class SignatureTemplateEditorComponent implements OnChanges {
   readonly preparerFieldTypes: FieldType[] = ['signature', 'initials', 'date'];
 
   /** Coloca un campo del PREPARADOR (sin slot). "from template" lo hereda en la solicitud. */
-  addPreparerField(type: FieldType = 'signature'): void {
-    const first = this.pages()[0];
-    if (!first) {
+  addPreparerField(type: FieldType = 'signature', at?: FieldPlacement): void {
+    const size = DEFAULT_SIZE[type];
+    const place = at ?? this.clickPlacement(size, 180);
+    if (!place || !this.isDraft()) {
       return;
     }
-    const size = DEFAULT_SIZE[type];
-    const count = this.fields().length;
     this.fields.update(list => [
       ...list,
       {
         localId: `f-${this.seq++}`,
         slotOrder: PREPARER_SLOT,
         type,
-        page: first.page,
-        x: Math.max(8, (first.width - size.w) / 2),
-        y: clamp(180 + (count % 6) * 16, 8, first.height - size.h - 8),
+        page: place.page,
+        x: place.x,
+        y: place.y,
         width: size.w,
         height: size.h,
       },
     ]);
     this.layoutDirty.set(true);
+  }
+
+  /** Fallback de click: centro de la página más visible; si no hay DOM, página 1 como antes. */
+  private clickPlacement(size: FieldSize, baseY: number): FieldPlacement | null {
+    const surface = this.surfaceRef?.nativeElement;
+    if (surface) {
+      const boxes: PageBox[] = Array.from(surface.querySelectorAll<HTMLElement>('[data-page]')).map(el => {
+        const r = el.getBoundingClientRect();
+        return { page: Number(el.dataset['page']), left: r.left, top: r.top, width: el.clientWidth, height: el.clientHeight };
+      });
+      const visible = visiblePlacement(boxes, surface.getBoundingClientRect(), size);
+      if (visible) {
+        return visible;
+      }
+    }
+    const first = this.pages()[0];
+    if (!first) {
+      return null;
+    }
+    const count = this.fields().length;
+    return {
+      page: first.page,
+      x: Math.max(8, (first.width - size.w) / 2),
+      y: clamp(baseY + (count % 6) * 16, 8, first.height - size.h - 8),
+    };
+  }
+
+  onPaletteDragStart(event: DragEvent, kind: 'signer' | 'preparer', type: FieldType): void {
+    if (!event.dataTransfer) {
+      return;
+    }
+    event.dataTransfer.setData(FIELD_DRAG_MIME, encodeFieldDrag({ kind, type }));
+    event.dataTransfer.effectAllowed = 'copy';
+    this.paletteDragging.set(true);
+  }
+
+  onPaletteDragEnd(): void {
+    this.paletteDragging.set(false);
+    this.dropTargetPage.set(null);
+  }
+
+  onPageDragOver(event: DragEvent, page: number): void {
+    if (!this.isDraft() || !event.dataTransfer?.types.includes(FIELD_DRAG_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (this.dropTargetPage() !== page) {
+      this.dropTargetPage.set(page);
+    }
+  }
+
+  onPageDragLeave(event: DragEvent, page: number): void {
+    const next = event.relatedTarget as Node | null;
+    if (next && (event.currentTarget as HTMLElement).contains(next)) {
+      return;
+    }
+    if (this.dropTargetPage() === page) {
+      this.dropTargetPage.set(null);
+    }
+  }
+
+  onPageDrop(event: DragEvent, page: number): void {
+    const payload = decodeFieldDrag(event.dataTransfer?.getData(FIELD_DRAG_MIME), this.fieldTypes);
+    this.onPaletteDragEnd();
+    if (!payload) {
+      return;
+    }
+    event.preventDefault();
+    const el = event.currentTarget as HTMLElement;
+    const r = el.getBoundingClientRect();
+    const box: PageBox = { page, left: r.left, top: r.top, width: el.clientWidth, height: el.clientHeight };
+    const at = { page, ...dropPosition(event.clientX, event.clientY, box, DEFAULT_SIZE[payload.type]) };
+    if (payload.kind === 'preparer') {
+      this.addPreparerField(payload.type, at);
+    } else {
+      this.addField(payload.type, at);
+    }
   }
 
   isPreparerField(field: TemplateFieldLocal): boolean {

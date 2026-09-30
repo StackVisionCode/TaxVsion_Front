@@ -321,7 +321,7 @@ export class CompanySettingsStore {
   }
 
   private failNoTenant(errorSignal: { set(value: string | null): void }): Observable<never> {
-    const message = 'No tenant session found. Please sign in again.';
+    const message = 'Your session has expired. Please sign in again.';
     errorSignal.set(message);
     return new Observable<never>(subscriber => subscriber.error(new Error(message)));
   }

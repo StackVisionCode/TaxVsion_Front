@@ -8,7 +8,7 @@
       </span>
 
       <!-- Las plantillas System son de plataforma: sin acciones para el tenant -->
-      <div *ngIf="template.isEditable" class="relative" data-dropdown="template-menu" (click)="onMenuClick($event)">
+      <div *ngIf="template.isEditable && canManage" class="relative" data-dropdown="template-menu" (click)="onMenuClick($event)">
         <button type="button" (click)="toggleMenu(template, $event)"
           class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
           aria-label="Template options">

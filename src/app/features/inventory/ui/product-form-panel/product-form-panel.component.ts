@@ -46,6 +46,11 @@ export class ProductFormPanelComponent implements OnChanges {
   /** Guardado en curso: deshabilita las acciones para no duplicar llamadas. */
   @Input() saving = false;
   @Input() errorMessage: string | null = null;
+  /** Moneda del precio: la del producto al editar, la de la oficina al crear (item 6.1). */
+  @Input() currency = '';
+  /** Item 2.1 — la cantidad es un ajuste de Inventory (inventory.adjust); el umbral, inventory.write. */
+  @Input() canAdjustStock = true;
+  @Input() canSetThresholds = true;
   @Output() closed = new EventEmitter<void>();
   @Output() saved = new EventEmitter<ProductFormValue>();
   /** Alta inline de categoría; el padre la crea y la lista vuelve por @Input. */

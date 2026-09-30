@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,7 @@ import {
 } from '@features/notifications/data-access/notifications.model';
 import { AccessStore } from '@core/access/access.store';
 import { AccountHandoffStore } from '@core/billing/account-handoff.store';
+import { ToastService } from '@shared/ui/toast/toast.service';
 
 /** Pestañas de la campana. No hay "Mentions": este producto no genera menciones. */
 export type NotificationTab = 'all' | 'unread' | 'alerts';
@@ -58,6 +59,19 @@ export class NavbarComponent {
   private readonly notificationsStore = inject(NotificationsStore);
   private readonly access = inject(AccessStore);
   readonly handoff = inject(AccountHandoffStore);
+  private readonly toast = inject(ToastService);
+
+  /**
+   * Si el vale del Account no sale, antes no se enteraba nadie: el botón volvía a "Manage
+   * subscription" sin más. El navbar vive en todo el shell, así que el aviso cubre también a las
+   * otras pantallas que abren el Account (banner del ciclo de vida).
+   */
+  private readonly handoffErrorEffect = effect(() => {
+    const message = this.handoff.error();
+    if (message) {
+      untracked(() => this.toast.error(message));
+    }
+  });
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 

@@ -104,6 +104,11 @@ export class SignatureClientPickerComponent {
     return client.id;
   }
 
+  /** Pide la página siguiente del término vigente (paginación server-side, 10.1). */
+  loadMore(): void {
+    this.store.loadMoreCustomers();
+  }
+
   retryLoad(): void {
     this.store.loadCustomers(true);
   }

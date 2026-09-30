@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HttpErrorResponse } from '@angular/common/http';
 import { OVERLOADED_MESSAGE, RATE_LIMITED_MESSAGE } from '@core/errors/throttling';
-import { SERVICE_UNAVAILABLE_MESSAGE, toApiError } from './api-error.model';
+import { messageForStatus } from '@core/errors/friendly-http-message';
+import { NETWORK_ERROR_MESSAGE, SERVICE_UNAVAILABLE_MESSAGE, toApiError } from './api-error.model';
 
 /**
  * Más de 200 pantallas muestran `toApiError(err).message` tal cual: para rate limit y load shedding el
@@ -69,5 +70,64 @@ describe('toApiError — service unavailable', () => {
     });
 
     expect(toApiError(err).code).toBe('Http.500');
+  });
+});
+
+describe('toApiError — friendly messages by status', () => {
+  it('keeps a human ProblemDetails detail', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      error: { title: 'Conflict', detail: 'Customer already exists.', code: 'Customer.Duplicate' },
+    });
+
+    expect(toApiError(err)).toEqual({ code: 'Customer.Duplicate', message: 'Customer already exists.' });
+  });
+
+  it('replaces the unexpected-exception detail of the 500 middleware', () => {
+    const err = new HttpErrorResponse({
+      status: 500,
+      error: {
+        title: 'Internal Server Error',
+        detail: 'An unexpected error occurred while processing your request. Use the Correlation ID to report the issue.',
+        code: 'Server.Unexpected',
+      },
+    });
+
+    expect(toApiError(err).message).toBe(messageForStatus(500));
+  });
+
+  it('shows the first human field message of an ASP.NET validation problem', () => {
+    const err = new HttpErrorResponse({
+      status: 400,
+      error: { title: 'One or more validation errors occurred.', errors: { Name: ['Name is required.'] } },
+    });
+
+    expect(toApiError(err).message).toBe('Name is required.');
+  });
+
+  it('uses the status catalog when the validation problem is technical', () => {
+    const err = new HttpErrorResponse({
+      status: 400,
+      error: { title: 'One or more validation errors occurred.', errors: { $: ['Path: $.id is invalid'] } },
+    });
+
+    expect(toApiError(err).message).toBe(messageForStatus(400));
+  });
+
+  it('never shows exception names or stack traces', () => {
+    const err = new HttpErrorResponse({
+      status: 500,
+      error: { message: 'System.NullReferenceException: Object reference not set to an instance of an object.' },
+    });
+
+    expect(toApiError(err).message).toBe(messageForStatus(500));
+  });
+
+  it('explains a network failure', () => {
+    expect(toApiError(new HttpErrorResponse({ status: 0 })).message).toBe(NETWORK_ERROR_MESSAGE);
+  });
+
+  it.each([401, 403, 404, 413, 422, 502, 504])('gives a friendly message to an empty %i', status => {
+    expect(toApiError(new HttpErrorResponse({ status })).message).toBe(messageForStatus(status));
   });
 });

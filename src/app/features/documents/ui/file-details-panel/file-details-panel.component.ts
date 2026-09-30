@@ -52,7 +52,7 @@ export class FileDetailsPanelComponent {
       case 'SpecificUsers':
         return 'Specific people';
       default:
-        return 'Tenant members';
+        return 'Office team';
     }
   }
 

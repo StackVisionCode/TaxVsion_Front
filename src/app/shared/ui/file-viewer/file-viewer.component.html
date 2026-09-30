@@ -1,0 +1,175 @@
+@if (isOpen && current(); as item) {
+  <div class="fixed inset-0 z-[70] flex flex-col bg-gray-950/95 text-white" role="dialog" aria-modal="true"
+    [attr.aria-label]="'Preview of ' + item.name">
+
+    <!-- Cabecera: nombre, navegación entre archivos, zoom, descarga y cierre -->
+    <header class="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-semibold" [title]="item.name">{{ item.name }}</p>
+        <p class="truncate text-xs text-white/50">{{ subtitle() }}</p>
+      </div>
+
+      <div class="flex items-center gap-1">
+        @if (count() > 1) {
+          <button type="button" (click)="go(-1)" [disabled]="!hasPrev()" aria-label="Previous file" title="Previous file (Alt+←)"
+            class="grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent">
+            <ion-icon name="chevron-back-outline" class="text-lg"></ion-icon>
+          </button>
+          <button type="button" (click)="go(1)" [disabled]="!hasNext()" aria-label="Next file" title="Next file (Alt+→)"
+            class="grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent">
+            <ion-icon name="chevron-forward-outline" class="text-lg"></ion-icon>
+          </button>
+          <span class="mx-1 h-5 w-px bg-white/15"></span>
+        }
+
+        @if (canZoom()) {
+          <button type="button" (click)="zoomOut()" [disabled]="minZoomReached()" aria-label="Zoom out" title="Zoom out (−)"
+            class="grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30">
+            <ion-icon name="remove-outline" class="text-lg"></ion-icon>
+          </button>
+          <span class="w-12 text-center text-xs tabular-nums text-white/70">{{ zoomPercent() }}%</span>
+          <button type="button" (click)="zoomIn()" [disabled]="maxZoomReached()" aria-label="Zoom in" title="Zoom in (+)"
+            class="grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30">
+            <ion-icon name="add-outline" class="text-lg"></ion-icon>
+          </button>
+          <button type="button" (click)="fit()" aria-label="Fit to screen" title="Fit (0)"
+            class="grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+            <ion-icon name="scan-outline" class="text-lg"></ion-icon>
+          </button>
+          <span class="mx-1 h-5 w-px bg-white/15"></span>
+        }
+
+        @if (allowDownload) {
+          <button type="button" (click)="onDownload()"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+            <ion-icon name="download-outline"></ion-icon>
+            <span class="hidden sm:inline">Download</span>
+          </button>
+        }
+        <button type="button" (click)="close()" aria-label="Close preview" title="Close (Esc)"
+          class="ml-1 grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+          <ion-icon name="close-outline" class="text-xl"></ion-icon>
+        </button>
+      </div>
+    </header>
+
+    <!-- Escenario. Clic en el fondo (fuera del contenido) cierra. -->
+    <div #stage class="relative min-h-0 flex-1 overflow-auto" (click)="$event.target === $event.currentTarget && close()"
+      (wheel)="onWheel($event)">
+      @switch (state()) {
+        @case ('loading') {
+          <div class="absolute inset-0 grid place-items-center">
+            <div class="flex flex-col items-center gap-3 text-white/60">
+              <ion-icon name="sync-outline" class="animate-spin text-3xl"></ion-icon>
+              <p class="text-sm">Loading preview…</p>
+            </div>
+          </div>
+        }
+        @case ('error') {
+          <div class="absolute inset-0 grid place-items-center p-6">
+            <div class="flex max-w-sm flex-col items-center gap-3 rounded-3xl bg-white p-8 text-center text-gray-700">
+              <span class="grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+                <ion-icon name="alert-circle-outline" class="text-2xl"></ion-icon>
+              </span>
+              <p class="text-sm font-semibold text-gray-900">We couldn't load this preview</p>
+              <p class="text-xs text-gray-500">{{ allowDownload ? 'You can still download the file to open it on your device.' : 'Please try again in a moment.' }}</p>
+              @if (allowDownload) {
+                <button type="button" (click)="onDownload()"
+                  class="mt-1 flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+                  <ion-icon name="download-outline"></ion-icon>
+                  Download
+                </button>
+              }
+            </div>
+          </div>
+        }
+        @case ('ready') {
+          @switch (kind()) {
+            @case ('pdf') {
+              <div class="flex min-h-full justify-center p-6" (click)="$event.target === $event.currentTarget && close()">
+                <canvas #pdfCanvas class="h-fit rounded-sm bg-white shadow-2xl"></canvas>
+              </div>
+            }
+            @case ('image') {
+              <div class="absolute inset-0 flex items-center justify-center overflow-hidden p-6"
+                [class.cursor-grab]="imageZoom() > 1 && !panning()" [class.cursor-grabbing]="panning()"
+                (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)"
+                (pointerup)="onPointerUp()" (pointercancel)="onPointerUp()"
+                (click)="$event.target === $event.currentTarget && imageZoom() <= 1 && close()">
+                @if (imageUrl(); as src) {
+                  <img [src]="src" [alt]="item.name" draggable="false"
+                    class="max-h-full max-w-full select-none object-contain shadow-2xl"
+                    [class.transition-transform]="!panning()"
+                    [style.transform]="'translate(' + panX() + 'px, ' + panY() + 'px) scale(' + imageZoom() + ')'" />
+                }
+              </div>
+            }
+            @case ('text') {
+              <div class="mx-auto max-w-5xl p-6">
+                <pre class="whitespace-pre-wrap break-words rounded-2xl bg-white p-6 font-mono text-xs leading-5 text-gray-800">{{ text() }}</pre>
+                @if (truncated()) {
+                  <p class="mt-3 text-center text-xs text-white/60">Showing the first 1 MB. Download the file to see all of it.</p>
+                }
+              </div>
+            }
+            @case ('csv') {
+              <div class="mx-auto max-w-6xl p-6">
+                <div class="overflow-auto rounded-2xl bg-white">
+                  <table class="min-w-full text-left text-xs text-gray-700">
+                    <tbody>
+                      @for (row of csvRows(); track $index; let first = $first) {
+                        <tr [class]="first ? 'bg-gray-50 font-semibold text-gray-900' : 'border-t border-gray-100'">
+                          @for (cell of row; track $index) {
+                            <td class="whitespace-nowrap px-3 py-2">{{ cell }}</td>
+                          }
+                        </tr>
+                      } @empty {
+                        <tr><td class="px-3 py-8 text-center text-gray-400">This file is empty.</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                @if (truncated()) {
+                  <p class="mt-3 text-center text-xs text-white/60">Showing the first rows only. Download the file to see all of it.</p>
+                }
+              </div>
+            }
+            @default {
+              <div class="absolute inset-0 grid place-items-center p-6">
+                <div class="flex max-w-sm flex-col items-center gap-3 rounded-3xl bg-white p-8 text-center text-gray-700">
+                  <span class="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-50 text-brand-bold">
+                    <ion-icon name="document-outline" class="text-2xl"></ion-icon>
+                  </span>
+                  <p class="text-sm font-semibold text-gray-900">No preview available</p>
+                  <p class="text-xs text-gray-500">This file type can't be previewed here.{{ allowDownload ? ' Download it to open it on your device.' : '' }}</p>
+                  @if (allowDownload) {
+                    <button type="button" (click)="onDownload()"
+                      class="mt-1 flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+                      <ion-icon name="download-outline"></ion-icon>
+                      Download
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          }
+        }
+      }
+    </div>
+
+    <!-- Paginación del PDF -->
+    @if (state() === 'ready' && kind() === 'pdf' && pageCount() > 1) {
+      <footer class="flex items-center justify-center gap-3 border-t border-white/10 px-4 py-2.5">
+        <button type="button" (click)="goToPage(page() - 1)" [disabled]="page() <= 1" aria-label="Previous page"
+          class="grid h-8 w-8 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 disabled:opacity-30">
+          <ion-icon name="chevron-back-outline"></ion-icon>
+        </button>
+        <span class="text-xs tabular-nums text-white/70">Page {{ page() }} of {{ pageCount() }}</span>
+        <button type="button" (click)="goToPage(page() + 1)" [disabled]="page() >= pageCount()" aria-label="Next page"
+          class="grid h-8 w-8 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 disabled:opacity-30">
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </footer>
+    }
+  </div>
+}

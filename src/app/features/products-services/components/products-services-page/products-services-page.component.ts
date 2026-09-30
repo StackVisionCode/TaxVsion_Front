@@ -6,7 +6,14 @@ import { ServiceCatalogComponent } from '../../ui/service-catalog/service-catalo
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { CatalogStore } from '../../data-access/catalog.store';
-import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '../../data-access/catalog.model';
+import {
+  CatalogEntry,
+  CatalogFormValue,
+  CatalogItemKind,
+  CategoryDto,
+  formatCatalogPrice,
+} from '../../data-access/catalog.model';
+import { CatalogPermissions } from '../../data-access/catalog-permissions';
 
 /**
  * Página del módulo Products & Services (estilo "Aether"): stats pastel +
@@ -23,6 +30,11 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
 })
 export class ProductsServicesPageComponent implements OnInit {
   readonly store = inject(CatalogStore);
+  /** Item 2.1 — acciones gateadas por el permiso real del endpoint que llaman. */
+  readonly can = inject(CatalogPermissions);
+
+  /** "Manage categories" tiene sentido si puede crear/renombrar (write) o borrar (delete). */
+  readonly canManageCategories = computed(() => this.can.canWrite() || this.can.canDelete());
 
   // ---------- Stats (sobre el lote cargado; el total viene del servidor) ----------
 
@@ -38,11 +50,19 @@ export class ProductsServicesPageComponent implements OnInit {
   });
 
   readonly activeCount = computed(() => this.store.entries().filter(s => s.status === 'active').length);
+  /**
+   * Precio medio en la moneda de la oficina (item 6.1): solo promedia los ítems en esa moneda; un
+   * precio en otra moneda no se mezcla como si fuera la misma unidad.
+   */
   readonly avgPrice = computed(() => {
-    const services = this.store.entries();
-    if (!services.length) return 0;
-    return Math.round(services.reduce((sum, s) => sum + s.price, 0) / services.length);
+    const currency = this.store.defaultCurrency();
+    const priced = this.store.entries().filter(s => (s.currency || currency) === currency);
+    if (!priced.length) return formatCatalogPrice(0, currency);
+    return formatCatalogPrice(Math.round(priced.reduce((sum, s) => sum + s.price, 0) / priced.length), currency);
   });
+
+  /** Moneda que se muestra junto al precio del formulario: la del ítem al editar, la de la oficina al crear. */
+  readonly formCurrency = computed(() => this.editingService()?.currency || this.store.defaultCurrency());
 
   // ---------- Modal de crear/editar ----------
 
@@ -115,6 +135,9 @@ export class ProductsServicesPageComponent implements OnInit {
   }
 
   openAddPanel(): void {
+    if (!this.can.canWrite()) {
+      return;
+    }
     this.editingService.set(null);
     this.newKind.set('Service');
     this.newActive.set(true);
@@ -130,6 +153,9 @@ export class ProductsServicesPageComponent implements OnInit {
   }
 
   openEditPanel(service: CatalogEntry): void {
+    if (!this.can.canWrite()) {
+      return;
+    }
     this.editingService.set(service);
     this.newName.set(service.name);
     this.newPrice.set(service.price);
@@ -288,7 +314,9 @@ export class ProductsServicesPageComponent implements OnInit {
       costAmount: isProduct ? this.newCost() : undefined,
       unit: isProduct ? this.newUnit().trim() || null : undefined,
       trackInventory: isProduct ? this.newTrackInventory() : undefined,
-      stockQuantity: isProduct && this.newTrackInventory() ? this.newStockQuantity() : undefined,
+      // La cantidad inicial es un ajuste de Inventory: solo viaja si el usuario tiene inventory.adjust.
+      stockQuantity:
+        isProduct && this.newTrackInventory() && this.can.canAdjustStock() ? this.newStockQuantity() : undefined,
     };
     const editing = this.editingService();
     const request$ = editing ? this.store.updateEntry(editing.id, form) : this.store.createEntry(form);

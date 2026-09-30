@@ -166,16 +166,24 @@
                     <span class="font-semibold">Blocked — may be unsafe</span>
                   </span>
 
-                  <button *ngIf="file.downloadStatus !== 'Blocked'" type="button"
-                    (click)="downloadAttachment(message.messageId, file.attachmentId)" [disabled]="file.busy"
-                    class="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-3 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
-                    [attr.title]="file.error || 'Download ' + file.filename">
-                    <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
-                      [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
-                    <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
-                    <span class="text-gray-400">{{ fileSize(file.sizeBytes) }}</span>
-                    <ion-icon *ngIf="!file.busy" name="download-outline" class="text-sm text-gray-400"></ion-icon>
-                  </button>
+                  <!-- Chip: el nombre abre el visor; el icono de la derecha descarga -->
+                  <span *ngIf="file.downloadStatus !== 'Blocked'"
+                    class="flex items-center rounded-full border border-gray-200 bg-white text-xs text-gray-700">
+                    <button type="button" (click)="previewAttachment(message.messageId, file.attachmentId)"
+                      [disabled]="file.busy" [attr.title]="file.error || 'Preview ' + file.filename"
+                      class="flex items-center gap-2 rounded-l-full py-1.5 pl-3 pr-2 hover:bg-gray-50 disabled:opacity-60 transition-colors">
+                      <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
+                        [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
+                      <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
+                      <span class="text-gray-400">{{ fileSize(file.sizeBytes) }}</span>
+                    </button>
+                    <button type="button" (click)="downloadAttachment(message.messageId, file.attachmentId)"
+                      [disabled]="file.busy" [attr.aria-label]="'Download ' + file.filename"
+                      [attr.title]="'Download ' + file.filename"
+                      class="flex items-center rounded-r-full border-l border-gray-100 py-1.5 pl-2 pr-3 hover:bg-gray-50 disabled:opacity-60 transition-colors">
+                      <ion-icon name="download-outline" class="text-sm text-gray-400"></ion-icon>
+                    </button>
+                  </span>
                 </ng-container>
 
                 <p *ngIf="attachmentsView.items.length === 0" class="text-xs text-gray-400">No attachments.</p>

@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { toApiError } from '@core/models/api-error.model';
 import { TaskBoardComponent } from '../../ui/task-board/task-board.component';
 import { TaskCreatePanelComponent } from '../../ui/task-create-panel/task-create-panel.component';
@@ -93,8 +94,14 @@ export class TaskPageComponent {
   readonly isSeriesOpen = signal(false);
   readonly isLabelsOpen = signal(false);
 
+  private readonly route = inject(ActivatedRoute);
+
   constructor() {
     this.store.init();
+    // Deep link desde el hub de /templates: `/task?open=templates` abre directo el modal de plantillas.
+    if (this.route.snapshot.queryParamMap.get('open') === 'templates' && this.canWrite()) {
+      this.isTemplatesOpen.set(true);
+    }
   }
 
   readonly totalCount = computed(() => this.store.tasks().length);

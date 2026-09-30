@@ -181,6 +181,30 @@ export interface ReissueInvoiceResult {
   replacementStatus: InvoiceStatus;
 }
 
+/**
+ * Por qué NO se puede reemitir una factura según su detalle (item 6.3), o null si se puede. El summary
+ * del listado no trae los enlaces de reemisión, así que la decisión final se toma con `/detail`:
+ * una factura ya reemplazada no se vuelve a reemplazar (el backend lo rechazaría).
+ * `isReissuable` ausente (backend anterior) no bloquea: decide el backend.
+ */
+export function reissueBlockReason(
+  detail: Pick<InvoiceDetail, 'status' | 'isReissuable' | 'replacedByInvoiceId'>,
+): string | null {
+  if (detail.replacedByInvoiceId) {
+    return 'This invoice was already replaced by a corrected invoice.';
+  }
+  if (detail.status === 'Draft' || detail.status === 'Voided') {
+    return 'Only issued invoices can be reissued.';
+  }
+  if (detail.isReissuable === false) {
+    return 'This invoice can no longer be reissued.';
+  }
+  return null;
+}
+
+/** Longitud mínima del motivo de una reemisión (queda en el rastro de auditoría). */
+export const REISSUE_REASON_MIN_LENGTH = 5;
+
 /** Cuerpo de `PUT /billing/invoices/{id}` — igual que crear, sin emisor (no se edita). */
 export interface UpdateInvoiceRequest {
   customer: InvoiceCustomerInput;
