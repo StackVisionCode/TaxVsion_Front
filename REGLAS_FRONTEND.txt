@@ -1,0 +1,215 @@
+===============================================================================
+ REGLAS DEL FRONTEND — TaxVision (Angular 21)
+ Última actualización: 2026-09-30
+===============================================================================
+
+Objetivo: no reescribir componentes que ya existen, mantener la UI consistente
+y no engordar el bundle. Léelo antes de empezar un apartado (pantalla, módulo o
+feature) nuevo.
+
+
+-------------------------------------------------------------------------------
+ REGLA 0 — ANTES DE CREAR ALGO NUEVO, BUSCA LO QUE YA EXISTE
+-------------------------------------------------------------------------------
+
+Cada vez que se haga, o se piense hacer, un apartado nuevo:
+
+ 1. Revisa el inventario de la sección 2 (src/app/shared y src/app/core).
+    Cada componente explica su API en el comentario de cabecera del .ts y
+    tiene un .spec.ts con ejemplos de uso.
+ 2. Divide la pantalla en piezas: lista, filtros, buscador, tabla, menú "…",
+    estado vacío/error/cargando, KPIs, pills, formularios, modales/drawers…
+    Asigna a cada pieza el componente global que la cubre.
+ 3. Solo lo que NO exista se crea nuevo. Antes de crearlo pregunta:
+    ¿lo va a usar más de una feature?
+      - Sí -> va en src/app/shared/ (UI, pipe, util o directiva) o en
+              src/app/core/ (servicios/estado de toda la app), con spec.
+      - No -> va dentro de la feature (components/ o ui/).
+ 4. Si a un componente global le falta algo (un input, una variante), se
+    EXTIENDE el global sin romper su comportamiento por defecto. Nunca se
+    copia su markup a la feature para "ajustarlo".
+ 5. Si dos features ya tienen la misma pieza copiada, al tocarlas se promueve
+    a shared/ y se borran las copias.
+
+Checklist rápido antes de abrir un PR de un apartado nuevo:
+ [ ] Revisé shared/ui, shared/directives, shared/pipes, shared/utils, core/.
+ [ ] No copié markup de otra feature (si lo necesitaba, lo promoví a shared/).
+ [ ] No hay @HostListener('document:click') nuevo (usar appClickOutside).
+ [ ] No hay paleta de avatar, formatBytes, formatMoney ni toast local nuevos.
+ [ ] La página principal de la feature va como `component:` estático en su
+     *.routes.ts.
+ [ ] Las librerías pesadas se cargan con import() o @defer.
+ [ ] Los iconos nuevos están registrados en src/main.ts.
+ [ ] `npx ng build` y `npx ng test --watch=false` en verde.
+
+
+-------------------------------------------------------------------------------
+ 2. INVENTARIO DE PIEZAS GLOBALES (usar estas, no reescribirlas)
+-------------------------------------------------------------------------------
+
+Import siempre con alias:  @shared/...   @core/...   (nunca ../../../../shared)
+
+UI  (src/app/shared/ui)
+  app-modal ............ diálogo centrado (focus trap, Escape, bloqueo de scroll).
+  app-drawer ........... panel lateral (slide-over) con [drawerFooter]; misma
+                         accesibilidad que el modal.
+  app-confirm-dialog ... confirmaciones; [tone]="danger|primary", [busy],
+                         [cancelLabel], contenido extra con <ng-content>.
+  app-switch ........... interruptor on/off; [checked] (checkedChange), [busy]
+                         (si falla el guardado vuelve a su sitio), size md|sm,
+                         también con ngModel.
+  app-avatar ........... círculo con iniciales o imagen; [name] [seed] [size]
+                         xs|sm|md|lg|xl. Mismo color para la misma persona en
+                         toda la app.
+  app-dropdown-menu .... menú "…"; ítems con <button appMenuItem [danger]>.
+                         Se cierra solo (clic fuera, Escape, al elegir).
+  app-state-block ...... estados loading / error (con (retry)) / vacío +
+                         contenido proyectado cuando hay datos.
+  app-status-pill ...... pill de estado; [tone]="success|warning|danger|info|
+                         neutral|muted|brand". La feature solo define su mapa
+                         estado -> tono.
+  app-stat-cards ....... fila de KPIs; [items]="{label, value, tone?, hint?,
+                         icon?, countUp?}[]".
+  app-search-input ..... buscador con icono, botón de borrar y [debounceMs].
+  app-filter-chips ..... chips de filtro con conteo opcional.
+  app-segmented ........ selector tipo pastilla (A | B | C).
+  app-typeahead ........ autocompletar genérico; [search]="(q) => Observable".
+  app-customer-picker .. buscador de clientes (usa CustomerDirectoryStore:
+                         caché, recientes compartidos). Output (selectedChange).
+                         NO crear otro buscador de clientes.
+  app-dropzone ......... zona para arrastrar/elegir archivos con validación de
+                         tipo y tamaño.
+  app-pagination ....... paginación numerada, o mode="cursor" (Prev/Next).
+  app-load-more ........ botón "Load more".
+  app-skeleton ......... placeholders de carga.
+  app-toast-host + ToastService (shared/ui/toast/toast.service.ts):
+                         toast.success(msg) / toast.error(msg) / toast.info(msg).
+                         NO crear toasts locales con signals + setTimeout.
+  app-signature-pad, app-used-storage-card, app-access-notice-page,
+  app-not-found-page ... piezas específicas ya compartidas.
+
+Directivas  (src/app/shared/directives)
+  appClickOutside ...... <div appClickOutside [clickOutsideEnabled]="open()"
+                         (appClickOutside)="close()">. OJO: como atributo
+                         plano, NO [appClickOutside]. También cierra con Escape.
+  appFileDrop .......... arrastrar y soltar archivos sobre cualquier elemento.
+  appCountUp ........... animación de números.
+  appHasPermission ..... mostrar/ocultar por permiso (no cambiar la lógica de
+                         permisos sin acordarlo con el equipo).
+
+Pipes  (src/app/shared/pipes)
+  bytes .... {{ size | bytes }}                 (KB/MB; 'GB' para cuotas)
+  money .... {{ cents | money: currency : { fromCents: true } }}
+  timeAgo .. {{ isoUtc | timeAgo }}             ("5m ago", "Yesterday"…)
+
+Utils  (src/app/shared/utils)
+  avatar.util ..... initialsOf(name), avatarColorFor(seed), AVATAR_PALETTE
+  format.util ..... formatBytes, formatMoney, formatRelativeTime
+  phone.util ...... formatPhoneForDisplay, normalizePhoneToApi, isValidPhone
+  utc-date.util ... parseUtcDate: el backend a veces manda fechas sin 'Z';
+                    parsear SIEMPRE con esto.
+  overlay.util .... focus trap / bloqueo de scroll (para overlays nuevos)
+  reduced-motion.util
+
+Servicios  (src/app/shared/services y src/app/core)
+  ClipboardService.copy(text): Promise<boolean>  (devuelve si copió de verdad)
+  core/customers/CustomerDirectoryStore ... búsqueda y caché de clientes; no
+                                            descargar 10.000 clientes.
+  core/errors + toApiError(err).message .... mensajes de error legibles.
+  core/access (AccessStore, guards) ........ permisos y módulos del plan.
+
+
+-------------------------------------------------------------------------------
+ 3. CÓMO ORGANIZAR UNA FEATURE NUEVA
+-------------------------------------------------------------------------------
+
+src/app/features/<feature>/
+  <feature>.routes.ts    rutas de la feature (ver regla de rendimiento R1)
+  components/            componentes "smart": los ÚNICOS que inyectan el store
+                         o los servicios de la feature
+  ui/                    componentes "tontos": solo @Input()/@Output()
+                         (decoradores clásicos), sin HTTP ni inject de stores
+  data-access/           <feature>.service.ts (HTTP), <feature>.store.ts
+                         (signals), <feature>.model.ts (tipos + mapeos)
+  utils/                 funciones puras de la feature (con spec)
+
+Reglas:
+  - Standalone components + Signals. Nada de NgRx ni BehaviorSubject para
+    estado nuevo.
+  - Guards e interceptores funcionales.
+  - core/ y shared/ NUNCA importan de features/.
+  - Una feature NO importa de otra feature. Si dos la necesitan, se sube a
+    core/ o shared/. Para ir a otra pantalla se usa un deep link por router
+    (?param=...).
+  - Sin barrels (index.ts) en core/ ni features/.
+  - Archivos en kebab-case. Comentarios del código en español, textos de la
+    UI en inglés.
+  - Colores de marca de Tailwind: bg-brand-bold, hover:bg-brand-ink,
+    text-gray-900, brand-surface… (ver tailwind.config.js). No inventar hex
+    nuevos.
+  - No instalar paquetes npm sin aprobación.
+
+
+-------------------------------------------------------------------------------
+ 4. REGLAS DE RENDIMIENTO (carga y renderizado)
+-------------------------------------------------------------------------------
+
+R1. La página principal de cada feature se declara ESTÁTICA en su routes:
+      import { XPageComponent } from './components/x-page/x-page.component';
+      export const X_ROUTES: Routes = [{ path: '', component: XPageComponent }];
+    En app.routes.ts la feature se sigue cargando con loadChildren (lazy).
+    Así la ruta y la página viajan en el mismo chunk (un solo viaje).
+    Las sub-páginas secundarias (detalle, import…) sí pueden ser loadComponent.
+
+R2. Librerías pesadas SIEMPRE bajo demanda, nunca import estático:
+      const { Device } = await import('mediasoup-client');   // al usarla
+      import('qrcode').then(({ toDataURL }) => ...);
+    Lo mismo con pdfjs-dist. Para componentes pesados que no se ven al entrar
+    se usa @defer (on viewport | on interaction | when cond; prefetch on idle).
+    Los tipos se importan con `import type`, que no descarga nada.
+
+R3. El shell (src/app/layout: app-shell, navbar, sidebar) va en el bundle
+    inicial. NO importar ahí stores o servicios de features. Si el shell
+    necesita algo de una feature, se carga con import() después del primer
+    render (ver cómo lo hacen el sidebar y el navbar con ChatStore y
+    NotificationsStore). Tampoco agregar FormsModule u otros módulos grandes
+    al shell.
+
+R4. Iconos (ionicons): se registran INLINE en src/main.ts con addIcons({...}).
+    Si usas un icono nuevo, agrégalo ahí; si no, <ion-icon> intenta cargarlo
+    por URL y rompe el render (bug conocido de ionicons). No mover esta
+    registración.
+
+R5. Presupuestos (angular.json): bundle inicial con aviso a 720 kB y error a
+    900 kB; por script, 700/800 kB. Si un cambio los supera, se optimiza, no
+    se sube el límite.
+    Para medir:  npx ng build --configuration analyze   (genera stats.json)
+
+R6. El Dockerfile compila con NG_BUILD_OPTIMIZE_CHUNKS=1, que fusiona los
+    chunks pequeños (el arranque queda en 1 archivo). Para reproducir el build
+    de producción en local:
+      NG_BUILD_OPTIMIZE_CHUNKS=1 npx ng build
+
+R7. Listas grandes: paginar o buscar en el servidor (el máximo de página del
+    backend de customers es 100). Nada de cargar todo y filtrar en memoria.
+    Usar trackBy / track en los @for.
+
+R8. Animaciones solo con transiciones CSS (transform/opacity) y respetando
+    prefers-reduced-motion. No hay @angular/animations en el proyecto.
+
+
+-------------------------------------------------------------------------------
+ 5. FLUJO DE TRABAJO
+-------------------------------------------------------------------------------
+
+  - Solo frontend: nunca modificar el backend desde este repo.
+  - Los cambios de las tandas de correcciones van a la rama `test`.
+  - Antes de subir:
+      npx ng build --configuration development
+      npx ng test --watch=false
+    Un fallo conocido de antes no justifica agregar fallos nuevos.
+  - Cada componente, util o pipe nuevo en shared/ lleva su .spec.ts y un
+    comentario de cabecera con su API (inputs, outputs y ejemplo de uso).
+  - No borrar código con regex multilínea desde scripts: editar con anclas
+    exactas y revisar el diff.
+===============================================================================
