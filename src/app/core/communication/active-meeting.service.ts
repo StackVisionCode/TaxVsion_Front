@@ -4,6 +4,7 @@ import { firstValueFrom, map, switchMap } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { toApiError } from '@core/models/api-error.model';
 import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
@@ -15,7 +16,10 @@ import { CallRecordingService } from './call-recording.service';
 import { IceServer } from './call.model';
 import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
 
-export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | 'joined' | 'unsupported' | 'ended';
+import { ActiveMeetingPhase, MeetingSessionState } from './meeting-session-state';
+
+// Re-export: el tipo vive en meeting-session-state (liviano, usado por el shell).
+export type { ActiveMeetingPhase };
 
 /** Mensaje del chat del meeting, ya en shape de vista. */
 export interface MeetingChatMessage {
@@ -81,7 +85,8 @@ export class ActiveMeetingService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
 
-  readonly phase = signal<ActiveMeetingPhase>('idle');
+  /** Fase de la sesión. El signal vive en `MeetingSessionState` para que el shell lo lea sin este servicio. */
+  readonly phase = inject(MeetingSessionState).phase;
   readonly meetingId = signal<string | null>(null);
   readonly meetingTitle = signal<string>('');
   readonly conversationId = signal<string | null>(null);
@@ -124,6 +129,18 @@ export class ActiveMeetingService {
   );
 
   readonly isHost = computed(() => this.yourRole() === 'Host' || this.yourRole() === 'Cohost');
+  /** "Terminar para todos" (POST /meetings/{id}/end) es solo del host principal. */
+  readonly canEndForAll = computed(() => this.yourRole() === 'Host');
+
+  // ---------- Vista (sala completa vs mini-player) ----------
+  /**
+   * true mientras la sala completa (`app-meeting-room`) está montada. La pone/quita la sala en su
+   * ciclo de vida; el mini-player global se oculta mientras sea true. NO se toca en `reset()`: depende
+   * del componente, no de la sesión.
+   */
+  readonly roomViewAttached = signal(false);
+  /** Participante fijado (spotlight) en la sala; el mini-player lo usa si nadie está hablando. */
+  readonly pinnedUserId = signal<string | null>(null);
   /** Participantes efectivamente dentro (no en espera ni salidos) — para la grilla. */
   readonly joinedParticipants = computed(() => this.participants().filter(p => p.status === 'Joined'));
   /** Participantes dentro que NO soy yo (para las tiles remotas). */
@@ -163,6 +180,14 @@ export class ActiveMeetingService {
 
     this.rtc.onParticipantChanged().subscribe(dto => {
       if (dto.meetingId !== this.meetingId()) {
+        return;
+      }
+      // El host ME sacó: antes solo se me quitaba del roster y la cámara/peers seguían vivos con la
+      // sala en 'joined'. Se trata como fin del meeting (pantalla de terminado / toast del mini-player).
+      if (dto.participant.userId === this.myUserId() && dto.participant.status === 'Removed' && this.phase() !== 'idle') {
+        this.errorMessage.set('You were removed from the meeting.');
+        this.phase.set('ended');
+        this.stopLocalMedia();
         return;
       }
       this.applyParticipantChange(dto.participant);
@@ -1101,6 +1126,36 @@ export class ActiveMeetingService {
   }
 
   /**
+   * Termina el meeting PARA TODOS (solo host): `POST /communication/meetings/{id}/end` — el mismo
+   * endpoint que usa la fila de la agenda — y luego sale localmente con `leave()` (corta tracks, peers
+   * y SFU sin recargar). Devuelve false si el backend lo rechazó (se avisa con toast y se sigue dentro).
+   */
+  async endForAll(): Promise<boolean> {
+    const meetingId = this.meetingId();
+    if (!meetingId || !this.canEndForAll()) {
+      return false;
+    }
+    try {
+      await firstValueFrom(this.http.post(this.api.tenantUrl(`/communication/meetings/${meetingId}/end`), {}));
+    } catch (err) {
+      this.toast.error(toApiError(err).message);
+      return false;
+    }
+    await this.leave();
+    return true;
+  }
+
+  /**
+   * Cierra una sesión que ya terminó por evento (phase 'ended': fin, cancelación, denegado o removido):
+   * resetea a 'idle' sin avisar `meeting.leave` al backend (ya no hay a qué salir). No-op si no terminó.
+   */
+  closeEnded(): void {
+    if (this.phase() === 'ended') {
+      this.reset();
+    }
+  }
+
+  /**
    * Apaga la cámara/micrófono (libera el hardware) + cierra los peer connections/SFU, SIN tocar el
    * resto del estado ni la fase. Se llama cuando el meeting termina por EVENTO (Ended/Cancelled/Denied)
    * para que la cámara no quede encendida mientras se muestra la pantalla de "terminado" — antes el CRM
@@ -1147,6 +1202,7 @@ export class ActiveMeetingService {
     this.audioEnabled.set(true);
     this.videoEnabled.set(true);
     this.handRaised.set(false);
+    this.pinnedUserId.set(null);
     this.recordingState.set('Idle');
     this.stopRecordingTimer();
     this.recordingConsentFrom.set(null);

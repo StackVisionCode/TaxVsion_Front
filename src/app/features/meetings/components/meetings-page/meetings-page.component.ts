@@ -66,15 +66,15 @@ export class MeetingsPageComponent implements OnInit {
 
   /** Fila con una acción en curso (start/end/cancel): deshabilita sus botones. */
   readonly busyId = signal<string | null>(null);
-  readonly activeRoomMeeting = signal<MeetingItem | null>(null);
 
   /**
-   * La sala se muestra solo mientras hay un meeting ACTIVO. Cuando la fase vuelve a 'idle' (salí, me
-   * sacaron o el join falló) se oculta y volvemos a la lista. Sin esto el `<app-meeting-room>` quedaba
-   * montado con phase='idle' y el template no tiene rama para 'idle' → tarjeta en BLANCO que obligaba a
-   * refrescar (pasaba tras salir, porque `reset()` pone 'idle' por caminos que no limpian activeRoomMeeting).
+   * La sala se muestra mientras hay un meeting ACTIVO en el ActiveMeetingService (root), venga de un
+   * join en esta página o de volver desde el mini-player global: al entrar a /meetings con una sesión
+   * viva se muestra la sala de ESE meeting sin re-unirse. Cuando la fase vuelve a 'idle' (salí, me
+   * sacaron o el join falló) se oculta y volvemos a la lista — el template de la sala no tiene rama
+   * 'idle' (antes quedaba una tarjeta en BLANCO que obligaba a refrescar).
    */
-  readonly showRoom = computed(() => !!this.activeRoomMeeting() && this.activeMeeting.phase() !== 'idle');
+  readonly showRoom = computed(() => this.activeMeeting.phase() !== 'idle');
 
   ngOnInit(): void {
     this.store.bindRealtime();
@@ -212,12 +212,12 @@ export class MeetingsPageComponent implements OnInit {
 
   /** Entra a la sala real (Socket.IO): solo meetings Live. El ActiveMeetingService maneja el join/espera. */
   joinMeeting(meeting: MeetingItem): void {
-    this.activeRoomMeeting.set(meeting);
     void this.activeMeeting.join(meeting.id, meeting.title);
   }
 
+  /** La sala ya salió/cerró la sesión (phase → 'idle' oculta la sala sola); se refrescan los contadores. */
   leaveMeeting(): void {
-    this.activeRoomMeeting.set(null);
+    this.store.loadStats();
   }
 
   copyCode(meeting: MeetingItem): void {

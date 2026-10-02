@@ -24,9 +24,11 @@ import { filter, map, of, switchMap, timer } from 'rxjs';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
+import { MeetingMiniPlayerComponent } from '@core/communication/meeting-mini-player/meeting-mini-player.component';
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 import { ActiveCallService } from '@core/communication/active-call.service';
+import { MeetingSessionState } from '@core/communication/meeting-session-state';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
 import { AccessSyncService } from '@core/access/access-sync.service';
@@ -46,6 +48,7 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
     NavbarComponent,
     SidebarComponent,
     CallOverlayComponent,
+    MeetingMiniPlayerComponent,
     SubscriptionBannerComponent,
   ],
   templateUrl: './app-shell.component.html',
@@ -54,6 +57,11 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 export class AppShellComponent implements OnInit, OnDestroy {
   private readonly socket = inject(ChatSocketService);
   protected readonly activeCall = inject(ActiveCallService);
+  /**
+   * Fase del meeting activo (solo el signal liviano, no el servicio completo: R3/R5). El mini-player
+   * global aparece al salir de /meetings sin cortar la sesión.
+   */
+  protected readonly activeMeeting = inject(MeetingSessionState);
   private readonly sessionRevocation = inject(SessionRevocationService);
   private readonly accessSync = inject(AccessSyncService);
   private readonly branding = inject(TenantBrandingService);
