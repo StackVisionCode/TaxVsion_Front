@@ -117,6 +117,11 @@ Servicios  (src/app/shared/services y src/app/core)
                                             descargar 10.000 clientes.
   core/errors + toApiError(err).message .... mensajes de error legibles.
   core/access (AccessStore, guards) ........ permisos y módulos del plan.
+  core/communication/meeting-mini-player ... al salir de /meetings la reunión
+      se minimiza abajo a la derecha (en el shell, con @defer). Es el ÚNICO
+      dueño del audio remoto de la reunión: no agregar otros <audio> de
+      participantes. MeetingSessionState es el estado mínimo que lee el shell
+      sin cargar ActiveMeetingService.
 
 
 -------------------------------------------------------------------------------
