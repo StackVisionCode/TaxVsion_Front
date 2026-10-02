@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Device, types as MsTypes } from 'mediasoup-client';
+// Solo tipos: la librería (~700 KB) se descarga en `join()`, no con la lista de reuniones.
+import type { Device, types as MsTypes } from 'mediasoup-client';
 import { Subscription } from 'rxjs';
 import { MeetingRtcService } from './meeting-rtc.service';
 
@@ -56,7 +57,8 @@ export class MeetingSfuService {
     this.handlers = handlers;
     try {
       const routerRtpCapabilities = await this.rtc.sfuGetRouterCapabilities(meetingId);
-      this.device = new Device();
+      const { Device: MediasoupDevice } = await import('mediasoup-client');
+      this.device = new MediasoupDevice();
       await this.device.load({ routerRtpCapabilities });
 
       await this.createSendTransport();

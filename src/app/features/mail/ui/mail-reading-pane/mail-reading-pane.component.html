@@ -60,8 +60,7 @@
         <!-- Cabecera del mensaje (acordeón) -->
         <button type="button" (click)="toggle(message.messageId)"
           class="flex w-full items-start gap-3 px-3 py-3 text-left">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-            [ngClass]="avatarColorFor(message)">{{ initialsFor(message) }}</span>
+          <app-avatar [name]="senderLabel(message)" size="md" [colorClass]="avatarColorFor(message)"></app-avatar>
 
           <span class="min-w-0 flex-1">
             <span class="flex items-center justify-between gap-2">
@@ -173,7 +172,7 @@
                     <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
                       [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
                     <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
-                    <span class="text-gray-400">{{ fileSize(file.sizeBytes) }}</span>
+                    <span class="text-gray-400">{{ file.sizeBytes | bytes }}</span>
                     <ion-icon *ngIf="!file.busy" name="download-outline" class="text-sm text-gray-400"></ion-icon>
                   </button>
                 </ng-container>

@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { SupportPageComponent } from './components/support-page/support-page.component';
 
 export const SUPPORT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/support-page/support-page.component').then(m => m.SupportPageComponent),
+    component: SupportPageComponent,
     title: 'Support',
   },
 ];

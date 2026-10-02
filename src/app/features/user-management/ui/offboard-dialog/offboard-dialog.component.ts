@@ -1,7 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnInit, Output, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { TeamMember } from '../user-table/user-table.component';
 import { EligibleSuccessor, OffboardImpactItem } from '../../data-access/user-management.model';
 import { UserManagementService } from '../../data-access/user-management.service';

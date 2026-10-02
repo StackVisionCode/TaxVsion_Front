@@ -14,9 +14,10 @@
   </div>
 
   <!-- Cargando / error de Communication / sin conversaciones -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || chats().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Chats aren't available" icon="chatbubbles-outline" title="No conversations yet"
-    message="Start a chat with a teammate and it will appear here." minHeight="13rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || chats().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="chatbubbles-outline" emptyTitle="No conversations yet"
+    emptyMessage="Start a chat with a teammate and it will appear here." minHeight="13rem"
+    (retry)="load()"></app-state-block>
 
   <!-- Chat list: nombre, tipo y no leídos reales. El endpoint de listado no
        trae preview del último mensaje ni presencia, así que no se muestran. -->
@@ -25,10 +26,7 @@
       class="flex w-full items-center gap-3 px-3 py-3 rounded-2xl text-left hover:bg-gray-50 transition-colors">
 
       <!-- Avatar -->
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-        [ngClass]="chat.avatarBg">
-        {{ chat.initials }}
-      </span>
+      <app-avatar [name]="chat.name" [seed]="chat.id" sizeClass="h-10 w-10 text-xs" />
 
       <!-- Name + conversation metadata -->
       <div class="min-w-0 flex-1">

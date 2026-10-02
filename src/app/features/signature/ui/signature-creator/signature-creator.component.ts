@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 
 export type SignatureMode = 'draw' | 'type' | 'upload';
 export type SignatureFormat = 'PNG' | 'JPEG';

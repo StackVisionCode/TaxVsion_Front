@@ -1,10 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
-import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { AuthService } from '@core/auth/auth.service';
-import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
+import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { AppNotification, NotificationType } from '@features/notifications/ui/notification-list/notification-list.component';
 import {
   needsAttention,
@@ -47,7 +46,7 @@ interface NavbarCustomer {
 
 @Component({
   selector: 'app-navbar',
-  imports: [CommonModule, RouterModule, FormsModule, SidebarComponent],
+  imports: [CommonModule, RouterModule, SidebarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.css',
@@ -55,7 +54,14 @@ interface NavbarCustomer {
 export class NavbarComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
-  private readonly notificationsStore = inject(NotificationsStore);
+  private readonly injector = inject(Injector);
+  /** El store de notificaciones se descarga tras el primer render (fuera del bundle inicial). */
+  private readonly notificationsStore = signal<NotificationsStore | null>(null);
+  private readonly loadNotificationsStore = afterNextRender(() => {
+    void import('@features/notifications/data-access/notifications.store').then(m =>
+      this.notificationsStore.set(this.injector.get(m.NotificationsStore)),
+    );
+  });
   private readonly access = inject(AccessStore);
   readonly handoff = inject(AccountHandoffStore);
 
@@ -94,8 +100,8 @@ export class NavbarComponent {
   });
 
   // Notificaciones REALES (Communication): feed corto de la campana + conteo en vivo.
-  readonly notifications = this.notificationsStore.recent;
-  readonly notificationCount = this.notificationsStore.unreadCount;
+  readonly notifications = computed(() => this.notificationsStore()?.recent() ?? []);
+  readonly notificationCount = computed(() => this.notificationsStore()?.unreadCount() ?? 0);
   readonly hasUnread = computed(() => this.notificationCount() > 0);
 
   /**
@@ -340,11 +346,11 @@ export class NavbarComponent {
 
   markAsRead(notificationId: string, event?: Event): void {
     event?.stopPropagation();
-    this.notificationsStore.markRead(notificationId);
+    this.notificationsStore()?.markRead(notificationId);
   }
 
   markAllAsRead(): void {
-    this.notificationsStore.markAllRead();
+    this.notificationsStore()?.markAllRead();
   }
 
   navigateToNotificationCenter(): void {

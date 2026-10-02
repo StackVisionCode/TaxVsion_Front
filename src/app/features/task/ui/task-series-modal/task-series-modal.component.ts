@@ -19,6 +19,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { toApiError } from '@core/models/api-error.model';
 import { TaskService } from '../../data-access/task.service';
 import { ApiTaskPriority, RecurrenceMode, SeriesStatus, TaskSeriesResponse } from '../../data-access/task.model';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 
 type FreqPreset = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
@@ -31,7 +32,7 @@ type FreqPreset = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 @Component({
   selector: 'app-task-series-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-series-modal.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -196,14 +197,14 @@ export class TaskSeriesModalComponent implements OnChanges {
     this.closed.emit();
   }
 
-  statusColor(status: SeriesStatus): string {
+  statusTone(status: SeriesStatus): StatusTone {
     switch (status) {
       case 'Active':
-        return 'bg-emerald-100 text-emerald-700';
+        return 'success';
       case 'Paused':
-        return 'bg-amber-100 text-amber-700';
-      case 'Ended':
-        return 'bg-gray-100 text-gray-400';
+        return 'warning';
+      default:
+        return 'muted';
     }
   }
 

@@ -32,7 +32,7 @@
 
       <div class="grid grid-cols-2 gap-3">
         <!-- Categoría: texto libre en el backend; el dropdown solo sugiere valores comunes -->
-        <div class="relative" data-dropdown="template-category">
+        <div class="relative" appClickOutside [clickOutsideEnabled]="isCategoryOpen()" (appClickOutside)="isCategoryOpen.set(false)">
           <div
             class="flex h-11 w-full items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors"
             [ngClass]="{ 'bg-brand-white': isEditMode() }">

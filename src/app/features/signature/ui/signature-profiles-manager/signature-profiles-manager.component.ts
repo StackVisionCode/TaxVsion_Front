@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -15,7 +16,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { SignatureProfile, SignatureProfileScope } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import { PermissionService } from '../../../../core/auth/permission.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CreatedSignature, SignatureCreatorComponent } from '../signature-creator/signature-creator.component';
 
 /**
@@ -26,7 +27,7 @@ import { CreatedSignature, SignatureCreatorComponent } from '../signature-creato
  */
 @Component({
   selector: 'app-signature-profiles-manager',
-  imports: [CommonModule, FormsModule, ModalComponent, SignatureCreatorComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, SignatureCreatorComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-profiles-manager.component.html',
 })

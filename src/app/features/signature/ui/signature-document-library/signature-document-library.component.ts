@@ -10,10 +10,11 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { formatBytes } from '@shared/utils/format.util';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
-import { FileResponse, formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 
 /** true si el archivo es un PDF (por content-type declarado o por extensión). */
 function isPdf(file: FileResponse): boolean {
@@ -30,7 +31,7 @@ function isPdf(file: FileResponse): boolean {
  */
 @Component({
   selector: 'app-signature-document-library',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, SearchInputComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-document-library.component.html',
   styleUrl: './signature-document-library.component.css',

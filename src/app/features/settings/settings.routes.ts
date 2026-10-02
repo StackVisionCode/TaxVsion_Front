@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
+import { SettingsPageComponent } from './components/settings-page/settings-page.component';
 import { BillingStore } from '../billing/data-access/billing.store';
 
 export const SETTINGS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/settings-page/settings-page.component').then(m => m.SettingsPageComponent),
+    component: SettingsPageComponent,
     title: 'Settings',
   },
   {

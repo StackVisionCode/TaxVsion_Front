@@ -24,9 +24,10 @@
   </div>
 
   <!-- Cargando / error del tablero / sin tareas para el filtro activo -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || visibleTasks().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Tasks aren't available" icon="checkmark-done-outline" [title]="emptyTitle()"
-    message="Tasks you create in the Task board show up here." minHeight="12rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || visibleTasks().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="checkmark-done-outline" [emptyTitle]="emptyTitle()"
+    emptyMessage="Tasks you create in the Task board show up here." minHeight="12rem"
+    (retry)="retry()"></app-state-block>
 
   <!-- Task list (datos reales del tablero) -->
   <div *ngIf="!loading() && !error() && visibleTasks().length > 0" class="mt-3 flex flex-col">

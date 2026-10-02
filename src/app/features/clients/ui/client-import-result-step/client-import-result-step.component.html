@@ -24,28 +24,7 @@
   </div>
 
   <!-- Totales del intento (autoritativos, vienen de GET /{id}) -->
-  <div class="result-block grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Created</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.successCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Updated</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.updatedCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Skipped</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.skippedCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Failed</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.failedCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-brand-surface p-5">
-      <p class="text-sm text-gray-600">Rows processed</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ attempt.processedRows }} / {{ attempt.totalRows }}</p>
-    </div>
-  </div>
+  <app-stat-cards class="result-block block" [items]="stats"></app-stat-cards>
 
   <!-- Detalle fila por fila (GET /{id}/report) -->
   <div class="result-block rounded-[28px] bg-white p-6">
@@ -54,52 +33,17 @@
         <h3 class="text-base font-bold text-gray-900">Row results</h3>
         <p class="mt-1 text-sm text-gray-500">Every row the importer read, with the reason it was not applied.</p>
       </div>
-      <div class="flex items-center gap-2">
-        <button type="button" (click)="setFilter('failed')"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="filter() === 'failed' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          Failed only ({{ failedRows().length }})
-        </button>
-        <button type="button" (click)="setFilter('all')"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="filter() === 'all' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          All rows ({{ allRows().length }})
-        </button>
-      </div>
+      <app-filter-chips [options]="filterOptions()" [value]="filter()" (valueChange)="setFilter($event)"></app-filter-chips>
     </div>
 
-    <div *ngIf="rowsLoading" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-      Loading the import report…
-    </div>
-
-    <div *ngIf="!rowsLoading && rowsError as err"
-      class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="reloadRowsRequested.emit()"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
-        Retry
-      </button>
-    </div>
-
-    <ng-container *ngIf="!rowsLoading && !rowsError">
-      <!-- Empty state -->
-      <div *ngIf="visibleRows().length === 0"
-        class="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-brand-white px-6 py-10 text-center">
-        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white">
-          <ion-icon name="checkmark-circle-outline" class="text-xl text-brand-bold"></ion-icon>
-        </span>
-        <p class="mt-2 text-sm font-semibold text-gray-900">
-          {{ filter() === 'failed' ? 'No failed rows' : 'The report has no rows' }}
-        </p>
-        <p class="text-sm text-gray-500">
-          {{ filter() === 'failed'
-            ? 'Nothing in this file needs to be fixed and re-uploaded.'
-            : 'The importer did not record any row for this attempt.' }}
-        </p>
-      </div>
-
-      <div *ngIf="visibleRows().length > 0" class="mt-5 overflow-x-auto">
+    <app-state-block class="mt-5 block" icon="checkmark-circle-outline" loadingText="Loading the import report…"
+      [loading]="rowsLoading" [error]="rowsError" [empty]="visibleRows().length === 0"
+      [emptyTitle]="filter() === 'failed' ? 'No failed rows' : 'The report has no rows'"
+      [emptyMessage]="filter() === 'failed'
+        ? 'Nothing in this file needs to be fixed and re-uploaded.'
+        : 'The importer did not record any row for this attempt.'"
+      (retry)="reloadRowsRequested.emit()">
+      <div class="overflow-x-auto">
         <table class="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
@@ -140,21 +84,10 @@
           </tbody>
         </table>
 
-        <div *ngIf="totalPages() > 1" class="mt-4 flex items-center justify-between gap-3">
-          <p class="text-sm text-gray-500">Page {{ page() }} of {{ totalPages() }}</p>
-          <div class="flex items-center gap-2">
-            <button type="button" (click)="goToPage(page() - 1)" [disabled]="page() <= 1"
-              class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
-              Previous
-            </button>
-            <button type="button" (click)="goToPage(page() + 1)" [disabled]="page() >= totalPages()"
-              class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
-              Next
-            </button>
-          </div>
-        </div>
+        <app-pagination [currentPage]="page()" [totalItems]="visibleRows().length" [pageSize]="pageSize"
+          (pageChange)="goToPage($event)"></app-pagination>
       </div>
-    </ng-container>
+    </app-state-block>
   </div>
 
   <div class="result-block flex flex-wrap items-center justify-end gap-3">

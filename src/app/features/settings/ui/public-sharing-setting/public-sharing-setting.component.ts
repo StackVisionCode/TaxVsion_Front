@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
 import { PermissionService } from '@core/auth/permission.service';
 import { DocumentsService } from '@features/documents/data-access/documents.service';
@@ -17,10 +18,9 @@ const MANAGE_PERMISSION = 'cloudstorage.settings.manage';
 @Component({
   selector: 'app-public-sharing-setting',
   standalone: true,
-  imports: [],
+  imports: [SwitchComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './public-sharing-setting.component.html',
-  styleUrl: './public-sharing-setting.component.css',
 })
 export class PublicSharingSettingComponent {
   private readonly perms = inject(PermissionService);

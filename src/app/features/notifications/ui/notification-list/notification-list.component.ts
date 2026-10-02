@@ -1,13 +1,8 @@
-import {
-  Component,
-  CUSTOM_ELEMENTS_SCHEMA,
-  EventEmitter,
-  HostListener,
-  Input,
-  Output,
-  signal,
-} from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { notificationIcon } from '../../data-access/notifications.model';
 
 /** Tipos de notificación soportados por el centro de notificaciones (dominio CRM fiscal). */
 export type NotificationType =
@@ -49,7 +44,7 @@ export interface AppNotification {
  */
 @Component({
   selector: 'app-notification-list',
-  imports: [CommonModule],
+  imports: [CommonModule, DropdownMenuComponent, MenuItemDirective, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './notification-list.component.html',
 })
@@ -57,48 +52,13 @@ export class NotificationListComponent {
   @Input() notifications: AppNotification[] = [];
   @Output() markRead = new EventEmitter<string>();
 
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="notification-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
-
   trackByNotificationId(_index: number, notification: AppNotification): string {
     return notification.id;
   }
 
-  /** Mapea el tipo de notificación a un ion-icon (mismo criterio que el CRM original). */
+  /** Mapea el tipo de notificación a un ion-icon (mismo mapa que la campana del navbar). */
   iconFor(type: NotificationType): string {
-    switch (type) {
-      case 'customer_created':
-        return 'person-add-outline';
-      case 'customer_updated':
-        return 'person-outline';
-      case 'customer_assigned':
-        return 'people-outline';
-      case 'payment_received':
-        return 'cash-outline';
-      case 'payment_failed':
-        return 'alert-circle-outline';
-      case 'invoice_generated':
-        return 'receipt-outline';
-      case 'document_signed':
-        return 'checkmark-done-outline';
-      case 'document_uploaded':
-        return 'cloud-upload-outline';
-      case 'session_expiring':
-        return 'time-outline';
-      case 'subscription_expiring':
-        return 'warning-outline';
-      case 'system_alert':
-        return 'alert-outline';
-      case 'general':
-        return 'notifications-outline';
-    }
+    return notificationIcon(type);
   }
 
   /** Mapea el tipo a un color de círculo (paleta Aether: pasteles/sólidos). */
@@ -138,20 +98,13 @@ export class NotificationListComponent {
     }
   }
 
-  toggleMenu(notification: AppNotification, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === notification.id ? null : notification.id);
-  }
-
   onRowClick(notification: AppNotification): void {
     if (!notification.isRead) {
       this.markRead.emit(notification.id);
     }
   }
 
-  onMarkReadClick(notification: AppNotification, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
+  onMarkReadClick(notification: AppNotification): void {
     this.markRead.emit(notification.id);
   }
 }

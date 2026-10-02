@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -13,7 +12,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientWorkStore } from '../../data-access/client-work.store';
 import {
   ApiTaskPriority,
@@ -22,8 +23,6 @@ import {
   WorkColumnId,
   WorkTaskFormValue,
   WorkTaskItem,
-  avatarColorFor,
-  initialsFor,
 } from '../../data-access/client-work.model';
 
 const PRIORITIES: ApiTaskPriority[] = ['Low', 'Normal', 'High', 'Urgent'];
@@ -41,7 +40,7 @@ interface AssigneeOption {
  */
 @Component({
   selector: 'app-client-work-form',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-work-form.component.html',
 })
@@ -94,20 +93,6 @@ export class ClientWorkFormComponent implements OnChanges {
     if (changes['task'] || changes['isOpen']) {
       this.isEditMode.set(this.task !== null);
       this.resetForm();
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="work-priority"]')) {
-      this.isPriorityOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="work-status"]')) {
-      this.isStatusOpen.set(false);
-    }
-    if (!target.closest('[data-dropdown="work-assignee"]')) {
-      this.isAssigneeOpen.set(false);
     }
   }
 
@@ -168,24 +153,6 @@ export class ClientWorkFormComponent implements OnChanges {
 
   statusLabel(status: WorkColumnId): string {
     return this.statuses.find(column => column.id === status)?.label ?? status;
-  }
-
-  assigneeInitials(): string {
-    const current = this.assignee();
-    return current ? initialsFor(current.displayName) : '—';
-  }
-
-  assigneeColor(): string {
-    const current = this.assignee();
-    return current ? avatarColorFor(current.userId) : 'bg-gray-300';
-  }
-
-  initialsOf(name: string): string {
-    return initialsFor(name);
-  }
-
-  colorOf(userId: string): string {
-    return avatarColorFor(userId);
   }
 
   close(): void {

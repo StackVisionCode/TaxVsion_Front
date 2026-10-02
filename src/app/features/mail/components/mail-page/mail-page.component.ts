@@ -1,16 +1,13 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
-  ElementRef,
   OnDestroy,
   OnInit,
-  ViewChild,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
@@ -22,10 +19,10 @@ import {
   ConnectManualAccountRequest,
   MailAccount,
   MailAccountStatus,
-  avatarColorFor,
   formatMailTime,
-  initialsFor,
 } from '../../data-access/mail.model';
+import { avatarColorFor } from '@shared/utils/avatar.util';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
 
@@ -49,12 +46,12 @@ import { CorrespondenceCapabilities } from '../../data-access/correspondence-per
   selector: 'app-mail-page',
   imports: [
     CommonModule,
-    FormsModule,
     MailFolderListComponent,
     MailListComponent,
     MailReadingPaneComponent,
     MailComposeComponent,
     MailConnectManualComponent,
+    CustomerPickerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -193,7 +190,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
     if (this.store.activeFolderId() === 'drafts') {
       return this.store.drafts().map(draft => ({
         id: draft.draftId,
-        initials: initialsFor(draft.subject || 'Draft'),
+        avatarName: draft.subject || 'Draft',
         avatarColor: avatarColorFor(draft.subject || draft.draftId),
         title: draft.subject || '(No subject)',
         subtitle: draft.isReply ? 'Reply draft' : 'New message',
@@ -207,7 +204,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
     if (this.store.activeFolderId() === 'trash') {
       return this.store.trash().map(item => ({
         id: item.messageId,
-        initials: initialsFor(item.subject || 'Trash'),
+        avatarName: item.subject || 'Trash',
         avatarColor: avatarColorFor(item.subject || item.messageId),
         title: item.subject || '(No subject)',
         subtitle: `${item.kind === 'Sent' ? 'To' : 'From'} ${item.counterparty}`,
@@ -221,7 +218,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
     if (this.store.activeFolderId() === 'sent') {
       return this.store.sent().map(item => ({
         id: item.messageId,
-        initials: initialsFor(item.subject || 'Sent'),
+        avatarName: item.subject || 'Sent',
         avatarColor: avatarColorFor(item.subject || item.messageId),
         title: item.subject || '(No subject)',
         // Muestra el destinatario; el clip 📎 lo pinta la lista con attachmentCount.
@@ -238,7 +235,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
     return threads.map(thread => ({
       id: thread.threadId,
-      initials: initialsFor(thread.subject || 'Thread'),
+      avatarName: thread.subject || 'Thread',
       avatarColor: avatarColorFor(thread.subject || thread.threadId),
       title: thread.subject || '(No subject)',
       subtitle: `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
@@ -322,75 +319,19 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   readonly selectedCustomerName = computed(() => this.store.selectedCustomerName());
 
-  // ---------- Selector de cliente (combobox con recientes) ----------
+  // ---------- Selector de cliente ----------
   // Correspondence no tiene bandeja global: los hilos cuelgan de un cliente, así que elegir cliente
-  // es la acción más frecuente del módulo. En vez de un <select> (mala UX >10 opciones), es un
-  // combobox: encabezado con el cliente activo → popover con búsqueda server-side, recientes y
-  // navegación por teclado (patrón recomendado para elegir 1 de una lista larga).
+  // es la acción más frecuente del módulo. Lo resuelve `app-customer-picker` (búsqueda server-side,
+  // recientes compartidos del CustomerDirectoryStore y navegación por teclado).
 
-  @ViewChild('customerInput') private customerInput?: ElementRef<HTMLInputElement>;
-
-  readonly customerPickerOpen = signal(false);
-  /** Índice resaltado para navegación con flechas dentro de `comboItems`. */
-  readonly highlightedIndex = signal(0);
-
-  /** Con búsqueda vacía se muestran los recientes; al teclear, los resultados server-side. */
-  readonly showingRecents = computed(
-    () => this.store.customerQuery().trim().length === 0 && this.store.recentCustomers().length > 0,
-  );
-
-  /** Lista plana que se pinta y sobre la que navegan las flechas. */
-  readonly comboItems = computed<CustomerSummary[]>(() =>
-    this.showingRecents() ? this.store.recentCustomers() : this.store.customerResults(),
-  );
-
-  avatarInitials(seed: string): string {
-    return initialsFor(seed || '?');
-  }
-
-  avatarColor(seed: string): string {
-    return avatarColorFor(seed || '?');
-  }
-
-  openCustomerPicker(): void {
-    this.customerPickerOpen.set(true);
-    this.highlightedIndex.set(0);
-    this.store.openCustomerSearch();
-    // El input nace en este mismo ciclo: se enfoca cuando ya existe en el DOM.
-    setTimeout(() => this.customerInput?.nativeElement.focus(), 0);
-  }
-
-  onCustomerQuery(term: string): void {
-    this.store.onCustomerQueryChange(term);
-    this.customerPickerOpen.set(true);
-    this.highlightedIndex.set(0);
-  }
-
-  /** ↓/↑ mueven el resaltado dentro de los ítems visibles (recientes o resultados). */
-  moveHighlight(delta: number): void {
-    const count = this.comboItems().length;
-    if (count === 0) {
-      return;
+  /**
+   * `null` = el usuario pulsó "Change client" en el chip: el picker pasa a modo búsqueda pero la
+   * bandeja sigue siendo la del cliente activo hasta que elija otro.
+   */
+  onCustomerChange(customer: CustomerSummary | null): void {
+    if (customer) {
+      this.pickCustomer(customer);
     }
-    const next = (this.highlightedIndex() + delta + count) % count;
-    this.highlightedIndex.set(next);
-  }
-
-  /** Enter elige el ítem resaltado. */
-  pickHighlighted(): void {
-    const item = this.comboItems()[this.highlightedIndex()];
-    if (item) {
-      this.pickCustomer(item);
-    }
-  }
-
-  /** Cierra con un pequeño delay para que el click en un resultado alcance a registrarse antes del blur. */
-  closeCustomerPickerSoon(): void {
-    setTimeout(() => this.customerPickerOpen.set(false), 150);
-  }
-
-  closeCustomerPicker(): void {
-    this.customerPickerOpen.set(false);
   }
 
   /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
@@ -398,7 +339,6 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
     this.store.pickCustomer(customer);
-    this.customerPickerOpen.set(false);
   }
 
   /** Sugerencias para el destinatario que se está tecleando en el composer (To/Cc). */

@@ -1,7 +1,10 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { CustomerImportAttempt, CustomerImportRow, ImportRowStatus } from '../../data-access/client-imports.model';
 
 type RowFilter = 'failed' | 'all';
@@ -18,7 +21,7 @@ const ROWS_PAGE_SIZE = 10;
  */
 @Component({
   selector: 'app-client-import-result-step',
-  imports: [CommonModule, RouterModule, CountUpDirective],
+  imports: [CommonModule, RouterModule, StatCardsComponent, StateBlockComponent, PaginationComponent, FilterChipsComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-result-step.component.html',
   styleUrl: './client-import-result-step.component.css',
@@ -52,6 +55,23 @@ export class ClientImportResultStepComponent {
     const start = (this.page() - 1) * ROWS_PAGE_SIZE;
     return this.visibleRows().slice(start, start + ROWS_PAGE_SIZE);
   });
+
+  readonly filterOptions = computed<FilterChipOption<RowFilter>[]>(() => [
+    { id: 'failed', label: `Failed only (${this.failedRows().length})` },
+    { id: 'all', label: `All rows (${this.allRows().length})` },
+  ]);
+
+  /** Totales del intento (autoritativos, vienen de GET /{id}). */
+  get stats(): StatCardItem[] {
+    const attempt = this.attempt;
+    return [
+      { label: 'Created', value: attempt.successCount, countUp: true },
+      { label: 'Updated', value: attempt.updatedCount, countUp: true },
+      { label: 'Skipped', value: attempt.skippedCount, countUp: true },
+      { label: 'Failed', value: attempt.failedCount, countUp: true },
+      { label: 'Rows processed', value: `${attempt.processedRows} / ${attempt.totalRows}` },
+    ];
+  }
 
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.visibleRows().length / ROWS_PAGE_SIZE)));
 

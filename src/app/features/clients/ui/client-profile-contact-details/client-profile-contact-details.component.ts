@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -21,12 +22,10 @@ import {
 } from '../../data-access/clients.model';
 import {
   COUNTRY_CODE_LENGTH,
-  formatPhoneForDisplay,
   isValidEmail,
-  isValidPhone,
   normalizeEmailToApi,
-  normalizePhoneToApi,
 } from '../../utils/customer-form-normalizers';
+import { formatPhoneForDisplay, isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
 
 export interface SaveAddressPayload {
   id: string | null;
@@ -61,7 +60,7 @@ const ADDRESS_KINDS: { value: AddressKind; label: string }[] = [
  */
 @Component({
   selector: 'app-client-profile-contact-details',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-contact-details.component.html',
   styleUrl: './client-profile-contact-details.component.css',

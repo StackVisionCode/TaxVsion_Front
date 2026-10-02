@@ -36,18 +36,3 @@
     transform: none;
   }
 }
-
-/* Pulso sutil del dropzone mientras se arrastra un archivo encima. */
-.dropzone-active {
-  animation: dropzone-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes dropzone-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.01);
-  }
-}

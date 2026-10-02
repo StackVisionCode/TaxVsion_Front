@@ -13,18 +13,20 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import {
   DirectorySearch,
   GroupCreateRequest,
   NewConversationModalComponent,
 } from '../../ui/new-conversation-modal/new-conversation-modal.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import {
   CustomerDirectoryEntry,
   EmployeeDirectoryEntry,
@@ -52,12 +54,14 @@ const MIN_CHAT_HEIGHT = 360;
   selector: 'app-chat-page',
   imports: [
     CommonModule,
-    FormsModule,
     ChatConversationListComponent,
     ChatThreadComponent,
     ChatComposerComponent,
     ModalComponent,
     NewConversationModalComponent,
+    AvatarComponent,
+    SearchInputComponent,
+    SegmentedComponent,
     ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -103,6 +107,11 @@ export class ChatPageComponent {
 
   /** Tab del rail izquierdo: conversaciones, o directorio de clientes/equipo (estilo WhatsApp). */
   readonly railTab = signal<'chats' | 'clients' | 'team'>('chats');
+  readonly railTabs: SegmentedOption<'chats' | 'clients' | 'team'>[] = [
+    { id: 'chats', label: 'Chats' },
+    { id: 'clients', label: 'Clients' },
+    { id: 'team', label: 'Team' },
+  ];
   readonly railSearch = signal('');
   private railSearchDebounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -439,13 +448,4 @@ export class ChatPageComponent {
     }
   }
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
 }

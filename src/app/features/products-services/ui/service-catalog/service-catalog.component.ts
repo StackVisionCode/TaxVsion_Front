@@ -1,7 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { MoneyPipe } from '@shared/pipes/money.pipe';
 import {
   CatalogEntry,
   CatalogEntryStatus,
@@ -23,7 +27,15 @@ const PAGE_SIZE = 8;
  */
 @Component({
   selector: 'app-service-catalog',
-  imports: [CommonModule, FormsModule, PaginationComponent],
+  imports: [
+    CommonModule,
+    PaginationComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StatusPillComponent,
+    StateBlockComponent,
+    MoneyPipe,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './service-catalog.component.html',
 })
@@ -44,7 +56,9 @@ export class ServiceCatalogComponent {
   @Output() editService = new EventEmitter<CatalogEntry>();
   @Output() deleteService = new EventEmitter<CatalogEntry>();
 
-  readonly filters = computed<CategoryFilter[]>(() => ['All', ...this.categoriesSig()]);
+  readonly filters = computed<FilterChipOption<CategoryFilter>[]>(() =>
+    ['All', ...this.categoriesSig()].map(name => ({ id: name, label: name })),
+  );
 
   readonly searchTerm = signal('');
   readonly activeFilter = signal<CategoryFilter>('All');
@@ -63,6 +77,10 @@ export class ServiceCatalogComponent {
 
   /** true cuando el tenant no tiene ítems aún (empty state distinto al de "sin resultados"). */
   readonly isCatalogEmpty = computed(() => this.servicesSig().length === 0);
+
+  readonly emptyTitle = computed(() =>
+    this.isCatalogEmpty() ? 'No services yet — add your first one to get started' : 'No services match your search',
+  );
 
   readonly currentPage = signal(1);
   readonly pageSize = PAGE_SIZE;
@@ -97,10 +115,8 @@ export class ServiceCatalogComponent {
     return categoryChipClass(category);
   }
 
-  statusChip(status: CatalogEntryStatus): string {
-    return status === 'active'
-      ? 'border-emerald-200 text-emerald-600'
-      : 'border-gray-300 text-gray-500';
+  statusTone(status: CatalogEntryStatus): StatusTone {
+    return status === 'active' ? 'success' : 'neutral';
   }
 
   statusLabel(status: CatalogEntryStatus): string {

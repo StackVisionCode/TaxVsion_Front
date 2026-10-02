@@ -151,25 +151,9 @@
         </div>
 
         <!-- Buscador de clientes para este rol -->
-        <div *ngIf="clientPickerSlot() === slot.slotOrder" class="mt-1.5 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-          <div class="mb-1.5 flex h-9 items-center gap-2 rounded-full border border-gray-200 px-3 focus-within:border-brand-bold transition-colors">
-            <ion-icon name="search-outline" class="text-sm text-gray-400"></ion-icon>
-            <input type="text" [ngModel]="clientQuery()" (ngModelChange)="clientQuery.set($event)" [name]="'q' + slot.slotOrder"
-              placeholder="Search clients by name or email"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-          </div>
-          <div *ngIf="customersLoading()" class="py-3 text-center text-[11px] text-gray-400">Loading clients…</div>
-          <div *ngIf="!customersLoading()" class="max-h-40 overflow-y-auto">
-            <button *ngFor="let c of filteredClients()" type="button" (click)="pickClient(slot.slotOrder, c)"
-              class="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-gray-50 transition-colors">
-              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-bold text-[10px] font-semibold text-white">{{ initials(c.displayName) }}</span>
-              <span class="min-w-0">
-                <span class="block truncate text-sm text-gray-800">{{ c.displayName }}</span>
-                <span class="block truncate text-[11px] text-gray-400">{{ c.email }}</span>
-              </span>
-            </button>
-            <p *ngIf="filteredClients().length === 0" class="px-2 py-3 text-center text-[11px] text-gray-400">No clients match.</p>
-          </div>
+        <div *ngIf="clientPickerSlot() === slot.slotOrder" class="mt-1.5">
+          <app-customer-picker variant="inline" placeholder="Search clients by name or email" [disabled]="busy()"
+            (selectedChange)="pickClient(slot.slotOrder, $event)" />
         </div>
       </div>
     </div>

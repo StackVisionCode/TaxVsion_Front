@@ -73,6 +73,8 @@ export class DocumentsStore {
   readonly clientsPage = this._clientsPage.asReadonly();
   readonly clientsStatus = this._clientsStatus.asReadonly();
 
+  /** Tamaño de página del selector de clientes (para la paginación de la vista). */
+  readonly clientsPageSize = CLIENTS_PAGE_SIZE;
   readonly clientsPageCount = computed(() =>
     Math.max(1, Math.ceil(this._clientsTotal() / CLIENTS_PAGE_SIZE)),
   );
@@ -103,13 +105,6 @@ export class DocumentsStore {
   readonly page = computed(() => this._page() + 1);
   readonly totalCount = this._totalCount.asReadonly();
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this._totalCount() / this.pageSize)));
-  readonly hasPrevPage = computed(() => this._page() > 0);
-  readonly hasNextPage = computed(() => this._page() + 1 < this.pageCount());
-  /** Índice 1-based del primer y último item de la página actual (para "X–Y de N"). */
-  readonly pageStart = computed(() => (this._totalCount() === 0 ? 0 : this._page() * this.pageSize + 1));
-  readonly pageEnd = computed(() =>
-    Math.min(this._totalCount(), this._page() * this.pageSize + this._subfolders().length + this._files().length)
-  );
 
   readonly currentFolderId = computed<string | null>(() => {
     const crumbs = this._breadcrumbs();

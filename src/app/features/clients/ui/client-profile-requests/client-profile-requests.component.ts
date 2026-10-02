@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { PermissionService } from '@core/auth/permission.service';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { formatBytes } from '@shared/utils/format.util';
 import { ClientRequestsStore } from '../../data-access/client-requests.store';
 import {
   ClientRequestItem,
@@ -27,7 +29,7 @@ const TASKS_READ = 'tasks.read';
  */
 @Component({
   selector: 'app-client-profile-requests',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-requests.component.html',
   styleUrl: './client-profile-requests.component.css',
@@ -82,9 +84,7 @@ export class ClientProfileRequestsComponent implements OnChanges {
   }
 
   documentSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return formatBytes(bytes);
   }
 
   formatDue(dueDate: string): string {

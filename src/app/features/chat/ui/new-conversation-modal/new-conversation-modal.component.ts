@@ -10,7 +10,10 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from '../../data-access/chat.model';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -36,7 +39,7 @@ export interface GroupCreateRequest {
  */
 @Component({
   selector: 'app-new-conversation-modal',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, SearchInputComponent, SegmentedComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './new-conversation-modal.component.html',
 })
@@ -58,6 +61,14 @@ export class NewConversationModalComponent implements OnChanges {
 
   /** Clientes por defecto: es el flujo pedido (staff -> cliente). */
   readonly audience = signal<ConversationAudience>('clients');
+  readonly audienceOptions: SegmentedOption<ConversationAudience>[] = [
+    { id: 'clients', label: 'Clients' },
+    { id: 'team', label: 'Team' },
+  ];
+  readonly modeOptions: SegmentedOption<'direct' | 'group'>[] = [
+    { id: 'direct', label: 'Direct' },
+    { id: 'group', label: 'Group' },
+  ];
   readonly mode = signal<'direct' | 'group'>('direct');
   readonly searchTerm = signal('');
   readonly groupTitle = signal('');
@@ -130,13 +141,4 @@ export class NewConversationModalComponent implements OnChanges {
     this.groupCreateRequested.emit({ title, members });
   }
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
 }

@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import {
   CustomerImportAttempt,
   ImportStatus,
@@ -17,7 +18,7 @@ import {
  */
 @Component({
   selector: 'app-client-import-progress-step',
-  imports: [CommonModule, CountUpDirective],
+  imports: [CommonModule, StatCardsComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-progress-step.component.html',
   styleUrl: './client-import-progress-step.component.css',
@@ -38,6 +39,17 @@ export class ClientImportProgressStepComponent {
 
   get canCancel(): boolean {
     return isCancelableImport(this.attempt.status);
+  }
+
+  /** Contadores en vivo del intento. */
+  get stats(): StatCardItem[] {
+    const attempt = this.attempt;
+    return [
+      { label: 'Created', value: attempt.successCount, countUp: true },
+      { label: 'Updated', value: attempt.updatedCount, countUp: true },
+      { label: 'Skipped', value: attempt.skippedCount, countUp: true },
+      { label: 'Failed', value: attempt.failedCount, countUp: true },
+    ];
   }
 
   get statusLabel(): string {

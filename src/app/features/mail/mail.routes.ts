@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { MailPageComponent } from './components/mail-page/mail-page.component';
 
 export const MAIL_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/mail-page/mail-page.component').then(m => m.MailPageComponent),
+    component: MailPageComponent,
     title: 'Mail',
   },
 ];

@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { toDataURL } from 'qrcode';
 import { AuthService } from '@core/auth/auth.service';
 import { MfaService } from '@core/auth/mfa.service';
 import { SetupTotpResponse } from '@core/auth/mfa.model';
@@ -55,7 +54,9 @@ export class MfaSetupPageComponent implements OnInit {
           this.setup.set(res);
           this.loadingSetup.set(false);
           // El QR se dibuja en el cliente; si la generación falla, el usuario usa la clave manual.
-          toDataURL(res.otpAuthUri, { width: 200, margin: 1 })
+          // La librería de QR solo se descarga al abrir el alta de MFA.
+          import('qrcode')
+            .then(({ toDataURL }) => toDataURL(res.otpAuthUri, { width: 200, margin: 1 }))
             .then(url => this.qrDataUrl.set(url))
             .catch(() => this.qrDataUrl.set(null));
         },

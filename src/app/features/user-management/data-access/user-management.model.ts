@@ -1,3 +1,4 @@
+import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
 import { TeamMember } from '../ui/user-table/user-table.component';
 
 /** Espejo de TaxVision.Auth.Domain.Users.UserActorType (viaja como string por JsonStringEnumConverter). */
@@ -248,21 +249,6 @@ export interface EligibleSuccessor {
 
 // ---------- Adaptadores backend -> TeamMember (shape de la UI existente) ----------
 
-const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500'];
-
-export function pickAvatarColor(seed: string): string {
-  const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
-
-export function deriveInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length >= 2) {
-    return `${words[0].charAt(0)}${words[words.length - 1].charAt(0)}`.toUpperCase();
-  }
-  return (words[0] ?? 'NM').slice(0, 2).toUpperCase();
-}
-
 /** Turns "sofia.martinez@taxprooffice.com" into "Sofia Martinez" for invitation rows (no name yet). */
 function deriveNameFromEmail(email: string): string {
   const localPart = email.split('@')[0] ?? '';
@@ -304,8 +290,8 @@ export function userToTeamMember(user: UserSummary): TeamMember {
     id: user.id,
     kind: 'user',
     name,
-    initials: deriveInitials(name),
-    avatarColor: pickAvatarColor(user.email),
+    initials: initialsOf(name, { fallback: 'NM' }),
+    avatarColor: avatarColorFor(user.email),
     email: user.email,
     roleNames: user.roles,
     actorType: user.actorType,
@@ -326,8 +312,8 @@ export function invitationToTeamMember(invitation: InvitationSummary): TeamMembe
     id: invitation.id,
     kind: 'invitation',
     name,
-    initials: deriveInitials(name),
-    avatarColor: pickAvatarColor(invitation.email),
+    initials: initialsOf(name, { fallback: 'NM' }),
+    avatarColor: avatarColorFor(invitation.email),
     email: invitation.email,
     roleNames: [],
     actorType: invitation.actorType,

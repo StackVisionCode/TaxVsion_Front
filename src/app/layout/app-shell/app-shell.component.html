@@ -27,5 +27,9 @@
   </div>
 </div>
 
-<!-- Overlay global de llamada 1:1 (entrante/saliente/en curso, en cualquier página). -->
-<app-call-overlay></app-call-overlay>
+<!-- Overlay global de llamada 1:1 (entrante/saliente/en curso, en cualquier página). Diferido: su código
+     (~55 KB) se descarga en idle y se monta con la primera llamada, no en el arranque. El servicio de
+     llamadas sí queda activo desde el inicio para recibir las entrantes. -->
+@defer (when activeCall.phase() !== 'idle'; prefetch on idle) {
+  <app-call-overlay></app-call-overlay>
+}

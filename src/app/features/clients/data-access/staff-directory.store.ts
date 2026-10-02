@@ -3,14 +3,12 @@ import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 
-/** Miembro del staff del tenant, resuelto para pickers y avatares (userId → nombre/iniciales/color). */
+/** Miembro del staff del tenant, resuelto para pickers y avatares (`<app-avatar [name] [seed]="userId">`). */
 export interface StaffMember {
   userId: string;
   name: string;
   email: string;
   actorType: string;
-  initials: string;
-  avatarColor: string;
   /** Puede trabajar hoy. Un suspendido conserva sus asignaciones; un retirado ya no tiene ninguna. */
   isActive: boolean;
   /** Active | Deactivated | Offboarded (espejo de Auth). */
@@ -32,7 +30,6 @@ interface AuthUserPage {
   totalPages: number;
 }
 
-const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 const PAGE_SIZE = 100;
 
 /**
@@ -114,24 +111,7 @@ function toStaffMember(u: AuthUserRow): StaffMember {
     name,
     email: u.email,
     actorType: u.actorType,
-    initials: deriveInitials(name),
-    avatarColor: pickAvatarColor(u.id),
     isActive: u.isActive,
     status: u.status ?? (u.isActive ? 'Active' : 'Deactivated'),
   };
-}
-
-function deriveInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  return words.length >= 2
-    ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
-    : name.substring(0, 2).toUpperCase();
-}
-
-function pickAvatarColor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  }
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }

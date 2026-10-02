@@ -10,8 +10,13 @@ import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-m
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { toApiError } from '@core/models/api-error.model';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
@@ -69,6 +74,10 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
+    StatCardsComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StateBlockComponent,
     SignatureTemplatePickerComponent,
     SignatureCategoryPickerComponent,
     SignatureCategoryManagerComponent,
@@ -81,8 +90,12 @@ export class SignaturePageComponent {
   protected readonly can = inject(SignatureCapabilities);
 
   readonly store = inject(SignatureStore);
+  private readonly toast = inject(ToastService);
 
-  readonly statusFilters = STATUS_FILTERS;
+  readonly statusFilters: FilterChipOption<SignatureStatusFilter>[] = STATUS_FILTERS.map(id => ({
+    id,
+    label: STATUS_FILTER_LABEL[id],
+  }));
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
@@ -98,8 +111,6 @@ export class SignaturePageComponent {
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
-
-  readonly toastMessage = signal<string | null>(null);
 
   // ---------- Modales de acción ----------
   readonly cancelTarget = signal<SignatureRequest | null>(null);
@@ -174,14 +185,21 @@ export class SignaturePageComponent {
     return stats ? `${Math.round(stats.completionRate * 100)}%` : '—';
   });
 
+  /** Stats row (analytics del backend; "—" mientras carga o si analytics falla). */
+  readonly statItems = computed<StatCardItem[]>(() => {
+    const stats = this.store.stats();
+    return [
+      { label: 'Total requests', value: this.statValue(stats?.totalRequests) },
+      { label: 'In progress', value: this.statValue(stats?.inProgress) },
+      { label: 'Completed this month', value: this.statValue(stats?.completedThisMonth) },
+      { label: 'Completion rate', value: this.completionRateLabel() },
+    ];
+  });
+
   statValue(value: number | undefined | null): string {
     // `== null` cubre null Y undefined: el backend puede devolver un stat en null (no solo ausente),
     // y formatNumber reventaba con "Cannot read properties of null (reading 'toLocaleString')".
     return value == null ? '—' : this.formatNumber(value);
-  }
-
-  filterLabel(filter: SignatureStatusFilter): string {
-    return STATUS_FILTER_LABEL[filter];
   }
 
   setFilter(filter: SignatureStatusFilter): void {
@@ -245,7 +263,7 @@ export class SignaturePageComponent {
   handleTemplateInstantiated(result: { detail: { title: string }; sent: boolean }): void {
     this.closeTemplatePicker();
     this.store.reloadTop();
-    this.showToast(
+    this.toast.success(
       result.sent
         ? `Sent to signers — "${result.detail.title}"`
         : `Saved as draft — "${result.detail.title}" is still scanning; send it from the list`,
@@ -265,7 +283,7 @@ export class SignaturePageComponent {
     this.closePanel();
     // La solicitud enviada queda InProgress: cae en "All" (no en el filtro previo, p. ej. Drafts).
     this.store.setStatusFilter('All');
-    this.showToast('Signature request sent — signers were notified by email');
+    this.toast.success('Signature request sent — signers were notified by email');
   }
 
   /** El wizard guardó la solicitud como borrador sin enviarla. */
@@ -273,7 +291,7 @@ export class SignaturePageComponent {
     this.closePanel();
     // Cae en la pestaña Drafts (donde está el borrador recién guardado), no en el filtro previo.
     this.store.setStatusFilter('Drafts');
-    this.showToast('Saved as draft — finish it from the Drafts tab when you are ready');
+    this.toast.success('Saved as draft — finish it from the Drafts tab when you are ready');
   }
 
   // ---------- Editar borrador (metadata) ----------
@@ -312,7 +330,7 @@ export class SignaturePageComponent {
         next: () => {
           this.actionBusy.set(false);
           this.editTarget.set(null);
-          this.showToast(`Draft "${this.editTitle().trim()}" updated`);
+          this.toast.success(`Draft "${this.editTitle().trim()}" updated`);
         },
         error: err => {
           this.actionBusy.set(false);
@@ -359,7 +377,7 @@ export class SignaturePageComponent {
         if (this.previewRequest()?.id === target.id) {
           this.previewRequest.set(null);
         }
-        this.showToast(`Draft "${target.documentName}" deleted`);
+        this.toast.success(`Draft "${target.documentName}" deleted`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -394,17 +412,17 @@ export class SignaturePageComponent {
               this.previewRequest.set(updated);
             }
             this.sendingRequest.set(false);
-            this.showToast('Signature request sent — signers were notified by email');
+            this.toast.success('Signature request sent — signers were notified by email');
           },
           error: () => {
             this.sendingRequest.set(false);
-            this.showToast('Sent — reopen the request to see the latest status');
+            this.toast.info('Sent — reopen the request to see the latest status');
           },
         });
       },
       error: err => {
         this.sendingRequest.set(false);
-        this.showToast(toApiError(err).message);
+        this.toast.error(toApiError(err).message);
       },
     });
   }
@@ -414,8 +432,8 @@ export class SignaturePageComponent {
   /** Acción de la fila: reenvía la invitación a todos los firmantes pendientes. */
   resendReminder(request: SignatureRequest): void {
     this.store.resendAllPending(request).subscribe({
-      next: () => this.showToast(`Reminder resent for "${request.documentName}"`),
-      error: err => this.showToast(toApiError(err).message),
+      next: () => this.toast.success(`Reminder resent for "${request.documentName}"`),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -424,8 +442,8 @@ export class SignaturePageComponent {
       return;
     }
     this.store.resendSigner(event.request.id, event.signer.id).subscribe({
-      next: () => this.showToast(`Invitation resent to ${event.signer.name}`),
-      error: err => this.showToast(toApiError(err).message),
+      next: () => this.toast.success(`Invitation resent to ${event.signer.name}`),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -458,7 +476,7 @@ export class SignaturePageComponent {
         if (this.previewRequest()?.id === target.id) {
           this.previewRequest.set(null);
         }
-        this.showToast(`Signature request "${target.documentName}" canceled`);
+        this.toast.success(`Signature request "${target.documentName}" canceled`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -506,7 +524,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.pinTarget.set(null);
-        this.showToast(`${verb} "${target.documentName}"`);
+        this.toast.success(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -584,7 +602,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.preparerTarget.set(null);
-        this.showToast(`${verb} "${target.documentName}"`);
+        this.toast.success(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -624,7 +642,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.extendTarget.set(null);
-        this.showToast(`Expiration extended by ${hours}h for "${target.documentName}"`);
+        this.toast.success(`Expiration extended by ${hours}h for "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -655,16 +673,7 @@ export class SignaturePageComponent {
       next: url => {
         window.open(url, '_blank', 'noopener');
       },
-      error: err => this.showToast(`${label}: ${toApiError(err).message}`),
+      error: err => this.toast.error(`${label}: ${toApiError(err).message}`),
     });
-  }
-
-  private showToast(message: string): void {
-    this.toastMessage.set(message);
-    setTimeout(() => {
-      if (this.toastMessage() === message) {
-        this.toastMessage.set(null);
-      }
-    }, 2500);
   }
 }

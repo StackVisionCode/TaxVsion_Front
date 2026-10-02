@@ -1,7 +1,6 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
-  HostListener,
   Input,
   OnChanges,
   computed,
@@ -12,9 +11,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { PermissionService } from '@core/auth/permission.service';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { ClientWorkFormComponent } from '../client-work-form/client-work-form.component';
 import { ClientWorkStore } from '../../data-access/client-work.store';
 import {
@@ -42,7 +44,17 @@ const TASKS_WRITE = 'tasks.write';
  */
 @Component({
   selector: 'app-client-profile-work',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, ClientWorkFormComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    ConfirmDialogComponent,
+    ClientWorkFormComponent,
+    StateBlockComponent,
+    AvatarComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-work.component.html',
   styleUrl: './client-profile-work.component.css',
@@ -60,8 +72,6 @@ export class ClientProfileWorkComponent implements OnChanges {
   readonly canRead = computed(() => this.perms.has(TASKS_READ));
   readonly canWrite = computed(() => this.perms.has(TASKS_WRITE));
 
-  /** Menú de acciones abierto (uno por fila). */
-  readonly openMenuId = signal<string | null>(null);
   /** Sección de Cancelled plegada por defecto (ruido histórico). */
   readonly showCancelled = signal(false);
 
@@ -97,14 +107,6 @@ export class ClientProfileWorkComponent implements OnChanges {
     }
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="work-row-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
-
   retry(): void {
     this.store.refresh();
   }
@@ -119,14 +121,8 @@ export class ClientProfileWorkComponent implements OnChanges {
 
   // ---------- Menú de fila ----------
 
-  toggleMenu(task: WorkTaskItem, event: Event): void {
-    event.stopPropagation();
-    this.openMenuId.update(current => (current === task.id ? null : task.id));
-  }
-
   /** Transición directa (start/complete/reopen). Waiting va por el diálogo dedicado. */
   moveTo(task: WorkTaskItem, target: WorkColumnId): void {
-    this.openMenuId.set(null);
     this.store.moveTo(task, target);
   }
 
@@ -139,7 +135,6 @@ export class ClientProfileWorkComponent implements OnChanges {
   }
 
   openEdit(task: WorkTaskItem): void {
-    this.openMenuId.set(null);
     this.editingTask.set(task);
     this.formError.set(null);
     this.isFormOpen.set(true);
@@ -173,7 +168,6 @@ export class ClientProfileWorkComponent implements OnChanges {
   // ---------- Request from client (wait-on-client) ----------
 
   openWait(task: WorkTaskItem): void {
-    this.openMenuId.set(null);
     this.waitTask.set(task);
     this.waitItems.set(task.expectedItems);
     this.waitDue.set(task.clientDueAtUtc ? task.clientDueAtUtc.slice(0, 10) : '');
@@ -210,7 +204,6 @@ export class ClientProfileWorkComponent implements OnChanges {
   // ---------- Cancel ----------
 
   openCancel(task: WorkTaskItem): void {
-    this.openMenuId.set(null);
     this.cancelTaskItem.set(task);
     this.cancelReason.set('');
     this.cancelError.set(null);
@@ -245,7 +238,6 @@ export class ClientProfileWorkComponent implements OnChanges {
   // ---------- Delete ----------
 
   requestDelete(task: WorkTaskItem): void {
-    this.openMenuId.set(null);
     this.pendingDelete.set(task);
   }
 

@@ -13,11 +13,8 @@
         <ul class="flex flex-col gap-2">
           @for (row of assignees(); track row.userId) {
             <li class="flex items-center gap-3 rounded-xl border border-gray-100 p-2">
-              <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                [ngClass]="row.member?.avatarColor ?? 'bg-slate-400'"
-                >{{ row.member?.initials ?? '?' }}</span
-              >
+              <app-avatar [name]="row.member?.name ?? null" [seed]="row.userId" [colorClass]="row.member ? null : 'bg-slate-400'"
+                sizeClass="h-9 w-9 text-xs" />
               <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
                   <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
@@ -79,11 +76,7 @@
                   [disabled]="saving()"
                   class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
                 >
-                  <span
-                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    [ngClass]="m.avatarColor"
-                    >{{ m.initials }}</span
-                  >
+                  <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[10px]" />
                   <div class="min-w-0 flex-1">
                     <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
                     <p class="truncate text-xs text-gray-500">{{ m.email }}</p>
@@ -115,11 +108,7 @@
         <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Assign to</p>
         @if (bulkTarget(); as t) {
           <div class="flex items-center gap-3 rounded-xl border border-gray-100 p-2">
-            <span
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-              [ngClass]="t.avatarColor"
-              >{{ t.initials }}</span
-            >
+            <app-avatar [name]="t.name" [seed]="t.userId" sizeClass="h-9 w-9 text-xs" />
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-gray-900">{{ t.name }}</p>
               <p class="truncate text-xs text-gray-500">{{ t.email }}</p>
@@ -157,11 +146,7 @@
                       (click)="selectTarget(m)"
                       class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
                     >
-                      <span
-                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        [ngClass]="m.avatarColor"
-                        >{{ m.initials }}</span
-                      >
+                      <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[10px]" />
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
                         <p class="truncate text-xs text-gray-500">{{ m.email }}</p>

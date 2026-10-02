@@ -9,16 +9,6 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      @if (toast(); as t) {
-        <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium"
-          [ngClass]="t.kind === 'success'
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-            : 'bg-red-50 text-red-700 border-red-100'">
-          <ion-icon [name]="t.kind === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'"
-            class="text-sm"></ion-icon>
-          {{ t.message }}
-        </span>
-      }
       @if (store.loaded()) {
         <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
           [ngClass]="store.enabled() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
@@ -30,24 +20,10 @@
     </div>
   </div>
 
-  <!-- Carga inicial -->
-  @if (store.loading() && !store.loaded()) {
-    <div class="mt-5 flex items-center gap-3 text-sm text-gray-400">
-      <span class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></span>
-      Loading two-step verification…
-    </div>
-  }
-
-  <!-- Error de carga: sin datos que mostrar todavía -->
-  @if (!store.loaded() && !store.loading() && store.error(); as err) {
-    <div class="mt-5 flex flex-wrap items-center gap-3">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="store.load()"
-        class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-        <ion-icon name="refresh-outline" class="text-xs"></ion-icon>
-        Retry
-      </button>
-    </div>
+  <!-- Carga inicial / error de carga (sin datos que mostrar todavía) -->
+  @if (!store.loaded() && (store.loading() || store.error())) {
+    <app-state-block class="mt-5 block" variant="inline" [loading]="store.loading()" [error]="store.error()"
+      loadingText="Loading two-step verification…" (retry)="store.load()"></app-state-block>
   }
 
   @if (store.loaded()) {

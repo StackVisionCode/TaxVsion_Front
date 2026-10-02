@@ -11,11 +11,11 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { formatBytes, formatMoney } from '@shared/utils/format.util';
 import { toApiError } from '@core/models/api-error.model';
 import { Plan } from '@core/plans/plan.model';
 import { PlansService } from '@core/plans/plans.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 
 export type BillingCycle = 'Monthly' | 'Yearly';
 
@@ -109,12 +109,7 @@ export class PlanPickerModalComponent implements OnChanges {
 
   /** "$129" o "$1,290" — sin decimales cuando son redondos, como en el resto de la app. */
   formatPrice(amount: number): string {
-    return amount.toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    });
+    return formatMoney(amount, 'USD', { minFraction: amount % 1 === 0 ? 0 : 2 });
   }
 
   cycleSuffix(): string {

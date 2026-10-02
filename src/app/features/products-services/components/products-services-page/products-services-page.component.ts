@@ -1,10 +1,15 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { ServiceCatalogComponent } from '../../ui/service-catalog/service-catalog.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { formatMoney } from '@shared/utils/format.util';
 import { CatalogStore } from '../../data-access/catalog.store';
 import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '../../data-access/catalog.model';
 
@@ -17,7 +22,17 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
  */
 @Component({
   selector: 'app-products-services-page',
-  imports: [CommonModule, FormsModule, ServiceCatalogComponent, ModalComponent, ConfirmDialogComponent],
+  imports: [
+    SwitchComponent,
+    CommonModule,
+    FormsModule,
+    ServiceCatalogComponent,
+    ModalComponent,
+    ConfirmDialogComponent,
+    StatCardsComponent,
+    StateBlockComponent,
+    FilterChipsComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './products-services-page.component.html',
 })
@@ -31,6 +46,11 @@ export class ProductsServicesPageComponent implements OnInit {
   readonly kindFilter = signal<'all' | 'Product' | 'Service'>('all');
   readonly productCount = computed(() => this.store.entries().filter(e => e.kind === 'Product').length);
   readonly serviceCount = computed(() => this.store.entries().filter(e => e.kind === 'Service').length);
+  readonly kindOptions = computed<FilterChipOption<'all' | 'Product' | 'Service'>[]>(() => [
+    { id: 'all', label: 'All', count: this.store.entries().length },
+    { id: 'Product', label: 'Products', count: this.productCount() },
+    { id: 'Service', label: 'Services', count: this.serviceCount() },
+  ]);
   readonly filteredEntries = computed(() => {
     const kind = this.kindFilter();
     const entries = this.store.entries();
@@ -44,6 +64,13 @@ export class ProductsServicesPageComponent implements OnInit {
     return Math.round(services.reduce((sum, s) => sum + s.price, 0) / services.length);
   });
 
+  readonly stats = computed<StatCardItem[]>(() => [
+    { label: 'Total services', value: this.store.total() },
+    { label: 'Active', value: this.activeCount() },
+    { label: 'Avg. price', value: formatMoney(this.avgPrice(), 'USD', { minFraction: 0 }) },
+    { label: 'Categories', value: this.store.categories().length },
+  ]);
+
   // ---------- Modal de crear/editar ----------
 
   readonly isAddOpen = signal(false);
@@ -55,6 +82,10 @@ export class ProductsServicesPageComponent implements OnInit {
   readonly newCategoryId = signal('');
   /** Kind solo editable al crear: el backend no permite cambiar el tipo de un ítem. */
   readonly newKind = signal<CatalogItemKind>('Service');
+  readonly newKindOptions: FilterChipOption<CatalogItemKind>[] = [
+    { id: 'Service', label: 'Service' },
+    { id: 'Product', label: 'Product' },
+  ];
   readonly newActive = signal(true);
   readonly saving = signal(false);
   readonly saveError = signal<string | null>(null);

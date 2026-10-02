@@ -14,20 +14,18 @@
   </div>
 
   <!-- Cargando / error de Communication / nada agendado -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || calls().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Meetings aren't available" icon="videocam-outline" title="No meetings scheduled"
-    message="Schedule a meeting and it will show up here." minHeight="13rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || calls().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="videocam-outline" emptyTitle="No meetings scheduled"
+    emptyMessage="Schedule a meeting and it will show up here." minHeight="13rem"
+    (retry)="retry()"></app-state-block>
 
   <!-- Call list (reuniones reales del tenant) -->
   <div *ngIf="!loading() && !error() && calls().length > 0" class="mt-4 flex flex-col gap-1">
-    <div *ngFor="let call of calls(); let i = index; trackBy: trackByCallId"
+    <div *ngFor="let call of calls(); trackBy: trackByCallId"
       class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 transition-colors">
 
       <!-- Avatar -->
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-        [ngClass]="avatarBg(i)">
-        {{ initialsOf(call.title) }}
-      </span>
+      <app-avatar [name]="call.title" [seed]="call.id" sizeClass="h-10 w-10 text-xs" />
 
       <!-- Title + status line -->
       <div class="min-w-0 flex-1">

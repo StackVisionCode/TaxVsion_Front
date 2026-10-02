@@ -1,17 +1,14 @@
-@if (task) {
-  <!-- Backdrop -->
-  <div class="drawer-backdrop fixed inset-0 z-40 bg-black/30" (click)="close()"></div>
-
-  <!-- Panel -->
-  <aside class="drawer-panel fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl"
-    role="dialog" aria-modal="true" [attr.aria-label]="'Task detail: ' + task.title">
+<!-- Shell compartido (backdrop, Escape, focus-trap, scroll lock, salida animada). El cuerpo es una
+     columna sin scroll propio: cabecera y pie quedan fijos y solo la sección central scrollea. -->
+<app-drawer [isOpen]="!!task" width="md" bodyClass="!overflow-hidden flex flex-col"
+  [ariaLabel]="'Task detail: ' + (shown()?.title ?? '')" (closed)="close()">
+@if (shown(); as task) {
 
     <!-- Header -->
     <div class="flex items-start justify-between gap-3 border-b border-gray-100 p-6">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-            [ngClass]="statusColor(task.apiStatus)">{{ statusLabel(task.apiStatus) }}</span>
+          <app-status-pill [tone]="statusTone(task.apiStatus)" [soft]="true" [dot]="false">{{ statusLabel(task.apiStatus) }}</app-status-pill>
           <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
           @if (task.isBlocked) {
@@ -71,8 +68,11 @@
         <div>
           <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Assignee</p>
           <div class="mt-0.5 flex items-center gap-2">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-              [ngClass]="task.assigneeColor">{{ task.assigneeInitials }}</span>
+            @if (task.assigneeUserId) {
+              <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" size="xs" />
+            } @else {
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+            }
             <span class="text-sm text-gray-800">{{ task.assigneeName }}</span>
           </div>
         </div>
@@ -287,5 +287,5 @@
         Edit details
       </button>
     </div>
-  </aside>
 }
+</app-drawer>

@@ -13,11 +13,9 @@
           [ngClass]="categoryChip(tpl.category)">
           {{ tpl.category }}
         </span>
-        <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-          [ngClass]="statusChip(tpl.status)">
-          <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(tpl.status)"></span>
-          {{ statusLabel(tpl.status) }}
-        </span>
+        <app-status-pill [tone]="statusPill[tpl.status].tone" [dotClass]="statusPill[tpl.status].dotClass ?? ''">
+          {{ statusLabel[tpl.status] }}
+        </app-status-pill>
         <span *ngIf="!tpl.isEditable"
           class="inline-block rounded-full border border-gray-200 px-3 py-0.5 text-xs font-medium text-gray-400">
           System template
@@ -56,25 +54,13 @@
   <div class="mt-6 rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Body</p>
 
-    <div *ngIf="bodyLoading" class="mt-3 flex items-center gap-2 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-      Loading content…
-    </div>
-
-    <div *ngIf="!bodyLoading && bodyError as err" class="mt-3 flex flex-col items-start gap-2">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="retry(tpl)"
-        class="rounded-full border border-gray-200 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
-        Retry
-      </button>
-    </div>
-
-    <ng-container *ngIf="!bodyLoading && !bodyError">
+    <app-state-block class="block" variant="inline" [loading]="bodyLoading" [error]="bodyError"
+      loadingText="Loading content…" (retry)="retry(tpl)">
       <pre *ngIf="body"
         class="mt-2 max-h-[420px] overflow-auto whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-gray-700">{{ body }}</pre>
       <p *ngIf="!body" class="mt-2 text-sm text-gray-400">
         This template has no published content yet.
       </p>
-    </ng-container>
+    </app-state-block>
   </div>
 </div>

@@ -1,3 +1,5 @@
+import { StatusTone } from '@shared/ui/status-pill/status-pill.component';
+
 /**
  * Asientos de la suscripción, tal como los usa la administración de usuarios: comprarlos y decidir quién
  * ocupa cada uno. Los montos vienen en centavos y el precio SIEMPRE lo resuelve el backend.
@@ -143,19 +145,19 @@ const WARNING_STATES = ['pastdue', 'graceperiod', 'suspended'];
 const ENDED_STATES = ['cancelled', 'canceled', 'expired', 'released'];
 
 /**
- * Tono visual del estado. Se compara en minúsculas y cualquier valor que el
+ * Tono (de `app-status-pill`) del estado. Se compara en minúsculas y cualquier valor que el
  * backend agregue en el futuro cae en `neutral` en vez de pintarse como error.
  */
-export function statusTone(status: string): 'active' | 'warning' | 'ended' | 'neutral' {
+export function statusTone(status: string): StatusTone {
   const value = status?.toLowerCase() ?? '';
   if (ACTIVE_STATES.includes(value)) {
-    return 'active';
+    return 'success';
   }
   if (WARNING_STATES.includes(value)) {
     return 'warning';
   }
   if (ENDED_STATES.includes(value)) {
-    return 'ended';
+    return 'muted';
   }
   return 'neutral';
 }

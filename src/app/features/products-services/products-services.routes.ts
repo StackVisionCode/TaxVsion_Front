@@ -1,12 +1,10 @@
 import { Routes } from '@angular/router';
+import { ProductsServicesPageComponent } from './components/products-services-page/products-services-page.component';
 
 export const PRODUCTS_SERVICES_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/products-services-page/products-services-page.component').then(
-        m => m.ProductsServicesPageComponent,
-      ),
+    component: ProductsServicesPageComponent,
     title: 'Products & Services',
   },
 ];

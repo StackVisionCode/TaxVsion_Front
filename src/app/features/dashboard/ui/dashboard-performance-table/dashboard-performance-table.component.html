@@ -3,7 +3,8 @@
   <p class="mt-1 text-sm text-gray-500">Automated processing runs</p>
 
   <!-- Sin endpoint de métricas de procesos: estado vacío, nunca cifras de adorno -->
-  <app-dashboard-widget-state icon="analytics-outline" title="Processing analytics aren't available yet"
-    message="Accuracy and duration tracking for automated runs isn't reported by the platform yet."
-    minHeight="12rem"></app-dashboard-widget-state>
+  <app-state-block [empty]="true" variant="inline" icon="analytics-outline"
+    emptyTitle="Processing analytics aren't available yet"
+    emptyMessage="Accuracy and duration tracking for automated runs isn't reported by the platform yet."
+    minHeight="12rem"></app-state-block>
 </div>

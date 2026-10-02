@@ -16,10 +16,9 @@ import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
-import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { avatarColorFor } from '@shared/utils/avatar.util';
 import { chatStartErrorMessage } from './chat-start-error';
-
-const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 /** Corta el "typing" saliente tras esta inactividad (además el server auto-expira). */
 const TYPING_IDLE_MS = 3000;
@@ -29,14 +28,6 @@ const TYPING_EXPIRY_MS = 6000;
 const RECORDING_HEARTBEAT_MS = 12000;
 /** Red de seguridad del indicador "grabando…" entrante si no llega `recording.stopped`. */
 const RECORDING_EXPIRY_MS = 22000;
-
-function avatarColorFor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
 
 /** Id local para mensajes optimistas (no viaja al backend: el socket usa su propio clientKey). */
 function newLocalId(): string {

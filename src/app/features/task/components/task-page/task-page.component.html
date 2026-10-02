@@ -1,23 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Stats row -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Total tasks</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">In progress</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ inProgressCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Overdue</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ overdueCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Completed this week</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ completedThisWeekCount() }}</p>
-    </div>
-  </div>
+  <app-stat-cards [items]="stats()" />
 
   <!-- Board card -->
   <div class="bg-white rounded-[28px] p-6">
@@ -52,18 +35,9 @@
 
     <!-- Filter bar (búsqueda server-side, prioridad client-side) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <div class="flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-        <input type="text" placeholder="Search tasks" [ngModel]="store.search()" name="search"
-          (ngModelChange)="onSearchChange($event)"
-          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
+      <app-search-input placeholder="Search tasks" [value]="store.search()" (valueChange)="onSearchChange($event)" />
 
-      <button *ngFor="let option of priorityFilters" type="button" (click)="setFilter(option)"
-        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="activeFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        {{ option }}
-      </button>
+      <app-filter-chips [options]="priorityFilters" [value]="activeFilter()" (valueChange)="setFilter($event)" />
 
       <!-- Board / List toggle -->
       <div class="ml-auto flex items-center rounded-full border border-gray-200 p-0.5">
@@ -127,23 +101,9 @@
         <app-task-calendar (taskOpened)="openFromCalendar($event)"></app-task-calendar>
       </div>
     } @else {
-      <!-- Estados de carga / error del tablero -->
-      <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-        Loading tasks…
-      </div>
-
-      <div *ngIf="!store.loading() && store.error() as err"
-        class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-        <p class="text-sm text-red-600">{{ err }}</p>
-        <button type="button" (click)="retryLoad()"
-          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          Retry
-        </button>
-      </div>
-
-      <!-- Board / List -->
-      <div *ngIf="!store.loading() && !store.error()" class="mt-5">
+      <!-- Estados de carga / error del tablero + Board / List -->
+      <app-state-block class="mt-5 block" [loading]="store.loading()" [error]="store.error()" loadingText="Loading tasks…"
+        (retry)="retryLoad()">
         @if (viewMode() === 'board') {
           <app-task-board [tasks]="visibleTasks()" [labelOverrides]="store.labelOverrides()" [canWrite]="canWrite()"
             (taskOpened)="openDrawer($event)" (statusChanged)="changeStatus($event)"></app-task-board>
@@ -157,7 +117,7 @@
           <app-pagination [currentPage]="store.searchPage()" [totalItems]="store.searchTotalCount()"
             [pageSize]="store.searchPageSize" (pageChange)="onSearchPageChange($event)"></app-pagination>
         }
-      </div>
+      </app-state-block>
     }
   </div>
 </div>

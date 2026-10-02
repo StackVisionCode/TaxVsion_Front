@@ -2,7 +2,8 @@ import { Component, EventEmitter, Input, Output, computed, inject, signal } from
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { formatMoney } from '@shared/utils/format.util';
 import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 
 /** Clave de sessionStorage donde se guarda el intentId antes del redirect, para pollear el estado al volver. */
@@ -59,7 +60,7 @@ export class SeatPurchaseModalComponent {
 
   readonly chargedTodayLabel = computed(() => {
     const quote = this.quote();
-    return quote ? this.money(quote.proratedTotalCents, quote.currency) : '—';
+    return quote ? formatMoney(quote.proratedTotalCents, quote.currency, { fromCents: true }) : '—';
   });
 
   readonly renewsAtLabel = computed(() => {
@@ -67,7 +68,7 @@ export class SeatPurchaseModalComponent {
     if (!quote) {
       return '—';
     }
-    return `${this.money(quote.unitAmountCents * this.quantity(), quote.currency)}/${this.cycleWord(quote.billingCycle)}`;
+    return `${formatMoney(quote.unitAmountCents * this.quantity(), quote.currency, { fromCents: true })}/${this.cycleWord(quote.billingCycle)}`;
   });
 
   setQuantity(value: number): void {
@@ -137,10 +138,6 @@ export class SeatPurchaseModalComponent {
     this.store.clearQuote();
     this.store.loadQuote(this.seatType, 1);
     this.store.checkCardOnFile('Stripe');
-  }
-
-  private money(cents: number, currency: string): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
   }
 
   private cycleWord(cycle: string): string {

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureCategoryOption, signatureCategoryLabel } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 
 /**
  * Gestión de categorías del tenant (14.5 F4): renombrar y archivar/desarchivar las custom. Las de

@@ -5,7 +5,7 @@ import {
   AppNotification,
   NotificationType,
 } from '../../../notifications/ui/notification-list/notification-list.component';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /** Cuántos eventos caben en el widget sin convertirlo en la página completa. */
 const MAX_EVENTS = 6;
@@ -29,7 +29,7 @@ const MAX_EVENTS = 6;
  */
 @Component({
   selector: 'app-dashboard-recent-activity',
-  imports: [CommonModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-recent-activity.component.html',
 })
@@ -47,6 +47,10 @@ export class DashboardRecentActivityComponent implements OnInit {
     if (this.store.items().length === 0) {
       this.store.loadFirstPage();
     }
+  }
+
+  retry(): void {
+    this.store.loadFirstPage();
   }
 
   trackByEventId(_index: number, event: AppNotification): string {

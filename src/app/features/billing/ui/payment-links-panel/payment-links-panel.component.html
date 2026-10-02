@@ -22,19 +22,10 @@
   </div>
 
   <!-- Filtro por estado -->
-  <div class="mt-5 flex flex-wrap gap-2">
-    <button *ngFor="let status of statusFilters" type="button" (click)="statusFilterChanged.emit(status)"
-      class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-      [ngClass]="statusFilter === status
-        ? 'border-brand-bold bg-brand-bold text-white'
-        : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
-      {{ filterLabel(status) }}
-    </button>
-  </div>
+  <app-filter-chips class="mt-5" size="sm" [options]="filterOptions" [value]="statusFilter ?? 'All'"
+    (valueChange)="onFilterChip($event)"></app-filter-chips>
 
-  <p *ngIf="error" class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-    {{ error }}
-  </p>
+  <app-state-block *ngIf="error" class="mt-4 block" [error]="error" (retry)="refreshRequested.emit()"></app-state-block>
 
   <!-- Tabla -->
   <div class="mt-4 overflow-x-auto">
@@ -54,8 +45,7 @@
         <tr *ngFor="let link of links; trackBy: trackByLinkId; let last = last" class="group">
           <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
             [class.border-gray-100]="!last">
-            <span class="inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium"
-              [ngClass]="statusChip(link.status)">{{ link.status }}</span>
+            <app-status-pill [tone]="statusTone(link.status)" [soft]="true" [dot]="false">{{ link.status }}</app-status-pill>
           </td>
           <td class="px-4 py-3.5 text-right font-bold text-gray-900 transition-colors group-hover:bg-gray-50"
             [class.border-b]="!last" [class.border-gray-100]="!last">{{ money(link) }}</td>
@@ -90,15 +80,8 @@
       </tbody>
     </table>
 
-    <div *ngIf="links.length === 0 && !loading" class="px-4 py-10 text-center">
-      <ion-icon name="link-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No payment links here</p>
-    </div>
-
-    <div *ngIf="loading && links.length === 0" class="flex items-center justify-center gap-2 px-4 py-10 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-      Loading payment links…
-    </div>
+    <app-state-block *ngIf="links.length === 0" variant="inline" [loading]="loading" [empty]="true"
+      emptyTitle="No payment links here" icon="link-outline" loadingText="Loading payment links…"></app-state-block>
   </div>
 
   <!-- Paginación: el endpoint no devuelve total, así que solo prev/next -->

@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { SmsPageComponent } from './components/sms-page/sms-page.component';
 
 export const SMS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/sms-page/sms-page.component').then(m => m.SmsPageComponent),
+    component: SmsPageComponent,
     title: 'SMS',
   },
 ];

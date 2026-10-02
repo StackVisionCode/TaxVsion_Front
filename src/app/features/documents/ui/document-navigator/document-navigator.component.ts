@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StorageUsageResponse, WorkspaceSection } from '../../data-access/documents.model';
 
 /**
@@ -9,6 +10,7 @@ import { StorageUsageResponse, WorkspaceSection } from '../../data-access/docume
  */
 @Component({
   selector: 'app-document-navigator',
+  imports: [AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './document-navigator.component.html',
 })
@@ -24,15 +26,6 @@ export class DocumentNavigatorComponent {
   @Output() openShared = new EventEmitter<void>();
   @Output() openTrash = new EventEmitter<void>();
   @Output() openStorage = new EventEmitter<void>();
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
-  }
 
   get usedGb(): string {
     return this.usage ? (this.usage.usedBytes / 1024 ** 3).toFixed(1) : '0.0';

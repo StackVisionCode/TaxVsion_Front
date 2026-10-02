@@ -28,21 +28,10 @@
     </p>
   </div>
 
-  <!-- Carga -->
-  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-    Loading conversations…
-  </div>
-
-  <!-- Error del listado (incluye el 403 sin permiso de Correspondence) -->
-  <div *ngIf="!store.loading() && store.error() as err"
-    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-    <p class="text-sm text-red-600">{{ err }}</p>
-    <button type="button" (click)="retry()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-      Retry
-    </button>
-  </div>
+  <!-- Carga / error del listado (incluye el 403 sin permiso de Correspondence) -->
+  <app-state-block *ngIf="store.loading() || store.error()" class="mt-5 block" variant="inline"
+    loadingText="Loading conversations…" [loading]="store.loading()" [error]="store.error()"
+    (retry)="retry()"></app-state-block>
 
   <!-- Hilos -->
   <div *ngIf="!store.loading() && !store.error()" class="mt-4 flex flex-col gap-3">
@@ -54,11 +43,7 @@
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
           <p class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">{{ thread.subject }}</p>
-          <span class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="thread.statusChip">
-            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="thread.statusDot"></span>
-            {{ thread.statusLabel }}
-          </span>
+          <app-status-pill class="shrink-0" [toneClass]="thread.statusChip" [dotClass]="thread.statusDot">{{ thread.statusLabel }}</app-status-pill>
         </div>
         <p class="mt-1 text-xs text-gray-500">
           {{ thread.messageCountLabel }} · started {{ thread.firstMessageLabel }}
@@ -68,14 +53,8 @@
       <p class="shrink-0 text-xs text-gray-400">{{ thread.lastMessageLabel }}</p>
     </div>
 
-    <div *ngIf="visibleThreads().length === 0" class="rounded-2xl border border-gray-100 px-4 py-10 text-center">
-      <ion-icon name="mail-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">
-        {{ store.total() === 0 ? 'No email conversations recorded for this client yet' : 'No conversations match this filter' }}
-      </p>
-      <p *ngIf="store.total() === 0" class="mt-1 text-xs text-gray-400">
-        Threads appear here once a connected mailbox exchanges email with this client.
-      </p>
-    </div>
+    <app-state-block *ngIf="visibleThreads().length === 0" [empty]="true" icon="mail-outline"
+      [emptyTitle]="store.total() === 0 ? 'No email conversations recorded for this client yet' : 'No conversations match this filter'"
+      [emptyMessage]="store.total() === 0 ? 'Threads appear here once a connected mailbox exchanges email with this client.' : ''"></app-state-block>
   </div>
 </div>

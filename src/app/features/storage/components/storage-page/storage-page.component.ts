@@ -1,8 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { UsedStorageCardComponent } from '../../../../shared/ui/used-storage-card/used-storage-card.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-storage-card.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { formatBytes } from '@shared/utils/format.util';
 import { StorageStore } from '../../data-access/storage.store';
 import {
   CATEGORY_META,
@@ -12,8 +15,6 @@ import {
   formatShareDate,
 } from '../../data-access/storage.model';
 
-const GB = 1024 ** 3;
-const MB = 1024 ** 2;
 const PAGE_SIZE = 8;
 
 /** Fila de "mis archivos" cuando hay una categoría seleccionada. */
@@ -37,7 +38,7 @@ export interface CategoryFileRow {
  */
 @Component({
   selector: 'app-storage-page',
-  imports: [CommonModule, RouterLink, PaginationComponent, UsedStorageCardComponent],
+  imports: [CommonModule, RouterLink, PaginationComponent, UsedStorageCardComponent, StateBlockComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './storage-page.component.html',
   styleUrl: './storage-page.component.css',
@@ -198,15 +199,6 @@ export class StoragePageComponent implements OnInit {
   }
 
   formatBytes(bytes: number): string {
-    if (bytes <= 0) {
-      return '0 KB';
-    }
-    if (bytes >= GB) {
-      return `${(bytes / GB).toFixed(1)} GB`;
-    }
-    if (bytes >= MB) {
-      return `${Math.round(bytes / MB)} MB`;
-    }
-    return `${(bytes / 1024).toFixed(1)} KB`;
+    return formatBytes(bytes, { maxUnit: 'GB' });
   }
 }

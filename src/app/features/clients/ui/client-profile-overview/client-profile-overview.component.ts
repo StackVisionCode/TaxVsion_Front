@@ -8,8 +8,9 @@ import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsStore } from '../../data-access/clients.store';
 import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
 import { ClientAssignDialogComponent } from '../client-assign-dialog/client-assign-dialog.component';
-import { CountUpDirective } from '../../../../shared/directives/count-up.directive';
-import { formatPhoneForDisplay } from '../../utils/customer-form-normalizers';
+import { CountUpDirective } from '@shared/directives/count-up.directive';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { formatPhoneForDisplay } from '@shared/utils/phone.util';
 
 const LANGUAGE_LABELS: Record<CustomerLanguage, string> = {
   En: 'English',
@@ -56,7 +57,7 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
  */
 @Component({
   selector: 'app-client-profile-overview',
-  imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent],
+  imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-overview.component.html',
 })

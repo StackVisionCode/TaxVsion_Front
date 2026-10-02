@@ -41,34 +41,11 @@
   </div>
 
   <!-- Contadores en vivo -->
-  <div class="progress-block grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Created</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.successCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Updated</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.updatedCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Skipped</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.skippedCount">0</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Failed</p>
-      <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="attempt.failedCount">0</p>
-    </div>
-  </div>
+  <app-stat-cards class="progress-block block" [items]="stats"></app-stat-cards>
 
   <!-- El sondeo se detiene ante un error de red para no quemar el rate limit; se reanuda con Retry -->
-  <div *ngIf="pollError"
-    class="progress-block flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-red-100 bg-red-50 px-5 py-4">
-    <p class="text-sm text-red-600">Progress updates stopped: {{ pollError }}</p>
-    <button type="button" (click)="retryPollRequested.emit()"
-      class="shrink-0 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
-      Retry
-    </button>
-  </div>
+  <app-state-block *ngIf="pollError" class="progress-block block" [error]="'Progress updates stopped: ' + pollError"
+    (retry)="retryPollRequested.emit()"></app-state-block>
 
   <p *ngIf="cancelError" class="progress-block text-sm text-red-600">{{ cancelError }}</p>
 

@@ -4,16 +4,13 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { MfaMethodInfo, TrustedDeviceInfo } from '@core/auth/mfa.model';
 import { toApiError } from '@core/models/api-error.model';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
 import { sessionDeviceLabel, sessionIsMobile } from '../../data-access/profile.model';
 import { MfaEnrollModalComponent } from '../mfa-enroll-modal/mfa-enroll-modal.component';
 import { MfaPasswordModalComponent } from '../mfa-password-modal/mfa-password-modal.component';
 import { RecoveryCodesPanelComponent } from '../recovery-codes-panel/recovery-codes-panel.component';
-
-interface Toast {
-  message: string;
-  kind: 'success' | 'error';
-}
 
 /**
  * Sección "Two-step verification" de la página de perfil: estado real de MFA
@@ -34,6 +31,7 @@ interface Toast {
     MfaEnrollModalComponent,
     MfaPasswordModalComponent,
     RecoveryCodesPanelComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './two-step-verification.component.html',
@@ -46,17 +44,8 @@ export class TwoStepVerificationComponent {
     this.store.load();
   }
 
-  // ---------------------------------------------------------------------------
-  // Feedback puntual (mismo patrón de píldora que el resto de la página)
-  // ---------------------------------------------------------------------------
-  readonly toast = signal<Toast | null>(null);
-  private toastTimer?: ReturnType<typeof setTimeout>;
-
-  private showToast(message: string, kind: Toast['kind']): void {
-    this.toast.set({ message, kind });
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => this.toast.set(null), 4000);
-  }
+  // Feedback puntual: toast global.
+  private readonly toast = inject(ToastService);
 
   // ---------------------------------------------------------------------------
   // Alta (POST /auth/mfa/totp/setup + /confirm)
@@ -72,7 +61,7 @@ export class TwoStepVerificationComponent {
   }
 
   onEnrolled(): void {
-    this.showToast('Two-step verification is on', 'success');
+    this.toast.success('Two-step verification is on');
   }
 
   // ---------------------------------------------------------------------------
@@ -99,7 +88,7 @@ export class TwoStepVerificationComponent {
       next: () => {
         this.disableBusy.set(false);
         this.disableOpen.set(false);
-        this.showToast('Two-step verification is off', 'success');
+        this.toast.success('Two-step verification is off');
       },
       error: err => {
         this.disableBusy.set(false);
@@ -179,11 +168,11 @@ export class TwoStepVerificationComponent {
     this.store.revokeTrustedDevice(device.id).subscribe({
       next: () => {
         this.revokingId.set(null);
-        this.showToast('Device removed', 'success');
+        this.toast.success('Device removed');
       },
       error: err => {
         this.revokingId.set(null);
-        this.showToast(toApiError(err).message, 'error');
+        this.toast.error(toApiError(err).message);
       },
     });
   }

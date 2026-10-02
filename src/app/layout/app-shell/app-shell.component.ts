@@ -28,8 +28,6 @@ import { SubscriptionBannerComponent } from '../subscription-banner/subscription
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
-import { ChatStore } from '@features/chat/data-access/chat.store';
-import { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { SessionRevocationService } from '@core/auth/session-revocation.service';
 import { AccessSyncService } from '@core/access/access-sync.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
@@ -55,9 +53,7 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 })
 export class AppShellComponent implements OnInit, OnDestroy {
   private readonly socket = inject(ChatSocketService);
-  private readonly activeCall = inject(ActiveCallService);
-  private readonly chatStore = inject(ChatStore);
-  private readonly notificationsStore = inject(NotificationsStore);
+  protected readonly activeCall = inject(ActiveCallService);
   private readonly sessionRevocation = inject(SessionRevocationService);
   private readonly accessSync = inject(AccessSyncService);
   private readonly branding = inject(TenantBrandingService);
@@ -132,12 +128,16 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.socket.connect();
     // Llamadas 1:1: escuchar entrantes en cualquier página (el overlay global vive en el shell).
     this.activeCall.bindGlobalListeners();
-    // Notificaciones reales en vivo (campana del navbar) + badge de no-leídos del chat (sidebar).
-    this.notificationsStore.startRealtime();
+    // Notificaciones reales en vivo (campana del navbar) + badge de no-leídos del chat (sidebar). Sus stores
+    // se descargan aparte (fuera del bundle inicial) y arrancan en cuanto llegan; son providedIn root, así
+    // que navbar y sidebar reciben la misma instancia.
+    void import('@features/notifications/data-access/notifications.store').then(m =>
+      this.injector.get(m.NotificationsStore).startRealtime(),
+    );
     // B8 — el acceso se mantiene al día solo: `access.changed`, foco, reconexión y renovación de
     // token. Sin esto, quitarle un permiso a alguien exigía pedirle que recargara la página.
     this.accessSync.start(this.destroyRef);
-    this.chatStore.primeForBadge();
+    void import('@features/chat/data-access/chat.store').then(m => this.injector.get(m.ChatStore).primeForBadge());
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((revokedSid) => {

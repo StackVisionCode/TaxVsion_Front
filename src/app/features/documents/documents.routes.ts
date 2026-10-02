@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { DocumentsPageComponent } from './components/documents-page/documents-page.component';
 
 export const DOCUMENTS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/documents-page/documents-page.component').then(m => m.DocumentsPageComponent),
+    component: DocumentsPageComponent,
     title: 'Documents',
   },
 ];

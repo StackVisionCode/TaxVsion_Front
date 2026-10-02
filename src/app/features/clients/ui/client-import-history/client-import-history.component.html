@@ -11,38 +11,13 @@
     </button>
   </div>
 
-  <div *ngIf="loading" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-    Loading import history…
-  </div>
-
-  <div *ngIf="!loading && error as err"
-    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-    <p class="text-sm text-red-600">{{ err }}</p>
-    <button type="button" (click)="retryRequested.emit()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
-      Retry
-    </button>
-  </div>
-
-  <ng-container *ngIf="!loading && !error">
-    <!-- Empty state -->
-    <div *ngIf="attempts.length === 0"
-      class="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-brand-white px-6 py-12 text-center">
-      <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white">
-        <ion-icon name="time-outline" class="text-2xl text-brand-bold"></ion-icon>
-      </span>
-      <p class="mt-2 text-sm font-semibold text-gray-900">
-        {{ page > 1 ? 'Nothing on this page' : 'No imports yet' }}
-      </p>
-      <p class="max-w-sm text-sm text-gray-500">
-        {{ page > 1
-          ? 'Go back a page to see the imports that are already there.'
-          : 'Once you upload a client list, every run shows up here with its result.' }}
-      </p>
-    </div>
-
-    <div *ngIf="attempts.length > 0" class="mt-5 overflow-x-auto">
+  <app-state-block class="mt-5 block" icon="time-outline" loadingText="Loading import history…" [loading]="loading"
+    [error]="error" [empty]="attempts.length === 0" [emptyTitle]="page > 1 ? 'Nothing on this page' : 'No imports yet'"
+    [emptyMessage]="page > 1
+      ? 'Go back a page to see the imports that are already there.'
+      : 'Once you upload a client list, every run shows up here with its result.'"
+    (retry)="retryRequested.emit()">
+    <div class="overflow-x-auto">
       <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
@@ -109,19 +84,9 @@
       </table>
     </div>
 
-    <!-- El backend no devuelve total: sólo Prev/Next sobre el tamaño de página -->
-    <div *ngIf="attempts.length > 0 || page > 1" class="mt-4 flex items-center justify-between gap-3">
-      <p class="text-sm text-gray-500">Page {{ page }}</p>
-      <div class="flex items-center gap-2">
-        <button type="button" (click)="pageChange.emit(page - 1)" [disabled]="page <= 1"
-          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
-          Previous
-        </button>
-        <button type="button" (click)="pageChange.emit(page + 1)" [disabled]="!hasMore"
-          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">
-          Next
-        </button>
-      </div>
-    </div>
-  </ng-container>
+  </app-state-block>
+
+  <!-- El backend no devuelve total: sólo Prev/Next sobre el tamaño de página (paginación en modo cursor) -->
+  <app-pagination *ngIf="!loading && !error" mode="cursor" [currentPage]="page" [hasNext]="hasMore"
+    (pageChange)="pageChange.emit($event)"></app-pagination>
 </div>

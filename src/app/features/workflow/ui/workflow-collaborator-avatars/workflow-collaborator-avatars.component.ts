@@ -1,6 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { deriveInitials, pickAvatarColor } from '../../../user-management/data-access/user-management.model';
+import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
 import { WorkflowCollaborator } from '../../data-access/workflow.model';
 
 /**
@@ -32,11 +32,11 @@ export class WorkflowCollaboratorAvatarsComponent {
   }
 
   initials(collaborator: WorkflowCollaborator): string {
-    return deriveInitials(collaborator.name || collaborator.email);
+    return initialsOf(collaborator.name || collaborator.email);
   }
 
   color(collaborator: WorkflowCollaborator): string {
-    return pickAvatarColor(collaborator.email || collaborator.userId);
+    return avatarColorFor(collaborator.email || collaborator.userId);
   }
 
   title(collaborator: WorkflowCollaborator): string {

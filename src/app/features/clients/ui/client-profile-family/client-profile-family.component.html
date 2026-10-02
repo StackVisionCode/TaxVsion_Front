@@ -21,9 +21,7 @@
     </div>
 
     <div *ngIf="spouse() as sp; else noSpouse" class="family-row mt-4 flex items-center gap-4 rounded-2xl border border-gray-100 p-4">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white text-xs font-semibold">
-        {{ initials(sp.displayName) }}
-      </span>
+      <app-avatar [name]="sp.displayName" colorClass="bg-brand-bold" sizeClass="h-10 w-10 text-xs" />
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-semibold text-gray-900">{{ sp.displayName }}</p>
         <p class="truncate text-xs text-gray-400">{{ sp.primaryEmail || sp.primaryPhone || '—' }}</p>
@@ -69,9 +67,7 @@
 
     <div *ngIf="pagedDependents().length > 0; else noDependents" class="mt-3 flex flex-col divide-y divide-gray-100">
       <div *ngFor="let dependent of pagedDependents()" class="family-row flex items-center gap-4 py-3">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">
-          {{ initials(dependent.displayName) }}
-        </span>
+        <app-avatar [name]="dependent.displayName" [seed]="dependent.id" sizeClass="h-10 w-10 text-xs" />
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold text-gray-900">{{ dependent.displayName }}</p>
           <p class="text-xs text-gray-400">{{ dependent.relationshipKind }}</p>
@@ -104,7 +100,8 @@
 <!-- Add/Edit relation modal -->
 <app-modal [isOpen]="isFormOpen()" [heading]="editingId() ? 'Edit ' + formMode() : 'Add ' + formMode()" size="md" (closed)="closeForm()">
   <div class="family-form space-y-4">
-    <div *ngIf="formMode() === 'dependent'" class="space-y-1.5 relative" [attr.data-dropdown]="'dependent-relationship'">
+    <div *ngIf="formMode() === 'dependent'" class="space-y-1.5 relative" appClickOutside
+      [clickOutsideEnabled]="isRelationshipOpen()" (appClickOutside)="isRelationshipOpen.set(false)">
       <label class="block text-sm font-medium text-gray-800">Relationship</label>
       <button type="button" (click)="toggleRelationshipDropdown()"
         class="w-full flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:border-gray-300 transition-colors duration-200">

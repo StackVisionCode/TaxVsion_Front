@@ -1,14 +1,15 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   InvoiceStatus,
   InvoiceSummary,
   formatCents,
-  invoiceStatusChip,
-  invoiceStatusDot,
   invoiceStatusLabel,
+  invoiceStatusTone,
 } from '../../data-access/billing.model';
 
 /** Acción elegida en el menú de una fila. */
@@ -37,7 +38,7 @@ export type InvoiceAction =
  */
 @Component({
   selector: 'app-invoice-table',
-  imports: [CommonModule, ModalComponent],
+  imports: [CommonModule, ModalComponent, StatusPillComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-table.component.html',
 })
@@ -86,12 +87,8 @@ export class InvoiceTableComponent {
     return invoiceStatusLabel(status);
   }
 
-  statusChip(status: InvoiceStatus): string {
-    return invoiceStatusChip(status);
-  }
-
-  statusDot(status: InvoiceStatus): string {
-    return invoiceStatusDot(status);
+  statusTone(status: InvoiceStatus): StatusTone {
+    return invoiceStatusTone(status);
   }
 
   canIssue(invoice: InvoiceSummary): boolean {

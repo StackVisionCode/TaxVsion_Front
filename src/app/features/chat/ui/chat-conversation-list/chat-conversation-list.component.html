@@ -1,11 +1,7 @@
 <div>
   <!-- Search pill -->
-  <div class="mb-3 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-    <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-    <input type="text" placeholder="Search conversations" [ngModel]="search()" name="search"
-      (ngModelChange)="search.set($event)"
-      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-  </div>
+  <app-search-input class="mb-3" widthClass="w-full" placeholder="Search conversations" [value]="search()"
+    (valueChange)="search.set($event)"></app-search-input>
 
   <!-- Conversation list -->
   <div class="flex flex-col gap-1">
@@ -13,8 +9,7 @@
       class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
       [ngClass]="conv.id === selectedId ? 'bg-brand-bold text-white' : 'hover:bg-gray-50 text-gray-700'">
       <div class="relative shrink-0">
-        <span class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
-          [ngClass]="conv.avatarColor">{{ initials(conv.name) }}</span>
+        <app-avatar [name]="conv.name" size="md" [colorClass]="conv.avatarColor"></app-avatar>
         <span *ngIf="showPresenceDot(conv)" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
           [ngClass]="[presenceDotClass(conv), conv.id === selectedId ? 'ring-gray-900' : 'ring-white']"
           [attr.aria-label]="presenceLabel(conv)" [attr.title]="presenceLabel(conv)"></span>

@@ -11,7 +11,7 @@
  * Todos los enums viajan como STRING (JsonStringEnumConverter global).
  */
 
-import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 // ---------- Espejos de los enums del dominio ----------
 
@@ -121,7 +121,6 @@ export interface ClientNoteCard {
   authorName: string;
   /** true si la escribió el usuario logueado: habilita editar/pin/color (solo el autor puede). */
   isMine: boolean;
-  avatarColor: string;
   timestamp: string;
   /** Marca "edited" solo cuando updatedAtUtc se separó de createdAtUtc. */
   edited: boolean;
@@ -164,9 +163,6 @@ const NOTE_COLOR_CARD_CLASS: Record<NoteColorKind, string> = {
   Info: 'border-sky-200 bg-sky-50/50',
 };
 
-/** Paleta de avatares del mock original; se elige de forma determinista por autor. */
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
 export function formatNoteTimestamp(value: string): string {
   return parseUtcDate(value).toLocaleString('en-US', {
     month: 'short',
@@ -175,27 +171,6 @@ export function formatNoteTimestamp(value: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-export function initialsOf(name: string): string {
-  return (
-    name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase() || '?'
-  );
-}
-
-function avatarColorFor(userId: string, isMine: boolean): string {
-  if (isMine) {
-    return 'bg-brand-bold';
-  }
-  // Hash barato y estable: el mismo autor conserva su color entre recargas.
-  const seed = [...userId].reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[seed % AVATAR_COLORS.length];
 }
 
 function visibilityLabelOf(visibility: NoteVisibility): string {
@@ -225,7 +200,6 @@ export function toClientNoteCard(
     authorUserId: note.createdByUserId,
     authorName,
     isMine,
-    avatarColor: avatarColorFor(note.createdByUserId, isMine),
     timestamp: formatNoteTimestamp(note.createdAtUtc),
     edited: note.updatedAtUtc !== note.createdAtUtc,
     html: note.contentHtml,

@@ -1,9 +1,12 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, computed, effect, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
 import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
@@ -122,8 +125,6 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
 };
 
-const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
 /**
  * Shell del perfil de cliente (patrón "Aether" tipo takeover, con
  * navegación por tabs estilo invoice-preview + settings-page): header con
@@ -155,6 +156,9 @@ const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate
 @Component({
   selector: 'app-client-profile-page',
   imports: [
+    AvatarComponent,
+    StatusPillComponent,
+    ClickOutsideDirective,
     CommonModule,
     RouterModule,
     ClientProfileOverviewComponent,
@@ -274,14 +278,6 @@ export class ClientProfilePageComponent {
 
   /** Guardando una dirección o punto de contacto (deshabilita los forms mientras dura). */
   readonly savingContactDetails = signal(false);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="profile-tab-group"]')) {
-      this.openGroupLabel.set(null);
-    }
-  }
 
   constructor() {
     effect(() => {
@@ -602,35 +598,12 @@ export class ClientProfilePageComponent {
     }
   }
 
-  initials(client: ClientProfile): string {
-    const words = client.displayName.trim().split(/\s+/);
-    return words.length >= 2
-      ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
-      : client.displayName.substring(0, 2).toUpperCase();
-  }
-
-  avatarClass(client: ClientProfile): string {
-    let hash = 0;
-    for (let i = 0; i < client.id.length; i++) {
-      hash = (hash * 31 + client.id.charCodeAt(i)) >>> 0;
-    }
-    return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-  }
-
   typeLabel(client: ClientProfile): string {
     return client.type === 'individual' ? 'Individual' : 'Company';
   }
 
   typeBadgeClass(client: ClientProfile): string {
     return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
-  }
-
-  statusChip(client: ClientProfile): string {
-    return client.isActive ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500';
-  }
-
-  statusDot(client: ClientProfile): string {
-    return client.isActive ? 'bg-emerald-500' : 'bg-gray-400';
   }
 
   statusLabel(client: ClientProfile): string {

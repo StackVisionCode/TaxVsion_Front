@@ -2,6 +2,7 @@ import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } f
 import { CommonModule } from '@angular/common';
 import { RoleSummary } from '../../data-access/user-management.model';
 import { RolesStore } from '../../data-access/roles.store';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { RoleEditorDrawerComponent } from '../role-editor-drawer/role-editor-drawer.component';
 
 /**
@@ -16,7 +17,7 @@ import { RoleEditorDrawerComponent } from '../role-editor-drawer/role-editor-dra
  */
 @Component({
   selector: 'app-roles-panel',
-  imports: [CommonModule, RoleEditorDrawerComponent],
+  imports: [CommonModule, RoleEditorDrawerComponent, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './roles-panel.component.html',
 })
@@ -40,6 +41,14 @@ export class RolesPanelComponent implements OnInit {
   readonly droppedOnDuplicate = computed(() => {
     const role = this.pendingDuplicate();
     return role ? this.store.droppedOnDuplicate(role) : [];
+  });
+
+  readonly duplicateMessage = computed(() => {
+    const role = this.pendingDuplicate();
+    if (!role) {
+      return '';
+    }
+    return `${this.droppedOnDuplicate().length} of its ${role.permissionCodes.length} permissions cannot be granted from inside your office today, so the copy will not include them:`;
   });
 
   /**

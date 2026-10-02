@@ -1,8 +1,14 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ClipboardService } from '@shared/services/clipboard.service';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
 import { MeetingListComponent } from '../../ui/meeting-list/meeting-list.component';
 import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/meeting-schedule-panel.component';
 import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
@@ -23,13 +29,30 @@ import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/
  */
 @Component({
   selector: 'app-meetings-page',
-  imports: [CommonModule, FormsModule, MeetingListComponent, MeetingSchedulePanelComponent, MeetingRoomComponent],
+  imports: [
+    CommonModule,
+    MeetingListComponent,
+    MeetingSchedulePanelComponent,
+    MeetingRoomComponent,
+    StatCardsComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    StateBlockComponent,
+    LoadMoreComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
 })
 export class MeetingsPageComponent implements OnInit {
   readonly store = inject(MeetingsStore);
   private readonly activeMeeting = inject(ActiveMeetingService);
+  private readonly toast = inject(ToastService);
+  private readonly clipboard = inject(ClipboardService);
+
+  readonly tabOptions: FilterChipOption<MeetingsScope>[] = [
+    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'past', label: 'Past' },
+  ];
 
   readonly activeTab = signal<MeetingsScope>('upcoming');
   readonly search = signal('');
@@ -44,7 +67,6 @@ export class MeetingsPageComponent implements OnInit {
   /** Fila con una acción en curso (start/end/cancel): deshabilita sus botones. */
   readonly busyId = signal<string | null>(null);
   readonly activeRoomMeeting = signal<MeetingItem | null>(null);
-  readonly toastMessage = signal<string | null>(null);
 
   /**
    * La sala se muestra solo mientras hay un meeting ACTIVO. Cuando la fase vuelve a 'idle' (salí, me
@@ -69,6 +91,13 @@ export class MeetingsPageComponent implements OnInit {
   readonly thisWeekCount = computed(() => this.store.stats().thisWeek);
   readonly liveNowCount = computed(() => this.store.stats().liveNow);
   readonly transcriptsCount = computed(() => this.store.stats().transcriptsAvailable);
+
+  readonly stats = computed<StatCardItem[]>(() => [
+    { label: "Today's meetings", value: this.todayCount() },
+    { label: 'This week', value: this.thisWeekCount() },
+    { label: 'Live now', value: this.liveNowCount() },
+    { label: 'Transcripts available', value: this.transcriptsCount() },
+  ]);
 
   // ---------- Listado ----------
 
@@ -158,7 +187,7 @@ export class MeetingsPageComponent implements OnInit {
         this.panelBusy.set(false);
         this.isPanelOpen.set(false);
         this.managingMeeting.set(null);
-        this.showToast('Meeting rescheduled');
+        this.toast.success('Meeting rescheduled');
       },
       error: err => {
         this.panelBusy.set(false);
@@ -192,9 +221,8 @@ export class MeetingsPageComponent implements OnInit {
   }
 
   copyCode(meeting: MeetingItem): void {
-    navigator.clipboard?.writeText(meeting.shortCode).then(
-      () => this.showToast(`Code ${meeting.shortCode} copied`),
-      () => this.showToast('Could not copy the code'),
+    void this.clipboard.copy(meeting.shortCode).then(copied =>
+      copied ? this.toast.success(`Code ${meeting.shortCode} copied`) : this.toast.error('Could not copy the code'),
     );
   }
 
@@ -205,7 +233,7 @@ export class MeetingsPageComponent implements OnInit {
     }
     this.store.transcriptUrl(meeting.transcriptFileId).subscribe({
       next: url => window.open(url, '_blank', 'noopener'),
-      error: err => this.showToast(toApiError(err).message),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -217,21 +245,12 @@ export class MeetingsPageComponent implements OnInit {
     action.subscribe({
       next: () => {
         this.busyId.set(null);
-        this.showToast(successMessage);
+        this.toast.success(successMessage);
       },
       error: err => {
         this.busyId.set(null);
-        this.showToast(toApiError(err).message);
+        this.toast.error(toApiError(err).message);
       },
     });
-  }
-
-  private showToast(message: string): void {
-    this.toastMessage.set(message);
-    setTimeout(() => {
-      if (this.toastMessage() === message) {
-        this.toastMessage.set(null);
-      }
-    }, 2500);
   }
 }

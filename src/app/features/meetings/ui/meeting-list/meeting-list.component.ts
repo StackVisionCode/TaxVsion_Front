@@ -1,7 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MeetingItem, MeetingUiStatus } from '../../data-access/meeting.model';
-import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 
 /**
  * Lista de reuniones contra el backend real (Communication). Cada fila es una
@@ -16,7 +18,7 @@ import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
  */
 @Component({
   selector: 'app-meeting-list',
-  imports: [CommonModule],
+  imports: [CommonModule, DropdownMenuComponent, MenuItemDirective, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-list.component.html',
 })
@@ -31,16 +33,6 @@ export class MeetingListComponent {
   @Output() endMeeting = new EventEmitter<MeetingItem>();
   @Output() viewTranscript = new EventEmitter<MeetingItem>();
   @Output() copyCode = new EventEmitter<MeetingItem>();
-
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="meeting-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
 
   trackByMeetingId(_index: number, meeting: MeetingItem): string {
     return meeting.id;
@@ -87,9 +79,17 @@ export class MeetingListComponent {
     }
   }
 
-  toggleMenu(meeting: MeetingItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === meeting.id ? null : meeting.id);
+  statusTone(status: MeetingUiStatus): StatusTone {
+    switch (status) {
+      case 'upcoming':
+        return 'brand';
+      case 'live':
+        return 'success';
+      case 'cancelled':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 
   onRowClick(meeting: MeetingItem): void {
@@ -100,13 +100,11 @@ export class MeetingListComponent {
 
   onManageClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
-    this.openMenuId.set(null);
     this.manage.emit(meeting);
   }
 
   onCancelClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
-    this.openMenuId.set(null);
     this.cancelMeeting.emit(meeting);
   }
 

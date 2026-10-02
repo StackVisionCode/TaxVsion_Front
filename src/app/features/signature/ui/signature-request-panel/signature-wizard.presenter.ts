@@ -5,6 +5,7 @@ import {
   WizardClient,
   WizardDocKind,
 } from './signature-wizard.model';
+import { AVATAR_PALETTE } from '@shared/utils/avatar.util';
 
 /**
  * Helpers de presentación del wizard de firma (colores, iconos, labels, formatos).
@@ -12,19 +13,9 @@ import {
  * backend real los seeds murieron y los helpers se quedaron acá.
  */
 
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
+/** Color de firmante por posición (paleta compartida de avatares). */
 export function avatarColor(index: number): string {
-  return AVATAR_COLORS[index % AVATAR_COLORS.length];
-}
-
-export function initialsOf(name: string): string {
-  return name
-    .split(' ')
-    .map(part => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  return AVATAR_PALETTE[index % AVATAR_PALETTE.length];
 }
 
 /** Badge de tipo de cliente (misma paleta que client-table). */
@@ -46,17 +37,6 @@ const KIND_BY_EXTENSION: Record<string, WizardDocKind> = {
 export function kindFromName(name: string): WizardDocKind {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   return KIND_BY_EXTENSION[ext] ?? 'doc';
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  const kb = bytes / 1024;
-  if (kb < 1024) {
-    return `${Math.round(kb)} KB`;
-  }
-  return `${(kb / 1024).toFixed(1)} MB`;
 }
 
 /** Icono ionicons por tipo de documento. */

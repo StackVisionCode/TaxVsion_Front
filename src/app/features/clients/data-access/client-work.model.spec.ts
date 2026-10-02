@@ -54,13 +54,12 @@ describe('statusToColumn', () => {
 });
 
 describe('toWorkTaskItem', () => {
-  it('resolves the assignee name from the map and derives initials', () => {
+  it('resolves the assignee name from the map', () => {
     const item = toWorkTaskItem(
       makeResponse({ assigneeUserId: 'u-42' }),
       new Map([['u-42', 'Carlos Castillo']]),
     );
     expect(item.assigneeName).toBe('Carlos Castillo');
-    expect(item.assigneeInitials).toBe('CC');
   });
 
   it('falls back to "Team member" for an unknown assignee', () => {
@@ -71,7 +70,7 @@ describe('toWorkTaskItem', () => {
   it('shows "Unassigned" with no assignee', () => {
     const item = toWorkTaskItem(makeResponse({ assigneeUserId: null }), new Map());
     expect(item.assigneeName).toBe('Unassigned');
-    expect(item.assigneeInitials).toBe('—');
+    expect(item.assigneeUserId).toBeNull();
   });
 
   it('flattens the due date to YYYY-MM-DD and empty when absent', () => {

@@ -1,9 +1,9 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject } from '@angular/core';
+import { formatBytes } from '@shared/utils/format.util';
 import {
   FileResponse,
   FolderResponse,
   displayStatus,
-  formatBytes,
   formatDate,
   isFileReady,
   kindFromFileName,

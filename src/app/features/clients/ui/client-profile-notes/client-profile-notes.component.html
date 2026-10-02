@@ -45,28 +45,17 @@
     </button>
   </div>
 
-  <!-- Estados de carga / error del listado -->
-  <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-    Loading notes…
-  </div>
-
-  <div *ngIf="!store.loading() && store.error() as err"
-    class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-    <p class="text-sm text-red-600">{{ err }}</p>
-    <button type="button" (click)="retry()"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-      Retry
-    </button>
-  </div>
-
-  <div *ngIf="!store.loading() && !store.error()" class="mt-5 flex flex-col gap-3">
+  <!-- Estados de carga / error / vacío del listado -->
+  <app-state-block class="mt-5 block" variant="inline" loadingText="Loading notes…" icon="chatbubble-ellipses-outline"
+    emptyTitle="No notes yet for this client" [loading]="store.loading()" [error]="store.error()"
+    [empty]="store.notes().length === 0" (retry)="retry()">
+  <div class="flex flex-col gap-3">
     <div *ngFor="let note of store.notes()" class="rounded-2xl border p-4 transition-opacity" [ngClass]="note.cardClass"
       [class.opacity-50]="store.isBusy(note.id)">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="flex min-w-0 items-center gap-3">
-          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-            [ngClass]="note.avatarColor">{{ initials(note.authorName) }}</span>
+          <app-avatar [name]="note.authorName" [seed]="note.authorUserId" size="sm"
+            [colorClass]="note.isMine ? 'bg-brand-bold' : null" />
           <div class="min-w-0">
             <p class="text-sm font-semibold text-gray-900">{{ note.authorName }}</p>
             <p class="text-xs text-gray-400">
@@ -106,23 +95,19 @@
               <ion-icon [name]="note.isPinned ? 'bookmark' : 'bookmark-outline'" class="text-sm"></ion-icon>
             </button>
 
-            <div class="relative" data-dropdown="note-color">
-              <button type="button" (click)="toggleColorMenu(note)" [disabled]="store.isBusy(note.id)"
+            <app-dropdown-menu panelClass="w-44" [disabled]="store.isBusy(note.id)">
+              <button menuTrigger type="button" [disabled]="store.isBusy(note.id)"
                 class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-                aria-label="Change note color">
+                aria-label="Change note color" aria-haspopup="menu">
                 <ion-icon name="color-palette-outline" class="text-sm"></ion-icon>
               </button>
-              <div *ngIf="openColorMenuId() === note.id"
-                class="absolute right-0 top-full z-20 mt-2 w-44 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-                <button *ngFor="let option of colorOptions" type="button" (click)="pickColor(note, option.value)"
-                  class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <span class="h-2.5 w-2.5 rounded-full" [ngClass]="option.dotClass"></span>
-                  {{ option.label }}
-                  <ion-icon *ngIf="option.value === note.colorKind" name="checkmark-outline"
-                    class="ml-auto text-sm text-gray-900"></ion-icon>
-                </button>
-              </div>
-            </div>
+              <button *ngFor="let option of colorOptions" appMenuItem type="button" (click)="pickColor(note, option.value)">
+                <span class="h-2.5 w-2.5 rounded-full" [ngClass]="option.dotClass"></span>
+                {{ option.label }}
+                <ion-icon *ngIf="option.value === note.colorKind" name="checkmark-outline"
+                  class="ml-auto text-sm text-gray-900"></ion-icon>
+              </button>
+            </app-dropdown-menu>
 
             <button type="button" (click)="startEdit(note)" [disabled]="store.isBusy(note.id)"
               class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
@@ -199,11 +184,8 @@
       </div>
     </div>
 
-    <div *ngIf="store.notes().length === 0" class="px-4 py-10 text-center">
-      <ion-icon name="chatbubble-ellipses-outline" class="text-3xl text-gray-300"></ion-icon>
-      <p class="mt-2 text-sm text-gray-500">No notes yet for this client</p>
-    </div>
   </div>
+  </app-state-block>
 </div>
 
 <!-- Borrado (lógico: la nota pasa a Deleted y deja de listarse) -->

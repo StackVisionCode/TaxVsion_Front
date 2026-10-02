@@ -19,7 +19,8 @@ import {
   DashboardClientsStore,
   MonthlyClientsBucket,
 } from '../../data-access/dashboard-clients.store';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 /** Color de la barra del mes en curso y de los meses anteriores (azul de marca). */
 const CURRENT_MONTH_COLOR = 'rgb(var(--color-indigo-600-rgb, 30 70 107))';
@@ -50,7 +51,7 @@ const PAST_MONTH_COLOR = 'rgb(var(--color-indigo-200-rgb, 176 201 223))';
  */
 @Component({
   selector: 'app-dashboard-monthly-clients',
-  imports: [CommonModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, StateBlockComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-monthly-clients.component.html',
   styleUrl: './dashboard-monthly-clients.component.css',
@@ -99,6 +100,10 @@ export class DashboardMonthlyClientsComponent implements OnInit, AfterViewInit {
     this.store.load();
   }
 
+  retry(): void {
+    this.store.load(true);
+  }
+
   ngAfterViewInit(): void {
     this.syncTooltipPosition();
     // Las barras aparecen recién cuando responde el backend: re-medir entonces.
@@ -121,18 +126,6 @@ export class DashboardMonthlyClientsComponent implements OnInit, AfterViewInit {
 
   trackByClientId(_index: number, client: CustomerSummary): string {
     return client.id;
-  }
-
-  initialsOf(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) {
-      return '?';
-    }
-    return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
-  }
-
-  avatarBg(index: number): string {
-    return index % 2 === 0 ? 'bg-brand-bold' : 'bg-indigo-600';
   }
 
   typeChipClass(kind: string): string {

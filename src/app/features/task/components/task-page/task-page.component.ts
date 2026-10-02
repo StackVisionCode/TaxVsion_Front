@@ -16,6 +16,10 @@ import { ApiTaskPriority, TaskFormValue, TaskItem, TaskStatus } from '../../data
 import { HasPermissionDirective } from '@shared/directives/has-permission.directive';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AccessStore } from '@core/access/access.store';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
@@ -42,6 +46,10 @@ type PriorityFilter = 'All' | ApiTaskPriority;
     TaskDetailDrawerComponent,
     PaginationComponent,
     HasPermissionDirective,
+    StatCardsComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-page.component.html',
@@ -57,7 +65,9 @@ export class TaskPageComponent {
   readonly store = inject(TaskStore);
   private readonly toast = inject(ToastService);
 
-  readonly priorityFilters: PriorityFilter[] = ['All', 'Low', 'Normal', 'High', 'Urgent'];
+  readonly priorityFilters: FilterChipOption<PriorityFilter>[] = (
+    ['All', 'Low', 'Normal', 'High', 'Urgent'] as PriorityFilter[]
+  ).map(option => ({ id: option, label: option }));
   readonly activeFilter = signal<PriorityFilter>('All');
 
   /** Board (flujo) · List (volumen) · Calendar (por vencimiento). Persistido en localStorage. */
@@ -124,6 +134,13 @@ export class TaskPageComponent {
           new Date(task.completedAtUtc).getTime() >= weekAgo,
       ).length;
   });
+
+  readonly stats = computed<StatCardItem[]>(() => [
+    { label: 'Total tasks', value: this.totalCount() },
+    { label: 'In progress', value: this.inProgressCount() },
+    { label: 'Overdue', value: this.overdueCount() },
+    { label: 'Completed this week', value: this.completedThisWeekCount() },
+  ]);
 
   /** La búsqueda ya viene filtrada del servidor; acá solo se aplica el filtro de prioridad. */
   readonly visibleTasks = computed<TaskItem[]>(() => {

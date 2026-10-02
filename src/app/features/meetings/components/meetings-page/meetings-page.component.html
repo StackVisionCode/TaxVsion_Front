@@ -1,24 +1,7 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <ng-container *ngIf="!showRoom(); else roomView">
-    <!-- Stats row (sobre lo cargado de cada scope) -->
-    <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-indigo-50 p-5">
-        <p class="text-sm text-gray-600">Today's meetings</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ todayCount() }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">This week</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ thisWeekCount() }}</p>
-      </div>
-      <div class="rounded-[24px] bg-gray-200 p-5">
-        <p class="text-sm text-gray-600">Live now</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ liveNowCount() }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">Transcripts available</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ transcriptsCount() }}</p>
-      </div>
-    </div>
+    <!-- Stats row (GET /meetings/stats) -->
+    <app-stat-cards [items]="stats()" />
 
     <!-- Agenda card -->
     <div class="bg-white rounded-[28px] p-6">
@@ -37,23 +20,10 @@
 
       <!-- Tabs + search (búsqueda client-side sobre lo cargado) -->
       <div class="mt-4 flex flex-wrap items-center gap-2">
-        <button type="button" (click)="setTab('upcoming')"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="activeTab() === 'upcoming' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          Upcoming
-        </button>
-        <button type="button" (click)="setTab('past')"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="activeTab() === 'past' ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          Past
-        </button>
+        <app-filter-chips [options]="tabOptions" [value]="activeTab()" (valueChange)="setTab($event)" />
 
-        <div class="ml-auto h-10 flex items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-          <input type="text" placeholder="Search by title or code" [ngModel]="search()" name="search"
-            (ngModelChange)="search.set($event)"
-            class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        </div>
+        <app-search-input class="ml-auto" placeholder="Search by title or code" [value]="search()"
+          (valueChange)="search.set($event)" />
       </div>
 
       <!-- Error transitorio de una acción -->
@@ -66,36 +36,19 @@
         </button>
       </div>
 
-      <!-- Estados de carga / error -->
-      <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-        Loading meetings…
-      </div>
-
-      <div *ngIf="!store.loading() && store.error() as err"
-        class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-        <p class="text-sm text-red-600">{{ err }}</p>
-        <button type="button" (click)="retryLoad()"
-          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          Retry
-        </button>
-      </div>
-
-      <!-- List -->
-      <div *ngIf="!store.loading() && !store.error()" class="mt-5">
+      <!-- Estados de carga / error / vacío + lista -->
+      <app-state-block class="mt-5 block" [loading]="store.loading()" [error]="store.error()"
+        [empty]="visibleMeetings().length === 0" loadingText="Loading meetings…" emptyTitle="No meetings found."
+        icon="videocam-outline" (retry)="retryLoad()">
         <app-meeting-list [meetings]="visibleMeetings()" [busyId]="busyId()" (manage)="openManagePanel($event)"
           (join)="joinMeeting($event)" (cancelMeeting)="cancelMeeting($event)" (startMeeting)="startMeeting($event)"
           (endMeeting)="endMeeting($event)" (viewTranscript)="viewTranscript($event)"
           (copyCode)="copyCode($event)"></app-meeting-list>
+      </app-state-block>
 
-        <!-- Paginación incremental del scope activo -->
-        <div *ngIf="hasMore()" class="mt-4 flex justify-center">
-          <button type="button" (click)="loadMore()" [disabled]="store.loadingMore()"
-            class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-            {{ store.loadingMore() ? 'Loading…' : 'Load more' }}
-          </button>
-        </div>
-      </div>
+      <!-- Paginación incremental del scope activo -->
+      <app-load-more *ngIf="!store.loading() && !store.error()" [hasMore]="hasMore()" [loading]="store.loadingMore()"
+        (load)="loadMore()" />
     </div>
   </ng-container>
 
@@ -108,9 +61,3 @@
 <app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [busy]="panelBusy()"
   [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
-
-<!-- Toast -->
-<div *ngIf="toastMessage()" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
-  <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
-  {{ toastMessage() }}
-</div>
