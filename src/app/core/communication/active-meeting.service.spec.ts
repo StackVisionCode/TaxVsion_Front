@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActiveMeetingService } from './active-meeting.service';
 import { MeetingRtcService } from './meeting-rtc.service';
@@ -62,19 +62,19 @@ function fakeRtc(joinAck: MeetingJoinAck) {
   };
 }
 
-function configureWith(rtc: ReturnType<typeof fakeRtc>) {
+function configureWith(rtc: ReturnType<typeof fakeRtc>, http: unknown = { get: () => of({ items: [] }) }) {
   TestBed.configureTestingModule({
     providers: [
       ActiveMeetingService,
       { provide: MeetingRtcService, useValue: rtc },
-      { provide: MeetingSfuService, useValue: {} },
+      { provide: MeetingSfuService, useValue: { leave: vi.fn() } },
       { provide: CallsService, useValue: { getIceServers: () => of({ iceServers: [] }) } },
       { provide: CallRecordingService, useValue: {} },
       { provide: AuthService, useValue: { currentUser: () => ({ id: 'me' }) } },
       { provide: ApiConfigService, useValue: { tenantUrl: (p: string) => `https://x${p}` } },
       { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn(), success: vi.fn() } },
       { provide: CloudStorageUploadService, useValue: {} },
-      { provide: HttpClient, useValue: { get: () => of({ items: [] }) } },
+      { provide: HttpClient, useValue: http },
     ],
   });
   return { rtc, service: TestBed.inject(ActiveMeetingService) };
@@ -120,5 +120,49 @@ describe('ActiveMeetingService.join', () => {
     await service.submitPasscode('1234');
     expect(service.phase()).toBe('joined');
     expect(rtc.join).toHaveBeenLastCalledWith('m1', { passcode: '1234' });
+  });
+});
+
+describe('ActiveMeetingService (mini-player support)', () => {
+  it('endForAll posts /meetings/{id}/end and fully leaves without a reload', async () => {
+    const rtc = { ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot() }), leave: vi.fn().mockResolvedValue(undefined) };
+    const http = { get: () => of({ items: [] }), post: vi.fn().mockReturnValue(of({ endedAtUtc: 'x', durationSeconds: 1 })) };
+    const { service } = configureWith(rtc, http);
+    await service.join('m1', 'Consulta');
+
+    const ended = await service.endForAll();
+
+    expect(ended).toBe(true);
+    expect(http.post).toHaveBeenCalledWith('https://x/communication/meetings/m1/end', {});
+    expect(rtc.leave).toHaveBeenCalledWith('m1');
+    expect(service.phase()).toBe('idle');
+    expect(service.localStream()).toBeNull();
+  });
+
+  it('endForAll stays in the meeting when the backend rejects it', async () => {
+    const rtc = { ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot() }), leave: vi.fn().mockResolvedValue(undefined) };
+    const http = { get: () => of({ items: [] }), post: vi.fn().mockReturnValue(throwError(() => new Error('nope'))) };
+    const { service } = configureWith(rtc, http);
+    await service.join('m1', 'Consulta');
+
+    expect(await service.endForAll()).toBe(false);
+    expect(service.phase()).toBe('joined');
+    expect(rtc.leave).not.toHaveBeenCalled();
+  });
+
+  it('treats being removed by the host as the end of the meeting, and closeEnded resets to idle', async () => {
+    const changed = new Subject<unknown>();
+    const rtc = { ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot() }), onParticipantChanged: () => changed };
+    const { service } = configureWith(rtc);
+    await service.join('m1', 'Consulta');
+    service.pinnedUserId.set('someone');
+
+    changed.next({ meetingId: 'm1', participant: { ...soloSnapshot().participants[0], status: 'Removed' } });
+
+    expect(service.phase()).toBe('ended');
+    expect(service.errorMessage()).toBe('You were removed from the meeting.');
+    service.closeEnded();
+    expect(service.phase()).toBe('idle');
+    expect(service.pinnedUserId()).toBeNull();
   });
 });

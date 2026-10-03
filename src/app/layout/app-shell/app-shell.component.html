@@ -33,3 +33,10 @@
 @defer (when activeCall.phase() !== 'idle'; prefetch on idle) {
   <app-call-overlay></app-call-overlay>
 }
+
+<!-- Mini-player global del meeting: al salir de /meetings la sesión NO se corta, se minimiza abajo a la
+     derecha con hablante activo, mi cámara y todos los controles. También es el que reproduce el audio
+     remoto (siempre montado mientras hay meeting). Diferido igual que el overlay de llamadas. -->
+@defer (when activeMeeting.phase() !== 'idle'; prefetch on idle) {
+  <app-meeting-mini-player />
+}

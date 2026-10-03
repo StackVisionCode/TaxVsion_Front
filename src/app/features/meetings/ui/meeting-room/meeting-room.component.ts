@@ -1,6 +1,7 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
   EventEmitter,
   Output,
   computed,
@@ -14,6 +15,8 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { SrcObjectDirective } from '@core/communication/src-object.directive';
+import { MeetingActiveSpeakerService } from '@core/communication/meeting-active-speaker.service';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { MeetingParticipantDto } from '@core/communication/meeting.model';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
@@ -25,7 +28,15 @@ import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-me
  */
 @Component({
   selector: 'app-meeting-room',
-  imports: [CommonModule, FormsModule, SrcObjectDirective, AvatarComponent, DropdownMenuComponent, MenuItemDirective],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SrcObjectDirective,
+    AvatarComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+    ConfirmDialogComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-room.component.html',
 })
@@ -33,6 +44,7 @@ export class MeetingRoomComponent {
   private readonly perms = inject(PermissionService);
   private readonly meeting = inject(ActiveMeetingService);
   private readonly auth = inject(AuthService);
+  private readonly speaker = inject(MeetingActiveSpeakerService);
 
   @Output() left = new EventEmitter<void>();
 
@@ -43,6 +55,9 @@ export class MeetingRoomComponent {
   readonly waitingParticipants = this.meeting.waitingParticipants;
   readonly isLocked = this.meeting.isLocked;
   readonly isHost = this.meeting.isHost;
+  readonly canEndForAll = this.meeting.canEndForAll;
+  /** Remotos hablando ahora (borde verde en su tile). El audio lo reproduce el mini-player global. */
+  readonly speakingIds = this.speaker.speakingIds;
   readonly errorMessage = this.meeting.errorMessage;
   readonly localStream = this.meeting.localStream;
   readonly localScreenStream = this.meeting.localScreenStream;
@@ -78,8 +93,11 @@ export class MeetingRoomComponent {
     return this.participants().find(p => p.userId === id)?.displayName ?? 'A participant';
   });
 
-  /** userId del tile "destacado" (spotlight) o null (galería). Click en un tile lo alterna. */
-  readonly spotlightUserId = signal<string | null>(null);
+  /**
+   * userId del tile "destacado" (spotlight) o null (galería). Click en un tile lo alterna. Vive en el
+   * service para sobrevivir a la navegación y para que el mini-player lo use si nadie está hablando.
+   */
+  readonly spotlightUserId = this.meeting.pinnedUserId;
   /** Última capa espacial pedida por peer, para no re-emitir de más (default del server = 2). */
   private readonly lastLayerByUser = new Map<string, number>();
 
@@ -101,6 +119,11 @@ export class MeetingRoomComponent {
   private prevChatLen = 0;
 
   constructor() {
+    // Con la sala montada se oculta el mini-player global; al salir de /meetings (sin dejar el meeting)
+    // se desmonta la sala y el mini-player toma el relevo con la sesión intacta.
+    this.meeting.roomViewAttached.set(true);
+    inject(DestroyRef).onDestroy(() => this.meeting.roomViewAttached.set(false));
+
     // Badge de no-leídos: cuenta mensajes ajenos nuevos mientras el panel está cerrado.
     effect(() => {
       const msgs = this.chatMessages();
@@ -233,6 +256,27 @@ export class MeetingRoomComponent {
   leave(): void {
     void this.meeting.leave();
     this.left.emit();
+  }
+
+  // ---------- Terminar para todos (solo host principal) ----------
+  readonly endConfirmOpen = signal(false);
+  readonly endBusy = signal(false);
+
+  async confirmEndForAll(): Promise<void> {
+    if (this.endBusy()) {
+      return;
+    }
+    this.endBusy.set(true);
+    const ended = await this.meeting.endForAll();
+    this.endBusy.set(false);
+    this.endConfirmOpen.set(false);
+    if (ended) {
+      this.left.emit();
+    }
+  }
+
+  isSpeaking(userId: string): boolean {
+    return this.speakingIds().has(userId);
   }
 
   toggleAudio(): void {

@@ -38,7 +38,6 @@ describe('SettingsModuleGridComponent', () => {
       'overview',
       'documents',
       'signature',
-      'signature-templates',
     ]);
   });
 
