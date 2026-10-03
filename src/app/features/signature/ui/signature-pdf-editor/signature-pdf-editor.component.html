@@ -1,234 +1,247 @@
-<!-- Workspace contenido: bloque sólido a altura de viewport; cada columna scrollea por dentro. -->
-<div class="flex flex-col gap-4 lg:h-[72vh] lg:min-h-[560px] lg:flex-row">
-  <!-- Columna izquierda: Signers (crece, scrollea) + Add field (fija) -->
-  <aside class="editor-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
-    <!-- Signers -->
-    <div class="sidebar-section flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-100 p-3">
-      <p class="flex shrink-0 items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400">
-        Signers
-        <span class="font-medium normal-case text-gray-400">{{ signers().length }}</span>
-      </p>
-      <p *ngIf="rules().sequential && signers().length > 1"
-        class="mt-1 flex shrink-0 items-center gap-1 text-[11px] text-gray-400">
-        <ion-icon name="swap-vertical-outline" class="text-xs"></ion-icon>
-        Drag to change the signing order
-      </p>
+<!--
+  Editor compacto (plan C/E):
+  - xl: riel izquierdo + documento + columna derecha (inspector del campo o "Before you continue").
+  - lg: riel plegable a iconos; inspector/lista flotan sobre el documento.
+  - md: documento a ancho completo; barra superior "Signers ▾ / Fields ▾ / checklist"; inspector abajo.
+  - < md: igual, con la barra de acciones fija abajo (Signers · Fields · Zoom · Checklist).
+  En lg+ el workspace ocupa el alto disponible (sin scroll de página en un portátil de 13").
+-->
+<div class="editor-root flex flex-col gap-3 lg:h-[calc(100dvh-21rem)] lg:min-h-[420px] lg:flex-row">
 
-      <div class="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5" cdkDropList
-        (cdkDropListDropped)="dropSigner($event)">
-        <div *ngFor="let s of signers(); let i = index" cdkDrag [cdkDragDisabled]="!rules().sequential"
-          class="relative rounded-2xl border bg-white px-2 py-1.5 transition-colors"
-          [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-gray-50' : 'border-gray-100 hover:bg-gray-50'">
-
-          <!-- Badge de orden (solo secuencial) -->
-          <span *ngIf="rules().sequential"
-            class="absolute -left-1.5 -top-1.5 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-brand-bold text-[9px] font-bold text-white">
-            {{ i + 1 }}
-          </span>
-
-          <div class="flex cursor-pointer items-center gap-2" (click)="setActiveSigner(s.id)">
-            <span *ngIf="rules().sequential" cdkDragHandle
-              class="flex shrink-0 cursor-grab items-center text-gray-300 hover:text-gray-600 active:cursor-grabbing"
-              (click)="$event.stopPropagation()" aria-label="Reorder signer">
-              <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
-            </span>
-
-            <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-xs font-medium text-gray-700">{{ s.name }}</span>
-              <span class="block truncate text-[10px] text-gray-400">{{ s.email }}</span>
-            </span>
-
-            <!-- Canal por firmante (email/SMS/WhatsApp): cada firmante recibe la invitación + OTP por AQUÍ. -->
-            <select [ngModel]="s.channel" (ngModelChange)="setSignerChannel(s.id, $event)"
-              (click)="$event.stopPropagation()" [attr.aria-label]="'Channel for ' + s.name"
-              class="shrink-0 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-600 focus:border-brand-bold focus:outline-none">
-              <option *ngFor="let ch of deliveryChannels" [value]="ch">{{ channelMeta[ch].label }}</option>
-            </select>
-
-            <!-- Badge: nº de campos de este firmante -->
-            <span *ngIf="fieldCountBySigner()[s.id]; else noFields"
-              class="field-count-badge shrink-0 rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">
-              {{ fieldCountBySigner()[s.id] }}
-            </span>
-            <ng-template #noFields>
-              <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-400">0</span>
-            </ng-template>
-
-            <button *ngIf="!isClientSigner(s)" type="button" (click)="removeSigner(s.id); $event.stopPropagation()"
-              class="shrink-0 text-gray-300 hover:text-red-500" aria-label="Remove signer">
-              <ion-icon name="close-outline" class="text-sm"></ion-icon>
-            </button>
-          </div>
-
-          <!-- Teléfono: obligatorio para SMS/WhatsApp (si no, el OTP no se puede entregar). -->
-          <div *ngIf="signerNeedsPhone(s)" class="mt-1.5 flex items-center gap-1.5 pl-1">
-            <ion-icon name="call-outline" class="shrink-0 text-xs text-amber-500"></ion-icon>
-            <input type="tel" inputmode="tel" [ngModel]="s.phone" (ngModelChange)="setSignerPhone(s.id, $event)"
-              placeholder="+1 809 555 1234" [attr.aria-label]="'Phone for ' + s.name"
-              class="w-full rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[11px] text-gray-700 focus:border-amber-500 focus:outline-none" />
-          </div>
-        </div>
-      </div>
-
-      <button type="button" (click)="openAddSigner()"
-        class="mt-2.5 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full border-2 border-dashed border-gray-200 py-2 text-xs font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors">
-        <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
-        Add signer
+  <!-- ===== Pantallas angostas (< lg): barra superior (md), paneles y barra fija inferior (< md) ===== -->
+  <div class="relative lg:hidden" appClickOutside [clickOutsideEnabled]="narrowPanel() !== null"
+    (appClickOutside)="closeNarrowPanel()" data-testid="narrow-controls">
+    <!-- Barra superior (tablet) -->
+    <div class="hidden items-center gap-2 md:flex">
+      <button type="button" (click)="toggleNarrowPanel('signers')" data-testid="narrow-signers-trigger"
+        [attr.aria-expanded]="narrowPanel() === 'signers'"
+        class="flex min-h-[44px] min-w-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
+        <ion-icon name="people-outline" class="text-sm"></ion-icon>
+        <span class="truncate">Signers · {{ activeSignerName() }}</span>
+        <ion-icon name="chevron-down-outline" class="text-xs text-gray-400"></ion-icon>
       </button>
-
-      <p *ngIf="signersMissingPhone().length > 0"
-        class="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-700">
-        <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
-        Add a phone number for every SMS/WhatsApp signer so they can receive the verification code.
-      </p>
+      <button type="button" (click)="toggleNarrowPanel('fields')" data-testid="narrow-fields-trigger"
+        [attr.aria-expanded]="narrowPanel() === 'fields'"
+        class="flex min-h-[44px] items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
+        <ion-icon name="create-outline" class="text-sm"></ion-icon>
+        Fields
+        <ion-icon name="chevron-down-outline" class="text-xs text-gray-400"></ion-icon>
+      </button>
+      <button type="button" (click)="toggleNarrowPanel('checklist')" data-testid="narrow-checklist-trigger"
+        [attr.aria-expanded]="narrowPanel() === 'checklist'"
+        class="ml-auto flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-xs font-medium"
+        [ngClass]="readinessItems().length ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'">
+        <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
+        {{ readinessItems().length ? readinessItems().length + ' to fix' : 'Ready' }}
+      </button>
     </div>
 
-    <!-- Field tools: tope a ~50% de la columna y scroll interno, para que NUNCA aplaste la lista de firmantes. -->
-    <div class="sidebar-section flex min-h-0 shrink-0 flex-col rounded-2xl border border-gray-100 p-3 lg:max-h-[50%]">
-      <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Add field</p>
-      <p class="mt-1 shrink-0 text-[11px] text-gray-400">For: <span class="font-medium text-gray-600">{{ activeSignerName() }}</span></p>
+    <!-- Panel abierto: popover bajo la barra (tablet) u hoja inferior sobre la barra fija (móvil) -->
+    <div *ngIf="narrowPanel() as panel" role="dialog" [attr.aria-label]="panel === 'signers' ? 'Signers' : panel === 'fields' ? 'Fields' : panel === 'zoom' ? 'Zoom' : 'Before you continue'"
+      class="narrow-sheet fixed inset-x-0 bottom-16 z-40 max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-gray-100 bg-white p-4 shadow-xl md:absolute md:inset-x-auto md:bottom-auto md:left-0 md:top-full md:mt-2 md:max-h-[60vh] md:w-80 md:rounded-2xl"
+      [attr.data-testid]="'narrow-panel-' + panel">
+      <ng-container [ngSwitch]="panel">
+        <ng-container *ngSwitchCase="'signers'"><ng-container *ngTemplateOutlet="signersTpl"></ng-container></ng-container>
+        <ng-container *ngSwitchCase="'fields'"><ng-container *ngTemplateOutlet="paletteTpl"></ng-container></ng-container>
+        <ng-container *ngSwitchCase="'checklist'"><ng-container *ngTemplateOutlet="checklistTpl"></ng-container></ng-container>
+        <ng-container *ngSwitchCase="'zoom'"><ng-container *ngTemplateOutlet="zoomTpl"></ng-container></ng-container>
+      </ng-container>
+    </div>
 
-      <!-- Cuerpo scrolleable: campos + firma del preparador + hints -->
-      <div class="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5">
-        <div class="grid grid-cols-2 gap-1.5">
-          <button *ngFor="let t of fieldTypes" type="button" (click)="addField(t)"
-            [disabled]="pages().length === 0 || !activeSignerId()"
-            class="flex items-center gap-2 rounded-xl border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors">
-            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
-              <ion-icon [name]="fieldIcon[t]" class="text-sm text-gray-700"></ion-icon>
-            </span>
-            {{ fieldLabel[t] }}
-          </button>
+    <!-- Barra de acciones fija (móvil) -->
+    <nav class="fixed inset-x-0 bottom-0 z-40 flex border-t border-gray-100 bg-white px-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+      aria-label="Editor actions">
+      <button type="button" (click)="toggleNarrowPanel('signers')" data-testid="mobile-signers-trigger"
+        class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium"
+        [ngClass]="narrowPanel() === 'signers' ? 'text-brand-bold' : 'text-gray-500'">
+        <ion-icon name="people-outline" class="text-lg"></ion-icon>
+        Signers
+      </button>
+      <button type="button" (click)="toggleNarrowPanel('fields')" data-testid="mobile-fields-trigger"
+        class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium"
+        [ngClass]="narrowPanel() === 'fields' || placingType() ? 'text-brand-bold' : 'text-gray-500'">
+        <ion-icon name="create-outline" class="text-lg"></ion-icon>
+        Fields
+      </button>
+      <button type="button" (click)="toggleNarrowPanel('zoom')" data-testid="mobile-zoom-trigger"
+        class="flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium"
+        [ngClass]="narrowPanel() === 'zoom' ? 'text-brand-bold' : 'text-gray-500'">
+        <ion-icon name="search-outline" class="text-lg"></ion-icon>
+        {{ zoomPercent() }}%
+      </button>
+      <button type="button" (click)="toggleNarrowPanel('checklist')" data-testid="mobile-checklist-trigger"
+        class="relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium"
+        [ngClass]="narrowPanel() === 'checklist' ? 'text-brand-bold' : readinessItems().length ? 'text-amber-600' : 'text-emerald-600'">
+        <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-lg"></ion-icon>
+        {{ readinessItems().length ? readinessItems().length + ' to fix' : 'Ready' }}
+      </button>
+    </nav>
+  </div>
+
+  <!-- ===== Riel izquierdo (lg+) ===== -->
+  <aside class="editor-rail hidden shrink-0 flex-col rounded-2xl border border-gray-100 lg:flex"
+    [ngClass]="railCollapsed() ? 'lg:w-14 items-center gap-1.5 py-2' : 'lg:w-60 p-3'" data-testid="editor-rail">
+    <ng-container *ngIf="!railCollapsed(); else collapsedRail">
+      <div class="flex min-h-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto pr-0.5">
+          <ng-container *ngTemplateOutlet="signersTpl"></ng-container>
         </div>
-
-        <!-- Firma del preparador (Form 8879): plegable para no comerle espacio a los firmantes. -->
-        <div class="mt-3 border-t border-gray-100 pt-3">
-          <button type="button" (click)="togglePreparerPanel()"
-            class="flex w-full items-center justify-between gap-2 text-left">
-            <span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Preparer signature
-              <span *ngIf="hasPlacedPreparerField()"
-                class="rounded-full bg-brand-bold px-1.5 py-0.5 text-[9px] font-semibold normal-case text-white">Placed</span>
-            </span>
-            <ion-icon [name]="preparerOpen() ? 'chevron-up-outline' : 'chevron-down-outline'" class="shrink-0 text-sm text-gray-400"></ion-icon>
-          </button>
-
-          <div *ngIf="preparerOpen()">
-            <!-- Selector de qué firma estampar (propias + oficina); por defecto la firma por defecto. -->
-            <select *ngIf="signatureOptions().length > 1"
-              [ngModel]="previewedSignature()?.id ?? ''" (ngModelChange)="onSelectSignature($event)" name="preparerSignaturePick"
-              class="mt-2 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-[11px] text-gray-700 focus:border-brand-bold focus:outline-none">
-              <option *ngFor="let sig of signatureOptions()" [value]="sig.id">
-                {{ sig.label }}{{ sig.isOffice ? ' (office)' : '' }}{{ sig.isDefault ? ' • default' : '' }}
-              </option>
-            </select>
-            <button type="button" (click)="addPreparerField()" [disabled]="pages().length === 0 || !hasPreparerSignature()"
-              class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 transition-colors">
-              <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
-              Place my signature
-            </button>
-            <p *ngIf="!hasPreparerSignature()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
-              Add a default signature in “My signatures” to place it here.
-            </p>
-            <p *ngIf="hasPreparerSignature()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
-              Stamped when signing completes — signers don't see it.
-            </p>
-
-            <!-- Identidad 8879: se revela SOLO al colocar la firma del preparador (progressive disclosure),
-                 anidada bajo su firma para que "quién firma" quede junto a "qué firma". El nombre se
-                 autollena del perfil; el PTIN/EFIN se escribe (no lo guardamos). El firmante no la ve. -->
-            <div *ngIf="hasPlacedPreparerField()" class="mt-3 rounded-xl border-l-2 border-brand-bold bg-brand-white p-2.5">
-              <p class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
-                <ion-icon name="ribbon-outline" class="text-xs text-brand-bold"></ion-icon>
-                Your details (Form 8879)
-              </p>
-              <span class="mt-0.5 mb-2 block text-[10px] leading-snug text-gray-400">
-                Referenced on the completion certificate — optional.
-              </span>
-              <input type="text" autocomplete="off" maxlength="200" placeholder="Preparer name (e.g. Jane Doe, EA)"
-                [ngModel]="preparerName()" (ngModelChange)="setPreparerName($event)" name="preparerName"
-                class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
-              <input type="text" autocomplete="off" maxlength="20" placeholder="PTIN or EFIN (e.g. P12345678)"
-                [ngModel]="preparerPtin()" (ngModelChange)="setPreparerPtin($event)" name="preparerPtin"
-                class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
-              <input type="text" autocomplete="off" maxlength="100" placeholder="Title (optional, e.g. Tax Preparer)"
-                [ngModel]="preparerTitle()" (ngModelChange)="setPreparerTitle($event)" name="preparerTitle"
-                class="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
-              <span *ngIf="preparerInfoInvalid()" class="mt-1 block text-[10px] leading-snug text-red-500">
-                Enter both name (3+ chars) and PTIN/EFIN (6–20 alphanumeric).
-              </span>
-            </div>
-          </div>
+        <div class="mt-3 shrink-0 border-t border-gray-100 pt-3">
+          <ng-container *ngTemplateOutlet="paletteTpl"></ng-container>
         </div>
-
-        <!-- Hint mientras no hay campos -->
-        <p *ngIf="fields().length === 0" class="mt-2.5 flex items-start gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] leading-snug text-gray-500">
-          <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
-          Place at least one field on the document to continue.
-        </p>
-        <p *ngIf="fields().length > 0" class="mt-2.5 text-[11px] leading-snug text-gray-400">
-          Drag to move, corner handle to resize, × to delete.
-        </p>
       </div>
-    </div>
+      <button type="button" (click)="railCollapsed.set(true)"
+        class="mt-2 hidden shrink-0 items-center justify-center gap-1 self-start rounded-full px-2 py-1 text-[11px] text-gray-400 hover:bg-gray-50 hover:text-gray-700 lg:flex xl:hidden"
+        aria-label="Collapse side panel">
+        <ion-icon name="chevron-back-outline" class="text-xs"></ion-icon>
+        Collapse
+      </button>
+    </ng-container>
+
+    <!-- Riel plegado: iconos (firmantes, tipos de campo, firma del preparador) -->
+    <ng-template #collapsedRail>
+      <button type="button" (click)="railCollapsed.set(false)" aria-label="Expand side panel"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+        <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
+      </button>
+      <button *ngFor="let s of signers()" type="button" (click)="setActiveSigner(s.id)" [title]="s.name"
+        [attr.aria-label]="'Select signer ' + s.name" [attr.aria-pressed]="s.id === activeSignerId()"
+        class="rounded-full p-0.5" [ngClass]="s.id === activeSignerId() ? 'ring-2 ring-brand-bold' : ''">
+        <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+      </button>
+      <button type="button" (click)="openAddSigner()" aria-label="Add signer" title="Add signer"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+        <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
+      </button>
+      <span class="my-1 h-px w-8 bg-gray-100"></span>
+      <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)" [disabled]="!canPlace() || signers().length === 0"
+        [title]="fieldLabel[t]" [attr.aria-label]="'Place ' + fieldLabel[t]" [attr.aria-pressed]="placingType() === t"
+        class="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-40"
+        [ngClass]="placingType() === t ? 'bg-brand-bold text-white' : fieldCircle[t] + ' text-gray-700'">
+        <ion-icon [name]="fieldIcon[t]" class="text-sm"></ion-icon>
+      </button>
+      <button type="button" (click)="armPlacement('preparer')" [disabled]="!canPlace() || !hasPreparerSignature()"
+        title="Place my signature" aria-label="Place my signature" [attr.aria-pressed]="placingType() === 'preparer'"
+        class="flex h-9 w-9 items-center justify-center rounded-full border border-brand-bold disabled:opacity-40"
+        [ngClass]="placingType() === 'preparer' ? 'bg-brand-bold text-white' : 'text-brand-bold'">
+        <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
+      </button>
+    </ng-template>
   </aside>
 
-  <!-- Centro: toolbar del documento + superficie con scroll interno -->
-  <div class="flex min-w-0 flex-1 flex-col lg:h-full">
-    <!-- Toolbar -->
-    <div class="flex shrink-0 items-center justify-between gap-3 rounded-t-2xl bg-brand-bold px-4 py-2.5 text-xs text-white">
-      <span class="flex min-w-0 items-center gap-2">
+  <!-- ===== Centro: toolbar + documento ===== -->
+  <div class="relative flex min-w-0 flex-1 flex-col lg:h-full">
+    <div class="flex shrink-0 items-center gap-2 rounded-t-2xl bg-brand-bold px-3 py-1.5 text-xs text-white">
+      <span class="hidden min-w-0 flex-1 items-center gap-2 sm:flex">
         <ion-icon [name]="document ? docIcon(document.kind) : 'document-text-outline'" class="shrink-0 text-sm"></ion-icon>
         <span class="truncate font-medium">{{ document?.name ?? 'Document' }}</span>
       </span>
-      <span class="flex shrink-0 items-center gap-3">
-        <span class="flex items-center gap-1">
-          <button type="button" (click)="zoomOut()" [disabled]="!canZoomOut()"
-            class="flex h-6 w-6 items-center justify-center rounded-md bg-white/10 text-sm hover:bg-white/20 disabled:opacity-40 transition-colors"
-            aria-label="Zoom out">−</button>
-          <span class="w-11 text-center font-semibold tabular-nums">{{ zoomPercent() }}%</span>
-          <button type="button" (click)="zoomIn()" [disabled]="!canZoomIn()"
-            class="flex h-6 w-6 items-center justify-center rounded-md bg-white/10 text-sm hover:bg-white/20 disabled:opacity-40 transition-colors"
-            aria-label="Zoom in">+</button>
-        </span>
-        <span class="hidden text-white/60 sm:block">{{ pages().length }} {{ pages().length === 1 ? 'page' : 'pages' }}</span>
-      </span>
-    </div>
 
-    <!-- Barra de error + Retry -->
-    <div *ngIf="loadError()" class="flex shrink-0 items-center justify-between gap-3 border-x border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-      <span class="min-w-0 truncate">{{ loadError() }} Showing blank pages.</span>
-      <button type="button" (click)="retryLoad()"
-        class="shrink-0 rounded-full border border-amber-300 px-3 py-1 font-medium hover:bg-amber-100 transition-colors">
-        Retry
+      <!-- Página X / N con salto -->
+      <span class="flex flex-1 items-center gap-1 sm:flex-none" data-testid="page-nav">
+        <button type="button" (click)="goToPage(currentPage() - 1)" [disabled]="currentPage() <= 1 || !pages().length"
+          class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-40 md:h-7 md:w-7"
+          aria-label="Previous page">
+          <ion-icon name="chevron-back-outline" class="text-sm"></ion-icon>
+        </button>
+        <span class="text-white/70">Page</span>
+        <input #pageInput type="number" min="1" [max]="pages().length" [value]="currentPage()"
+          (change)="goToPage(pageInput.value)" (keydown.enter)="goToPage(pageInput.value)" [disabled]="!pages().length"
+          aria-label="Go to page" inputmode="numeric"
+          class="page-input h-7 w-10 rounded-md bg-white/15 text-center font-semibold tabular-nums text-white focus:bg-white/25 focus:outline-none" />
+        <span class="text-white/70 tabular-nums">/ {{ pages().length || '–' }}</span>
+        <button type="button" (click)="goToPage(currentPage() + 1)" [disabled]="currentPage() >= pages().length"
+          class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-40 md:h-7 md:w-7"
+          aria-label="Next page">
+          <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
+        </button>
+      </span>
+
+      <!-- Zoom (md+; en móvil va en la barra inferior) -->
+      <span class="hidden items-center gap-1 md:flex" data-testid="zoom-controls">
+        <ng-container *ngTemplateOutlet="zoomButtonsTpl"></ng-container>
+      </span>
+
+      <!-- lg: "Before you continue" flotante -->
+      <button type="button" (click)="floatingChecklistOpen.set(!floatingChecklistOpen())" [attr.aria-expanded]="floatingChecklistOpen()"
+        class="hidden h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium lg:flex xl:hidden"
+        [ngClass]="readinessItems().length ? 'bg-amber-400/90 text-gray-900' : 'bg-white/15 text-white'"
+        aria-label="Before you continue">
+        <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
+        {{ readinessItems().length || 'Ready' }}
       </button>
     </div>
 
+    <!-- Avisos -->
+    <div *ngIf="zoomError()" class="flex shrink-0 items-center justify-between gap-3 border-x border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700" role="status">
+      <span class="min-w-0">{{ zoomError() }}</span>
+      <button type="button" (click)="zoomError.set('')" class="shrink-0 rounded-full px-2 py-0.5 font-medium hover:bg-amber-100">Dismiss</button>
+    </div>
+    <div *ngIf="notice()" class="flex shrink-0 items-center justify-between gap-3 border-x border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600" role="status">
+      <span class="min-w-0">{{ notice() }}</span>
+      <button type="button" (click)="notice.set('')" class="shrink-0 rounded-full px-2 py-0.5 font-medium hover:bg-gray-100">Dismiss</button>
+    </div>
+    <div *ngIf="placingType()" class="flex shrink-0 flex-wrap items-center gap-2 border-x border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs text-gray-700" role="status" data-testid="placing-hint">
+      <ion-icon name="hand-left-outline" class="shrink-0 text-sm text-brand-bold"></ion-icon>
+      <span class="min-w-0 flex-1">Click on the page to place {{ placingLabel() }}.</span>
+      <button type="button" (click)="placeOnCurrentPage()"
+        class="min-h-[36px] shrink-0 rounded-full bg-brand-bold px-3 font-semibold text-white hover:bg-brand-ink">
+        Place on page {{ currentPage() }}
+      </button>
+      <button type="button" (click)="cancelPlacement()" class="min-h-[36px] shrink-0 rounded-full px-3 font-medium text-gray-500 hover:bg-white">Cancel</button>
+    </div>
+
     <!-- Superficie del documento (scroll interno) -->
-    <div class="min-h-0 flex-1 overflow-auto rounded-b-2xl bg-brand-white p-6">
-      <!-- Skeleton mientras renderiza -->
-      <div *ngIf="loading()" class="mx-auto w-fit">
-        <div class="h-[560px] w-[440px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
+    <div #surface (scroll)="onSurfaceScroll()"
+      class="doc-surface relative h-[calc(100dvh-16rem)] min-h-[360px] overflow-auto rounded-b-2xl bg-brand-white p-4 lg:h-auto lg:min-h-0 lg:flex-1"
+      [class.is-placing]="!!placingType()">
+      <!-- Cargando -->
+      <div *ngIf="loading()" class="mx-auto w-fit max-w-full">
+        <div class="h-[480px] w-[380px] max-w-full animate-pulse rounded-md bg-white shadow-sm"></div>
         <p class="mt-3 text-center text-[11px] text-gray-400">Rendering document…</p>
       </div>
 
-      <div *ngIf="!loading()" class="mx-auto flex w-fit flex-col items-center gap-2">
+      <!-- Render fallido: sin páginas en blanco falsas; reintentar -->
+      <div *ngIf="!loading() && loadError()" class="mx-auto flex max-w-sm flex-col items-center py-12 text-center" role="alert" data-testid="render-error">
+        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50">
+          <ion-icon name="alert-circle-outline" class="text-2xl text-amber-600"></ion-icon>
+        </span>
+        <p class="mt-3 text-sm font-semibold text-gray-900">{{ loadError() }}</p>
+        <p class="mt-1 text-xs text-gray-500">Fields can't be placed and the request can't be saved until the document is displayed.</p>
+        <button type="button" (click)="retryLoad()"
+          class="mt-4 flex min-h-[44px] items-center gap-1.5 rounded-full bg-brand-bold px-5 text-sm font-semibold text-white hover:bg-brand-ink">
+          <ion-icon name="refresh-outline" class="text-sm"></ion-icon>
+          Retry
+        </button>
+      </div>
+
+      <div *ngIf="!loading() && !loadError()" class="mx-auto flex w-fit flex-col items-center gap-2"
+        [class.opacity-60]="rerendering()" [attr.aria-busy]="rerendering()">
         <ng-container *ngFor="let pg of pages(); let last = last">
-          <div class="doc-page relative shadow-sm"
-            [style.width.px]="pg.width" [style.height.px]="pg.height" style="background: white;">
+          <div class="doc-page relative shadow-sm" [attr.data-page]="pg.page"
+            [style.width.px]="pg.width" [style.height.px]="pg.height" style="background: white;"
+            (pointerdown)="onPagePointerDown($event, pg)">
             <img *ngIf="pg.src" [src]="pg.src" [width]="pg.width" [height]="pg.height" alt="Document page {{ pg.page }}"
-              draggable="false" class="block select-none" />
+              draggable="false" class="pointer-events-none block select-none" />
             <div *ngIf="!pg.src" class="absolute inset-0 border border-gray-200 bg-white"></div>
 
             <!-- overlays de campos de esta página -->
             <div *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField"
-              class="field-overlay absolute box-border cursor-move touch-none rounded-md border-2 bg-white/70"
-              [ngClass]="isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId)"
+              class="field-overlay absolute box-border touch-none rounded-md border-2 bg-white/70 focus:outline-none"
+              [ngClass]="[
+                isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId),
+                f.id === selectedFieldId() ? 'is-selected' : '',
+                !isPreparerField(f) && f.signerId !== activeSignerId() && f.id !== selectedFieldId() ? 'opacity-70' : '',
+                interactionLocked() ? 'cursor-wait' : placingType() ? 'cursor-crosshair' : 'cursor-move'
+              ]"
               [style.left.px]="f.x" [style.top.px]="f.y" [style.width.px]="f.width" [style.height.px]="f.height"
-              style="touch-action: none;" (pointerdown)="startMove($event, f)">
+              tabindex="0" role="button"
+              [attr.aria-label]="(isPreparerField(f) ? 'Your signature' : fieldLabel[f.type] + ' for ' + signerNameOf(f.signerId)) + ', page ' + f.page"
+              [attr.aria-pressed]="f.id === selectedFieldId()"
+              style="touch-action: none;"
+              (pointerdown)="startMove($event, f)" (focus)="selectField(f.id)" (keydown)="onFieldKeydown($event, f)">
               <!-- Campo del preparador: se pinta la firma default (WYSIWYG) con un tag "You". -->
-              <div *ngIf="isPreparerField(f); else signerField" class="relative flex h-full w-full items-center justify-center overflow-hidden px-1">
+              <div *ngIf="isPreparerField(f); else signerField" class="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden px-1">
                 <img *ngIf="preparerSignatureUrl() as sigUrl; else preparerFallback" [src]="sigUrl" alt="Preparer signature"
                   class="max-h-full max-w-full object-contain" draggable="false" />
                 <ng-template #preparerFallback>
@@ -240,30 +253,23 @@
               </div>
 
               <ng-template #signerField>
-              <!-- Campo de texto: etiqueta editable inline (P4); el firmante la ve como instrucción -->
-              <div *ngIf="f.type === 'text'; else fieldBadge" class="flex h-full w-full items-center px-1"
-                (pointerdown)="$event.stopPropagation()">
-                <input type="text" [ngModel]="f.label || ''" (ngModelChange)="setFieldLabel(f.id, $event)"
-                  [name]="'label-' + f.id" placeholder="Field label"
-                  class="h-full w-full bg-transparent text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
-              </div>
-              <ng-template #fieldBadge>
-                <div class="flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
+                <!-- Todo el campo se arrastra (también el de texto: su etiqueta se edita en el inspector). -->
+                <div class="pointer-events-none flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
                   [ngClass]="textClass(f.signerId)">
-                  <ion-icon [name]="fieldIcon[f.type]" class="text-xs"></ion-icon>
-                  <span class="truncate">{{ fieldLabel[f.type] }}</span>
+                  <ion-icon [name]="fieldIcon[f.type]" class="shrink-0 text-xs"></ion-icon>
+                  <span class="truncate">{{ f.type === 'text' && f.label?.trim() ? f.label : fieldLabel[f.type] }}</span>
                 </div>
               </ng-template>
-              </ng-template>
 
-              <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(f.id)"
-                class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold text-white shadow"
-                aria-label="Delete field">
+              <!-- Eliminar: siempre visible (no depende del hover), con área táctil ampliada en CSS -->
+              <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(f.id)" [disabled]="interactionLocked()"
+                class="field-delete absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold text-white shadow"
+                aria-label="Delete field" tabindex="-1">
                 <ion-icon name="close" class="text-[11px]"></ion-icon>
               </button>
 
-              <span (pointerdown)="startResize($event, f)"
-                class="absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm border border-gray-400 bg-white"></span>
+              <span (pointerdown)="startResize($event, f)" aria-hidden="true"
+                class="field-resize absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm border border-gray-400 bg-white"></span>
             </div>
           </div>
 
@@ -272,177 +278,356 @@
             Page {{ pg.page }} of {{ pages().length }}
           </p>
         </ng-container>
+
+        <p *ngIf="!pages().length" class="py-12 text-center text-xs text-gray-400">Choose a document to place fields.</p>
+      </div>
+    </div>
+
+    <!-- lg: inspector / lista flotando sobre el documento -->
+    <div *ngIf="selectedField() || floatingChecklistOpen()"
+      class="floating-inspector absolute right-3 top-12 z-30 hidden max-h-[calc(100%-4rem)] w-72 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-xl lg:block xl:hidden"
+      data-testid="floating-inspector">
+      <ng-container *ngIf="selectedField() as f; else floatingChecklist">
+        <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
+      </ng-container>
+      <ng-template #floatingChecklist>
+        <div class="mb-1 flex justify-end">
+          <button type="button" (click)="floatingChecklistOpen.set(false)" aria-label="Close checklist"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900">
+            <ion-icon name="close-outline" class="text-lg"></ion-icon>
+          </button>
+        </div>
+        <ng-container *ngTemplateOutlet="checklistTpl"></ng-container>
+      </ng-template>
+    </div>
+  </div>
+
+  <!-- ===== Derecha (xl): inspector contextual o "Before you continue" ===== -->
+  <aside class="editor-inspector hidden shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3 xl:flex xl:w-64"
+    data-testid="side-inspector">
+    <ng-container *ngIf="selectedField() as f; else sideChecklist">
+      <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
+    </ng-container>
+    <ng-template #sideChecklist>
+      <ng-container *ngTemplateOutlet="checklistTpl"></ng-container>
+    </ng-template>
+  </aside>
+
+  <!-- < lg: inspector como hoja inferior (sobre la barra fija en móvil) -->
+  <div *ngIf="selectedField() && !narrowPanel()" role="dialog" aria-label="Field settings"
+    class="narrow-sheet fixed inset-x-0 bottom-16 z-40 max-h-[50dvh] overflow-y-auto rounded-t-2xl border border-gray-100 bg-white p-4 shadow-xl md:bottom-0 lg:hidden"
+    data-testid="sheet-inspector">
+    <ng-container *ngIf="selectedField() as f">
+      <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
+    </ng-container>
+  </div>
+</div>
+
+<!-- ======================= Plantillas reutilizadas por cada distribución ======================= -->
+
+<!-- Firmantes: filas compactas + menú "…" (canal, teléfono, orden, quitar) -->
+<ng-template #signersTpl>
+  <div class="flex items-center justify-between gap-2">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+      Signers <span class="ml-1 font-medium normal-case text-gray-400">{{ signers().length }}</span>
+    </p>
+    <button type="button" (click)="openAddSigner()"
+      class="flex min-h-[36px] items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-brand-bold hover:bg-brand-white">
+      <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
+      Add signer
+    </button>
+  </div>
+  <p *ngIf="rules().sequential && signers().length > 1" class="mt-0.5 flex items-center gap-1 text-[10px] text-gray-400">
+    <ion-icon name="swap-vertical-outline" class="text-[11px]"></ion-icon>
+    Signing in order · drag or use “…” to reorder
+  </p>
+
+  <div class="mt-2 space-y-1" cdkDropList (cdkDropListDropped)="dropSigner($event)">
+    <div *ngFor="let s of signers(); let i = index; let first = first; let last = last" cdkDrag
+      [cdkDragDisabled]="!rules().sequential" class="signer-row rounded-xl border px-1.5 py-1 transition-colors"
+      [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-brand-white' : 'border-transparent hover:bg-gray-50'">
+      <div class="flex items-center gap-1.5">
+        <span *ngIf="rules().sequential" cdkDragHandle aria-label="Reorder signer"
+          class="flex shrink-0 cursor-grab items-center text-gray-300 hover:text-gray-600 active:cursor-grabbing">
+          <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
+        </span>
+        <button type="button" (click)="setActiveSigner(s.id)" [attr.aria-pressed]="s.id === activeSignerId()"
+          class="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-left lg:min-h-[36px]">
+          <span class="relative shrink-0">
+            <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+            <span *ngIf="rules().sequential"
+              class="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-gray-900 text-[8px] font-bold text-white">{{ i + 1 }}</span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-xs font-medium text-gray-800">{{ s.name }}</span>
+            <span class="flex items-center gap-1 truncate text-[10px] text-gray-400">
+              {{ fieldCountBySigner()[s.id] || 0 }} {{ (fieldCountBySigner()[s.id] || 0) === 1 ? 'field' : 'fields' }}
+              · {{ channelMeta[s.channel].label }}
+              <ion-icon *ngIf="signerNeedsPhone(s)" name="call-outline" class="shrink-0 text-amber-500" title="Phone number required"></ion-icon>
+            </span>
+          </span>
+        </button>
+        <app-dropdown-menu [ariaLabel]="'Options for ' + s.name" panelClass="w-56" (openChange)="onMenuOpenChange($event)">
+          <p class="px-4 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Verification channel</p>
+          <button *ngFor="let ch of channelOptionsFor(s)" appMenuItem type="button" (click)="setSignerChannel(s.id, ch)"
+            [attr.aria-checked]="s.channel === ch" role="menuitemradio">
+            <ion-icon [name]="channelMeta[ch].icon" class="text-base"></ion-icon>
+            {{ channelMeta[ch].label }}
+            <ion-icon *ngIf="s.channel === ch" name="checkmark" class="ml-auto text-base text-brand-bold"></ion-icon>
+          </button>
+          <div class="my-1 h-px bg-gray-100"></div>
+          <button appMenuItem type="button" (click)="editingPhoneFor.set(s.id)">
+            <ion-icon name="call-outline" class="text-base"></ion-icon>
+            {{ s.phone.trim() ? 'Edit phone' : 'Add phone' }}
+          </button>
+          <ng-container *ngIf="rules().sequential && signers().length > 1">
+            <button appMenuItem type="button" [disabled]="first" (click)="moveSigner(s.id, -1)">
+              <ion-icon name="arrow-up-outline" class="text-base"></ion-icon> Move up
+            </button>
+            <button appMenuItem type="button" [disabled]="last" (click)="moveSigner(s.id, 1)">
+              <ion-icon name="arrow-down-outline" class="text-base"></ion-icon> Move down
+            </button>
+          </ng-container>
+          <button *ngIf="!isClientSigner(s)" appMenuItem [danger]="true" type="button" (click)="removeSigner(s.id)">
+            <ion-icon name="trash-outline" class="text-base"></ion-icon> Remove signer
+          </button>
+        </app-dropdown-menu>
+      </div>
+
+      <!-- Teléfono: obligatorio para SMS/WhatsApp (si no, el OTP no se puede entregar). -->
+      <div *ngIf="showPhoneInput(s)" class="mt-1 flex items-center gap-1.5 pl-1">
+        <ion-icon name="call-outline" class="shrink-0 text-xs" [ngClass]="signerNeedsPhone(s) ? 'text-amber-500' : 'text-gray-400'"></ion-icon>
+        <input type="tel" inputmode="tel" [ngModel]="s.phone" (ngModelChange)="setSignerPhone(s.id, $event)"
+          (keydown.enter)="editingPhoneFor.set(null)" placeholder="+1 809 555 1234" [attr.aria-label]="'Phone for ' + s.name"
+          class="min-h-[36px] w-full rounded-full border bg-white px-2.5 py-1 text-[11px] text-gray-700 focus:outline-none"
+          [ngClass]="signerNeedsPhone(s) ? 'border-amber-300 focus:border-amber-500' : 'border-gray-200 focus:border-brand-bold'" />
+        <button *ngIf="!signerNeedsPhone(s)" type="button" (click)="editingPhoneFor.set(null)" aria-label="Done editing phone"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+          <ion-icon name="checkmark" class="text-sm"></ion-icon>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Columna derecha: Rules (fija) + Summary vivo (crece) -->
-  <aside class="rules-sidebar flex shrink-0 flex-col gap-4 lg:h-full lg:w-64">
-    <div class="sidebar-section flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3">
-      <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Request rules</p>
+  <p *ngIf="signersMissingPhone().length > 0"
+    class="mt-2 flex items-start gap-1.5 rounded-xl bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-700">
+    <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+    Add a phone number for every SMS/WhatsApp signer so they can receive the verification code.
+  </p>
+</ng-template>
 
-      <!-- Orden de firma -->
-      <p class="mt-2 text-[11px] font-medium text-gray-600">Signing order</p>
-      <div class="mt-1.5 inline-flex items-center rounded-full border border-gray-200 p-0.5">
-        <button type="button" (click)="setSequential(true)"
-          class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="rules().sequential ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-          Sequential
-        </button>
-        <button type="button" (click)="setSequential(false)"
-          class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="!rules().sequential ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
-          Any order
-        </button>
-      </div>
+<!-- Paleta: "Fields for <firmante>" 2×2 + firma del preparador plegada -->
+<ng-template #paletteTpl>
+  <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Fields</p>
+  <p class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-gray-500">
+    for
+    <span class="h-2 w-2 shrink-0 rounded-full" [ngClass]="activeSigner()?.color ?? 'bg-gray-300'"></span>
+    <span class="truncate font-medium text-gray-700">{{ activeSignerName() }}</span>
+  </p>
+  <div class="mt-2 grid grid-cols-2 gap-1.5">
+    <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)"
+      [disabled]="!canPlace() || signers().length === 0" [attr.aria-pressed]="placingType() === t"
+      [attr.data-testid]="'palette-' + t"
+      class="flex min-h-[44px] items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 lg:min-h-[36px]"
+      [ngClass]="placingType() === t ? 'border-brand-bold bg-brand-white text-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+      <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
+        <ion-icon [name]="fieldIcon[t]" class="text-xs text-gray-700"></ion-icon>
+      </span>
+      {{ fieldLabel[t] }}
+    </button>
+  </div>
+  <p *ngIf="placeDisabledReason() as reason" class="mt-1.5 text-[10px] leading-snug text-gray-400">{{ reason }}</p>
+  <p *ngIf="!placeDisabledReason()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
+    Pick a type, then click on the page.
+  </p>
 
-      <!-- Canal por defecto para firmantes nuevos (el canal REAL se fija por firmante, arriba). -->
-      <p class="mt-3 text-[11px] font-medium text-gray-600">Default channel for new signers</p>
-      <div class="mt-1.5 flex flex-wrap gap-1.5">
-        <button *ngFor="let ch of deliveryChannels" type="button" (click)="setDefaultChannel(ch)"
-          class="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
-          [ngClass]="rules().channels[0] === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
-          <ion-icon [name]="channelMeta[ch].icon" class="text-[11px]"></ion-icon>
-          {{ channelMeta[ch].label }}
-        </button>
-      </div>
-      <p class="mt-1.5 text-[10px] text-gray-400">Each signer's channel (email/SMS/WhatsApp) is set in the signer list above.</p>
+  <!-- Firma del preparador (Form 8879): plegada por defecto; el bloque 8879 solo si se colocó. -->
+  <div class="mt-2.5 border-t border-gray-100 pt-2.5">
+    <button type="button" (click)="togglePreparerPanel()" [attr.aria-expanded]="preparerOpen()"
+      class="flex min-h-[36px] w-full items-center justify-between gap-2 text-left">
+      <span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        Preparer signature
+        <span *ngIf="hasPlacedPreparerField()"
+          class="rounded-full bg-brand-bold px-1.5 py-0.5 text-[9px] font-semibold normal-case text-white">Placed</span>
+        <ion-icon *ngIf="preparerInfoInvalid()" name="alert-circle-outline" class="text-sm normal-case text-red-500"></ion-icon>
+      </span>
+      <ion-icon [name]="preparerOpen() ? 'chevron-up-outline' : 'chevron-down-outline'" class="shrink-0 text-sm text-gray-400"></ion-icon>
+    </button>
 
-      <!-- Toggles -->
-      <div class="mt-3 space-y-2.5">
-        <label class="flex w-full cursor-pointer items-center gap-2 text-left">
-          <app-switch size="sm" [checked]="rules().autoReminder" (checkedChange)="toggleRule('autoReminder')"
-            ariaLabel="Auto reminder"></app-switch>
-          <span class="min-w-0">
-            <span class="block text-[11px] font-medium text-gray-700">Auto reminder</span>
-            <span class="block text-[10px] text-gray-400">Email/SMS pending signers until they sign</span>
-          </span>
-        </label>
+    <div *ngIf="preparerOpen()">
+      <!-- Selector de qué firma estampar (propias + oficina); por defecto la firma por defecto. -->
+      <select *ngIf="signatureOptions().length > 1"
+        [ngModel]="previewedSignature()?.id ?? ''" (ngModelChange)="onSelectSignature($event)" name="preparerSignaturePick"
+        aria-label="Signature to stamp"
+        class="mt-2 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-[11px] text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option *ngFor="let sig of signatureOptions()" [value]="sig.id">
+          {{ sig.label }}{{ sig.isOffice ? ' (office)' : '' }}{{ sig.isDefault ? ' • default' : '' }}
+        </option>
+      </select>
+      <button type="button" (click)="armPlacement('preparer')" [disabled]="!canPlace() || !hasPreparerSignature()"
+        [attr.aria-pressed]="placingType() === 'preparer'"
+        class="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-[36px]"
+        [ngClass]="placingType() === 'preparer' ? 'bg-brand-white' : ''">
+        <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
+        Place my signature
+      </button>
+      <p class="mt-1.5 text-[10px] leading-snug text-gray-400">
+        {{ hasPreparerSignature() ? "Stamped when signing completes — signers don't see it." : 'Add a default signature in “My signatures” to place it here.' }}
+      </p>
 
-        <!-- Intervalo del recordatorio (solo si Auto reminder está activo) -->
-        <div *ngIf="rules().autoReminder" class="flex items-center gap-2 pl-11">
-          <span class="text-[10px] text-gray-400">Remind every</span>
-          <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" name="reminderIntervalDays"
-            (ngModelChange)="setReminderIntervalDays($event)"
-            class="w-14 rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-700 focus:border-brand-bold focus:outline-none" />
-          <span class="text-[10px] text-gray-400">day(s)</span>
-        </div>
-
-        <label class="flex w-full cursor-pointer items-center gap-2 text-left">
-          <app-switch size="sm" [checked]="rules().certificate" (checkedChange)="toggleRule('certificate')"
-            ariaLabel="Signature certificate"></app-switch>
-          <span class="min-w-0">
-            <span class="block text-[11px] font-medium text-gray-700">Signature certificate</span>
-            <span class="block text-[10px] text-gray-400">PDF with legal evidence when done</span>
-          </span>
-        </label>
-
-        <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
-        <ng-container *ngIf="canDeliverDocs()">
-          <label class="flex w-full cursor-pointer items-center gap-2 text-left">
-            <app-switch size="sm" [checked]="rules().sendSignedDocument" (checkedChange)="toggleRule('sendSignedDocument')"
-              ariaLabel="Send signed document"></app-switch>
-            <span class="min-w-0">
-              <span class="block text-[11px] font-medium text-gray-700">Send signed document</span>
-              <span class="block text-[10px] text-gray-400">Email/SMS to signers when complete</span>
-            </span>
-          </label>
-
-          <label class="flex w-full cursor-pointer items-center gap-2 text-left" [class.opacity-50]="!rules().certificate">
-            <app-switch size="sm" [checked]="rules().sendCertificate && rules().certificate" (checkedChange)="toggleRule('sendCertificate')" [disabled]="!rules().certificate"
-              ariaLabel="Send certificate"></app-switch>
-            <span class="min-w-0">
-              <span class="block text-[11px] font-medium text-gray-700">Send certificate</span>
-              <span class="block text-[10px] text-gray-400">Deliver the certificate to signers (needs the certificate on)</span>
-            </span>
-          </label>
-        </ng-container>
-
-        <!-- Signing PIN (Form 8879, opcional): 4–10 dígitos que el preparador comparte con el firmante. -->
-        <div class="pt-1">
-          <label class="block text-[11px] font-medium text-gray-700">Signing PIN <span class="text-gray-400">(optional)</span></label>
-          <span class="mb-1 block text-[10px] text-gray-400">4–10 digits the signer enters to sign. Share it with them separately.</span>
-          <input type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="e.g. 1234"
-            [ngModel]="rules().signingPin ?? ''" (ngModelChange)="setSigningPin($event)" name="signingPin"
-            class="w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none"
-            [class.border-gray-200]="!signingPinInvalid()" [class.focus:border-brand-bold]="!signingPinInvalid()"
-            [class.border-red-300]="signingPinInvalid()" />
-          <span *ngIf="signingPinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
-        </div>
+      <!-- Identidad 8879: se revela SOLO al colocar la firma del preparador. El firmante no la ve. -->
+      <div *ngIf="hasPlacedPreparerField()" class="mt-2.5 rounded-xl border-l-2 border-brand-bold bg-brand-white p-2.5">
+        <p class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+          <ion-icon name="ribbon-outline" class="text-xs text-brand-bold"></ion-icon>
+          Your details (Form 8879)
+        </p>
+        <span class="mb-2 mt-0.5 block text-[10px] leading-snug text-gray-400">
+          Referenced on the completion certificate — optional.
+        </span>
+        <input type="text" autocomplete="off" maxlength="200" placeholder="Preparer name (e.g. Jane Doe, EA)"
+          [ngModel]="preparerName()" (ngModelChange)="setPreparerName($event)" name="preparerName" aria-label="Preparer name"
+          class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+        <input type="text" autocomplete="off" maxlength="20" placeholder="PTIN or EFIN (e.g. P12345678)"
+          [ngModel]="preparerPtin()" (ngModelChange)="setPreparerPtin($event)" name="preparerPtin" aria-label="PTIN or EFIN"
+          class="mb-1.5 w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+        <input type="text" autocomplete="off" maxlength="100" placeholder="Title (optional, e.g. Tax Preparer)"
+          [ngModel]="preparerTitle()" (ngModelChange)="setPreparerTitle($event)" name="preparerTitle" aria-label="Preparer title"
+          class="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+        <span *ngIf="preparerInfoInvalid()" class="mt-1 block text-[10px] leading-snug text-red-500">
+          Enter both name (3+ chars) and PTIN/EFIN (6–20 alphanumeric).
+        </span>
       </div>
     </div>
+  </div>
+</ng-template>
 
-    <!-- Summary en vivo -->
-    <div class="sidebar-section flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-100 p-3">
-      <p class="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Summary</p>
+<!-- Inspector del campo seleccionado -->
+<ng-template #inspectorTpl let-f>
+  <div class="flex items-center justify-between gap-2" data-testid="field-inspector">
+    <p class="flex min-w-0 items-center gap-2 text-sm font-semibold text-gray-900">
+      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[asField(f).type]">
+        <ion-icon [name]="isPreparerField(f) ? 'ribbon-outline' : fieldIcon[asField(f).type]" class="text-sm text-gray-700"></ion-icon>
+      </span>
+      <span class="truncate">{{ isPreparerField(f) ? 'Your signature' : fieldLabel[asField(f).type] + ' field' }}</span>
+    </p>
+    <button type="button" (click)="clearSelection()" aria-label="Close field settings"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 lg:h-8 lg:w-8">
+      <ion-icon name="close-outline" class="text-lg"></ion-icon>
+    </button>
+  </div>
+  <p class="mt-0.5 text-[11px] text-gray-400">Page {{ f.page }} of {{ pages().length }}</p>
 
-      <div class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
-        <!-- Documento -->
-        <div *ngIf="document as d" class="flex items-center gap-2.5 rounded-xl bg-brand-white p-2.5">
-          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" [ngClass]="docCircle(d.kind)">
-            <ion-icon [name]="docIcon(d.kind)" class="text-sm text-gray-700"></ion-icon>
-          </span>
-          <span class="min-w-0">
-            <span class="block truncate text-xs font-medium text-gray-900">{{ d.name }}</span>
-            <span class="block text-[10px] text-gray-400">{{ d.size }} · {{ pages().length }} {{ pages().length === 1 ? 'page' : 'pages' }}</span>
-          </span>
-        </div>
-
-        <!-- Firmantes -->
-        <div>
-          <p class="text-[11px] font-medium text-gray-600">Signers</p>
-          <div class="mt-1.5 flex items-center gap-2">
-            <div class="flex -space-x-1.5">
-              <app-avatar *ngFor="let s of signers()" [name]="s.name" [colorClass]="s.color" [title]="s.name"
-                sizeClass="h-6 w-6 border-2 border-white text-[9px]" />
-            </div>
-            <span class="text-[11px] text-gray-400">{{ signers().length }} {{ signers().length === 1 ? 'signer' : 'signers' }}</span>
-          </div>
-        </div>
-
-        <!-- Campos por tipo -->
-        <div>
-          <p class="flex items-center justify-between text-[11px] font-medium text-gray-600">
-            Fields
-            <span class="rounded-full bg-brand-bold px-2 py-0.5 text-[10px] font-semibold text-white">{{ fields().length }}</span>
-          </p>
-          <div *ngIf="fields().length > 0; else noFieldsSummary" class="mt-1.5 space-y-1">
-            <ng-container *ngFor="let t of fieldTypes">
-              <div *ngIf="fieldTypeBreakdown()[t] > 0" class="flex items-center gap-2">
-                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
-                  <ion-icon [name]="fieldIcon[t]" class="text-[10px] text-gray-700"></ion-icon>
-                </span>
-                <span class="flex-1 text-[11px] text-gray-600">{{ fieldLabel[t] }}</span>
-                <span class="text-[11px] font-semibold text-gray-900 tabular-nums">{{ fieldTypeBreakdown()[t] }}</span>
-              </div>
-            </ng-container>
-          </div>
-          <ng-template #noFieldsSummary>
-            <p class="mt-1.5 text-[11px] text-gray-400">None placed yet</p>
-          </ng-template>
-        </div>
-
-        <!-- Readiness -->
-        <div class="space-y-1.5 rounded-xl bg-brand-white p-2.5">
-          <p class="flex items-center gap-1.5 text-[11px]"
-            [ngClass]="pages().length > 0 && !loadError() ? 'text-emerald-600' : 'text-orange-500'">
-            <ion-icon [name]="pages().length > 0 && !loadError() ? 'checkmark-circle' : 'alert-circle-outline'" class="text-sm"></ion-icon>
-            Document {{ loadError() ? 'in fallback mode' : 'loaded' }}
-          </p>
-          <p class="flex items-center gap-1.5 text-[11px]"
-            [ngClass]="fields().length > 0 ? 'text-emerald-600' : 'text-orange-500'">
-            <ion-icon [name]="fields().length > 0 ? 'checkmark-circle' : 'alert-circle-outline'" class="text-sm"></ion-icon>
-            {{ fields().length > 0 ? 'Fields placed' : 'No fields placed yet' }}
-          </p>
-          <p class="flex items-center gap-1.5 text-[11px] text-emerald-600">
-            <ion-icon name="checkmark-circle" class="text-sm"></ion-icon>
-            Channels: {{ signerChannelSummary() }}
-          </p>
-        </div>
-      </div>
+  <div class="mt-3 space-y-3">
+    <div>
+      <p class="mb-1 block text-[11px] font-medium text-gray-600">Signer</p>
+      <select *ngIf="!isPreparerField(f); else preparerOwner" aria-label="Assign field to signer" [ngModel]="f.signerId"
+        (ngModelChange)="reassignField(f.id, $event)" [disabled]="interactionLocked()"
+        class="min-h-[40px] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option *ngFor="let s of signers()" [value]="s.id">{{ s.name }}</option>
+      </select>
+      <ng-template #preparerOwner>
+        <p class="text-xs text-gray-600">You (preparer) — stamped when signing completes.</p>
+      </ng-template>
     </div>
-  </aside>
-</div>
+
+    <div *ngIf="asField(f).type === 'text' && !isPreparerField(f)">
+      <p class="mb-1 block text-[11px] font-medium text-gray-600">Label</p>
+      <input type="text" aria-label="Field label" [ngModel]="f.label || ''" (ngModelChange)="setFieldLabel(f.id, $event)"
+        [name]="'label-' + f.id" placeholder="e.g. Social Security Number" (keydown.escape)="$event.stopPropagation()"
+        class="min-h-[40px] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+      <p class="mt-1 text-[10px] text-gray-400">The signer sees it as the field's instruction.</p>
+    </div>
+
+    <div class="grid gap-1.5">
+      <button type="button" (click)="duplicateField(f.id)" [disabled]="interactionLocked()"
+        class="flex min-h-[40px] items-center gap-2 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+        <ion-icon name="copy-outline" class="text-sm"></ion-icon>
+        Duplicate
+        <kbd class="ml-auto hidden rounded border border-gray-200 px-1 text-[10px] text-gray-400 lg:inline">Ctrl/⌘ D</kbd>
+      </button>
+      <button type="button" (click)="duplicateFieldToAllPages(f.id)" [disabled]="interactionLocked() || pages().length < 2"
+        class="flex min-h-[40px] items-center gap-2 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+        <ion-icon name="layers-outline" class="text-sm"></ion-icon>
+        Duplicate to all pages
+      </button>
+      <button type="button" (click)="removeField(f.id)" [disabled]="interactionLocked()"
+        class="flex min-h-[40px] items-center gap-2 rounded-xl border border-red-100 px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
+        <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+        Delete field
+      </button>
+    </div>
+    <p class="hidden text-[10px] leading-snug text-gray-400 lg:block">
+      Arrow keys move 1px (Shift = 10px) · Delete removes · Esc deselects
+    </p>
+  </div>
+</ng-template>
+
+<!-- "Before you continue": lo que bloquea Next/Send -->
+<ng-template #checklistTpl>
+  <p class="text-xs font-semibold uppercase tracking-wide text-gray-400" data-testid="checklist-title">Before you continue</p>
+  <ul *ngIf="readinessItems().length; else allSet" class="mt-2 space-y-1.5">
+    <li *ngFor="let item of readinessItems()" class="flex items-start gap-2 rounded-xl bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-800">
+      <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm text-amber-600"></ion-icon>
+      <span class="min-w-0 flex-1">
+        {{ item.message }}
+        <button *ngIf="item.signerId" type="button" (click)="focusSigner(item.signerId, item.kind === 'missing-phone')"
+          class="mt-1 block min-h-[32px] font-semibold text-brand-bold underline-offset-2 hover:underline">
+          Go to signer
+        </button>
+        <button *ngIf="item.kind === 'render-failed'" type="button" (click)="retryLoad()"
+          class="mt-1 block min-h-[32px] font-semibold text-brand-bold underline-offset-2 hover:underline">
+          Retry
+        </button>
+        <button *ngIf="item.kind === 'preparer-info'" type="button" (click)="openPreparerDetails()"
+          class="mt-1 block min-h-[32px] font-semibold text-brand-bold underline-offset-2 hover:underline">
+          Fix details
+        </button>
+      </span>
+    </li>
+  </ul>
+  <ng-template #allSet>
+    <p class="mt-2 flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-700">
+      <ion-icon name="checkmark-circle" class="shrink-0 text-sm"></ion-icon>
+      Every signer has a signature field. You're ready to continue.
+    </p>
+  </ng-template>
+  <p class="mt-3 text-[10px] leading-snug text-gray-400">
+    Select a field to reassign, duplicate or delete it. Delivery rules and the signing PIN are set in Review.
+  </p>
+</ng-template>
+
+<!-- Zoom: botones (toolbar md+ y panel móvil) -->
+<ng-template #zoomButtonsTpl>
+  <button type="button" (click)="zoomOut()" [disabled]="!canZoomOut()"
+    class="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-sm hover:bg-white/20 disabled:opacity-40"
+    aria-label="Zoom out">−</button>
+  <span class="w-10 text-center font-semibold tabular-nums" aria-live="polite">{{ zoomPercent() }}%</span>
+  <button type="button" (click)="zoomIn()" [disabled]="!canZoomIn()"
+    class="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-sm hover:bg-white/20 disabled:opacity-40"
+    aria-label="Zoom in">+</button>
+  <button type="button" (click)="fitWidth()" [disabled]="!hasRenderedPages() || interactionLocked()"
+    class="flex h-7 items-center gap-1 rounded-md bg-white/10 px-2 text-[11px] font-medium hover:bg-white/20 disabled:opacity-40"
+    aria-label="Fit width">
+    <ion-icon name="scan-outline" class="text-xs"></ion-icon>
+    Fit
+  </button>
+</ng-template>
+
+<ng-template #zoomTpl>
+  <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Zoom</p>
+  <div class="mt-3 flex items-center justify-between gap-2">
+    <button type="button" (click)="zoomOut()" [disabled]="!canZoomOut()" aria-label="Zoom out"
+      class="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-lg text-gray-700 disabled:opacity-40">−</button>
+    <span class="text-sm font-semibold tabular-nums text-gray-900">{{ zoomPercent() }}%</span>
+    <button type="button" (click)="zoomIn()" [disabled]="!canZoomIn()" aria-label="Zoom in"
+      class="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-lg text-gray-700 disabled:opacity-40">+</button>
+    <button type="button" (click)="fitWidth()" [disabled]="!hasRenderedPages() || interactionLocked()"
+      class="flex min-h-[44px] items-center gap-1.5 rounded-full border border-gray-200 px-4 text-xs font-medium text-gray-700 disabled:opacity-40">
+      <ion-icon name="scan-outline" class="text-sm"></ion-icon>
+      Fit width
+    </button>
+  </div>
+</ng-template>
 
 <!-- Modal: agregar firmante (cliente registrado o manual + canal) -->
 <app-modal [isOpen]="isAddSignerOpen()" heading="Add signer"
