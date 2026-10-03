@@ -521,8 +521,11 @@ export class BillingStore {
   }
 
   /**
-   * Envía la factura al cliente por correo con el PDF adjunto. El email del cliente sale del detalle
-   * (el listado no lo trae); requiere que el PDF ya esté generado (factura emitida).
+   * Manda la factura al cliente. Un solo POST a Billing: el correo, el adjunto y el destinatario los
+   * resuelve el backend, que es el dueño de los datos de la factura.
+   *
+   * El PDF se sigue mirando acá solo para no pedir un envío que va a llegar sin adjunto; el resto de
+   * las validaciones (sin email, sin emitir) las contesta el backend con su mensaje.
    */
   sendInvoiceToClient(invoice: InvoiceSummary): void {
     if (!invoice.pdfFileId) {
@@ -530,32 +533,10 @@ export class BillingStore {
       return;
     }
     this._busyInvoiceId.set(invoice.id);
-    this.service.getInvoiceDetail(invoice.id).subscribe({
-      next: detail => {
-        const email = detail.customer.email?.trim();
-        if (!email) {
-          this._busyInvoiceId.set(null);
-          this.toast.error('This client has no email on file.');
-          return;
-        }
-        this.service
-          .sendInvoiceEmail({
-            invoiceNumber: invoice.invoiceNumber ?? null,
-            email,
-            name: detail.customer.name,
-            pdfFileId: invoice.pdfFileId!,
-            checkoutUrl: invoice.checkoutUrl,
-          })
-          .subscribe({
-            next: () => {
-              this._busyInvoiceId.set(null);
-              this.toast.success(`Invoice sent to ${email}.`);
-            },
-            error: err => {
-              this._busyInvoiceId.set(null);
-              this.toast.error(toUserMessage(err));
-            },
-          });
+    this.service.sendInvoiceToCustomer(invoice.id).subscribe({
+      next: () => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Invoice sent to the client.');
       },
       error: err => {
         this._busyInvoiceId.set(null);

@@ -84,12 +84,15 @@ export interface BrandAssetView {
   status: string;
   /** URL pública servible (null si el asset sigue en escaneo). */
   url: string | null;
+  contentType: string;
 }
 
 /** Espejo de UploadTenantBrandAssetResponse (202 del PUT asset). `status` = "processing". */
 export interface UploadAssetResponse {
   fileId: string;
   status: string;
+  /** Aviso para el usuario (hoy: logo SVG, que el correo no renderiza). null = nada que advertir. */
+  emailWarning: string | null;
 }
 
 /** Límites duros del backend para los assets (TenantBrand.MaxAssetSizeBytes + whitelist del controller). */

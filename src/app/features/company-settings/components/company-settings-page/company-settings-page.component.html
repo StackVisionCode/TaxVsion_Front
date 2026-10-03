@@ -171,6 +171,11 @@
           <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
           Scanning uploaded file — the logo will appear here in a few seconds.
         </p>
+
+        <p *ngIf="logoIsSvg()" class="flex items-start gap-1.5 text-xs text-amber-700">
+          <ion-icon name="alert-circle-outline" class="mt-px text-sm shrink-0"></ion-icon>
+          <span>Email clients cannot display SVG, so your emails show your office name as text instead of this logo. Upload a PNG or JPEG to use it in email too.</span>
+        </p>
       </div>
     </div>
   </div>

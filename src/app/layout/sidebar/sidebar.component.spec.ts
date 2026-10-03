@@ -91,8 +91,10 @@ describe('SidebarComponent', () => {
 
   it('con el módulo y el permission, el administrador sí los ve', () => {
     const fixture = create({
+      // Desde el split comms/meetings hacen falta los DOS módulos: Chat cuelga de `comms` y
+      // Meetings de `meetings`. Antes bastaba `comms` para ambos.
       permissions: ['communication.chat.start', 'communication.meeting.create'],
-      modules: ['comms'],
+      modules: ['comms', 'meetings'],
     });
 
     expect(labels(fixture)).toContain('Chat');

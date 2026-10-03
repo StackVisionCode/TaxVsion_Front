@@ -56,7 +56,7 @@ describe('EntitlementsNoticeService', () => {
 
     service.notify('comms');
 
-    expect(toasts[0]).toBe('Client communication is not in your plan. Open Manage subscription to add it.');
+    expect(toasts[0]).toBe('Client chat and calls is not in your plan. Open Manage subscription to add it.');
   });
 
   it('a quien NO puede contratar le dice a quién pedírselo', () => {
@@ -65,7 +65,7 @@ describe('EntitlementsNoticeService', () => {
 
     service.notify('comms');
 
-    expect(toasts[0]).toBe('Client communication is not in your plan. Ask whoever manages billing in your office.');
+    expect(toasts[0]).toBe('Client chat and calls is not in your plan. Ask whoever manages billing in your office.');
     expect(toasts[0]).not.toContain('Manage subscription');
   });
 

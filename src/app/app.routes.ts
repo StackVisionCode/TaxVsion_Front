@@ -136,7 +136,17 @@ export const routes: Routes = [
     title: 'Shared document',
   },
   {
-    // Página pública de pago de una factura: el cliente llega por el link/QR del PDF, sin sesión.
+    // Fallback defensivo si la URL estable de PaymentClient llega al SPA en vez de al backend.
+    path: 'payments-client/invoices/:reference',
+    data: { preload: false },
+    loadComponent: () =>
+      import('./features/invoice-checkout/components/payable-redirect-page/payable-redirect-page.component').then(
+        m => m.PayableRedirectPageComponent,
+      ),
+    title: 'Opening checkout',
+  },
+  {
+    // Pagina publica de pago de una factura: el cliente llega por el link/QR del PDF, sin sesion.
     path: 'pay/:token',
     data: { preload: false },
     loadComponent: () =>

@@ -2,48 +2,48 @@
   <div class="checkout-card">
     <!-- Cargando -->
     <ng-container *ngIf="phase() === 'loading'">
-      <p class="muted">Cargando…</p>
+      <p class="muted">Loading…</p>
     </ng-container>
 
-    <!-- Link inválido / vencido / factura anulada -->
+    <!-- Link invalido / vencido / factura anulada o ya pagada -->
     <ng-container *ngIf="phase() === 'invalid'">
       <div class="icon warn">!</div>
-      <h1>Enlace no disponible</h1>
+      <h1>Link unavailable</h1>
       <p class="muted">{{ invalidMessage() }}</p>
     </ng-container>
 
     <!-- Pagado -->
     <ng-container *ngIf="phase() === 'paid'">
       <div class="icon ok">✓</div>
-      <h1>¡Pago recibido!</h1>
-      <p class="muted">La factura quedó pagada. Gracias.</p>
+      <h1>Payment received</h1>
+      <p class="muted">Your payment is recorded. Thank you.</p>
       <p class="amount-done">{{ amountLabel() }}</p>
     </ng-container>
 
     <!-- Procesando (async) -->
     <ng-container *ngIf="phase() === 'processing'">
       <div class="icon ok">…</div>
-      <h1>Pago en proceso</h1>
-      <p class="muted">Tu pago se está confirmando. Podés cerrar esta página.</p>
+      <h1>Payment in progress</h1>
+      <p class="muted">Your payment is being confirmed. You can close this page.</p>
     </ng-container>
 
     <!-- Error -->
     <ng-container *ngIf="phase() === 'error'">
       <div class="icon warn">!</div>
-      <h1>No se pudo cobrar</h1>
+      <h1>Payment failed</h1>
       <p class="muted">{{ errorMessage() }}</p>
-      <button class="btn-secondary" (click)="retry()" *ngIf="selectedMethod()">Reintentar</button>
+      <button class="btn-secondary" (click)="retry()" *ngIf="selectedMethod()">Try again</button>
     </ng-container>
 
     <!-- Formulario de pago -->
     <ng-container *ngIf="phase() === 'ready' || phase() === 'paying'">
-      <p class="pay-to" *ngIf="checkout() as c">Pagar a <strong>{{ c.tenantName }}</strong></p>
+      <p class="pay-to" *ngIf="checkout() as c">Pay <strong>{{ c.tenantName }}</strong></p>
       <p class="amount">{{ amountLabel() }}</p>
       <p class="ref muted" *ngIf="checkout()?.purposeDescription || checkout()?.purposeExternalReferenceId as label">
         Factura {{ checkout()?.purposeDescription || label }}
       </p>
 
-      <!-- Selector de proveedor (solo si hay más de uno) -->
+      <!-- Selector de proveedor (solo si hay mas de uno) -->
       <div class="methods" *ngIf="methods().length > 1">
         <button type="button" class="method-chip" *ngFor="let m of methods()"
           [class.method-chip--active]="m.providerCode === selectedMethod()?.providerCode"
@@ -52,14 +52,14 @@
         </button>
       </div>
 
-      <label class="field-label">Email para el recibo (opcional)</label>
+      <label class="field-label">Email for the receipt (optional)</label>
       <input class="input" type="email" placeholder="cliente@correo.com"
              [ngModel]="receiptEmail()" (ngModelChange)="receiptEmail.set($event)"
              [disabled]="phase() === 'paying'" />
 
       <!-- Stripe: Card Element -->
       <ng-container *ngIf="isStripeSelected()">
-        <label class="field-label">Tarjeta</label>
+        <label class="field-label">Card</label>
         <div id="card-element" class="card-element"></div>
         <p class="card-err" *ngIf="cardError()">{{ cardError() }}</p>
 
@@ -72,16 +72,16 @@
       <ng-container *ngIf="isPayPalSelected()">
         <label class="field-label">PayPal</label>
         <div id="paypal-buttons" [class.paying]="phase() === 'paying'"></div>
-        <p class="test-hint muted" *ngIf="phase() === 'paying'">Confirmando el pago con PayPal…</p>
+        <p class="test-hint muted" *ngIf="phase() === 'paying'">Confirming your PayPal payment…</p>
         <p class="test-hint muted" *ngIf="phase() === 'ready'">
-          Serás redirigido a PayPal para aprobar el pago de {{ amountLabel() }}.
+          You will be redirected to PayPal to approve the payment of {{ amountLabel() }}.
         </p>
       </ng-container>
 
-      <!-- Otros proveedores: aún sin flujo de pago en el frontend -->
+      <!-- Otros proveedores: aun sin flujo de pago en el frontend -->
       <ng-container *ngIf="!isSupportedSelected()">
         <p class="muted">
-          {{ selectedMethod()?.displayName || selectedMethod()?.providerCode }} aún no está disponible para
+          {{ selectedMethod()?.displayName || selectedMethod()?.providerCode }} is not available for
           pagar en línea. Elegí otro método o contactá al comercio.
         </p>
       </ng-container>
