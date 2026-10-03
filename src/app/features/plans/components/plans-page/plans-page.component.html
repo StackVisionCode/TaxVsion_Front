@@ -1,11 +1,11 @@
 <div class="grid gap-4">
   <div>
-    <h1 class="text-2xl font-bold text-gray-900">Planes</h1>
-    <p class="mt-1 text-sm text-gray-500">Catálogo de suscripción — datos reales desde el backend (GET /plans).</p>
+    <h1 class="text-2xl font-bold text-gray-900">Plans</h1>
+    <p class="mt-1 text-sm text-gray-500">Subscription catalog — live data from the backend (GET /plans).</p>
   </div>
 
   @if (store.loading()) {
-    <div class="rounded-2xl bg-white p-6 text-sm text-gray-500 shadow-sm">Cargando planes…</div>
+    <div class="rounded-2xl bg-white p-6 text-sm text-gray-500 shadow-sm">Loading plans…</div>
   } @else if (store.error()) {
     <div class="rounded-2xl bg-red-50 p-6 text-sm text-red-700 shadow-sm">{{ store.error() }}</div>
   } @else {
@@ -20,15 +20,15 @@
 
           <div class="mt-4 flex items-baseline gap-1">
             <span class="text-3xl font-bold text-gray-900">${{ plan.monthlyPriceUsd }}</span>
-            <span class="text-sm text-gray-400">/ mes</span>
+            <span class="text-sm text-gray-400">/ month</span>
           </div>
 
           <dl class="mt-4 grid grid-cols-2 gap-2 text-sm">
-            <dt class="text-gray-500">Usuarios</dt>
+            <dt class="text-gray-500">Users</dt>
             <dd class="text-right font-medium text-gray-900">{{ plan.maxUsers }}</dd>
-            <dt class="text-gray-500">Almacenamiento</dt>
+            <dt class="text-gray-500">Storage</dt>
             <dd class="text-right font-medium text-gray-900">{{ gbOf(plan.storageQuotaBytes) }} GB</dd>
-            <dt class="text-gray-500">Módulos</dt>
+            <dt class="text-gray-500">Modules</dt>
             <dd class="text-right font-medium text-gray-900">{{ plan.enabledModules.length }}</dd>
           </dl>
 
