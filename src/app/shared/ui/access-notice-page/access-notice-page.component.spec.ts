@@ -128,7 +128,7 @@ describe('AccessNoticePageComponent', () => {
     const fixture = create('not-available', { feature: 'chat', canManageBilling: true });
 
     // El nombre que el usuario reconoce, no el código interno `comms`.
-    expect(fixture.nativeElement.textContent).toContain('Client communication');
+    expect(fixture.nativeElement.textContent).toContain('Client chat and calls');
     expect(fixture.nativeElement.textContent).not.toContain('comms module');
   });
 

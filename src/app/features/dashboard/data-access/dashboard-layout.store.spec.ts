@@ -64,7 +64,7 @@ describe('DashboardLayoutStore', () => {
         'signature.request.read',
         'customers.view',
       ],
-      modules: ['planner', 'comms', 'documents', 'signatures', 'customers'],
+      modules: ['planner', 'comms', 'meetings', 'documents', 'signatures', 'customers'],
     });
 
     expect(store.widgets().length).toBe(13);
