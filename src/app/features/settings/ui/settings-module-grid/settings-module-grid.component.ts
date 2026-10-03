@@ -31,7 +31,6 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'invoices', featureId: 'billing', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
   { id: 'mail', featureId: 'email', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'signature', featureId: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500' },
-  { id: 'signature-templates', featureId: 'signature', title: 'Signature templates', description: 'Reusable signer roles and field layouts', icon: 'documents-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/signature/templates' },
   { id: 'meetings', featureId: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-gray-200 text-gray-700' },
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
   { id: 'storage', featureId: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/storage' },

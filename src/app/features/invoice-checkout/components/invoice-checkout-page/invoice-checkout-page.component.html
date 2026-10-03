@@ -53,7 +53,7 @@
       </div>
 
       <label class="field-label">Email for the receipt (optional)</label>
-      <input class="input" type="email" placeholder="cliente@correo.com"
+      <input class="input" type="email" placeholder="client@email.com"
              [ngModel]="receiptEmail()" (ngModelChange)="receiptEmail.set($event)"
              [disabled]="phase() === 'paying'" />
 

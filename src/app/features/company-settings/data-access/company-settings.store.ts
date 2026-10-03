@@ -207,7 +207,8 @@ export class CompanySettingsStore {
   }
 
   /** Sube logo o favicon; 202 → deja el asset en "processing" y sondea hasta que se confirme. */
-  uploadAsset(key: AssetKey, file: File): Observable<void> {
+  /** Devuelve el aviso del backend, o null. El caller decide cómo mostrarlo. */
+  uploadAsset(key: AssetKey, file: File): Observable<string | null> {
     const tenantId = this.tenantId();
     if (!tenantId) {
       return this.failNoTenant(this._assetError);
@@ -220,7 +221,7 @@ export class CompanySettingsStore {
         this._assetProcessing.set(key);
         this.startAssetPoll(tenantId, key);
       }),
-      map(() => void 0),
+      map(response => response.emailWarning ?? null),
       catchError(err => {
         this._assetError.set(toApiError(err).message);
         throw err;
@@ -277,6 +278,7 @@ export class CompanySettingsStore {
       status: asset.status,
       // Solo servible cuando pasó el escaneo; mientras tanto la UI muestra "processing".
       url: asset.status === 'Confirmed' ? this.service.publicAssetUrl(asset.fileId) : null,
+      contentType: asset.contentType,
     };
   }
 

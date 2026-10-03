@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, effect, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ThemeService } from '@core/theme/theme.service';
@@ -198,7 +198,13 @@ export class CompanySettingsPageComponent {
       return;
     }
     this.store.uploadAsset(key, file).subscribe({
-      next: () => this.showToast(key === 'logo' ? 'Logo uploaded' : 'Favicon uploaded'),
+      next: warning => {
+        this.showToast(key === 'logo' ? 'Logo uploaded' : 'Favicon uploaded');
+        // El SVG se sube igual: sirve para la app y no para el correo. El aviso lo manda el backend.
+        if (warning) {
+          this.toast.info(warning);
+        }
+      },
       error: () => {
         /* el mensaje ya quedó en store.assetError */
       },
@@ -217,6 +223,9 @@ export class CompanySettingsPageComponent {
       },
     });
   }
+
+  /** El logo vigente es SVG: se ve en la app pero el correo no lo renderiza. */
+  readonly logoIsSvg = computed(() => this.store.logo()?.contentType === 'image/svg+xml');
 
   private showToast(message: string): void {
     this.toast.success(message);
