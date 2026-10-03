@@ -1,4 +1,5 @@
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import { normalizeFieldRect } from '../../utils/field-normalize.util';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -891,29 +892,13 @@ export class SignaturePdfEditorComponent implements OnChanges {
    * px de la página renderizada actual, así el resultado es independiente del zoom.
    */
   buildNormalizedFields(): NormalizedPlacedField[] {
-    const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
-    const round = (value: number): number => Math.round(value * 10000) / 10000;
     const out: NormalizedPlacedField[] = [];
     for (const field of this.fields()) {
       if (this.isPreparerField(field)) {
         continue; // los del preparador se exportan aparte (buildPreparerFields)
       }
-      const page = this.pages().find(p => p.page === field.page);
-      if (!page || page.width <= 0 || page.height <= 0) {
-        continue;
-      }
-      const x = round(clamp01(field.x / page.width));
-      const y = round(clamp01(field.y / page.height));
-      let width = round(clamp01(field.width / page.width));
-      let height = round(clamp01(field.height / page.height));
-      // El backend rechaza x+width > 1 (overflow): tras el redondeo se recorta.
-      if (x + width > 1) {
-        width = round(1 - x);
-      }
-      if (y + height > 1) {
-        height = round(1 - y);
-      }
-      if (width <= 0 || height <= 0) {
+      const rect = normalizeFieldRect(field, this.pages().find(p => p.page === field.page));
+      if (!rect) {
         continue;
       }
       out.push({
@@ -921,10 +906,7 @@ export class SignaturePdfEditorComponent implements OnChanges {
         signerLocalId: field.signerId,
         type: field.type,
         page: field.page,
-        x,
-        y,
-        width,
-        height,
+        ...rect,
         label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
       });
     }
@@ -933,31 +915,16 @@ export class SignaturePdfEditorComponent implements OnChanges {
 
   /** Campos del PREPARADOR en coordenadas normalizadas [0..1] (mismo cálculo, filtrando por parte). */
   buildPreparerFields(): NormalizedPlacedField[] {
-    const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
-    const round = (value: number): number => Math.round(value * 10000) / 10000;
     const out: NormalizedPlacedField[] = [];
     for (const field of this.fields()) {
       if (!this.isPreparerField(field)) {
         continue;
       }
-      const page = this.pages().find(p => p.page === field.page);
-      if (!page || page.width <= 0 || page.height <= 0) {
+      const rect = normalizeFieldRect(field, this.pages().find(p => p.page === field.page));
+      if (!rect) {
         continue;
       }
-      const x = round(clamp01(field.x / page.width));
-      const y = round(clamp01(field.y / page.height));
-      let width = round(clamp01(field.width / page.width));
-      let height = round(clamp01(field.height / page.height));
-      if (x + width > 1) {
-        width = round(1 - x);
-      }
-      if (y + height > 1) {
-        height = round(1 - y);
-      }
-      if (width <= 0 || height <= 0) {
-        continue;
-      }
-      out.push({ localId: field.id, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, x, y, width, height });
+      out.push({ localId: field.id, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, ...rect });
     }
     return out;
   }
