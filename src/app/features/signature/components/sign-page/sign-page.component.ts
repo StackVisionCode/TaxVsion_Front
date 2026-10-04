@@ -152,8 +152,25 @@ export class SignPageComponent implements OnInit, OnDestroy {
   private readonly clock = signal(Date.now());
   private clockTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Cuenta atrás del paso 'done'. Null mientras no se arranca; el timer vive aparte del clock general.
+  private static readonly DONE_REDIRECT_SECONDS = 10;
+  readonly doneRedirectSecondsLeft = signal<number | null>(null);
+  private doneTimer: ReturnType<typeof setInterval> | null = null;
+
   readonly isRejectOpen = signal(false);
   readonly rejectReason = signal('');
+
+  // Host al que vuelve el firmante cuando termina. Null si no hay subdominio proyectado o el
+  // navegador no está en un host multi-tenant: no redirigimos a ciegas.
+  readonly tenantReturnUrl = computed(() => {
+    const sub = this.context()?.tenantSubDomain?.trim().toLowerCase() ?? '';
+    if (!sub) return null;
+    const host = window.location.hostname;
+    const dot = host.indexOf('.');
+    if (dot < 0) return null;
+    const parent = host.slice(dot + 1);
+    return `${window.location.protocol}//${sub}.${parent}/`;
+  });
 
   // ---------- Acuse (cadena de audit) ----------
 
@@ -485,6 +502,36 @@ export class SignPageComponent implements OnInit, OnDestroy {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
     }
+    this.stopDoneCountdown();
+  }
+
+  // Arranca la cuenta atrás una vez por entrada a 'done'. Si ya hay timer activo, no reinicia.
+  private startDoneCountdown(): void {
+    if (this.doneTimer !== null || this.tenantReturnUrl() === null) return;
+    this.doneRedirectSecondsLeft.set(SignPageComponent.DONE_REDIRECT_SECONDS);
+    this.doneTimer = setInterval(() => {
+      const left = (this.doneRedirectSecondsLeft() ?? 0) - 1;
+      if (left <= 0) {
+        this.exitToTenant();
+        return;
+      }
+      this.doneRedirectSecondsLeft.set(left);
+    }, 1000);
+  }
+
+  // Salida inmediata (botón o fin de cuenta atrás). Hace cleanup y navega una sola vez.
+  exitToTenant(): void {
+    const url = this.tenantReturnUrl();
+    this.stopDoneCountdown();
+    if (url) window.location.assign(url);
+  }
+
+  private stopDoneCountdown(): void {
+    if (this.doneTimer !== null) {
+      clearInterval(this.doneTimer);
+      this.doneTimer = null;
+    }
+    this.doneRedirectSecondsLeft.set(null);
   }
 
   async load(): Promise<void> {
@@ -698,6 +745,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.signedAtLocal.set(new Date().toISOString());
     this.justSigned.set(true);
     this.stepId.set('done');
+    this.startDoneCountdown();
     await markLinkUsed(this.token, 'signed');
     await this.reloadContext();
     await this.loadAudit();

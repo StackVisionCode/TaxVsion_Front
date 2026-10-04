@@ -33,7 +33,6 @@ import {
 } from '../signature-request-panel/signature-wizard.model';
 import { SetPreparerBody, SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
-import { PageMetrics, PdfRect, screenRectToPdf } from '../signature-request-panel/signature-coords.util';
 import {
   CHANNEL_META,
   FIELD_TYPE_CIRCLE,
@@ -129,12 +128,8 @@ export interface NormalizedPlacedField {
 }
 
 /**
- * Paso 3 del wizard: editor de colocación de campos sobre el PDF (adaptado del
- * `PdfSignatureEditorComponent` + `generador-firmas` del CRM). Renderiza el PDF
- * con pdf.js (bytes subidos, PDF de muestra para docs mock, o páginas en blanco),
- * gestiona firmantes (el cliente es el #1) y permite colocar/arrastrar/redimensionar/
- * borrar campos de Firma/Iniciales/Fecha/Texto por firmante. Expone `buildPdfPayload()`
- * (transform pantalla→PDF con Y-flip) para el envío.
+ * Editor de colocación de campos (Firma, Iniciales, Fecha, Texto) por firmante sobre el PDF
+ * renderizado con pdf.js. Las coordenadas que envía al backend ya salen normalizadas [0..1].
  */
 @Component({
   selector: 'app-signature-pdf-editor',
@@ -880,11 +875,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
     return this.signers();
   }
 
-  getPageMetrics(page: number): PageMetrics | null {
-    const found = this.pages().find(p => p.page === page);
-    return found ? { scale: found.scale, height: found.height } : null;
-  }
-
   /**
    * Campos en coordenadas normalizadas [0..1] (origen arriba-izquierda), la
    * convención que exige FieldPosition en el backend. Se divide por el tamaño en
@@ -965,26 +955,6 @@ export class SignaturePdfEditorComponent implements OnChanges {
   /** FileId de la firma reutilizable que se estampará (la previsualizada); null si no hay ninguna. */
   getPreparerSignatureFileId(): string | null {
     return this.previewedSignature()?.fileId ?? null;
-  }
-
-  /** Payload por firmante con las cajas ya en puntos PDF (lo que iría al backend). */
-  buildPdfPayload(): { signerId: string; name: string; email: string; rects: PdfRect[] }[] {
-    const bySigner = new Map<string, PdfRect[]>();
-    for (const field of this.fields()) {
-      const metrics = this.getPageMetrics(field.page);
-      if (!metrics) {
-        continue;
-      }
-      const list = bySigner.get(field.signerId) ?? [];
-      list.push(screenRectToPdf(field, metrics));
-      bySigner.set(field.signerId, list);
-    }
-    return this.signers().map(s => ({
-      signerId: s.id,
-      name: s.name,
-      email: s.email,
-      rects: bySigner.get(s.id) ?? [],
-    }));
   }
 
   // ---------- render ----------

@@ -19,4 +19,5 @@ export const environment: Environment = {
   // DEV: correr el portal del cliente en este origen (ng serve --port 4300) para probar el
   // login central cliente end-to-end. En prod se ignora.
   portalDevUrl: 'http://localhost:4300',
+  signatureAutosaveEnabled: true,
 };

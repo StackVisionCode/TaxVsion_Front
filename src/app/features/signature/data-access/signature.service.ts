@@ -35,6 +35,8 @@ import {
   UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
+  UpsertDraftBody,
+  UpsertDraftResponse,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -127,6 +129,11 @@ export class SignatureService {
   /** PUT /signature/requests/{id} — edita la metadata de un borrador (Draft/Ready). */
   update(id: string, body: UpdateSignatureRequestBody): Observable<void> {
     return this.http.put<void>(`${this.base}/requests/${id}`, body);
+  }
+
+  /** PUT /signature/requests/{id}/draft — autosave: reconcilia metadata+signers+fields en una transacción. */
+  upsertDraft(id: string, body: UpsertDraftBody): Observable<UpsertDraftResponse> {
+    return this.http.put<UpsertDraftResponse>(`${this.base}/requests/${id}/draft`, body);
   }
 
   /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */

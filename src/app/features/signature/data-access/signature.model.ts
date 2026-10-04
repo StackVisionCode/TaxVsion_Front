@@ -198,6 +198,8 @@ export interface SignatureRequestSummary {
   createdAtUtc: string;
   sentAtUtc: string | null;
   completedAtUtc: string | null;
+  // F2.5: borrador del propio actor → la UI lo pinta como "In preparation".
+  isOwnedByActor: boolean;
 }
 
 export interface SignatureRequestListResult {
@@ -205,6 +207,47 @@ export interface SignatureRequestListResult {
   totalCount: number;
   page: number;
   pageSize: number;
+}
+
+// F2.5: autosave. Snapshot completo del editor en un solo PUT /signature/requests/{id}/draft.
+export interface UpsertDraftBody {
+  expectedUpdatedAtUtc: string | null;
+  title: string;
+  description: string | null;
+  category: SignatureCategory;
+  tokenExpirationHours: number;
+  sendSignedDocumentToSigners: boolean | null;
+  sendCertificateToSigners: boolean | null;
+  autoRemindersEnabled: boolean | null;
+  reminderIntervalHours: number | null;
+  signers: UpsertDraftSigner[];
+  fields: UpsertDraftField[];
+}
+
+export interface UpsertDraftSigner {
+  id: string | null;
+  email: string;
+  fullName: string;
+  phoneNumber: string | null;
+  language: SignerLanguage | null;
+  verificationMethod: SignerVerificationMethod | null;
+}
+
+export interface UpsertDraftField {
+  id: string | null;
+  signerIndex: number;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+  isRequired: boolean;
+}
+
+export interface UpsertDraftResponse {
+  updatedAtUtc: string;
 }
 
 /** POST /signature/documents/validate. */
@@ -594,12 +637,12 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
     email: signer.email,
     color: AVATAR_PALETTE[index % AVATAR_PALETTE.length],
     status: apiSignerStatusToUi(signer.status),
-    signedAt: signer.signedAtUtc ? signer.signedAtUtc.slice(0, 10) : null,
+    signedAt: signer.signedAtUtc,
   };
 }
 
 /** Detalle del backend -> fila/preview de la tabla existente. El "client" se deriva del primer firmante (orden 1). */
-export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequest {
+export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?: string | null): SignatureRequest {
   const ordered = [...detail.signers].sort((a, b) => a.order - b.order);
   return {
     id: detail.id,
@@ -607,9 +650,10 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     client: ordered[0]?.fullName ?? '—',
     signers: ordered.map(signerToUi),
     status: apiStatusToUi(detail.status),
-    sentDate: detail.sentAtUtc ? detail.sentAtUtc.slice(0, 10) : null,
+    sentDate: detail.sentAtUtc,
+    // dueDate alimenta un <input type="date">, por eso se queda como YYYY-MM-DD puro.
     dueDate: detail.expiresAtUtc.slice(0, 10),
-    completedDate: detail.completedAtUtc ? detail.completedAtUtc.slice(0, 10) : null,
+    completedDate: detail.completedAtUtc,
     notes: detail.description ?? '',
     category: detail.category,
     originalFileId: detail.originalFileId,
@@ -623,6 +667,7 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     ),
     preparerSignatureFileId: detail.preparerSignatureFileId,
     preparerFieldCount: detail.preparerFields.length,
+    isOwnedByActor: currentUserId ? detail.createdByUserId === currentUserId : false,
   };
 }
 

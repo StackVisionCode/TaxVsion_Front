@@ -34,4 +34,9 @@ export interface Environment {
    * `https://<slug>.baseDomain/portal`. Vacío/omitido = el redirect de portal se queda same-origin.
    */
   portalDevUrl?: string;
+  /**
+   * F2.5: feature flag del autoguardado del borrador en Signature. true = autosave activo.
+   * false = sólo guardado explícito con el botón "Save as draft" (comportamiento previo).
+   */
+  signatureAutosaveEnabled?: boolean;
 }

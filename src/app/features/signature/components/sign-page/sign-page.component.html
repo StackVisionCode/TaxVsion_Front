@@ -470,10 +470,26 @@
                   </span>
                 </div>
 
-                <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                  <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
-                  You can safely close this window.
-                </p>
+                <!-- Return a la oficina: botón y cuenta atrás. Si no hay subdominio proyectado,
+                     mantenemos el mensaje original sin forzar una redirección a ciegas. -->
+                <ng-container *ngIf="tenantReturnUrl() as returnUrl; else closeHint">
+                  <div class="mt-5 flex flex-col items-center gap-2">
+                    <button type="button" (click)="exitToTenant()"
+                      class="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink">
+                      <ion-icon name="arrow-forward-outline" class="text-sm"></ion-icon>
+                      Return to the office
+                    </button>
+                    <p *ngIf="doneRedirectSecondsLeft() as secs" class="text-[11px] text-gray-400">
+                      Redirecting in {{ secs }}s…
+                    </p>
+                  </div>
+                </ng-container>
+                <ng-template #closeHint>
+                  <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                    <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
+                    You can safely close this window.
+                  </p>
+                </ng-template>
 
                 <div class="mt-5">
                   <ng-container *ngTemplateOutlet="receipt"></ng-container>
