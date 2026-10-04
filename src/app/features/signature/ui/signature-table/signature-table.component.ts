@@ -33,6 +33,7 @@ export interface Signer {
 export type SignatureStatus =
   | 'draft'
   | 'ready'
+  | 'scheduled'
   | 'pending'
   | 'in-progress'
   | 'completed'
@@ -88,6 +89,8 @@ export interface SignatureRequest {
   hasSignatureField?: boolean;
   /** F2.5: borrador del actor logueado → se pinta "In preparation" en vez de "Draft". */
   isOwnedByActor?: boolean;
+  /** F3: hora UTC programada; sólo cuando status === 'scheduled'. */
+  scheduledSendAtUtc?: string | null;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */

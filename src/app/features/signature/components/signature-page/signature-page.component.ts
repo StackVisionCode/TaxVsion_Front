@@ -49,6 +49,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   Drafts: 'Drafts',
   Draft: 'Draft',
   Ready: 'Ready',
+  Scheduled: 'Scheduled',
   InProgress: 'In Progress',
   Completed: 'Completed',
   Rejected: 'Rejected',
@@ -429,6 +430,24 @@ export class SignaturePageComponent {
         this.sendingRequest.set(false);
         this.toast.error(toApiError(err).message);
       },
+    });
+  }
+
+  /** F3 — cancelar la programacion de envio desde el banner del preview. */
+  cancelScheduledSend(request: SignatureRequest): void {
+    this.store.cancelScheduleRequest(request.id).subscribe({
+      next: () => {
+        this.store.getRequestUi(request.id).subscribe({
+          next: updated => {
+            if (this.previewRequest()?.id === request.id) {
+              this.previewRequest.set(updated);
+            }
+            this.toast.success('Schedule canceled — the request is back to draft');
+          },
+          error: () => this.toast.info('Schedule canceled — reopen the request to see the latest status'),
+        });
+      },
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 

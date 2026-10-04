@@ -223,6 +223,15 @@
                   <p class="mt-2 text-[11px] text-gray-400">
                     The office records the exact wording and version of this consent when you accept it.
                   </p>
+
+                  <!-- Explicación del sello técnico que se aplica al PDF final (audit §3.1). -->
+                  <p class="mt-3 font-semibold text-gray-900">How your signed document is sealed</p>
+                  <p class="mt-1 text-[12px] leading-relaxed">
+                    This document is electronically sealed using a digital certificate operated and controlled by
+                    TaxProffice. The seal attests to the integrity of the document from the moment the signing process
+                    was completed, and to the traceability of the actions recorded in the certificate of completion.
+                    It is not a qualified certificate issued in the name of any signer.
+                  </p>
                 </div>
 
                 <button type="button" (click)="toggleConsent()"
@@ -313,7 +322,7 @@
                 </p>
               </div>
 
-              <!-- PASO: Revisar (sin previsualización: CloudStorage exige sesión) -->
+              <!-- PASO: Revisar (F5 — ya hay visor del documento original tras la verificación) -->
               <div *ngIf="stepId() === 'review'" class="step-content">
                 <h1 class="text-xl font-bold text-gray-900">Review before signing</h1>
                 <p class="mt-1.5 text-sm text-gray-500">
@@ -329,19 +338,19 @@
                     {{ ctx.description }}
                   </p>
 
+                  <p *ngIf="loadingDocument()" class="mt-3 flex items-center gap-2 text-[11px] text-gray-500">
+                    <span class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-bold"></span>
+                    Loading the document…
+                  </p>
+
                   <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                    Where your fields go ({{ fields().length }})
+                    Review the document — your fields are highlighted ({{ fields().length }})
                   </p>
                   <div class="mt-2">
-                    <app-sign-document-view [fields]="fields()" [values]="fieldValues()"></app-sign-document-view>
-                  </div>
-
-                  <div class="mt-3 flex items-start gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-[11px] leading-snug text-gray-500">
-                    <ion-icon name="eye-off-outline" class="mt-px shrink-0 text-sm text-gray-400"></ion-icon>
-                    <span>
-                      The page content isn't shown on this link — the file stays in the office's secure vault.
-                      A sealed copy is emailed to you as soon as everyone signs.
-                    </span>
+                    <!-- F5 — el documento se pinta de FONDO (pageImages) y los canvas del preparador
+                         (fields) encima en su posición exacta. Reemplaza al botón+modal anterior. -->
+                    <app-sign-document-view [fields]="fields()" [values]="fieldValues()"
+                      [pageImages]="pageImages()"></app-sign-document-view>
                   </div>
                 </div>
 
@@ -412,6 +421,7 @@
                 <div *ngIf="textFields().length > 0" class="mt-4">
                   <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Fill in your document</p>
                   <app-sign-document-view [fields]="fieldsOnTextPages()" [values]="fieldValues()" [editable]="true"
+                    [pageImages]="pageImages()"
                     (valueChange)="setFieldValue($event.fieldId, $event.value)"></app-sign-document-view>
                 </div>
 
@@ -614,3 +624,5 @@
     </button>
   </div>
 </app-modal>
+
+

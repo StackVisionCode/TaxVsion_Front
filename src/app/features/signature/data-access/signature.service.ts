@@ -136,6 +136,16 @@ export class SignatureService {
     return this.http.put<UpsertDraftResponse>(`${this.base}/requests/${id}/draft`, body);
   }
 
+  /** POST /signature/requests/{id}/schedule — F3: Draft → Scheduled con la hora UTC. */
+  scheduleSend(id: string, scheduledSendAtUtc: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/requests/${id}/schedule`, { scheduledSendAtUtc });
+  }
+
+  /** DELETE /signature/requests/{id}/schedule — F3: Scheduled → Draft. */
+  cancelSchedule(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${id}/schedule`);
+  }
+
   /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */
   deleteRequest(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/requests/${id}`);

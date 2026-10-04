@@ -281,6 +281,19 @@
 
               <span (pointerdown)="startResize($event, f)" aria-hidden="true"
                 class="field-resize absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm border border-gray-400 bg-white"></span>
+
+              <!-- F6 — tamaño de letra que estampará el sellador (número en vivo mientras se redimensiona). -->
+              <ng-container *ngIf="f.id === selectedFieldId() && selectedFieldFontBadge() as badge">
+                <span class="field-font-badge pointer-events-none absolute -top-2.5 right-6 rounded-full bg-brand-bold px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                  data-testid="field-font-badge">
+                  {{ badge.pt }} pt{{ badge.mayShrink ? ' max' : '' }}
+                </span>
+                <span *ngIf="badge.mayShrink"
+                  class="pointer-events-none absolute left-0 top-full mt-1 whitespace-nowrap rounded bg-brand-ink/90 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+                  data-testid="field-font-badge-hint">
+                  May shrink if the signer types a long value.
+                </span>
+              </ng-container>
             </div>
           </div>
 

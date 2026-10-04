@@ -17,6 +17,7 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { SignaturePadComponent } from '@shared/ui/signature-pad/signature-pad.component';
 import { SignDocumentViewComponent } from '../../ui/sign-document-view/sign-document-view.component';
+import { renderPdfPages } from '../../utils/pdf-render.util';
 import { maskEmail } from '../../utils/mask-email.util';
 import { UsedLinkRecord, markLinkUsed, readUsedLink } from '../../utils/used-link.util';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
@@ -77,10 +78,11 @@ interface BlockedState {
  * asíncrona y el sellado espera a que esté lista (no hay que hacer nada en el cliente).
  *
  * Limitación del contrato público (no simulable, se muestra como tal):
- *   - El contexto expone `originalFileId` pero CloudStorage exige JWT para emitir la
- *     URL presignada ⇒ no hay previsualización del PDF ni descargas para el firmante.
- *     Las hojas (`app-sign-document-view`) muestran los campos en su posición real sobre
- *     un lienzo en blanco; los campos de texto se escriben ahí mismo.
+ *   - F5 (2026-10-03): el documento sí se muestra. GET /signature/public/{token}/document
+ *     devuelve el PDF original tras validar la verificación completa; el visor global
+ *     `app-file-viewer` lo abre sobre la ceremonia sin salir de pantalla. Las hojas
+ *     `app-sign-document-view` siguen mostrando la posición de los campos como fallback
+ *     y para el firmante que todavía no abrió el visor.
  */
 @Component({
   selector: 'app-sign-page',
@@ -160,16 +162,50 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly isRejectOpen = signal(false);
   readonly rejectReason = signal('');
 
-  // Host al que vuelve el firmante cuando termina. Null si no hay subdominio proyectado o el
-  // navegador no está en un host multi-tenant: no redirigimos a ciegas.
+  // F5 — Documento como fondo del Review step: bajamos los bytes del PDF por el endpoint F5 (que
+  // ya hard-failea 403 si la verificación no está completa) y lo rendearmos con pdf.js a dataURLs.
+  // El componente `app-sign-document-view` ya acepta `[pageImages]` para pintarlos de fondo bajo
+  // los campos — así los canvas del preparador se ven en su posición real sobre el documento.
+  readonly pageImages = signal<Record<number, string> | null>(null);
+  readonly loadingDocument = signal(false);
+  readonly documentError = signal<string | null>(null);
+
+  private async loadDocument(): Promise<void> {
+    if (this.pageImages() || this.loadingDocument()) {
+      return;
+    }
+    this.loadingDocument.set(true);
+    this.documentError.set(null);
+    try {
+      const bytes = await firstValueFrom(this.api.getDocumentBytes(this.token));
+      const pages = await renderPdfPages({ data: bytes });
+      const map: Record<number, string> = {};
+      for (const p of pages) {
+        if (p.src) map[p.page] = p.src;
+      }
+      this.pageImages.set(map);
+    } catch (err) {
+      // Silencioso: el fallback a hojas en blanco con los canvas sigue siendo utilizable.
+      this.documentError.set(toApiError(err).message);
+    } finally {
+      this.loadingDocument.set(false);
+    }
+  }
+
+  // Host al que vuelve el firmante cuando termina.
+  //  - Prod: si el tenant tiene subdominio proyectado y el host es multi-tenant
+  //    (ej. foo.taxproffice.com) volvemos a `<sub>.<basedomain>/`.
+  //  - Sin subdominio o en localhost: null → se muestra la pantalla "close window".
+  //    (NO cae al Landing: Landing es Manage Subscription, el firmante externo no pinta ahí).
   readonly tenantReturnUrl = computed(() => {
     const sub = this.context()?.tenantSubDomain?.trim().toLowerCase() ?? '';
-    if (!sub) return null;
     const host = window.location.hostname;
     const dot = host.indexOf('.');
-    if (dot < 0) return null;
-    const parent = host.slice(dot + 1);
-    return `${window.location.protocol}//${sub}.${parent}/`;
+    if (sub && dot >= 0) {
+      const parent = host.slice(dot + 1);
+      return `${window.location.protocol}//${sub}.${parent}/`;
+    }
+    return null;
   });
 
   // ---------- Acuse (cadena de audit) ----------
@@ -619,7 +655,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
     const steps = this.steps();
     const clamped = Math.min(Math.max(index, 0), steps.length - 1);
     this.actionError.set(null);
-    this.stepId.set(steps[clamped].id);
+    const nextId = steps[clamped].id;
+    this.stepId.set(nextId);
+    // F5: en cuanto el firmante llega a review/sign ya pasó por consent + PIN + OTP si tocaban,
+    // así que el endpoint /document ya no responderá 403. Se dispara una sola vez (loadDocument
+    // es idempotente: si `pageImages` ya está, retorna).
+    if (nextId === 'review' || nextId === 'sign') {
+      void this.loadDocument();
+    }
   }
 
   toggleConsent(): void {

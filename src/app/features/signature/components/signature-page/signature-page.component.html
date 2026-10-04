@@ -79,6 +79,7 @@
     <ng-template #previewOnly>
       <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
         (send)="sendRequest($event)"
+        (cancelSchedule)="cancelScheduledSend($event)"
         (downloadOriginal)="downloadOriginal($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
         (viewDocument)="viewDocument($event)"

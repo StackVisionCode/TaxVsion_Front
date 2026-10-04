@@ -5,6 +5,7 @@ import { SignatureStatus } from '../ui/signature-table/signature-table.component
 export const SIGNATURE_STATUS_LABEL: Record<SignatureStatus, string> = {
   draft: 'Draft',
   ready: 'Ready',
+  scheduled: 'Scheduled',
   pending: 'Pending',
   'in-progress': 'In Progress',
   completed: 'Completed',
@@ -31,6 +32,7 @@ export interface SignatureStatusPill {
 export const SIGNATURE_STATUS_PILL: Record<SignatureStatus, SignatureStatusPill> = {
   draft: { tone: 'neutral' },
   ready: { tone: 'info' },
+  scheduled: { tone: 'info' },
   pending: { tone: 'warning' },
   'in-progress': { tone: 'brand' },
   completed: { tone: 'success' },
