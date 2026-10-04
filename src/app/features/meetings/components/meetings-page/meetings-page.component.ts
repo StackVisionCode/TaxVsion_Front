@@ -1,5 +1,13 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import {
+  ScheduleMeetingDeepLink,
+  customerInviteeDraft,
+  hasScheduleMeetingParams,
+  parseScheduleMeetingDeepLink,
+} from '../../utils/schedule-deep-link';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -13,7 +21,7 @@ import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/m
 import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
-import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
+import { MeetingFormValue, MeetingInviteeDraft, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
@@ -49,6 +57,12 @@ export class MeetingsPageComponent implements OnInit {
   private readonly activeMeeting = inject(ActiveMeetingService);
   private readonly toast = inject(ToastService);
   private readonly clipboard = inject(ClipboardService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly directory = inject(CustomerDirectoryStore);
+
+  /** Invitados precargados del panel de agendar (deep link desde el perfil del cliente). */
+  readonly initialInvitees = signal<MeetingInviteeDraft[]>([]);
 
   readonly tabOptions: FilterChipOption<MeetingsScope>[] = [
     { id: 'upcoming', label: 'Upcoming' },
@@ -80,6 +94,40 @@ export class MeetingsPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
+    this.consumeScheduleDeepLink();
+  }
+
+  /**
+   * `/meetings?schedule=1&customerId=<id>&customerName=<name>` (acción "Schedule meeting" del perfil
+   * del cliente): abre el panel de agendar con ese cliente ya invitado (kind `customer`) y limpia la
+   * URL. Mismo gate que el botón "Schedule meeting" (`communication.meeting.create`).
+   */
+  private consumeScheduleDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const link = parseScheduleMeetingDeepLink(params);
+    if (hasScheduleMeetingParams(params)) {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    }
+    if (!link || !this.store.canCreate()) {
+      return;
+    }
+    // Se espera al directorio (cacheado) antes de abrir: así el invitado lleva nombre y email reales
+    // y el formulario no se reinicia a mitad de escritura.
+    this.directory.byId([link.customerId]).subscribe({
+      next: found => this.openScheduleFor(link, found.get(link.customerId) ?? null),
+      error: () => this.openScheduleFor(link, null),
+    });
+  }
+
+  private openScheduleFor(
+    link: ScheduleMeetingDeepLink,
+    customer: { displayName: string; primaryEmail: string } | null,
+  ): void {
+    this.initialInvitees.set([customerInviteeDraft(link, customer)]);
+    this.managingMeeting.set(null);
+    this.panelError.set(null);
+    this.creationOutcome.set(null);
+    this.isPanelOpen.set(true);
   }
 
   // ---------- Listado ----------
@@ -117,6 +165,7 @@ export class MeetingsPageComponent implements OnInit {
   // ---------- Panel de agendar / gestionar ----------
 
   openSchedulePanel(): void {
+    this.initialInvitees.set([]);
     this.managingMeeting.set(null);
     this.panelError.set(null);
     this.creationOutcome.set(null);
@@ -138,6 +187,7 @@ export class MeetingsPageComponent implements OnInit {
     this.managingMeeting.set(null);
     this.panelError.set(null);
     this.creationOutcome.set(null);
+    this.initialInvitees.set([]);
   }
 
   /** POST /meetings (+ invitations): el outcome mantiene el panel abierto en el paso de links. */

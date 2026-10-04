@@ -63,6 +63,11 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   @Input() errorMessage: string | null = null;
   /** Resultado de la creación: activa el paso de links (shortCode + joinUrls). */
   @Input() creationOutcome: MeetingCreationOutcome | null = null;
+  /**
+   * Invitados precargados al abrir en modo crear (p. ej. el cliente del deep link
+   * `/meetings?schedule=1&customerId=`). Se aplican en cada apertura; el usuario puede quitarlos.
+   */
+  @Input() initialInvitees: MeetingInviteeDraft[] = [];
   @Output() closed = new EventEmitter<void>();
   @Output() createRequested = new EventEmitter<MeetingFormValue>();
   @Output() rescheduleRequested = new EventEmitter<{ meeting: MeetingItem; scheduledForUtc: string | null }>();
@@ -121,7 +126,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   });
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['meeting'] || changes['isOpen']) {
+    if (changes['meeting'] || changes['isOpen'] || changes['initialInvitees']) {
       this.isEditMode.set(this.meeting !== null);
       this.resetForm();
       if (this.isOpen && this.meeting?.isHost) {
@@ -361,7 +366,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     this.requireWaitingRoom.set(false);
     this.passcode.set('');
     this.recordingRequested.set(false);
-    this.invitees.set([]);
+    this.invitees.set(meeting ? [] : [...this.initialInvitees]);
     this.inviteeSearch.set('');
     this.inviteeResults.set({ employees: [], customers: [] });
     this.isInviteeOpen.set(false);

@@ -1,7 +1,10 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
 import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
@@ -89,12 +92,20 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
 })
-export class SignaturePageComponent {
+export class SignaturePageComponent implements OnInit {
   /** B6 — la cabecera mostraba las 5 acciones a todos; las plantillas daban 403 al empleado. */
   protected readonly can = inject(SignatureCapabilities);
 
   readonly store = inject(SignatureStore);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly directory = inject(CustomerDirectoryStore);
+
+  /** El wizard montado (solo existe con el panel abierto); lo usa el deep link para preseleccionar. */
+  private readonly requestPanel = viewChild(SignatureRequestPanelComponent);
+  /** Cliente del deep link esperando a que el wizard termine de montarse. */
+  private readonly pendingCustomer = signal<CustomerSummary | null>(null);
 
   readonly statusFilters: FilterChipOption<SignatureStatusFilter>[] = STATUS_FILTERS.map(id => ({
     id,
@@ -165,6 +176,50 @@ export class SignaturePageComponent {
   constructor() {
     this.store.refresh();
     this.store.loadSignatureProfiles();
+
+    // Deep link: en cuanto el wizard está montado y el cliente resuelto, se elige como en el paso 1.
+    effect(() => {
+      const panel = this.requestPanel();
+      const customer = this.pendingCustomer();
+      if (panel && customer) {
+        untracked(() => {
+          panel.onClientPicked(customer);
+          this.pendingCustomer.set(null);
+        });
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.consumeNewRequestDeepLink();
+  }
+
+  /**
+   * `/signature?new=1&customerId=<id>&customerName=<name>` (acción "Signature request" del perfil
+   * del cliente): abre el wizard nuevo con ese cliente elegido y limpia la URL para que un refresh
+   * o el "atrás" no lo vuelvan a abrir. Respeta el mismo gate que el botón "New request".
+   */
+  private consumeNewRequestDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const link = parseNewSignatureDeepLink(params);
+    if (hasNewSignatureParams(params)) {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    }
+    if (!link || !this.can.canCreate()) {
+      return;
+    }
+    this.openCreatePanel();
+    this.directory.byId([link.customerId]).subscribe({
+      next: found => {
+        const customer = found.get(link.customerId);
+        if (customer && this.isPanelOpen() && !this.continueRequestId()) {
+          this.pendingCustomer.set(customer);
+        } else if (!customer) {
+          this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`);
+        }
+      },
+      error: () => this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`),
+    });
   }
 
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
@@ -212,6 +267,7 @@ export class SignaturePageComponent {
   }
 
   closePanel(): void {
+    this.pendingCustomer.set(null);
     this.isPanelOpen.set(false);
     this.continueRequestId.set(null);
   }

@@ -56,7 +56,8 @@
 
 <!-- Agendar (create + invitaciones) / gestionar (re-agendar + invitaciones) -->
 <app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [busy]="panelBusy()"
-  [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" (closed)="closePanel()"
+  [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" [initialInvitees]="initialInvitees()"
+  (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
 
 <!-- Visor global: transcript del meeting -->
