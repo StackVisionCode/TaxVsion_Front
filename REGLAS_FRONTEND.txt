@@ -204,6 +204,11 @@ R7. Listas grandes: paginar o buscar en el servidor (el máximo de página del
 
 R8. Animaciones solo con transiciones CSS (transform/opacity) y respetando
     prefers-reduced-motion. No hay @angular/animations en el proyecto.
+    Los @keyframes con fill-mode both/forwards deben TERMINAR en
+    `transform: none` (no translateY(0) ni scale(1)): cualquier transform que
+    quede aplicado encierra a los hijos position: fixed y los modales se abren
+    "dentro" de la tarjeta. Overlays siempre con app-modal / app-drawer /
+    app-file-viewer, que se portan al <body>.
 
 
 -------------------------------------------------------------------------------
