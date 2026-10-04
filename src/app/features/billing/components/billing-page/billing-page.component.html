@@ -127,7 +127,7 @@
   [statusHistory]="store.selectedHistory()" [historyLoading]="store.selectedHistoryLoading()"
   [replacesInvoiceId]="store.selectedReplacesId()" [replacedByInvoiceId]="store.selectedReplacedById()"
   (closed)="closeDetail()"
-  (issueRequested)="store.issue($event.id)" (pdfRequested)="store.openPdf($event)"
+  (issueRequested)="store.issue($event.id)" (pdfRequested)="openPdf($event)"
   (recordPaymentRequested)="paymentTarget.set($event)" (receiptRequested)="receiptTarget.set($event)"
   (copyLinkRequested)="copyLinkUrl($event)"
   (refreshRequested)="store.refreshInvoice($event.id)"></app-invoice-detail-panel>
@@ -137,7 +137,7 @@
   (confirmed)="onPaymentConfirmed($event)"></app-record-payment-dialog>
 
 <app-receipt-dialog [invoice]="receiptTarget()" (closed)="closeReceipt()" (hashCopyRequested)="copyReceiptHash($event)"
-  (pdfRequested)="store.openPdf($event)"></app-receipt-dialog>
+  (pdfRequested)="openPdf($event)"></app-receipt-dialog>
 
 <!-- Borrar borrador: confirmación in-app (no confirm() nativo) -->
 <app-confirm-dialog [isOpen]="deleteTarget() !== null" heading="Delete draft invoice"
@@ -154,3 +154,6 @@
   message="The current invoice will be voided and a draft replacement will be created, carrying over any payment already collected. You can correct the draft before issuing it."
   confirmLabel="Void & create replacement" (confirmed)="confirmReissue()"
   (cancelled)="reissueTarget.set(null)"></app-confirm-dialog>
+
+<!-- Visor global: PDF de la factura -->
+<app-file-viewer [isOpen]="pdfViewerOpen()" [files]="pdfViewerFiles()" (closed)="pdfViewerOpen.set(false)"></app-file-viewer>

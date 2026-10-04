@@ -32,6 +32,8 @@ import { formatBytes } from '@shared/utils/format.util';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 interface SubtaskRow {
   id: string;
@@ -58,7 +60,7 @@ interface BlockerRow {
 @Component({
   selector: 'app-task-detail-drawer',
   standalone: true,
-  imports: [CommonModule, FormsModule, DrawerComponent, AvatarComponent, StatusPillComponent],
+  imports: [CommonModule, FormsModule, DrawerComponent, AvatarComponent, StatusPillComponent, FileViewerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-detail-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,6 +106,11 @@ export class TaskDetailDrawerComponent implements OnChanges {
 
   // ----- Adjuntos -----
   readonly attachments = signal<TaskAttachmentResponse[]>([]);
+
+  /** Visor global de adjuntos (solo los ya escaneados: 'Available'). */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
   readonly attachmentsLoading = signal(false);
   readonly uploadingAttachment = signal(false);
 
@@ -267,6 +274,18 @@ export class TaskDetailDrawerComponent implements OnChanges {
       next: () => this.loadAttachments(task.id),
       error: () => this.loadAttachments(task.id),
     });
+  }
+
+  /** Abre el visor con los adjuntos listos de la tarea, empezando por `att`. */
+  previewAttachment(att: TaskAttachmentResponse): void {
+    const ready = this.attachments().filter(a => a.status === 'Available');
+    const start = ready.findIndex(a => a.fileId === att.fileId);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(ready.map(a => this.cloud.viewerItemForId(a.fileId, a.displayName, a.contentType, a.sizeBytes)));
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 
   attachmentSize(bytes: number): string {

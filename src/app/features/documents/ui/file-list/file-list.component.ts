@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject } from '@angular/core';
 import { formatBytes } from '@shared/utils/format.util';
+import { detectViewerKind } from '@shared/ui/file-viewer/file-viewer.model';
 import {
   FileResponse,
   FolderResponse,
@@ -62,14 +63,14 @@ export class FileListComponent {
   @Output() setSort = new EventEmitter<'name' | 'modified' | 'size'>();
 
   readonly skeletonRows = [0, 1, 2, 3, 4];
-  private static readonly PREVIEWABLE = ['PDF', 'JPG', 'JPEG', 'PNG'];
 
   extOf(name: string): string {
     return (name.split('.').pop() ?? '').toUpperCase();
   }
 
+  /** El visor global sabe pintarlo (PDF, imagen, texto, CSV). */
   previewable(file: FileResponse): boolean {
-    return FileListComponent.PREVIEWABLE.includes(this.extOf(file.originalName));
+    return detectViewerKind(file.originalName, file.detectedContentType || file.declaredContentType) !== 'unsupported';
   }
 
   get isEmpty(): boolean {

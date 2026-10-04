@@ -225,6 +225,11 @@
 
               <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl"
                 [class.border-b]="!last" [class.border-gray-100]="!last">
+                <button *ngIf="item.canDownload && item.fileId" type="button" (click)="view(item)"
+                  [attr.aria-label]="'View ' + item.name"
+                  class="mr-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
+                  View
+                </button>
                 <button *ngIf="item.canDownload" type="button" (click)="download(item)"
                   [disabled]="store.downloadingId() === item.shareLinkId"
                   class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-brand-bold hover:border-brand-bold hover:text-white transition-colors disabled:opacity-50">
@@ -246,3 +251,7 @@
     </div>
   </div>
 </div>
+
+<!-- Visor global de archivos compartidos conmigo -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>

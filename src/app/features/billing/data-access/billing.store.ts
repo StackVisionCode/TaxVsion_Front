@@ -13,6 +13,7 @@ import {
 import { toUserMessage } from '@core/errors/error-messages';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ClipboardService } from '@shared/services/clipboard.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { parseUtcDateOrNull, utcTime } from '@shared/utils/utc-date.util';
 import { BillingService } from './billing.service';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
@@ -329,23 +330,23 @@ export class BillingStore {
     });
   }
 
-  /** Abre el PDF en otra pestaña vía URL presignada de CloudStorage. */
-  openPdf(invoice: InvoiceSummary): void {
-    if (!invoice.pdfFileId) {
+  /**
+   * Ítem del visor global para el PDF de la factura (antes se abría en otra pestaña). La URL
+   * presignada de CloudStorage se pide al mostrarlo. null (con aviso) si el PDF aún se genera.
+   */
+  pdfViewerItem(invoice: InvoiceSummary): FileViewerItem | null {
+    const fileId = invoice.pdfFileId;
+    if (!fileId) {
       this.toast.info('The PDF is still being generated. Refresh in a moment.');
-      return;
+      return null;
     }
-    this._busyInvoiceId.set(invoice.id);
-    this.service.getDownloadUrl(invoice.pdfFileId).subscribe({
-      next: result => {
-        this._busyInvoiceId.set(null);
-        window.open(result.downloadUrl, '_blank', 'noopener');
-      },
-      error: err => {
-        this._busyInvoiceId.set(null);
-        this.toast.error(toUserMessage(err));
-      },
-    });
+    const number = (invoice.invoiceNumber ?? '').trim().replace(/[\\/:*?"<>|]+/g, '-');
+    return {
+      name: number ? `Invoice ${number}.pdf` : 'Invoice.pdf',
+      contentType: 'application/pdf',
+      resolveUrl: () => this.service.getDownloadUrl(fileId).pipe(map(result => result.downloadUrl)),
+      ref: invoice.id,
+    };
   }
 
   // ---------- Detalle ----------

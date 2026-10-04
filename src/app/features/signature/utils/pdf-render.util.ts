@@ -1,33 +1,7 @@
-type PdfJs = typeof import('pdfjs-dist');
+import { PDFJS_STANDARD_FONTS_URL, loadPdfjs } from '@shared/utils/pdfjs-loader';
 
-/**
- * pdf.js se carga BAJO DEMANDA, no con un import estático.
- *
- * Es la dependencia más pesada del proyecto (~430 kB sin comprimir) y con el import
- * estático viajaba en el chunk de Signature entero: abrir la lista de solicitudes —o la
- * página de plantillas— ya la pagaba, aunque no se llegara a abrir ningún PDF. Al moverla
- * aquí, solo la descarga quien de verdad renderiza un documento.
- *
- * La promesa se memoiza: varias llamadas concurrentes comparten una sola carga, y el
- * worker se configura una única vez.
- */
-let pdfjs: Promise<PdfJs> | null = null;
-
-function loadPdfjs(): Promise<PdfJs> {
-  pdfjs ??= import('pdfjs-dist')
-    .then(lib => {
-      // El worker se sirve desde /pdfjs/ (copiado en angular.json, igual que ionicons).
-      lib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
-      return lib;
-    })
-    .catch(err => {
-      // Un fallo de red no debe dejar la promesa rota cacheada para siempre: se suelta
-      // para que el siguiente intento vuelva a bajarla.
-      pdfjs = null;
-      throw err;
-    });
-  return pdfjs;
-}
+// pdf.js se carga BAJO DEMANDA con el cargador compartido (shared/utils/pdfjs-loader.ts): una sola
+// carga memoizada para el editor de Signature y el visor global de archivos.
 
 export const DEFAULT_RENDER_SCALE = 1.2;
 
@@ -84,7 +58,7 @@ export async function renderPdfPages(
   throwIfAborted();
   const lib = await loadPdfjs();
   throwIfAborted();
-  const task = lib.getDocument({ ...src, standardFontDataUrl: '/pdfjs/standard_fonts/' });
+  const task = lib.getDocument({ ...src, standardFontDataUrl: PDFJS_STANDARD_FONTS_URL });
   try {
     const pdf = await task.promise;
     const out: RenderedPage[] = [];
