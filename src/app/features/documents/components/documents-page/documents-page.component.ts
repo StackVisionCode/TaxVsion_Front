@@ -22,7 +22,11 @@ import {
   RecycleBinItemResponse,
   ShareLinkResponse,
   formatDate,
+  isFileReady,
 } from '../../data-access/documents.model';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { DocumentNavigatorComponent } from '../../ui/document-navigator/document-navigator.component';
 import { FileListComponent, FileRowAction } from '../../ui/file-list/file-list.component';
 import { FileDetailsPanelComponent } from '../../ui/file-details-panel/file-details-panel.component';
@@ -59,6 +63,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
     FileListComponent,
     FileDetailsPanelComponent,
     DocumentPreviewComponent,
+    FileViewerComponent,
     UploadDialogComponent,
     MoveDialogComponent,
     NamePromptDialogComponent,
@@ -76,6 +81,7 @@ export class DocumentsPageComponent {
   private readonly store = inject(DocumentsStore);
   private readonly clipboard = inject(ClipboardService);
   private readonly toast = inject(ToastService);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
 
   // Estado del store expuesto al template.
   readonly context = this.store.context;
@@ -155,7 +161,12 @@ export class DocumentsPageComponent {
   readonly pendingDeleteFolder = signal<FolderResponse | null>(null);
   readonly storageOpen = signal(false);
   readonly emptyTrashOpen = signal(false);
+  /** Archivo aún no listo (procesando/bloqueado): tarjeta de estado en vez del visor. */
   readonly previewFile = signal<FileResponse | null>(null);
+  /** Visor global: lista navegable (los archivos listos de la vista actual) y posición. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
 
   readonly filterYears = [2025, 2024, 2023];
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
@@ -293,7 +304,7 @@ export class DocumentsPageComponent {
         this.store.toggleFileSelection(action.file.id);
         break;
       case 'preview-file':
-        this.previewFile.set(action.file);
+        this.openPreview(action.file, this.visibleFiles());
         break;
       case 'download-file':
         this.store.downloadFile(action.file);
@@ -486,6 +497,26 @@ export class DocumentsPageComponent {
   }
 
   // ---------- Panel de detalles / preview ----------
+
+  /**
+   * Abre el visor global con los archivos LISTOS de la lista (se navega entre ellos con ←/→).
+   * Un archivo procesando o bloqueado no se puede bajar: muestra la tarjeta de estado.
+   */
+  openPreview(file: FileResponse, list: readonly FileResponse[]): void {
+    if (!isFileReady(file.status)) {
+      this.previewFile.set(file);
+      return;
+    }
+    const ready = list.filter(f => isFileReady(f.status));
+    const files = ready.some(f => f.id === file.id) ? ready : [file];
+    this.viewerFiles.set(files.map(f => this.cloudStorage.viewerItem(f)));
+    this.viewerIndex.set(Math.max(0, files.findIndex(f => f.id === file.id)));
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.store.downloadFile(event.item.ref as FileResponse);
+  }
   closeDetails(): void {
     this.store.clearSelection();
   }

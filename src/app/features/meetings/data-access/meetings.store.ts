@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { MeetingsService } from './meetings.service';
 import {
@@ -351,9 +352,12 @@ export class MeetingsStore {
 
   // ---------- Transcript ----------
 
-  /** Link presignado de descarga del transcript (POST /storage/files/{id}/download-url). */
-  transcriptUrl(fileId: string): Observable<string> {
-    return this.storage.getDownloadUrl(fileId).pipe(map(result => result.downloadUrl));
+  /**
+   * Ítem del visor global para el transcript: se lee la metadata del archivo (nombre y tipo reales,
+   * para que el visor sepa si es texto) y la URL presignada se pide al mostrarlo.
+   */
+  transcriptViewerItem(fileId: string): Observable<FileViewerItem> {
+    return this.storage.getFile(fileId).pipe(map(file => this.storage.viewerItem(file)));
   }
 }
 

@@ -25,6 +25,8 @@ import { avatarColorFor } from '@shared/utils/avatar.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -52,6 +54,7 @@ import { CorrespondenceCapabilities } from '../../data-access/correspondence-per
     MailComposeComponent,
     MailConnectManualComponent,
     CustomerPickerComponent,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -547,6 +550,36 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   downloadAttachment(event: { messageId: string; attachmentId: string }): void {
     this.store.downloadAttachment(event.messageId, event.attachmentId);
+  }
+
+  // ---------- Visor global de adjuntos ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /** Abre el visor con los adjuntos (no bloqueados) del mensaje; la URL se resuelve al mostrar cada uno. */
+  previewAttachment(event: { messageId: string; attachmentId: string }): void {
+    const items = (this.store.attachments().get(event.messageId)?.items ?? []).filter(a => a.downloadStatus !== 'Blocked');
+    const start = items.findIndex(a => a.attachmentId === event.attachmentId);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(
+      items.map(a => ({
+        name: a.filename,
+        contentType: a.contentType,
+        sizeBytes: a.sizeBytes,
+        resolveUrl: () => this.store.attachmentUrl(event.messageId, a.attachmentId),
+        ref: { messageId: event.messageId, attachmentId: a.attachmentId },
+      })),
+    );
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.downloadAttachment(event.item.ref as { messageId: string; attachmentId: string });
   }
 
   loadMoreMessages(): void {
