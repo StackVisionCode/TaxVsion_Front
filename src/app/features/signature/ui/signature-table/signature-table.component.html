@@ -39,7 +39,7 @@
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
           <app-status-pill [tone]="statusPill[request.status].tone" [toneClass]="statusPill[request.status].toneClass ?? ''"
-            [dotClass]="statusPill[request.status].dotClass ?? ''">{{ statusLabel[request.status] }}</app-status-pill>
+            [dotClass]="statusPill[request.status].dotClass ?? ''">{{ statusLabel(request.status, request.isOwnedByActor) }}</app-status-pill>
         </td>
         <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">

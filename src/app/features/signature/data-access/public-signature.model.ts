@@ -134,6 +134,8 @@ export interface PublicSignerView {
   /** true si el firmante ya completó `requiredVerificationMethod`. */
   isVerificationCompleted: boolean;
   fields: PublicSignerFieldView[];
+  /** Subdominio de la oficina para redirigir al final; vacío ⇒ UI cae a su URL base. */
+  tenantSubDomain: string;
 }
 
 // ---------- Bodies de las mutaciones ----------

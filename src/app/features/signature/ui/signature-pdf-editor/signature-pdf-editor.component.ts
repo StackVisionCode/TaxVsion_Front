@@ -37,7 +37,6 @@ import {
 } from '../signature-request-panel/signature-wizard.model';
 import { SetPreparerBody, SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
-import { PageMetrics, PdfRect, screenRectToPdf } from '../signature-request-panel/signature-coords.util';
 import {
   CHANNEL_META,
   FIELD_TYPE_CIRCLE,
@@ -73,7 +72,7 @@ import {
   signersMissingSignature,
 } from '../../utils/editor-fields.util';
 import { ReadinessItem, buildReadinessChecklist } from '../../utils/editor-readiness.util';
-import { isSigningPinInvalid } from '../../utils/request-rules.util';
+import { isSigningPinInvalid, withSequential } from '../../utils/request-rules.util';
 import { startPointerDrag } from '../../utils/pointer-drag.util';
 import {
   RETURN_MS,
@@ -195,8 +194,9 @@ export interface NormalizedPlacedField {
  * firmantes y la paleta se abren desde la barra superior (tablet) o la barra fija inferior (móvil).
  *
  * Coordenadas: los campos viven en px de la página renderizada; `buildNormalizedFields()` los pasa
- * a [0..1] con `normalizeFieldRect` (misma salida de siempre). Las REGLAS de la solicitud se
- * editan en el paso Review, pero siguen viviendo aquí (`rules`, `getRules()`, `setRules()`).
+ * a [0..1] con `normalizeFieldRect` (misma salida de siempre). Las coordenadas que envía al backend
+ * ya salen normalizadas [0..1]. Las REGLAS de la solicitud (orden de firma, etc.) se mueven al
+ * editor (F2.5-signing-order) y siguen viviendo aquí (`rules`, `getRules()`, `setRules()`).
  */
 @Component({
   selector: 'app-signature-pdf-editor',
@@ -884,6 +884,12 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.markDirty();
   }
 
+  /** Toggle Sequential/Any order dentro del editor (antes vivía solo en Review). */
+  setSigningOrder(sequential: boolean): void {
+    this.rules.update(r => withSequential(r, sequential));
+    this.markDirty();
+  }
+
   removeSigner(id: string): void {
     if (id.startsWith('client:')) {
       return; // el cliente es firmante obligatorio
@@ -1548,11 +1554,6 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     return this.signers();
   }
 
-  getPageMetrics(page: number): PageMetrics | null {
-    const found = this.pages().find(p => p.page === page);
-    return found ? { scale: found.scale, height: found.height } : null;
-  }
-
   /**
    * Campos en coordenadas normalizadas [0..1] (origen arriba-izquierda), la
    * convención que exige FieldPosition en el backend. Se divide por el tamaño en
@@ -1601,27 +1602,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     return this.previewedSignature()?.fileId ?? null;
   }
 
-  /** Payload por firmante con las cajas ya en puntos PDF (lo que iría al backend). */
-  buildPdfPayload(): { signerId: string; name: string; email: string; rects: PdfRect[] }[] {
-    const bySigner = new Map<string, PdfRect[]>();
-    for (const field of this.fields()) {
-      const metrics = this.getPageMetrics(field.page);
-      if (!metrics) {
-        continue;
-      }
-      const list = bySigner.get(field.signerId) ?? [];
-      list.push(screenRectToPdf(field, metrics));
-      bySigner.set(field.signerId, list);
-    }
-    return this.signers().map(s => ({
-      signerId: s.id,
-      name: s.name,
-      email: s.email,
-      rects: bySigner.get(s.id) ?? [],
-    }));
-  }
-
-  // ---------- páginas visibles ----------
+  // ---------- render ----------
 
   /** Actualiza "Page X / N" según el scroll del área del documento. */
   onSurfaceScroll(): void {

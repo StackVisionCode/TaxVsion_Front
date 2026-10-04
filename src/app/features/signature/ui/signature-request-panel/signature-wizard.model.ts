@@ -10,11 +10,8 @@ export type FieldType = 'signature' | 'initials' | 'date' | 'text';
  */
 export const PREPARER_PARTY_ID = 'preparer';
 
-/**
- * Campo colocado sobre una página del PDF. `x/y/width/height` están en px de
- * pantalla relativos al canvas de esa página (origen arriba-izquierda). Al
- * enviar se convierten a puntos PDF con `screenRectToPdf`.
- */
+/** Campo colocado sobre una página del PDF, en px de pantalla (origen arriba-izquierda). Se
+ *  normaliza a [0..1] en el momento del envío, no antes. */
 export interface PlacedField {
   id: string;
   type: FieldType;

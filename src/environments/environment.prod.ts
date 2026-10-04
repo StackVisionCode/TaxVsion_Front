@@ -16,4 +16,5 @@ export const environment: Environment = {
   authMock: false,
   // Alta y gestión de la suscripción viven en el sitio público.
   landingUrl: 'https://www.taxproffice.com',
+  signatureAutosaveEnabled: false,
 };

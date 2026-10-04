@@ -2,11 +2,12 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal,
 import { CommonModule } from '@angular/common';
 import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
-import { SIGNATURE_STATUS_LABEL, SIGNATURE_STATUS_PILL } from '../../utils/signature-status.util';
+import { SIGNATURE_STATUS_PILL, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 export type SignerStatus = 'pending' | 'signed' | 'rejected' | 'expired';
 
@@ -85,6 +86,8 @@ export interface SignatureRequest {
   practitionerPinSetAtUtc?: string | null;
   /** true si tiene ≥1 campo de firma/iniciales colocado — condición para poder enviarla. */
   hasSignatureField?: boolean;
+  /** F2.5: borrador del actor logueado → se pinta "In preparation" en vez de "Draft". */
+  isOwnedByActor?: boolean;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
@@ -164,14 +167,22 @@ export class SignatureTableComponent {
     return Math.max(0, request.signers.length - 4);
   }
 
+  // Backend manda fechas UTC a veces sin 'Z': parseUtcDate es la única forma segura de leerlas.
   formatDate(iso: string | null): string {
     if (!iso) {
       return '—';
     }
-    return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const d = parseUtcDate(iso);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   }
 
-  readonly statusLabel = SIGNATURE_STATUS_LABEL;
+  readonly statusLabel = signatureStatusLabel;
   readonly statusPill = SIGNATURE_STATUS_PILL;
 
   /** Cancelar/extender solo aplican a solicitudes YA ENVIADAS; un borrador sin enviar se borra, no se cancela. */

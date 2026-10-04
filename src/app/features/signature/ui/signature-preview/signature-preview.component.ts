@@ -2,7 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject,
 import { CommonModule } from '@angular/common';
 import { SignatureRequest, Signer, SignerStatus } from '../signature-table/signature-table.component';
 import { SignatureStore } from '../../data-access/signature.store';
-import { SIGNATURE_STATUS_LABEL, SIGNATURE_STATUS_PILL, SignatureStatusPill } from '../../utils/signature-status.util';
+import { SIGNATURE_STATUS_PILL, SignatureStatusPill, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { SignatureDownloadKind } from '../../utils/download-filename.util';
@@ -61,7 +61,7 @@ export class SignaturePreviewComponent {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   }
 
-  readonly statusLabel = SIGNATURE_STATUS_LABEL;
+  readonly statusLabel = signatureStatusLabel;
   readonly statusPill = SIGNATURE_STATUS_PILL;
 
   /**

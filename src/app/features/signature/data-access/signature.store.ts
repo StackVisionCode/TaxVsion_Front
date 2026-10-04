@@ -2,6 +2,9 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, debounceTime, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { AuthService } from '@core/auth/auth.service';
+import { Subject } from 'rxjs';
+import { environment } from '../../../../environments/environment';
 import { SignatureRequest } from '../ui/signature-table/signature-table.component';
 import { WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { SignatureService } from './signature.service';
@@ -24,6 +27,7 @@ import {
   SlotBinding,
   TemplateSummary,
   UpdateSignatureRequestBody,
+  UpsertDraftBody,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -193,6 +197,7 @@ export class SignatureStore {
   private readonly service = inject(SignatureService);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly realtime = inject(SignatureRealtimeService);
+  private readonly auth = inject(AuthService);
 
   constructor() {
     // Realtime: cuando alguien firma/rechaza o cambia el estado, Communication emite
@@ -208,6 +213,46 @@ export class SignatureStore {
           this.loadStats();
         }
       });
+
+    // F2.5: autoguardado — el editor empuja el estado completo, el pipeline debounce + switchMap
+    // garantiza una sola llamada por ráfaga y cancela las que quedaron en vuelo si llega otra.
+    this.autosave$
+      .pipe(
+        debounceTime(2500),
+        switchMap(req => this.service.upsertDraft(req.id, req.body)),
+        takeUntilDestroyed(),
+      )
+      .subscribe({
+        next: resp => {
+          this._autosaveStatus.set('saved');
+          this._lastSavedAtUtc.set(resp.updatedAtUtc);
+        },
+        error: err => {
+          const apiError = toApiError(err);
+          this._autosaveStatus.set(apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error');
+        },
+      });
+  }
+
+  // ---------- Autosave (F2.5) ----------
+  // Snapshot completo del editor que el panel envía en cada cambio. SignerIndex ata cada campo al
+  // firmante por su posición en la lista — soporta firmantes recién creados sin Id de backend.
+  private readonly autosave$ = new Subject<{ id: string; body: UpsertDraftBody }>();
+  private readonly _autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
+  private readonly _lastSavedAtUtc = signal<string | null>(null);
+  readonly autosaveStatus = this._autosaveStatus.asReadonly();
+  readonly lastSavedAtUtc = this._lastSavedAtUtc.asReadonly();
+  readonly autosaveEnabled = environment.signatureAutosaveEnabled === true;
+
+  scheduleAutosave(id: string, body: UpsertDraftBody): void {
+    if (!this.autosaveEnabled) return;
+    this._autosaveStatus.set('saving');
+    this.autosave$.next({ id, body });
+  }
+
+  resetAutosaveStatus(): void {
+    this._autosaveStatus.set('idle');
+    this._lastSavedAtUtc.set(null);
   }
 
   // ---------- Listado ----------
@@ -292,7 +337,8 @@ export class SignatureStore {
           if (token !== this.refreshToken) {
             return;
           }
-          this._requests.set(details.map(detailToUiRequest));
+          const uid = this.auth.currentUser()?.id ?? null;
+          this._requests.set(details.map(d => detailToUiRequest(d, uid)));
           this._totalCount.set(result.totalCount);
           this._loading.set(false);
         },
@@ -494,7 +540,8 @@ export class SignatureStore {
 
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
   getRequestUi(requestId: string): Observable<SignatureRequest> {
-    return this.service.getById(requestId).pipe(map(detailToUiRequest));
+    const uid = this.auth.currentUser()?.id ?? null;
+    return this.service.getById(requestId).pipe(map(d => detailToUiRequest(d, uid)));
   }
 
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
