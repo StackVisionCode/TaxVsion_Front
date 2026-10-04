@@ -1,4 +1,5 @@
 import { PermissionService } from '@core/auth/permission.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -259,6 +260,16 @@ export class ClientNotesStore {
         this.markBusy(noteId, false);
       },
     });
+  }
+
+  /** Ítem del visor global para un adjunto (la URL presignada se pide al mostrarlo). */
+  viewerItem(attachment: { cloudStorageFileId: string; displayName: string; contentType: string; sizeBytes: number }): FileViewerItem {
+    return this.cloud.viewerItemForId(
+      attachment.cloudStorageFileId,
+      attachment.displayName,
+      attachment.contentType,
+      attachment.sizeBytes,
+    );
   }
 
   /** Descarga un adjunto por su fileId de CloudStorage (URL presignada). */

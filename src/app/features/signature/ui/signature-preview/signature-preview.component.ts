@@ -5,6 +5,7 @@ import { SignatureStore } from '../../data-access/signature.store';
 import { SIGNATURE_STATUS_LABEL, SIGNATURE_STATUS_PILL, SignatureStatusPill } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { SignatureDownloadKind } from '../../utils/download-filename.util';
 
 /**
  * Vista previa de solo lectura de una solicitud de firma (mismo patrón
@@ -44,6 +45,8 @@ export class SignaturePreviewComponent {
   @Output() downloadOriginal = new EventEmitter<SignatureRequest>();
   @Output() downloadSealed = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificate = new EventEmitter<SignatureRequest>();
+  /** Ver un documento de la solicitud en el visor global (lo monta la página). */
+  @Output() viewDocument = new EventEmitter<{ request: SignatureRequest; kind: SignatureDownloadKind }>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
 
   /** Solo una solicitud Ready (archivo ya Available, aún sin enviar) se puede enviar. */

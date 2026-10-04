@@ -32,6 +32,8 @@ import {
   paymentLinkUrl,
 } from '../../data-access/billing.model';
 import { AdminCapabilities } from '@core/access/admin-capabilities';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /** Pestañas de la sección. */
 type BillingTab = 'invoices' | 'links';
@@ -62,6 +64,7 @@ type BillingTab = 'invoices' | 'links';
     PaymentLinksPanelComponent,
     ConfirmDialogComponent,
     RouterLink,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './billing-page.component.html',
@@ -157,7 +160,7 @@ export class BillingPageComponent implements OnInit {
         }
         break;
       case 'pdf':
-        this.store.openPdf(invoice);
+        this.openPdf(invoice);
         break;
       case 'recordPayment':
         this.paymentTarget.set(invoice);
@@ -314,5 +317,20 @@ export class BillingPageComponent implements OnInit {
 
   copyLinkUrl(url: string): void {
     this.store.copyToClipboard(url, 'Payment link copied.');
+  }
+
+  // ---------- Visor global (PDF de la factura) ----------
+
+  readonly pdfViewerFiles = signal<FileViewerItem[]>([]);
+  readonly pdfViewerOpen = signal(false);
+
+  /** Muestra el PDF de la factura en el visor global (sin abrir otra pestaña). */
+  openPdf(invoice: InvoiceSummary): void {
+    const item = this.store.pdfViewerItem(invoice);
+    if (!item) {
+      return;
+    }
+    this.pdfViewerFiles.set([item]);
+    this.pdfViewerOpen.set(true);
   }
 }

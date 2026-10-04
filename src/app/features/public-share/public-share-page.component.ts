@@ -5,6 +5,8 @@ import { HttpClient } from '@angular/common/http';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { formatBytes } from '@shared/utils/format.util';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /** Descriptor no sensible que devuelve GET /storage/public/{token}/meta (link de archivo). */
 interface ShareMeta {
@@ -51,7 +53,9 @@ type ShareMode = 'file' | 'folder';
  * `https://<oficina>.taxproffice.com/s/<token>`, SIN sesión (fuera del authGuard).
  *
  * Dos modos: un link de ARCHIVO abre/descarga un solo documento; un link de CARPETA muestra un
- * mini explorador (navegar subcarpetas, descargar archivos sueltos, o "Download all" en .zip).
+ * mini explorador (navegar subcarpetas, ver o descargar archivos sueltos, o "Download all" en .zip).
+ * "View" abre el visor global de archivos (`app-file-viewer`) dentro de la página: los bytes se
+ * bajan del mismo resolver (302 → presignada). En links de solo lectura el visor no ofrece descarga.
  * El binario nunca queda en esta página: cada descarga pega al resolver del backend, que responde
  * un 302 a una URL presignada efímera. Cualquier token inválido/expirado/revocado cae a la misma
  * pantalla neutra (anti-enumeración).
@@ -59,7 +63,7 @@ type ShareMode = 'file' | 'folder';
 @Component({
   selector: 'app-public-share-page',
   standalone: true,
-  imports: [FormsModule, BrandLogoComponent],
+  imports: [FormsModule, BrandLogoComponent, FileViewerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './public-share-page.component.html',
   styleUrl: './public-share-page.component.css',
@@ -81,6 +85,11 @@ export class PublicSharePageComponent implements OnInit {
   readonly password = signal('');
   readonly passwordError = signal(false);
   readonly submitting = signal(false);
+
+  /** Visor global: el archivo del link, o los archivos de la carpeta actual. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
 
   ngOnInit(): void {
     this.token = this.route.snapshot.paramMap.get('token') ?? '';
@@ -154,6 +163,41 @@ export class PublicSharePageComponent implements OnInit {
     });
   }
 
+  /** Abre el visor con los archivos de la carpeta actual, empezando por `fileId`. */
+  viewFolderFile(fileId: string): void {
+    const files = this.folder()?.files ?? [];
+    const start = files.findIndex(f => f.fileId === fileId);
+    if (start < 0) {
+      return;
+    }
+    const pw = this.unlockedPassword ?? undefined;
+    this.viewerFiles.set(
+      files.map(f => ({
+        name: f.name,
+        contentType: f.contentType,
+        sizeBytes: f.sizeBytes,
+        resolveUrl: () => this.lazyUrl(() => this.resolverUrl(pw, f.fileId)),
+        ref: f.fileId,
+      })),
+    );
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
+  }
+
+  /** Descarga pedida desde el visor (solo existe si el link lo permite). */
+  onViewerDownload(ref: unknown): void {
+    if (this.mode() === 'folder' && typeof ref === 'string') {
+      this.downloadFolderFile(ref);
+    } else {
+      this.open();
+    }
+  }
+
+  /** ¿El visor ofrece descarga? Lo decide el permiso del link (carpeta o archivo). */
+  viewerAllowsDownload(): boolean {
+    return this.mode() === 'folder' ? this.folderAllowsDownload() : !this.isViewOnly();
+  }
+
   downloadFolderFile(fileId: string): void {
     try {
       window.location.href = this.resolverUrl(this.unlockedPassword ?? undefined, fileId);
@@ -181,11 +225,37 @@ export class PublicSharePageComponent implements OnInit {
     return p === 'View' || p === 'Preview';
   }
 
+  /** Descarga del archivo del link (el resolver responde 302 a la presignada). */
   open(): void {
     try {
-      window.location.href = this.resolverUrl();
+      window.location.href = this.resolverUrl(this.unlockedPassword ?? undefined);
     } catch {
       this.state.set('unavailable');
+    }
+  }
+
+  /** Abre el archivo del link en el visor global. */
+  viewFile(): void {
+    const meta = this.meta();
+    const pw = this.unlockedPassword ?? undefined;
+    this.viewerFiles.set([
+      {
+        name: meta?.fileName || 'Shared document',
+        contentType: meta?.contentType ?? null,
+        sizeBytes: meta?.sizeBytes ?? null,
+        resolveUrl: () => this.lazyUrl(() => this.resolverUrl(pw)),
+      },
+    ]);
+    this.viewerIndex.set(0);
+    this.viewerOpen.set(true);
+  }
+
+  /** La URL se arma al mostrar el archivo; si falla (sin API configurada) el visor muestra su error. */
+  private lazyUrl(build: () => string): Promise<string> {
+    try {
+      return Promise.resolve(build());
+    } catch (err) {
+      return Promise.reject(err);
     }
   }
 
@@ -242,10 +312,14 @@ export class PublicSharePageComponent implements OnInit {
         this.submitting.set(false);
         return;
       }
-      window.location.href = target;
     } catch {
-      window.location.href = target;
+      // Sin respuesta legible (red/CORS): se sigue igual; si la contraseña no vale, el visor lo dirá.
     }
+    // Desbloqueado: la tarjeta del archivo queda lista y se abre el visor directamente.
+    this.unlockedPassword = pw;
+    this.submitting.set(false);
+    this.state.set('ready');
+    this.viewFile();
   }
 
   // ---------- URLs ----------

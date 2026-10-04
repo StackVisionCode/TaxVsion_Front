@@ -1,12 +1,12 @@
-/* Secciones del sidebar entran escalonadas (idioma mail-compose: 60ms por sección). */
-.sidebar-section {
+/* Riel e inspector entran escalonados (idioma mail-compose). */
+.editor-rail,
+.editor-inspector {
   animation: sidebar-section-in 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.editor-sidebar .sidebar-section:nth-child(1) { animation-delay: 40ms; }
-.editor-sidebar .sidebar-section:nth-child(2) { animation-delay: 100ms; }
-.rules-sidebar .sidebar-section:nth-child(1) { animation-delay: 160ms; }
-.rules-sidebar .sidebar-section:nth-child(2) { animation-delay: 220ms; }
+.editor-inspector {
+  animation-delay: 80ms;
+}
 
 @keyframes sidebar-section-in {
   from {
@@ -35,9 +35,23 @@
   }
 }
 
+/* Con un tipo armado, la página indica "clic para colocar". */
+.doc-surface.is-placing .doc-page {
+  cursor: crosshair;
+}
+
 /* Campo recién colocado: pop con spring (paleta de easings de la casa). */
 .field-overlay {
   animation: field-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Seleccionado / con foco de teclado: anillo visible. */
+.field-overlay.is-selected,
+.field-overlay:focus-visible {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.9);
+  z-index: 5;
 }
 
 @keyframes field-in {
@@ -51,19 +65,65 @@
   }
 }
 
-/* El badge de conteo late una vez cuando cambia (se recrea con *ngIf al pasar 0→N). */
-.field-count-badge {
-  animation: badge-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+/* Hojas inferiores / popovers de pantallas angostas. */
+.narrow-sheet {
+  animation: sheet-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
-@keyframes badge-pop {
+@keyframes sheet-in {
   from {
-    transform: scale(0.6);
-  }
-  60% {
-    transform: scale(1.15);
+    opacity: 0;
+    transform: translateY(12px);
   }
   to {
-    transform: scale(1);
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Input de página sin flechas del navegador (compacto en la toolbar). */
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.page-input {
+  -moz-appearance: textfield;
+}
+
+/* Táctil: asas y botón de eliminar con objetivo de 44px (el visual se queda pequeño). */
+.field-delete::before,
+.field-resize::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+@media (pointer: coarse) {
+  .field-delete {
+    width: 1.75rem;
+    height: 1.75rem;
+    top: -0.875rem;
+    right: -0.875rem;
+  }
+  .field-resize {
+    width: 1.25rem;
+    height: 1.25rem;
+    bottom: -0.625rem;
+    right: -0.625rem;
+  }
+  .field-delete::before,
+  .field-resize::before {
+    inset: -10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-rail,
+  .editor-inspector,
+  .doc-page,
+  .field-overlay,
+  .narrow-sheet {
+    animation: none;
   }
 }

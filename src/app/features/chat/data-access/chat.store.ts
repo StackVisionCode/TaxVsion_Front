@@ -1,4 +1,5 @@
 import { PermissionService } from '@core/auth/permission.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, Subscription, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -380,11 +381,28 @@ export class ChatStore {
     }
   }
 
+  /**
+   * Descarga un adjunto con un ancla oculta (la presignada viene con content-disposition=attachment):
+   * baja el archivo sin abrir una pestaña en blanco ni exponer la URL.
+   */
   downloadAttachment(fileId: string): void {
     this.cloudStorage.getDownloadUrl(fileId).subscribe({
-      next: res => window.open(res.downloadUrl, '_blank'),
-      error: err => console.warn('No se pudo descargar el adjunto:', toApiError(err).message),
+      next: res => {
+        const anchor = document.createElement('a');
+        anchor.href = res.downloadUrl;
+        anchor.rel = 'noopener';
+        anchor.download = '';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      },
+      error: err => this.toast.error(toApiError(err).message),
     });
+  }
+
+  /** Ítem del visor global para un adjunto (la URL presignada se pide al mostrarlo). */
+  attachmentViewerItem(fileId: string, name: string): FileViewerItem {
+    return this.cloudStorage.viewerItemForId(fileId, name);
   }
 
   // ---------- Typing ----------

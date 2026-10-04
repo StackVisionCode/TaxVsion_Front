@@ -35,6 +35,8 @@ import {
   presenceTextClass,
 } from '../../data-access/chat.model';
 import { ChatStore } from '../../data-access/chat.store';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 
 /** Padding inferior del app-shell (`p-4`): el chat termina ahí, sin empujar la página. */
@@ -63,6 +65,7 @@ const MIN_CHAT_HEIGHT = 360;
     SearchInputComponent,
     SegmentedComponent,
     ConfirmDialogComponent,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
@@ -338,8 +341,29 @@ export class ChatPageComponent {
     this.store.notifyRecording(isRecording);
   }
 
+  // ---------- Visor global de adjuntos ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /** Abre el adjunto en el visor; se navega entre los adjuntos cargados de la conversación. */
   onAttachmentClicked(fileId: string): void {
-    this.store.downloadAttachment(fileId);
+    const attachments = this.activeConversation.messages
+      .filter(m => !m.isDeleted && !!m.attachment)
+      .map(m => m.attachment!);
+    const list = attachments.some(a => a.fileId === fileId) ? attachments : [];
+    if (list.length === 0) {
+      this.store.downloadAttachment(fileId);
+      return;
+    }
+    this.viewerFiles.set(list.map(a => this.store.attachmentViewerItem(a.fileId, a.name)));
+    this.viewerIndex.set(list.findIndex(a => a.fileId === fileId));
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.store.downloadAttachment(event.item.ref as string);
   }
 
   onLoadOlder(): void {

@@ -222,7 +222,7 @@
                     <p class="truncate text-sm font-semibold text-gray-800">{{ file.originalName }}</p>
                     <p class="text-xs text-gray-400">{{ date(file.createdAtUtc) }}</p>
                   </div>
-                  <button type="button" (click)="previewFile.set(file)" title="Preview"
+                  <button type="button" (click)="openPreview(file, recent())" title="Preview" aria-label="Preview file"
                     class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"><ion-icon name="eye-outline"></ion-icon></button>
                 </div>
               }
@@ -372,8 +372,11 @@
   }
 </div>
 
-<!-- Preview -->
+<!-- Preview: visor global para archivos listos; tarjeta de estado para los que aún no lo están -->
 <app-document-preview [file]="previewFile()" (closed)="previewFile.set(null)" (download)="downloadFile($event); previewFile.set(null)" />
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  [allowDownload]="can.canDownload()" (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+  (closed)="viewerOpen.set(false)" />
 
 <!-- Diálogos -->
 <app-upload-dialog

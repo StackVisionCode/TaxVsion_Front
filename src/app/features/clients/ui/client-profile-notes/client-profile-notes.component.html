@@ -165,7 +165,10 @@
         <div *ngFor="let attachment of visibleAttachments(note)"
           class="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-1.5 text-xs">
           <ion-icon name="document-attach-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
-          <span class="min-w-0 flex-1 truncate text-gray-700">{{ attachment.displayName }}</span>
+          <button *ngIf="attachment.status === 'Available'; else attachmentName" type="button"
+            (click)="previewAttachment(note, attachment)" [attr.aria-label]="'Preview ' + attachment.displayName"
+            class="min-w-0 flex-1 truncate text-left text-gray-700 hover:text-brand-bold hover:underline">{{ attachment.displayName }}</button>
+          <ng-template #attachmentName><span class="min-w-0 flex-1 truncate text-gray-700">{{ attachment.displayName }}</span></ng-template>
           <span class="shrink-0 text-gray-400">{{ attachmentSize(attachment.sizeBytes) }}</span>
           <span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
             [ngClass]="attachmentStatusClass(attachment.status)">{{ attachmentStatusLabel(attachment.status) }}</span>
@@ -187,6 +190,10 @@
   </div>
   </app-state-block>
 </div>
+
+<!-- Visor global de adjuntos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>
 
 <!-- Borrado (lógico: la nota pasa a Deleted y deja de listarse) -->
 <app-confirm-dialog [isOpen]="!!pendingDelete()" heading="Delete note?"

@@ -1,9 +1,9 @@
 <div class="relative flex h-full flex-col">
   <!-- Cabecera -->
-  <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3">
-    <div class="flex min-w-0 items-center gap-3">
-      <button type="button" (click)="close()" [disabled]="busy()"
-        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2.5 sm:px-5">
+    <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      <button type="button" (click)="close()" [disabled]="busy()" aria-label="Back to templates"
+        class="tap flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
         <ion-icon name="arrow-back-outline" class="text-lg"></ion-icon>
       </button>
       <div class="min-w-0">
@@ -23,311 +23,525 @@
 
     <div class="flex shrink-0 items-center gap-2">
       <button *ngIf="isPublished()" type="button" (click)="revertToDraft()" [disabled]="busy()"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        class="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
         <ion-icon name="create-outline" class="text-sm"></ion-icon>
         Edit template
       </button>
       <button *ngIf="isPublished()" type="button" (click)="archive()" [disabled]="busy()"
-        class="rounded-full px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
+        class="tap rounded-full px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
         Archive
       </button>
       <button *ngIf="isDraft()" type="button" (click)="publish()" [disabled]="!canPublish() || busy()"
-        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+        class="tap flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
         <ion-icon name="rocket-outline" class="text-sm"></ion-icon>
         Publish
       </button>
     </div>
   </div>
 
-  <div *ngIf="error()" class="mx-5 mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+  <div *ngIf="error()" class="mx-3 mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600 sm:mx-5" role="alert">
     <ion-icon name="alert-circle-outline" class="mt-px shrink-0"></ion-icon>
     <span>{{ error() }}</span>
   </div>
 
-  <div *ngIf="isDraft() && !canPublish() && slots().length > 0" class="mx-5 mt-3 flex items-start gap-2 rounded-xl bg-brand-white px-3 py-2 text-[11px] text-gray-500">
+  <!-- Qué falta para publicar (los campos del preparador no cuentan como firma del rol) -->
+  <div *ngIf="isDraft() && publishBlockers().length > 0 && slots().length > 0"
+    class="mx-3 mt-3 flex items-start gap-2 rounded-xl bg-brand-white px-3 py-2 text-[11px] text-gray-600 sm:mx-5">
     <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-gray-400"></ion-icon>
-    <span *ngIf="layoutDirty()">Save the layout to enable publishing.</span>
-    <span *ngIf="!layoutDirty() && !hasSignatureField()">Place at least one Signature or Initials field to publish.</span>
+    <div class="min-w-0">
+      <span class="font-semibold text-gray-700">Before publishing:</span>
+      <ul class="mt-0.5 list-disc pl-4">
+        <li *ngFor="let reason of publishBlockers()">{{ reason }}</li>
+      </ul>
+    </div>
   </div>
 
-  <!-- Cuerpo: sidebar + superficie -->
-  <div class="flex min-h-0 flex-1 gap-4 p-5">
-    <!-- Sidebar -->
-    <aside class="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto">
+  <!-- < lg: pestañas Document | Settings (el acordeón pasa a la pestaña Settings) -->
+  <div class="flex justify-center px-3 pt-3 lg:hidden">
+    <app-segmented [options]="mobileTabs" [value]="mobileTab()" (valueChange)="mobileTab.set($event)"></app-segmented>
+  </div>
+
+  <!-- Cuerpo: ajustes + superficie + inspector -->
+  <div class="flex min-h-0 flex-1 gap-4 p-3 lg:p-5">
+    <!-- Ajustes (acordeón: una sección abierta a la vez) -->
+    <aside class="min-h-0 w-full flex-col gap-3 overflow-y-auto lg:flex lg:w-64 lg:shrink-0 xl:w-72"
+      [class.flex]="mobileTab() === 'settings'" [class.hidden]="mobileTab() !== 'settings'">
+
       <!-- Detalles -->
-      <section class="rounded-2xl border border-gray-100 p-3">
-        <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Details</h3>
-        <label class="mb-1 block text-xs font-medium text-gray-600">Title</label>
-        <input type="text" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="e.g. Form 8879 e-file authorization"
-          class="mb-2 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none" />
-        <label class="mb-1 block text-xs font-medium text-gray-600">Description</label>
-        <textarea rows="2" [ngModel]="description()" (ngModelChange)="description.set($event)" placeholder="Optional"
-          class="mb-2 w-full resize-none rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none"></textarea>
-        <label class="mb-1 block text-xs font-medium text-gray-600">Category</label>
-        <app-signature-category-picker [value]="category()" (valueChange)="category.set($event)"
-          [allowCreate]="true"></app-signature-category-picker>
+      <section class="rounded-2xl border border-gray-100">
+        <button type="button" (click)="toggleSection('details')" [attr.aria-expanded]="openSection() === 'details'"
+          class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+          <span class="min-w-0">
+            <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Details</span>
+            <span *ngIf="openSection() !== 'details'" class="block truncate text-[11px] text-gray-400">{{ title() || 'Untitled template' }}</span>
+          </span>
+          <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
+            [class.rotate-180]="openSection() === 'details'"></ion-icon>
+        </button>
+        <div *ngIf="openSection() === 'details'" class="border-t border-gray-100 p-3">
+          <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-title">Title</label>
+          <input id="tpl-title" type="text" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="e.g. Form 8879 e-file authorization"
+            [disabled]="!isDraft()"
+            class="tap mb-2 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-desc">Description</label>
+          <textarea id="tpl-desc" rows="2" [ngModel]="description()" (ngModelChange)="description.set($event)" placeholder="Optional"
+            [disabled]="!isDraft()"
+            class="mb-2 w-full resize-none rounded-2xl border border-gray-200 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none disabled:bg-gray-50"></textarea>
+          <label class="mb-1 block text-xs font-medium text-gray-600">Category</label>
+          <app-signature-category-picker [value]="category()" (valueChange)="category.set($event)"
+            [allowCreate]="true"></app-signature-category-picker>
+
+          <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy() || templatePinInvalid()"
+            class="tap mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
+            Save details
+          </button>
+          <p *ngIf="!isDraft()" class="mt-3 text-[10px] text-gray-400">Published — press “Edit template” up top to change it.</p>
+        </div>
       </section>
 
       <!-- Defaults -->
-      <section class="rounded-2xl border border-gray-100 p-3">
-        <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Defaults</h3>
-        <label class="mb-1 block text-xs font-medium text-gray-600">Link valid for (hours)</label>
-        <input type="number" min="1" max="720" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
-          class="mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Sign in order
-          <input type="checkbox" [ngModel]="sequential()" (ngModelChange)="sequential.set($event)" class="accent-brand-bold" />
-        </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Require consent
-          <input type="checkbox" [ngModel]="consent()" (ngModelChange)="consent.set($event)" class="accent-brand-bold" />
-        </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Generate certificate
-          <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="onCertificateToggle($event)" class="accent-brand-bold" />
-        </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Email signed document to signers
-          <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" class="accent-brand-bold" />
-        </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium"
-          [class.text-gray-600]="certificate()" [class.text-gray-300]="!certificate()">
-          Email certificate to signers
-          <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
-            [disabled]="!certificate()" class="accent-brand-bold" />
-        </label>
-        <label class="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Auto-reminders
-          <input type="checkbox" [ngModel]="autoReminders()" (ngModelChange)="autoReminders.set($event)" class="accent-brand-bold" />
-        </label>
-        <label *ngIf="autoReminders()" class="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-          Remind every (days)
-          <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" (ngModelChange)="setReminderIntervalDays(+$event)"
-            class="w-16 rounded-full border border-gray-200 px-2 py-1 text-center text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
-        </label>
-
-        <!-- Practitioner PIN por defecto (Form 8879): las solicitudes desde esta plantilla lo heredan. -->
-        <div class="mt-2 border-t border-gray-100 pt-2">
-          <label class="block text-xs font-medium text-gray-700">Signing PIN <span class="text-gray-400">(optional)</span></label>
-          <span class="mb-1 block text-[10px] text-gray-400">
-            {{ requiresPractitionerPin() ? 'A PIN is set — requests from this template inherit it. Type a new one to replace it.' : '4–10 digits. Requests from this template will require it.' }}
+      <section class="rounded-2xl border border-gray-100">
+        <button type="button" (click)="toggleSection('defaults')" [attr.aria-expanded]="openSection() === 'defaults'"
+          class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+          <span class="min-w-0">
+            <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Defaults</span>
+            <span *ngIf="openSection() !== 'defaults'" class="block truncate text-[11px] text-gray-400">
+              Link {{ expirationHours() }}h{{ sequential() ? ' · in order' : '' }}{{ requiresPractitionerPin() ? ' · PIN' : '' }}
+            </span>
           </span>
-          <input type="text" inputmode="numeric" autocomplete="off" maxlength="10"
-            [ngModel]="templatePin()" (ngModelChange)="setTemplatePin($event)" [disabled]="!isDraft()"
-            [placeholder]="requiresPractitionerPin() ? '•••• (set)' : 'e.g. 1234'"
-            class="w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none disabled:bg-gray-50"
-            [class.border-gray-200]="!templatePinInvalid()" [class.border-red-300]="templatePinInvalid()" />
-          <span *ngIf="templatePinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
-          <button *ngIf="isDraft() && requiresPractitionerPin()" type="button" (click)="removeTemplatePin()" [disabled]="busy()"
-            class="mt-1 text-[10px] font-medium text-red-500 hover:underline disabled:opacity-50">Remove PIN</button>
-        </div>
-
-        <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy() || templatePinInvalid()"
-          class="mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
-          Save details
+          <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
+            [class.rotate-180]="openSection() === 'defaults'"></ion-icon>
         </button>
-        <p *ngIf="!isDraft()" class="mt-3 text-[10px] text-gray-400">Published — press “Edit template” up top to change it.</p>
+        <div *ngIf="openSection() === 'defaults'" class="border-t border-gray-100 p-3">
+          <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-exp">Link valid for (hours)</label>
+          <input id="tpl-exp" type="number" min="1" max="720" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
+            [disabled]="!isDraft()"
+            class="tap mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Sign in order
+            <input type="checkbox" [ngModel]="sequential()" (ngModelChange)="sequential.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Require consent
+            <input type="checkbox" [ngModel]="consent()" (ngModelChange)="consent.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Generate certificate
+            <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="onCertificateToggle($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Email signed document to signers
+            <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium"
+            [class.text-gray-600]="certificate()" [class.text-gray-300]="!certificate()">
+            Email certificate to signers
+            <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
+              [disabled]="!certificate() || !isDraft()" class="accent-brand-bold" />
+          </label>
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Auto-reminders
+            <input type="checkbox" [ngModel]="autoReminders()" (ngModelChange)="autoReminders.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <label *ngIf="autoReminders()" class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Remind every (days)
+            <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" (ngModelChange)="setReminderIntervalDays(+$event)"
+              [disabled]="!isDraft()"
+              class="w-16 rounded-full border border-gray-200 px-2 py-1 text-center text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
+          </label>
+
+          <!-- Practitioner PIN por defecto (Form 8879): las solicitudes desde esta plantilla lo heredan. -->
+          <div class="mt-2 border-t border-gray-100 pt-2">
+            <label class="block text-xs font-medium text-gray-700" for="tpl-pin">Signing PIN <span class="text-gray-400">(optional)</span></label>
+            <span class="mb-1 block text-[10px] text-gray-400">
+              {{ requiresPractitionerPin() ? 'A PIN is set — requests from this template inherit it. Type a new one to replace it.' : '4–10 digits. Requests from this template will require it.' }}
+            </span>
+            <input id="tpl-pin" type="text" inputmode="numeric" autocomplete="off" maxlength="10"
+              [ngModel]="templatePin()" (ngModelChange)="setTemplatePin($event)" [disabled]="!isDraft()"
+              [placeholder]="requiresPractitionerPin() ? '•••• (set)' : 'e.g. 1234'"
+              class="tap w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none disabled:bg-gray-50"
+              [class.border-gray-200]="!templatePinInvalid()" [class.border-red-300]="templatePinInvalid()" />
+            <span *ngIf="templatePinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
+            <button *ngIf="isDraft() && requiresPractitionerPin()" type="button" (click)="removeTemplatePin()" [disabled]="busy()"
+              class="tap mt-1 text-[11px] font-medium text-red-500 hover:underline disabled:opacity-50">Remove PIN</button>
+          </div>
+
+          <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy() || templatePinInvalid()"
+            class="tap mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
+            Save details
+          </button>
+          <p *ngIf="!isDraft()" class="mt-3 text-[10px] text-gray-400">Published — press “Edit template” up top to change it.</p>
+        </div>
       </section>
 
       <!-- Slots (roles) -->
-      <section class="rounded-2xl border border-gray-100 p-3">
-        <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Signer roles</h3>
-        <ul class="mb-3 space-y-1.5">
-          <li *ngFor="let slot of slots()"
-            (click)="setActiveSlot(slot.order)"
-            class="cursor-pointer rounded-xl border px-2.5 py-2 text-xs transition-colors"
-            [ngClass]="activeSlotOrder() === slot.order ? 'border-brand-bold bg-brand-white' : 'border-gray-100 hover:bg-gray-50'">
-            <div class="flex items-center justify-between gap-2">
-              <span class="flex min-w-0 items-center gap-2">
-                <span class="h-2.5 w-2.5 shrink-0 rounded-full" [ngClass]="slotPalette(slot.order).bg"></span>
-                <span class="truncate font-medium text-gray-700">{{ slot.role }}</span>
-              </span>
-              <span class="flex shrink-0 items-center gap-1.5">
-                <span class="rounded-full bg-gray-100 px-1.5 text-[10px] text-gray-500">{{ fieldCountBySlot()[slot.order] || 0 }}</span>
-                <button *ngIf="isDraft()" type="button" (click)="removeSlot(slot.order); $event.stopPropagation()" [disabled]="busy()"
-                  class="text-gray-300 hover:text-red-500 transition-colors">
-                  <ion-icon name="close-outline" class="text-sm"></ion-icon>
-                </button>
-              </span>
-            </div>
+      <section class="rounded-2xl border border-gray-100">
+        <button type="button" (click)="toggleSection('roles')" [attr.aria-expanded]="openSection() === 'roles'"
+          class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Signer roles</span>
+            <span class="rounded-full bg-gray-100 px-1.5 text-[10px] font-medium text-gray-500">{{ slots().length }}</span>
+          </span>
+          <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
+            [class.rotate-180]="openSection() === 'roles'"></ion-icon>
+        </button>
+        <div *ngIf="openSection() === 'roles'" class="border-t border-gray-100 p-3">
+          <ul class="mb-3 space-y-1.5">
+            <li *ngFor="let slot of slots()"
+              (click)="setActiveSlot(slot.order)"
+              class="cursor-pointer rounded-xl border px-2.5 py-2 text-xs transition-colors"
+              [ngClass]="activeSlotOrder() === slot.order ? 'border-brand-bold bg-brand-white' : 'border-gray-100 hover:bg-gray-50'">
+              <div class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-2">
+                  <span class="h-2.5 w-2.5 shrink-0 rounded-full" [ngClass]="slotPalette(slot.order).bg"></span>
+                  <span class="truncate font-medium text-gray-700">{{ slot.role }}</span>
+                </span>
+                <span class="flex shrink-0 items-center gap-1.5">
+                  <span class="rounded-full bg-gray-100 px-1.5 text-[10px] text-gray-500">{{ fieldCountBySlot()[slot.order] || 0 }}</span>
+                  <button *ngIf="isDraft()" type="button" (click)="removeSlot(slot.order); $event.stopPropagation()" [disabled]="busy()"
+                    [attr.aria-label]="'Remove role ' + slot.role"
+                    class="tap flex h-7 w-7 items-center justify-center rounded-full text-gray-300 hover:text-red-500 transition-colors">
+                    <ion-icon name="close-outline" class="text-sm"></ion-icon>
+                  </button>
+                </span>
+              </div>
 
-            <!-- Draft: idioma + OTP editables (persisten al cambiar) -->
-            <div *ngIf="isDraft()" class="mt-1.5 flex items-center gap-1.5" (click)="$event.stopPropagation()">
-              <select [ngModel]="slot.defaultLanguage" (ngModelChange)="updateSlot(slot, { defaultLanguage: $event })" [disabled]="busy()"
-                title="Email language"
-                class="h-7 shrink-0 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+              <!-- Draft: idioma + OTP editables (persisten al cambiar) -->
+              <div *ngIf="isDraft()" class="mt-1.5 flex items-center gap-1.5" (click)="$event.stopPropagation()">
+                <select [ngModel]="slot.defaultLanguage" (ngModelChange)="updateSlot(slot, { defaultLanguage: $event })" [disabled]="busy()"
+                  title="Email language" aria-label="Email language"
+                  class="tap h-7 shrink-0 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+                  <option *ngFor="let l of languageOptions" [value]="l.value">{{ l.value }}</option>
+                </select>
+                <select [ngModel]="slotVerificationValue(slot)" (ngModelChange)="updateSlot(slot, { verification: $event })" [disabled]="busy()"
+                  title="Identity verification (OTP)" aria-label="Identity verification (OTP)"
+                  class="tap h-7 min-w-0 flex-1 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+                  <option *ngFor="let v of verificationOptions" [value]="v.value">{{ v.label }}</option>
+                </select>
+              </div>
+
+              <!-- Published/Archived: solo lectura -->
+              <div *ngIf="!isDraft()" class="mt-1 flex items-center gap-1.5">
+                <span class="text-[10px] text-gray-400">{{ slot.defaultLanguage }}</span>
+                <span *ngIf="slot.requiredVerificationMethod as m"
+                  class="flex items-center gap-0.5 rounded-full bg-brand-white px-1.5 text-[9px] font-medium text-brand-bold">
+                  <ion-icon name="shield-checkmark-outline" class="text-[9px]"></ion-icon>{{ verificationLabel(m) }}
+                </span>
+              </div>
+            </li>
+            <li *ngIf="slots().length === 0" class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
+              Add a role (Client, Spouse, Preparer…) to place its fields.
+            </li>
+          </ul>
+
+          <div *ngIf="isDraft()" class="space-y-1.5">
+            <input type="text" [ngModel]="newSlotRole()" (ngModelChange)="newSlotRole.set($event)" (keydown.enter)="addSlot()"
+              placeholder="Role name (Client, Spouse…)" aria-label="New role name"
+              class="tap h-9 w-full rounded-full border border-gray-200 px-3 text-xs text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none" />
+            <div class="flex items-center gap-1.5">
+              <select [ngModel]="newSlotLanguage()" (ngModelChange)="newSlotLanguage.set($event)" title="Email language" aria-label="Email language"
+                class="tap h-9 shrink-0 rounded-full border border-gray-200 px-2 text-xs text-gray-600 focus:border-brand-bold focus:outline-none">
                 <option *ngFor="let l of languageOptions" [value]="l.value">{{ l.value }}</option>
               </select>
-              <select [ngModel]="slotVerificationValue(slot)" (ngModelChange)="updateSlot(slot, { verification: $event })" [disabled]="busy()"
-                title="Identity verification (OTP)"
-                class="h-7 min-w-0 flex-1 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+              <select [ngModel]="newSlotVerification()" (ngModelChange)="newSlotVerification.set($event)" title="Identity verification (OTP)"
+                aria-label="Identity verification (OTP)"
+                class="tap h-9 min-w-0 flex-1 rounded-full border border-gray-200 px-2 text-xs text-gray-600 focus:border-brand-bold focus:outline-none">
                 <option *ngFor="let v of verificationOptions" [value]="v.value">{{ v.label }}</option>
               </select>
+              <button type="button" (click)="addSlot()" [disabled]="busy()" aria-label="Add role"
+                class="tap flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+                <ion-icon name="add-outline" class="text-lg"></ion-icon>
+              </button>
             </div>
-
-            <!-- Published/Archived: solo lectura -->
-            <div *ngIf="!isDraft()" class="mt-1 flex items-center gap-1.5">
-              <span class="text-[10px] text-gray-400">{{ slot.defaultLanguage }}</span>
-              <span *ngIf="slot.requiredVerificationMethod as m"
-                class="flex items-center gap-0.5 rounded-full bg-brand-white px-1.5 text-[9px] font-medium text-brand-bold">
-                <ion-icon name="shield-checkmark-outline" class="text-[9px]"></ion-icon>{{ verificationLabel(m) }}
-              </span>
-            </div>
-          </li>
-          <li *ngIf="slots().length === 0" class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
-            Add a role (Client, Spouse, Preparer…) to place its fields.
-          </li>
-        </ul>
-
-        <div *ngIf="isDraft()" class="space-y-1.5">
-          <input type="text" [ngModel]="newSlotRole()" (ngModelChange)="newSlotRole.set($event)" (keydown.enter)="addSlot()"
-            placeholder="Role name (Client, Spouse…)"
-            class="h-9 w-full rounded-full border border-gray-200 px-3 text-xs text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none" />
-          <div class="flex items-center gap-1.5">
-            <select [ngModel]="newSlotLanguage()" (ngModelChange)="newSlotLanguage.set($event)" title="Email language"
-              class="h-9 shrink-0 rounded-full border border-gray-200 px-2 text-xs text-gray-600 focus:border-brand-bold focus:outline-none">
-              <option *ngFor="let l of languageOptions" [value]="l.value">{{ l.value }}</option>
-            </select>
-            <select [ngModel]="newSlotVerification()" (ngModelChange)="newSlotVerification.set($event)" title="Identity verification (OTP)"
-              class="h-9 min-w-0 flex-1 rounded-full border border-gray-200 px-2 text-xs text-gray-600 focus:border-brand-bold focus:outline-none">
-              <option *ngFor="let v of verificationOptions" [value]="v.value">{{ v.label }}</option>
-            </select>
-            <button type="button" (click)="addSlot()" [disabled]="busy()"
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
-              <ion-icon name="add-outline" class="text-lg"></ion-icon>
-            </button>
+            <p class="text-[10px] text-gray-400">
+              SMS/WhatsApp need the signer's phone (from the linked client). Email code works for anyone.
+            </p>
           </div>
-          <p class="text-[10px] text-gray-400">
-            SMS/WhatsApp need the signer's phone (from the linked client). Email code works for anyone.
-          </p>
         </div>
       </section>
     </aside>
 
-    <!-- Superficie de layout -->
-    <main class="flex min-w-0 flex-1 flex-col rounded-2xl border border-gray-100">
-      <!-- Toolbar de campos -->
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2">
-        <!-- Sin roles: guía explícita en vez de botones deshabilitados sin explicación -->
-        <div *ngIf="slots().length === 0" class="flex items-center gap-1.5 text-[11px] font-medium text-brand-bold">
-          <ion-icon name="arrow-back-outline" class="text-sm"></ion-icon>
-          Add a signer role on the left to start placing fields.
-        </div>
-
-        <div *ngIf="slots().length > 0" class="flex flex-wrap items-center gap-1.5">
-          <span class="mr-1 text-[11px] font-medium text-gray-400">
-            Add field for <span class="font-semibold text-gray-700">{{ activeSlotLabel() }}</span>:
-          </span>
-          <button *ngFor="let type of fieldTypes" type="button" (click)="addField(type)"
-            [disabled]="activeSlotOrder() === null || !isDraft()"
-            class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
-            <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
-            {{ fieldLabel[type] }}
+    <!-- Documento + inspector -->
+    <div class="relative min-h-0 min-w-0 flex-1 gap-4 lg:flex"
+      [class.flex]="mobileTab() === 'document'" [class.hidden]="mobileTab() !== 'document'">
+      <main class="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-gray-100">
+        <!-- Toolbar: campos del rol activo + preparador -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-3 py-2">
+          <!-- Sin roles: guía explícita en vez de botones deshabilitados sin explicación -->
+          <button *ngIf="slots().length === 0" type="button" (click)="openSection.set('roles'); mobileTab.set('settings')"
+            class="tap flex items-center gap-1.5 text-left text-[11px] font-medium text-brand-bold">
+            <ion-icon name="arrow-back-outline" class="hidden text-sm lg:inline"></ion-icon>
+            <ion-icon name="settings-outline" class="text-sm lg:hidden"></ion-icon>
+            Add a signer role to start placing fields.
           </button>
-        </div>
 
-        <!-- Campos del preparador (sin slot): "from template" los hereda y estampa la firma efectiva. -->
-        <div *ngIf="isDraft()" class="flex flex-wrap items-center gap-1.5">
-          <span class="mr-0.5 flex items-center gap-1 text-[11px] font-semibold text-brand-bold">
-            <ion-icon name="ribbon-outline" class="text-xs"></ion-icon>
-            Preparer:
-          </span>
-          <button *ngFor="let type of preparerFieldTypes" type="button" (click)="addPreparerField(type)"
-            [disabled]="pages().length === 0"
-            class="flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
-            <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
-            {{ fieldLabel[type] }}
-          </button>
-        </div>
-        <div class="flex items-center gap-2">
-          <label class="cursor-pointer text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
-            [class.pointer-events-none]="savingBaseDoc()" [class.opacity-50]="savingBaseDoc()">
-            <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc()" />
-            {{ savingBaseDoc() ? 'Saving document…' : 'Upload document' }}
-          </label>
-          <button *ngIf="pages().length && pages()[0].src" type="button" (click)="clearSample()" [disabled]="savingBaseDoc()"
-            class="text-[11px] font-medium text-gray-400 hover:text-gray-700 transition-colors">Clear</button>
-          <button *ngIf="isDraft()" type="button" (click)="saveLayout()" [disabled]="!layoutDirty() || busy()"
-            class="rounded-full bg-brand-bold px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
-            Save layout
-          </button>
-        </div>
-      </div>
+          <div *ngIf="slots().length > 0" class="flex min-w-0 flex-wrap items-center gap-1.5">
+            <label class="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+              <span class="h-2.5 w-2.5 shrink-0 rounded-full" [ngClass]="activeSlotOrder() !== null ? slotPalette(activeSlotOrder()!).bg : 'bg-gray-300'"></span>
+              <span class="sr-only sm:not-sr-only">Field for</span>
+              <select [ngModel]="activeSlotOrder()" (ngModelChange)="setActiveSlot(+$event)" aria-label="Role for new fields"
+                class="tap h-7 max-w-[9rem] rounded-full border border-gray-200 px-2 text-[11px] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
+                <option *ngFor="let slot of slots()" [ngValue]="slot.order">{{ slot.role }}</option>
+              </select>
+            </label>
+            <button *ngFor="let type of fieldTypes" type="button" (click)="addField(type)"
+              [disabled]="activeSlotOrder() === null || !canEdit()"
+              [attr.aria-label]="'Add ' + fieldLabel[type] + ' for ' + activeSlotLabel()"
+              class="tap flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
+              <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
+              {{ fieldLabel[type] }}
+            </button>
+          </div>
 
-      <p *ngIf="pdfError()" class="px-3 pt-2 text-[11px] text-red-500">{{ pdfError() }}</p>
-      <p *ngIf="detail()?.baseDocumentFileId && !savingBaseDoc()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
-        <ion-icon name="checkmark-circle-outline" class="text-xs"></ion-icon>
-        Saved as this template's document — "from template" will reuse it.
-      </p>
-
-      <!-- Guía cuando aún no hay roles: sin slot no se pueden colocar campos -->
-      <div *ngIf="slots().length === 0" class="mx-3 mt-3 flex items-start gap-2 rounded-2xl bg-brand-white px-3 py-3 text-xs leading-snug text-gray-600">
-        <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-base text-brand-bold"></ion-icon>
-        <span>
-          <span class="font-semibold text-gray-900">Start by adding a signer role.</span>
-          In the <span class="font-semibold">Signer roles</span> panel on the left, type a role (e.g. <em>Client</em>),
-          pick its language and press <span class="font-semibold">+</span>. Then the field buttons above unlock and you can
-          place fields for that role on the document.
-        </span>
-      </div>
-
-      <!-- Páginas -->
-      <div class="flex-1 overflow-auto bg-gray-50 p-4">
-        <div class="mx-auto flex max-w-3xl flex-col items-center gap-4">
-          <div *ngFor="let page of pages()" class="relative shadow-sm"
-            [style.width.px]="page.width" [style.height.px]="page.height">
-            <img *ngIf="page.src" [src]="page.src" alt="Page {{ page.page }}" class="block h-full w-full select-none" draggable="false" />
-            <div *ngIf="!page.src" class="flex h-full w-full items-center justify-center bg-white text-xs text-gray-300">
-              Page {{ page.page }} · blank layout surface
-            </div>
-
-            <!-- Campos de esta página -->
-            <div *ngFor="let field of fieldsForPage(page.page); trackBy: trackField"
-              (pointerdown)="startMove($event, field)"
-              class="group absolute flex items-center justify-center rounded-md border-2 bg-white/70 text-[10px] font-semibold backdrop-blur-sm cursor-move"
-              [ngClass]="isPreparerField(field) ? 'border-brand-bold text-brand-bold' : [borderClass(field.slotOrder), textClass(field.slotOrder)]"
-              [style.left.px]="field.x" [style.top.px]="field.y"
-              [style.width.px]="field.width" [style.height.px]="field.height">
-              <!-- Campo del preparador (sin slot) -->
-              <ng-container *ngIf="isPreparerField(field); else signerTemplateField">
-                <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
-                <span class="truncate">Preparer {{ fieldLabel[field.type] }}</span>
-              </ng-container>
-              <ng-template #signerTemplateField>
-              <!-- Campo de texto: etiqueta editable inline (la ve el firmante como instrucción) -->
-              <input *ngIf="field.type === 'text'; else fieldBadge" type="text" [ngModel]="field.label || ''"
-                (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
-                placeholder="Field label" (pointerdown)="$event.stopPropagation()"
-                class="h-full w-full bg-transparent px-1 text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
-              <ng-template #fieldBadge>
-                <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
-                <span class="truncate">{{ fieldLabel[field.type] }}</span>
-              </ng-template>
-              </ng-template>
-
-              <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(field.localId)"
-                class="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                <ion-icon name="close-outline" class="text-[10px]"></ion-icon>
-              </button>
-              <span (pointerdown)="startResize($event, field)"
-                class="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-gray-400"></span>
-            </div>
+          <!-- Campos del preparador (sin slot): "from template" los hereda y estampa la firma efectiva. -->
+          <div *ngIf="isDraft()" class="flex flex-wrap items-center gap-1.5">
+            <span class="mr-0.5 flex items-center gap-1 text-[11px] font-semibold text-brand-bold">
+              <ion-icon name="ribbon-outline" class="text-xs"></ion-icon>
+              Preparer:
+            </span>
+            <button *ngFor="let type of preparerFieldTypes" type="button" (click)="addPreparerField(type)"
+              [disabled]="pages().length === 0 || !canEdit()"
+              [attr.aria-label]="'Add preparer ' + fieldLabel[type]"
+              class="tap flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
+              <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
+              {{ fieldLabel[type] }}
+            </button>
           </div>
         </div>
-      </div>
-    </main>
+
+        <!-- Toolbar del documento: zoom, página, documento, guardar -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-3 py-1.5">
+          <div class="flex items-center gap-0.5 text-[11px] text-gray-600">
+            <button type="button" (click)="zoomOut()" [disabled]="!canZoomOut()" aria-label="Zoom out"
+              class="tap flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-40">
+              <ion-icon name="remove-outline" class="text-sm"></ion-icon>
+            </button>
+            <span class="w-10 text-center font-semibold tabular-nums">{{ zoomPercent() }}%</span>
+            <button type="button" (click)="zoomIn()" [disabled]="!canZoomIn()" aria-label="Zoom in"
+              class="tap flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-40">
+              <ion-icon name="add-outline" class="text-sm"></ion-icon>
+            </button>
+            <button type="button" (click)="fitWidth()" [disabled]="rendering()" aria-label="Fit width"
+              class="tap ml-0.5 flex h-7 items-center gap-1 rounded-full px-2 font-medium hover:bg-gray-100 disabled:opacity-40">
+              <ion-icon name="expand-outline" class="text-sm"></ion-icon>
+              <span class="hidden sm:inline">Fit</span>
+            </button>
+          </div>
+
+          <label *ngIf="pages().length > 0" class="flex items-center gap-1 text-[11px] text-gray-500">
+            <span>Page</span>
+            <select [ngModel]="currentPage()" (ngModelChange)="goToPage(+$event)" aria-label="Go to page"
+              class="tap h-7 rounded-full border border-gray-200 px-1.5 text-[11px] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
+              <option *ngFor="let p of pages()" [ngValue]="p.page">{{ p.page }}</option>
+            </select>
+            <span>/ {{ pages().length }}</span>
+          </label>
+
+          <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <label *ngIf="isDraft()" class="tap flex cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
+              [class.pointer-events-none]="savingBaseDoc() || rendering()" [class.opacity-50]="savingBaseDoc() || rendering()">
+              <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc() || rendering()" />
+              <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
+              {{ savingBaseDoc() ? 'Saving document…' : (hasPdfSurface() ? 'Replace document' : 'Upload document') }}
+            </label>
+            <button *ngIf="isDraft() && hasPdfSurface()" type="button" (click)="clearSample()" [disabled]="savingBaseDoc() || rendering()"
+              class="tap rounded-full px-2 text-[11px] font-medium text-gray-400 hover:text-gray-700 transition-colors">Clear</button>
+            <button *ngIf="isDraft()" type="button" (click)="saveLayout()" [disabled]="!layoutDirty() || busy() || rendering()"
+              class="tap rounded-full bg-brand-bold px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+              Save layout
+            </button>
+          </div>
+        </div>
+
+        <p *ngIf="pdfError()" class="px-3 pt-2 text-[11px] text-red-500" role="alert">{{ pdfError() }}</p>
+        <p *ngIf="surfaceNotice()" class="flex items-start gap-1 px-3 pt-2 text-[11px] text-amber-600">
+          <ion-icon name="warning-outline" class="mt-px shrink-0 text-xs"></ion-icon>
+          <span class="flex-1">{{ surfaceNotice() }}</span>
+          <button type="button" (click)="surfaceNotice.set('')" aria-label="Dismiss" class="tap -my-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-50">
+            <ion-icon name="close-outline" class="text-xs"></ion-icon>
+          </button>
+        </p>
+        <p *ngIf="detail()?.baseDocumentFileId && !savingBaseDoc() && !renderError()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
+          <ion-icon name="checkmark-circle-outline" class="text-xs"></ion-icon>
+          Saved as this template's document — "from template" will reuse it.
+        </p>
+        <div *ngIf="renderError()" class="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] text-red-600" role="alert">
+          <ion-icon name="alert-circle-outline" class="shrink-0"></ion-icon>
+          <span class="flex-1">{{ renderError() }} Editing is paused until the document loads.</span>
+          <button type="button" (click)="retryRender()" [disabled]="rendering()"
+            class="tap flex items-center gap-1 rounded-full bg-white px-3 py-1 font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50">
+            <ion-icon name="refresh-outline" class="text-xs"></ion-icon>
+            Retry
+          </button>
+        </div>
+
+        <!-- Guía cuando aún no hay roles: sin slot no se pueden colocar campos -->
+        <div *ngIf="slots().length === 0 && isDraft()" class="mx-3 mt-3 flex items-start gap-2 rounded-2xl bg-brand-white px-3 py-3 text-xs leading-snug text-gray-600">
+          <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-base text-brand-bold"></ion-icon>
+          <span>
+            <span class="font-semibold text-gray-900">Start by adding a signer role.</span>
+            In <span class="font-semibold">Signer roles</span><span class="lg:hidden"> (Settings tab)</span>, type a role (e.g. <em>Client</em>),
+            pick its language and press <span class="font-semibold">+</span>. Then the field buttons above unlock and you can
+            place fields for that role on the document.
+          </span>
+        </div>
+
+        <!-- Páginas -->
+        <div #scroller class="relative min-h-0 flex-1 overflow-auto bg-gray-50 p-4" (scroll)="onScroll()"
+          [class.tpl-scroller-inspecting]="selectedField()">
+          <div class="mx-auto flex w-max min-w-full flex-col items-center gap-4">
+            <div *ngFor="let page of pages()" #pageEl [attr.data-page]="page.page" class="relative shrink-0 bg-white shadow-sm"
+              [style.width.px]="page.width" [style.height.px]="page.height" (click)="selectField(null)">
+              <img *ngIf="page.src" [src]="page.src" alt="Page {{ page.page }}" class="block h-full w-full select-none" draggable="false" />
+              <div *ngIf="!page.src" class="flex h-full w-full items-center justify-center bg-white text-xs text-gray-300">
+                Page {{ page.page }} · blank layout surface
+              </div>
+
+              <!-- Campos de esta página -->
+              <div *ngFor="let field of fieldsForPage(page.page); trackBy: trackField"
+                data-field tabindex="0" role="group"
+                [attr.aria-label]="(isPreparerField(field) ? 'Preparer' : slotRole(field.slotOrder)) + ' ' + fieldLabel[field.type] + ' field, page ' + field.page"
+                (pointerdown)="field.type === 'text' && !isPreparerField(field) ? selectField(field.localId) : startMove($event, field, pageEl)"
+                (click)="$event.stopPropagation()"
+                (focus)="selectField(field.localId)"
+                (keydown)="onFieldKeydown($event, field)"
+                class="tpl-field group absolute flex items-center justify-center rounded-md border-2 bg-white/70 text-[10px] font-semibold backdrop-blur-sm focus:outline-none"
+                [class.cursor-move]="canEdit() && (field.type !== 'text' || isPreparerField(field))"
+                [class.tpl-field-selected]="selectedId() === field.localId"
+                [ngClass]="isPreparerField(field) ? 'border-brand-bold text-brand-bold' : [borderClass(field.slotOrder), textClass(field.slotOrder)]"
+                [style.left.px]="field.x" [style.top.px]="field.y"
+                [style.width.px]="field.width" [style.height.px]="field.height">
+                <!-- Campo del preparador (sin slot) -->
+                <ng-container *ngIf="isPreparerField(field); else signerTemplateField">
+                  <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
+                  <span class="truncate">Preparer {{ fieldLabel[field.type] }}</span>
+                </ng-container>
+                <ng-template #signerTemplateField>
+                <!-- Campo de texto: etiqueta editable inline; se mueve desde el asa -->
+                <ng-container *ngIf="field.type === 'text'; else fieldBadge">
+                  <input type="text" [ngModel]="field.label || ''"
+                    (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
+                    [readonly]="!canEdit()" aria-label="Field label"
+                    placeholder="Field label" (pointerdown)="$event.stopPropagation(); selectField(field.localId)"
+                    class="h-full w-full bg-transparent px-1 text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
+                  <span *ngIf="canEdit()" (pointerdown)="startMove($event, field, pageEl)" aria-hidden="true" title="Drag to move"
+                    class="tpl-handle tpl-move-handle absolute -left-2 -top-2 flex h-5 w-5 cursor-move items-center justify-center rounded-full bg-gray-700 text-white shadow">
+                    <ion-icon name="move-outline" class="text-[11px]"></ion-icon>
+                  </span>
+                </ng-container>
+                <ng-template #fieldBadge>
+                  <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
+                  <span class="truncate">{{ fieldLabel[field.type] }}</span>
+                </ng-template>
+                </ng-template>
+
+                <ng-container *ngIf="canEdit()">
+                  <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(field.localId); $event.stopPropagation()"
+                    aria-label="Remove field" tabindex="-1"
+                    class="tpl-handle tpl-delete absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow transition-opacity">
+                    <ion-icon name="close-outline" class="text-[11px]"></ion-icon>
+                  </button>
+                  <span (pointerdown)="startResize($event, field, pageEl)" aria-hidden="true"
+                    class="tpl-handle absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-gray-500"></span>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+
+          <!-- Render en curso (abrir documento base, zoom, muestra) -->
+          <div *ngIf="rendering()" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/70">
+            <div class="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
+            <p class="text-xs font-medium text-gray-600">Loading document…</p>
+          </div>
+        </div>
+      </main>
+
+      <!-- Inspector contextual: columna en xl, flotante en lg, panel inferior por debajo de lg -->
+      <section *ngIf="selectedField() as field" aria-label="Field inspector"
+        class="tpl-inspector absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-y-auto rounded-t-2xl border border-gray-100 bg-white p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]
+               lg:inset-x-auto lg:bottom-auto lg:right-3 lg:top-24 lg:max-h-[calc(100%-7rem)] lg:w-60 lg:rounded-2xl lg:shadow-lg
+               xl:static xl:max-h-none xl:w-60 xl:shrink-0 xl:shadow-none">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <span class="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-gray-900">
+            <ion-icon [name]="fieldIcon[field.type]" class="text-sm"
+              [ngClass]="isPreparerField(field) ? 'text-brand-bold' : textClass(field.slotOrder)"></ion-icon>
+            <span class="truncate">{{ isPreparerField(field) ? 'Preparer ' : '' }}{{ fieldLabel[field.type] }}</span>
+          </span>
+          <button type="button" (click)="selectField(null)" aria-label="Close inspector"
+            class="tap flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+            <ion-icon name="close-outline" class="text-base"></ion-icon>
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-role">Assigned to</label>
+            <p *ngIf="isPreparerField(field)" class="text-xs font-semibold text-brand-bold">Preparer</p>
+            <select *ngIf="!isPreparerField(field)" id="insp-role" [ngModel]="field.slotOrder"
+              (ngModelChange)="reassignField(field.localId, +$event)" [disabled]="!canEdit()"
+              class="tap h-8 w-full rounded-full border border-gray-200 px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50">
+              <option *ngFor="let slot of slots()" [ngValue]="slot.order">{{ slot.role }}</option>
+            </select>
+          </div>
+
+          <div *ngIf="field.type === 'text' && !isPreparerField(field)">
+            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-label">Label</label>
+            <input id="insp-label" type="text" [ngModel]="field.label || ''" (ngModelChange)="setFieldLabel(field.localId, $event)"
+              [disabled]="!canEdit()" placeholder="What should the signer type?"
+              class="tap h-8 w-full rounded-full border border-gray-200 px-3 text-xs text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-page">Page</label>
+            <select id="insp-page" [ngModel]="field.page" (ngModelChange)="setFieldPage(field.localId, +$event)"
+              [disabled]="!canEdit() || pages().length < 2"
+              class="tap h-8 w-full rounded-full border border-gray-200 px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50">
+              <option *ngFor="let p of pages()" [ngValue]="p.page">Page {{ p.page }} of {{ pages().length }}</option>
+            </select>
+          </div>
+
+          <div *ngIf="isDraft()" class="grid grid-cols-2 gap-1.5 lg:grid-cols-1">
+            <button type="button" (click)="duplicate(field.localId)" [disabled]="!canEdit()"
+              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
+              <ion-icon name="copy-outline" class="text-sm"></ion-icon>
+              Duplicate
+            </button>
+            <button type="button" (click)="duplicateToAllPages(field.localId)" [disabled]="!canEdit() || pages().length < 2"
+              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
+              <ion-icon name="documents-outline" class="text-sm"></ion-icon>
+              Copy to all pages
+            </button>
+            <button type="button" (click)="removeField(field.localId)" [disabled]="!canEdit()"
+              class="tap col-span-2 flex items-center justify-center gap-1.5 rounded-full border border-red-100 px-3 py-1.5 text-[11px] font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 lg:col-span-1 lg:justify-start">
+              <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+              Delete
+            </button>
+          </div>
+          <p *ngIf="isDraft()" class="hidden text-[10px] leading-snug text-gray-400 lg:block">
+            Arrows move 1 px (Shift: 10 px) · Ctrl/⌘ D duplicates · Delete removes · Esc deselects.
+          </p>
+          <p *ngIf="!isDraft()" class="text-[10px] text-gray-400">Read only — press “Edit template” to change the layout.</p>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- Overlay de proceso -->
-  <div *ngIf="busy()" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/90">
+  <div *ngIf="busy()" class="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-white/90">
     <div class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
     <p class="text-sm font-medium text-gray-700">{{ busyLabel() }}</p>
   </div>
 
-  <div *ngIf="loading()" class="absolute inset-0 z-10 flex items-center justify-center bg-white">
+  <div *ngIf="loading()" class="absolute inset-0 z-30 flex items-center justify-center bg-white">
     <div class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
   </div>
 </div>
+
+<!-- Salir con layout sin guardar -->
+<app-confirm-dialog [isOpen]="confirmCloseOpen()" heading="Discard layout changes?"
+  message="You have unsaved changes in the field layout. If you leave now they'll be lost."
+  confirmLabel="Discard and leave" cancelLabel="Keep editing"
+  (confirmed)="confirmDiscardAndClose()" (cancelled)="confirmCloseOpen.set(false)"></app-confirm-dialog>
 
 <!-- Coreografía de publicación: el molde se arma, se sella y sale (pantalla completa) -->
 <div *ngIf="isPublishing()" class="publish-overlay fixed inset-0 z-[70] flex flex-col items-center justify-center bg-brand-white/95"
