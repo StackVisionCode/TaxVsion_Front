@@ -57,7 +57,9 @@
 
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <p class="truncate text-sm font-semibold text-gray-900">{{ doc.name }}</p>
+            <button *ngIf="canDownload() && doc.isReady; else plainName" type="button" (click)="preview(doc)"
+              class="truncate text-left text-sm font-semibold text-gray-900 hover:text-brand-bold hover:underline">{{ doc.name }}</button>
+            <ng-template #plainName><p class="truncate text-sm font-semibold text-gray-900">{{ doc.name }}</p></ng-template>
             <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
               [ngClass]="statusChipClass(doc.status)">
               {{ statusLabel(doc.status) }}
@@ -71,6 +73,11 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-1">
+          <button *ngIf="canDownload() && doc.isReady" type="button" (click)="preview(doc)"
+            title="Preview" aria-label="Preview file"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+            <ion-icon name="eye-outline" class="text-base"></ion-icon>
+          </button>
           <button *ngIf="canDownload() && doc.isReady" type="button" (click)="download(doc)" [disabled]="store.isBusy(doc.id)"
             title="Download"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors">
@@ -91,6 +98,11 @@
     </div>
   </ng-container>
 </div>
+
+<!-- Visor global de archivos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  [allowDownload]="canDownload()" (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+  (closed)="viewerOpen.set(false)"></app-file-viewer>
 
 <!-- Confirmar borrado -->
 <app-confirm-dialog [isOpen]="pendingDelete() !== null" heading="Delete document" [message]="pendingDeleteMessage()"

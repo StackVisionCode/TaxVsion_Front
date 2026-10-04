@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import {
   DownloadUrlResponse,
   FileResponse,
@@ -69,5 +70,30 @@ export class CloudStorageUploadService {
 
   getDownloadUrl(fileId: string): Observable<DownloadUrlResponse> {
     return this.http.post<DownloadUrlResponse>(`${this.base}/files/${fileId}/download-url`, {});
+  }
+
+  /**
+   * Ítem para el visor global (`app-file-viewer`) de un archivo de CloudStorage. La URL presignada
+   * se pide recién al mostrarlo (vencen en minutos). `ref` = el FileResponse original.
+   */
+  viewerItem(file: Pick<FileResponse, 'id' | 'originalName' | 'sizeBytes'> & Partial<FileResponse>): FileViewerItem {
+    return {
+      name: file.originalName,
+      contentType: file.detectedContentType || file.declaredContentType || null,
+      sizeBytes: file.sizeBytes,
+      resolveUrl: () => this.getDownloadUrl(file.id).pipe(map(res => res.downloadUrl)),
+      ref: file,
+    };
+  }
+
+  /** Ítem del visor a partir de un fileId suelto (adjuntos que solo traen id/nombre). */
+  viewerItemForId(fileId: string, name: string, contentType?: string | null, sizeBytes?: number | null): FileViewerItem {
+    return {
+      name,
+      contentType: contentType ?? null,
+      sizeBytes: sizeBytes ?? null,
+      resolveUrl: () => this.getDownloadUrl(fileId).pipe(map(res => res.downloadUrl)),
+      ref: fileId,
+    };
   }
 }

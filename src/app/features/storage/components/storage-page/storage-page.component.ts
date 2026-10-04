@@ -6,6 +6,8 @@ import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-stor
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { formatBytes } from '@shared/utils/format.util';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { StorageStore } from '../../data-access/storage.store';
 import {
   CATEGORY_META,
@@ -38,7 +40,15 @@ export interface CategoryFileRow {
  */
 @Component({
   selector: 'app-storage-page',
-  imports: [CommonModule, RouterLink, PaginationComponent, UsedStorageCardComponent, StateBlockComponent, AvatarComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    PaginationComponent,
+    UsedStorageCardComponent,
+    StateBlockComponent,
+    AvatarComponent,
+    FileViewerComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './storage-page.component.html',
   styleUrl: './storage-page.component.css',
@@ -165,6 +175,24 @@ export class StoragePageComponent implements OnInit {
 
   download(item: SharedWithMeItem): void {
     this.store.downloadShared(item);
+  }
+
+  // ---------- Visor global ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /** Abre el visor con los archivos descargables de la página actual, empezando por `item`. */
+  view(item: SharedWithMeItem): void {
+    const rows = this.pagedShares().filter(row => row.canDownload && !!row.fileId);
+    const start = rows.findIndex(row => row.shareLinkId === item.shareLinkId);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(rows.map(row => this.store.viewerItem(row)).filter((f): f is FileViewerItem => f !== null));
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 
   /** Color hex de la categoría (mismo que su tarjeta/donut), usado para el chip de la tabla. */

@@ -1,6 +1,6 @@
 <div class="min-h-full pt-3 pb-1">
   <!-- ============ VISTA EDITOR ============ -->
-  <div *ngIf="editingId() as id" class="rounded-[28px] border border-gray-100 bg-white" style="height: calc(100vh - 140px)">
+  <div *ngIf="editingId() as id" class="rounded-[28px] border border-gray-100 bg-white" style="height: calc(100dvh - 140px); min-height: 520px">
     <app-signature-template-editor
       [templateId]="id"
       (closed)="closeEditor()"

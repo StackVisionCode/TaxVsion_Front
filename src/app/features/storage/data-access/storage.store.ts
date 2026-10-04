@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { EMPTY, Observable, catchError, expand, forkJoin, map, of, reduce, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
@@ -269,6 +270,11 @@ export class StorageStore {
         this.toast.error(toApiError(err).message);
       },
     });
+  }
+
+  /** Ítem del visor global para un archivo compartido (la URL presignada se pide al mostrarlo). */
+  viewerItem(item: SharedWithMeItem): FileViewerItem | null {
+    return item.fileId ? this.cloudStorage.viewerItemForId(item.fileId, item.name, null, item.sizeBytes) : null;
   }
 
   // ---------- Internos ----------

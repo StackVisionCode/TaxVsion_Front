@@ -8,10 +8,10 @@ import {
   OnInit,
   Output,
   SimpleChanges,
-  ViewChild,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -57,6 +57,10 @@ import { buildDraftHydration } from '../../utils/draft-hydration.util';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { isSigningPinInvalid } from '../../utils/request-rules.util';
+import { signersMissingSignature } from '../../utils/editor-fields.util';
+import { PDF_RENDER_FRIENDLY_ERROR } from '../../utils/pdf-render.util';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -83,6 +87,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     SignatureWizardDocumentStepComponent,
     SignatureWizardReviewStepComponent,
     SignaturePdfEditorComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-request-panel.component.html',
@@ -98,7 +103,11 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Guardado como borrador sin enviar: el padre refresca la lista, avisa y cierra. */
   @Output() saved = new EventEmitter<void>();
 
-  @ViewChild('editor') private editor?: SignaturePdfEditorComponent;
+  /** Query con signal: los computed (canProceed/canSaveDraft) siguen al editor aunque se resuelva tarde. */
+  private readonly editorRef = viewChild<SignaturePdfEditorComponent>('editor');
+  private get editor(): SignaturePdfEditorComponent | undefined {
+    return this.editorRef();
+  }
 
   readonly store = inject(SignatureStore);
   private readonly toast = inject(ToastService);
@@ -120,6 +129,21 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Últimos clientes elegidos (recientes del directorio compartido), para el acceso rápido del paso 1. */
   readonly recentClients = computed(() => this.directory.recent());
   readonly selectedDocument = signal<WizardDocument | null>(null);
+  /**
+   * Documento que renderiza el editor. Va aparte de `selectedDocument` para que re-elegir el PDF en
+   * el paso 2 no borre los campos colocados hasta que el usuario lo confirme (ver onDocumentSelected).
+   */
+  readonly editorDocument = signal<WizardDocument | null>(null);
+  /** Documento nuevo en espera de confirmar el reemplazo (hay campos colocados sobre el actual). */
+  readonly pendingDocument = signal<WizardDocument | null>(null);
+  /** Opción "conservar campos" del diálogo de reemplazo. */
+  readonly keepFieldsChoice = signal(true);
+  /** Se pasa al editor: true = al cambiar de documento conserva los campos (posición relativa). */
+  readonly keepFieldsOnDocumentChange = signal(false);
+  /** Diálogo "descartar cambios" al cerrar con trabajo sin guardar. */
+  readonly confirmCloseOpen = signal(false);
+  /** Metadata editada tras rehidratar un borrador (título, categoría, fecha, descripción). */
+  private readonly metaDirty = signal(false);
   readonly title = signal('');
   readonly category = signal<SignatureCategory>('Fiscal');
   readonly dueDate = signal('');
@@ -182,10 +206,35 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         // El documento debe haber pasado el preflight Y estar ya en CloudStorage.
         return !!this.selectedDocument()?.fileId;
       case 3:
-        return this.fieldCount() > 0;
+        // Cada firmante con al menos una Firma/Iniciales (los del preparador no cuentan), documento
+        // renderizado y sin teléfonos/datos 8879 pendientes: lo mismo que lista "Before you continue".
+        return this.fieldCount() > 0 && (this.editor?.canContinue() ?? false);
       default:
         return true;
     }
+  });
+
+  /** Motivos que bloquean "Send" (se muestran sobre el pie; el botón no queda deshabilitado "porque sí"). */
+  readonly sendBlockers = computed<string[]>(() => {
+    const out: string[] = [];
+    const titleLength = this.title().trim().length;
+    if (titleLength < 3 || titleLength > 300) {
+      out.push('Add a title between 3 and 300 characters.');
+    }
+    const missing = signersMissingSignature(this.signersSnapshot(), this.fieldsSnapshot());
+    if (missing.length > 0) {
+      out.push(
+        missing.length === 1
+          ? `${missing[0].name} still needs a Signature or Initials field.`
+          : `${missing.length} signers still need a Signature or Initials field.`,
+      );
+    } else if (!this.normalizedFieldsSnapshot().some(f => f.type === 'signature' || f.type === 'initials')) {
+      out.push('Place at least one Signature or Initials field.');
+    }
+    if (isSigningPinInvalid(this.rulesSnapshot())) {
+      out.push('The Signing PIN must be 4–10 digits, or leave it empty.');
+    }
+    return out;
   });
 
   readonly canSend = computed(() => {
@@ -198,7 +247,10 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       titleLength <= 300 &&
       this.normalizedFieldsSnapshot().length > 0 &&
       // Regla del dominio: al menos un campo Signature o Initials para poder enviar.
-      this.normalizedFieldsSnapshot().some(f => f.type === 'signature' || f.type === 'initials')
+      this.normalizedFieldsSnapshot().some(f => f.type === 'signature' || f.type === 'initials') &&
+      // Y cada firmante con el suyo (los del preparador no cuentan), y el PIN válido si se escribió.
+      signersMissingSignature(this.signersSnapshot(), this.fieldsSnapshot()).length === 0 &&
+      !isSigningPinInvalid(this.rulesSnapshot())
     );
   });
 
@@ -209,8 +261,29 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.selectedClient() !== null &&
       !!this.selectedDocument()?.fileId &&
       titleLength >= 3 &&
-      titleLength <= 300
+      titleLength <= 300 &&
+      // Nunca con el render fallido o a medias: exportaría un set vacío y el diff borraría campos del servidor.
+      (this.editor?.safeToExport() ?? true)
     );
+  });
+
+  /** Motivo visible cuando el render impide guardar ('' = nada que decir). */
+  readonly saveBlockedReason = computed(() => this.editor?.exportBlockedReason() ?? '');
+
+  /** Primer pendiente del paso Fields + cuántos hay (pista junto al botón Next). */
+  readonly stepHint = computed(() => {
+    const step = this.currentStep();
+    if (step === 3) {
+      const items = this.editor?.readinessItems() ?? [];
+      if (items.length === 0) {
+        return '';
+      }
+      return items.length === 1 ? items[0].message : `${items[0].message} (+${items.length - 1} more)`;
+    }
+    if (step === 4) {
+      return this.sendBlockers()[0] ?? '';
+    }
+    return '';
   });
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -247,7 +320,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   private persistRecoverySnapshot(): void {
     // No en modo continuar (ese draft ya vive en el backend), y solo con cliente + documento subido.
-    if (this.editingDraft() || !this.editor) {
+    // Tampoco con el render fallido/a medias: el snapshot saldría sin campos y pisaría uno bueno.
+    if (this.editingDraft() || !this.editor || !this.editor.safeToExport()) {
       return;
     }
     const client = this.selectedClient();
@@ -317,8 +391,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.editorSeed.set(snapshot.seed);
 
       const url = await firstValueFrom(this.store.getDownloadUrl(snapshot.documentFileId));
-      const blob = await (await fetch(url)).blob();
-      this.selectedDocument.set({
+      const blob = await this.fetchPdfBlob(url);
+      this.setDocument({
         id: snapshot.documentFileId,
         name: snapshot.documentName,
         kind: 'pdf',
@@ -329,7 +403,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       });
       this.currentStep.set(3);
     } catch (err) {
-      this.hydrateError.set(err instanceof Error ? err.message : 'Your unsaved work could not be restored.');
+      console.error('[signature] restore failed', err);
+      this.hydrateError.set(`Your unsaved work could not be restored. ${PDF_RENDER_FRIENDLY_ERROR}`);
     } finally {
       this.hydrating.set(false);
     }
@@ -364,8 +439,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
       // Bytes del PDF original para que el editor renderice el documento real (no el de muestra).
       const url = await firstValueFrom(this.store.getDownloadUrl(detail.originalFileId));
-      const blob = await (await fetch(url)).blob();
-      this.selectedDocument.set({
+      const blob = await this.fetchPdfBlob(url);
+      this.setDocument({
         id: detail.originalFileId,
         name: `${detail.title}.pdf`,
         kind: 'pdf',
@@ -377,7 +452,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
       this.currentStep.set(3);
     } catch (err) {
-      this.hydrateError.set(err instanceof Error ? err.message : 'The draft could not be loaded.');
+      console.error('[signature] draft hydration failed', err);
+      this.hydrateError.set('The draft could not be loaded. Close and try again.');
     } finally {
       this.hydrating.set(false);
     }
@@ -389,8 +465,41 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     this.selectedClient.set(customerToWizardClient(customer));
   }
 
-  onDocumentSelected(doc: WizardDocument): void {
+  /** Descarga los bytes del PDF comprobando el status (antes un 403/404 se tomaba como PDF y fallaba en pdf.js). */
+  private async fetchPdfBlob(url: string): Promise<Blob> {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`PDF download failed (${res.status})`);
+    }
+    return res.blob();
+  }
+
+  /** Fija el documento elegido y el que renderiza el editor (restaurar/rehidratar/confirmar reemplazo). */
+  private setDocument(doc: WizardDocument | null, keepFields = false): void {
+    this.keepFieldsOnDocumentChange.set(keepFields);
     this.selectedDocument.set(doc);
+    this.editorDocument.set(doc);
+  }
+
+  onDocumentSelected(doc: WizardDocument): void {
+    const current = this.editorDocument();
+    // El mismo archivo otra vez (p. ej. re-elegido desde la biblioteca): no se re-renderiza ni se tocan campos.
+    if (current && current.id === doc.id) {
+      this.selectedDocument.set(current);
+      return;
+    }
+    const placed = this.editor?.fields().length ?? 0;
+    // Re-elegir el PDF con campos ya colocados: se confirma antes (y se ofrece conservarlos).
+    if (current && current.id !== doc.id && placed > 0) {
+      this.keepFieldsChoice.set(this.canKeepFieldsFor(doc));
+      this.pendingDocument.set(doc);
+      return;
+    }
+    this.acceptDocument(doc, false);
+  }
+
+  private acceptDocument(doc: WizardDocument, keepFields: boolean): void {
+    this.setDocument(doc, keepFields);
     if (!this.title().trim()) {
       this.title.set(doc.name.replace(/\.pdf$/i, ''));
     }
@@ -398,6 +507,39 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   onDocumentCleared(): void {
     this.selectedDocument.set(null);
+    // Con campos colocados el editor conserva el documento actual hasta que se confirme el nuevo.
+    if ((this.editor?.fields().length ?? 0) === 0) {
+      this.editorDocument.set(null);
+    }
+  }
+
+  /** Nº de páginas del documento actual en el editor (para el diálogo de reemplazo). */
+  currentPageCount(): number {
+    return this.editor?.pages().length ?? 0;
+  }
+
+  /** Se puede ofrecer "conservar campos" si el nuevo tiene las mismas páginas (o no se sabe aún). */
+  canKeepFieldsFor(doc: WizardDocument | null): boolean {
+    if (!doc) {
+      return false;
+    }
+    return doc.pageCount == null || doc.pageCount === this.currentPageCount();
+  }
+
+  confirmDocumentSwap(): void {
+    const doc = this.pendingDocument();
+    if (!doc) {
+      return;
+    }
+    const keep = this.keepFieldsChoice() && this.canKeepFieldsFor(doc);
+    this.pendingDocument.set(null);
+    this.acceptDocument(doc, keep);
+  }
+
+  /** "Keep current document": se vuelve a seleccionar el que ya tiene los campos. */
+  cancelDocumentSwap(): void {
+    this.pendingDocument.set(null);
+    this.selectedDocument.set(this.editorDocument());
   }
 
   next(): void {
@@ -408,12 +550,6 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     // buscador de firmantes extra del editor (paso 3).
     if (this.currentStep() === 1) {
       this.store.queryCustomers('');
-    }
-    // Un PIN de firma escrito pero incompleto (1–3 dígitos) bloquea avanzar: el backend exige 4–10.
-    // El botón Next está habilitado (hay campos): sin un toast, el clic parece "no hacer nada".
-    if (this.currentStep() === 3 && this.editor?.signingPinInvalid()) {
-      this.toast.error('Enter a 4–10 digit Signing PIN, or clear it to continue.');
-      return;
     }
     // Un firmante por SMS/WhatsApp SIN teléfono no puede recibir el OTP → bloquea avanzar.
     if (this.currentStep() === 3 && (this.editor?.signersMissingPhone().length ?? 0) > 0) {
@@ -451,20 +587,86 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     }
   }
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
+  /**
+   * Escape cierra el wizard SOLO si nada más lo reclama: un modal abierto (Add signer, confirmaciones),
+   * el foco en un campo editable, o algo abierto en el editor (menú, panel, selección) tienen prioridad.
+   * Y si hay trabajo sin guardar, se pide confirmación igual que con "Back to list"/"Cancel".
+   */
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(event: Event): void {
+    if (event.defaultPrevented || this.confirmCloseOpen() || this.pendingDocument()) {
+      return;
+    }
+    if (typeof document !== 'undefined' && document.querySelector('[aria-modal="true"]')) {
+      return;
+    }
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+    if (this.currentStep() === 3 && this.editor?.handleEscape()) {
+      return;
+    }
     this.close();
   }
 
+  /** "Back to list" / "Cancel" / Escape: pregunta antes de descartar trabajo sin guardar. */
   close(): void {
-    if (this.isSending()) {
+    if (this.isSending() || this.savingDraft()) {
+      return;
+    }
+    if (this.hasUnsavedWork()) {
+      this.confirmCloseOpen.set(true);
       return;
     }
     this.closed.emit();
   }
 
+  confirmDiscard(): void {
+    this.confirmCloseOpen.set(false);
+    this.closed.emit();
+  }
+
+  /** Hay algo que se perdería al cerrar (crear: documento o cambios; continuar: cualquier edición). */
+  hasUnsavedWork(): boolean {
+    const editorDirty = this.editor?.dirty() ?? false;
+    if (this.editingDraft()) {
+      return this.metaDirty() || editorDirty;
+    }
+    return this.selectedDocument() !== null || this.editorDocument() !== null || editorDirty;
+  }
+
+  /** Cambios de metadata en Review (título, categoría, fecha, descripción). */
+  markMetaDirty(): void {
+    this.metaDirty.set(true);
+  }
+
+  /** Reglas editadas en Review: vuelven al MISMO signal del editor y al snapshot que usa buildDraft. */
+  onRulesChange(rules: RequestRules): void {
+    this.editor?.setRules(rules);
+    this.rulesSnapshot.set(rules);
+  }
+
+  /** Permiso de entrega evaluado por el editor (signature.document.send), sin duplicar la lógica. */
+  canDeliverDocs(): boolean {
+    return this.editor?.canDeliverDocs() ?? false;
+  }
+
+  /** "Go to signer" desde Review: vuelve al editor con ese firmante activo. */
+  goToSigner(signerId: string): void {
+    this.currentStep.set(3);
+    this.editor?.focusSigner(signerId);
+  }
+
   send(): void {
-    if (!this.canSend() || this.isSending()) {
+    if (this.isSending()) {
+      return;
+    }
+    // La validación del PIN vive en Send (las reglas se editan en Review).
+    if (isSigningPinInvalid(this.rulesSnapshot())) {
+      this.toast.error('Enter a 4–10 digit Signing PIN, or clear it to send.');
+      return;
+    }
+    if (!this.canSend()) {
       return;
     }
     void this.runSend();
@@ -473,6 +675,11 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Guarda el borrador sin enviarlo. Reusa `sendState`: si luego se envía, no se duplica nada. */
   saveAsDraft(): void {
     if (!this.canSaveDraft() || this.savingDraft() || this.isSending()) {
+      return;
+    }
+    // Defensa extra (el botón ya está deshabilitado): con el render fallido no se exporta nada.
+    if (this.editor && !this.editor.safeToExport()) {
+      this.toast.error(this.editor.exportBlockedReason() || 'Wait for the document to finish loading.');
       return;
     }
     // Congela lo que haya en el editor (que está montado desde el paso 1 y ya tiene al firmante
@@ -608,4 +815,14 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+}
+
+/** El foco está en algo que usa Escape por sí mismo (input, textarea, select, contenteditable). */
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.tagName !== 'string') {
+    return false;
+  }
+  const tag = el.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
 }

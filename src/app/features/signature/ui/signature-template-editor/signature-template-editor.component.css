@@ -170,3 +170,76 @@
     animation-delay: 0ms !important;
   }
 }
+
+/* ===== Editor compacto: objetivos táctiles, campos y asas ===== */
+
+/* Objetivos táctiles de 44 px por debajo de lg o con puntero grueso (tablet/móvil). */
+@media (max-width: 1023px), (pointer: coarse) {
+  .tap {
+    min-height: 44px;
+  }
+  button.tap:not(.w-full),
+  select.tap {
+    min-width: 44px;
+  }
+}
+
+.acc-chevron {
+  transition: transform 160ms ease;
+}
+
+/* Los campos no hacen scroll al arrastrarlos con el dedo. */
+.tpl-field {
+  touch-action: none;
+}
+
+.tpl-field:focus-visible,
+.tpl-field-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(17 24 39 / 0.55);
+  z-index: 5;
+}
+
+/* Botón eliminar: aparece al pasar el ratón o con el campo seleccionado… */
+.tpl-delete {
+  opacity: 0;
+}
+.tpl-field:hover .tpl-delete,
+.tpl-field-selected .tpl-delete,
+.tpl-field:focus-within .tpl-delete {
+  opacity: 1;
+}
+/* …y en táctil siempre visible (no hay hover). */
+@media (hover: none) {
+  .tpl-delete {
+    opacity: 1;
+  }
+}
+
+/* Asas pequeñas a la vista pero con zona de toque de 44 px en táctil. */
+.tpl-handle {
+  touch-action: none;
+}
+@media (pointer: coarse) {
+  .tpl-handle::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
+/* Con el inspector como panel inferior, el documento deja sitio para no quedar tapado. */
+.tpl-scroller-inspecting {
+  padding-bottom: 18rem;
+}
+@media (min-width: 1024px) {
+  .tpl-scroller-inspecting {
+    padding-bottom: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acc-chevron,
+  .tpl-delete {
+    transition: none;
+  }
+}
