@@ -29,6 +29,7 @@ function detail(): SignatureRequestDetail {
     originalFileId: 'file-1',
     documentHashPre: null,
     sealedFileId: null,
+    scheduledSendAtUtc: null,
     documentHashPost: null,
     certificateFileId: null,
     requiresSequentialSigning: true,
