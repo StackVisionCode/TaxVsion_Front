@@ -1070,7 +1070,7 @@ export class MailStore {
   /**
    * Descarga de un adjunto: si nunca se pidió, POST /download dispara la copia a CloudStorage;
    * el GET /download-url devuelve 409 mientras no termina, así que se reintenta con espera.
-   * Al final se abre la URL presignada en otra pestaña.
+   * Al final se baja con un ancla oculta (sin abrir pestaña).
    */
   downloadAttachment(messageId: string, attachmentId: string): void {
     const view = this._attachments().get(messageId);
@@ -1079,44 +1079,53 @@ export class MailStore {
       return;
     }
     this.patchAttachment(messageId, attachmentId, { busy: true, error: null });
-
-    // Saliente: el binario ya está en CloudStorage (attachmentId == fileId) — URL presignada directa,
-    // sin el flujo de descarga bajo demanda de los entrantes.
-    const message = this._messages().find(m => m.messageId === messageId);
-    if (message?.direction === 'Outbound') {
-      this.uploads.getDownloadUrl(attachmentId).subscribe({
-        next: result => {
-          this.patchAttachment(messageId, attachmentId, { busy: false });
-          this.triggerDownload(result.downloadUrl);
-        },
-        error: err => {
-          this.patchAttachment(messageId, attachmentId, { busy: false, error: toApiError(err).message });
-        },
-      });
-      return;
-    }
-
-    const url$ =
-      item.downloadStatus === 'Downloaded'
-        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId)
-        : this.service
-            .requestAttachmentDownload(messageId, attachmentId)
-            .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
-    url$.subscribe({
-      next: result => {
-        this.patchAttachment(messageId, attachmentId, { busy: false, downloadStatus: 'Downloaded' });
-        this.triggerDownload(result.downloadUrl);
+    this.attachmentUrl(messageId, attachmentId).subscribe({
+      next: url => {
+        this.patchAttachment(messageId, attachmentId, { busy: false });
+        this.triggerDownload(url);
       },
       error: err => {
         const apiError = toApiError(err);
-        // El escaneo lo bloqueó: reflejar el estado, sin mensaje de error genérico.
+        // El escaneo lo bloqueó: `attachmentUrl` ya reflejó el estado; sin mensaje de error genérico.
         if (apiError.code === 'IncomingEmailAttachment.Blocked') {
-          this.patchAttachment(messageId, attachmentId, { busy: false, downloadStatus: 'Blocked', error: null });
+          this.patchAttachment(messageId, attachmentId, { busy: false, error: null });
           return;
         }
         this.patchAttachment(messageId, attachmentId, { busy: false, error: apiError.message });
       },
     });
+  }
+
+  /**
+   * URL presignada de un adjunto, para la descarga y para el visor global de archivos.
+   * - Saliente: el binario ya está en CloudStorage (attachmentId == fileId) — URL directa.
+   * - Entrante: si nunca se pidió, POST /download dispara la copia a CloudStorage y se espera
+   *   (GET /download-url da 409 mientras no termina). Marca el adjunto como Downloaded/Blocked.
+   */
+  attachmentUrl(messageId: string, attachmentId: string): Observable<string> {
+    const message = this._messages().find(m => m.messageId === messageId);
+    if (message?.direction === 'Outbound') {
+      return this.uploads.getDownloadUrl(attachmentId).pipe(map(result => result.downloadUrl));
+    }
+    const item = this._attachments().get(messageId)?.items.find(att => att.attachmentId === attachmentId);
+    const url$ =
+      item?.downloadStatus === 'Downloaded'
+        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId)
+        : this.service
+            .requestAttachmentDownload(messageId, attachmentId)
+            .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
+    return url$.pipe(
+      map(result => {
+        this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Downloaded' });
+        return result.downloadUrl;
+      }),
+      catchError(err => {
+        if (toApiError(err).code === 'IncomingEmailAttachment.Blocked') {
+          this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Blocked' });
+        }
+        return throwError(() => err);
+      }),
+    );
   }
 
   /**

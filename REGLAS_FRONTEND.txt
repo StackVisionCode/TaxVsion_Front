@@ -79,6 +79,9 @@ UI  (src/app/shared/ui)
                          NO crear otro buscador de clientes.
   app-dropzone ......... zona para arrastrar/elegir archivos con validación de
                          tipo y tamaño.
+  app-file-viewer ...... visor global de archivos (PDF/imagen/texto/CSV, zoom, ←/→ entre archivos);
+                         [files]="FileViewerItem[]" (CloudStorage: cloudStorage.viewerItem(file)).
+                         NO abrir archivos en otra pestaña ni crear "previews" propios.
   app-pagination ....... paginación numerada, o mode="cursor" (Prev/Next).
   app-load-more ........ botón "Load more".
   app-skeleton ......... placeholders de carga.

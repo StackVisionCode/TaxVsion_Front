@@ -17,7 +17,11 @@ import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-car
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { toApiError } from '@core/models/api-error.model';
+import { SignatureDownloadKind, buildSignatureDownloadFilename } from '../../utils/download-filename.util';
+import { saveUrlAs } from '../../utils/save-file.util';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
@@ -78,6 +82,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SearchInputComponent,
     FilterChipsComponent,
     StateBlockComponent,
+    FileViewerComponent,
     SignatureTemplatePickerComponent,
     SignatureCategoryPickerComponent,
     SignatureCategoryManagerComponent,
@@ -654,26 +659,63 @@ export class SignaturePageComponent {
   // ---------- Descargas (CloudStorage download-url) ----------
 
   downloadOriginal(request: SignatureRequest): void {
-    this.openDownload(request.originalFileId ?? null, 'Original document');
+    this.openDownload(request.originalFileId ?? null, 'Original document', request.documentName, 'original');
   }
 
   downloadSealed(request: SignatureRequest): void {
-    this.openDownload(request.sealedFileId ?? null, 'Signed document');
+    this.openDownload(request.sealedFileId ?? null, 'Signed document', request.documentName, 'signed');
   }
 
   downloadCertificate(request: SignatureRequest): void {
-    this.openDownload(request.certificateFileId ?? null, 'Certificate');
+    this.openDownload(request.certificateFileId ?? null, 'Certificate', request.documentName, 'certificate');
   }
 
-  private openDownload(fileId: string | null, label: string): void {
+  /**
+   * Baja el archivo con un nombre profesional derivado del título
+   * (`2026_Individual_Tax_Return_Signed.pdf`) en vez del nombre interno del storage.
+   */
+  private openDownload(fileId: string | null, label: string, title: string, kind: SignatureDownloadKind): void {
     if (!fileId) {
       return;
     }
     this.store.getDownloadUrl(fileId).subscribe({
-      next: url => {
-        window.open(url, '_blank', 'noopener');
-      },
+      next: url => void saveUrlAs(url, buildSignatureDownloadFilename(title, kind)),
       error: err => this.toast.error(`${label}: ${toApiError(err).message}`),
     });
+  }
+
+  // ---------- Visor global (original / firmado / certificado) ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /**
+   * Abre el visor con los documentos disponibles de la solicitud (original, firmado y certificado,
+   * navegables con ←/→), empezando por el pedido. El nombre de cada ítem es el profesional y no se
+   * escucha `(download)`: el visor guarda los bytes que ya bajó con ese nombre.
+   */
+  viewDocument(event: { request: SignatureRequest; kind: SignatureDownloadKind }): void {
+    const { request } = event;
+    const docs: { kind: SignatureDownloadKind; fileId: string | null | undefined }[] = [
+      { kind: 'original', fileId: request.originalFileId },
+      { kind: 'signed', fileId: request.status === 'completed' ? request.sealedFileId : null },
+      { kind: 'certificate', fileId: request.status === 'completed' ? request.certificateFileId : null },
+    ];
+    const available = docs.filter((doc): doc is { kind: SignatureDownloadKind; fileId: string } => !!doc.fileId);
+    const start = available.findIndex(doc => doc.kind === event.kind);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(
+      available.map(doc => ({
+        name: buildSignatureDownloadFilename(request.documentName, doc.kind),
+        contentType: 'application/pdf',
+        resolveUrl: () => this.store.getDownloadUrl(doc.fileId),
+        ref: doc.kind,
+      })),
+    );
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 }

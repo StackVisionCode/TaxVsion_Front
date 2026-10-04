@@ -7,6 +7,8 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { formatBytes } from '@shared/utils/format.util';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { ClientNotesStore } from '../../data-access/client-notes.store';
 import {
   ClientNoteCard,
@@ -44,6 +46,7 @@ import {
     StateBlockComponent,
     DropdownMenuComponent,
     MenuItemDirective,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-notes.component.html',
@@ -195,6 +198,22 @@ export class ClientProfileNotesComponent implements OnChanges {
       this.store.attachFile(note.id, input.files[0]);
       input.value = '';
     }
+  }
+
+  /** Visor global: adjuntos listos de la nota, navegables con ←/→. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  previewAttachment(note: ClientNoteCard, attachment: NoteAttachmentResponse): void {
+    const ready = this.visibleAttachments(note).filter(a => a.status === 'Available');
+    const start = ready.findIndex(a => a.id === attachment.id);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(ready.map(a => this.store.viewerItem(a)));
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 
   downloadAttachment(attachment: NoteAttachmentResponse): void {

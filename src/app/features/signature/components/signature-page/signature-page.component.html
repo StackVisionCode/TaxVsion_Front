@@ -81,6 +81,7 @@
         (send)="sendRequest($event)"
         (downloadOriginal)="downloadOriginal($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
+        (viewDocument)="viewDocument($event)"
         (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>
   </ng-template>
@@ -315,3 +316,7 @@
     </button>
   </div>
 </app-modal>
+
+<!-- Visor global: original, firmado y certificado de la solicitud en vista previa -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>

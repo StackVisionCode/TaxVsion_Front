@@ -15,6 +15,8 @@ import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.compone
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /**
  * Página del módulo Meetings conectada a Communication (`/communication/meetings`):
@@ -39,6 +41,7 @@ import { MeetingFormValue, MeetingItem, MeetingsScope } from '../../data-access/
     SearchInputComponent,
     StateBlockComponent,
     LoadMoreComponent,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
@@ -226,13 +229,20 @@ export class MeetingsPageComponent implements OnInit {
     );
   }
 
-  /** Descarga presignada del transcript (CloudStorage); solo si el meeting lo tiene. */
+  /** Visor global del transcript (antes se abría en otra pestaña). */
+  readonly transcriptViewerFiles = signal<FileViewerItem[]>([]);
+  readonly transcriptViewerOpen = signal(false);
+
+  /** Abre el transcript (CloudStorage) en el visor global; solo si el meeting lo tiene. */
   viewTranscript(meeting: MeetingItem): void {
     if (!meeting.transcriptFileId) {
       return;
     }
-    this.store.transcriptUrl(meeting.transcriptFileId).subscribe({
-      next: url => window.open(url, '_blank', 'noopener'),
+    this.store.transcriptViewerItem(meeting.transcriptFileId).subscribe({
+      next: item => {
+        this.transcriptViewerFiles.set([item]);
+        this.transcriptViewerOpen.set(true);
+      },
       error: err => this.toast.error(toApiError(err).message),
     });
   }

@@ -232,3 +232,8 @@
   (closed)="closeNewConversation()" (searchChanged)="onDirectorySearch($event)"
   (customerSelected)="onCustomerSelected($event)" (directSelected)="onDirectSelected($event)"
   (groupCreateRequested)="onGroupCreateRequested($event)"></app-new-conversation-modal>
+
+<!-- Visor global de adjuntos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+  (closed)="viewerOpen.set(false)"></app-file-viewer>

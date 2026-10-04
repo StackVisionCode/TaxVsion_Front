@@ -20,17 +20,23 @@
         <ion-icon [name]="sending ? 'hourglass-outline' : 'paper-plane-outline'" class="text-base"></ion-icon>
         {{ sending ? 'Sending…' : 'Send to signers' }}
       </button>
-      <button *ngIf="hasOriginal(req)" type="button" (click)="downloadOriginal.emit(req)"
+      <!-- Ver = visor global (sin salir de la pantalla); Download = archivo con nombre profesional -->
+      <button *ngIf="hasOriginal(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'original' })"
         class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
         <ion-icon name="document-text-outline" class="text-base"></ion-icon>
         Original document
+      </button>
+      <button *ngIf="hasSealed(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'signed' })"
+        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+        <ion-icon name="eye-outline" class="text-base"></ion-icon>
+        View signed document
       </button>
       <button *ngIf="hasSealed(req)" type="button" (click)="downloadSealed.emit(req)"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
         <ion-icon name="download-outline" class="text-base"></ion-icon>
         Download signed document
       </button>
-      <button *ngIf="hasCertificate(req)" type="button" (click)="downloadCertificate.emit(req)"
+      <button *ngIf="hasCertificate(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'certificate' })"
         class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
         <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
         Certificate

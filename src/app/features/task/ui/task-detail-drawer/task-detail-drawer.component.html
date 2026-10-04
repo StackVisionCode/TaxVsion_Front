@@ -217,13 +217,24 @@
               <div class="flex min-w-0 items-center gap-2">
                 <ion-icon name="document-outline" class="shrink-0 text-gray-400"></ion-icon>
                 <div class="min-w-0">
-                  <p class="truncate text-sm text-gray-700">{{ att.displayName }}</p>
+                  @if (att.status === 'Available') {
+                    <button type="button" (click)="previewAttachment(att)" [attr.aria-label]="'Preview ' + att.displayName"
+                      class="block max-w-full truncate text-left text-sm text-gray-700 hover:text-brand-bold hover:underline">{{ att.displayName }}</button>
+                  } @else {
+                    <p class="truncate text-sm text-gray-700">{{ att.displayName }}</p>
+                  }
                   <p class="text-xs text-gray-400">
                     {{ attachmentSize(att.sizeBytes) }} ·
                     <span [ngClass]="attachmentStatusColor(att.status)">{{ attachmentStatusLabel(att.status) }}</span>
                   </p>
                 </div>
               </div>
+              @if (att.status === 'Available') {
+                <button type="button" (click)="previewAttachment(att)" aria-label="Preview attachment" title="Preview"
+                  class="shrink-0 text-gray-300 hover:text-gray-700 transition-colors">
+                  <ion-icon name="eye-outline"></ion-icon>
+                </button>
+              }
               <button type="button" (click)="removeAttachment(att.fileId)" aria-label="Remove attachment"
                 class="shrink-0 text-gray-300 hover:text-red-500 transition-colors">
                 <ion-icon name="close-outline"></ion-icon>
@@ -289,3 +300,7 @@
     </div>
 }
 </app-drawer>
+
+<!-- Visor global de adjuntos (se porta al <body>: no lo encierra el drawer) -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)" />

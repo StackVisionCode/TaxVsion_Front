@@ -352,7 +352,7 @@
           [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
           [canReply]="!!store.activeAccountId()" (messageToggled)="toggleMessage($event)"
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
-          (attachmentDownloadRequested)="downloadAttachment($event)" (replyStarted)="startReply($event)"
+          (attachmentDownloadRequested)="downloadAttachment($event)" (attachmentPreviewRequested)="previewAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
           (unarchiveRequested)="unarchiveThread()" (deleteMessageRequested)="trashMessage($event)"
           (messageReadStateToggled)="toggleMessageRead($event)" (threadReadStateToggled)="setThreadRead($event)"
@@ -368,3 +368,8 @@
   <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
   Message sent
 </div>
+
+<!-- Visor global de adjuntos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+  (closed)="viewerOpen.set(false)"></app-file-viewer>
