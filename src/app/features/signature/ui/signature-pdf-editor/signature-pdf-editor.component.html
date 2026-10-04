@@ -39,6 +39,7 @@
     <!-- Panel abierto: popover bajo la barra (tablet) u hoja inferior sobre la barra fija (móvil) -->
     <div *ngIf="narrowPanel() as panel" role="dialog" [attr.aria-label]="panel === 'signers' ? 'Signers' : panel === 'fields' ? 'Fields' : panel === 'zoom' ? 'Zoom' : 'Before you continue'"
       class="narrow-sheet fixed inset-x-0 bottom-16 z-40 max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-gray-100 bg-white p-4 shadow-xl md:absolute md:inset-x-auto md:bottom-auto md:left-0 md:top-full md:mt-2 md:max-h-[60vh] md:w-80 md:rounded-2xl"
+      [class.sheet-minimized]="sheetMinimized()"
       [attr.data-testid]="'narrow-panel-' + panel">
       <ng-container [ngSwitch]="panel">
         <ng-container *ngSwitchCase="'signers'"><ng-container *ngTemplateOutlet="signersTpl"></ng-container></ng-container>
@@ -115,14 +116,16 @@
       </button>
       <span class="my-1 h-px w-8 bg-gray-100"></span>
       <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)" [disabled]="!canPlace() || signers().length === 0"
-        [title]="fieldLabel[t]" [attr.aria-label]="'Place ' + fieldLabel[t]" [attr.aria-pressed]="placingType() === t"
-        class="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-40"
+        (pointerdown)="onPalettePointerDown($event, t)" [class.palette-arming]="paletteArming() === t"
+        [title]="fieldLabel[t] + ' — click, or drag onto the page'" [attr.aria-label]="'Place ' + fieldLabel[t]" [attr.aria-pressed]="placingType() === t"
+        class="palette-draggable flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-40"
         [ngClass]="placingType() === t ? 'bg-brand-bold text-white' : fieldCircle[t] + ' text-gray-700'">
         <ion-icon [name]="fieldIcon[t]" class="text-sm"></ion-icon>
       </button>
       <button type="button" (click)="armPlacement('preparer')" [disabled]="!canPlace() || !hasPreparerSignature()"
-        title="Place my signature" aria-label="Place my signature" [attr.aria-pressed]="placingType() === 'preparer'"
-        class="flex h-9 w-9 items-center justify-center rounded-full border border-brand-bold disabled:opacity-40"
+        (pointerdown)="onPalettePointerDown($event, 'preparer')" [class.palette-arming]="paletteArming() === 'preparer'"
+        title="Place my signature — click, or drag onto the page" aria-label="Place my signature" [attr.aria-pressed]="placingType() === 'preparer'"
+        class="palette-draggable flex h-9 w-9 items-center justify-center rounded-full border border-brand-bold disabled:opacity-40"
         [ngClass]="placingType() === 'preparer' ? 'bg-brand-bold text-white' : 'text-brand-bold'">
         <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
       </button>
@@ -219,11 +222,19 @@
         [class.opacity-60]="rerendering()" [attr.aria-busy]="rerendering()">
         <ng-container *ngFor="let pg of pages(); let last = last">
           <div class="doc-page relative shadow-sm" [attr.data-page]="pg.page"
+            [class.is-drop-target]="dropPreview()?.page === pg.page"
             [style.width.px]="pg.width" [style.height.px]="pg.height" style="background: white;"
             (pointerdown)="onPagePointerDown($event, pg)">
             <img *ngIf="pg.src" [src]="pg.src" [width]="pg.width" [height]="pg.height" alt="Document page {{ pg.page }}"
               draggable="false" class="pointer-events-none block select-none" />
             <div *ngIf="!pg.src" class="absolute inset-0 border border-gray-200 bg-white"></div>
+
+            <!-- Arrastre desde la paleta: contorno exacto de dónde caerá el campo -->
+            <div *ngIf="dropPreview()?.page === pg.page && paletteGhost() as ghost" aria-hidden="true" data-testid="drop-preview"
+              class="drop-preview pointer-events-none absolute z-10 box-border rounded-md border-2 border-dashed bg-white/40"
+              [ngClass]="ghost.kind === 'preparer' ? 'border-brand-bold' : borderClass(ghost.signerId)"
+              [style.left.px]="dropPreview()!.x" [style.top.px]="dropPreview()!.y"
+              [style.width.px]="dropPreview()!.width" [style.height.px]="dropPreview()!.height"></div>
 
             <!-- overlays de campos de esta página -->
             <div *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField"
@@ -322,6 +333,37 @@
     </ng-container>
   </div>
 </div>
+
+<!--
+  Fantasma del arrastre desde la paleta: siempre en el DOM (el transform se fija por frame sin esperar
+  a la detección de cambios); el contenido es el mismo marcado que un campo colocado.
+-->
+<div #ghostEl class="palette-ghost" aria-hidden="true" data-testid="palette-ghost"
+  [class.hidden]="!paletteGhost()"
+  [class.is-blocked]="paletteGhost()?.phase === 'drag' && !paletteGhost()?.overPage"
+  [class.is-settling]="paletteGhost()?.phase === 'settle'">
+  <div *ngIf="paletteGhost() as g" class="palette-ghost-body box-border rounded-md border-2 bg-white/90"
+    [ngClass]="g.kind === 'preparer' ? 'border-brand-bold' : borderClass(g.signerId)"
+    [style.width.px]="g.width" [style.height.px]="g.height">
+    <div *ngIf="g.kind === 'preparer'; else ghostSigner" class="relative flex h-full w-full items-center justify-center overflow-hidden px-1">
+      <img *ngIf="preparerSignatureUrl() as sigUrl; else ghostPreparerFallback" [src]="sigUrl" alt="" class="max-h-full max-w-full object-contain" draggable="false" />
+      <ng-template #ghostPreparerFallback>
+        <span class="flex items-center gap-1 text-[11px] font-medium text-brand-bold">
+          <ion-icon name="ribbon-outline" class="text-xs"></ion-icon> Signature
+        </span>
+      </ng-template>
+      <span class="absolute left-0.5 top-0.5 rounded bg-brand-bold px-1 text-[8px] font-semibold uppercase text-white">You</span>
+    </div>
+    <ng-template #ghostSigner>
+      <div class="flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
+        [ngClass]="textClass(g.signerId)">
+        <ion-icon [name]="fieldIcon[g.type]" class="shrink-0 text-xs"></ion-icon>
+        <span class="truncate">{{ fieldLabel[g.type] }}</span>
+      </div>
+    </ng-template>
+  </div>
+</div>
+<p class="sr-only" aria-live="polite" data-testid="placement-announcer">{{ liveMessage() }}</p>
 
 <!-- ======================= Plantillas reutilizadas por cada distribución ======================= -->
 
@@ -440,9 +482,10 @@
   </p>
   <div class="mt-2 grid grid-cols-2 gap-1.5">
     <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)"
+      (pointerdown)="onPalettePointerDown($event, t)" [class.palette-arming]="paletteArming() === t"
       [disabled]="!canPlace() || signers().length === 0" [attr.aria-pressed]="placingType() === t"
-      [attr.data-testid]="'palette-' + t"
-      class="flex min-h-[44px] items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 lg:min-h-[36px]"
+      [attr.data-testid]="'palette-' + t" [title]="fieldLabel[t] + ' — click, or drag onto the page'"
+      class="palette-draggable flex min-h-[44px] items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 lg:min-h-[36px]"
       [ngClass]="placingType() === t ? 'border-brand-bold bg-brand-white text-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
       <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" [ngClass]="fieldCircle[t]">
         <ion-icon [name]="fieldIcon[t]" class="text-xs text-gray-700"></ion-icon>
@@ -452,7 +495,7 @@
   </div>
   <p *ngIf="placeDisabledReason() as reason" class="mt-1.5 text-[10px] leading-snug text-gray-400">{{ reason }}</p>
   <p *ngIf="!placeDisabledReason()" class="mt-1.5 text-[10px] leading-snug text-gray-400">
-    Pick a type, then click on the page.
+    Drag a type onto the page, or pick it and click where it goes.
   </p>
 
   <!-- Firma del preparador (Form 8879): plegada por defecto; el bloque 8879 solo si se colocó. -->
@@ -479,8 +522,9 @@
         </option>
       </select>
       <button type="button" (click)="armPlacement('preparer')" [disabled]="!canPlace() || !hasPreparerSignature()"
-        [attr.aria-pressed]="placingType() === 'preparer'"
-        class="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-[36px]"
+        (pointerdown)="onPalettePointerDown($event, 'preparer')" [class.palette-arming]="paletteArming() === 'preparer'"
+        [attr.aria-pressed]="placingType() === 'preparer'" data-testid="palette-preparer"
+        class="palette-draggable mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-brand-bold px-2 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-[36px]"
         [ngClass]="placingType() === 'preparer' ? 'bg-brand-white' : ''">
         <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
         Place my signature
