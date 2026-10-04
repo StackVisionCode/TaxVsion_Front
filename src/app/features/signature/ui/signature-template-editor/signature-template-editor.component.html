@@ -285,9 +285,11 @@
               </select>
             </label>
             <button *ngFor="let type of fieldTypes" type="button" (click)="addField(type)"
+              (pointerdown)="onPalettePointerDown($event, type)" [class.palette-arming]="paletteArming() === 'signer:' + type"
               [disabled]="activeSlotOrder() === null || !canEdit()"
               [attr.aria-label]="'Add ' + fieldLabel[type] + ' for ' + activeSlotLabel()"
-              class="tap flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
+              [attr.data-testid]="'tpl-palette-' + type" [title]="fieldLabel[type] + ' — click, or drag onto the page'"
+              class="palette-draggable tap flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
               <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
               {{ fieldLabel[type] }}
             </button>
@@ -300,9 +302,11 @@
               Preparer:
             </span>
             <button *ngFor="let type of preparerFieldTypes" type="button" (click)="addPreparerField(type)"
+              (pointerdown)="onPalettePointerDown($event, type, true)" [class.palette-arming]="paletteArming() === 'preparer:' + type"
               [disabled]="pages().length === 0 || !canEdit()"
               [attr.aria-label]="'Add preparer ' + fieldLabel[type]"
-              class="tap flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
+              [attr.data-testid]="'tpl-palette-preparer-' + type" [title]="'Preparer ' + fieldLabel[type] + ' — click, or drag onto the page'"
+              class="palette-draggable tap flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
               <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
               {{ fieldLabel[type] }}
             </button>
@@ -390,12 +394,20 @@
         <div #scroller class="relative min-h-0 flex-1 overflow-auto bg-gray-50 p-4" (scroll)="onScroll()"
           [class.tpl-scroller-inspecting]="selectedField()">
           <div class="mx-auto flex w-max min-w-full flex-col items-center gap-4">
-            <div *ngFor="let page of pages()" #pageEl [attr.data-page]="page.page" class="relative shrink-0 bg-white shadow-sm"
+            <div *ngFor="let page of pages()" #pageEl [attr.data-page]="page.page" class="tpl-page relative shrink-0 bg-white shadow-sm"
+              [class.is-drop-target]="dropPreview()?.page === page.page"
               [style.width.px]="page.width" [style.height.px]="page.height" (click)="selectField(null)">
               <img *ngIf="page.src" [src]="page.src" alt="Page {{ page.page }}" class="block h-full w-full select-none" draggable="false" />
               <div *ngIf="!page.src" class="flex h-full w-full items-center justify-center bg-white text-xs text-gray-300">
                 Page {{ page.page }} · blank layout surface
               </div>
+
+              <!-- Arrastre desde la paleta: contorno exacto de dónde caerá el campo -->
+              <div *ngIf="dropPreview()?.page === page.page && paletteGhost() as ghost" aria-hidden="true" data-testid="drop-preview"
+                class="drop-preview pointer-events-none absolute z-10 box-border rounded-md border-2 border-dashed bg-white/40"
+                [ngClass]="ghost.slotOrder === 0 ? 'border-brand-bold' : borderClass(ghost.slotOrder)"
+                [style.left.px]="dropPreview()!.x" [style.top.px]="dropPreview()!.y"
+                [style.width.px]="dropPreview()!.width" [style.height.px]="dropPreview()!.height"></div>
 
               <!-- Campos de esta página -->
               <div *ngFor="let field of fieldsForPage(page.page); trackBy: trackField"
@@ -536,6 +548,21 @@
     <div class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
   </div>
 </div>
+
+<!-- Fantasma del arrastre desde la paleta (se cuelga de <body>; mismo marcado que un campo colocado) -->
+<div #ghostEl class="palette-ghost" aria-hidden="true" data-testid="palette-ghost"
+  [class.hidden]="!paletteGhost()"
+  [class.is-blocked]="paletteGhost()?.phase === 'drag' && !paletteGhost()?.overPage"
+  [class.is-settling]="paletteGhost()?.phase === 'settle'">
+  <div *ngIf="paletteGhost() as g"
+    class="palette-ghost-body box-border flex items-center justify-center rounded-md border-2 bg-white/90 text-[10px] font-semibold"
+    [ngClass]="g.slotOrder === 0 ? 'border-brand-bold text-brand-bold' : [borderClass(g.slotOrder), textClass(g.slotOrder)]"
+    [style.width.px]="g.width" [style.height.px]="g.height">
+    <ion-icon [name]="fieldIcon[g.type]" class="mr-1 text-xs"></ion-icon>
+    <span class="truncate">{{ g.slotOrder === 0 ? 'Preparer ' : '' }}{{ g.type === 'text' && g.slotOrder !== 0 ? 'Field label' : fieldLabel[g.type] }}</span>
+  </div>
+</div>
+<p class="sr-only" aria-live="polite" data-testid="placement-announcer">{{ liveMessage() }}</p>
 
 <!-- Salir con layout sin guardar -->
 <app-confirm-dialog [isOpen]="confirmCloseOpen()" heading="Discard layout changes?"

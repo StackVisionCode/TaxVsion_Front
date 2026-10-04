@@ -624,4 +624,122 @@ describe('SignaturePdfEditorComponent', () => {
       }
     });
   });
+
+  describe('arrastrar desde la paleta (mantener pulsado y soltar)', () => {
+    const PAGE_LEFT = 100;
+    const PAGE_TOP = 50;
+
+    /** Las páginas reales no tienen layout en jsdom: se les da un rect (apiladas, 16px de hueco). */
+    function stubPageRects(): void {
+      const original = Element.prototype.getBoundingClientRect;
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        const page = (this as HTMLElement).dataset?.['page'];
+        if (!page) {
+          return original.call(this);
+        }
+        const el = this as HTMLElement;
+        const w = parseFloat(el.style.width);
+        const h = parseFloat(el.style.height);
+        const top = PAGE_TOP + (Number(page) - 1) * (h + 16);
+        return { left: PAGE_LEFT, top, width: w, height: h, right: PAGE_LEFT + w, bottom: top + h, x: PAGE_LEFT, y: top, toJSON: () => ({}) } as DOMRect;
+      });
+    }
+
+    function down(button: HTMLElement): PointerEvent {
+      return { button: 0, pointerId: 1, pointerType: 'mouse', clientX: 20, clientY: 20, currentTarget: button } as unknown as PointerEvent;
+    }
+
+    function move(x: number, y: number, type = 'pointermove'): void {
+      window.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y }));
+    }
+
+    function ready() {
+      const ctx = setup();
+      ctx.set({ client: client('1'), document: blankDoc() });
+      ctx.fixture.detectChanges();
+      stubPageRects();
+      const button = el(ctx.fixture, 'palette-signature')!;
+      return { ...ctx, button };
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
+
+    it('soltar sobre una página crea UN campo centrado en el punto, igual que el clic, y lo selecciona', () => {
+      vi.useFakeTimers();
+      const { c, fixture, button } = ready();
+      c.onPalettePointerDown(down(button), 'signature');
+      move(200, 200);
+      fixture.detectChanges();
+      // Fantasma visible (colgado de body) con la etiqueta del campo.
+      const ghost = document.body.querySelector<HTMLElement>('[data-testid="palette-ghost"]')!;
+      expect(ghost.classList.contains('hidden')).toBe(false);
+      expect(ghost.textContent).toContain('Signature');
+
+      // Un frame sobre la página: vista previa en la página 1.
+      move(PAGE_LEFT + 300, PAGE_TOP + 200);
+      vi.advanceTimersByTime(20);
+      fixture.detectChanges();
+      expect(c.dropPreview()?.page).toBe(1);
+      expect(el(fixture, 'drop-preview')).not.toBeNull();
+
+      move(PAGE_LEFT + 300, PAGE_TOP + 200, 'pointerup');
+      expect(c.fields()).toHaveLength(1);
+      const field = c.fields()[0];
+      expect(field).toMatchObject({ type: 'signature', page: 1, signerId: 'client:1', x: 200, y: 170, width: 200, height: 60 });
+      expect(c.selectedFieldId()).toBe(field.id);
+      expect(c.liveMessage()).toBe('Signature field placed on page 1');
+      // El click que llega tras soltar no arma "clic para colocar".
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(c.placingType()).toBeNull();
+      vi.runAllTimers();
+      expect(c.paletteGhost()).toBeNull();
+
+      // Misma caja normalizada que colocar con un clic en el mismo punto.
+      const dragged = c.buildNormalizedFields()[0];
+      c.removeField(field.id);
+      c.armPlacement('signature');
+      const pageEl = fixture.nativeElement.querySelector('[data-page="1"]') as HTMLElement;
+      c.onPagePointerDown(
+        { clientX: PAGE_LEFT + 300, clientY: PAGE_TOP + 200, currentTarget: pageEl, preventDefault: () => undefined } as unknown as PointerEvent,
+        c.pages()[0],
+      );
+      const clicked = c.buildNormalizedFields()[0];
+      expect({ ...clicked, localId: '' }).toEqual({ ...dragged, localId: '' });
+    });
+
+    it('soltar fuera de las páginas no crea nada (vuelve a la paleta)', () => {
+      vi.useFakeTimers();
+      const { c, button } = ready();
+      c.onPalettePointerDown(down(button), 'initials');
+      move(60, 60);
+      move(5, 5, 'pointerup');
+      expect(c.fields()).toHaveLength(0);
+      expect(c.paletteGhost()?.phase).toBe('return');
+      vi.runAllTimers();
+      expect(c.paletteGhost()).toBeNull();
+    });
+
+    it('Escape cancela el arrastre: nada se crea aunque luego se suelte sobre la página', () => {
+      const { c, button } = ready();
+      c.onPalettePointerDown(down(button), 'date');
+      move(PAGE_LEFT + 100, PAGE_TOP + 100);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      move(PAGE_LEFT + 100, PAGE_TOP + 100, 'pointerup');
+      expect(c.fields()).toHaveLength(0);
+    });
+
+    it('bloqueado (render/zoom en curso): el arrastre no arranca y se ve el mismo motivo', () => {
+      const { c, button } = ready();
+      c.loading.set(true);
+      c.onPalettePointerDown(down(button), 'signature');
+      move(PAGE_LEFT + 100, PAGE_TOP + 100);
+      move(PAGE_LEFT + 100, PAGE_TOP + 100, 'pointerup');
+      expect(c.paletteGhost()).toBeNull();
+      expect(c.fields()).toHaveLength(0);
+      expect(c.placeDisabledReason()).toBe('Loading the document…');
+    });
+  });
 });

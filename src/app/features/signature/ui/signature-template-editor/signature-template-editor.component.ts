@@ -1,4 +1,5 @@
 import {
+  AfterViewInit,
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   ElementRef,
@@ -39,6 +40,17 @@ import { FieldType } from '../signature-request-panel/signature-wizard.model';
 import { FIELD_TYPE_ICON, FIELD_TYPE_LABEL } from '../signature-request-panel/signature-wizard.presenter';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 import { denormalizeFieldRect } from '../../utils/field-normalize.util';
+import {
+  RETURN_MS,
+  SETTLE_MS,
+  animateGhostTo,
+  dropRectOnPage,
+  hitTestPages,
+  measurePages,
+  resetGhost,
+  setGhostPosition,
+  startPaletteDrag,
+} from '../../utils/palette-drag.util';
 import {
   MIN_FIELD_H,
   MIN_FIELD_W,
@@ -106,6 +118,17 @@ interface DragState {
   startPointerY: number;
 }
 
+/** Fantasma del arrastre desde la paleta (mismo aspecto y tamaño, al zoom actual, que el campo colocado). */
+export interface TemplatePaletteGhost {
+  type: FieldType;
+  /** slotOrder destino; PREPARER_SLOT para los campos del preparador. */
+  slotOrder: number;
+  width: number;
+  height: number;
+  overPage: boolean;
+  phase: 'drag' | 'settle' | 'return';
+}
+
 /** Error con texto ya pensado para el usuario (run() lo muestra tal cual). */
 class FriendlyError extends Error {}
 
@@ -142,7 +165,7 @@ interface LayoutSnapshot {
   templateUrl: './signature-template-editor.component.html',
   styleUrl: './signature-template-editor.component.css',
 })
-export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
+export class SignatureTemplateEditorComponent implements OnChanges, AfterViewInit, OnDestroy {
   private readonly service = inject(SignatureService);
   private readonly toast = inject(ToastService);
 
@@ -152,6 +175,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
   @Output() changed = new EventEmitter<void>();
 
   @ViewChild('scroller') private scroller?: ElementRef<HTMLElement>;
+  @ViewChild('ghostEl') private ghostRef?: ElementRef<HTMLElement>;
 
   readonly categoryLabel = signatureCategoryLabel;
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
@@ -334,10 +358,23 @@ export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
     }
   }
 
+  ngAfterViewInit(): void {
+    // Fantasma position: fixed colgado de <body> (un ancestro con transform rompería el fixed).
+    const ghost = this.ghostRef?.nativeElement;
+    if (ghost && typeof document !== 'undefined') {
+      document.body.appendChild(ghost);
+    }
+  }
+
   ngOnDestroy(): void {
     this.destroyed = true;
     this.renderSeq++;
     this.detachDragListeners();
+    this.stopPaletteDrag?.();
+    if (this.ghostTimer) {
+      clearTimeout(this.ghostTimer);
+    }
+    this.ghostRef?.nativeElement.remove();
   }
 
   // ------------------------------------------------------------------
@@ -848,6 +885,8 @@ export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
     }
     const seq = ++this.renderSeq;
     const prev = this.pages();
+    this.stopPaletteDrag?.();
+    this.stopPaletteDrag = null;
     this.rendering.set(true);
     let next: RenderedPage[];
     try {
@@ -909,28 +948,45 @@ export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
     return pages.find(p => p.page === this.currentPage()) ?? pages[0];
   }
 
-  private newField(type: FieldType, slotOrder: number, baseY: number): void {
-    const page = this.targetPage();
+  /** Tamaño por defecto de un tipo en px de pantalla al zoom actual. */
+  private defaultSize(type: FieldType): { w: number; h: number } {
+    const z = this.zoom();
+    return { w: DEFAULT_SIZE[type].w * z, h: DEFAULT_SIZE[type].h * z };
+  }
+
+  /**
+   * Crea un campo. Sin `at`: en la página visible, centrado y escalonado (botón / Enter). Con `at`
+   * (soltar desde la paleta): centrado en el punto de esa página y metido dentro de ella.
+   */
+  private newField(
+    type: FieldType,
+    slotOrder: number,
+    baseY: number,
+    at?: { page: number; x: number; y: number },
+  ): TemplateFieldLocal | null {
+    const page = at ? this.pages().find(p => p.page === at.page) : this.targetPage();
     if (!page || !this.canEdit()) {
-      return;
+      return null;
     }
     const z = this.zoom();
-    const w = DEFAULT_SIZE[type].w * z;
-    const h = DEFAULT_SIZE[type].h * z;
+    const { w, h } = this.defaultSize(type);
     const count = this.fields().length;
-    const field: TemplateFieldLocal = {
-      localId: this.nextId(),
-      slotOrder,
-      type,
-      page: page.page,
-      x: Math.max(8 * z, (page.width - w) / 2),
-      y: Math.min(Math.max((baseY + (count % 6) * 16) * z, 8 * z), page.height - h - 8 * z),
-      width: w,
-      height: h,
-    };
+    const rect = at
+      ? dropRectOnPage(at, { w, h }, page)
+      : {
+          x: Math.max(8 * z, (page.width - w) / 2),
+          y: Math.min(Math.max((baseY + (count % 6) * 16) * z, 8 * z), page.height - h - 8 * z),
+          width: w,
+          height: h,
+        };
+    const field: TemplateFieldLocal = { localId: this.nextId(), slotOrder, type, page: page.page, ...rect };
     this.fields.update(list => [...list, field]);
     this.selectedId.set(field.localId);
     this.layoutDirty.set(true);
+    this.liveMessage.set(
+      `${isPreparerSlot(slotOrder) ? 'Preparer ' : ''}${FIELD_TYPE_LABEL[type]} field placed on page ${page.page}`,
+    );
+    return field;
   }
 
   addField(type: FieldType): void {
@@ -947,6 +1003,156 @@ export class SignatureTemplateEditorComponent implements OnChanges, OnDestroy {
   /** Coloca un campo del PREPARADOR (sin slot). "from template" lo hereda en la solicitud. */
   addPreparerField(type: FieldType = 'signature'): void {
     this.newField(type, PREPARER_SLOT, 180);
+  }
+
+  // ---------- arrastrar desde la paleta (mantener pulsado y soltar sobre la página) ----------
+
+  readonly paletteGhost = signal<TemplatePaletteGhost | null>(null);
+  /** Contorno de dónde caerá el campo (px de la página). */
+  readonly dropPreview = signal<{ page: number; x: number; y: number; width: number; height: number } | null>(null);
+  /** Táctil: botón mantenido pulsado ('signer:<type>' / 'preparer:<type>'). */
+  readonly paletteArming = signal<string | null>(null);
+  /** Mensaje para lectores de pantalla (aria-live) al colocar un campo. */
+  readonly liveMessage = signal('');
+  private stopPaletteDrag: (() => void) | null = null;
+  private ghostTimer: ReturnType<typeof setTimeout> | null = null;
+  private paletteOrigin: { left: number; top: number; width: number; height: number } | null = null;
+
+  /** Mismas reglas que los botones: sin rol activo, fuera de Draft o renderizando no se arrastra. */
+  private dragSlotFor(preparer: boolean): number | null {
+    if (!this.canEdit()) {
+      return null;
+    }
+    if (preparer) {
+      return this.pages().length > 0 ? PREPARER_SLOT : null;
+    }
+    return this.activeSlotOrder();
+  }
+
+  /** pointerdown en un botón de campo: el clic sigue igual; mover (ratón) o mantener (táctil) arrastra. */
+  onPalettePointerDown(event: PointerEvent, type: FieldType, preparer = false): void {
+    if (event.button > 0 || this.dragSlotFor(preparer) === null || this.paletteGhost()?.phase === 'drag') {
+      return;
+    }
+    this.stopPaletteDrag?.();
+    const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+    this.paletteOrigin = rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null;
+    const key = `${preparer ? 'preparer' : 'signer'}:${type}`;
+    this.stopPaletteDrag = startPaletteDrag(event, {
+      getScrollContainer: () => this.scroller?.nativeElement ?? null,
+      onArming: armed => this.paletteArming.set(armed ? key : null),
+      onStart: point => this.beginPaletteDrag(type, preparer, point),
+      onFrame: point => this.onPaletteFrame(point),
+      onDrop: point => this.dropFromPalette(point),
+      onCancel: () => this.cancelPaletteDrag(),
+    });
+  }
+
+  private beginPaletteDrag(type: FieldType, preparer: boolean, point: { clientX: number; clientY: number }): void {
+    const slotOrder = this.dragSlotFor(preparer);
+    if (slotOrder === null) {
+      this.stopPaletteDrag?.();
+      return;
+    }
+    if (this.ghostTimer) {
+      clearTimeout(this.ghostTimer);
+      this.ghostTimer = null;
+    }
+    const { w, h } = this.defaultSize(type);
+    this.selectedId.set(null);
+    const ghost = this.ghostRef?.nativeElement;
+    resetGhost(ghost);
+    setGhostPosition(ghost, point.clientX - w / 2, point.clientY - h / 2);
+    this.paletteGhost.set({ type, slotOrder, width: w, height: h, overPage: false, phase: 'drag' });
+  }
+
+  private onPaletteFrame(point: { clientX: number; clientY: number }): void {
+    const ghost = this.paletteGhost();
+    if (!ghost || ghost.phase !== 'drag') {
+      return;
+    }
+    setGhostPosition(this.ghostRef?.nativeElement, point.clientX - ghost.width / 2, point.clientY - ghost.height / 2);
+    const hit = hitTestPages(point, measurePages(this.scroller?.nativeElement));
+    const page = hit ? this.pages().find(p => p.page === hit.page) : undefined;
+    const next = hit && page ? { page: hit.page, ...dropRectOnPage(hit, { w: ghost.width, h: ghost.height }, page) } : null;
+    const prev = this.dropPreview();
+    if (
+      prev?.page !== next?.page ||
+      prev?.x !== next?.x ||
+      prev?.y !== next?.y ||
+      prev?.width !== next?.width ||
+      prev?.height !== next?.height
+    ) {
+      this.dropPreview.set(next);
+    }
+    if (ghost.overPage !== !!next) {
+      this.paletteGhost.set({ ...ghost, overPage: !!next });
+    }
+  }
+
+  private dropFromPalette(point: { clientX: number; clientY: number }): void {
+    this.stopPaletteDrag = null;
+    const ghost = this.paletteGhost();
+    this.dropPreview.set(null);
+    if (!ghost) {
+      return;
+    }
+    const pageRects = measurePages(this.scroller?.nativeElement);
+    const hit = hitTestPages(point, pageRects);
+    const field = hit && this.canEdit() ? this.newField(ghost.type, ghost.slotOrder, 0, hit) : null;
+    if (!field || !hit) {
+      this.cancelPaletteDrag();
+      return;
+    }
+    if (!isPreparerSlot(field.slotOrder)) {
+      this.setActiveSlot(field.slotOrder);
+    }
+    const pageRect = pageRects.find(r => r.page === hit.page);
+    if (!pageRect || prefersReducedMotion()) {
+      this.clearGhost();
+      return;
+    }
+    this.paletteGhost.set({ ...ghost, phase: 'settle', overPage: true });
+    this.ghostTimer = animateGhostTo(
+      this.ghostRef?.nativeElement,
+      { left: pageRect.left + field.x, top: pageRect.top + field.y, opacity: 0 },
+      SETTLE_MS,
+      () => this.clearGhost(),
+    );
+  }
+
+  /** Escape, pointercancel o soltar fuera: vuelve a la paleta sin crear nada. */
+  private cancelPaletteDrag(): void {
+    this.stopPaletteDrag = null;
+    this.dropPreview.set(null);
+    const ghost = this.paletteGhost();
+    const origin = this.paletteOrigin;
+    if (!ghost || !origin || prefersReducedMotion()) {
+      this.clearGhost();
+      return;
+    }
+    this.paletteGhost.set({ ...ghost, phase: 'return' });
+    this.ghostTimer = animateGhostTo(
+      this.ghostRef?.nativeElement,
+      {
+        left: origin.left + origin.width / 2 - ghost.width / 2,
+        top: origin.top + origin.height / 2 - ghost.height / 2,
+        scale: 0.5,
+        opacity: 0,
+      },
+      RETURN_MS,
+      () => this.clearGhost(),
+    );
+  }
+
+  private clearGhost(): void {
+    if (this.ghostTimer) {
+      clearTimeout(this.ghostTimer);
+      this.ghostTimer = null;
+    }
+    this.paletteGhost.set(null);
+    this.paletteArming.set(null);
+    resetGhost(this.ghostRef?.nativeElement);
   }
 
   isPreparerField(field: TemplateFieldLocal): boolean {
