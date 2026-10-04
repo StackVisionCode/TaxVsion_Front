@@ -280,4 +280,107 @@ describe('SignatureTemplateEditorComponent', () => {
     expect(new Set(c.fields().map(f => f.localId)).size).toBe(c.fields().length);
     expect(c.layoutDirty()).toBe(true);
   });
+
+  describe('arrastrar desde la paleta (mantener pulsado y soltar)', () => {
+    const PAGE_LEFT = 40;
+    const PAGE_TOP = 120;
+
+    function stubPageRects(): void {
+      const original = Element.prototype.getBoundingClientRect;
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        const page = (this as HTMLElement).dataset?.['page'];
+        if (!page) {
+          return original.call(this);
+        }
+        const el = this as HTMLElement;
+        const w = parseFloat(el.style.width);
+        const h = parseFloat(el.style.height);
+        const top = PAGE_TOP + (Number(page) - 1) * (h + 16);
+        return { left: PAGE_LEFT, top, width: w, height: h, right: PAGE_LEFT + w, bottom: top + h, x: PAGE_LEFT, y: top, toJSON: () => ({}) } as DOMRect;
+      });
+    }
+
+    async function ready(initial = detail()) {
+      current = initial;
+      service = { getTemplate: vi.fn(() => of(current)) };
+      TestBed.configureTestingModule({
+        imports: [SignatureTemplateEditorComponent],
+        providers: [{ provide: SignatureService, useValue: service }],
+      });
+      TestBed.overrideComponent(SignatureTemplateEditorComponent, {
+        remove: { imports: [SignatureCategoryPickerComponent] },
+      });
+      const fixture = TestBed.createComponent(SignatureTemplateEditorComponent);
+      const c = fixture.componentInstance;
+      c.templateId = 't1';
+      c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
+      await settle();
+      fixture.detectChanges();
+      stubPageRects();
+      const el = fixture.nativeElement as HTMLElement;
+      const button = (testId: string) => el.querySelector<HTMLElement>(`[data-testid="${testId}"]`)!;
+      return { c, fixture, el, button };
+    }
+
+    function down(button: HTMLElement): PointerEvent {
+      return { button: 0, pointerId: 1, pointerType: 'mouse', clientX: 10, clientY: 10, currentTarget: button } as unknown as PointerEvent;
+    }
+
+    function move(x: number, y: number, type = 'pointermove'): void {
+      window.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y }));
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
+
+    it('soltar sobre la página crea UN campo del rol activo centrado en el punto y lo selecciona', async () => {
+      const { c, button } = await ready();
+      vi.useFakeTimers();
+      const before = c.fields().length;
+      c.onPalettePointerDown(down(button('tpl-palette-initials')), 'initials');
+      move(60, 60);
+      expect(c.paletteGhost()?.phase).toBe('drag');
+      move(PAGE_LEFT + 250, PAGE_TOP + 300, 'pointerup');
+      expect(c.fields()).toHaveLength(before + 1);
+      const created = c.selectedField()!;
+      expect(created).toMatchObject({ type: 'initials', slotOrder: 1, page: 1, x: 250 - 45, y: 300 - 25, width: 90, height: 50 });
+      expect(c.layoutDirty()).toBe(true);
+      expect(c.liveMessage()).toBe('Initials field placed on page 1');
+      vi.runAllTimers();
+      expect(c.paletteGhost()).toBeNull();
+    });
+
+    it('preparador: el campo cae sin rol (PREPARER_SLOT)', async () => {
+      const { c, button } = await ready();
+      c.onPalettePointerDown(down(button('tpl-palette-preparer-signature')), 'signature', true);
+      move(60, 60);
+      move(PAGE_LEFT + 5, PAGE_TOP + 5, 'pointerup');
+      expect(c.selectedField()).toMatchObject({ slotOrder: 0, x: 0, y: 0 });
+    });
+
+    it('fuera de la página o con Escape no se crea nada', async () => {
+      const { c, button } = await ready();
+      const before = c.fields().length;
+      c.onPalettePointerDown(down(button('tpl-palette-date')), 'date');
+      move(60, 60);
+      move(5, 5, 'pointerup');
+      c.onPalettePointerDown(down(button('tpl-palette-date')), 'date');
+      move(60, 60);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      move(PAGE_LEFT + 100, PAGE_TOP + 100, 'pointerup');
+      expect(c.fields()).toHaveLength(before);
+    });
+
+    it('plantilla publicada (no Draft): el arrastre no arranca', async () => {
+      const { c, button } = await ready(detail({ status: 'Published' }));
+      const before = c.fields().length;
+      c.onPalettePointerDown(down(button('tpl-palette-signature') ?? document.createElement('button')), 'signature');
+      move(60, 60);
+      move(PAGE_LEFT + 100, PAGE_TOP + 100, 'pointerup');
+      expect(c.paletteGhost()).toBeNull();
+      expect(c.fields()).toHaveLength(before);
+    });
+  });
 });
