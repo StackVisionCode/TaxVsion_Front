@@ -177,6 +177,26 @@ describe('SignatureRequestPanelComponent', () => {
     });
   });
 
+  it('generateCertificate va siempre en true (el switch de certificado ya no existe)', () => {
+    const { c } = setup();
+    c.selectedClient.set({
+      id: '1',
+      displayName: 'Ana',
+      email: 'a@x.com',
+      phone: '',
+      type: 'individual',
+      isActive: true,
+      createdAt: '',
+    });
+    c.selectedDocument.set(doc);
+    c.rulesSnapshot.set({ ...defaultRules(), certificate: false });
+    const draft = (c as unknown as { buildDraft(): Record<string, unknown> }).buildDraft();
+    expect(draft['generateCertificate']).toBe(true);
+    c.rulesSnapshot.set(null);
+    const fallback = (c as unknown as { buildDraft(): Record<string, unknown> }).buildDraft();
+    expect(fallback['generateCertificate']).toBe(true);
+  });
+
   it('las reglas editadas en Review van al mismo snapshot que usa el payload', () => {
     const { c } = setup();
     c.selectedClient.set({

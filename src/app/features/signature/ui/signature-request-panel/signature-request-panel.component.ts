@@ -401,7 +401,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.category.set(snapshot.category);
       this.notes.set(snapshot.notes);
       this.dueDate.set(snapshot.dueDate);
-      this.editorSeed.set(snapshot.seed);
+      // El snapshot es de una solicitud NUEVA (se crea con generateCertificate = true): un snapshot
+      // anterior al cambio podría traer certificate=false y bloquearía "Send certificate" sin motivo.
+      this.editorSeed.set({ ...snapshot.seed, rules: { ...snapshot.seed.rules, certificate: true } });
 
       const url = await firstValueFrom(this.store.getDownloadUrl(snapshot.documentFileId));
       const blob = await this.fetchPdfBlob(url);
@@ -972,7 +974,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       tokenExpirationHours: this.tokenExpirationHours(),
       requiresSequentialSigning: rules?.sequential ?? true,
       requiresConsent: true,
-      generateCertificate: rules?.certificate ?? true,
+      // Siempre true: el certificado de firma ya no es opcional (el switch se quitó del paso Review).
+      // En un borrador existente no se usa (create no se llama; GenerateCertificate es inmutable).
+      generateCertificate: true,
       sendSignedDocumentToSigners: rules?.sendSignedDocument ?? true,
       sendCertificateToSigners: (rules?.sendCertificate ?? false) && (rules?.certificate ?? true),
       autoRemindersEnabled: rules?.autoReminder ?? true,

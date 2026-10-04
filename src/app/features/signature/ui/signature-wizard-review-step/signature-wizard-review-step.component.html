@@ -172,13 +172,7 @@
           <span class="text-[11px] text-gray-400">day(s)</span>
         </div>
 
-        <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-          <app-switch size="sm" [checked]="r.certificate" (checkedChange)="toggle('certificate')" ariaLabel="Signature certificate"></app-switch>
-          <span class="min-w-0">
-            <span class="block text-xs font-medium text-gray-700">Signature certificate</span>
-            <span class="block text-[11px] text-gray-400">PDF with legal evidence when done</span>
-          </span>
-        </label>
+        <!-- El certificado de firma se genera siempre (generateCertificate = true): sin switch. -->
 
         <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
         <ng-container *ngIf="canDeliverDocs">
@@ -190,12 +184,15 @@
             </span>
           </label>
 
-          <label class="flex w-full cursor-pointer items-center gap-3 text-left" [class.opacity-50]="!r.certificate">
-            <app-switch size="sm" [checked]="r.sendCertificate && r.certificate" (checkedChange)="toggle('sendCertificate')"
-              [disabled]="!r.certificate" ariaLabel="Send certificate"></app-switch>
+          <!-- Independiente de la generación. Única excepción: un borrador viejo creado con
+               generateCertificate=false (inmutable en el backend; SetCertificateDelivery(true) fallaría). -->
+          <label class="flex w-full cursor-pointer items-center gap-3 text-left" [class.opacity-50]="certificateLocked()">
+            <app-switch size="sm" [checked]="r.sendCertificate && !certificateLocked()" (checkedChange)="toggle('sendCertificate')"
+              [disabled]="certificateLocked()" ariaLabel="Send certificate"></app-switch>
             <span class="min-w-0">
               <span class="block text-xs font-medium text-gray-700">Send certificate</span>
-              <span class="block text-[11px] text-gray-400">Deliver the certificate to signers (needs the certificate on)</span>
+              <span *ngIf="!certificateLocked()" class="block text-[11px] text-gray-400">Email the signature certificate to signers when complete</span>
+              <span *ngIf="certificateLocked()" data-testid="certificate-locked-note" class="block text-[11px] text-gray-400">Certificates weren't enabled when this draft was created.</span>
             </span>
           </label>
         </ng-container>

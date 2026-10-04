@@ -68,6 +68,27 @@ describe('SignatureWizardReviewStepComponent (reglas movidas desde el editor)', 
     expect(fixture.nativeElement.textContent).toContain('Signing PIN');
   });
 
+  it('sin switch de certificado; "Send certificate" activo e independiente de la generación', () => {
+    const { fixture } = setup(true);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('Signature certificate');
+    expect(el.querySelector('app-switch[ariaLabel="Signature certificate"]')).toBeNull();
+    expect(el.querySelector('[data-testid="certificate-locked-note"]')).toBeNull();
+  });
+
+  it('borrador viejo creado sin certificado: "Send certificate" bloqueado con nota', () => {
+    const { c, fixture } = setup(true);
+    fixture.componentRef.setInput('rules', { ...defaultRules(), certificate: false });
+    fixture.detectChanges();
+    expect(c.certificateLocked()).toBe(true);
+    const note = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="certificate-locked-note"]');
+    expect(note?.textContent).toContain("Certificates weren't enabled when this draft was created.");
+    const emitted: RequestRules[] = [];
+    c.rulesChange.subscribe((r) => emitted.push(r));
+    c.toggle('sendCertificate');
+    expect(emitted).toEqual([]);
+  });
+
   it('un firmante sin firma (la del preparador no cuenta) aparece con "Go to signer"', () => {
     const { c, fixture } = setup(true);
     const goTo: string[] = [];

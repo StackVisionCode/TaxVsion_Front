@@ -1,6 +1,7 @@
 <!--
   Editor compacto (plan C/E):
-  - xl: riel izquierdo + documento + columna derecha (inspector del campo o "Before you continue").
+  - xl: riel izquierdo + documento + columna derecha (inspector del campo o "Before you continue"),
+    plegable desde la toolbar (preferencia en localStorage; el documento ocupa el hueco).
   - lg: riel plegable a iconos; inspector/lista flotan sobre el documento.
   - md: documento a ancho completo; barra superior "Signers ▾ / Fields ▾ / checklist"; inspector abajo.
   - < md: igual, con la barra de acciones fija abajo (Signers · Fields · Zoom · Checklist).
@@ -173,6 +174,29 @@
         <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
         {{ readinessItems().length || 'Ready' }}
       </button>
+
+      <!-- xl: plegar/desplegar la columna derecha (como el riel izquierdo) -->
+      <button *ngIf="!inspectorCollapsed()" type="button" (click)="setInspectorCollapsed(true)"
+        class="hidden h-7 w-7 items-center justify-center rounded-md hover:bg-white/15 xl:flex"
+        aria-label="Hide side panel" title="Hide side panel" data-testid="inspector-collapse">
+        <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
+      </button>
+      <!-- Plegada: botón para reabrir; con un campo seleccionado avisa que tiene ajustes (sin auto-abrir) -->
+      <button *ngIf="inspectorCollapsed()" type="button" (click)="setInspectorCollapsed(false)"
+        class="hidden h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium xl:flex"
+        [ngClass]="selectedField() ? 'bg-white text-brand-bold' : readinessItems().length ? 'bg-amber-400/90 text-gray-900' : 'bg-white/15 text-white'"
+        [attr.aria-label]="selectedField() ? 'Show field settings' : 'Show side panel'" aria-expanded="false"
+        data-testid="inspector-reopen">
+        <ion-icon name="chevron-back-outline" class="text-sm"></ion-icon>
+        <ng-container *ngIf="selectedField(); else collapsedStatus">
+          <span class="h-1.5 w-1.5 rounded-full bg-brand-bold" aria-hidden="true" data-testid="inspector-selection-dot"></span>
+          Field settings
+        </ng-container>
+        <ng-template #collapsedStatus>
+          <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
+          {{ readinessItems().length || 'Ready' }}
+        </ng-template>
+      </button>
     </div>
 
     <!-- Avisos -->
@@ -326,8 +350,8 @@
     </div>
   </div>
 
-  <!-- ===== Derecha (xl): inspector contextual o "Before you continue" ===== -->
-  <aside class="editor-inspector hidden shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3 xl:flex xl:w-64"
+  <!-- ===== Derecha (xl): inspector contextual o "Before you continue" (plegable) ===== -->
+  <aside *ngIf="!inspectorCollapsed()" class="editor-inspector hidden shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3 xl:flex xl:w-64"
     data-testid="side-inspector">
     <ng-container *ngIf="selectedField() as f; else sideChecklist">
       <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>

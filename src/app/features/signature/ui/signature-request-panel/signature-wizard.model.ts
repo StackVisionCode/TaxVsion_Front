@@ -41,6 +41,10 @@ export interface RequestRules {
   autoReminder: boolean;
   /** Cada cuántas HORAS se recuerda a los firmantes pendientes (la UI lo edita en días). */
   reminderIntervalHours: number;
+  /**
+   * GenerateCertificate del backend. Las solicitudes nuevas siempre van con true (sin switch en la UI);
+   * solo es false al continuar un borrador viejo creado sin certificado (inmutable tras crear).
+   */
   certificate: boolean;
   /** P2: entregar el documento firmado a los firmantes al completar (email/SMS). */
   sendSignedDocument: boolean;

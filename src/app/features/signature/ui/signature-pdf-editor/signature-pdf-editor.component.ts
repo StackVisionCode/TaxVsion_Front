@@ -73,6 +73,11 @@ import {
 } from '../../utils/editor-fields.util';
 import { ReadinessItem, buildReadinessChecklist } from '../../utils/editor-readiness.util';
 import { isSigningPinInvalid, withSequential } from '../../utils/request-rules.util';
+import {
+  PDF_EDITOR_INSPECTOR_COLLAPSED_KEY,
+  readPanelCollapsed,
+  writePanelCollapsed,
+} from '../../utils/panel-collapse.util';
 import { StampFontSizeResult, stampFontSizeForBox } from '../../utils/stamp-font-size.util';
 import { startPointerDrag } from '../../utils/pointer-drag.util';
 import {
@@ -281,6 +286,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   readonly floatingChecklistOpen = signal(false);
   /** lg: riel plegado a iconos. */
   readonly railCollapsed = signal(false);
+  /**
+   * xl: columna derecha (inspector / "Before you continue") plegada; el documento ocupa su sitio.
+   * Se recuerda en localStorage. Seleccionar un campo NO la reabre: la toolbar muestra un aviso.
+   */
+  readonly inspectorCollapsed = signal(readPanelCollapsed(PDF_EDITOR_INSPECTOR_COLLAPSED_KEY));
   /** Firmante cuyo teléfono se está editando desde el menú "…". */
   readonly editingPhoneFor = signal<string | null>(null);
   /** Menús "…" abiertos (para que Escape los cierre antes de tocar el wizard). */
@@ -881,6 +891,12 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   getRules(): RequestRules {
     return this.rules();
+  }
+
+  /** Pliega/despliega la columna derecha (xl) y recuerda la preferencia. */
+  setInspectorCollapsed(collapsed: boolean): void {
+    this.inspectorCollapsed.set(collapsed);
+    writePanelCollapsed(PDF_EDITOR_INSPECTOR_COLLAPSED_KEY, collapsed);
   }
 
   /** Lo usa el paso Review: reemplaza las reglas (las transformaciones viven en request-rules.util). */

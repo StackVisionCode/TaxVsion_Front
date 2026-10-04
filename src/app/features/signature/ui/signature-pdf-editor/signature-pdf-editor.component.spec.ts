@@ -457,6 +457,48 @@ describe('SignaturePdfEditorComponent', () => {
     expect(opts).toContain('email');
   });
 
+  describe('columna derecha plegable (xl)', () => {
+    beforeEach(() => localStorage.clear());
+    afterEach(() => localStorage.clear());
+
+    it('se pliega desde la toolbar, recuerda la preferencia y se reabre', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      expect(el(fixture, 'side-inspector')).not.toBeNull();
+
+      el(fixture, 'inspector-collapse')!.click();
+      fixture.detectChanges();
+      expect(c.inspectorCollapsed()).toBe(true);
+      expect(el(fixture, 'side-inspector')).toBeNull();
+      expect(localStorage.getItem('signature.editor.inspectorCollapsed')).toBe('1');
+
+      el(fixture, 'inspector-reopen')!.click();
+      fixture.detectChanges();
+      expect(el(fixture, 'side-inspector')).not.toBeNull();
+      expect(localStorage.getItem('signature.editor.inspectorCollapsed')).toBeNull();
+    });
+
+    it('plegada: seleccionar un campo no la reabre, avisa en la toolbar y la hoja inferior sigue', () => {
+      localStorage.setItem('signature.editor.inspectorCollapsed', '1');
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      expect(c.inspectorCollapsed()).toBe(true);
+
+      c.addField('text');
+      fixture.detectChanges();
+      expect(c.selectedField()).not.toBeNull();
+      expect(el(fixture, 'side-inspector')).toBeNull();
+      expect(el(fixture, 'inspector-selection-dot')).not.toBeNull();
+      expect(el(fixture, 'inspector-reopen')?.textContent).toContain('Field settings');
+      // < lg el inspector sigue siendo la hoja inferior (no depende del plegado de xl).
+      expect(el(fixture, 'sheet-inspector')).not.toBeNull();
+
+      el(fixture, 'inspector-reopen')!.click();
+      fixture.detectChanges();
+      expect(el(fixture, 'side-inspector')?.querySelector('[data-testid="field-inspector"]')).not.toBeNull();
+    });
+  });
+
   describe('paridad del payload normalizado (antes/después del refactor)', () => {
     /** Copia literal de buildNormalizedFields previo al refactor (commit 01ede14^). */
     function legacyNormalize(fields: PlacedField[], pages: RenderedPage[]) {

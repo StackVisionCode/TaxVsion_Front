@@ -22,7 +22,7 @@ describe('request-rules.util (mismas reglas que tenía el editor)', () => {
     expect(withReminderIntervalDays(defaultRules(), 0).reminderIntervalHours).toBe(24);
   });
 
-  it('"send certificate" no se activa sin certificado', () => {
+  it('"send certificate" no se activa sin certificado (borrador viejo creado sin certificado)', () => {
     const noCert = { ...defaultRules(), certificate: false };
     expect(toggleRule(noCert, 'sendCertificate')).toBe(noCert);
     expect(toggleRule(defaultRules(), 'sendCertificate').sendCertificate).toBe(true);
