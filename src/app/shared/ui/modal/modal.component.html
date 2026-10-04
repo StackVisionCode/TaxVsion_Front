@@ -1,4 +1,4 @@
-<div *ngIf="rendered()" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+<div *ngIf="rendered()" #portal class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
   [class.is-closing]="closing()" (click)="close()">
   <div #panel class="modal-panel max-h-[90vh] w-full overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
     [ngClass]="sizeClass" [class.is-closing]="closing()" (click)="$event.stopPropagation()" role="dialog"

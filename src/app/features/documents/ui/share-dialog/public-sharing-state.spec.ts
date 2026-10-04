@@ -25,7 +25,7 @@ describe('ShareDialogComponent · public links', () => {
 
   it('habilitado: lo dice y ofrece la opción', () => {
     const fixture = create('enabled');
-    const text = fixture.nativeElement.textContent as string;
+    const text = document.body.textContent as string;
 
     expect(text).toContain('Enabled');
     expect(fixture.componentInstance.accessOptions.some(o => o.id === 'Public')).toBe(true);
@@ -33,7 +33,7 @@ describe('ShareDialogComponent · public links', () => {
 
   it('deshabilitado: lo dice y explica por qué', () => {
     const fixture = create('disabled');
-    const text = fixture.nativeElement.textContent as string;
+    const text = document.body.textContent as string;
 
     expect(text).toContain('Turned off by your firm');
     expect(fixture.componentInstance.accessOptions.some(o => o.id === 'Public')).toBe(false);
@@ -41,7 +41,7 @@ describe('ShareDialogComponent · public links', () => {
 
   it('desconocido: NO afirma que la oficina lo apagó', () => {
     const fixture = create('unknown');
-    const text = fixture.nativeElement.textContent as string;
+    const text = document.body.textContent as string;
 
     expect(text).not.toContain('Turned off by your firm');
     expect(text).toContain('could not check');

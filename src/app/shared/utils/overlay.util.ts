@@ -69,3 +69,19 @@ export function captureActiveElement(): HTMLElement | null {
   const active = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
   return active && active !== document.body ? active : null;
 }
+
+/**
+ * Mueve un overlay (`position: fixed`) al final de `<body>` para que ningún ancestro con
+ * `transform`, `filter` o `will-change` lo encierre: si no, el modal se pinta "dentro" de la
+ * tarjeta o del editor en vez de cubrir la pantalla. Angular sigue siendo dueño del nodo (los
+ * listeners viajan con él) y al desmontarlo lo quita con `node.remove()`, así que es seguro.
+ * OJO: si se destruye el COMPONENTE anfitrión con el overlay abierto, Angular solo quita el
+ * host; el nodo portado hay que quitarlo a mano en `ngOnDestroy` (guarda lo que devuelve esto).
+ * Portar un solo nodo raíz: mover nodos hermanos por separado rompe las inserciones de Angular.
+ */
+export function portalToBody(el: HTMLElement | null | undefined): HTMLElement | null {
+  if (el && typeof document !== 'undefined' && el.parentNode !== document.body) {
+    document.body.appendChild(el);
+  }
+  return el ?? null;
+}
