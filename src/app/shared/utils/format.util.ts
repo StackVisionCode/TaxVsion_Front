@@ -13,6 +13,7 @@ import { parseUtcDate } from './utc-date.util';
  *   / "3h ago" / "Yesterday" / "3 days ago" / fecha local. Diferencia normalizada: interpreta el ISO con
  *   `parseUtcDate` (los servicios sin `Z` ya no salen corridos por la zona del navegador). La copia de
  *   dashboard-notes decía "3d ago" y "Mar 4"; se unifica al formato de notifications.
+ * - `currencySymbol(code)`: símbolo corto ("$", "€", "RD$") para el prefijo de un input de precio.
  */
 
 export type ByteUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB';
@@ -70,6 +71,26 @@ export function formatMoney(
       minimumFractionDigits: minFraction,
       maximumFractionDigits: Math.max(minFraction, 2),
     }).format(options.fromCents ? value / 100 : value);
+  }
+}
+
+/**
+ * Símbolo corto de una moneda ISO para prefijos de inputs de precio: 'USD' → "$", 'EUR' → "€",
+ * 'DOP' → "RD$" (lo que dé Intl en-US con narrowSymbol). Código inválido o vacío → el propio código
+ * en mayúsculas (o "$" si no hay nada).
+ */
+export function currencySymbol(currency: string | null | undefined): string {
+  const code = (currency ?? '').trim().toUpperCase();
+  if (!code) {
+    return '$';
+  }
+  try {
+    const part = new Intl.NumberFormat('en-US', { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' })
+      .formatToParts(0)
+      .find(p => p.type === 'currency');
+    return part?.value || code;
+  } catch {
+    return code;
   }
 }
 

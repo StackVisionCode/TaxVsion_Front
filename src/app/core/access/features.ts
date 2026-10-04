@@ -108,7 +108,7 @@ export const FEATURES: readonly FeatureDefinition[] = [
   { id: 'billing', label: 'Billing', route: 'billing', module: null, anyOf: ['invoicing.view'] },
 
   // ---- Administración de la oficina ----
-  { id: 'users', label: 'User management', route: 'company/users', module: null, anyOf: ['users.view'] },
+  { id: 'users', label: 'Users', route: 'company/users', module: null, anyOf: ['users.view'] },
   {
     id: 'company-settings',
     label: 'Company settings',

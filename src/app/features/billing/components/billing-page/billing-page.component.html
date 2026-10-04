@@ -96,9 +96,8 @@
 
       <!-- Lo que el listado del backend no permite: se declara una vez, no por fila -->
       <p class="mt-4 border-t border-gray-100 pt-4 text-xs leading-relaxed text-gray-400">
-        The billing API returns the tenant's latest invoices without paging or filters, so the list shows the last
-        {{ store.take() }} and the filters above apply to those. It also doesn't return the client, the due date or the
-        line items — all of them are in the invoice PDF.
+        This list shows your office's {{ store.take() }} most recent invoices, and the filters above apply to those.
+        The client, due date and line items of each invoice are in its PDF.
       </p>
     </div>
   </ng-container>
@@ -107,6 +106,7 @@
   <app-payment-links-panel *ngIf="tab() === 'links'" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
     [error]="store.linksError()" [statusFilter]="store.linkStatusFilter()" [page]="store.linkPage()"
     [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()" [canManage]="can.canManagePaymentLinks()"
+    [defaultCurrency]="store.issuer().defaultCurrency"
     (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
     (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>

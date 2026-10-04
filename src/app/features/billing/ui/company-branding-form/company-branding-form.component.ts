@@ -41,7 +41,13 @@ export class CompanyBrandingFormComponent implements OnChanges {
   @Output() saveRequested = new EventEmitter<{ issuer: IssuerProfile; branding: InvoiceBranding }>();
 
   /** Monedas ofrecidas (ISO-4217). El backend acepta cualquier código de 3 letras; esta es la lista corta. */
-  readonly currencies = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
+  private readonly baseCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
+
+  /** Si la oficina ya tiene guardada otra moneda, se agrega para que el select no quede en blanco. */
+  get currencies(): string[] {
+    const saved = this.issuer?.defaultCurrency?.toUpperCase();
+    return saved && !this.baseCurrencies.includes(saved) ? [...this.baseCurrencies, saved] : this.baseCurrencies;
+  }
 
   /** Copias editables: el store es la fuente de verdad y solo se pisa al guardar. */
   readonly draftIssuer = signal<IssuerProfile | null>(null);

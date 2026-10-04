@@ -145,6 +145,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns', featureId: 'campaigns' },
     { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', featureId: 'ai-assistant', isSpecial: true },
     { label: 'Workflow', icon: 'git-network-outline', route: '/workflow', featureId: 'workflow' },
+    // Gestión de usuarios de la oficina: antes vivía en el menú del avatar.
+    { label: 'Users', icon: 'person-circle-outline', route: '/company/users', featureId: 'users' },
     { label: 'Settings', icon: 'settings-outline', route: '/settings', featureId: 'settings' },
   ]);
 

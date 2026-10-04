@@ -3,6 +3,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } f
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
+import { currencySymbol } from '@shared/utils/format.util';
 import { ServiceCatalogComponent } from '../../ui/service-catalog/service-catalog.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
@@ -79,6 +80,8 @@ export class ProductsServicesPageComponent implements OnInit {
   /** Cantidad inicial recibida (solo Product con inventario). */
   readonly newStockQuantity = signal<number | null>(null);
   /** El bloque de detalles de producto solo aplica al CREAR un Product (no en edición). */
+  /** Prefijo de los inputs de precio/costo: moneda del ítem en edición, o la de la oficina al crear. */
+  readonly priceSymbol = computed(() => currencySymbol(this.editingService()?.currency ?? this.store.officeCurrency()));
   readonly showProductDetails = computed(() => !this.editingService() && this.newKind() === 'Product');
 
   // Alta inline de categoría (sin ella un tenant nuevo no podría crear su primer ítem).

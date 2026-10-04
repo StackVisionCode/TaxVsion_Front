@@ -1,4 +1,5 @@
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import { currencySymbol } from '@shared/utils/format.util';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -43,6 +44,8 @@ import {
 export class ProductFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() product: Product | null = null;
+  /** Moneda de la oficina: la usan los productos nuevos (al editar manda la del producto). */
+  @Input() defaultCurrency = 'USD';
   @Input() categories: readonly CatalogCategorySummary[] = [];
   /** Guardado en curso: deshabilita las acciones para no duplicar llamadas. */
   @Input() saving = false;
@@ -69,6 +72,11 @@ export class ProductFormPanelComponent implements OnChanges {
 
   /** Signal propia porque `product` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
+
+  /** Prefijo del precio: moneda del producto en edición, o la de la oficina al crear. */
+  get priceSymbol(): string {
+    return currencySymbol(this.product?.currency ?? this.defaultCurrency);
+  }
 
   readonly categoryLabel = computed(() => {
     const id = this.categoryId();

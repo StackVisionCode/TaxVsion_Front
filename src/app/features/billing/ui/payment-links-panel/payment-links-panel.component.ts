@@ -57,6 +57,8 @@ export class PaymentLinksPanelComponent {
   @Input() creating = false;
   /** B6 — crear y revocar links de pago exige `payment_client.payment_link.manage`. */
   @Input() canManage = true;
+  /** Moneda por defecto de la oficina (Billing → Company); el usuario puede cambiarla por link. */
+  @Input() defaultCurrency = 'USD';
 
   @Output() statusFilterChanged = new EventEmitter<PaymentLinkStatus | null>();
   @Output() pageChanged = new EventEmitter<number>();
@@ -77,7 +79,7 @@ export class PaymentLinksPanelComponent {
 
   readonly formOpen = signal(false);
   readonly amount = signal(0);
-  readonly currency = signal('USD');
+  readonly currency = signal(this.defaultCurrency);
   readonly purpose = signal<PaymentPurposeKind>('DepositPayment');
   readonly reference = signal('');
   /** Por defecto 7 días, como el CRM legado. */
@@ -85,7 +87,7 @@ export class PaymentLinksPanelComponent {
 
   openForm(): void {
     this.amount.set(0);
-    this.currency.set('USD');
+    this.currency.set(this.defaultCurrency || 'USD');
     this.purpose.set('DepositPayment');
     this.reference.set('');
     this.expiration.set(EXPIRATION_OPTIONS[3].value);

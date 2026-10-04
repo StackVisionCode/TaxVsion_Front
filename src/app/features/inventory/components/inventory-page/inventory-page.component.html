@@ -48,7 +48,7 @@
 
 <!-- Create / edit overlay -->
 <app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="store.categories()"
-  [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
+  [defaultCurrency]="store.officeCurrency()" [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
   (categoryCreated)="handleCategoryCreated($event)"></app-product-form-panel>
 
 <!-- Delete confirmation -->
