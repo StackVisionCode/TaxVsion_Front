@@ -25,8 +25,8 @@ describe('DrawerComponent', () => {
     TestBed.configureTestingModule({ imports: [HostComponent] });
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
-    const el = fixture.nativeElement as HTMLElement;
-    document.body.appendChild(el);
+    document.body.appendChild(fixture.nativeElement as HTMLElement);
+    const el = document.body; // el drawer se porta al <body>
     return { fixture, host: fixture.componentInstance, el };
   }
 
@@ -51,7 +51,8 @@ describe('DrawerComponent', () => {
     (el.querySelector('.drawer-backdrop') as HTMLElement).click();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(host.closes).toBe(2);
-    el.remove();
+    fixture.destroy();
+    (fixture.nativeElement as HTMLElement).remove();
   });
 
   it('al cerrar libera el scroll tras la salida', async () => {
@@ -64,6 +65,7 @@ describe('DrawerComponent', () => {
     fixture.detectChanges();
     expect(el.querySelector('aside')).toBeNull();
     expect(document.body.style.overflow).toBe('');
-    el.remove();
+    fixture.destroy();
+    (fixture.nativeElement as HTMLElement).remove();
   });
 });

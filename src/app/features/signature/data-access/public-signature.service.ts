@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpBackend, HttpClient } from '@angular/common/http';
-import { Observable, defer } from 'rxjs';
+import { Observable, defer, map } from 'rxjs';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
 import {
@@ -82,6 +82,19 @@ export class PublicSignatureService {
    */
   getContext(token: string): Observable<PublicSignerView> {
     return this.http.get<PublicSignerView>(this.url(token));
+  }
+
+  /**
+   * F5 — GET /signature/public/{token}/document — baja los bytes del PDF original. El backend
+   * valida el token y exige verificación completa (403). Devolvemos Uint8Array para que el llamador
+   * pueda rendearlo con pdf.js (`renderPdfPages`) y pintar el documento de fondo bajo los campos.
+   */
+  getDocumentBytes(token: string): Observable<Uint8Array> {
+    return defer(() =>
+      this.http
+        .get(this.url(token, '/document'), { responseType: 'arraybuffer' })
+        .pipe(map(buffer => new Uint8Array(buffer))),
+    );
   }
 
   /**

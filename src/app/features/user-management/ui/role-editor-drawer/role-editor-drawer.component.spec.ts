@@ -51,14 +51,14 @@ describe('RoleEditorDrawerComponent', () => {
   it('el picker no ofrece permisos del portal del cliente en un rol de staff', () => {
     const { fixture } = render();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Portal thing');
+    expect(document.body.textContent).not.toContain('Portal thing');
   });
 
   it('lo que no se puede conceder se ve, pero apagado y CON el motivo', () => {
     // Esconderlo sería peor: el administrador que busca "billing.view" y no lo encuentra cree que
     // la aplicación está rota.
     const { fixture, component } = render();
-    const text = fixture.nativeElement.textContent as string;
+    const text = document.body.textContent as string;
 
     expect(text).toContain('See billing');
     expect(component.blockedReason(CATALOG[2])).toBe('High risk — only the owner role can hold it');

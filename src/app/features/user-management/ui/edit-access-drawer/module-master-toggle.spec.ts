@@ -61,12 +61,12 @@ describe('EditAccessDrawerComponent · interruptor maestro de módulo', () => {
 
   /** El interruptor maestro: lo que la persona pulsa de verdad. */
   function master(fixture: ReturnType<typeof render>): HTMLButtonElement {
-    return fixture.nativeElement.querySelector('button[role="switch"][aria-label^="Allow all of"]') as HTMLButtonElement;
+    return document.body.querySelector('button[role="switch"][aria-label^="Allow all of"]') as HTMLButtonElement;
   }
 
   /** Los interruptores de fila: todos menos el maestro. */
   function rowSwitches(fixture: ReturnType<typeof render>): HTMLButtonElement[] {
-    return [...fixture.nativeElement.querySelectorAll('.perm-row button[role="switch"]')] as HTMLButtonElement[];
+    return [...document.body.querySelectorAll('.perm-row button[role="switch"]')] as HTMLButtonElement[];
   }
 
   function rowStates(fixture: ReturnType<typeof render>): boolean[] {

@@ -6,6 +6,7 @@ import {
   Input,
   OnChanges,
   Output,
+  SimpleChanges,
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -74,7 +75,13 @@ export class SignDocumentViewComponent implements OnChanges {
   pages: SignDocumentPage[] = [];
   textFieldCount = 0;
 
-  ngOnChanges(): void {
+  // Solo recomputamos cuando CAMBIAN los campos. Antes recomputábamos en cualquier @Input (también
+  // `values`), lo que recreaba el array `pages` en cada tecla y Angular destruía los <input>, que
+  // perdían el foco. Ahora `values` sólo refleja el ngModel y los inputs se mantienen vivos.
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['fields']) {
+      return;
+    }
     this.pages = groupFieldsByPage(this.fields);
     this.textFieldCount = this.fields.filter(f => f.kind === 'Text').length;
   }

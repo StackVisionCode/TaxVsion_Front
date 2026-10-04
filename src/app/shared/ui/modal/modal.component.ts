@@ -14,7 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { captureActiveElement, focusablesIn, setBodyScrollLock, trapTabKey } from '../../utils/overlay.util';
+import { captureActiveElement, focusablesIn, portalToBody, setBodyScrollLock, trapTabKey } from '../../utils/overlay.util';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 
@@ -74,6 +74,12 @@ export class ModalComponent implements OnChanges, OnDestroy {
   @Output() closed = new EventEmitter<void>();
 
   @ViewChild('panel') panelRef?: ElementRef<HTMLElement>;
+  /** El backdrop (con el panel dentro) se porta al <body>: ver `portalToBody`. */
+  @ViewChild('portal')
+  private set portalRef(ref: ElementRef<HTMLElement> | undefined) {
+    this.portaled = portalToBody(ref?.nativeElement) ?? this.portaled;
+  }
+  private portaled: HTMLElement | null = null;
 
   /** Id del `<h2>` del título, para `aria-labelledby` (lectores de pantalla anuncian el diálogo). */
   readonly headingId = `modal-title-${modalInstanceSeq++}`;
@@ -123,6 +129,7 @@ export class ModalComponent implements OnChanges, OnDestroy {
     this.clearExit();
     this.reconcileScrollLock(false);
     this.restoreFocus();
+    this.portaled?.remove();
   }
 
   /** Suma/resta al contador global de bloqueo solo una vez por instancia (evita descuadres). */
