@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, Subject, catchError, map, of, switchMap, tap } from 'rxjs';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -10,7 +10,6 @@ import {
   SmsMessageSummary,
   SmsOptOutFilter,
   SmsOptOutSummary,
-  SmsStats,
   SmsStatusFilter,
 } from './sms.model';
 
@@ -41,7 +40,7 @@ export interface SmsSendRecipient {
  *
  * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&term&from&to&page&size`),
  * mismo patrón que ClientsStore: señales de query → una canalización con `switchMap` que cancela la
- * petición anterior. Las bajas (opt-outs) tienen su propia canalización. Las stats se piden aparte.
+ * petición anterior. Las bajas (opt-outs) tienen su propia canalización.
  * Tras un envío o un cambio de consentimiento se re-sincroniza la vista sin recargar el navegador.
  */
 @Injectable({ providedIn: 'root' })
@@ -77,17 +76,6 @@ export class SmsStore {
   readonly listLoading = this._listLoading.asReadonly();
   readonly listError = this._listError.asReadonly();
   readonly listErrorKind = this._listErrorKind.asReadonly();
-
-  // ---------- Stats ----------
-  private readonly _stats = signal<SmsStats | null>(null);
-  readonly stats = this._stats.asReadonly();
-  /** Tasa de entrega sobre lo enviado (excluye suppressed/pending). 0 si no hay envíos. */
-  readonly deliveryRate = computed<number>(() => {
-    const s = this._stats();
-    if (!s) return 0;
-    const sent = s.accepted + s.delivered + s.failed + s.undeliverable;
-    return sent === 0 ? 0 : Math.round((s.delivered / sent) * 100);
-  });
 
   // ---------- Opt-outs ----------
   private readonly _optStatus = signal<SmsOptOutFilter>('All');
@@ -199,7 +187,6 @@ export class SmsStore {
     if (query.page !== undefined) this._page.set(query.page);
     this.started = true;
     this.load$.next();
-    this.loadStats();
   }
 
   setStatus(status: SmsStatusFilter): void {
@@ -248,15 +235,6 @@ export class SmsStore {
     if (this.started) this.load$.next();
   }
 
-  loadStats(from?: string | null, to?: string | null): void {
-    this.service
-      .getStats(from, to)
-      .pipe(catchError(() => of(null)))
-      .subscribe(stats => {
-        if (stats) this._stats.set(stats);
-      });
-  }
-
   getMessage(id: string) {
     return this.service.getMessage(id);
   }
@@ -289,12 +267,11 @@ export class SmsStore {
     if (this.optStarted) this.loadOpt$.next();
   }
 
-  /** Gestión manual del consentimiento (admin, `sms.manage`). Re-sincroniza la lista y las stats. */
+  /** Gestión manual del consentimiento (admin, `sms.manage`). Re-sincroniza la lista. */
   setConsent(req: SetSmsConsentRequest): Observable<SmsOptOutSummary> {
     return this.service.setConsent(req).pipe(
       tap(() => {
         this.reloadOptOuts();
-        this.loadStats();
       }),
     );
   }
@@ -327,7 +304,6 @@ export class SmsStore {
           next: () => {
             this._sending.set(false);
             this.reloadList();
-            this.loadStats();
           },
           error: () => this._sending.set(false),
         }),

@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -62,6 +62,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  */
 @Component({
   selector: 'app-sms-page',
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   imports: [
     CommonModule,
     FormsModule,
@@ -324,7 +325,7 @@ export class SmsPageComponent implements OnInit {
 
   private computeSegments(body: string): Segments {
     const count = body.length;
-    const isUnicode = /[^ -]/.test(body); // aprox: cualquier char fuera de ASCII → Unicode
+    const isUnicode = /[^\x00-\x7f]/.test(body); // aprox: cualquier char fuera de ASCII → Unicode
     const single = isUnicode ? 70 : 160;
     const multi = isUnicode ? 67 : 153;
     const segments = count === 0 ? 1 : count <= single ? 1 : Math.ceil(count / multi);
