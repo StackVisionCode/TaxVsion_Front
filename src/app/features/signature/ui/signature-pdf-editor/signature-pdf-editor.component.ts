@@ -75,6 +75,18 @@ import {
 import { ReadinessItem, buildReadinessChecklist } from '../../utils/editor-readiness.util';
 import { isSigningPinInvalid } from '../../utils/request-rules.util';
 import { startPointerDrag } from '../../utils/pointer-drag.util';
+import {
+  RETURN_MS,
+  SETTLE_MS,
+  animateGhostTo,
+  dropRectOnPage,
+  hitTestPages,
+  measurePages,
+  resetGhost,
+  setGhostPosition,
+  startPaletteDrag,
+} from '../../utils/palette-drag.util';
+import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 
@@ -122,6 +134,28 @@ const DEFAULT_SIZE: Record<FieldType, { w: number; h: number }> = {
 
 /** Lo que se está colocando con "clic en la página": un tipo de campo del firmante o la firma del preparador. */
 export type PlacingKind = FieldType | 'preparer';
+
+/** Fantasma del arrastre desde la paleta: mismo aspecto y tamaño (al zoom actual) que el campo colocado. */
+export interface PaletteGhost {
+  kind: PlacingKind;
+  type: FieldType;
+  /** Firmante destino (color del fantasma y de la vista previa); PREPARER_PARTY_ID para el preparador. */
+  signerId: string;
+  width: number;
+  height: number;
+  /** true mientras el puntero está sobre una página (si no, estado "no se puede soltar aquí"). */
+  overPage: boolean;
+  phase: 'drag' | 'settle' | 'return';
+}
+
+/** Dónde caerá el campo si se suelta ahora (px de la página). */
+export interface DropPreview {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** Paneles de pantallas angostas (popover en tablet, hoja inferior en móvil). */
 export type NarrowPanel = 'signers' | 'fields' | 'checklist' | 'zoom';
@@ -196,6 +230,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   @Output() fieldCountChange = new EventEmitter<number>();
 
   @ViewChild('surface') private surfaceRef?: ElementRef<HTMLElement>;
+  @ViewChild('ghostEl') private ghostRef?: ElementRef<HTMLElement>;
 
   readonly fieldTypes: FieldType[] = ['signature', 'initials', 'date', 'text'];
   readonly fieldLabel = FIELD_TYPE_LABEL;
@@ -410,6 +445,10 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.destroyRef.onDestroy(() => {
       this.renderAbort?.abort();
       this.stopDrag?.();
+      this.stopPaletteDrag?.();
+      if (this.ghostTimer) {
+        clearTimeout(this.ghostTimer);
+      }
     });
   }
 
@@ -598,6 +637,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    // El fantasma es position: fixed; si algún ancestro (wizard/drawer) tiene transform, fixed dejaría
+    // de ser relativo al viewport. Se cuelga de <body> y se quita al destruir.
+    const ghost = this.ghostRef?.nativeElement;
+    if (ghost && typeof document !== 'undefined') {
+      document.body.appendChild(ghost);
+      this.destroyRef.onDestroy(() => ghost.remove());
+    }
     const surface = this.surfaceRef?.nativeElement;
     if (!surface || typeof ResizeObserver === 'undefined') {
       return;
@@ -1013,7 +1059,164 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (kind === 'preparer') {
       this.autofillPreparerName();
     }
+    this.liveMessage.set(`${kind === 'preparer' ? 'Your signature' : FIELD_TYPE_LABEL[type] + ' field'} placed on page ${page.page}`);
     this.markDirty();
+  }
+
+  // ---------- arrastrar desde la paleta (mantener pulsado y soltar sobre la página) ----------
+
+  /** Fantasma visible (null = no hay arrastre desde la paleta). */
+  readonly paletteGhost = signal<PaletteGhost | null>(null);
+  /** Contorno de dónde caerá el campo (solo sobre una página). */
+  readonly dropPreview = signal<DropPreview | null>(null);
+  /** Táctil: botón que se está manteniendo pulsado (animación de "carga" antes de levantar). */
+  readonly paletteArming = signal<PlacingKind | null>(null);
+  /** Mensaje para lectores de pantalla (aria-live) al colocar un campo. */
+  readonly liveMessage = signal('');
+  /** La hoja inferior (móvil) se minimiza mientras se arrastra para que se vea la página. */
+  readonly sheetMinimized = computed(() => this.paletteGhost() !== null);
+  private stopPaletteDrag: (() => void) | null = null;
+  private ghostTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Rect del botón de origen (la cancelación anima la vuelta hasta él). */
+  private paletteOrigin: { left: number; top: number; width: number; height: number } | null = null;
+
+  /** ¿Se puede arrastrar este tipo ahora? Mismas reglas que el botón (deshabilitado = sin arrastre). */
+  private canDragKind(kind: PlacingKind): boolean {
+    if (!this.canPlace()) {
+      return false;
+    }
+    return kind === 'preparer' ? this.hasPreparerSignature() : this.signers().length > 0 && this.targetSignerId() !== null;
+  }
+
+  /** pointerdown en un botón de la paleta: el clic sigue igual; mover (ratón) o mantener (táctil) arrastra. */
+  onPalettePointerDown(event: PointerEvent, kind: PlacingKind): void {
+    if (event.button > 0 || !this.canDragKind(kind) || this.paletteGhost()?.phase === 'drag') {
+      return;
+    }
+    this.stopPaletteDrag?.();
+    const button = event.currentTarget as HTMLElement | null;
+    const rect = button?.getBoundingClientRect();
+    this.paletteOrigin = rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null;
+    this.stopPaletteDrag = startPaletteDrag(event, {
+      getScrollContainer: () => this.surfaceRef?.nativeElement ?? null,
+      onArming: armed => this.paletteArming.set(armed ? kind : null),
+      onStart: point => this.beginPaletteDrag(kind, point),
+      onFrame: point => this.onPaletteFrame(point),
+      onDrop: point => this.dropFromPalette(point),
+      onCancel: () => this.cancelPaletteDrag(),
+    });
+  }
+
+  private beginPaletteDrag(kind: PlacingKind, point: { clientX: number; clientY: number }): void {
+    if (!this.canDragKind(kind)) {
+      this.stopPaletteDrag?.();
+      return;
+    }
+    if (this.ghostTimer) {
+      clearTimeout(this.ghostTimer);
+      this.ghostTimer = null;
+    }
+    const type: FieldType = kind === 'preparer' ? 'signature' : kind;
+    const size = scaleSize(DEFAULT_SIZE[type], this.zoom());
+    // El arrastre sustituye al modo "clic para colocar" y a la selección.
+    this.placingType.set(null);
+    this.selectedFieldId.set(null);
+    this.floatingChecklistOpen.set(false);
+    const ghost = this.ghostRef?.nativeElement;
+    resetGhost(ghost);
+    setGhostPosition(ghost, point.clientX - size.w / 2, point.clientY - size.h / 2);
+    const signerId = kind === 'preparer' ? PREPARER_PARTY_ID : (this.targetSignerId() ?? '');
+    this.paletteGhost.set({ kind, type, signerId, width: size.w, height: size.h, overPage: false, phase: 'drag' });
+  }
+
+  private onPaletteFrame(point: { clientX: number; clientY: number }): void {
+    const ghost = this.paletteGhost();
+    if (!ghost || ghost.phase !== 'drag') {
+      return;
+    }
+    setGhostPosition(this.ghostRef?.nativeElement, point.clientX - ghost.width / 2, point.clientY - ghost.height / 2);
+    const hit = hitTestPages(point, measurePages(this.surfaceRef?.nativeElement));
+    const page = hit ? this.pageBox(hit.page) : undefined;
+    const next = hit && page ? { page: hit.page, ...dropRectOnPage(hit, { w: ghost.width, h: ghost.height }, page) } : null;
+    const prev = this.dropPreview();
+    // Solo se tocan los signals si algo cambió (con el puntero quieto no hay detección de cambios).
+    if (
+      prev?.page !== next?.page ||
+      prev?.x !== next?.x ||
+      prev?.y !== next?.y ||
+      prev?.width !== next?.width ||
+      prev?.height !== next?.height
+    ) {
+      this.dropPreview.set(next);
+    }
+    if (ghost.overPage !== !!next) {
+      this.paletteGhost.set({ ...ghost, overPage: !!next });
+    }
+  }
+
+  private dropFromPalette(point: { clientX: number; clientY: number }): void {
+    this.stopPaletteDrag = null;
+    const ghost = this.paletteGhost();
+    this.dropPreview.set(null);
+    if (!ghost) {
+      return;
+    }
+    const pageRects = measurePages(this.surfaceRef?.nativeElement);
+    const hit = hitTestPages(point, pageRects);
+    if (!hit || !this.canDragKind(ghost.kind)) {
+      this.cancelPaletteDrag();
+      return;
+    }
+    // Misma ruta que "clic en la página": mismo modelo, normalización, firmante y validación.
+    this.placeAt(ghost.kind, hit.page, { x: hit.x, y: hit.y });
+    this.narrowPanel.set(null);
+    const field = this.selectedField();
+    const pageRect = pageRects.find(r => r.page === hit.page);
+    if (!field || !pageRect || prefersReducedMotion()) {
+      this.clearGhost();
+      return;
+    }
+    this.paletteGhost.set({ ...ghost, phase: 'settle', overPage: true });
+    this.ghostTimer = animateGhostTo(
+      this.ghostRef?.nativeElement,
+      { left: pageRect.left + field.x, top: pageRect.top + field.y, opacity: 0 },
+      SETTLE_MS,
+      () => this.clearGhost(),
+    );
+  }
+
+  /** Escape, pointercancel o soltar fuera de una página: vuelve a la paleta sin crear nada. */
+  private cancelPaletteDrag(): void {
+    this.stopPaletteDrag = null;
+    this.dropPreview.set(null);
+    const ghost = this.paletteGhost();
+    const origin = this.paletteOrigin;
+    if (!ghost || !origin || prefersReducedMotion()) {
+      this.clearGhost();
+      return;
+    }
+    this.paletteGhost.set({ ...ghost, phase: 'return' });
+    this.ghostTimer = animateGhostTo(
+      this.ghostRef?.nativeElement,
+      {
+        left: origin.left + origin.width / 2 - ghost.width / 2,
+        top: origin.top + origin.height / 2 - ghost.height / 2,
+        scale: 0.5,
+        opacity: 0,
+      },
+      RETURN_MS,
+      () => this.clearGhost(),
+    );
+  }
+
+  private clearGhost(): void {
+    if (this.ghostTimer) {
+      clearTimeout(this.ghostTimer);
+      this.ghostTimer = null;
+    }
+    this.paletteGhost.set(null);
+    this.paletteArming.set(null);
+    resetGhost(this.ghostRef?.nativeElement);
   }
 
   /** API previa (botones): coloca un campo del tipo en la página visible para el firmante activo. */
@@ -1268,6 +1471,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   private cancelDrag(): void {
     this.stopDrag?.();
     this.stopDrag = null;
+    // Un re-render (zoom/documento) también corta el arrastre desde la paleta.
+    this.stopPaletteDrag?.();
+    this.stopPaletteDrag = null;
   }
 
   // ---------- teclado global / escape ----------
