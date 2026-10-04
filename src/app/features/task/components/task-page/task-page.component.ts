@@ -16,7 +16,6 @@ import { ApiTaskPriority, TaskFormValue, TaskItem, TaskStatus } from '../../data
 import { HasPermissionDirective } from '@shared/directives/has-permission.directive';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -46,7 +45,6 @@ type PriorityFilter = 'All' | ApiTaskPriority;
     TaskDetailDrawerComponent,
     PaginationComponent,
     HasPermissionDirective,
-    StatCardsComponent,
     SearchInputComponent,
     FilterChipsComponent,
     StateBlockComponent,
@@ -106,41 +104,6 @@ export class TaskPageComponent {
   constructor() {
     this.store.init();
   }
-
-  readonly totalCount = computed(() => this.store.tasks().length);
-
-  readonly inProgressCount = computed(
-    () => this.store.tasks().filter(task => task.status === 'in-progress').length,
-  );
-
-  readonly overdueCount = computed(
-    () =>
-      this.store
-        .tasks()
-        .filter(
-          task =>
-            task.status !== 'completed' && !!task.dueDate && new Date(task.dueDate).getTime() < Date.now(),
-        ).length,
-  );
-
-  readonly completedThisWeekCount = computed(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return this.store
-      .tasks()
-      .filter(
-        task =>
-          task.status === 'completed' &&
-          !!task.completedAtUtc &&
-          new Date(task.completedAtUtc).getTime() >= weekAgo,
-      ).length;
-  });
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: 'Total tasks', value: this.totalCount() },
-    { label: 'In progress', value: this.inProgressCount() },
-    { label: 'Overdue', value: this.overdueCount() },
-    { label: 'Completed this week', value: this.completedThisWeekCount() },
-  ]);
 
   /** La búsqueda ya viene filtrada del servidor; acá solo se aplica el filtro de prioridad. */
   readonly visibleTasks = computed<TaskItem[]>(() => {

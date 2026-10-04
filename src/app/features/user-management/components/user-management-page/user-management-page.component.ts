@@ -12,7 +12,6 @@ import {
 } from '../../ui/seat-purchase-modal/seat-purchase-modal.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -52,7 +51,6 @@ const SEARCH_DEBOUNCE_MS = 300;
     PaginationComponent,
     ConfirmDialogComponent,
     RolesPanelComponent,
-    StatCardsComponent,
     SearchInputComponent,
     FilterChipsComponent,
   ],
@@ -112,29 +110,6 @@ export class UserManagementPageComponent {
     return member
       ? `${member.name} won't be able to sign in until you reactivate them. Their data and assignments stay as they are.`
       : '';
-  });
-
-  // Stats: total desde el listado paginado; activos/pendientes/asientos desde GET /auth/tenants/limits.
-  readonly totalCount = this.store.membersTotal;
-  readonly activeCount = computed(() => this.limits()?.activeUsers ?? '—');
-  readonly pendingInvitesCount = computed(() => this.limits()?.pendingInvitations ?? this.invitationsTotal());
-  readonly seatsLeft = computed(() => {
-    const limits = this.limits();
-    if (!limits) {
-      return '—';
-    }
-    // maxUsers null = plan sin tope de asientos.
-    return limits.maxUsers === null ? '∞' : (limits.availableSeats ?? '—');
-  });
-
-  readonly stats = computed<StatCardItem[]>(() => {
-    const planCode = this.limits()?.planCode;
-    return [
-      { label: 'Total members', value: this.totalCount(), tone: 'indigo-50' },
-      { label: 'Active', value: this.activeCount(), tone: 'indigo-100' },
-      { label: 'Pending invites', value: this.pendingInvitesCount(), tone: 'indigo-100' },
-      { label: `Seats left${planCode ? ' · ' + planCode : ''}`, value: this.seatsLeft(), tone: 'indigo-100' },
-    ];
   });
 
   /** Pestañas; Roles y Seats solo con su permiso (`roles.manage` / seats), igual que antes. */

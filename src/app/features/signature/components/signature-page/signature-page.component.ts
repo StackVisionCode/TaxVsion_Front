@@ -13,7 +13,6 @@ import { SignatureCategoryManagerComponent } from '../../ui/signature-category-m
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -78,7 +77,6 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
-    StatCardsComponent,
     SearchInputComponent,
     FilterChipsComponent,
     StateBlockComponent,
@@ -165,7 +163,6 @@ export class SignaturePageComponent {
 
   constructor() {
     this.store.refresh();
-    this.store.loadStats();
     this.store.loadSignatureProfiles();
   }
 
@@ -185,28 +182,6 @@ export class SignaturePageComponent {
       );
   });
 
-  readonly completionRateLabel = computed(() => {
-    const stats = this.store.stats();
-    return stats ? `${Math.round(stats.completionRate * 100)}%` : '—';
-  });
-
-  /** Stats row (analytics del backend; "—" mientras carga o si analytics falla). */
-  readonly statItems = computed<StatCardItem[]>(() => {
-    const stats = this.store.stats();
-    return [
-      { label: 'Total requests', value: this.statValue(stats?.totalRequests) },
-      { label: 'In progress', value: this.statValue(stats?.inProgress) },
-      { label: 'Completed this month', value: this.statValue(stats?.completedThisMonth) },
-      { label: 'Completion rate', value: this.completionRateLabel() },
-    ];
-  });
-
-  statValue(value: number | undefined | null): string {
-    // `== null` cubre null Y undefined: el backend puede devolver un stat en null (no solo ausente),
-    // y formatNumber reventaba con "Cannot read properties of null (reading 'toLocaleString')".
-    return value == null ? '—' : this.formatNumber(value);
-  }
-
   setFilter(filter: SignatureStatusFilter): void {
     this.search.set('');
     this.store.setStatusFilter(filter);
@@ -222,11 +197,6 @@ export class SignaturePageComponent {
 
   retryLoad(): void {
     this.store.refresh();
-    this.store.loadStats();
-  }
-
-  formatNumber(value: number): string {
-    return value.toLocaleString('en-US');
   }
 
   openCreatePanel(): void {

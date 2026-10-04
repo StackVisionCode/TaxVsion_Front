@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -6,7 +6,6 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
@@ -42,7 +41,6 @@ const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor
     FilterChipsComponent,
     SearchInputComponent,
     SegmentedComponent,
-    StatCardsComponent,
     StateBlockComponent,
     StatusPillComponent,
   ],
@@ -101,19 +99,6 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   importForm = { listId: '', csv: 'name,email,phone\n' };
   senderForm = { channel: 'Email' as ApiChannel, name: '', senderRef: '' };
   contactForm = { name: '', email: '', phoneE164: '' };
-
-  // aggregate stats (client-side, from what is loaded)
-  readonly activeCount = computed(() => this.store.campaigns().filter(c => c.status !== 'Archived').length);
-  readonly audienceSize = computed(
-    () => this.store.lists().reduce((a, l) => a + l.memberCount, 0) + this.store.contacts().length,
-  );
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: 'Active campaigns', value: this.activeCount(), tone: 'white' },
-    { label: 'Contact lists', value: this.store.subErrors().lists ? null : this.store.lists().length, tone: 'indigo-50' },
-    { label: 'Sender profiles', value: this.store.subErrors().senders ? null : this.store.senders().length, tone: 'white' },
-    { label: 'Audience (contacts)', value: this.audienceSize(), tone: 'indigo-50' },
-  ]);
 
   ngOnInit(): void {
     this.store.init();

@@ -4,7 +4,6 @@ import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ClipboardService } from '@shared/services/clipboard.service';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -36,7 +35,6 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
     MeetingListComponent,
     MeetingSchedulePanelComponent,
     MeetingRoomComponent,
-    StatCardsComponent,
     FilterChipsComponent,
     SearchInputComponent,
     StateBlockComponent,
@@ -82,25 +80,7 @@ export class MeetingsPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
-    this.store.loadStats();
   }
-
-  // ---------- Stats (sobre lo cargado del scope actual) ----------
-
-  // Contadores reales del backend (GET /meetings/stats): cuentan sobre TODOS los meetings del usuario,
-  // no la página cargada en el cliente — antes "Transcripts" siempre daba 0 (la pestaña "past" era lazy)
-  // y el resto contaba solo la primera página de "upcoming".
-  readonly todayCount = computed(() => this.store.stats().today);
-  readonly thisWeekCount = computed(() => this.store.stats().thisWeek);
-  readonly liveNowCount = computed(() => this.store.stats().liveNow);
-  readonly transcriptsCount = computed(() => this.store.stats().transcriptsAvailable);
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: "Today's meetings", value: this.todayCount() },
-    { label: 'This week', value: this.thisWeekCount() },
-    { label: 'Live now', value: this.liveNowCount() },
-    { label: 'Transcripts available', value: this.transcriptsCount() },
-  ]);
 
   // ---------- Listado ----------
 
@@ -216,11 +196,6 @@ export class MeetingsPageComponent implements OnInit {
   /** Entra a la sala real (Socket.IO): solo meetings Live. El ActiveMeetingService maneja el join/espera. */
   joinMeeting(meeting: MeetingItem): void {
     void this.activeMeeting.join(meeting.id, meeting.title);
-  }
-
-  /** La sala ya salió/cerró la sesión (phase → 'idle' oculta la sala sola); se refrescan los contadores. */
-  leaveMeeting(): void {
-    this.store.loadStats();
   }
 
   copyCode(meeting: MeetingItem): void {

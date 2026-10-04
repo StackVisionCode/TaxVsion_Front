@@ -178,18 +178,10 @@ export function computeDraftEditPlan(
   };
 }
 
-export interface SignatureStats {
-  totalRequests: number;
-  inProgress: number;
-  completedThisMonth: number;
-  /** 0..1 (analytics summary del mes en curso). */
-  completionRate: number;
-}
-
 /**
  * Store del módulo Signature (staff): listado paginado en servidor + filtro de
  * estado server-side, detalle hidratado por fila (el summary no trae firmantes y la
- * tabla los muestra), stats, picker de customers y orquestación del wizard.
+ * tabla los muestra), picker de customers y orquestación del wizard.
  * providedIn: 'root', mismo patrón que clients/documents.
  */
 @Injectable({ providedIn: 'root' })
@@ -210,7 +202,6 @@ export class SignatureStore {
       .subscribe(() => {
         if (this.refreshToken > 0) {
           this.refresh();
-          this.loadStats();
         }
       });
 
@@ -272,12 +263,6 @@ export class SignatureStore {
   readonly pageSize = SIGNATURE_PAGE_SIZE;
 
   private refreshToken = 0;
-
-  // ---------- Stats ----------
-  private readonly _stats = signal<SignatureStats | null>(null);
-  private readonly _statsLoading = signal(false);
-  readonly stats = this._stats.asReadonly();
-  readonly statsLoading = this._statsLoading.asReadonly();
 
   // ---------- Customers (picker del wizard) ----------
   private readonly _customers = signal<WizardClient[]>([]);
@@ -350,36 +335,6 @@ export class SignatureStore {
           this._loading.set(false);
         },
       });
-  }
-
-  // ==================================================================
-  // Stats (cards de la página)
-  // ==================================================================
-
-  loadStats(): void {
-    this._statsLoading.set(true);
-    const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const today = now.toISOString().slice(0, 10);
-    forkJoin({
-      all: this.service.list({ page: 1, size: 1 }),
-      inProgress: this.service.list({ status: 'InProgress', page: 1, size: 1 }),
-      month: this.service.analyticsSummary(monthStart, today),
-    }).subscribe({
-      next: ({ all, inProgress, month }) => {
-        this._stats.set({
-          totalRequests: all.totalCount,
-          inProgress: inProgress.totalCount,
-          completedThisMonth: month.requestsCompleted,
-          completionRate: month.completionRate,
-        });
-        this._statsLoading.set(false);
-      },
-      error: () => {
-        // Las cards no bloquean la página: se quedan en "—" si analytics falla.
-        this._statsLoading.set(false);
-      },
-    });
   }
 
   // ==================================================================
@@ -768,7 +723,6 @@ export class SignatureStore {
 
   private refreshAfterAction(): void {
     this.refresh();
-    this.loadStats();
   }
 
   // ==================================================================

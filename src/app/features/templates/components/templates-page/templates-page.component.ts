@@ -6,7 +6,6 @@ import { TemplateCardGridComponent } from '../../ui/template-card-grid/template-
 import { TemplateFormPanelComponent } from '../../ui/template-form-panel/template-form-panel.component';
 import { TemplatePreviewComponent } from '../../ui/template-preview/template-preview.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -36,7 +35,6 @@ type CategoryFilter = 'All' | string;
     TemplateFormPanelComponent,
     TemplatePreviewComponent,
     ConfirmDialogComponent,
-    StatCardsComponent,
     FilterChipsComponent,
     SearchInputComponent,
     StateBlockComponent,
@@ -78,18 +76,6 @@ export class TemplatesPageComponent implements OnInit {
       ? `You're about to archive template ${template.name}. It stays available for existing campaigns but can't be used for new ones.`
       : '';
   });
-
-  readonly totalCount = computed(() => this.store.templates().length);
-  readonly publishedCount = computed(
-    () => this.store.templates().filter(template => template.status === 'published').length,
-  );
-  readonly draftCount = computed(() => this.store.templates().filter(template => template.status === 'draft').length);
-
-  readonly statItems = computed<StatCardItem[]>(() => [
-    { label: 'Total templates', value: this.totalCount() },
-    { label: 'Published', value: this.publishedCount() },
-    { label: 'Drafts', value: this.draftCount() },
-  ]);
 
   readonly visibleTemplates = computed<Template[]>(() => {
     const query = this.search().trim().toLowerCase();

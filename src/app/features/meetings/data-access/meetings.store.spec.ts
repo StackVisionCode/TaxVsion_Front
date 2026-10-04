@@ -52,7 +52,7 @@ describe('MeetingsStore realtime refresh', () => {
         MeetingsStore,
         {
           provide: MeetingsService,
-          useValue: { list, stats: () => of({ today: 3, thisWeek: 5, liveNow: 1, transcriptsAvailable: 2 }) },
+          useValue: { list },
         },
         { provide: AuthService, useValue: { currentUser: () => ({ id: 'u1', permissions: [] }) } },
         { provide: CloudStorageUploadService, useValue: {} },
@@ -88,11 +88,6 @@ describe('MeetingsStore realtime refresh', () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it('loadStats fills the stats signal from the backend (real counts for the cards)', () => {
-    expect(store.stats()).toEqual({ today: 0, thisWeek: 0, liveNow: 0, transcriptsAvailable: 0 });
-    store.loadStats();
-    expect(store.stats()).toEqual({ today: 3, thisWeek: 5, liveNow: 1, transcriptsAvailable: 2 });
-  });
 
   it('bindRealtime is idempotent (a second call does not double-subscribe)', () => {
     store.bindRealtime();

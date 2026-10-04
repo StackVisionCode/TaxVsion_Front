@@ -6,15 +6,13 @@ import { toApiError } from '@core/models/api-error.model';
 import { ServiceCatalogComponent } from '../../ui/service-catalog/service-catalog.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
-import { formatMoney } from '@shared/utils/format.util';
 import { CatalogStore } from '../../data-access/catalog.store';
 import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '../../data-access/catalog.model';
 
 /**
- * Página del módulo Products & Services (estilo "Aether"): stats pastel +
+ * Página del módulo Products & Services (estilo "Aether"):
  * catálogo con búsqueda/filtros/toggle grid-tabla + modal de crear/editar.
  * Los datos vienen del servicio Catalog (/catalog vía Gateway) a través del
  * CatalogStore; las categorías son POR TENANT y el modal permite crearlas al
@@ -29,7 +27,6 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
     ServiceCatalogComponent,
     ModalComponent,
     ConfirmDialogComponent,
-    StatCardsComponent,
     StateBlockComponent,
     FilterChipsComponent,
   ],
@@ -38,8 +35,6 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
 })
 export class ProductsServicesPageComponent implements OnInit {
   readonly store = inject(CatalogStore);
-
-  // ---------- Stats (sobre el lote cargado; el total viene del servidor) ----------
 
   // ---------- Filtro por tipo (pestañas Products / Services) ----------
 
@@ -56,20 +51,6 @@ export class ProductsServicesPageComponent implements OnInit {
     const entries = this.store.entries();
     return kind === 'all' ? entries : entries.filter(e => e.kind === kind);
   });
-
-  readonly activeCount = computed(() => this.store.entries().filter(s => s.status === 'active').length);
-  readonly avgPrice = computed(() => {
-    const services = this.store.entries();
-    if (!services.length) return 0;
-    return Math.round(services.reduce((sum, s) => sum + s.price, 0) / services.length);
-  });
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: 'Total services', value: this.store.total() },
-    { label: 'Active', value: this.activeCount() },
-    { label: 'Avg. price', value: formatMoney(this.avgPrice(), 'USD', { minFraction: 0 }) },
-    { label: 'Categories', value: this.store.categories().length },
-  ]);
 
   // ---------- Modal de crear/editar ----------
 

@@ -1,5 +1,4 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
@@ -22,18 +21,11 @@ import { StateBlockComponent } from '@shared/ui/state-block/state-block.componen
  */
 @Component({
   selector: 'app-client-profile-mileage',
-  imports: [StatCardsComponent, StateBlockComponent],
+  imports: [StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-mileage.component.html',
 })
 export class ClientProfileMileageComponent {
   /** Se conserva el binding del padre para el día en que exista el servicio de mileage. */
   @Input() clientId = '';
-
-  /** Marco de las stat cards en "—" (value null): sin servicio no hay nada que calcular. */
-  readonly stats: StatCardItem[] = [
-    { label: 'Trips logged', value: null, tone: 'indigo-50' },
-    { label: 'Total miles', value: null, tone: 'indigo-100' },
-    { label: 'Est. reimbursement', value: null, tone: 'indigo-100' },
-  ];
 }
