@@ -128,21 +128,21 @@
 .widget-cell[data-widget-id="hero"] { animation-name: widget-in-hero; }
 @keyframes widget-in-hero {
   from { opacity: 0; transform: scale(0.94) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- side-stack: entra deslizando desde la izquierda --- */
 .widget-cell[data-widget-id="side-stack"] { animation-name: widget-in-side-stack; }
 @keyframes widget-in-side-stack {
   from { opacity: 0; transform: translateX(-24px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- analytics-stack: entra deslizando desde la derecha --- */
 .widget-cell[data-widget-id="analytics-stack"] { animation-name: widget-in-analytics-stack; }
 @keyframes widget-in-analytics-stack {
   from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- tasks: pop juguetón con leve giro --- */
@@ -153,14 +153,14 @@
 }
 @keyframes widget-in-tasks {
   from { opacity: 0; transform: scale(0.85) rotate(-3deg); }
-  to { opacity: 1; transform: scale(1) rotate(0deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- mini-calendar: flip 3D, como pasar una hoja --- */
 .widget-cell[data-widget-id="mini-calendar"] { animation-name: widget-in-mini-calendar; }
 @keyframes widget-in-mini-calendar {
   from { opacity: 0; transform: perspective(700px) rotateX(-32deg); }
-  to { opacity: 1; transform: perspective(700px) rotateX(0deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- recent-chats: desliza desde la izquierda con un pequeño rebote --- */
@@ -172,14 +172,14 @@
 @keyframes widget-in-recent-chats {
   0% { opacity: 0; transform: translateX(-20px); }
   70% { opacity: 1; transform: translateX(4px); }
-  100% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 1; transform: none; }
 }
 
 /* --- recent-activity: fade + slide up clásico y calmo --- */
 .widget-cell[data-widget-id="recent-activity"] { animation-name: widget-in-recent-activity; }
 @keyframes widget-in-recent-activity {
   from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- video-calls: pulso de escala, como un obturador abriéndose --- */
@@ -191,7 +191,7 @@
 @keyframes widget-in-video-calls {
   0% { opacity: 0; transform: scale(0.8); }
   60% { opacity: 1; transform: scale(1.04); }
-  100% { opacity: 1; transform: scale(1); }
+  100% { opacity: 1; transform: none; }
 }
 
 /* --- invoices-chart: crece desde abajo, como sus propias barras --- */
@@ -201,21 +201,21 @@
 }
 @keyframes widget-in-invoices-chart {
   from { opacity: 0; transform: scaleY(0.85) translateY(10px); }
-  to { opacity: 1; transform: scaleY(1) translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- storage-usage: gira levemente al entrar, como un dial --- */
 .widget-cell[data-widget-id="storage-usage"] { animation-name: widget-in-storage-usage; }
 @keyframes widget-in-storage-usage {
   from { opacity: 0; transform: rotate(-8deg) scale(0.92); }
-  to { opacity: 1; transform: rotate(0deg) scale(1); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- signed-documents: desliza desde la derecha con un leve giro de "hoja" --- */
 .widget-cell[data-widget-id="signed-documents"] { animation-name: widget-in-signed-documents; }
 @keyframes widget-in-signed-documents {
   from { opacity: 0; transform: translateX(20px) rotate(2deg); }
-  to { opacity: 1; transform: translateX(0) rotate(0deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- monthly-clients: bounce-in festivo (crecimiento) --- */
@@ -228,14 +228,14 @@
   0% { opacity: 0; transform: scale(0.7); }
   50% { opacity: 1; transform: scale(1.08); }
   75% { transform: scale(0.96); }
-  100% { transform: scale(1); }
+  100% { transform: none; }
 }
 
 /* --- notes: flip 3D como pasar una página de libreta --- */
 .widget-cell[data-widget-id="notes"] { animation-name: widget-in-notes; }
 @keyframes widget-in-notes {
   from { opacity: 0; transform: perspective(700px) rotateY(24deg); }
-  to { opacity: 1; transform: perspective(700px) rotateY(0deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ============================================

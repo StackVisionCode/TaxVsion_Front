@@ -14,7 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { captureActiveElement, focusablesIn, setBodyScrollLock, trapTabKey } from '../../utils/overlay.util';
+import { captureActiveElement, focusablesIn, portalToBody, setBodyScrollLock, trapTabKey } from '../../utils/overlay.util';
 import { prefersReducedMotion } from '../../utils/reduced-motion.util';
 
 export type DrawerWidth = 'md' | 'lg' | 'xl';
@@ -62,6 +62,7 @@ let drawerInstanceSeq = 0;
   styleUrl: './drawer.component.css',
   template: `
     @if (rendered()) {
+      <div #portal>
       <div class="drawer-backdrop fixed inset-0 z-40 bg-black/30" [class.is-closing]="closing()" (click)="close()"></div>
       <aside #panel role="dialog" aria-modal="true" tabindex="-1"
         [attr.aria-labelledby]="heading ? headingId : null" [attr.aria-label]="heading ? null : ariaLabel || null"
@@ -86,6 +87,7 @@ let drawerInstanceSeq = 0;
         </div>
         <div class="border-t border-gray-100 px-6 py-4 empty:hidden"><ng-content select="[drawerFooter]"></ng-content></div>
       </aside>
+      </div>
     }
   `,
 })
@@ -100,6 +102,12 @@ export class DrawerComponent implements OnChanges, OnDestroy {
   @Output() readonly closed = new EventEmitter<void>();
 
   @ViewChild('panel') panelRef?: ElementRef<HTMLElement>;
+  /** Contenedor de backdrop + panel, portado al <body> como un solo nodo (ver `portalToBody`). */
+  @ViewChild('portal')
+  private set portalRef(ref: ElementRef<HTMLElement> | undefined) {
+    this.portaled = portalToBody(ref?.nativeElement) ?? this.portaled;
+  }
+  private portaled: HTMLElement | null = null;
 
   readonly headingId = `drawer-title-${drawerInstanceSeq++}`;
   /** Montado (abierto o animando la salida). */
@@ -143,6 +151,7 @@ export class DrawerComponent implements OnChanges, OnDestroy {
     this.clearExit();
     this.reconcileScrollLock(false);
     this.restoreFocus();
+    this.portaled?.remove();
   }
 
   @HostListener('document:keydown.escape')

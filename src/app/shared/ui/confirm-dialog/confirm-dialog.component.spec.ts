@@ -26,7 +26,7 @@ describe('ConfirmDialogComponent', () => {
     TestBed.configureTestingModule({ imports: [HostComponent] });
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
-    const el = fixture.nativeElement as HTMLElement;
+    const el = document.body; // el modal se porta al <body>
     const buttons = () => Array.from(el.querySelectorAll('.mt-6 button')) as HTMLButtonElement[];
     return { fixture, host: fixture.componentInstance, el, buttons };
   }
