@@ -73,6 +73,7 @@ import {
 } from '../../utils/editor-fields.util';
 import { ReadinessItem, buildReadinessChecklist } from '../../utils/editor-readiness.util';
 import { isSigningPinInvalid, withSequential } from '../../utils/request-rules.util';
+import { StampFontSizeResult, stampFontSizeForBox } from '../../utils/stamp-font-size.util';
 import { startPointerDrag } from '../../utils/pointer-drag.util';
 import {
   RETURN_MS,
@@ -228,6 +229,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   @Input() keepFieldsOnDocumentChange = false;
   /** Nº de campos colocados (incluye los del preparador). Se emite desde un effect, nunca en ngOnChanges. */
   @Output() fieldCountChange = new EventEmitter<number>();
+  /** F2.5: cada vez que el editor consolida un cambio (campo, firmante, regla…). El panel autoguarda. */
+  @Output() editorStateChanged = new EventEmitter<void>();
 
   @ViewChild('surface') private surfaceRef?: ElementRef<HTMLElement>;
   @ViewChild('ghostEl') private ghostRef?: ElementRef<HTMLElement>;
@@ -714,6 +717,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   private markDirty(): void {
     this.dirty.set(true);
+    // F2.5: notifica al panel para que arme el UpsertDraftBody y dispare el autosave debounced.
+    this.editorStateChanged.emit();
   }
 
   private nextId(prefix: 'signer' | 'field' | 'prep'): string {
@@ -1259,6 +1264,26 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   isPreparerField(field: PlacedField): boolean {
     return field.signerId === PREPARER_PARTY_ID;
   }
+
+  /**
+   * F6 — Tamaño de letra que estampará el sellador para el campo seleccionado, en pt del PDF.
+   *
+   * **Debe ser `computed`, NO método**: llamarlo como método (`fontBadgeFor(f)`) desde el template
+   * devuelve un objeto `{pt, mayShrink}` nuevo en cada ciclo → Angular lo ve como "cambió", vuelve
+   * a correr change detection, y entra en loop infinito (NG0103). El `computed` memoiza por
+   * referencia mientras sus inputs (selectedField + pages) no cambien.
+   *
+   * Las dimensiones del field están en PX de pantalla a la escala del render; las fórmulas del
+   * sealing engine son en PT del PDF. Dividir por `page.scale` convierte. Sin esto el número se
+   * clava en el máximo porque px ≈ 1.33× pt y la fórmula satura.
+   */
+  readonly selectedFieldFontBadge = computed<StampFontSizeResult | null>(() => {
+    const field = this.selectedField();
+    if (!field || this.isPreparerField(field)) return null;
+    const page = this.pageBox(field.page);
+    if (!page || page.scale <= 0) return null;
+    return stampFontSizeForBox(field.type, field.height / page.scale, field.width / page.scale);
+  });
 
   removeField(id: string): void {
     if (this.interactionLocked()) {

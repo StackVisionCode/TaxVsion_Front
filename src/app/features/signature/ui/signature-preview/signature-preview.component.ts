@@ -42,6 +42,8 @@ export class SignaturePreviewComponent {
   @Input() sending = false;
   @Output() back = new EventEmitter<void>();
   @Output() send = new EventEmitter<SignatureRequest>();
+  /** F3 — cancelar la programacion de envio (Scheduled → Draft). */
+  @Output() cancelSchedule = new EventEmitter<SignatureRequest>();
   @Output() downloadOriginal = new EventEmitter<SignatureRequest>();
   @Output() downloadSealed = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificate = new EventEmitter<SignatureRequest>();
@@ -59,6 +61,20 @@ export class SignaturePreviewComponent {
       return '—';
     }
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  /** F3 — fecha+hora programada; el ISO completo del backend viene en UTC, la pintamos en la TZ local. */
+  formatScheduledDateTime(iso: string | null | undefined): string {
+    if (!iso) {
+      return '—';
+    }
+    return new Date(iso).toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   }
 
   readonly statusLabel = signatureStatusLabel;

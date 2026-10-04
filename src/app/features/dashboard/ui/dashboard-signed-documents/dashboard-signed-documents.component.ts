@@ -99,6 +99,7 @@ export class DashboardSignedDocumentsComponent implements OnInit {
         return 'success';
       case 'InProgress':
       case 'Ready':
+      case 'Scheduled':
         return 'warning';
       case 'Rejected':
       case 'Canceled':

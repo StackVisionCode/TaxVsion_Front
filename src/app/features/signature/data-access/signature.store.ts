@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, debounceTime, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, debounceTime, distinctUntilChanged, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { Subject } from 'rxjs';
@@ -205,23 +205,43 @@ export class SignatureStore {
         }
       });
 
-    // F2.5: autoguardado — el editor empuja el estado completo, el pipeline debounce + switchMap
-    // garantiza una sola llamada por ráfaga y cancela las que quedaron en vuelo si llega otra.
+    // F2.5: autoguardado — el editor empuja el estado completo. Pipeline:
+    //  - debounce 5s (antes 2.5s): colapsa ráfagas de resize/drag en una sola llamada.
+    //  - distinctUntilChanged por JSON: no se vuelve a mandar si el body no cambió realmente.
+    //  - switchMap: cancela request en vuelo si llega una nueva.
+    //  - catchError en el inner observable: así UN error no mata la suscripción (sin esto, un
+    //    429/500 cualquiera dejaba el autosave inservible hasta recargar la página).
+    //  - Si el server responde 429, entramos en cooldown 30s (se refleja en scheduleAutosave) para
+    //    no seguir empujando contra el rate-limit `signature.g.request_manage` (60/min).
     this.autosave$
       .pipe(
-        debounceTime(2500),
-        switchMap(req => this.service.upsertDraft(req.id, req.body)),
+        debounceTime(5000),
+        distinctUntilChanged(
+          (a, b) => a.id === b.id && JSON.stringify(a.body) === JSON.stringify(b.body),
+        ),
+        switchMap(req =>
+          this.service.upsertDraft(req.id, req.body).pipe(
+            map(resp => ({ ok: true as const, resp })),
+            catchError(err => {
+              const apiError = toApiError(err);
+              const isRateLimited = apiError.code === 'Http.429';
+              this._autosaveStatus.set(
+                apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error',
+              );
+              if (isRateLimited) {
+                this._autosaveCooldownUntil = Date.now() + 30_000;
+              }
+              return of({ ok: false as const });
+            }),
+          ),
+        ),
         takeUntilDestroyed(),
       )
-      .subscribe({
-        next: resp => {
+      .subscribe(result => {
+        if (result.ok) {
           this._autosaveStatus.set('saved');
-          this._lastSavedAtUtc.set(resp.updatedAtUtc);
-        },
-        error: err => {
-          const apiError = toApiError(err);
-          this._autosaveStatus.set(apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error');
-        },
+          this._lastSavedAtUtc.set(result.resp.updatedAtUtc);
+        }
       });
   }
 
@@ -235,8 +255,12 @@ export class SignatureStore {
   readonly lastSavedAtUtc = this._lastSavedAtUtc.asReadonly();
   readonly autosaveEnabled = environment.signatureAutosaveEnabled === true;
 
+  // Timestamp hasta el que el autosave está en cooldown (429 reciente). 0 = sin cooldown.
+  private _autosaveCooldownUntil = 0;
+
   scheduleAutosave(id: string, body: UpsertDraftBody): void {
     if (!this.autosaveEnabled) return;
+    if (Date.now() < this._autosaveCooldownUntil) return; // cooldown por rate-limit del backend
     this._autosaveStatus.set('saving');
     this.autosave$.next({ id, body });
   }
@@ -491,6 +515,16 @@ export class SignatureStore {
    */
   sendRequest(requestId: string): Observable<void> {
     return this.service.send(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** F3 — Programa el envio futuro (Draft → Scheduled). La fecha va en UTC. */
+  scheduleSendRequest(requestId: string, scheduledSendAtUtc: string): Observable<void> {
+    return this.service.scheduleSend(requestId, scheduledSendAtUtc).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** F3 — Cancela la programacion (Scheduled → Draft). */
+  cancelScheduleRequest(requestId: string): Observable<void> {
+    return this.service.cancelSchedule(requestId).pipe(tap(() => this.refreshAfterAction()));
   }
 
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
@@ -1026,14 +1060,17 @@ export class SignatureStore {
   }
 
   /**
-   * Send exige estado Ready; la promoción Draft→Ready llega cuando CloudStorage
-   * termina el antivirus (evento FileAvailable). Se pollea el detalle unos segundos.
+   * Send exige que el hash del original este adjunto. Lo adjunta el consumer
+   * de `FileAvailable` cuando CloudStorage termina el antivirus — es la unica
+   * promocion que depende del scan ahora (F2 eliminó Ready: el estado se queda
+   * en Draft hasta que el preparador envie). Se pollea `documentHashPre`,
+   * no el status.
    */
   private async waitUntilReady(requestId: string): Promise<void> {
     for (let attempt = 0; attempt < READY_POLL_MAX_ATTEMPTS; attempt++) {
       const detail = await firstValueFrom(this.service.getById(requestId));
-      if (detail.status !== 'Draft') {
-        return; // Ready (o más allá): send decide el resto
+      if (detail.documentHashPre !== null) {
+        return; // Hash adjunto → send puede proceder
       }
       await new Promise(resolve => setTimeout(resolve, READY_POLL_INTERVAL_MS));
     }

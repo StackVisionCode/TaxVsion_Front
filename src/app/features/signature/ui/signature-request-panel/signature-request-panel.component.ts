@@ -14,6 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { toApiError } from '@core/models/api-error.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
@@ -37,11 +38,15 @@ import {
   writeDraftSnapshot,
 } from '../../utils/wizard-draft-recovery.util';
 import {
+  ApiSignatureRequestStatus,
   SetPreparerBody,
   SignatureCategory,
   TOKEN_EXPIRATION_DEFAULT_HOURS,
   TOKEN_EXPIRATION_MAX_HOURS,
   TOKEN_EXPIRATION_MIN_HOURS,
+  UpsertDraftBody,
+  UpsertDraftField,
+  UpsertDraftSigner,
   channelToVerificationMethod,
   customerToWizardClient,
   fieldTypeToKind,
@@ -164,7 +169,15 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   /** Progreso del envío multi-paso; sobrevive a fallos parciales para reintentar sin duplicar. */
   private sendState: WizardSendState = emptySendState();
+  // F2.5: versión del backend para optimistic concurrency en el autosave. Se seed al hidratar y la
+  // mantiene el store (lastSavedAtUtc) cuando cada upsert responde.
+  private hydratedUpdatedAtUtc: string | null = null;
   readonly sendError = signal('');
+  // F3 — picker inline del Schedule send (Review step).
+  readonly scheduleOpen = signal(false);
+  readonly scheduleAtLocal = signal('');
+  readonly scheduling = signal(false);
+  readonly scheduleError = signal('');
 
   /** Guardando como borrador (sin enviar). */
   readonly savingDraft = signal(false);
@@ -436,6 +449,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.editorSeed.set(hydration.seed);
       this.original = hydration.original;
       this.sendState = hydration.sendState;
+      // F2.5: la versión base del autosave es la que trae el detail; cada upsert devuelve una nueva.
+      this.hydratedUpdatedAtUtc = detail.updatedAtUtc;
+      this.store.resetAutosaveStatus();
 
       // Bytes del PDF original para que el editor renderice el documento real (no el de muestra).
       const url = await firstValueFrom(this.store.getDownloadUrl(detail.originalFileId));
@@ -672,6 +688,115 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     void this.runSend();
   }
 
+  /** F3 — Abre/cierra el picker inline del Schedule send. */
+  toggleSchedulePicker(): void {
+    if (this.isSending() || this.scheduling()) {
+      return;
+    }
+    this.scheduleError.set('');
+    this.scheduleOpen.update(v => !v);
+  }
+
+  /**
+   * F3 — Programa el envío a futuro. Flujo: materializar/actualizar el draft (como "Save as draft")
+   * y luego llamar `POST /schedule`. El input es datetime-local (TZ del navegador); lo convertimos a
+   * ISO UTC con `new Date(local).toISOString()`.
+   */
+  scheduleSend(): void {
+    if (!this.canSend() || this.scheduling() || this.isSending()) {
+      return;
+    }
+    if (isSigningPinInvalid(this.rulesSnapshot())) {
+      this.toast.error('Enter a 4–10 digit Signing PIN, or clear it to schedule.');
+      return;
+    }
+    const local = this.scheduleAtLocal().trim();
+    if (!local) {
+      this.scheduleError.set('Pick a date and time.');
+      return;
+    }
+    const parsed = new Date(local);
+    if (Number.isNaN(parsed.getTime())) {
+      this.scheduleError.set('Invalid date/time.');
+      return;
+    }
+    if (parsed.getTime() <= Date.now()) {
+      this.scheduleError.set('The time must be in the future.');
+      return;
+    }
+    void this.runSchedule(parsed.toISOString());
+  }
+
+  /** Mapea el status del detail a un mensaje claro para el usuario cuando `schedule` responde 409. */
+  private describeNotSchedulableStatus(status: ApiSignatureRequestStatus | undefined): string {
+    switch (status) {
+      case 'InProgress':
+        return 'This request was already sent. You can\'t schedule it anymore.';
+      case 'Completed':
+        return 'This request is already completed.';
+      case 'Rejected':
+        return 'This request was rejected.';
+      case 'Canceled':
+        return 'This request was canceled.';
+      case 'Expired':
+        return 'This request has expired.';
+      default:
+        return 'This request can\'t be scheduled in its current state.';
+    }
+  }
+
+  private async runSchedule(utcIso: string): Promise<void> {
+    // En Review los snapshots vienen de los pasos previos, pero volver a congelar es barato y seguro.
+    if (this.editor) {
+      this.signersSnapshot.set(this.editor.getSigners());
+      this.fieldsSnapshot.set(this.editor.getFields());
+      this.normalizedFieldsSnapshot.set(this.editor.buildNormalizedFields());
+      this.preparerFieldsSnapshot.set(this.editor.buildPreparerFields());
+      this.preparerSignatureFileIdSnapshot.set(this.editor.getPreparerSignatureFileId());
+      this.preparerInfoSnapshot.set(this.editor.getPreparerInfo());
+      this.rulesSnapshot.set(this.editor.getRules());
+    }
+    const draft = this.buildDraft();
+    if (!draft) {
+      return;
+    }
+    this.scheduling.set(true);
+    this.scheduleError.set('');
+    try {
+      // Persistir el borrador primero (crea o actualiza vía diff), luego programar. No hacemos
+      // guard preventivo del status aquí: el backend acepta Draft/Ready/Scheduled; si está en
+      // cualquier otro estado, el 409 que viene abajo se traduce al mensaje humano real.
+      this.sendState = this.original
+        ? await this.store.commitEditedDraft(draft, this.sendState, this.original, false)
+        : await this.store.saveDraft(draft, this.sendState);
+      const requestId = this.sendState.requestId;
+      if (!requestId) {
+        throw new Error('The request could not be prepared to schedule.');
+      }
+      await firstValueFrom(this.store.scheduleSendRequest(requestId, utcIso));
+      clearDraftSnapshot();
+      this.scheduling.set(false);
+      this.scheduleOpen.set(false);
+      this.scheduleAtLocal.set('');
+      this.toast.success('Scheduled — the request will be sent at the chosen time');
+      this.sent.emit();
+    } catch (err) {
+      this.scheduling.set(false);
+      const apiError = toApiError(err);
+      if (apiError.code === 'Signature.Request.NotSchedulable' && this.sendState.requestId) {
+        // Resolvemos el status real para explicar POR QUÉ no se puede programar.
+        try {
+          const current = await firstValueFrom(this.store.getDetail(this.sendState.requestId));
+          this.scheduleError.set(this.describeNotSchedulableStatus(current.status));
+        } catch {
+          this.scheduleError.set(apiError.message || 'The request could not be scheduled.');
+        }
+      } else {
+        this.scheduleError.set(apiError.message || 'The request could not be scheduled.');
+      }
+    }
+  }
+
   /** Guarda el borrador sin enviarlo. Reusa `sendState`: si luego se envía, no se duplica nada. */
   saveAsDraft(): void {
     if (!this.canSaveDraft() || this.savingDraft() || this.isSending()) {
@@ -741,6 +866,95 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.sendPhase.set('idle');
       this.sendError.set(err instanceof Error ? err.message : 'The request could not be sent. Please retry.');
     }
+  }
+
+  /**
+   * F2.5: cada vez que el editor consolida un cambio, armamos el UpsertDraftBody en vivo y lo
+   * mandamos al pipeline debounced del store. Guardas:
+   *  - flag `signatureAutosaveEnabled` off → no hace nada.
+   *  - sin requestId (todavía no se materializó el draft) → no autoguarda; el primer "Save as draft"
+   *    manual sigue siendo el disparador de creación. (El "first PlaceField crea la request"
+   *    automático es una mejora incremental.)
+   *  - editor no listo (`safeToExport` false, PDF cargando) → silencio.
+   */
+  onEditorStateChanged(): void {
+    if (!this.store.autosaveEnabled) {
+      return;
+    }
+    const requestId = this.sendState.requestId;
+    if (!requestId) {
+      return;
+    }
+    const editor = this.editorRef();
+    if (!editor || !editor.safeToExport()) {
+      return;
+    }
+    const body = this.buildAutosaveBody(editor);
+    if (!body) {
+      return;
+    }
+    this.store.scheduleAutosave(requestId, body);
+  }
+
+  /** Snapshot del editor + metadata del wizard en el shape que el endpoint `PUT /requests/{id}/draft` espera. */
+  private buildAutosaveBody(editor: SignaturePdfEditorComponent): UpsertDraftBody | null {
+    const client = this.selectedClient();
+    const doc = this.selectedDocument();
+    if (!client || !doc?.fileId) {
+      return null;
+    }
+    const rules = editor.getRules();
+    const editorSigners = editor.getSigners();
+    const normalized = editor.buildNormalizedFields();
+
+    // Signers conservan su Id del backend cuando ya se posteó (sendState.signerIdByLocal); los nuevos
+    // llevan Id null para que el handler los cree y les asigne un Guid.
+    const signers: UpsertDraftSigner[] = editorSigners.map(s => ({
+      id: this.sendState.signerIdByLocal[s.id] ?? null,
+      email: s.email,
+      fullName: s.name,
+      phoneNumber: s.phone.trim() || null,
+      language: s.language,
+      verificationMethod: channelToVerificationMethod(s.channel) ?? null,
+    }));
+
+    // MVP: los fields van sin Id → el handler re-sincroniza fields en cada autosave (borra lo que
+    // ya no está, crea los nuevos). Correcto e idempotente; optimización por diff queda para después.
+    const signerIndexById = new Map<string, number>();
+    editorSigners.forEach((s, i) => signerIndexById.set(s.id, i));
+    const fields: UpsertDraftField[] = [];
+    for (const f of normalized) {
+      const idx = signerIndexById.get(f.signerLocalId);
+      if (idx === undefined) {
+        continue; // field huérfano (su signer local ya no existe) — se omite
+      }
+      fields.push({
+        id: null,
+        signerIndex: idx,
+        kind: fieldTypeToKind(f.type),
+        page: f.page,
+        x: f.x,
+        y: f.y,
+        width: f.width,
+        height: f.height,
+        label: f.label ?? null,
+        isRequired: true,
+      });
+    }
+
+    return {
+      expectedUpdatedAtUtc: this.store.lastSavedAtUtc() ?? this.hydratedUpdatedAtUtc,
+      title: this.title().trim() || 'Untitled',
+      description: this.notes().trim() || null,
+      category: this.category(),
+      tokenExpirationHours: this.tokenExpirationHours(),
+      sendSignedDocumentToSigners: rules.sendSignedDocument,
+      sendCertificateToSigners: rules.sendCertificate && rules.certificate,
+      autoRemindersEnabled: rules.autoReminder,
+      reminderIntervalHours: rules.reminderIntervalHours,
+      signers,
+      fields,
+    };
   }
 
   private buildDraft(): WizardRequestDraft | null {

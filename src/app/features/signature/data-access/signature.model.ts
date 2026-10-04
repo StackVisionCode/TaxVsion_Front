@@ -18,6 +18,7 @@ export type SignatureCategory = string;
 export type ApiSignatureRequestStatus =
   | 'Draft'
   | 'Ready'
+  | 'Scheduled'
   | 'InProgress'
   | 'Completed'
   | 'Rejected'
@@ -179,6 +180,8 @@ export interface SignatureRequestDetail {
   completedAtUtc: string | null;
   canceledAtUtc: string | null;
   expiredAtUtc: string | null;
+  // F3 — hora UTC programada (si status === 'Scheduled').
+  scheduledSendAtUtc: string | null;
   isPreparerSigned: boolean;
   preparerSignedAtUtc: string | null;
   preparerSignatureFileId: string | null;
@@ -200,6 +203,8 @@ export interface SignatureRequestSummary {
   completedAtUtc: string | null;
   // F2.5: borrador del propio actor → la UI lo pinta como "In preparation".
   isOwnedByActor: boolean;
+  // F3: hora UTC programada (si status === 'Scheduled').
+  scheduledSendAtUtc: string | null;
 }
 
 export interface SignatureRequestListResult {
@@ -603,6 +608,8 @@ export function apiStatusToUi(status: ApiSignatureRequestStatus): SignatureStatu
       return 'draft';
     case 'Ready':
       return 'ready';
+    case 'Scheduled':
+      return 'scheduled';
     case 'InProgress':
       return 'in-progress';
     case 'Completed':
@@ -668,6 +675,7 @@ export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?
     preparerSignatureFileId: detail.preparerSignatureFileId,
     preparerFieldCount: detail.preparerFields.length,
     isOwnedByActor: currentUserId ? detail.createdByUserId === currentUserId : false,
+    scheduledSendAtUtc: detail.scheduledSendAtUtc,
   };
 }
 
