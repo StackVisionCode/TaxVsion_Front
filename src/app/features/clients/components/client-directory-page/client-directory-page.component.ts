@@ -66,7 +66,6 @@ export class ClientDirectoryPageComponent {
   readonly size = this.store.size;
   readonly totalCount = this.store.totalCount;
   readonly status = this.store.status;
-  readonly counts = this.store.counts;
 
   readonly pageSizes = LIST_PAGE_SIZES;
   readonly statusOptions: FilterChipOption<CustomerStatusFilter>[] = [
