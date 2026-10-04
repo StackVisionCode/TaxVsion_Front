@@ -1,4 +1,15 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 import { CustomerAssignee, CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
@@ -63,6 +74,19 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
 })
 export class ClientProfileOverviewComponent implements OnChanges {
   @Input() client!: ClientProfile;
+  /** Identificador completo ya revelado (lo maneja el contenedor: re-enmascara a los 30 s). */
+  @Input() revealedTaxId: string | null = null;
+  @Input() revealingTaxId = false;
+  /** `customers.fiscalprofile.reveal`: permiso PROPIO, igual que en la pestaña Info. */
+  @Input() canReveal = false;
+
+  /** Pide el reveal auditado (el contenedor llama a `revealTaxIdentifier`). */
+  @Output() revealTaxId = new EventEmitter<string>();
+  /** Volver a enmascarar. */
+  @Output() hideTaxId = new EventEmitter<void>();
+
+  /** Confirmación de un paso antes de revelar (mismo flujo que la pestaña Info). */
+  readonly confirmingReveal = signal(false);
 
   readonly summary = inject(ClientOverviewStore);
   private readonly staff = inject(StaffDirectoryStore);
@@ -81,7 +105,11 @@ export class ClientProfileOverviewComponent implements OnChanges {
     return this._assignees().map(a => ({ userId: a.userId, isPrimary: a.isPrimary, member: byId.get(a.userId) }));
   });
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['client']) {
+      return;
+    }
+    this.confirmingReveal.set(false);
     if (this.client?.id) {
       this.summary.load(this.client.id);
       this._assignees.set(this.client.assignees ?? []);
@@ -173,6 +201,19 @@ export class ClientProfileOverviewComponent implements OnChanges {
       return '—';
     }
     return f.subjectKind === 'Business' ? `••-•••${f.taxIdentifierLast4}` : `•••-••-${f.taxIdentifierLast4}`;
+  }
+
+  requestReveal(): void {
+    this.confirmingReveal.set(true);
+  }
+
+  cancelReveal(): void {
+    this.confirmingReveal.set(false);
+  }
+
+  doReveal(): void {
+    this.confirmingReveal.set(false);
+    this.revealTaxId.emit(this.client.id);
   }
 
   filingLabel(): string {

@@ -1,8 +1,5 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <ng-container *ngIf="!showRoom(); else roomView">
-    <!-- Stats row (GET /meetings/stats) -->
-    <app-stat-cards [items]="stats()" />
-
     <!-- Agenda card -->
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -53,13 +50,14 @@
   </ng-container>
 
   <ng-template #roomView>
-    <app-meeting-room (left)="leaveMeeting()"></app-meeting-room>
+    <app-meeting-room></app-meeting-room>
   </ng-template>
 </div>
 
 <!-- Agendar (create + invitaciones) / gestionar (re-agendar + invitaciones) -->
 <app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [busy]="panelBusy()"
-  [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" (closed)="closePanel()"
+  [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" [initialInvitees]="initialInvitees()"
+  (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
 
 <!-- Visor global: transcript del meeting -->

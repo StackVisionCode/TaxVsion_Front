@@ -1,21 +1,20 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, SimpleChanges, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { CallsService } from '@core/communication/calls.service';
 import { ActiveCallService } from '@core/communication/active-call.service';
-import { CallKind, CustomerCallItem, CustomerCallsStats } from '@core/communication/call.model';
+import { CallKind, CustomerCallItem } from '@core/communication/call.model';
 import { AccessStore } from '@core/access/access.store';
 
 /**
  * Pestaña "Calls" del perfil de cliente. El historial in-app se atribuye al cliente por su UserId de
  * PORTAL (puente `CustomerPortalAccount`): `GET /communication/customers/{id}/calls` resuelve ese UserId y
- * lista las llamadas donde participó = sus llamadas con la oficina. Muestra stats + lista estilo registro
+ * lista las llamadas donde participó = sus llamadas con la oficina. Muestra una lista estilo registro
  * de llamadas y permite llamar al cliente (audio/video) si tiene cuenta de portal.
  */
 @Component({
   selector: 'app-client-profile-calls',
-  imports: [CommonModule, StatCardsComponent, StateBlockComponent],
+  imports: [CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-calls.component.html',
 })
@@ -39,18 +38,8 @@ export class ClientProfileCallsComponent implements OnChanges {
   readonly loading = signal(false);
   readonly errored = signal(false);
   readonly items = signal<CustomerCallItem[]>([]);
-  readonly stats = signal<CustomerCallsStats>({ total: 0, completed: 0, missed: 0, avgDurationSeconds: null });
   readonly hasPortalAccount = signal(false);
 
-  readonly statCards = computed<StatCardItem[]>(() => {
-    const stats = this.stats();
-    return [
-      { label: 'Total calls', value: stats.total },
-      { label: 'Completed', value: stats.completed },
-      { label: 'Missed', value: stats.missed },
-      { label: 'Avg. duration', value: this.avgDurationLabel() },
-    ];
-  });
   private clientUserId: string | null = null;
 
   /** Deshabilita los botones mientras yo esté en otra llamada. */
@@ -70,7 +59,6 @@ export class ClientProfileCallsComponent implements OnChanges {
     this.calls.getCustomerCalls(this.clientId).subscribe({
       next: (res) => {
         this.items.set(res.items);
-        this.stats.set(res.stats);
         this.hasPortalAccount.set(res.hasPortalAccount);
         this.clientUserId = res.clientUserId ?? null;
         this.loading.set(false);
@@ -96,11 +84,6 @@ export class ClientProfileCallsComponent implements OnChanges {
     }
     const s = Math.floor(seconds);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  }
-
-  avgDurationLabel(): string {
-    const avg = this.stats().avgDurationSeconds;
-    return avg && avg > 0 ? this.formatDuration(avg) : '—';
   }
 
   isMissed(item: CustomerCallItem): boolean {

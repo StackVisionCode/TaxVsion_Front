@@ -132,11 +132,8 @@ export interface CreateCategoryRequest {
 
 // ---------- View-model del catálogo ----------
 
-/**
- * Moneda por defecto al crear ítems: la UI muestra "$" fijo y el dominio exige ISO 4217.
- * Al editar se conserva la moneda que ya tenga el ítem.
- */
-export const DEFAULT_CURRENCY = 'USD';
+// La moneda de los ítems NUEVOS es la de la oficina (core/billing/OfficeCurrencyStore); al editar se
+// conserva la que ya tenga el ítem.
 
 export type CatalogEntryStatus = 'active' | 'inactive';
 

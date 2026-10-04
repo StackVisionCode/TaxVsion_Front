@@ -1,11 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, concatMap, forkJoin, map, of, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 import { InventoryApiService } from './inventory.service';
 import {
   CatalogCategorySummary,
   CatalogItemSummary,
-  DEFAULT_CURRENCY,
   Product,
   ProductFormValue,
   StockLevelDto,
@@ -26,6 +26,10 @@ const FETCH_SIZE = 200;
 @Injectable({ providedIn: 'root' })
 export class InventoryStore {
   private readonly api = inject(InventoryApiService);
+  private readonly officeCurrencyStore = inject(OfficeCurrencyStore);
+
+  /** Moneda de la oficina para los productos nuevos (fallback USD si no se puede leer). */
+  readonly officeCurrency = this.officeCurrencyStore.currency;
 
   // ---------- Estado crudo ----------
   private readonly _items = signal<CatalogItemSummary[]>([]);
@@ -63,6 +67,7 @@ export class InventoryStore {
       return;
     }
     this.initialized = true;
+    void this.officeCurrencyStore.ensureLoaded();
     this.refresh();
   }
 
@@ -128,7 +133,7 @@ export class InventoryStore {
         categoryId: form.categoryId,
         kind: 'Product',
         priceAmount: form.price,
-        priceCurrency: DEFAULT_CURRENCY,
+        priceCurrency: this.officeCurrency(),
         costAmount: null,
         costCurrency: null,
         unit: null,

@@ -168,6 +168,70 @@ describe('SignatureTemplateEditorComponent', () => {
     expect(c.layoutDirty()).toBe(true);
   });
 
+  it('defaults: generateCertificate siempre true y "email certificate" independiente (plantilla vieja sin certificado)', async () => {
+    const c = await setup(detail({ generateCertificate: false, sendCertificateToSigners: false }));
+    c.sendCertificate.set(true);
+    await c.saveDetails();
+    await settle();
+    expect(service['updateTemplateDefaults']).toHaveBeenCalledWith('t1', {
+      defaultTokenExpirationHours: 168,
+      requiresSequentialSigning: false,
+      requiresConsent: true,
+      generateCertificate: true,
+      sendSignedDocumentToSigners: true,
+      sendCertificateToSigners: true,
+      autoRemindersEnabled: true,
+      reminderIntervalHours: 48,
+    });
+  });
+
+  it('con el markup real: el inspector (xl) se pliega, se recuerda y no se reabre al seleccionar', async () => {
+    localStorage.clear();
+    current = detail();
+    service = { getTemplate: vi.fn(() => of(current)) };
+    TestBed.configureTestingModule({
+      imports: [SignatureTemplateEditorComponent],
+      providers: [{ provide: SignatureService, useValue: service }],
+    });
+    TestBed.overrideComponent(SignatureTemplateEditorComponent, {
+      remove: { imports: [SignatureCategoryPickerComponent] },
+    });
+    const fixture = TestBed.createComponent(SignatureTemplateEditorComponent);
+    const c = fixture.componentInstance;
+    c.templateId = 't1';
+    c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
+    await settle();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const q = (id: string) => el.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+
+    // Sin generar certificado no hay switch; "Email certificate" ya no depende de él.
+    c.openSection.set('defaults');
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Generate certificate');
+    expect(el.textContent).toContain('Email certificate to signers');
+
+    c.selectField(c.fields()[0].localId);
+    fixture.detectChanges();
+    expect(q('tpl-inspector')?.classList.contains('xl:hidden')).toBe(false);
+    q('tpl-inspector-collapse')!.click();
+    fixture.detectChanges();
+    expect(localStorage.getItem('signature.templateEditor.inspectorCollapsed')).toBe('1');
+    expect(q('tpl-inspector')?.classList.contains('xl:hidden')).toBe(true);
+    expect(c.selectedField()).not.toBeNull(); // plegar no deselecciona
+
+    // Otro campo seleccionado: sigue plegada (< xl el panel inferior/flotante no cambia) y hay botón para reabrir.
+    c.selectField(null);
+    c.selectField(c.fields()[0].localId);
+    fixture.detectChanges();
+    expect(q('tpl-inspector')?.classList.contains('xl:hidden')).toBe(true);
+    q('tpl-inspector-reopen')!.click();
+    fixture.detectChanges();
+    expect(q('tpl-inspector')?.classList.contains('xl:hidden')).toBe(false);
+    expect(localStorage.getItem('signature.templateEditor.inspectorCollapsed')).toBeNull();
+    localStorage.clear();
+  });
+
   it('quitar un rol con layout sin guardar: se traduce por slot.id y se descartan los campos del rol quitado', async () => {
     const c = await setup();
     c.setActiveSlot(2);

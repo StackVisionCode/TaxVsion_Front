@@ -94,6 +94,8 @@ export interface ComposeState {
   loadError: string | null;
   sending: boolean;
   error: string | null;
+  /** Destinatario a precargar en "To" en una redacción NUEVA (deep link desde el perfil del cliente). */
+  initialTo: string | null;
 }
 
 /** Payload que el composer emite al presionar Send; el store corre la cadena real. */
@@ -119,6 +121,7 @@ const EMPTY_COMPOSE: ComposeState = {
   loadError: null,
   sending: false,
   error: null,
+  initialTo: null,
 };
 
 /**
@@ -1402,9 +1405,10 @@ export class MailStore {
 
   // ---------- Composer completo ----------
 
-  openCompose(): void {
+  /** Redacción nueva; `initialTo` precarga el destinatario (p. ej. el email del cliente). */
+  openCompose(initialTo: string | null = null): void {
     this._reply.set(null);
-    this._compose.set({ ...EMPTY_COMPOSE, open: true });
+    this._compose.set({ ...EMPTY_COMPOSE, open: true, initialTo: initialTo?.trim() || null });
   }
 
   /** Retoma un draft existente desde la carpeta Drafts (GET /drafts/{id} para prellenar). */

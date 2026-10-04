@@ -11,6 +11,7 @@ import {
   throwError,
 } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
+import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -79,6 +80,8 @@ export class BillingStore {
   private readonly service = inject(BillingService);
   private readonly toast = inject(ToastService);
   private readonly clipboard = inject(ClipboardService);
+  /** Moneda de la oficina compartida con catálogo e inventario (que no pueden importar billing). */
+  private readonly officeCurrency = inject(OfficeCurrencyStore);
 
   // ---------- Facturas ----------
 
@@ -188,8 +191,8 @@ export class BillingStore {
       collectedCents: invoices.reduce((sum, inv) => sum + inv.amountPaidCents, 0),
       draftCount: invoices.filter(inv => inv.status === 'Draft').length,
       averageDaysToPay: paidCount === 0 ? null : Math.round((totalDays / paidCount) * 10) / 10,
-      // Billing no expone una moneda de cuenta: se toma la de la primera factura.
-      currency: invoices[0]?.currency ?? 'USD',
+      // Se toma la de la primera factura; sin facturas, la moneda por defecto de la oficina.
+      currency: invoices[0]?.currency ?? this.officeCurrency.currency(),
     };
   });
 
@@ -784,7 +787,8 @@ export class BillingStore {
 
   loadCompany(): void {
     this.service.getIssuerProfile().subscribe({
-      next: profile =>
+      next: profile => {
+        this.officeCurrency.set(profile.defaultCurrency);
         this._issuer.set({
           name: profile.name || '',
           taxId: profile.taxId || '',
@@ -797,7 +801,8 @@ export class BillingStore {
           email: profile.email || '',
           website: profile.website || '',
           defaultCurrency: profile.defaultCurrency || 'USD',
-        }),
+        });
+      },
       // El backend sintetiza un perfil vacío cuando no hay fila: un error acá no es "no existe".
       error: () => this._issuer.set({ ...EMPTY_ISSUER_PROFILE }),
     });
@@ -826,6 +831,7 @@ export class BillingStore {
         next: () => {
           this._savingCompany.set(false);
           this._issuer.set({ ...issuer });
+          this.officeCurrency.set(issuer.defaultCurrency);
           this._branding.set({ ...branding });
           this.toast.success('Company details saved. They will appear on the next invoices.');
         },

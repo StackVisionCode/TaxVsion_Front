@@ -1,3 +1,5 @@
+import { normalizePhoneToApi } from '@shared/utils/phone.util';
+
 /**
  * Normalizadores y validadores puros para los formularios de Customer. Cada regla
  * replica EXACTAMENTE el Value Object / handler del backend (no una regex propia más
@@ -12,6 +14,21 @@ export const COUNTRY_CODE_LENGTH = 2;
 
 // ---------------- Teléfono (PhoneNumber.cs) ----------------
 // Vive en `@shared/utils/phone.util` (normalizePhoneToApi / isValidPhone / formatPhoneForDisplay).
+
+/**
+ * Lo tecleado → E.164 con la misma conveniencia US que el formulario del cliente y el worker de
+ * import: 10 dígitos → +1XXXXXXXXXX, 11 con prefijo 1 → +1…; con '+' se respeta tal cual. Vacío → ''.
+ * No valida: el resultado se pasa por `isValidPhone`.
+ */
+export function toApiPhoneUsDefault(raw: string | null | undefined): string {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) return normalizePhoneToApi(trimmed);
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return normalizePhoneToApi(trimmed);
+}
 
 // ---------------- Email (EmailAddress.cs) ----------------
 // Create(raw): trim; rechaza si vacío, len > 254, sin '@', o '@' al inicio/fin.

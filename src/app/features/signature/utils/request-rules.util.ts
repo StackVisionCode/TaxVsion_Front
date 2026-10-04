@@ -9,8 +9,8 @@ import {
  * ni una regla: mismos valores, mismo payload (el panel sigue leyendo el mismo objeto).
  */
 
-export type ToggleableRule =
-  'autoReminder' | 'certificate' | 'sendSignedDocument' | 'sendCertificate';
+// 'certificate' ya no se alterna: el certificado se genera siempre (generateCertificate = true).
+export type ToggleableRule = 'autoReminder' | 'sendSignedDocument' | 'sendCertificate';
 
 export function withSequential(rules: RequestRules, sequential: boolean): RequestRules {
   return { ...rules, sequential };
@@ -36,7 +36,8 @@ export function withReminderIntervalDays(rules: RequestRules, days: number): Req
 }
 
 export function toggleRule(rules: RequestRules, key: ToggleableRule): RequestRules {
-  // Entregar el certificado exige que el certificado se genere: si está apagado, no se puede activar.
+  // Entregar el certificado exige que se genere. Solo pasa en un borrador viejo creado sin certificado
+  // (GenerateCertificate es inmutable; SetCertificateDelivery(true) fallaría): ahí no se puede activar.
   if (key === 'sendCertificate' && !rules.certificate) {
     return rules;
   }

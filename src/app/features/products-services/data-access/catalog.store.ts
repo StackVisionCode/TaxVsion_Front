@@ -1,13 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, concatMap, forkJoin, map, of, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 import { CatalogApiService } from './catalog.service';
 import {
   CatalogEntry,
   CatalogFormValue,
   CatalogItemDto,
   CategoryDto,
-  DEFAULT_CURRENCY,
   toCatalogEntry,
 } from './catalog.model';
 
@@ -27,6 +27,10 @@ const FETCH_SIZE = 200;
 @Injectable({ providedIn: 'root' })
 export class CatalogStore {
   private readonly api = inject(CatalogApiService);
+  private readonly officeCurrencyStore = inject(OfficeCurrencyStore);
+
+  /** Moneda de la oficina para los ítems nuevos (fallback USD si no se puede leer). */
+  readonly officeCurrency = this.officeCurrencyStore.currency;
 
   // ---------- Estado crudo ----------
   private readonly _raw = signal<CatalogItemDto[]>([]);
@@ -63,6 +67,7 @@ export class CatalogStore {
       return;
     }
     this.initialized = true;
+    void this.officeCurrencyStore.ensureLoaded();
     this.refresh();
   }
 
@@ -98,6 +103,7 @@ export class CatalogStore {
     const sku = isProduct && form.sku?.trim() ? form.sku.trim() : null;
     const costAmount = isProduct && form.costAmount != null && form.costAmount > 0 ? form.costAmount : null;
     const unit = isProduct && form.unit?.trim() ? form.unit.trim() : null;
+    const currency = this.officeCurrency();
     return this.api
       .createItem({
         name: form.name.trim(),
@@ -107,9 +113,9 @@ export class CatalogStore {
         categoryId: form.categoryId,
         kind: form.kind,
         priceAmount: form.price,
-        priceCurrency: DEFAULT_CURRENCY,
+        priceCurrency: currency,
         costAmount,
-        costCurrency: costAmount != null ? DEFAULT_CURRENCY : null,
+        costCurrency: costAmount != null ? currency : null,
         unit,
         taxRateBasisPoints: Math.round((form.taxRatePercent || 0) * 100),
         trackInventory: isProduct ? (form.trackInventory ?? true) : false,

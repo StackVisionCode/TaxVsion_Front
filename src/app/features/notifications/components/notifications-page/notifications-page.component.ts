@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import {
   AppNotification,
@@ -14,8 +13,7 @@ import { NotificationsStore } from '../../data-access/notifications.store';
 type NotificationFilter = 'all' | 'unread';
 
 /**
- * Página del módulo Notifications (estilo "Aether"): fila de stats pastel
- * (Total / Unread / Today / This week) + barra de filtros (tabs All/Unread,
+ * Página del módulo Notifications (estilo "Aether"): barra de filtros (tabs All/Unread,
  * buscador píldora y botón negro "Mark all as read") + lista server-paged con
  * "Load more". Los datos vienen del NotificationsStore (Communication vía
  * `/communication/notifications`); ya no hay seeds locales.
@@ -24,9 +22,6 @@ type NotificationFilter = 'all' | 'unread';
  * - Tab Unread = query param `unreadOnly` del backend (filtro server-side).
  * - Buscador = filtro client-side sobre lo cargado (el backend no tiene
  *   parámetro de búsqueda).
- * - Unread stat = conteo del servidor (todo el tenant). Total / Today /
- *   This week se computan sobre lo cargado hasta ahora: el envelope del
- *   backend no trae un total global.
  */
 @Component({
   selector: 'app-notifications-page',
@@ -36,7 +31,6 @@ type NotificationFilter = 'all' | 'unread';
     FilterChipsComponent,
     LoadMoreComponent,
     SearchInputComponent,
-    StatCardsComponent,
     StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -63,25 +57,6 @@ export class NotificationsPageComponent implements OnInit {
 
   /** Notificaciones cargadas hasta ahora (no hay total global en el backend). */
   readonly totalCount = computed(() => this.store.items().length);
-
-  readonly todayCount = computed(() => {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const cutoff = startOfToday.getTime();
-    return this.store.items().filter(n => n.createdAt >= cutoff).length;
-  });
-
-  readonly thisWeekCount = computed(() => {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return this.store.items().filter(n => n.createdAt >= cutoff).length;
-  });
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: 'Total', value: this.totalCount() },
-    { label: 'Unread', value: this.unreadCount() },
-    { label: 'Today', value: this.todayCount() },
-    { label: 'This week', value: this.thisWeekCount() },
-  ]);
 
   readonly visibleNotifications = computed<AppNotification[]>(() => {
     const query = this.search().trim().toLowerCase();

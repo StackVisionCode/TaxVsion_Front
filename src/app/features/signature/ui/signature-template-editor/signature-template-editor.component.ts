@@ -41,6 +41,11 @@ import { FIELD_TYPE_ICON, FIELD_TYPE_LABEL } from '../signature-request-panel/si
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 import { denormalizeFieldRect } from '../../utils/field-normalize.util';
 import {
+  TEMPLATE_EDITOR_INSPECTOR_COLLAPSED_KEY,
+  readPanelCollapsed,
+  writePanelCollapsed,
+} from '../../utils/panel-collapse.util';
+import {
   RETURN_MS,
   SETTLE_MS,
   animateGhostTo,
@@ -220,7 +225,9 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   readonly expirationHours = signal(168);
   readonly sequential = signal(false);
   readonly consent = signal(true);
-  readonly certificate = signal(true);
+  // El certificado de firma se genera SIEMPRE (generateCertificate = true en updateTemplateDefaults):
+  // ya no hay switch. UpdateDefaults sí acepta cambiarlo, así que una plantilla vieja con false
+  // queda en true al guardar.
   // Defaults de entrega/recordatorio que "from template" copia a la solicitud (mismos que la solicitud).
   readonly sendSignedDocument = signal(true);
   readonly sendCertificate = signal(false);
@@ -343,6 +350,18 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
 
   readonly hasPdfSurface = computed(() => this.pages().length > 0 && !!this.pages()[0].src);
 
+  /**
+   * xl: columna del inspector plegada (el documento ocupa su sitio). Se recuerda en localStorage.
+   * Seleccionar un campo no la reabre: la toolbar muestra "Field settings" para reabrirla.
+   * < xl no aplica (en lg flota sobre el documento y < lg es el panel inferior).
+   */
+  readonly inspectorCollapsed = signal(readPanelCollapsed(TEMPLATE_EDITOR_INSPECTOR_COLLAPSED_KEY));
+
+  setInspectorCollapsed(collapsed: boolean): void {
+    this.inspectorCollapsed.set(collapsed);
+    writePanelCollapsed(TEMPLATE_EDITOR_INSPECTOR_COLLAPSED_KEY, collapsed);
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['templateId']) {
       // Plantilla nueva: la superficie anterior no sirve.
@@ -411,7 +430,6 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     this.expirationHours.set(detail.defaultTokenExpirationHours);
     this.sequential.set(detail.requiresSequentialSigning);
     this.consent.set(detail.requiresConsent);
-    this.certificate.set(detail.generateCertificate);
     this.sendSignedDocument.set(detail.sendSignedDocumentToSigners);
     this.sendCertificate.set(detail.sendCertificateToSigners);
     this.autoReminders.set(detail.autoRemindersEnabled);
@@ -563,10 +581,10 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           defaultTokenExpirationHours: this.expirationHours(),
           requiresSequentialSigning: this.sequential(),
           requiresConsent: this.consent(),
-          generateCertificate: this.certificate(),
+          generateCertificate: true,
           sendSignedDocumentToSigners: this.sendSignedDocument(),
-          // El certificado solo se puede entregar si se genera (misma regla que el backend).
-          sendCertificateToSigners: this.certificate() && this.sendCertificate(),
+          // Independiente de la generación: el certificado siempre se genera.
+          sendCertificateToSigners: this.sendCertificate(),
           autoRemindersEnabled: this.autoReminders(),
           reminderIntervalHours: this.reminderIntervalHours(),
         }),
@@ -598,14 +616,6 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
       await this.reload();
       this.changed.emit();
     });
-  }
-
-  /** Al desactivar la generación del certificado, se fuerza a false la entrega del certificado. */
-  onCertificateToggle(enabled: boolean): void {
-    this.certificate.set(enabled);
-    if (!enabled) {
-      this.sendCertificate.set(false);
-    }
   }
 
   setReminderIntervalDays(days: number): void {

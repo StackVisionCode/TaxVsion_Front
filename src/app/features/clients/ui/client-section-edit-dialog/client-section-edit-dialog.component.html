@@ -1,0 +1,181 @@
+<app-modal [isOpen]="isOpen" [heading]="headings().heading" [subheading]="headings().subheading" size="md"
+  (closed)="close()">
+  @if (!detail && error) {
+    <p class="text-sm text-red-600" role="alert">{{ error }}</p>
+    <div class="mt-5 flex justify-end">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Close</button>
+    </div>
+  } @else if (!detail) {
+    <div class="flex flex-col gap-3" aria-busy="true">
+      <div class="h-11 w-full animate-pulse rounded-full bg-gray-100"></div>
+      <div class="h-11 w-full animate-pulse rounded-full bg-gray-100"></div>
+      <div class="h-11 w-2/3 animate-pulse rounded-full bg-gray-100"></div>
+      <span class="sr-only" role="status">Loading client…</span>
+    </div>
+  } @else {
+    <form class="flex flex-col gap-3" (ngSubmit)="submit()" novalidate>
+      @switch (section) {
+        <!-- Contact information -->
+        @case ('contact') {
+          <div>
+            <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="emailErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="text-sm text-gray-400">Email</span>
+              <input type="email" inputmode="email" name="email" [ngModel]="email()"
+                (ngModelChange)="email.set($event); emailErr.set(null)" [attr.aria-invalid]="!!emailErr()"
+                aria-describedby="section-err-email"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </label>
+            @if (emailErr()) { <p id="section-err-email" class="mt-1 px-4 text-xs text-red-600">{{ emailErr() }}</p> }
+          </div>
+          <div>
+            <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="phoneErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="text-sm text-gray-400">Phone</span>
+              <input type="tel" inputmode="tel" maxlength="20" name="phone" placeholder="Optional" [ngModel]="phone()"
+                (ngModelChange)="phone.set($event); phoneErr.set(null)" (blur)="onPhoneBlur()"
+                [attr.aria-invalid]="!!phoneErr()" aria-describedby="section-err-phone"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </label>
+            @if (phoneErr()) { <p id="section-err-phone" class="mt-1 px-4 text-xs text-red-600">{{ phoneErr() }}</p> }
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+              <span class="text-sm text-gray-400">Language</span>
+              <select name="language" [ngModel]="language()" (ngModelChange)="language.set($event)"
+                class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+                @for (l of languages; track l.value) { <option [value]="l.value">{{ l.label }}</option> }
+              </select>
+            </label>
+            <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+              <span class="text-sm text-gray-400">Contact</span>
+              <select name="preferredChannel" [ngModel]="preferredChannel()" (ngModelChange)="preferredChannel.set($event)"
+                class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+                @for (c of channels; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+              </select>
+            </label>
+          </div>
+        }
+
+        <!-- Personal details -->
+        @case ('personal') {
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="nameErr() && !firstName().trim() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <input type="text" name="firstName" placeholder="First name" [maxlength]="nameMax" [ngModel]="firstName()"
+                (ngModelChange)="firstName.set($event); nameErr.set(null)" aria-label="First name"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </label>
+            <label class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+              <input type="text" name="middleName" placeholder="Middle name (optional)" [maxlength]="nameMax"
+                [ngModel]="middleName()" (ngModelChange)="middleName.set($event)" aria-label="Middle name"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </label>
+          </div>
+          <label class="flex h-11 items-center rounded-full border bg-white px-4 transition-colors"
+            [ngClass]="nameErr() && !lastName().trim() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+            <input type="text" name="lastName" placeholder="Last name" [maxlength]="nameMax" [ngModel]="lastName()"
+              (ngModelChange)="lastName.set($event); nameErr.set(null)" aria-label="Last name"
+              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          </label>
+          @if (nameErr()) { <p class="-mt-1 px-4 text-xs text-red-600">{{ nameErr() }}</p> }
+          <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+            <span class="text-sm text-gray-400">Date of birth</span>
+            <input type="date" name="dateOfBirth" [ngModel]="dateOfBirth()" (ngModelChange)="dateOfBirth.set($event)"
+              class="w-full bg-transparent text-sm text-gray-700 focus:outline-none" />
+          </label>
+          @if (occupationName(); as selectedName) {
+            <div class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900">
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="text-gray-400">Occupation</span>
+                <span class="truncate">{{ selectedName }}</span>
+              </span>
+              <button type="button" (click)="onOccupationPicked(null)" aria-label="Clear occupation"
+                class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                <ion-icon name="close-outline" class="text-sm"></ion-icon>
+              </button>
+            </div>
+          } @else {
+            <app-typeahead placeholder="Search occupations" ariaLabel="Search occupation" emptyText="No matches"
+              [search]="searchOccupations" [displayWith]="catalogLabel" [trackBy]="catalogId"
+              (picked)="onOccupationPicked($event)">
+              <ng-template #option let-option>
+                <span class="min-w-0 flex-1 truncate text-gray-700">{{ option.label }}</span>
+              </ng-template>
+            </app-typeahead>
+          }
+        }
+
+        <!-- Business details -->
+        @case ('business') {
+          <div>
+            <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="nameErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="shrink-0 text-sm text-gray-400">Legal name</span>
+              <input type="text" name="legalName" [ngModel]="legalName()" (ngModelChange)="legalName.set($event); nameErr.set(null)"
+                class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            </label>
+            @if (nameErr()) { <p class="mt-1 px-4 text-xs text-red-600">{{ nameErr() }}</p> }
+          </div>
+          <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+            <span class="shrink-0 text-sm text-gray-400">Structure</span>
+            <select name="structure" [ngModel]="structure()" (ngModelChange)="structure.set($event)"
+              class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+              <option value="">Keep current structure</option>
+              @for (s of structures; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+            </select>
+          </label>
+          <div>
+            <label class="flex h-11 items-center gap-2 rounded-full border bg-white px-4 transition-colors"
+              [ngClass]="dateErr() ? 'border-red-300' : 'border-gray-200 focus-within:border-gray-300'">
+              <span class="shrink-0 text-sm text-gray-400">Formation date</span>
+              <input type="date" name="formationDate" [ngModel]="formationDate()"
+                (ngModelChange)="formationDate.set($event); dateErr.set(null)"
+                class="w-full bg-transparent text-sm text-gray-700 focus:outline-none" />
+            </label>
+            @if (dateErr()) {
+              <p class="mt-1 px-4 text-xs text-red-600">{{ dateErr() }}</p>
+            } @else {
+              <p class="mt-1 px-4 text-xs text-gray-400">Leave empty to keep the current date.</p>
+            }
+          </div>
+          @if (activityName(); as selectedActivity) {
+            <div class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900">
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="text-gray-400">Activity</span>
+                <span class="truncate">{{ selectedActivity }}</span>
+              </span>
+              <button type="button" (click)="onActivityPicked(null)" aria-label="Change activity"
+                class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                <ion-icon name="close-outline" class="text-sm"></ion-icon>
+              </button>
+            </div>
+          } @else {
+            <app-typeahead placeholder="Search NAICS activities" ariaLabel="Search activity" emptyText="No matches"
+              [search]="searchBusinessActivities" [displayWith]="catalogLabel" [trackBy]="catalogId"
+              (picked)="onActivityPicked($event)">
+              <ng-template #option let-option>
+                <span class="min-w-0 flex-1 truncate text-gray-700">
+                  {{ option.label }}
+                  @if (option.hint) { <span class="block truncate text-xs text-gray-400">{{ option.hint }}</span> }
+                </span>
+              </ng-template>
+            </app-typeahead>
+          }
+        }
+      }
+
+      @if (error) { <p class="mt-1 text-sm text-red-600" role="alert">{{ error }}</p> }
+
+      <div class="mt-2 flex items-center justify-end gap-2">
+        <button type="button" (click)="close()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+        <button type="submit" [disabled]="saving"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+          {{ saving ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

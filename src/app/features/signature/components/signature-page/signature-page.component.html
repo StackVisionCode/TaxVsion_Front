@@ -1,8 +1,5 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
-    <!-- Stats row (analytics del backend; "—" mientras carga o si analytics falla) -->
-    <app-stat-cards [items]="statItems()" />
-
     <!-- Signature requests card -->
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">

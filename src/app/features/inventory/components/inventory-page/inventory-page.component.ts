@@ -5,13 +5,11 @@ import { ProductTableComponent } from '../../ui/product-table/product-table.comp
 import { ProductFormPanelComponent } from '../../ui/product-form-panel/product-form-panel.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
-import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
-import { formatMoney } from '@shared/utils/format.util';
 import { InventoryStore } from '../../data-access/inventory.store';
-import { Product, ProductFormValue, stockLevel } from '../../data-access/inventory.model';
+import { Product, ProductFormValue } from '../../data-access/inventory.model';
 
 type CategoryFilter = 'All' | string;
 const PAGE_SIZE = 8;
@@ -31,7 +29,6 @@ const PAGE_SIZE = 8;
     ProductFormPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
-    StatCardsComponent,
     FilterChipsComponent,
     SearchInputComponent,
     StateBlockComponent,
@@ -71,34 +68,6 @@ export class InventoryPageComponent implements OnInit {
   retryLoad(): void {
     this.store.refresh();
   }
-
-  readonly totalProducts = computed(() => this.store.products().length);
-
-  /** Solo suma los que llevan inventario: un ítem sin tracking no tiene cantidad real. */
-  readonly totalStockValue = computed(() =>
-    this.store
-      .products()
-      .filter(product => product.tracked)
-      .reduce((sum, product) => sum + product.price * product.stockQuantity, 0),
-  );
-
-  readonly lowStockCount = computed(
-    () =>
-      this.store.products().filter(product => {
-        const level = stockLevel(product);
-        return level === 'low' || level === 'out';
-      }).length,
-  );
-
-  readonly categoriesCount = computed(() => new Set(this.store.products().map(product => product.categoryId)).size);
-
-  readonly stats = computed<StatCardItem[]>(() => [
-    { label: 'Total products', value: this.totalProducts() },
-    // Sin decimales (como antes): la cifra de cabecera es orientativa.
-    { label: 'Total stock value', value: formatMoney(this.totalStockValue(), 'USD', { minFraction: 0 }) },
-    { label: 'Low stock', value: this.lowStockCount() },
-    { label: 'Categories', value: this.categoriesCount() },
-  ]);
 
   readonly visibleProducts = computed<Product[]>(() => {
     const query = this.search().trim().toLowerCase();

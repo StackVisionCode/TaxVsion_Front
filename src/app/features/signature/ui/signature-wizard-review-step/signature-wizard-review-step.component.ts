@@ -103,6 +103,15 @@ export class SignatureWizardReviewStepComponent {
     this.emitRules(r => withSigningPin(r, value));
   }
 
+  /**
+   * El certificado se genera siempre en solicitudes nuevas; `rules.certificate === false` solo llega
+   * al continuar un borrador VIEJO creado sin certificado (GenerateCertificate es inmutable en el
+   * backend y SetCertificateDelivery(true) fallaría), así que "Send certificate" queda bloqueado.
+   */
+  certificateLocked(): boolean {
+    return this.rules?.certificate === false;
+  }
+
   reminderDays(): number {
     return this.rules ? reminderIntervalDays(this.rules) : 2;
   }

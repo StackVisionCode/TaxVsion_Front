@@ -125,19 +125,15 @@
             Require consent
             <input type="checkbox" [ngModel]="consent()" (ngModelChange)="consent.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
-          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
-            Generate certificate
-            <input type="checkbox" [ngModel]="certificate()" (ngModelChange)="onCertificateToggle($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
-          </label>
+          <!-- El certificado se genera siempre (generateCertificate = true); ya no hay switch para apagarlo. -->
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Email signed document to signers
             <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
-          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium"
-            [class.text-gray-600]="certificate()" [class.text-gray-300]="!certificate()">
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Email certificate to signers
             <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
-              [disabled]="!certificate() || !isDraft()" class="accent-brand-bold" />
+              [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Auto-reminders
@@ -342,6 +338,14 @@
           </label>
 
           <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <!-- xl con el inspector plegado: reabrirlo (seleccionar un campo no lo abre solo) -->
+            <button *ngIf="inspectorCollapsed() && selectedField()" type="button" (click)="setInspectorCollapsed(false)"
+              aria-label="Show field settings" data-testid="tpl-inspector-reopen"
+              class="tap hidden items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors xl:flex">
+              <ion-icon name="chevron-back-outline" class="text-xs"></ion-icon>
+              <span class="h-1.5 w-1.5 rounded-full bg-brand-bold" aria-hidden="true"></span>
+              Field settings
+            </button>
             <label *ngIf="isDraft()" class="tap flex cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
               [class.pointer-events-none]="savingBaseDoc() || rendering()" [class.opacity-50]="savingBaseDoc() || rendering()">
               <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc() || rendering()" />
@@ -468,8 +472,10 @@
         </div>
       </main>
 
-      <!-- Inspector contextual: columna en xl, flotante en lg, panel inferior por debajo de lg -->
-      <section *ngIf="selectedField() as field" aria-label="Field inspector"
+      <!-- Inspector contextual: columna en xl (plegable, preferencia en localStorage), flotante en lg,
+           panel inferior por debajo de lg -->
+      <section *ngIf="selectedField() as field" aria-label="Field inspector" data-testid="tpl-inspector"
+        [ngClass]="{ 'xl:hidden': inspectorCollapsed() }"
         class="tpl-inspector absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-y-auto rounded-t-2xl border border-gray-100 bg-white p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]
                lg:inset-x-auto lg:bottom-auto lg:right-3 lg:top-24 lg:max-h-[calc(100%-7rem)] lg:w-60 lg:rounded-2xl lg:shadow-lg
                xl:static xl:max-h-none xl:w-60 xl:shrink-0 xl:shadow-none">
@@ -479,10 +485,18 @@
               [ngClass]="isPreparerField(field) ? 'text-brand-bold' : textClass(field.slotOrder)"></ion-icon>
             <span class="truncate">{{ isPreparerField(field) ? 'Preparer ' : '' }}{{ fieldLabel[field.type] }}</span>
           </span>
-          <button type="button" (click)="selectField(null)" aria-label="Close inspector"
-            class="tap flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-            <ion-icon name="close-outline" class="text-base"></ion-icon>
-          </button>
+          <span class="flex shrink-0 items-center">
+            <!-- xl: plegar la columna sin deseleccionar el campo -->
+            <button type="button" (click)="setInspectorCollapsed(true)" aria-label="Hide side panel" title="Hide side panel"
+              data-testid="tpl-inspector-collapse"
+              class="tap hidden h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 xl:flex">
+              <ion-icon name="chevron-forward-outline" class="text-base"></ion-icon>
+            </button>
+            <button type="button" (click)="selectField(null)" aria-label="Close inspector"
+              class="tap flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+              <ion-icon name="close-outline" class="text-base"></ion-icon>
+            </button>
+          </span>
         </div>
 
         <div class="space-y-3">

@@ -6,7 +6,7 @@
         <h2 class="text-xl font-bold text-gray-900">Contact information</h2>
         <p class="mt-1 text-sm text-gray-500">How to reach this client</p>
       </div>
-      <button *ngIf="canManage" type="button" (click)="edit.emit()" aria-label="Edit contact information"
+      <button *ngIf="canManage" type="button" (click)="editSection.emit('contact')" aria-label="Edit contact information"
         class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
         <ion-icon name="create-outline" class="text-base"></ion-icon> Edit
       </button>
@@ -42,7 +42,7 @@
         <p class="mt-1 text-sm text-gray-500">Tax identification and background</p>
       </div>
       <div class="flex flex-wrap justify-end gap-2">
-        <button *ngIf="canManage" type="button" (click)="edit.emit()" aria-label="Edit personal details"
+        <button *ngIf="canManage" type="button" (click)="editSection.emit('personal')" aria-label="Edit personal details"
           class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
           <ion-icon name="create-outline" class="text-base"></ion-icon> Edit
         </button>
@@ -61,6 +61,10 @@
         </p>
         <ng-template #revealedIndividual>
           <p class="mt-1 font-mono text-sm font-semibold tracking-wide text-gray-900">{{ revealedTaxId }}</p>
+          <button type="button" (click)="hideTaxId.emit()"
+            class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+            <ion-icon name="eye-off-outline"></ion-icon> Hide
+          </button>
         </ng-template>
         <ng-container *ngIf="c.fiscalProfile && !revealedTaxId">
           <button *ngIf="canReveal && !confirmingReveal()" type="button" (click)="requestReveal()"
@@ -99,7 +103,7 @@
           <p class="mt-1 text-sm text-gray-500">Tax identification and entity structure</p>
         </div>
         <div class="flex flex-wrap justify-end gap-2">
-          <button *ngIf="canManage" type="button" (click)="edit.emit()" aria-label="Edit business details"
+          <button *ngIf="canManage" type="button" (click)="editSection.emit('business')" aria-label="Edit business details"
             class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon> Edit
           </button>
@@ -118,6 +122,10 @@
           </p>
           <ng-template #revealedBusiness>
             <p class="mt-1 font-mono text-sm font-semibold tracking-wide text-gray-900">{{ revealedTaxId }}</p>
+            <button type="button" (click)="hideTaxId.emit()"
+              class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              <ion-icon name="eye-off-outline"></ion-icon> Hide
+            </button>
           </ng-template>
           <ng-container *ngIf="c.fiscalProfile && !revealedTaxId">
             <button *ngIf="canReveal && !confirmingReveal()" type="button" (click)="requestReveal()"

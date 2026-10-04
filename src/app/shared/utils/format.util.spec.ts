@@ -1,4 +1,4 @@
-import { formatBytes, formatMoney, formatRelativeTime } from './format.util';
+import { currencySymbol, formatBytes, formatMoney, formatRelativeTime } from './format.util';
 import { formatBytes as coreFormatBytes } from '@core/cloud-storage/cloud-storage.model';
 
 describe('format.util', () => {
@@ -54,6 +54,19 @@ describe('format.util', () => {
     it('inválido o vacío → cadena vacía', () => {
       expect(formatRelativeTime('nope', now)).toBe('');
       expect(formatRelativeTime(null, now)).toBe('');
+    });
+  });
+
+  describe('currencySymbol', () => {
+    it('devuelve el símbolo corto de la moneda', () => {
+      expect(currencySymbol('USD')).toBe('$');
+      expect(currencySymbol('eur')).toBe('€');
+    });
+
+    it('cae al código (o "$") cuando no hay símbolo válido', () => {
+      expect(currencySymbol('')).toBe('$');
+      expect(currencySymbol(null)).toBe('$');
+      expect(currencySymbol('ZZ')).toBe('ZZ');
     });
   });
 });

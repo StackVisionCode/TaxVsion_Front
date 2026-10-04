@@ -1,0 +1,45 @@
+<app-modal [isOpen]="isOpen" heading="Send SMS" [subheading]="'Text message to ' + clientName" size="md"
+  (closed)="close()">
+  @if (phones.length === 0) {
+    <div class="rounded-2xl border border-gray-100 px-4 py-8 text-center">
+      <ion-icon name="call-outline" class="text-3xl text-gray-300"></ion-icon>
+      <p class="mt-2 text-sm text-gray-600">This client has no valid mobile number</p>
+      <p class="mt-1 text-xs text-gray-400">Add a phone with its country code (for example +1 809 555 1234) from the Info tab.</p>
+    </div>
+    <div class="mt-5 flex justify-end">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Close</button>
+    </div>
+  } @else {
+    <form class="flex flex-col gap-3" (ngSubmit)="submit()" novalidate>
+      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <span class="shrink-0 text-sm text-gray-400">To</span>
+        <select name="to" [ngModel]="to()" (ngModelChange)="to.set($event)" [disabled]="sending"
+          class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
+          @for (phone of phones; track phone.value) { <option [value]="phone.value">{{ phone.label }}</option> }
+        </select>
+      </label>
+
+      <div>
+        <textarea name="message" rows="5" [maxlength]="maxLength" placeholder="Write your message…" [ngModel]="message()"
+          (ngModelChange)="message.set($event)" [disabled]="sending" aria-label="Message"
+          class="w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none"></textarea>
+        <p class="mt-1 px-1 text-right text-xs text-gray-400">{{ length() }} / {{ maxLength }}</p>
+      </div>
+
+      <p class="text-xs text-gray-400">Standard messaging rates may apply. Clients who replied STOP won't receive it.</p>
+
+      @if (error) { <p class="text-sm text-red-600" role="alert">{{ error }}</p> }
+
+      <div class="mt-1 flex items-center justify-end gap-2">
+        <button type="button" (click)="close()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">Cancel</button>
+        <button type="submit" [disabled]="!canSend()"
+          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+          <ion-icon name="send-outline" class="text-base"></ion-icon>
+          {{ sending ? 'Sending…' : 'Send' }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

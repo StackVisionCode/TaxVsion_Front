@@ -4,8 +4,10 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -24,6 +26,8 @@ import {
 import { avatarColorFor } from '@shared/utils/avatar.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { ComposeMailDeepLink, hasComposeMailParams, parseComposeMailDeepLink } from '../../utils/compose-deep-link';
 import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -67,6 +71,24 @@ export class MailPageComponent implements OnInit, OnDestroy {
   readonly store = inject(MailStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly directory = inject(CustomerDirectoryStore);
+
+  /**
+   * Deep link `/email?compose=1&customerId=&to=` en espera: el composer se abre cuando el cliente
+   * ya es el activo y hay una cuenta de buzón utilizable (el boot de cuentas es asíncrono).
+   */
+  private readonly pendingCompose = signal<ComposeMailDeepLink | null>(null);
+  private readonly composeDeepLinkEffect = effect(() => {
+    const pending = this.pendingCompose();
+    if (!pending || !this.store.activeAccountId() || this.store.selectedCustomerId() !== pending.customerId) {
+      return;
+    }
+    untracked(() => {
+      this.pendingCompose.set(null);
+      this.selectedDraftId.set(null);
+      this.store.openCompose(pending.to);
+    });
+  });
 
   /** Draft resaltado en el listado mientras el composer lo carga (GET /drafts/{id} es async). */
   readonly selectedDraftId = signal<string | null>(null);
@@ -85,9 +107,39 @@ export class MailPageComponent implements OnInit, OnDestroy {
     // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
     this.store.init();
     this.consumeOAuthCallback();
+    this.consumeComposeDeepLink();
+  }
+
+  /**
+   * `/email?compose=1&customerId=<id>&to=<email>` (acción "Send email" del perfil del cliente):
+   * elige ese cliente (leído del directorio) y abre el composer con el destinatario precargado.
+   * Limpia la URL. Solo con permiso de redactar (`correspondence.compose`).
+   */
+  private consumeComposeDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const link = parseComposeMailDeepLink(params);
+    if (hasComposeMailParams(params)) {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    }
+    if (!link || !this.can.canCompose()) {
+      return;
+    }
+    this.directory.byId([link.customerId]).subscribe({
+      next: found => {
+        const customer = found.get(link.customerId);
+        if (!customer) {
+          return;
+        }
+        this.directory.addRecent(customer);
+        this.pickCustomer(customer);
+        this.pendingCompose.set(link);
+      },
+      error: () => undefined,
+    });
   }
 
   ngOnDestroy(): void {
+    this.pendingCompose.set(null);
     // Cierra el socket realtime de correo entrante al salir del módulo.
     this.store.teardown();
   }

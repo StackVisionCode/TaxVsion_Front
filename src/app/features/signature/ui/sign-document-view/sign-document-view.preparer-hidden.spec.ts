@@ -1,3 +1,4 @@
+import { SimpleChange } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { SignDocumentViewComponent } from './sign-document-view.component';
 import { PublicSignerFieldView } from '../../data-access/public-signature.model';
@@ -13,7 +14,7 @@ describe('SignDocumentViewComponent — signer never sees the preparer signature
     const fixture = TestBed.createComponent(SignDocumentViewComponent);
     fixture.componentInstance.fields = fields;
     fixture.componentInstance.editable = true;
-    fixture.componentInstance.ngOnChanges();
+    fixture.componentInstance.ngOnChanges({ fields: new SimpleChange(undefined, fields, true) });
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
