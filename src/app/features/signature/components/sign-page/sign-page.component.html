@@ -417,10 +417,14 @@
                   </div>
                 </div>
 
-                <!-- Campos de texto que el preparador colocó para este firmante: se escriben sobre la página -->
-                <div *ngIf="textFields().length > 0" class="mt-4">
-                  <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Fill in your document</p>
-                  <app-sign-document-view [fields]="fieldsOnTextPages()" [values]="fieldValues()" [editable]="true"
+                <!-- Documento con los canvases del preparador: siempre visible mientras haya campos
+                     para este firmante (texto, firma, iniciales o fecha), no solo cuando hay inputs
+                     de texto. El firmante necesita ver DÓNDE va cada marca que estampará su firma. -->
+                <div *ngIf="fields().length > 0" class="mt-4">
+                  <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    {{ textFields().length > 0 ? 'Fill in and review your document' : 'Where your signature will go' }}
+                  </p>
+                  <app-sign-document-view [fields]="fields()" [values]="fieldValues()" [editable]="true"
                     [pageImages]="pageImages()"
                     (valueChange)="setFieldValue($event.fieldId, $event.value)"></app-sign-document-view>
                 </div>
