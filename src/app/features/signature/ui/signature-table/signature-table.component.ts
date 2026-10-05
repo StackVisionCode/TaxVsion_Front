@@ -247,11 +247,17 @@ export class SignatureTableComponent {
   }
 
   /**
-   * Enviable solo si está Ready (archivo disponible) Y tiene al menos un campo de firma colocado.
-   * Un borrador incompleto (sin campos) no ofrece Enviar: hay que terminarlo con "Continue editing".
+   * Enviable desde el menu de la fila si es un borrador editable (Draft) o un historico Ready, Y
+   * tiene al menos un campo de firma colocado. Un borrador incompleto (sin campos) no ofrece
+   * Enviar: hay que terminarlo con "Continue editing". F2 colapso Ready en Draft como estado
+   * estable; se mantiene `ready` por compatibilidad con filas historicas pre-F2.
    */
   canSendRow(request: SignatureRequest): boolean {
-    return request.status === 'ready' && !!request.hasSignatureField && this.can.canCreate();
+    return (
+      (request.status === 'draft' || request.status === 'ready') &&
+      !!request.hasSignatureField &&
+      this.can.canCreate()
+    );
   }
 
   /** Editar/borrar solo aplica a un borrador sin enviar (Draft/Ready). */

@@ -195,11 +195,16 @@ export class SignPageComponent implements OnInit, OnDestroy {
   // Host al que vuelve el firmante cuando termina.
   //  - Prod: si el tenant tiene subdominio proyectado y el host es multi-tenant
   //    (ej. foo.taxproffice.com) volvemos a `<sub>.<basedomain>/`.
-  //  - Sin subdominio o en localhost: null → se muestra la pantalla "close window".
+  //  - Si el backend no sembro `tenantSubDomain` (tenants viejos, pre F1.C) pero el
+  //    firmante llego por un subdominio evidente (3+ segmentos, no `www`), lo tomamos
+  //    del hostname mismo: es el mismo tenant por el que entro.
+  //  - Si no se puede inferir: null → se muestra la pantalla "close window".
   //    (NO cae al Landing: Landing es Manage Subscription, el firmante externo no pinta ahí).
   readonly tenantReturnUrl = computed(() => {
-    const sub = this.context()?.tenantSubDomain?.trim().toLowerCase() ?? '';
     const host = window.location.hostname;
+    const parts = host.split('.');
+    const sub = this.context()?.tenantSubDomain?.trim().toLowerCase()
+      || inferSubdomainFromParts(parts);
     const dot = host.indexOf('.');
     if (sub && dot >= 0) {
       const parent = host.slice(dot + 1);
@@ -879,6 +884,19 @@ export class SignPageComponent implements OnInit, OnDestroy {
       this.busyLabel.set('');
     }
   }
+}
+
+/**
+ * Deriva el subdominio del tenant del hostname cuando el backend NO lo pobla en el context
+ * (tenants viejos pre-F1.C sin `SubDomain` en `TenantBrandingRef`). Requiere 3+ segmentos
+ * (`sub.domain.tld`), descarta `www`, y el host nunca es una IP ni localhost (`.` del
+ * dominio ya se exigió aguas arriba). Devuelve '' si no se puede inferir con confianza.
+ */
+function inferSubdomainFromParts(parts: readonly string[]): string {
+  if (parts.length < 3) return '';
+  const first = parts[0]?.trim().toLowerCase() ?? '';
+  if (!first || first === 'www') return '';
+  return first;
 }
 
 function formatDate(iso: string): string {
