@@ -880,6 +880,21 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
    *  - editor no listo (`safeToExport` false, PDF cargando) → silencio.
    */
   onEditorStateChanged(): void {
+    // Mantiene los snapshots que gatean `canSend`/`sendBlockers` al día en vivo, no solo al cruzar
+    // el stepper. Importa para el flujo de "Continue editing" un draft: el panel entra directo al
+    // paso 3 por hidratación (sin pasar por `next()`), y al llegar al paso 4 los snapshots deben
+    // reflejar lo del editor. Barato: son `set` locales, sin IO.
+    const editor = this.editorRef();
+    if (editor && editor.safeToExport()) {
+      this.signersSnapshot.set(editor.getSigners());
+      this.fieldsSnapshot.set(editor.getFields());
+      this.normalizedFieldsSnapshot.set(editor.buildNormalizedFields());
+      this.preparerFieldsSnapshot.set(editor.buildPreparerFields());
+      this.preparerSignatureFileIdSnapshot.set(editor.getPreparerSignatureFileId());
+      this.preparerInfoSnapshot.set(editor.getPreparerInfo());
+      this.rulesSnapshot.set(editor.getRules());
+    }
+
     if (!this.store.autosaveEnabled) {
       return;
     }
@@ -887,7 +902,6 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     if (!requestId) {
       return;
     }
-    const editor = this.editorRef();
     if (!editor || !editor.safeToExport()) {
       return;
     }
