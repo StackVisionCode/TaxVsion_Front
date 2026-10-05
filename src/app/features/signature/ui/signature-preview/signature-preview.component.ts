@@ -51,9 +51,12 @@ export class SignaturePreviewComponent {
   @Output() viewDocument = new EventEmitter<{ request: SignatureRequest; kind: SignatureDownloadKind }>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
 
-  /** Solo una solicitud Ready (archivo ya Available, aún sin enviar) se puede enviar. */
+  /**
+   * Un borrador aun no enviado (Draft, o Ready historico pre-F2) puede enviarse desde el preview.
+   * F2 colapso Ready en Draft como estado estable; se mantiene `ready` por compatibilidad.
+   */
   canSend(request: SignatureRequest): boolean {
-    return request.status === 'ready';
+    return request.status === 'draft' || request.status === 'ready';
   }
 
   formatDate(iso: string | null): string {
