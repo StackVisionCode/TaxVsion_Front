@@ -39,7 +39,7 @@
   <div class="rounded-[28px] bg-white p-6 flex flex-col gap-4">
     <!-- tabs -->
     <div class="flex flex-wrap items-center gap-1 rounded-full bg-gray-100 p-1 w-max max-w-full">
-      @for (t of ['campaigns','runs','audience','senders','schedules']; track t) {
+      @for (t of ['campaigns','templates','runs','audience','schedules']; track t) {
         <button
           class="rounded-full px-4 py-2 text-sm font-semibold capitalize transition-colors"
           [class]="tab() === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
@@ -100,7 +100,7 @@
                   <td class="py-3 px-3 text-right" (click)="$event.stopPropagation()">
                     @if (c.status !== 'Archived') {
                       <div class="flex flex-wrap justify-end gap-1">
-                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSend(c)">Send</button>
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSend(c)">Send now</button>
                         <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openSchedule(c)">Schedule</button>
                         @if (c.status === 'Draft') {
                           <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditCampaign(c)">Edit</button>
@@ -122,6 +122,38 @@
               }
             </tbody>
           </table>
+        </div>
+      }
+    }
+
+    <!-- ============ TEMPLATES ============ -->
+    @if (tab() === 'templates') {
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Templates</h2>
+          <p class="text-sm text-gray-500">Reusable multichannel content. Start a campaign from one, or save one from the editor.</p>
+        </div>
+        <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="openNewTemplate()">+ New template</button>
+      </div>
+      @if (store.campaignTemplates().length === 0) {
+        <div class="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">No templates yet. Create one to reuse across campaigns.</div>
+      } @else {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          @for (t of store.campaignTemplates(); track t.id) {
+            <div class="rounded-2xl border border-gray-200 p-4 flex flex-col gap-2">
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-sm font-semibold text-gray-900">{{ t.name }}</span>
+                <span class="flex gap-1 shrink-0">
+                  @for (ch of t.channels; track ch) { <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" [class]="channelClass(ch)">{{ metaFor(ch).badge }}</span> }
+                </span>
+              </div>
+              @if (t.description) { <p class="text-xs text-gray-500 line-clamp-2">{{ t.description }}</p> }
+              <div class="mt-auto flex gap-2 pt-1">
+                <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditTemplate(t)">Edit</button>
+                <button class="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="removeTemplate(t)">Delete</button>
+              </div>
+            </div>
+          }
         </div>
       }
     }
@@ -215,7 +247,8 @@
                   <td class="py-3 px-3 tabular-nums text-gray-700">{{ l.memberCount }}</td>
                   <td class="py-3 px-3 text-gray-400">{{ l.description || '—' }}</td>
                   <td class="py-3 px-3 text-right whitespace-nowrap">
-                    <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport(l.id)">Import</button>
+                    <button class="rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50" (click)="openMembers(l)">Members</button>
+                    <button class="ml-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openImport(l.id)">Import</button>
                     <button class="ml-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="openEditList(l)">Edit</button>
                     <button class="ml-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="deleteList(l)">Delete</button>
                   </td>
@@ -266,35 +299,6 @@
       <p class="text-xs text-gray-400">Contacts are Campaigns' own address book (may not be clients). Opt-out is per channel; clients come from the Customer directory over M2M.</p>
     }
 
-    <!-- ============ SENDERS ============ -->
-    @if (tab() === 'senders') {
-      <div class="flex justify-end">
-        <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="openSender()">+ New sender</button>
-      </div>
-      <!-- La sub-lista no se pudo leer. Decirlo, en vez de pintar un vacío que
-           el usuario lee como "no hay nada". -->
-      @if (store.subErrors().senders; as err) {
-        <p class="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">{{ err }}</p>
-      }
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead><tr class="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th class="py-2.5 px-3 font-semibold">Sender</th><th class="py-2.5 px-3 font-semibold">Channel</th><th class="py-2.5 px-3 font-semibold">Sends as (SenderRef)</th><th class="py-2.5 px-3 font-semibold">Status</th><th class="py-2.5 px-3"></th></tr></thead>
-          <tbody>
-            @for (s of store.senders(); track trackById($index, s)) {
-              <tr class="border-b border-gray-50 hover:bg-gray-50/70">
-                <td class="py-3 px-3 font-semibold text-gray-900">{{ s.name }}</td>
-                <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="channelClass(s.channel)">{{ s.channel }}</span></td>
-                <td class="py-3 px-3 text-gray-600">{{ s.senderRef }}</td>
-                <td class="py-3 px-3"><span class="rounded-full px-2.5 py-1 text-[11px] font-bold" [class]="s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'">{{ s.status }}</span></td>
-                <td class="py-3 px-3 text-right"><button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="toggleSender(s.id, s.status !== 'Active')">{{ s.status==='Active' ? 'Disable' : 'Enable' }}</button></td>
-              </tr>
-            } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No sender profiles yet.</td></tr> }
-          </tbody>
-        </table>
-      </div>
-      <p class="text-xs text-gray-400">A sender is an opaque reference (from address, sender ID…). The channel executor resolves it — Campaigns never stores provider secrets.</p>
-    }
-
     <!-- ============ SCHEDULES ============ -->
     @if (tab() === 'schedules') {
       @if (!selected()) {
@@ -337,72 +341,245 @@
 <!-- ===================== MODALS ===================== -->
 
 <!-- New campaign -->
-<app-modal [isOpen]="showNew()" [heading]="editingId() ? 'Edit campaign' : 'New campaign'" [subheading]="editingId() ? 'Update the content (Draft only).' : 'Pick channels, write the content. You can send or schedule it after.'" size="lg" (closed)="showNew.set(false)">
+<app-modal [isOpen]="showNew()" [heading]="editingId() ? 'Edit campaign' : 'New campaign'" [subheading]="editingId() ? 'Update the content (Draft only).' : 'Pick channels, write the content. You can send or schedule it after.'" size="2xl" (closed)="showNew.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-4">
+    <!-- Step indicator -->
+    <div class="flex items-center gap-1.5">
+      @for (st of (editingId() ? [{n:1,l:'Basics'},{n:2,l:'Content'}] : [{n:1,l:'Basics'},{n:2,l:'Content'},{n:3,l:'Review'}]); track st.n) {
+        <button type="button" class="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+          [class]="wizardStep() === st.n ? 'bg-blue-600 text-white' : (wizardStep() > st.n ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500')"
+          (click)="goStep(st.n)">
+          <span class="grid h-5 w-5 place-items-center rounded-full text-[11px]" [class]="wizardStep() === st.n ? 'bg-white/25' : 'bg-white/70'">{{ st.n }}</span>
+          {{ st.l }}
+        </button>
+        @if (!$last) { <span class="h-px flex-1 bg-gray-200"></span> }
+      }
+    </div>
+
+    <!-- ===== Step 1 · Basics ===== -->
+    @if (wizardStep() === 1) {
+      <div class="flex flex-col gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-600">Campaign name</label>
+          <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.name" placeholder="e.g. April deadline reminder" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-600">Channels</label>
+          <p class="text-xs text-gray-400 mb-1.5">Pick where this campaign goes. You'll write content for each one next.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            @for (ch of sendable; track ch) {
+              <button type="button"
+                class="flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-colors"
+                [class]="newForm.channels[ch] ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+                (click)="toggleNewChannel(ch)">
+                <span class="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" [class]="channelClass(ch)">{{ metaFor(ch).badge }}</span>
+                <span class="flex-1">
+                  <span class="block text-sm font-semibold text-gray-800">{{ metaFor(ch).label }}</span>
+                  <span class="block text-[11px] text-gray-400">{{ newForm.channels[ch] ? 'Selected' : 'Tap to add' }}</span>
+                </span>
+                @if (newForm.channels[ch]) { <span class="text-blue-600 text-sm">✓</span> }
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ===== Step 2 · Content ===== -->
+    @if (wizardStep() === 2) {
+      <div class="flex flex-col gap-3">
+        <!-- Mode toggle (only when >1 channel) -->
+        @if (selectedChannels().length > 1) {
+          <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1 text-sm self-start">
+            <button type="button" (click)="newForm.unified = true" class="rounded-lg px-3 py-1.5 font-semibold transition-colors" [class]="newForm.unified ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'">One content for all</button>
+            <button type="button" (click)="newForm.unified = false" class="rounded-lg px-3 py-1.5 font-semibold transition-colors" [class]="!newForm.unified ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'">Customize per channel</button>
+          </div>
+        }
+
+        <!-- Templates: start from a reusable multichannel template, or save the current content as one -->
+        <div class="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 px-3.5 py-2.5">
+          <label class="text-xs font-semibold text-gray-600">Start from a template</label>
+          <select class="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            (change)="applyCampaignTemplate($any($event.target).value); $any($event.target).value=''">
+            <option value="">— Choose a template —</option>
+            @for (t of store.campaignTemplates(); track t.id) { <option [value]="t.id">{{ t.name }}</option> }
+          </select>
+          <button type="button" class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="saveAsTemplate()">Save as template</button>
+          @if (newForm.channels['Email']) {
+            <span class="mx-1 h-5 w-px bg-gray-200"></span>
+            <label class="text-[11px] text-gray-400">Email-only:</label>
+            <select class="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400" [ngModel]="newForm.templateId" (ngModelChange)="applyTemplate($event)">
+              <option value="">— None —</option>
+              @for (t of store.templates(); track t.id) { <option [ngValue]="t.id">{{ t.templateKey }}</option> }
+            </select>
+          }
+        </div>
+
+        @if (selectedChannels().length === 0) {
+          <p class="text-sm text-gray-500">Go back and pick at least one channel.</p>
+        }
+
+        <!-- UNIFIED: one content that adapts to every channel -->
+        @if (newForm.unified && selectedChannels().length > 0) {
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Subject / title</label>
+              <input class="mt-1 mb-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.shared.subject" placeholder="Your return is ready" />
+              <label class="text-xs font-semibold text-gray-600">Message</label>
+              <app-rich-editor class="mt-1 block" placeholder="Write once — it adapts to each channel."
+                [variables]="campaignVariables"
+                [html]="newForm.shared.body" (htmlChange)="newForm.shared.body = $event"></app-rich-editor>
+              <p class="mt-1 text-[11px] text-gray-400">One message for every channel: rich HTML for email, plain text for SMS/Push. Use {{ '{{first_name}}' }} to personalize.</p>
+            </div>
+            <div class="flex flex-col gap-3">
+              @for (ch of selectedChannels(); track ch) {
+                <app-channel-preview [channel]="ch" [subject]="effectiveContent(ch).subject" [title]="effectiveContent(ch).title" [body]="effectiveContent(ch).body"></app-channel-preview>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- PER-CHANNEL: customize each one -->
+        @if (!newForm.unified) {
+          @for (ch of selectedChannels(); track ch) {
+            <div class="rounded-xl border border-gray-200 p-3.5">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="grid h-7 w-7 place-items-center rounded-lg text-[11px] font-bold" [class]="channelClass(ch)">{{ metaFor(ch).badge }}</span>
+                <span class="text-sm font-semibold text-gray-800">{{ metaFor(ch).label }}</span>
+              </div>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  @if (metaFor(ch).hasSubject) {
+                    <label class="text-xs font-semibold text-gray-600">Subject</label>
+                    <input class="mt-1 mb-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.content[ch].subject" placeholder="Your return is ready" />
+                  }
+                  @if (metaFor(ch).hasTitle) {
+                    <label class="text-xs font-semibold text-gray-600">Title</label>
+                    <input class="mt-1 mb-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.content[ch].title" placeholder="Your return is ready" />
+                  }
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-semibold text-gray-600">{{ metaFor(ch).bodyLabel }}</label>
+                    @if (metaFor(ch).maxBody) {
+                      <span class="text-[11px]" [class]="bodyLen(ch) > metaFor(ch).maxBody! ? 'text-red-600' : 'text-gray-400'">{{ bodyLen(ch) }}/{{ metaFor(ch).maxBody }}</span>
+                    }
+                  </div>
+                  @if (ch === 'Email') {
+                    <app-rich-editor class="mt-1 block" placeholder="Write your email — bold, lists, links, images…"
+                      [variables]="campaignVariables"
+                      [html]="newForm.content[ch].body" (htmlChange)="newForm.content[ch].body = $event"></app-rich-editor>
+                  } @else {
+                    <textarea rows="4" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.content[ch].body" placeholder="Hi {{ '{{first_name}}' }}, …"></textarea>
+                  }
+                  <p class="mt-1 text-[11px] text-gray-400">{{ metaFor(ch).bodyHint }}</p>
+                </div>
+                <app-channel-preview [channel]="ch" [subject]="newForm.content[ch].subject" [title]="newForm.content[ch].title" [body]="newForm.content[ch].body"></app-channel-preview>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+
+    <!-- ===== Step 3 · Review (create only) ===== -->
+    @if (wizardStep() === 3 && !editingId()) {
+      <div class="flex flex-col gap-2.5 text-sm">
+        <div class="flex justify-between border-b border-gray-100 pb-2"><span class="text-gray-500">Name</span><span class="font-semibold text-gray-800">{{ newForm.name || '—' }}</span></div>
+        <div class="flex justify-between border-b border-gray-100 pb-2">
+          <span class="text-gray-500">Channels</span>
+          <span class="flex gap-1">@for (ch of selectedChannels(); track ch) { <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" [class]="channelClass(ch)">{{ metaFor(ch).label }}</span> }</span>
+        </div>
+        @for (ch of selectedChannels(); track ch) {
+          <div class="rounded-xl border border-gray-100 px-3 py-2">
+            <div class="text-[11px] font-semibold text-gray-500 mb-0.5">{{ metaFor(ch).label }}</div>
+            @if (effectiveContent(ch).subject && metaFor(ch).hasSubject) { <div class="text-xs text-gray-500">Subject: <span class="text-gray-800">{{ effectiveContent(ch).subject }}</span></div> }
+            @if (effectiveContent(ch).title && metaFor(ch).hasTitle) { <div class="text-xs text-gray-500">Title: <span class="text-gray-800">{{ effectiveContent(ch).title }}</span></div> }
+            <div class="text-xs text-gray-700 line-clamp-2 whitespace-pre-wrap">{{ effectiveContent(ch).body }}</div>
+          </div>
+        }
+        <div class="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-700">Saved as a draft. Pick the audience and send it with the “Send” button on the campaign.</div>
+      </div>
+    }
+
+    <!-- ===== Footer ===== -->
+    <div class="flex items-center justify-between pt-1 border-t border-gray-100 mt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showNew.set(false)">Cancel</button>
+      <div class="flex gap-2">
+        @if (wizardStep() > 1) {
+          <button class="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50" (click)="wizardBack()">Back</button>
+        }
+        @if (wizardStep() < lastStep()) {
+          <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700" (click)="wizardNext()">Next</button>
+        } @else {
+          <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitNew()">{{ editingId() ? 'Save changes' : 'Save draft' }}</button>
+        }
+      </div>
+    </div>
+  </div>
+</app-modal>
+
+<!-- Template editor -->
+<app-modal [isOpen]="showTemplate()" [heading]="editingTemplateId() ? 'Edit template' : 'New template'" subheading="Reusable multichannel content. Use {{ '{{first_name}}' }} to personalize." size="2xl" (closed)="showTemplate.set(false)">
   <div class="px-6 pb-6 flex flex-col gap-3">
-    <div>
-      <label class="text-xs font-semibold text-gray-600">Name</label>
-      <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.name" placeholder="e.g. April deadline reminder" />
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Template name</label>
+        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="templateForm.name" placeholder="e.g. Christmas greeting" />
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Description <span class="text-gray-400">(optional)</span></label>
+        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="templateForm.description" placeholder="What is this template for?" />
+      </div>
     </div>
     <div>
-      <label class="text-xs font-semibold text-gray-600">Channels — sent to every selected channel</label>
-      <div class="mt-1.5 flex flex-wrap gap-2">
+      <label class="text-xs font-semibold text-gray-600">Channels</label>
+      <div class="mt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
         @for (ch of sendable; track ch) {
-          <button type="button"
-            class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors"
-            [class]="newForm.channels[ch] ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'"
-            (click)="toggleNewChannel(ch)">
-            {{ ch }}
+          <button type="button" class="flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-colors"
+            [class]="templateForm.channels[ch] ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
+            (click)="toggleTemplateChannel(ch)">
+            <span class="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" [class]="channelClass(ch)">{{ metaFor(ch).badge }}</span>
+            <span class="flex-1 text-sm font-semibold text-gray-800">{{ metaFor(ch).label }}</span>
+            @if (templateForm.channels[ch]) { <span class="text-blue-600 text-sm">✓</span> }
           </button>
         }
       </div>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="text-xs font-semibold text-gray-600">Template <span class="text-gray-400">(prefills the body)</span></label>
-        <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="newForm.templateId" (ngModelChange)="applyTemplate($event)">
-          <option value="">— No template —</option>
-          @for (t of store.templates(); track t.id) { <option [ngValue]="t.id">{{ t.templateKey }}{{ t.category ? ' · ' + t.category : '' }}</option> }
-        </select>
-        <!-- Un desplegable con una sola opción no dice si la oficina no tiene plantillas o si no
-             se pudieron leer. -->
-        @if (store.subErrors().templates; as err) {
-          <p class="mt-1 text-xs text-amber-700">{{ err }}</p>
-        }
+    @for (ch of templateChannels(); track ch) {
+      <div class="rounded-xl border border-gray-200 p-3.5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="grid h-7 w-7 place-items-center rounded-lg text-[11px] font-bold" [class]="channelClass(ch)">{{ metaFor(ch).badge }}</span>
+          <span class="text-sm font-semibold text-gray-800">{{ metaFor(ch).label }}</span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            @if (metaFor(ch).hasSubject) {
+              <label class="text-xs font-semibold text-gray-600">Subject</label>
+              <input class="mt-1 mb-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="templateForm.content[ch].subject" placeholder="Subject" />
+            }
+            @if (metaFor(ch).hasTitle) {
+              <label class="text-xs font-semibold text-gray-600">Title</label>
+              <input class="mt-1 mb-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="templateForm.content[ch].title" placeholder="Title" />
+            }
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-semibold text-gray-600">{{ metaFor(ch).bodyLabel }}</label>
+              @if (metaFor(ch).maxBody) {
+                <span class="text-[11px]" [class]="templateBodyLen(ch) > metaFor(ch).maxBody! ? 'text-red-600' : 'text-gray-400'">{{ templateBodyLen(ch) }}/{{ metaFor(ch).maxBody }}</span>
+              }
+            </div>
+            @if (ch === 'Email') {
+              <app-rich-editor class="mt-1 block" placeholder="Write the template…" [variables]="campaignVariables"
+                [html]="templateForm.content[ch].body" (htmlChange)="templateForm.content[ch].body = $event"></app-rich-editor>
+            } @else {
+              <textarea rows="4" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="templateForm.content[ch].body" placeholder="Hi {{ '{{first_name}}' }}, …"></textarea>
+            }
+          </div>
+          <app-channel-preview [channel]="ch" [subject]="templateForm.content[ch].subject" [title]="templateForm.content[ch].title" [body]="templateForm.content[ch].body"></app-channel-preview>
+        </div>
       </div>
-      <div>
-        <label class="text-xs font-semibold text-gray-600">Subject <span class="text-gray-400">(Email)</span></label>
-        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.subject" placeholder="Your return is ready" />
-      </div>
-    </div>
-    <div>
-      <label class="text-xs font-semibold text-gray-600">Message</label>
-      <textarea rows="4" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="newForm.message" placeholder="Hi {{ '{{first_name}}' }}, your 2024 return is ready to review and sign."></textarea>
-    </div>
-
-    @if (!editingId()) {
-      <label class="text-xs font-semibold text-gray-600">Audience <span class="text-gray-400">(optional — for “Create &amp; send now”)</span></label>
-      <div class="flex flex-col gap-1.5 max-h-40 overflow-auto">
-        @for (l of store.lists(); track trackById($index, l)) {
-          <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="newForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-            <input type="checkbox" [ngModel]="newForm.listIds[l.id]" (ngModelChange)="newForm.listIds[l.id]=!newForm.listIds[l.id]" class="h-4 w-4 accent-blue-600" />
-            <span class="flex-1 text-sm text-gray-800">{{ l.name }}</span><span class="text-xs text-gray-400">{{ l.memberCount }}</span>
-          </label>
-        }
-        <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="newForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-          <input type="checkbox" [(ngModel)]="newForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
-          <span class="flex-1 text-sm text-gray-800">All active clients</span>
-        </label>
-      </div>
-      <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Audience is resolved fresh at send time (opt-out &amp; dedupe applied) — never frozen into the campaign.</div>
     }
-    <div class="flex justify-end gap-2 pt-1">
-      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showNew.set(false)">Cancel</button>
-      @if (editingId()) {
-        <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(false)">Save changes</button>
-      } @else {
-        <button class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(false)">Save draft</button>
-        <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitNew(true)">Create &amp; send now</button>
-      }
+    <div class="flex justify-end gap-2 pt-1 border-t border-gray-100">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showTemplate.set(false)">Cancel</button>
+      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitTemplate()">{{ editingTemplateId() ? 'Save changes' : 'Create template' }}</button>
     </div>
   </div>
 </app-modal>
@@ -412,7 +589,7 @@
   <div class="px-6 pb-6 flex flex-col gap-3">
     <label class="text-xs font-semibold text-gray-600">Audience sources — combinable</label>
     <div class="flex flex-col gap-2">
-      @for (l of store.lists(); track trackById($index, l)) {
+      @for (l of nonEmptyLists(); track trackById($index, l)) {
         <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2.5 cursor-pointer" [class]="sendForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
           <input type="checkbox" [ngModel]="sendForm.listIds[l.id]" (ngModelChange)="toggleList(l.id)" class="h-4 w-4 accent-blue-600" />
           <span class="flex-1"><b class="text-sm text-gray-800">{{ l.name }}</b> <span class="text-xs text-gray-400">{{ l.description || '' }}</span></span>
@@ -459,7 +636,7 @@
     </div>
     <label class="text-xs font-semibold text-gray-600">Audience for each fire</label>
     <div class="flex flex-col gap-2">
-      @for (l of store.lists(); track trackById($index, l)) {
+      @for (l of nonEmptyLists(); track trackById($index, l)) {
         <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="schedForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
           <input type="checkbox" [ngModel]="schedForm.listIds[l.id]" (ngModelChange)="schedForm.listIds[l.id]=!schedForm.listIds[l.id]" class="h-4 w-4 accent-blue-600" />
           <span class="flex-1 text-sm text-gray-800">{{ l.name }}</span><span class="text-xs text-gray-400">{{ l.memberCount }}</span>
@@ -479,51 +656,58 @@
 </app-modal>
 
 <!-- Import CSV -->
-<app-modal [isOpen]="showImport()" heading="Import contacts" subheading="CSV: name,email,phone per line. Header optional." size="md" (closed)="showImport.set(false)">
-  <div class="px-6 pb-6 flex flex-col gap-3">
+<app-modal [isOpen]="showImport()" heading="Import contacts" subheading="Sube un CSV con columnas name, email, phone. Cada fila con email se registra también como cliente." size="lg" (closed)="showImport.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-5">
+    <!-- 1. target list -->
     <div>
-      <label class="text-xs font-semibold text-gray-600">Target list</label>
-      <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="importForm.listId">
-        @for (l of store.lists(); track trackById($index, l)) { <option [ngValue]="l.id">{{ l.name }} · {{ l.memberCount }} members</option> }
+      <div class="text-sm font-semibold text-gray-900">1. Lista destino</div>
+      <select class="mt-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="importForm.listId">
+        @for (l of store.lists(); track trackById($index, l)) { <option [ngValue]="l.id">{{ l.name }} · {{ l.memberCount }} miembros</option> }
       </select>
     </div>
+
+    <!-- 2. file dropzone -->
     <div>
-      <label class="text-xs font-semibold text-gray-600">CSV</label>
-      <textarea rows="6" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-mono outline-none focus:border-blue-400" [(ngModel)]="importForm.csv" spellcheck="false"></textarea>
+      <div class="text-sm font-semibold text-gray-900">2. Elige tu archivo</div>
+      <div class="mt-2 rounded-2xl border-2 border-dashed p-8 text-center transition-colors"
+        [class]="importDragging() ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50/60'"
+        (dragover)="onImportDragOver($event)" (dragleave)="onImportDragLeave($event)" (drop)="onImportDrop($event)">
+        @if (!importFileName()) {
+          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm text-2xl">📄</div>
+          <p class="mt-3 text-sm font-semibold text-gray-900">Arrastra tu CSV aquí</p>
+          <p class="mt-0.5 text-xs text-gray-500">o</p>
+          <label class="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            Buscar archivo
+            <input type="file" class="hidden" accept=".csv,.txt" (change)="onImportFileInput($event)" />
+          </label>
+        } @else {
+          <div class="flex flex-wrap items-center justify-center gap-4">
+            <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm text-xl">✅</span>
+            <div class="text-left">
+              <p class="text-sm font-semibold text-gray-900">{{ importFileName() }}</p>
+              <p class="text-xs text-gray-500">{{ importRowCount() }} contacto(s) detectado(s)</p>
+            </div>
+            <button class="rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100" (click)="clearImportFile()">Quitar</button>
+          </div>
+        }
+      </div>
     </div>
-    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Dedupe by normalized email/phone (in-file &amp; against existing). Rows with no destination are skipped.</div>
-    <div class="flex justify-end gap-2 pt-1">
+
+    <!-- 3. preview / paste fallback -->
+    <details class="group">
+      <summary class="cursor-pointer text-xs font-semibold text-gray-500 hover:text-gray-700">O pega el CSV manualmente</summary>
+      <textarea rows="5" class="mt-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-400" [(ngModel)]="importForm.csv" spellcheck="false" (ngModelChange)="importFileName.set(null)"></textarea>
+    </details>
+
+    <div class="rounded-xl bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800">Se eliminan duplicados por email/teléfono (en el archivo y contra lo existente). Las filas sin destino se omiten. <b>{{ importRowCount() }}</b> fila(s) listas para importar.</div>
+
+    <div class="flex items-center justify-end gap-2 pt-1 border-t border-gray-100">
       <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showImport.set(false)">Cancel</button>
-      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitImport()">Import</button>
+      <button class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy() || importRowCount() === 0" (click)="submitImport()">{{ busy() ? 'Importando…' : 'Importar ' + importRowCount() + ' contacto(s)' }}</button>
     </div>
   </div>
 </app-modal>
 
-<!-- New sender -->
-<app-modal [isOpen]="showSender()" heading="New sender profile" subheading="Who the message is sent as, per channel. No provider secrets." size="md" (closed)="showSender.set(false)">
-  <div class="px-6 pb-6 flex flex-col gap-3">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="text-xs font-semibold text-gray-600">Channel</label>
-        <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.channel">
-          @for (ch of sendable; track ch) { <option [ngValue]="ch">{{ ch }}</option> }
-        </select>
-      </div>
-      <div>
-        <label class="text-xs font-semibold text-gray-600">Name</label>
-        <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.name" placeholder="TaxProffice Oficial" />
-      </div>
-    </div>
-    <div>
-      <label class="text-xs font-semibold text-gray-600">Sends as (SenderRef)</label>
-      <input class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="senderForm.senderRef" placeholder="no-reply@taxproffice.com  ·  or a sender ID for SMS" />
-    </div>
-    <div class="flex justify-end gap-2 pt-1">
-      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSender.set(false)">Cancel</button>
-      <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSender()">Create</button>
-    </div>
-  </div>
-</app-modal>
 
 <!-- Edit list -->
 <app-modal [isOpen]="showEditList()" heading="Edit list" subheading="Rename or update the description." size="md" (closed)="showEditList.set(false)">
@@ -533,6 +717,48 @@
     <div class="flex justify-end gap-2 pt-1">
       <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showEditList.set(false)">Cancel</button>
       <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitEditList()">Save</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- List members -->
+<app-modal [isOpen]="showMembers()" [heading]="'Members · ' + membersList.name" subheading="Add or remove contacts in this list." size="lg" (closed)="showMembers.set(false)">
+  <div class="px-6 pb-6 flex flex-col gap-4">
+    <!-- add existing contact -->
+    <div class="flex items-end gap-2">
+      <div class="flex-1">
+        <label class="text-xs font-semibold text-gray-600">Add a contact</label>
+        <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="memberToAdd">
+          <option value="">Select a contact…</option>
+          @for (c of addableContacts(); track c.id) {
+            <option [value]="c.id">{{ c.name || c.email || c.phoneE164 }}{{ c.email ? ' · ' + c.email : '' }}</option>
+          }
+        </select>
+      </div>
+      <button class="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy() || !memberToAdd" (click)="addMemberToList()">Add</button>
+    </div>
+    <p class="text-xs text-gray-400 -mt-2">¿No aparece? Agrégalo con <b>Import CSV</b> — cada fila con email se registra también como cliente.</p>
+
+    <!-- current members -->
+    <div>
+      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">In this list ({{ store.listMembers().length }})</div>
+      <div class="max-h-80 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+        @for (m of store.listMembers(); track m.id) {
+          <div class="flex items-center justify-between px-3.5 py-2.5">
+            <div class="min-w-0">
+              <div class="truncate text-sm font-semibold text-gray-800">{{ m.name || '—' }}</div>
+              <div class="truncate text-xs text-gray-500">{{ m.email || m.phoneE164 || '—' }}</div>
+            </div>
+            <button class="shrink-0 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" (click)="removeMemberFromList(m.id)">Remove</button>
+          </div>
+        } @empty {
+          <div class="py-10 text-center text-sm text-gray-400">No contacts in this list yet.</div>
+        }
+      </div>
+    </div>
+
+    <div class="flex justify-end pt-1">
+      <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showMembers.set(false)">Done</button>
     </div>
   </div>
 </app-modal>

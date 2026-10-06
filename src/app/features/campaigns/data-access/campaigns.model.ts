@@ -53,6 +53,14 @@ export interface CampaignSenderSelection {
   senderProfileId: string;
 }
 
+/** Contenido por canal (Email: subject+body · Push: title+body · SMS/WhatsApp/InApp: body). */
+export interface CampaignChannelContent {
+  channel: ApiChannel;
+  subject?: string | null;
+  title?: string | null;
+  body: string;
+}
+
 export interface CampaignResponse {
   id: string;
   tenantId: string;
@@ -63,6 +71,7 @@ export interface CampaignResponse {
   message: string;
   status: ApiCampaignStatus;
   senders: CampaignSenderSelection[];
+  contents: CampaignChannelContent[];
   createdAtUtc: string;
   updatedAtUtc: string;
 }
@@ -72,6 +81,28 @@ export interface CreateCampaignRequest {
   channels: ApiChannel[];
   message: string;
   subject?: string | null;
+  contents?: CampaignChannelContent[];
+}
+
+// ---------- Campaign templates (reusable, multichannel — service TaxVision.Campaigns /campaign-templates) ----------
+
+export interface CampaignTemplateResponse {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  createdByUserId: string;
+  channels: ApiChannel[];
+  contents: CampaignChannelContent[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface CampaignTemplateRequest {
+  name: string;
+  description?: string | null;
+  channels: ApiChannel[];
+  contents?: CampaignChannelContent[];
 }
 
 export interface SetCampaignSenderRequest {
@@ -177,6 +208,13 @@ export interface ImportContactsResponse {
   reused: number;
   invalid: number;
   membersAdded: number;
+  // Etapa C — cada fila con email se provisiona además como cliente en el servicio Customer.
+  customersCreated: number;
+  customersExisting: number;
+  customersSkippedNoEmail: number;
+  customersFailed: number;
+  /** El usuario no tiene permiso (customers.manage) para crear clientes; los contactos locales igual se importaron. */
+  customerPermissionDenied: boolean;
 }
 
 // ---------- Sender profiles ----------
