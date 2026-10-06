@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
@@ -21,6 +21,9 @@ import {
   runStatusClass,
   unitStateClass,
 } from '../../data-access/campaigns.model';
+import { FilterChipOption } from '@shared/ui/filter-chips/filter-chips.component';
+import { SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 
 type Tab = 'campaigns' | 'runs' | 'audience' | 'schedules' | 'templates';
 const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor real hoy
