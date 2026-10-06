@@ -1,0 +1,20 @@
+.sig-row {
+  animation: sig-row-in 180ms ease both;
+}
+
+@keyframes sig-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sig-row {
+    animation: none;
+  }
+}

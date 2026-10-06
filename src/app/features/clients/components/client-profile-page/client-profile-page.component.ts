@@ -10,6 +10,7 @@ import { ClickOutsideDirective } from '@shared/directives/click-outside.directiv
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
 import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
+import { ClientProfileSignaturesComponent } from '../../ui/client-profile-signatures/client-profile-signatures.component';
 import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
 import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
@@ -82,6 +83,7 @@ export type ClientProfileTabId =
   | 'info'
   | 'family'
   | 'documents'
+  | 'signatures'
   | 'invoices'
   | 'work'
   | 'notes'
@@ -133,6 +135,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
     tabs: [
       { id: 'work', label: 'Work' },
       { id: 'documents', label: 'Documents' },
+      { id: 'signatures', label: 'Signatures' },
       { id: 'notes', label: 'Notes' },
       { id: 'communication', label: 'Communication' },
       { id: 'calls', label: 'Calls' },
@@ -150,6 +153,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
  */
 const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   documents: { module: 'documents', anyOf: ['cloudstorage.file.view'] },
+  signatures: { module: 'signatures', anyOf: ['signature.request.read'] },
   work: { module: 'planner', anyOf: ['tasks.read'] },
   notes: { module: 'planner', anyOf: ['notes.read'] },
   reminders: { module: 'planner', anyOf: ['reminders.read'] },
@@ -175,7 +179,8 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
  *    Notes (`/notes?targetType=Customer&targetId=`), Communication
  *    (`/correspondence/customers/{id}/threads`), Work
  *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents
- *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff) y
+ *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff), Signatures
+ *    (`/signature/requests?customerId=` — firmante mapeado al cliente) y
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
@@ -196,6 +201,7 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
     ClientProfileDocumentsComponent,
+    ClientProfileSignaturesComponent,
     ClientProfileWorkComponent,
     ClientProfileRequestsComponent,
     ClientProfileInvoicesComponent,
