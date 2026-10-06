@@ -20,7 +20,8 @@
       </div>
 
       <!-- Category dropdown (id real del backend + alta inline) -->
-      <div class="relative" data-dropdown="product-category">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isCategoryOpen()"
+        (appClickOutside)="isCategoryOpen.set(false)">
         <button type="button" (click)="toggleCategoryDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span [class.text-gray-400]="!categoryId()">{{ categoryLabel() }}</span>
@@ -55,7 +56,7 @@
       <!-- Price + Tax -->
       <div class="grid grid-cols-2 gap-3">
         <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <span class="mr-2 text-sm text-gray-400">Price ($)</span>
+          <span class="mr-2 text-sm text-gray-400">Price ({{ priceSymbol }})</span>
           <input type="number" min="0" step="0.01" placeholder="0.00" [ngModel]="price()" name="price"
             (ngModelChange)="price.set($event)"
             class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
@@ -74,13 +75,7 @@
           <p class="text-sm font-medium text-gray-900">Track stock</p>
           <p class="text-xs text-gray-500">Keep on-hand quantities for this product</p>
         </div>
-        <button type="button" (click)="trackInventory.set(!trackInventory())" role="switch"
-          [attr.aria-checked]="trackInventory()"
-          class="relative flex h-6 w-11 items-center rounded-full transition-colors"
-          [ngClass]="trackInventory() ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle stock tracking">
-          <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-            [ngClass]="trackInventory() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-        </button>
+        <app-switch [checked]="trackInventory()" (checkedChange)="trackInventory.set($event)" ariaLabel="Track stock"></app-switch>
       </div>
 
       <div *ngIf="trackInventory()" class="grid grid-cols-2 gap-3">
@@ -107,12 +102,7 @@
           <p class="text-sm font-medium text-gray-900">{{ status() === 'active' ? 'Active' : 'Inactive' }}</p>
           <p class="text-xs text-gray-500">Inactive products stay hidden from clients</p>
         </div>
-        <button type="button" (click)="toggleStatus()" role="switch" [attr.aria-checked]="status() === 'active'"
-          class="relative flex h-6 w-11 items-center rounded-full transition-colors"
-          [ngClass]="status() === 'active' ? 'bg-brand-bold' : 'bg-gray-300'" aria-label="Toggle active status">
-          <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-            [ngClass]="status() === 'active' ? 'translate-x-5' : 'translate-x-0.5'"></span>
-        </button>
+        <app-switch [checked]="status() === 'active'" (checkedChange)="toggleStatus()" ariaLabel="Active"></app-switch>
       </div>
 
       <p *ngIf="errorMessage" class="px-2 text-sm text-red-600">{{ errorMessage }}</p>

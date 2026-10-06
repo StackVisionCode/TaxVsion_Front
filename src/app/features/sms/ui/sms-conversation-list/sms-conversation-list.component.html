@@ -1,11 +1,7 @@
 <div>
   <!-- Search pill -->
-  <div class="mb-3 flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-    <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-    <input type="text" placeholder="Search contacts or numbers" [ngModel]="search()" name="search"
-      (ngModelChange)="search.set($event)"
-      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-  </div>
+  <app-search-input class="mb-3" widthClass="w-full" placeholder="Search contacts or numbers" [value]="search()"
+    (valueChange)="search.set($event)"></app-search-input>
 
   <!-- Contact list (clientes del despacho; sin badge de no leídos: no hay feed de entrantes) -->
   <div class="flex flex-col gap-1">
@@ -13,8 +9,7 @@
       class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
       [ngClass]="contact.id === selectedId ? 'bg-brand-bold text-white' : 'hover:bg-gray-50 text-gray-700'"
       [class.opacity-60]="!contact.phoneE164 && contact.id !== selectedId">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-        [ngClass]="contact.avatarColor">{{ initials(contact.name) }}</span>
+      <app-avatar [name]="contact.name" size="md" [colorClass]="contact.avatarColor"></app-avatar>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">

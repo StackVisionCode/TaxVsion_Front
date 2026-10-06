@@ -8,7 +8,11 @@
 /* `both` es deliberado y NO se cambia por `forwards`: sin `backwards` el elemento se
    pintaría visible durante su animation-delay y saltaría a opacity:0 al arrancar el
    keyframe — un parpadeo peor que el propio retraso. Lo que se recortó son los tiempos
-   (ver MAX_STAGGER_ITEMS / STAGGER_STEP_MS en el .ts). */
+   (ver MAX_STAGGER_ITEMS / STAGGER_STEP_MS en el .ts).
+   Todos los keyframes TERMINAN en `transform: none` a propósito: con fill-mode `both` el
+   estado final queda aplicado para siempre, y cualquier transform distinto de `none`
+   (aunque sea translateY(0) o scale(1)) convierte la tarjeta en el "containing block" de
+   sus hijos `position: fixed` — los modales/drawers/paneles quedaban encerrados en ella. */
 .stagger-enter {
   animation-duration: 240ms;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -19,35 +23,35 @@
 .stagger-enter[data-stagger-flavor="0"] { animation-name: stagger-fade-in; }
 @keyframes stagger-fade-in {
   from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- sabor 1: zoom-in suave --- */
 .stagger-enter[data-stagger-flavor="1"] { animation-name: stagger-zoom-in; }
 @keyframes stagger-zoom-in {
   from { opacity: 0; transform: scale(0.94) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- sabor 2: desliza desde la izquierda --- */
 .stagger-enter[data-stagger-flavor="2"] { animation-name: stagger-slide-left; }
 @keyframes stagger-slide-left {
   from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- sabor 3: desliza desde la derecha --- */
 .stagger-enter[data-stagger-flavor="3"] { animation-name: stagger-slide-right; }
 @keyframes stagger-slide-right {
   from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- sabor 4: cae desde arriba --- */
 .stagger-enter[data-stagger-flavor="4"] { animation-name: stagger-drop-top; }
 @keyframes stagger-drop-top {
   from { opacity: 0; transform: translateY(-16px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- sabor 5: pop juguetón con leve giro --- */
@@ -58,7 +62,7 @@
 }
 @keyframes stagger-pop-rotate {
   from { opacity: 0; transform: scale(0.88) rotate(-2deg); }
-  to { opacity: 1; transform: scale(1) rotate(0deg); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Barra de progreso de navegación: solo se monta si la navegación pasa de 120 ms

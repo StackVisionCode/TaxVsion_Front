@@ -1,12 +1,13 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
+import { ClientSectionId } from '../../utils/client-section-update';
 
 /**
  * Tab "Info" del perfil de cliente: grilla de dos columnas con tarjetas de
  * contacto, detalle personal (individual) o de negocio (company) con el
  * identificador fiscal enmascarado + reveal auditado. Cada tarjeta es editable:
- * `edit` abre el panel de edición del cliente y `editFiscal` el perfil fiscal.
+ * `editSection` abre el modal de esa sección y `editFiscal` el perfil fiscal.
  * El cónyuge y los dependientes viven en `app-client-profile-family`, debajo.
  * Presentacional puro — el HTTP lo dispara el contenedor (`client-profile-page`).
  */
@@ -29,8 +30,13 @@ export class ClientProfileInfoComponent {
 
   @Output() revealTaxId = new EventEmitter<string>();
   @Output() editFiscal = new EventEmitter<void>();
-  /** Editar los datos del cliente (email, teléfono, nacimiento, ocupación, datos de la empresa). */
-  @Output() edit = new EventEmitter<void>();
+  /** Volver a enmascarar el identificador revelado. */
+  @Output() hideTaxId = new EventEmitter<void>();
+  /**
+   * Editar UNA sección (contacto / personal / empresa): el contenedor abre el modal de esa
+   * sección con solo sus campos. El "Edit" del header sigue abriendo el formulario completo.
+   */
+  @Output() editSection = new EventEmitter<ClientSectionId>();
 
   /** Confirmación de un paso antes de revelar: el reveal queda registrado en el backend. */
   readonly confirmingReveal = signal(false);

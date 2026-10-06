@@ -28,7 +28,7 @@
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <p class="truncate text-sm font-semibold text-gray-900">{{ s.title }}</p>
-                <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" [ngClass]="statusColor(s.status)">{{ s.status }}</span>
+                <app-status-pill [tone]="statusTone(s.status)" [soft]="true" [dot]="false" size="xs">{{ s.status }}</app-status-pill>
               </div>
               <p class="truncate text-xs text-gray-400">{{ s.rule }}</p>
               <p class="text-xs text-gray-400">{{ s.generatedCount }} generated@if (s.skippedOccurrences) { · {{ s.skippedOccurrences }} skipped }</p>

@@ -1,8 +1,9 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import { currencySymbol } from '@shared/utils/format.util';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -12,7 +13,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import {
   CatalogCategorySummary,
   Product,
@@ -35,13 +37,15 @@ import {
  */
 @Component({
   selector: 'app-product-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './product-form-panel.component.html',
 })
 export class ProductFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() product: Product | null = null;
+  /** Moneda de la oficina: la usan los productos nuevos (al editar manda la del producto). */
+  @Input() defaultCurrency = 'USD';
   @Input() categories: readonly CatalogCategorySummary[] = [];
   /** Guardado en curso: deshabilita las acciones para no duplicar llamadas. */
   @Input() saving = false;
@@ -69,6 +73,11 @@ export class ProductFormPanelComponent implements OnChanges {
   /** Signal propia porque `product` es un @Input plano: un computed() no reaccionaría a sus cambios. */
   readonly isEditMode = signal(false);
 
+  /** Prefijo del precio: moneda del producto en edición, o la de la oficina al crear. */
+  get priceSymbol(): string {
+    return currencySymbol(this.product?.currency ?? this.defaultCurrency);
+  }
+
   readonly categoryLabel = computed(() => {
     const id = this.categoryId();
     return this.categories.find(category => category.id === id)?.name ?? 'Select a category';
@@ -83,14 +92,6 @@ export class ProductFormPanelComponent implements OnChanges {
     if (changes['product'] || changes['isOpen']) {
       this.isEditMode.set(this.product !== null);
       this.resetForm();
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="product-category"]')) {
-      this.isCategoryOpen.set(false);
     }
   }
 

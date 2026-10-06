@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { PermissionService } from '@core/auth/permission.service';
-import { ToastService } from '../../../../shared/ui/toast/toast.service';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientPortalStore } from '../../data-access/client-portal.store';
 import { ClientPortalPermissionsComponent } from '../client-portal-permissions/client-portal-permissions.component';
 import { portalStatusChipClass, portalStatusLabel } from '../../data-access/client-portal.model';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /** Permisos de Auth para gestionar el acceso de portal (BuildingBlocks.Authorization). */
 const USERS_INVITE = 'users.invite';
@@ -28,7 +29,7 @@ const USERS_MANAGE = 'users.manage';
  */
 @Component({
   selector: 'app-client-profile-portal',
-  imports: [CommonModule, ConfirmDialogComponent, ClientPortalPermissionsComponent],
+  imports: [CommonModule, ConfirmDialogComponent, ClientPortalPermissionsComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-portal.component.html',
   styleUrl: './client-profile-portal.component.css',

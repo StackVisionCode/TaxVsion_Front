@@ -27,5 +27,16 @@
   </div>
 </div>
 
-<!-- Overlay global de llamada 1:1 (entrante/saliente/en curso, en cualquier página). -->
-<app-call-overlay></app-call-overlay>
+<!-- Overlay global de llamada 1:1 (entrante/saliente/en curso, en cualquier página). Diferido: su código
+     (~55 KB) se descarga en idle y se monta con la primera llamada, no en el arranque. El servicio de
+     llamadas sí queda activo desde el inicio para recibir las entrantes. -->
+@defer (when activeCall.phase() !== 'idle'; prefetch on idle) {
+  <app-call-overlay></app-call-overlay>
+}
+
+<!-- Mini-player global del meeting: al salir de /meetings la sesión NO se corta, se minimiza abajo a la
+     derecha con hablante activo, mi cámara y todos los controles. También es el que reproduce el audio
+     remoto (siempre montado mientras hay meeting). Diferido igual que el overlay de llamadas. -->
+@defer (when activeMeeting.phase() !== 'idle'; prefetch on idle) {
+  <app-meeting-mini-player />
+}

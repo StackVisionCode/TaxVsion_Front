@@ -97,19 +97,10 @@
 
     <!-- Filter bar -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
-        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="statusFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        {{ filterLabel(option) }}
-      </button>
+      <app-filter-chips [options]="filterOptions" [value]="statusFilter()" (valueChange)="setFilter($event)"></app-filter-chips>
 
-      <div
-        class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-        <input type="text" placeholder="Search by name or email" [ngModel]="search()" name="search"
-          (ngModelChange)="onSearchChange($event)"
-          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
+      <app-search-input class="ml-auto" placeholder="Search by name or email" [value]="search()"
+        (valueChange)="onSearchChange($event)"></app-search-input>
     </div>
 
     <!-- Table -->

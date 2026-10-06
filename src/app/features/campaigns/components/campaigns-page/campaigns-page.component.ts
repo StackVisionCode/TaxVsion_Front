@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
@@ -84,7 +84,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   readonly selected = signal<CampaignResponse | null>(null);
   readonly selectedRun = signal<CampaignRunResponse | null>(null);
 
-  readonly statusChips: (ApiCampaignStatus | 'all')[] = ['all', 'Draft', 'Ready', 'Scheduled', 'Archived'];
+  readonly statusChips: FilterChipOption<ApiCampaignStatus | 'all'>[] = [
+    { id: 'all', label: 'All' },
+    { id: 'Draft', label: 'Draft' },
+    { id: 'Ready', label: 'Ready' },
+    { id: 'Scheduled', label: 'Scheduled' },
+    { id: 'Archived', label: 'Archived' },
+  ];
+  readonly audienceTabs: SegmentedOption<'lists' | 'contacts'>[] = [
+    { id: 'lists', label: 'Lists' },
+    { id: 'contacts', label: 'Contacts' },
+  ];
 
   // ---------- modals ----------
   readonly showNew = signal(false);
@@ -744,10 +754,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
    * Necesario porque las fechas cargadas de EF vienen SIN sufijo 'Z' → Angular las tomaría como local.
    */
   local(s: string | null | undefined): Date | null {
-    if (!s) return null;
-    const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? null : d;
+    return parseUtcDateOrNull(s);
+  }
+
+  /** Clases de color de las píldoras de campaigns (sin borde visible, en negrita) sobre `app-status-pill`. */
+  pill(colorClass: string): string {
+    return `${colorClass} border-transparent font-bold`;
   }
 
   settled(r: CampaignRunResponse): number {

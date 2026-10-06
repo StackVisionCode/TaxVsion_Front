@@ -1,8 +1,13 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { UsedStorageCardComponent } from '../../../../shared/ui/used-storage-card/used-storage-card.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-storage-card.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { formatBytes } from '@shared/utils/format.util';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { StorageStore } from '../../data-access/storage.store';
 import {
   CATEGORY_META,
@@ -12,8 +17,6 @@ import {
   formatShareDate,
 } from '../../data-access/storage.model';
 
-const GB = 1024 ** 3;
-const MB = 1024 ** 2;
 const PAGE_SIZE = 8;
 
 /** Fila de "mis archivos" cuando hay una categoría seleccionada. */
@@ -37,7 +40,15 @@ export interface CategoryFileRow {
  */
 @Component({
   selector: 'app-storage-page',
-  imports: [CommonModule, RouterLink, PaginationComponent, UsedStorageCardComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    PaginationComponent,
+    UsedStorageCardComponent,
+    StateBlockComponent,
+    AvatarComponent,
+    FileViewerComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './storage-page.component.html',
   styleUrl: './storage-page.component.css',
@@ -166,6 +177,24 @@ export class StoragePageComponent implements OnInit {
     this.store.downloadShared(item);
   }
 
+  // ---------- Visor global ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /** Abre el visor con los archivos descargables de la página actual, empezando por `item`. */
+  view(item: SharedWithMeItem): void {
+    const rows = this.pagedShares().filter(row => row.canDownload && !!row.fileId);
+    const start = rows.findIndex(row => row.shareLinkId === item.shareLinkId);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(rows.map(row => this.store.viewerItem(row)).filter((f): f is FileViewerItem => f !== null));
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
+  }
+
   /** Color hex de la categoría (mismo que su tarjeta/donut), usado para el chip de la tabla. */
   categoryColor(categoryName: string): string {
     return CATEGORY_META[categoryName]?.color ?? 'rgb(var(--color-gray-400-rgb, 156 163 175))';
@@ -198,15 +227,6 @@ export class StoragePageComponent implements OnInit {
   }
 
   formatBytes(bytes: number): string {
-    if (bytes <= 0) {
-      return '0 KB';
-    }
-    if (bytes >= GB) {
-      return `${(bytes / GB).toFixed(1)} GB`;
-    }
-    if (bytes >= MB) {
-      return `${Math.round(bytes / MB)} MB`;
-    }
-    return `${(bytes / 1024).toFixed(1)} KB`;
+    return formatBytes(bytes, { maxUnit: 'GB' });
   }
 }

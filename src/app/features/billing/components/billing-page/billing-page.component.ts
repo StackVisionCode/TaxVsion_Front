@@ -1,8 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { InvoiceMetricsComponent } from '../../ui/invoice-metrics/invoice-metrics.component';
 import { InvoiceAction, InvoiceTableComponent } from '../../ui/invoice-table/invoice-table.component';
 import { InvoiceFormPanelComponent, InvoiceFormSubmit } from '../../ui/invoice-form-panel/invoice-form-panel.component';
@@ -29,6 +32,8 @@ import {
   paymentLinkUrl,
 } from '../../data-access/billing.model';
 import { AdminCapabilities } from '@core/access/admin-capabilities';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /** Pestañas de la sección. */
 type BillingTab = 'invoices' | 'links';
@@ -47,6 +52,9 @@ type BillingTab = 'invoices' | 'links';
     CommonModule,
     FormsModule,
     PaginationComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    StateBlockComponent,
     InvoiceMetricsComponent,
     InvoiceTableComponent,
     InvoiceFormPanelComponent,
@@ -56,6 +64,7 @@ type BillingTab = 'invoices' | 'links';
     PaymentLinksPanelComponent,
     ConfirmDialogComponent,
     RouterLink,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './billing-page.component.html',
@@ -75,6 +84,19 @@ export class BillingPageComponent implements OnInit {
   readonly tab = signal<BillingTab>('invoices');
   readonly takeOptions = TAKE_OPTIONS;
   readonly statusTabs: InvoiceStatusFilter[] = ['All', ...FILTERABLE_STATUSES];
+
+  readonly tabOptions: FilterChipOption<BillingTab>[] = [
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'links', label: 'Payment links' },
+  ];
+
+  /** Pestañas de estado con su contador (solo cuando hay alguna factura en ese estado). */
+  readonly statusTabOptions = computed<FilterChipOption<InvoiceStatusFilter>[]>(() =>
+    this.statusTabs.map(status => {
+      const count = this.store.statusCounts()[status] ?? 0;
+      return { id: status, label: this.statusTabLabel(status), count: count > 0 ? count : null };
+    }),
+  );
 
   // Modales
   readonly formOpen = signal(false);
@@ -101,10 +123,6 @@ export class BillingPageComponent implements OnInit {
 
   statusTabLabel(status: InvoiceStatusFilter): string {
     return status === 'All' ? 'All' : invoiceStatusLabel(status as InvoiceStatus);
-  }
-
-  statusTabCount(status: InvoiceStatusFilter): number {
-    return this.store.statusCounts()[status] ?? 0;
   }
 
   /** Texto del vacío: distingue "no hay ninguna" de "los filtros no dejan pasar nada". */
@@ -142,7 +160,7 @@ export class BillingPageComponent implements OnInit {
         }
         break;
       case 'pdf':
-        this.store.openPdf(invoice);
+        this.openPdf(invoice);
         break;
       case 'recordPayment':
         this.paymentTarget.set(invoice);
@@ -299,5 +317,20 @@ export class BillingPageComponent implements OnInit {
 
   copyLinkUrl(url: string): void {
     this.store.copyToClipboard(url, 'Payment link copied.');
+  }
+
+  // ---------- Visor global (PDF de la factura) ----------
+
+  readonly pdfViewerFiles = signal<FileViewerItem[]>([]);
+  readonly pdfViewerOpen = signal(false);
+
+  /** Muestra el PDF de la factura en el visor global (sin abrir otra pestaña). */
+  openPdf(invoice: InvoiceSummary): void {
+    const item = this.store.pdfViewerItem(invoice);
+    if (!item) {
+      return;
+    }
+    this.pdfViewerFiles.set([item]);
+    this.pdfViewerOpen.set(true);
   }
 }

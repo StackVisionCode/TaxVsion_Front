@@ -7,7 +7,8 @@ import {
   ApiSignatureRequestStatus,
   SignatureRequestSummary,
 } from '../../../signature/data-access/signature.model';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 
 /** Filas que muestra el widget. */
 const MAX_ROWS = 5;
@@ -34,7 +35,7 @@ const ICON_BACKGROUNDS = ['bg-indigo-50', 'bg-indigo-100', 'bg-gray-200'];
  */
 @Component({
   selector: 'app-dashboard-signed-documents',
-  imports: [CommonModule, RouterLink, DashboardWidgetStateComponent],
+  imports: [CommonModule, RouterLink, StateBlockComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-signed-documents.component.html',
 })
@@ -51,6 +52,10 @@ export class DashboardSignedDocumentsComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    this.load();
+  }
+
+  load(): void {
     this.loading.set(true);
     this.error.set(null);
     this.service.list({ page: 1, size: MAX_ROWS }).subscribe({
@@ -88,19 +93,20 @@ export class DashboardSignedDocumentsComponent implements OnInit {
   }
 
   /** Estado tal cual lo reporta el backend, sin renombrarlo. */
-  statusChipClass(status: ApiSignatureRequestStatus): string {
+  statusTone(status: ApiSignatureRequestStatus): StatusTone {
     switch (status) {
       case 'Completed':
-        return 'border-emerald-200 text-emerald-600';
+        return 'success';
       case 'InProgress':
       case 'Ready':
-        return 'border-orange-200 text-orange-500';
+      case 'Scheduled':
+        return 'warning';
       case 'Rejected':
       case 'Canceled':
       case 'Expired':
-        return 'border-red-200 text-red-500';
+        return 'danger';
       case 'Draft':
-        return 'border-gray-200 text-gray-500';
+        return 'neutral';
     }
   }
 

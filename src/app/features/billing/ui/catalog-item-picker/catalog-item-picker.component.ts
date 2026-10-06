@@ -1,3 +1,4 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -12,6 +13,9 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { formatMoney } from '@shared/utils/format.util';
 import { BillingCatalogItem } from '../../data-access/billing.model';
 
 /** Payload del alta rápida desde el picker (el resto de campos los completa el formulario). */
@@ -44,7 +48,7 @@ export interface CatalogQuickCreate {
  */
 @Component({
   selector: 'app-catalog-item-picker',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, SearchInputComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './catalog-item-picker.component.html',
 })
@@ -93,11 +97,7 @@ export class CatalogItemPickerComponent implements OnChanges {
   }
 
   price(item: BillingCatalogItem): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: item.price?.currency || 'USD',
-      minimumFractionDigits: 2,
-    }).format(item.price?.amount ?? 0);
+    return formatMoney(item.price?.amount, item.price?.currency);
   }
 
   /** Abre el mini-formulario prellenando el nombre con lo que se venía buscando. */

@@ -10,11 +10,8 @@ export type FieldType = 'signature' | 'initials' | 'date' | 'text';
  */
 export const PREPARER_PARTY_ID = 'preparer';
 
-/**
- * Campo colocado sobre una página del PDF. `x/y/width/height` están en px de
- * pantalla relativos al canvas de esa página (origen arriba-izquierda). Al
- * enviar se convierten a puntos PDF con `screenRectToPdf`.
- */
+/** Campo colocado sobre una página del PDF, en px de pantalla (origen arriba-izquierda). Se
+ *  normaliza a [0..1] en el momento del envío, no antes. */
 export interface PlacedField {
   id: string;
   type: FieldType;
@@ -44,9 +41,13 @@ export interface RequestRules {
   autoReminder: boolean;
   /** Cada cuántas HORAS se recuerda a los firmantes pendientes (la UI lo edita en días). */
   reminderIntervalHours: number;
+  /**
+   * GenerateCertificate del backend. Las solicitudes nuevas siempre van con true (sin switch en la UI);
+   * solo es false al continuar un borrador viejo creado sin certificado (inmutable tras crear).
+   */
   certificate: boolean;
-  /** P2: entregar el documento firmado a los firmantes al completar (email/SMS). */
-  sendSignedDocument: boolean;
+  /** F7 — entregar el PDF sellado final cuando todos firmen. */
+  sendSealedDocument: boolean;
   /** P2: entregar el certificado de finalización a los firmantes al completar. */
   sendCertificate: boolean;
   /**
@@ -55,6 +56,12 @@ export interface RequestRules {
    * Es una capa aparte del OTP, no lo reemplaza.
    */
   signingPin: string | null;
+  // F7 — copia inmediata al firmar. Audience: 'All' o 'Specific' con la lista.
+  sendPartialCopy: boolean;
+  partialCopyAudienceKind: 'All' | 'Specific';
+  partialCopyAudienceSignerIds: string[];
+  // F7 — expiración opcional del enlace público.
+  expirationEnabled: boolean;
 }
 
 /** Firmante dentro del editor (el cliente es el firmante #1; se pueden añadir más). */

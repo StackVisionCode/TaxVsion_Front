@@ -1,14 +1,14 @@
-<div class="wizard-card bg-white rounded-[28px] p-6">
+<div class="wizard-card bg-white rounded-[28px] p-4 sm:p-6" [class.max-md:pb-24]="currentStep() === 3">
   <!-- Header: título + volver a la lista -->
   <div class="flex items-start justify-between gap-4">
     <div class="min-w-0">
-      <h2 class="text-xl font-bold text-gray-900">{{ editingDraft() ? 'Continue Draft' : 'New Signature Request' }}</h2>
-      <p class="mt-1 text-sm text-gray-500">{{ stepSubtitle() }}</p>
+      <h2 class="text-lg font-bold text-gray-900 sm:text-xl">{{ editingDraft() ? 'Continue Draft' : 'New Signature Request' }}</h2>
+      <p class="mt-0.5 text-sm text-gray-500">{{ stepSubtitle() }}</p>
     </div>
-    <button type="button" (click)="close()"
-      class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+    <button type="button" (click)="close()" aria-label="Back to list"
+      class="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
       <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
-      Back to list
+      <span class="hidden sm:inline">Back to list</span>
     </button>
   </div>
 
@@ -35,7 +35,7 @@
   </div>
 
   <!-- Stepper numerado -->
-  <div class="mt-5 flex items-center gap-2">
+  <div class="mt-3 flex items-center gap-2">
     <ng-container *ngFor="let s of steps; let last = last">
       <button type="button" (click)="goToStep(s)" [disabled]="s >= currentStep()"
         class="flex shrink-0 items-center gap-2 rounded-full py-1 pr-2 transition-colors"
@@ -67,12 +67,11 @@
   </div>
 
   <!-- Steps -->
-  <div class="mt-6">
+  <div class="mt-4">
     <!-- Step 1: client -->
     <div *ngIf="currentStep() === 1" class="step-content">
       <app-signature-wizard-client-step [selected]="selectedClient()" [recent]="recentClients()"
-        (changeRequested)="clientPickerOpen.set(true)"
-        (recentPicked)="onClientSelected($event)"></app-signature-wizard-client-step>
+        (picked)="onClientPicked($event)"></app-signature-wizard-client-step>
     </div>
 
     <!-- Step 2: document -->
@@ -85,19 +84,21 @@
 
     <!-- Step 3: PDF editor (montado siempre para preservar los campos; oculto en los demás pasos) -->
     <div [hidden]="currentStep() !== 3" class="step-content">
-      <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="selectedDocument()"
-        [registeredClients]="store.customers()" [seed]="editorSeed()"
-        (fieldCountChange)="fieldCount.set($event)"></app-signature-pdf-editor>
+      <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="editorDocument()"
+        [keepFieldsOnDocumentChange]="keepFieldsOnDocumentChange()" [seed]="editorSeed()"
+        (fieldCountChange)="fieldCount.set($event)"
+        (editorStateChanged)="onEditorStateChanged()"></app-signature-pdf-editor>
     </div>
 
     <!-- Step 4: review & send -->
     <div *ngIf="currentStep() === 4" class="step-content">
       <app-signature-wizard-review-step [client]="selectedClient()" [document]="selectedDocument()"
         [signers]="signersSnapshot()" [fields]="fieldsSnapshot()" [rules]="rulesSnapshot()"
-        [title]="title()" (titleChange)="title.set($event)"
-        [category]="category()" (categoryChange)="category.set($event)"
-        [dueDate]="dueDate()" (dueDateChange)="dueDate.set($event)"
-        [notes]="notes()" (notesChange)="notes.set($event)"></app-signature-wizard-review-step>
+        [canDeliverDocs]="canDeliverDocs()" (rulesChange)="onRulesChange($event)" (goToSigner)="goToSigner($event)"
+        [title]="title()" (titleChange)="title.set($event); markMetaDirty()"
+        [category]="category()" (categoryChange)="category.set($event); markMetaDirty()"
+        [dueDate]="dueDate()" (dueDateChange)="dueDate.set($event); markMetaDirty()"
+        [notes]="notes()" (notesChange)="notes.set($event); markMetaDirty()"></app-signature-wizard-review-step>
     </div>
   </div>
 
@@ -108,36 +109,72 @@
     <span class="min-w-0">{{ sendError() }} — press “Send for signature” again to retry from where it stopped.</span>
   </div>
 
+  <!-- Por qué Next/Send/Save están deshabilitados (nunca un botón apagado sin motivo) -->
+  <p *ngIf="stepHint() || (currentStep() >= 2 && saveBlockedReason())" role="status" data-testid="step-hint"
+    class="mt-3 flex items-start gap-1.5 text-xs leading-snug text-amber-700">
+    <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+    <span class="min-w-0">{{ stepHint() || saveBlockedReason() }}</span>
+  </p>
+
   <!-- Footer: navegación -->
-  <div class="mt-6 flex items-center justify-between gap-2 border-t border-gray-100 pt-5">
+  <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
     <button type="button" (click)="close()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      class="min-h-[44px] rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors sm:min-h-0">
       Cancel
     </button>
 
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center justify-end gap-2">
       <button *ngIf="currentStep() > 1" type="button" (click)="back()"
-        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        class="min-h-[44px] sm:min-h-0 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
         Back
       </button>
 
       <!-- Guardar como borrador (sin enviar): disponible una vez subido el documento. -->
       <button *ngIf="currentStep() >= 2" type="button" (click)="saveAsDraft()"
-        [disabled]="!canSaveDraft() || savingDraft() || isSending()"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors">
+        [disabled]="!canSaveDraft() || savingDraft() || isSending()" [attr.title]="saveBlockedReason() || null"
+        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors">
         <span *ngIf="savingDraft()" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
         <ion-icon *ngIf="!savingDraft()" name="save-outline" class="text-sm"></ion-icon>
         {{ savingDraft() ? 'Saving…' : 'Save as draft' }}
       </button>
 
       <button *ngIf="currentStep() < 4" type="button" (click)="next()" [disabled]="!canProceed()"
-        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
         Next
         <ion-icon name="arrow-forward-outline" class="text-sm"></ion-icon>
       </button>
 
-      <button *ngIf="currentStep() === 4" type="button" (click)="send()" [disabled]="!canSend() || isSending()"
-        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      <!-- F3 — Schedule send: popover inline con datetime-local -->
+      <div *ngIf="currentStep() === 4" class="relative">
+        <button type="button" (click)="toggleSchedulePicker()"
+          [disabled]="!canSend() || isSending() || scheduling()"
+          class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
+          <ion-icon name="time-outline" class="text-sm"></ion-icon>
+          Schedule send
+        </button>
+        <div *ngIf="scheduleOpen()" role="dialog" aria-label="Schedule send"
+          class="absolute bottom-full right-0 z-20 mb-2 w-72 rounded-2xl border border-gray-100 bg-white p-4 shadow-xl">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Send on</p>
+          <input type="datetime-local" [ngModel]="scheduleAtLocal()" (ngModelChange)="scheduleAtLocal.set($event)"
+            class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-brand-bold focus:outline-none" />
+          <p class="mt-1 text-[11px] text-gray-400">Uses your local time zone.</p>
+          <p *ngIf="scheduleError()" class="mt-2 text-xs text-red-600" role="alert">{{ scheduleError() }}</p>
+          <div class="mt-3 flex items-center justify-end gap-2">
+            <button type="button" (click)="toggleSchedulePicker()"
+              class="rounded-full px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
+              Cancel
+            </button>
+            <button type="button" (click)="scheduleSend()" [disabled]="scheduling() || !scheduleAtLocal()"
+              class="flex items-center gap-1.5 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+              <span *ngIf="scheduling()" class="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+              {{ scheduling() ? 'Scheduling…' : 'Schedule' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button *ngIf="currentStep() === 4" type="button" (click)="send()" [disabled]="!canSend() || isSending() || scheduling()"
+        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
         <span *ngIf="isSending()" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
         <ion-icon *ngIf="!isSending()" name="paper-plane-outline" class="text-sm"></ion-icon>
         {{ isSending() ? 'Sending…' : 'Send for signature' }}
@@ -146,16 +183,37 @@
   </div>
 </div>
 
+<!-- Cerrar con trabajo sin guardar (Back to list / Cancel / Escape) -->
+<app-confirm-dialog [isOpen]="confirmCloseOpen()" heading="Discard this request?"
+  message="You have unsaved changes. If you leave now, they'll be lost." confirmLabel="Discard"
+  cancelLabel="Keep editing" (confirmed)="confirmDiscard()" (cancelled)="confirmCloseOpen.set(false)"></app-confirm-dialog>
+
+<!-- Re-elegir el documento con campos ya colocados -->
+<app-confirm-dialog [isOpen]="pendingDocument() !== null" tone="primary" icon="document-text-outline"
+  heading="Replace the document?" [message]="'You placed ' + (fieldCount()) + (fieldCount() === 1 ? ' field' : ' fields') + ' on the current document.'"
+  confirmLabel="Replace document" cancelLabel="Keep current document"
+  (confirmed)="confirmDocumentSwap()" (cancelled)="cancelDocumentSwap()">
+  <label *ngIf="canKeepFieldsFor(pendingDocument()); else differentPages"
+    class="mt-3 flex cursor-pointer items-start gap-2 rounded-xl bg-brand-white px-3 py-2 text-left text-xs leading-snug text-gray-700">
+    <input type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-brand-bold" [checked]="keepFieldsChoice()"
+      (change)="keepFieldsChoice.set($any($event.target).checked)" />
+    <span>
+      Keep my fields in the same place on the new document.
+      <span *ngIf="pendingDocument()?.pageCount == null" class="block text-gray-400">Fields on pages the new document doesn't have will be removed.</span>
+    </span>
+  </label>
+  <ng-template #differentPages>
+    <p class="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs leading-snug text-amber-700">
+      The new document has {{ pendingDocument()?.pageCount }} pages instead of {{ currentPageCount() }}, so the fields will be cleared.
+    </p>
+  </ng-template>
+</app-confirm-dialog>
+
 <!-- Cargando el borrador a continuar (detalle + bytes del PDF). -->
 <div *ngIf="hydrating()" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95">
   <span class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
   <p class="mt-4 text-sm font-medium text-gray-500">Loading draft…</p>
 </div>
-
-<!-- Buscador de cliente: en la raíz del panel a propósito — su overlay `position: fixed`
-     se rompería dentro de la tarjeta animada del wizard (ancestro con transform). -->
-<app-signature-client-picker [isOpen]="clientPickerOpen()" [selectedId]="selectedClient()?.id ?? null"
-  (closed)="clientPickerOpen.set(false)" (picked)="onClientPicked($event)"></app-signature-client-picker>
 
 <!-- Coreografía de envío: el papel se crea, se firma y sale (pantalla completa) -->
 <div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95"

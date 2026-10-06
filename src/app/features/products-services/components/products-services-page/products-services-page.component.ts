@@ -1,15 +1,19 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
+import { currencySymbol } from '@shared/utils/format.util';
 import { ServiceCatalogComponent } from '../../ui/service-catalog/service-catalog.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { CatalogStore } from '../../data-access/catalog.store';
 import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '../../data-access/catalog.model';
 
 /**
- * Página del módulo Products & Services (estilo "Aether"): stats pastel +
+ * Página del módulo Products & Services (estilo "Aether"):
  * catálogo con búsqueda/filtros/toggle grid-tabla + modal de crear/editar.
  * Los datos vienen del servicio Catalog (/catalog vía Gateway) a través del
  * CatalogStore; las categorías son POR TENANT y el modal permite crearlas al
@@ -17,31 +21,36 @@ import { CatalogEntry, CatalogFormValue, CatalogItemKind, CategoryDto } from '..
  */
 @Component({
   selector: 'app-products-services-page',
-  imports: [CommonModule, FormsModule, ServiceCatalogComponent, ModalComponent, ConfirmDialogComponent],
+  imports: [
+    SwitchComponent,
+    CommonModule,
+    FormsModule,
+    ServiceCatalogComponent,
+    ModalComponent,
+    ConfirmDialogComponent,
+    StateBlockComponent,
+    FilterChipsComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './products-services-page.component.html',
 })
 export class ProductsServicesPageComponent implements OnInit {
   readonly store = inject(CatalogStore);
 
-  // ---------- Stats (sobre el lote cargado; el total viene del servidor) ----------
-
   // ---------- Filtro por tipo (pestañas Products / Services) ----------
 
   readonly kindFilter = signal<'all' | 'Product' | 'Service'>('all');
   readonly productCount = computed(() => this.store.entries().filter(e => e.kind === 'Product').length);
   readonly serviceCount = computed(() => this.store.entries().filter(e => e.kind === 'Service').length);
+  readonly kindOptions = computed<FilterChipOption<'all' | 'Product' | 'Service'>[]>(() => [
+    { id: 'all', label: 'All', count: this.store.entries().length },
+    { id: 'Product', label: 'Products', count: this.productCount() },
+    { id: 'Service', label: 'Services', count: this.serviceCount() },
+  ]);
   readonly filteredEntries = computed(() => {
     const kind = this.kindFilter();
     const entries = this.store.entries();
     return kind === 'all' ? entries : entries.filter(e => e.kind === kind);
-  });
-
-  readonly activeCount = computed(() => this.store.entries().filter(s => s.status === 'active').length);
-  readonly avgPrice = computed(() => {
-    const services = this.store.entries();
-    if (!services.length) return 0;
-    return Math.round(services.reduce((sum, s) => sum + s.price, 0) / services.length);
   });
 
   // ---------- Modal de crear/editar ----------
@@ -55,6 +64,10 @@ export class ProductsServicesPageComponent implements OnInit {
   readonly newCategoryId = signal('');
   /** Kind solo editable al crear: el backend no permite cambiar el tipo de un ítem. */
   readonly newKind = signal<CatalogItemKind>('Service');
+  readonly newKindOptions: FilterChipOption<CatalogItemKind>[] = [
+    { id: 'Service', label: 'Service' },
+    { id: 'Product', label: 'Product' },
+  ];
   readonly newActive = signal(true);
   readonly saving = signal(false);
   readonly saveError = signal<string | null>(null);
@@ -67,6 +80,8 @@ export class ProductsServicesPageComponent implements OnInit {
   /** Cantidad inicial recibida (solo Product con inventario). */
   readonly newStockQuantity = signal<number | null>(null);
   /** El bloque de detalles de producto solo aplica al CREAR un Product (no en edición). */
+  /** Prefijo de los inputs de precio/costo: moneda del ítem en edición, o la de la oficina al crear. */
+  readonly priceSymbol = computed(() => currencySymbol(this.editingService()?.currency ?? this.store.officeCurrency()));
   readonly showProductDetails = computed(() => !this.editingService() && this.newKind() === 'Product');
 
   // Alta inline de categoría (sin ella un tenant nuevo no podría crear su primer ítem).

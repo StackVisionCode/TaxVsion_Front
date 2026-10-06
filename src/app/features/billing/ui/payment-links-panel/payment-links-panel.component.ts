@@ -2,6 +2,9 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   EXPIRATION_OPTIONS,
@@ -10,7 +13,7 @@ import {
   PaymentPurposeKind,
   SELECTABLE_PURPOSES,
   formatCents,
-  paymentLinkStatusChip,
+  paymentLinkStatusTone,
   paymentLinkUrl,
   purposeLabel,
 } from '../../data-access/billing.model';
@@ -40,7 +43,7 @@ const STATUS_FILTERS: (PaymentLinkStatus | null)[] = [null, 'Active', 'Used', 'E
  */
 @Component({
   selector: 'app-payment-links-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, StatusPillComponent, FilterChipsComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './payment-links-panel.component.html',
 })
@@ -54,6 +57,8 @@ export class PaymentLinksPanelComponent {
   @Input() creating = false;
   /** B6 — crear y revocar links de pago exige `payment_client.payment_link.manage`. */
   @Input() canManage = true;
+  /** Moneda por defecto de la oficina (Billing → Company); el usuario puede cambiarla por link. */
+  @Input() defaultCurrency = 'USD';
 
   @Output() statusFilterChanged = new EventEmitter<PaymentLinkStatus | null>();
   @Output() pageChanged = new EventEmitter<number>();
@@ -62,7 +67,11 @@ export class PaymentLinksPanelComponent {
   @Output() revokeRequested = new EventEmitter<{ link: PaymentLink; reason: string }>();
   @Output() copyRequested = new EventEmitter<string>();
 
-  readonly statusFilters = STATUS_FILTERS;
+  /** Chips de filtro: `null` (sin filtro) viaja como 'All' porque los chips no admiten null. */
+  readonly filterOptions: FilterChipOption<PaymentLinkStatus | 'All'>[] = STATUS_FILTERS.map(status => ({
+    id: status ?? 'All',
+    label: status ?? 'All',
+  }));
   readonly purposes = SELECTABLE_PURPOSES;
   readonly expirations = EXPIRATION_OPTIONS;
 
@@ -70,7 +79,7 @@ export class PaymentLinksPanelComponent {
 
   readonly formOpen = signal(false);
   readonly amount = signal(0);
-  readonly currency = signal('USD');
+  readonly currency = signal(this.defaultCurrency);
   readonly purpose = signal<PaymentPurposeKind>('DepositPayment');
   readonly reference = signal('');
   /** Por defecto 7 días, como el CRM legado. */
@@ -78,7 +87,7 @@ export class PaymentLinksPanelComponent {
 
   openForm(): void {
     this.amount.set(0);
-    this.currency.set('USD');
+    this.currency.set(this.defaultCurrency || 'USD');
     this.purpose.set('DepositPayment');
     this.reference.set('');
     this.expiration.set(EXPIRATION_OPTIONS[3].value);
@@ -135,16 +144,16 @@ export class PaymentLinksPanelComponent {
     return link.id;
   }
 
-  filterLabel(status: PaymentLinkStatus | null): string {
-    return status ?? 'All';
+  onFilterChip(id: PaymentLinkStatus | 'All'): void {
+    this.statusFilterChanged.emit(id === 'All' ? null : id);
   }
 
   money(link: PaymentLink): string {
     return formatCents(link.amountCents, link.currency);
   }
 
-  statusChip(status: PaymentLinkStatus): string {
-    return paymentLinkStatusChip(status);
+  statusTone(status: PaymentLinkStatus): StatusTone {
+    return paymentLinkStatusTone(status);
   }
 
   purposeText(kind: PaymentPurposeKind): string {

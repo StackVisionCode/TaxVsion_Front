@@ -13,18 +13,20 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import {
   DirectorySearch,
   GroupCreateRequest,
   NewConversationModalComponent,
 } from '../../ui/new-conversation-modal/new-conversation-modal.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import {
   CustomerDirectoryEntry,
   EmployeeDirectoryEntry,
@@ -33,6 +35,8 @@ import {
   presenceTextClass,
 } from '../../data-access/chat.model';
 import { ChatStore } from '../../data-access/chat.store';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 
 /** Padding inferior del app-shell (`p-4`): el chat termina ahí, sin empujar la página. */
@@ -52,13 +56,16 @@ const MIN_CHAT_HEIGHT = 360;
   selector: 'app-chat-page',
   imports: [
     CommonModule,
-    FormsModule,
     ChatConversationListComponent,
     ChatThreadComponent,
     ChatComposerComponent,
     ModalComponent,
     NewConversationModalComponent,
+    AvatarComponent,
+    SearchInputComponent,
+    SegmentedComponent,
     ConfirmDialogComponent,
+    FileViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
@@ -103,6 +110,11 @@ export class ChatPageComponent {
 
   /** Tab del rail izquierdo: conversaciones, o directorio de clientes/equipo (estilo WhatsApp). */
   readonly railTab = signal<'chats' | 'clients' | 'team'>('chats');
+  readonly railTabs: SegmentedOption<'chats' | 'clients' | 'team'>[] = [
+    { id: 'chats', label: 'Chats' },
+    { id: 'clients', label: 'Clients' },
+    { id: 'team', label: 'Team' },
+  ];
   readonly railSearch = signal('');
   private railSearchDebounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -329,8 +341,29 @@ export class ChatPageComponent {
     this.store.notifyRecording(isRecording);
   }
 
+  // ---------- Visor global de adjuntos ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /** Abre el adjunto en el visor; se navega entre los adjuntos cargados de la conversación. */
   onAttachmentClicked(fileId: string): void {
-    this.store.downloadAttachment(fileId);
+    const attachments = this.activeConversation.messages
+      .filter(m => !m.isDeleted && !!m.attachment)
+      .map(m => m.attachment!);
+    const list = attachments.some(a => a.fileId === fileId) ? attachments : [];
+    if (list.length === 0) {
+      this.store.downloadAttachment(fileId);
+      return;
+    }
+    this.viewerFiles.set(list.map(a => this.store.attachmentViewerItem(a.fileId, a.name)));
+    this.viewerIndex.set(list.findIndex(a => a.fileId === fileId));
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.store.downloadAttachment(event.item.ref as string);
   }
 
   onLoadOlder(): void {
@@ -439,13 +472,4 @@ export class ChatPageComponent {
     }
   }
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
 }

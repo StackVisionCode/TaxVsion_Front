@@ -1,14 +1,7 @@
 <div class="flex flex-col">
   <!-- Buscador -->
-  <div class="mb-2 flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 focus-within:border-brand-bold transition-colors">
-    <ion-icon name="search-outline" class="text-sm text-gray-400"></ion-icon>
-    <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)"
-      placeholder="Search office PDFs by name"
-      class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-    <button *ngIf="search()" type="button" (click)="search.set('')" class="text-gray-300 hover:text-gray-600 transition-colors">
-      <ion-icon name="close-circle" class="text-sm"></ion-icon>
-    </button>
-  </div>
+  <app-search-input class="mb-2 w-full" widthClass="w-full" placeholder="Search office PDFs by name" [value]="search()"
+    (valueChange)="search.set($event)" />
 
   <!-- Chip opcional: acotar a los PDF del cliente elegido -->
   <div *ngIf="hasClientFilter()" class="mb-2 flex items-center gap-2">

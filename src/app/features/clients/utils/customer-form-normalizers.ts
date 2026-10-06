@@ -1,3 +1,5 @@
+import { normalizePhoneToApi } from '@shared/utils/phone.util';
+
 /**
  * Normalizadores y validadores puros para los formularios de Customer. Cada regla
  * replica EXACTAMENTE el Value Object / handler del backend (no una regex propia más
@@ -11,36 +13,21 @@ export const EMAIL_MAX_LENGTH = 254;
 export const COUNTRY_CODE_LENGTH = 2;
 
 // ---------------- Teléfono (PhoneNumber.cs) ----------------
-// Create(raw): descarta todo salvo '+' y dígitos, luego exige ^\+[1-9]\d{6,14}$
-// (E.164 estricto). No auto-agrega país: sin '+' se rechaza. Canónico = E.164.
+// Vive en `@shared/utils/phone.util` (normalizePhoneToApi / isValidPhone / formatPhoneForDisplay).
 
-const E164_REGEX = /^\+[1-9]\d{6,14}$/;
-
-/** Deja solo '+' inicial y dígitos (igual que el VO). NO valida. */
-export function normalizePhoneToApi(raw: string | null | undefined): string {
-  const cleaned = String(raw ?? '').replace(/[^\d+]/g, '');
-  // Solo un '+' y solo al inicio.
-  const plus = cleaned.startsWith('+') ? '+' : '';
-  return plus + cleaned.replace(/\+/g, '');
-}
-
-/** Valida contra el VO. El teléfono es opcional: vacío se considera válido (no se envía). */
-export function isValidPhone(raw: string | null | undefined): boolean {
-  const value = String(raw ?? '').trim();
-  if (value === '') return true;
-  return E164_REGEX.test(normalizePhoneToApi(value));
-}
-
-/** Formato de presentación. US (+1, 11 dígitos) → "+1 (809) 555-1234"; otros E.164 se muestran tal cual. */
-export function formatPhoneForDisplay(e164: string | null | undefined): string {
-  const value = String(e164 ?? '');
-  if (value === '') return '';
-  const digits = value.replace(/\D/g, '');
-  if (value.startsWith('+1') && digits.length === 11) {
-    const n = digits.slice(1);
-    return `+1 (${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}`;
-  }
-  return value;
+/**
+ * Lo tecleado → E.164 con la misma conveniencia US que el formulario del cliente y el worker de
+ * import: 10 dígitos → +1XXXXXXXXXX, 11 con prefijo 1 → +1…; con '+' se respeta tal cual. Vacío → ''.
+ * No valida: el resultado se pasa por `isValidPhone`.
+ */
+export function toApiPhoneUsDefault(raw: string | null | undefined): string {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('+')) return normalizePhoneToApi(trimmed);
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return normalizePhoneToApi(trimmed);
 }
 
 // ---------------- Email (EmailAddress.cs) ----------------

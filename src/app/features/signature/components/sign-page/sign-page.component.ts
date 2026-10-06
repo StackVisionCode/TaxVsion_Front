@@ -13,14 +13,15 @@ import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
-import { SignaturePadComponent } from '../../../../shared/ui/signature-pad/signature-pad.component';
+import { SignaturePadComponent } from '@shared/ui/signature-pad/signature-pad.component';
 import { SignDocumentViewComponent } from '../../ui/sign-document-view/sign-document-view.component';
+import { renderPdfPages } from '../../utils/pdf-render.util';
 import { maskEmail } from '../../utils/mask-email.util';
 import { UsedLinkRecord, markLinkUsed, readUsedLink } from '../../utils/used-link.util';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
-import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 import {
   AuditChainVerificationResponse,
   PublicSignerFieldView,
@@ -77,10 +78,11 @@ interface BlockedState {
  * asíncrona y el sellado espera a que esté lista (no hay que hacer nada en el cliente).
  *
  * Limitación del contrato público (no simulable, se muestra como tal):
- *   - El contexto expone `originalFileId` pero CloudStorage exige JWT para emitir la
- *     URL presignada ⇒ no hay previsualización del PDF ni descargas para el firmante.
- *     Las hojas (`app-sign-document-view`) muestran los campos en su posición real sobre
- *     un lienzo en blanco; los campos de texto se escriben ahí mismo.
+ *   - F5 (2026-10-03): el documento sí se muestra. GET /signature/public/{token}/document
+ *     devuelve el PDF original tras validar la verificación completa; el visor global
+ *     `app-file-viewer` lo abre sobre la ceremonia sin salir de pantalla. Las hojas
+ *     `app-sign-document-view` siguen mostrando la posición de los campos como fallback
+ *     y para el firmante que todavía no abrió el visor.
  */
 @Component({
   selector: 'app-sign-page',
@@ -152,8 +154,64 @@ export class SignPageComponent implements OnInit, OnDestroy {
   private readonly clock = signal(Date.now());
   private clockTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Cuenta atrás del paso 'done'. Null mientras no se arranca; el timer vive aparte del clock general.
+  private static readonly DONE_REDIRECT_SECONDS = 10;
+  readonly doneRedirectSecondsLeft = signal<number | null>(null);
+  private doneTimer: ReturnType<typeof setInterval> | null = null;
+
   readonly isRejectOpen = signal(false);
   readonly rejectReason = signal('');
+
+  // F5 — Documento como fondo del Review step: bajamos los bytes del PDF por el endpoint F5 (que
+  // ya hard-failea 403 si la verificación no está completa) y lo rendearmos con pdf.js a dataURLs.
+  // El componente `app-sign-document-view` ya acepta `[pageImages]` para pintarlos de fondo bajo
+  // los campos — así los canvas del preparador se ven en su posición real sobre el documento.
+  readonly pageImages = signal<Record<number, string> | null>(null);
+  readonly loadingDocument = signal(false);
+  readonly documentError = signal<string | null>(null);
+
+  private async loadDocument(): Promise<void> {
+    if (this.pageImages() || this.loadingDocument()) {
+      return;
+    }
+    this.loadingDocument.set(true);
+    this.documentError.set(null);
+    try {
+      const bytes = await firstValueFrom(this.api.getDocumentBytes(this.token));
+      const pages = await renderPdfPages({ data: bytes });
+      const map: Record<number, string> = {};
+      for (const p of pages) {
+        if (p.src) map[p.page] = p.src;
+      }
+      this.pageImages.set(map);
+    } catch (err) {
+      // Silencioso: el fallback a hojas en blanco con los canvas sigue siendo utilizable.
+      this.documentError.set(toApiError(err).message);
+    } finally {
+      this.loadingDocument.set(false);
+    }
+  }
+
+  // Host al que vuelve el firmante cuando termina.
+  //  - Prod: si el tenant tiene subdominio proyectado y el host es multi-tenant
+  //    (ej. foo.taxproffice.com) volvemos a `<sub>.<basedomain>/`.
+  //  - Si el backend no sembro `tenantSubDomain` (tenants viejos, pre F1.C) pero el
+  //    firmante llego por un subdominio evidente (3+ segmentos, no `www`), lo tomamos
+  //    del hostname mismo: es el mismo tenant por el que entro.
+  //  - Si no se puede inferir: null → se muestra la pantalla "close window".
+  //    (NO cae al Landing: Landing es Manage Subscription, el firmante externo no pinta ahí).
+  readonly tenantReturnUrl = computed(() => {
+    const host = window.location.hostname;
+    const parts = host.split('.');
+    const sub = this.context()?.tenantSubDomain?.trim().toLowerCase()
+      || inferSubdomainFromParts(parts);
+    const dot = host.indexOf('.');
+    if (sub && dot >= 0) {
+      const parent = host.slice(dot + 1);
+      return `${window.location.protocol}//${sub}.${parent}/`;
+    }
+    return null;
+  });
 
   // ---------- Acuse (cadena de audit) ----------
 
@@ -406,9 +464,10 @@ export class SignPageComponent implements OnInit, OnDestroy {
     return ctx ? SIGNATURE_CATEGORY_LABEL[ctx.category] : '';
   });
 
+  // F7 — expiresAtUtc es nullable: cuando null, el header no pinta "Due …".
   readonly expiresLabel = computed(() => {
-    const ctx = this.context();
-    return ctx ? formatDate(ctx.expiresAtUtc) : '';
+    const iso = this.context()?.expiresAtUtc;
+    return iso ? formatDate(iso) : '';
   });
 
   /** Campos ordenados por página: es todo lo que el firmante puede saber del documento. */
@@ -485,6 +544,36 @@ export class SignPageComponent implements OnInit, OnDestroy {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
     }
+    this.stopDoneCountdown();
+  }
+
+  // Arranca la cuenta atrás una vez por entrada a 'done'. Si ya hay timer activo, no reinicia.
+  private startDoneCountdown(): void {
+    if (this.doneTimer !== null || this.tenantReturnUrl() === null) return;
+    this.doneRedirectSecondsLeft.set(SignPageComponent.DONE_REDIRECT_SECONDS);
+    this.doneTimer = setInterval(() => {
+      const left = (this.doneRedirectSecondsLeft() ?? 0) - 1;
+      if (left <= 0) {
+        this.exitToTenant();
+        return;
+      }
+      this.doneRedirectSecondsLeft.set(left);
+    }, 1000);
+  }
+
+  // Salida inmediata (botón o fin de cuenta atrás). Hace cleanup y navega una sola vez.
+  exitToTenant(): void {
+    const url = this.tenantReturnUrl();
+    this.stopDoneCountdown();
+    if (url) window.location.assign(url);
+  }
+
+  private stopDoneCountdown(): void {
+    if (this.doneTimer !== null) {
+      clearInterval(this.doneTimer);
+      this.doneTimer = null;
+    }
+    this.doneRedirectSecondsLeft.set(null);
   }
 
   async load(): Promise<void> {
@@ -572,7 +661,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
     const steps = this.steps();
     const clamped = Math.min(Math.max(index, 0), steps.length - 1);
     this.actionError.set(null);
-    this.stepId.set(steps[clamped].id);
+    const nextId = steps[clamped].id;
+    this.stepId.set(nextId);
+    // F5: en cuanto el firmante llega a review/sign ya pasó por consent + PIN + OTP si tocaban,
+    // así que el endpoint /document ya no responderá 403. Se dispara una sola vez (loadDocument
+    // es idempotente: si `pageImages` ya está, retorna).
+    if (nextId === 'review' || nextId === 'sign') {
+      void this.loadDocument();
+    }
   }
 
   toggleConsent(): void {
@@ -698,6 +794,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.signedAtLocal.set(new Date().toISOString());
     this.justSigned.set(true);
     this.stepId.set('done');
+    this.startDoneCountdown();
     await markLinkUsed(this.token, 'signed');
     await this.reloadContext();
     await this.loadAudit();
@@ -788,6 +885,19 @@ export class SignPageComponent implements OnInit, OnDestroy {
       this.busyLabel.set('');
     }
   }
+}
+
+/**
+ * Deriva el subdominio del tenant del hostname cuando el backend NO lo pobla en el context
+ * (tenants viejos pre-F1.C sin `SubDomain` en `TenantBrandingRef`). Requiere 3+ segmentos
+ * (`sub.domain.tld`), descarta `www`, y el host nunca es una IP ni localhost (`.` del
+ * dominio ya se exigió aguas arriba). Devuelve '' si no se puede inferir con confianza.
+ */
+function inferSubdomainFromParts(parts: readonly string[]): string {
+  if (parts.length < 3) return '';
+  const first = parts[0]?.trim().toLowerCase() ?? '';
+  if (!first || first === 'www') return '';
+  return first;
 }
 
 function formatDate(iso: string): string {

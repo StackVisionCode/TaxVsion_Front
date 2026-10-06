@@ -8,7 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
-import { formatBytes } from '../../data-access/documents.model';
+import { DropzoneComponent } from '@shared/ui/dropzone/dropzone.component';
+import { formatBytes } from '@shared/utils/format.util';
 
 /**
  * Diálogo de subida: arrastrar-soltar o elegir archivos, con el contexto donde
@@ -17,7 +18,7 @@ import { formatBytes } from '../../data-access/documents.model';
  */
 @Component({
   selector: 'app-upload-dialog',
-  imports: [ModalComponent],
+  imports: [ModalComponent, DropzoneComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <app-modal [isOpen]="isOpen" heading="Upload files" size="lg" (closed)="cancelled.emit()">
@@ -36,18 +37,8 @@ import { formatBytes } from '../../data-access/documents.model';
         </div>
       </div>
 
-      <label
-        class="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-4 py-7 text-center transition-colors"
-        [class]="dragOver() ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'"
-        (dragover)="onDragOver($event)" (dragleave)="dragOver.set(false)" (drop)="onDrop($event)">
-        <span class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">
-          <ion-icon name="cloud-upload-outline" class="text-xl"></ion-icon>
-        </span>
-        <span class="text-sm font-semibold text-gray-700">Drag files here</span>
-        <span class="text-xs text-gray-400">PDF, images, spreadsheets and documents</span>
-        <span class="mt-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700">Browse files</span>
-        <input type="file" multiple class="hidden" (change)="onPick($event)" />
-      </label>
+      <app-dropzone class="mt-4" label="Drag files here" hint="PDF, images, spreadsheets and documents"
+        (files)="add($event)" />
 
       @if (staged().length > 0) {
         <div class="mt-3 divide-y divide-gray-100">
@@ -91,12 +82,10 @@ export class UploadDialogComponent implements OnChanges {
   @Output() cancelled = new EventEmitter<void>();
 
   readonly staged = signal<File[]>([]);
-  readonly dragOver = signal(false);
 
   ngOnChanges(): void {
     if (this.isOpen) {
       this.staged.set([]);
-      this.dragOver.set(false);
     }
   }
 
@@ -109,29 +98,8 @@ export class UploadDialogComponent implements OnChanges {
     return n === 0 ? 'Upload' : n === 1 ? 'Upload 1 file' : `Upload ${n} files`;
   }
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    this.dragOver.set(true);
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.dragOver.set(false);
-    if (event.dataTransfer?.files) {
-      this.add(event.dataTransfer.files);
-    }
-  }
-
-  onPick(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      this.add(input.files);
-      input.value = '';
-    }
-  }
-
-  private add(list: FileList): void {
-    this.staged.update(current => [...current, ...Array.from(list)]);
+  add(files: File[]): void {
+    this.staged.update(current => [...current, ...files]);
   }
 
   remove(file: File): void {

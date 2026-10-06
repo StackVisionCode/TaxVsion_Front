@@ -16,6 +16,9 @@ import { ApiTaskPriority, TaskFormValue, TaskItem, TaskStatus } from '../../data
 import { HasPermissionDirective } from '@shared/directives/has-permission.directive';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AccessStore } from '@core/access/access.store';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
@@ -42,6 +45,9 @@ type PriorityFilter = 'All' | ApiTaskPriority;
     TaskDetailDrawerComponent,
     PaginationComponent,
     HasPermissionDirective,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-page.component.html',
@@ -57,7 +63,9 @@ export class TaskPageComponent {
   readonly store = inject(TaskStore);
   private readonly toast = inject(ToastService);
 
-  readonly priorityFilters: PriorityFilter[] = ['All', 'Low', 'Normal', 'High', 'Urgent'];
+  readonly priorityFilters: FilterChipOption<PriorityFilter>[] = (
+    ['All', 'Low', 'Normal', 'High', 'Urgent'] as PriorityFilter[]
+  ).map(option => ({ id: option, label: option }));
   readonly activeFilter = signal<PriorityFilter>('All');
 
   /** Board (flujo) · List (volumen) · Calendar (por vencimiento). Persistido en localStorage. */
@@ -96,34 +104,6 @@ export class TaskPageComponent {
   constructor() {
     this.store.init();
   }
-
-  readonly totalCount = computed(() => this.store.tasks().length);
-
-  readonly inProgressCount = computed(
-    () => this.store.tasks().filter(task => task.status === 'in-progress').length,
-  );
-
-  readonly overdueCount = computed(
-    () =>
-      this.store
-        .tasks()
-        .filter(
-          task =>
-            task.status !== 'completed' && !!task.dueDate && new Date(task.dueDate).getTime() < Date.now(),
-        ).length,
-  );
-
-  readonly completedThisWeekCount = computed(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return this.store
-      .tasks()
-      .filter(
-        task =>
-          task.status === 'completed' &&
-          !!task.completedAtUtc &&
-          new Date(task.completedAtUtc).getTime() >= weekAgo,
-      ).length;
-  });
 
   /** La búsqueda ya viene filtrada del servidor; acá solo se aplica el filtro de prioridad. */
   readonly visibleTasks = computed<TaskItem[]>(() => {

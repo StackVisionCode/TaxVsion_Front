@@ -18,22 +18,10 @@
     </div>
 
     <!-- Modo subir: dropzone -->
-    <label *ngIf="docSource() === 'upload'"
-      class="dropzone flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition-colors"
-      [ngClass]="[
-        isBusy() ? 'cursor-wait opacity-70' : 'cursor-pointer',
-        isDragging() ? 'dropzone-active border-brand-bold bg-gray-50' : 'border-gray-200 bg-brand-white hover:border-gray-300'
-      ]"
-      (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
-      <ion-icon name="cloud-upload-outline" class="text-4xl"
-        [ngClass]="isDragging() ? 'text-gray-900' : 'text-gray-300'"></ion-icon>
-      <span class="mt-2 text-sm font-medium" [ngClass]="isDragging() ? 'text-gray-900' : 'text-gray-600'">
-        {{ isDragging() ? 'Drop it here' : 'Click to upload or drag and drop' }}
-      </span>
-      <span class="mt-1 text-xs text-gray-400">PDF only, up to 25MB · validated before sending</span>
-      <input type="file" accept=".pdf,application/pdf" class="hidden" [disabled]="isBusy()"
-        (change)="onFileSelected($event)" />
-    </label>
+    <app-dropzone *ngIf="docSource() === 'upload'" accept=".pdf,application/pdf" [multiple]="false"
+      [maxBytes]="maxUploadBytes" [disabled]="isBusy()" label="Click to upload or drag and drop"
+      hint="PDF only, up to 25MB · validated before sending"
+      (files)="onFiles($event)" (rejected)="onRejected($event)"></app-dropzone>
 
     <!-- Modo librería: PDFs de la oficina -->
     <div *ngIf="docSource() === 'library'">

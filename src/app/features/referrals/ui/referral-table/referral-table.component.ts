@@ -1,13 +1,15 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { MoneyPipe } from '@shared/pipes/money.pipe';
 
 export type ReferralStatus = 'pending' | 'completed' | 'rewarded';
 
 export interface Referral {
   id: string;
   name: string;
-  /** Iniciales mostradas dentro del avatar circular (ej. "MG"). */
-  initials: string;
   /** Clase Tailwind de color de fondo del avatar (ej. "bg-brand-bold"). */
   avatarColor: string;
   email: string;
@@ -26,7 +28,7 @@ export interface Referral {
  */
 @Component({
   selector: 'app-referral-table',
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent, StatusPillComponent, StateBlockComponent, MoneyPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './referral-table.component.html',
 })
@@ -40,10 +42,6 @@ export class ReferralTableComponent {
     return referral.id;
   }
 
-  formatCurrency(amount: number): string {
-    return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
-  }
-
   statusLabel(status: ReferralStatus): string {
     switch (status) {
       case 'pending':
@@ -55,25 +53,7 @@ export class ReferralTableComponent {
     }
   }
 
-  statusChip(status: ReferralStatus): string {
-    switch (status) {
-      case 'completed':
-        return 'border-emerald-200 text-emerald-600';
-      case 'rewarded':
-        return 'border-emerald-200 text-emerald-600';
-      case 'pending':
-        return 'border-orange-200 text-orange-500';
-    }
-  }
-
-  statusDot(status: ReferralStatus): string {
-    switch (status) {
-      case 'completed':
-        return 'bg-emerald-500';
-      case 'rewarded':
-        return 'bg-emerald-500';
-      case 'pending':
-        return 'bg-orange-500';
-    }
+  statusTone(status: ReferralStatus): StatusTone {
+    return status === 'pending' ? 'warning' : 'success';
   }
 }

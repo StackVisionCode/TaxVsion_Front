@@ -135,14 +135,22 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
     preparerOriginal.push({ editorLocalId: localId, fieldId: field.id });
   }
 
+  // F7 — mapea los IDs del backend (signerId reales) a los localId del editor para pintar las chips.
+  const audienceLocalIds = detail.partialCopyAudienceSignerIds
+    .map(serverId => Object.entries(signerIdByLocal).find(([, id]) => id === serverId)?.[0])
+    .filter((id): id is string => !!id);
   const rules: RequestRules = {
     ...defaultRules(),
     sequential: detail.requiresSequentialSigning,
     certificate: detail.generateCertificate,
-    sendSignedDocument: detail.sendSignedDocumentToSigners,
+    sendSealedDocument: detail.sendSealedDocumentToSigners,
     sendCertificate: detail.sendCertificateToSigners,
     autoReminder: detail.autoRemindersEnabled,
     reminderIntervalHours: detail.reminderIntervalHours,
+    sendPartialCopy: detail.sendPartialCopyOnEachSignature,
+    partialCopyAudienceKind: detail.partialCopyAudienceKind,
+    partialCopyAudienceSignerIds: audienceLocalIds,
+    expirationEnabled: detail.expirationEnabled,
   };
 
   return {
@@ -159,6 +167,8 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
       // El detalle no devuelve la identidad del preparador; si el usuario no la reingresa, draft.preparerInfo
       // será null y no se toca la existente en el backend.
       preparerInfoSet: false,
+      // Al rehidratar un draft la audiencia ya está persistida; re-aplicarla solo si el usuario la cambia.
+      audienceApplied: true,
       sent: false,
     },
     original: {

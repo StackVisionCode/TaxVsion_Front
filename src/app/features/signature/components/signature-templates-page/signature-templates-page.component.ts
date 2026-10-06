@@ -12,7 +12,9 @@ import {
   TemplateSummary,
   signatureCategoryLabel,
 } from '../../data-access/signature.model';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { SignatureTemplateEditorComponent } from '../../ui/signature-template-editor/signature-template-editor.component';
 import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 
@@ -31,6 +33,8 @@ import { SignatureCategoryPickerComponent } from '../../ui/signature-category-pi
     FormsModule,
     RouterLink,
     ModalComponent,
+    StateBlockComponent,
+    StatusPillComponent,
     SignatureTemplateEditorComponent,
     SignatureCategoryPickerComponent,
   ],
@@ -76,14 +80,15 @@ export class SignatureTemplatesPageComponent implements OnInit {
     }
   }
 
+  /** Píldora rellena (sin borde ni punto) sobre `app-status-pill`. */
   statusClass(status: SignatureTemplateStatus): string {
     switch (status) {
       case 'Published':
-        return 'bg-emerald-50 text-emerald-600';
+        return 'border-transparent bg-emerald-50 font-semibold uppercase tracking-wide text-emerald-600';
       case 'Archived':
-        return 'bg-gray-100 text-gray-500';
+        return 'border-transparent bg-gray-100 font-semibold uppercase tracking-wide text-gray-500';
       default:
-        return 'bg-amber-50 text-amber-600';
+        return 'border-transparent bg-amber-50 font-semibold uppercase tracking-wide text-amber-600';
     }
   }
 

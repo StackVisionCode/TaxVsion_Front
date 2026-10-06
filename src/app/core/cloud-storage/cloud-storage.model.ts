@@ -95,12 +95,5 @@ export function isFilePending(status: FileStatus): boolean {
   return status === 'PendingUpload' || status === 'PendingScan' || status === 'Scanning';
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+/** Re-export: la implementación vive en shared/utils/format.util (misma salida B/KB/MB por defecto). */
+export { formatBytes } from '@shared/utils/format.util';

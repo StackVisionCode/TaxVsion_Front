@@ -12,6 +12,8 @@
  * Los enums viajan como STRING (JsonStringEnumConverter).
  */
 
+import { StatusTone } from '@shared/ui/status-pill/status-pill.component';
+
 // ---------- Enums del backend ----------
 
 /** Espejo de EmailScope. Las System son de plataforma: el tenant no las edita. */
@@ -87,6 +89,29 @@ export interface PublishRequest {
 
 /** Estado de UI derivado de `status` del backend. */
 export type TemplateUiStatus = 'draft' | 'published' | 'archived';
+
+export const TEMPLATE_STATUS_LABEL: Record<TemplateUiStatus, string> = {
+  published: 'Published',
+  archived: 'Archived',
+  draft: 'Draft',
+};
+
+/** Estado → tono de `app-status-pill` (archived = chip muted con punto gris-400, como antes). */
+export const TEMPLATE_STATUS_PILL: Record<TemplateUiStatus, { tone: StatusTone; dotClass?: string }> = {
+  published: { tone: 'success' },
+  archived: { tone: 'muted', dotClass: 'bg-gray-400' },
+  draft: { tone: 'neutral' },
+};
+
+/** Chip de categoría (texto libre en el backend: se deriva por palabra clave). */
+export function templateCategoryChip(category: string): string {
+  const key = category.toLowerCase();
+  if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
+  if (key.includes('letter')) return 'border-orange-200 text-orange-500';
+  if (key.includes('invoice') || key.includes('billing')) return 'border-brand-border text-brand-bold';
+  if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
+  return 'border-gray-200 text-gray-500';
+}
 
 /** Tarjeta de la biblioteca. */
 export interface Template {

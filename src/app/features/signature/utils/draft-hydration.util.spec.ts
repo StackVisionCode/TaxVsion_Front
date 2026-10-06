@@ -29,12 +29,13 @@ function detail(): SignatureRequestDetail {
     originalFileId: 'file-1',
     documentHashPre: null,
     sealedFileId: null,
+    scheduledSendAtUtc: null,
     documentHashPost: null,
     certificateFileId: null,
     requiresSequentialSigning: true,
     requiresConsent: true,
     generateCertificate: false,
-    sendSignedDocumentToSigners: false,
+    sendSealedDocumentToSigners: false,
     sendCertificateToSigners: false,
     autoRemindersEnabled: false,
     reminderIntervalHours: 72,
@@ -101,7 +102,7 @@ describe('buildDraftHydration', () => {
     expect(h.seed.rules.sequential).toBe(true);
     expect(h.seed.rules.certificate).toBe(false);
     // Los flags de entrega/reminders se rehidratan desde el detalle (antes se perdían).
-    expect(h.seed.rules.sendSignedDocument).toBe(false);
+    expect(h.seed.rules.sendSealedDocument).toBe(false);
     expect(h.seed.rules.autoReminder).toBe(false);
     expect(h.seed.rules.reminderIntervalHours).toBe(72);
 

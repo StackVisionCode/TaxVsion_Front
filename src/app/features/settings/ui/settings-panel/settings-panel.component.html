@@ -84,10 +84,8 @@
 
       <!-- Campos sin respaldo: el hueco queda a la vista pero vacío y bloqueado. -->
       <ng-container *ngIf="field.kind === 'pending'">
-        <span *ngIf="field.control === 'toggle'" aria-disabled="true"
-          class="relative h-6 w-11 shrink-0 cursor-not-allowed rounded-full bg-gray-200 opacity-60">
-          <span class="absolute top-0.5 translate-x-0.5 h-5 w-5 rounded-full bg-white shadow"></span>
-        </span>
+        <app-switch *ngIf="field.control === 'toggle'" [checked]="false" [disabled]="true"
+          [ariaLabel]="field.label"></app-switch>
 
         <span *ngIf="field.control === 'select'" aria-disabled="true"
           class="flex cursor-not-allowed items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-400">

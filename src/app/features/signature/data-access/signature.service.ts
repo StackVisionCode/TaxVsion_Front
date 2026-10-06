@@ -13,6 +13,7 @@ import {
   SignatureAnalyticsSummary,
   SignatureFieldKind,
   SignatureFieldResponse,
+  AuditTrailResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
   SignatureTemplateDetail,
@@ -35,6 +36,8 @@ import {
   UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
+  UpsertDraftBody,
+  UpsertDraftResponse,
   ValidateDocumentResponse,
 } from './signature.model';
 
@@ -124,9 +127,29 @@ export class SignatureService {
     return this.http.get<SignatureRequestDetail>(`${this.base}/requests/${id}`);
   }
 
+  /** F7 — timeline del audit chain para el preparador (signature.document.audit.read). */
+  getAuditTrail(id: string): Observable<AuditTrailResponse> {
+    return this.http.get<AuditTrailResponse>(`${this.base}/requests/${id}/audit`);
+  }
+
   /** PUT /signature/requests/{id} — edita la metadata de un borrador (Draft/Ready). */
   update(id: string, body: UpdateSignatureRequestBody): Observable<void> {
     return this.http.put<void>(`${this.base}/requests/${id}`, body);
+  }
+
+  /** PUT /signature/requests/{id}/draft — autosave: reconcilia metadata+signers+fields en una transacción. */
+  upsertDraft(id: string, body: UpsertDraftBody): Observable<UpsertDraftResponse> {
+    return this.http.put<UpsertDraftResponse>(`${this.base}/requests/${id}/draft`, body);
+  }
+
+  /** POST /signature/requests/{id}/schedule — F3: Draft → Scheduled con la hora UTC. */
+  scheduleSend(id: string, scheduledSendAtUtc: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/requests/${id}/schedule`, { scheduledSendAtUtc });
+  }
+
+  /** DELETE /signature/requests/{id}/schedule — F3: Scheduled → Draft. */
+  cancelSchedule(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${id}/schedule`);
   }
 
   /** DELETE /signature/requests/{id} — borra en firme un borrador sin enviar. */
@@ -224,6 +247,11 @@ export class SignatureService {
     retentionPolicy: { retentionYears: number; allowPurge: boolean };
     defaultReminderIntervalHours: number;
     allowEmployeeOwnSignature: boolean;
+    // F7 — null = no tocar.
+    sendPartialCopyDefault?: boolean | null;
+    partialCopyDefaultAudienceKind?: string | null;
+    sendSealedDocumentDefault?: boolean | null;
+    expirationEnabledByDefault?: boolean | null;
   }): Observable<void> {
     return this.http.put<void>(`${this.base}/settings`, body);
   }

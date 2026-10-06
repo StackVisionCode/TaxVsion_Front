@@ -1,25 +1,5 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
-    <!-- Stats row (analytics del backend; "—" mientras carga o si analytics falla) -->
-    <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-      <div class="rounded-[24px] bg-indigo-50 p-5">
-        <p class="text-sm text-gray-600">Total requests</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.totalRequests) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">In progress</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.inProgress) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-gray-200 p-5">
-        <p class="text-sm text-gray-600">Completed this month</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ statValue(store.stats()?.completedThisMonth) }}</p>
-      </div>
-      <div class="rounded-[24px] bg-indigo-100 p-5">
-        <p class="text-sm text-gray-600">Completion rate</p>
-        <p class="mt-2 text-3xl font-bold text-gray-900">{{ completionRateLabel() }}</p>
-      </div>
-    </div>
-
     <!-- Signature requests card -->
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -67,38 +47,14 @@
 
       <!-- Filter bar (filtro de estado server-side) -->
       <div class="mt-4 flex flex-wrap items-center gap-2">
-        <button *ngFor="let option of statusFilters" type="button" (click)="setFilter(option)"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="store.statusFilter() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          {{ filterLabel(option) }}
-        </button>
-
-        <div
-          class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-          <input type="text" placeholder="Search documents or clients" [ngModel]="search()" name="search"
-            (ngModelChange)="onSearchChange($event)"
-            class="h-full w-56 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        </div>
+        <app-filter-chips [options]="statusFilters" [value]="store.statusFilter()" (valueChange)="setFilter($event)" />
+        <app-search-input class="ml-auto" placeholder="Search documents or clients" widthClass="w-56" [value]="search()"
+          (valueChange)="onSearchChange($event)" />
       </div>
 
-      <!-- Estados de carga / error del listado -->
-      <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-        Loading signature requests…
-      </div>
-
-      <div *ngIf="!store.loading() && store.error() as err"
-        class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-        <p class="text-sm text-red-600">{{ err }}</p>
-        <button type="button" (click)="retryLoad()"
-          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          Retry
-        </button>
-      </div>
-
-      <!-- Table + paginación server-side -->
-      <div *ngIf="!store.loading() && !store.error()" class="mt-5">
+      <!-- Estados de carga / error del listado + tabla con paginación server-side -->
+      <app-state-block class="mt-5 block" [loading]="store.loading()" [error]="store.error()"
+        loadingText="Loading signature requests…" (retry)="retryLoad()">
         <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
           (sendRequested)="sendRequest($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
@@ -109,7 +65,7 @@
           (downloadCertificateRequested)="downloadCertificate($event)"></app-signature-table>
         <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.pageSize"
           (pageChange)="onPageChange($event)"></app-pagination>
-      </div>
+      </app-state-block>
     </div>
   </ng-container>
 
@@ -120,8 +76,10 @@
     <ng-template #previewOnly>
       <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
         (send)="sendRequest($event)"
+        (cancelSchedule)="cancelScheduledSend($event)"
         (downloadOriginal)="downloadOriginal($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
+        (viewDocument)="viewDocument($event)"
         (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>
   </ng-template>
@@ -357,8 +315,6 @@
   </div>
 </app-modal>
 
-<!-- Transient toast -->
-<div *ngIf="toastMessage()"
-  class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-medium text-white shadow-lg">
-  {{ toastMessage() }}
-</div>
+<!-- Visor global: original, firmado y certificado de la solicitud en vista previa -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>

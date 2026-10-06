@@ -15,7 +15,10 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
  * Fila del listado central, ya aplanada por mail-page desde `ThreadSummary`
@@ -24,7 +27,8 @@ import { FormsModule } from '@angular/forms';
 export interface MailListRow {
   /** threadId o draftId, según la carpeta activa. */
   id: string;
-  initials: string;
+  /** Texto del que salen las iniciales del avatar (`initialsOf`, vía `app-avatar`). */
+  avatarName: string;
   avatarColor: string;
   /** Asunto real del hilo/draft. */
   title: string;
@@ -53,7 +57,7 @@ export interface MailListRow {
  */
 @Component({
   selector: 'app-mail-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, AvatarComponent, LoadMoreComponent, SearchInputComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-list.component.html',
   styleUrl: './mail-list.component.css',

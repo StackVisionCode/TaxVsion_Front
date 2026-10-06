@@ -233,25 +233,3 @@ export function toMeetingItem(response: MeetingListItemResponse, currentUserId: 
     isHost: currentUserId !== null && response.hostUserId === currentUserId,
   };
 }
-
-// ---------- Helpers visuales (mismo criterio que features/task) ----------
-
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
-export function meetingInitialsFor(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(part => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-export function meetingAvatarColorFor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}

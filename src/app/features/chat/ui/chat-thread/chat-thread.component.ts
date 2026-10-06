@@ -16,6 +16,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 export interface ChatMessage {
   id: string;
@@ -61,7 +62,7 @@ const BOTTOM_STICK_THRESHOLD = 80;
  */
 @Component({
   selector: 'app-chat-thread',
-  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent],
+  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
   // El host debe llenar su contenedor acotado (`flex-1 min-h-0`); por defecto un
@@ -303,15 +304,6 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     this.cancelEdit();
   }
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
 
   /** Mismo autor que el mensaje anterior (y mismo día): se agrupan sin repetir el avatar. */
   isContinuation(index: number): boolean {

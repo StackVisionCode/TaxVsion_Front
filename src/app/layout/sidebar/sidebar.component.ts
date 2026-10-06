@@ -26,7 +26,8 @@ import { MenuItem, SubMenuItem } from '../../shared/models/menu-item.interface';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
-import { ChatStore } from '@features/chat/data-access/chat.store';
+import type { ChatStore } from '@features/chat/data-access/chat.store';
+import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth } from './sidebar-width.util';
 
 /**
  * El menu del CRM. Cada entrada declara QUE feature es (`featureId`) y el registro
@@ -52,10 +53,15 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   @ViewChild('listContainer') private listContainerRef?: ElementRef<HTMLElement>;
   @ViewChildren('itemButton') private itemButtons?: QueryList<ElementRef<HTMLElement>>;
+  @ViewChildren('itemLabel') private itemLabels?: QueryList<ElementRef<HTMLElement>>;
 
   private readonly router = inject(Router);
   private readonly branding = inject(TenantBrandingService);
-  private readonly chatStore = inject(ChatStore);
+  /**
+   * El store del chat (y su servicio/directorio) no viaja en el bundle inicial: se descarga tras el
+   * primer render y hasta entonces el badge simplemente no se muestra.
+   */
+  private readonly chatStore = signal<ChatStore | null>(null);
   private readonly injector = inject(Injector);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly access = inject(AccessStore);
@@ -63,7 +69,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
   private readonly chatBadgeEffect = effect(() => {
-    const unread = this.chatStore.totalUnread();
+    const unread = this.chatStore()?.totalUnread() ?? 0;
     this.menuItems.update(items =>
       items.map(item => (item.route === '/chat' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
     );
@@ -113,6 +119,15 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly indicatorHeight = signal(0);
   readonly indicatorReady = signal(false);
 
+  /**
+   * Ancho del sidebar expandido: se ajusta al nombre más largo del menú (antes era un `w-64` fijo que
+   * dejaba una franja vacía). Se mide con los labels visibles; colapsado se conserva el último valor.
+   */
+  readonly expandedWidth = signal(SIDEBAR_FALLBACK_WIDTH);
+  readonly currentWidth = computed(() => (this.isExpanded() ? this.expandedWidth() : SIDEBAR_COLLAPSED_WIDTH));
+  /** Re-sincroniza el pill con cualquier cambio de tamaño de la lista (resize, zoom del navegador, ancho). */
+  private listResizeObserver: ResizeObserver | null = null;
+
   readonly menuItems = signal<MenuItem[]>([
     { label: 'Dashboard', icon: 'speedometer-outline', route: '/dashboard', featureId: 'dashboard', isActive: false },
     { label: 'Mail', icon: 'mail-outline', route: '/email', featureId: 'email' },
@@ -130,6 +145,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Campaigns', icon: 'megaphone-outline', route: '/campaigns', featureId: 'campaigns' },
     { label: 'AI', icon: 'sparkles-outline', route: '/ai-assistant', featureId: 'ai-assistant', isSpecial: true },
     { label: 'Workflow', icon: 'git-network-outline', route: '/workflow', featureId: 'workflow' },
+    // Gestión de usuarios de la oficina: antes vivía en el menú del avatar.
+    { label: 'Users', icon: 'person-circle-outline', route: '/company/users', featureId: 'users' },
     { label: 'Settings', icon: 'settings-outline', route: '/settings', featureId: 'settings' },
   ]);
 
@@ -171,15 +188,60 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     // (+220 ms) porque el estado expandido se aplicaba tarde y cambiaba el ancho de las
     // filas; ahora el ancho ya es el definitivo en el primer render y basta con medir una
     // vez, sin la ventana en la que el pill quedaba fuera de sitio.
-    afterNextRender(() => this.syncIndicator(), { injector: this.injector });
+    afterNextRender(
+      () => {
+        void import('@features/chat/data-access/chat.store').then(m =>
+          this.chatStore.set(this.injector.get(m.ChatStore)),
+        );
+        this.measureWidth();
+        this.syncIndicator();
+        this.observeListSize();
+        // La fuente web cambia el ancho del texto cuando termina de cargar.
+        void document.fonts?.ready.then(() => this.measureWidth());
+      },
+      { injector: this.injector },
+    );
 
-    // Re-sync if the menu list itself ever changes shape.
-    this.itemButtons?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => this.syncIndicator());
+    // Re-sync if the menu list itself ever changes shape (permisos/módulos que muestran u ocultan entradas).
+    this.itemButtons?.changes.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.measureWidth();
+      this.syncIndicator();
+    });
+  }
+
+  /** Recalcula el ancho expandido con el ancho natural de cada label (`scrollWidth` ignora el truncate). */
+  private measureWidth(): void {
+    if (!this.isExpanded()) {
+      return;
+    }
+    const widths = this.itemLabels?.map(label => label.nativeElement.scrollWidth) ?? [];
+    if (widths.length > 0) {
+      this.expandedWidth.set(sidebarExpandedWidth(widths));
+    }
+  }
+
+  private observeListSize(): void {
+    const container = this.listContainerRef?.nativeElement;
+    if (!container || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    this.listResizeObserver = new ResizeObserver(() => this.syncIndicator());
+    this.listResizeObserver.observe(container);
+  }
+
+  /** Terminó la animación de ancho (expandir/colapsar): el pill se posa en la fila ya asentada. */
+  onSidebarTransitionEnd(event: TransitionEvent): void {
+    if (event.propertyName === 'width') {
+      this.measureWidth();
+      this.syncIndicator();
+    }
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.listResizeObserver?.disconnect();
+    this.listResizeObserver = null;
 
     if (this.bodyTooltipEl && document.body.contains(this.bodyTooltipEl)) {
       document.body.removeChild(this.bodyTooltipEl);
@@ -275,11 +337,9 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       this.menuItems.update((items) => items.map((item) => ({ ...item, isOpen: false })));
     }
 
-    // The sidebar's own width animates (transition-all duration-200), which shifts
-    // where a centered collapsed button ends up -- re-sync once immediately and
-    // again after that transition settles so the pill lands in the right spot.
+    // El ancho del sidebar anima: se sincroniza ya y otra vez en `onSidebarTransitionEnd`, cuando
+    // la transición termina y la fila activa quedó en su sitio definitivo.
     setTimeout(() => this.syncIndicator());
-    setTimeout(() => this.syncIndicator(), 220);
   }
 
   handleMenuClick(event: MouseEvent, item: MenuItem): void {

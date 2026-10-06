@@ -11,7 +11,7 @@
  * Enums del backend serializan como STRING; fechas como ISO UTC; ids como GUID string.
  */
 
-import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 // ---------- Compartido ----------
 
@@ -304,31 +304,6 @@ export interface SendDraftResult {
 
 // ---------- Helpers de presentación ----------
 
-/** Paleta de avatares del diseño original — se asigna determinística por hash del texto. */
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
-export function avatarColorFor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-export function initialsFor(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(part => part.length > 0);
-  if (parts.length === 0) {
-    return '?';
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 /** Hora tipo cliente de correo: hoy → "9:42 AM"; mismo año → "Jun 28"; si no → "Apr 18, 2024". */
 export function formatMailTime(iso: string): string {
   const date = parseUtcDate(iso);
@@ -347,16 +322,6 @@ export function formatMailTime(iso: string): string {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**

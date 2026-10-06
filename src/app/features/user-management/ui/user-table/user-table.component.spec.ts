@@ -1,9 +1,9 @@
 import { UserTableComponent } from './user-table.component';
 
 /**
- * El estado 'removed' (offboarded) es terminal: se etiqueta "Removed" y usa un chip NEUTRO (gris), no el
- * rojo de 'suspended' — no es un estado accionable. (Que el menú "..." se oculte en filas removed es
- * lógica de plantilla, cubierta por el build AOT + E2E.)
+ * El estado 'removed' (offboarded) es terminal: se etiqueta "Removed" y usa un tono NEUTRO (gris
+ * apagado), no el 'danger' de 'suspended' — no es un estado accionable. (Que el menú "..." se oculte en
+ * filas removed es lógica de plantilla, cubierta por el build AOT + E2E.)
  */
 describe('UserTableComponent — removed status', () => {
   const component = new UserTableComponent();
@@ -12,13 +12,8 @@ describe('UserTableComponent — removed status', () => {
     expect(component.statusLabel('removed')).toBe('Removed');
   });
 
-  it('uses a neutral (non-red) chip for removed', () => {
-    const chip = component.statusChip('removed');
-    expect(chip).toContain('gray');
-    expect(chip).not.toContain('red');
-  });
-
-  it('uses a neutral dot for removed', () => {
-    expect(component.statusDotClass('removed')).toBe('bg-gray-400');
+  it('uses a neutral (non-danger) tone for removed', () => {
+    expect(component.statusTone('removed')).toBe('muted');
+    expect(component.statusTone('suspended')).toBe('danger');
   });
 });

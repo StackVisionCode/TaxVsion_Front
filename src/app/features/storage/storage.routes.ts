@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { StoragePageComponent } from './components/storage-page/storage-page.component';
 
 export const STORAGE_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/storage-page/storage-page.component').then(m => m.StoragePageComponent),
+    component: StoragePageComponent,
     title: 'Storage',
   },
 ];

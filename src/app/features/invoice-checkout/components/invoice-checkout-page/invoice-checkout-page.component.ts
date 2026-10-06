@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { formatMoney } from '@shared/utils/format.util';
 import { Stripe, StripeCardElement, StripeElements, loadStripe } from '@stripe/stripe-js';
 import { InvoiceCheckoutService } from '../../data-access/invoice-checkout.service';
 import { CheckoutPhase, InvoiceCheckout, InvoiceCheckoutMethod } from '../../data-access/invoice-checkout.model';
@@ -32,6 +33,18 @@ function loadPayPalSdk(clientId: string, currency: string): Promise<unknown> {
  * createPaymentMethod → server confirma) y **PayPal** (Buttons → crear+aprobar orden → mandamos el
  * orderId y el server hace el capture). El backend solo devuelve métodos con adapter registrado.
  */
+/**
+ * Motivos por los que el resolver del backend manda aquí sin poder cobrar. La clave es el
+ * `Error.Code` que devuelve, tal cual: el backend es el dueño del contrato.
+ */
+const UNAVAILABLE_MESSAGES: Record<string, string> = {
+  'Payable.Revoked': 'This invoice was voided and can no longer be paid.',
+  'Payable.AlreadyPaid': 'This invoice has already been paid. There is nothing left to pay.',
+  'Payable.NotFound': 'We could not find an invoice for this link.',
+};
+
+const UNAVAILABLE_FALLBACK = 'This payment link is no longer available.';
+
 @Component({
   selector: 'app-invoice-checkout-page',
   imports: [CommonModule, FormsModule],
@@ -46,7 +59,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   readonly checkout = signal<InvoiceCheckout | null>(null);
   readonly errorMessage = signal<string | null>(null);
   /** Mensaje del estado 'invalid' (enlace no disponible). Se adapta al motivo (anulada, vencida…). */
-  readonly invalidMessage = signal('Este enlace de pago no existe o ya venció.');
+  readonly invalidMessage = signal('This payment link does not exist or has expired.');
   readonly cardError = signal<string | null>(null);
   readonly receiptEmail = signal('');
 
@@ -77,7 +90,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   readonly amountLabel = computed(() => {
     const c = this.checkout();
     if (!c) return '';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: c.currency }).format(c.amountCents / 100);
+    return formatMoney(c.amountCents, c.currency, { fromCents: true });
   });
 
   ngOnInit(): void {
@@ -85,11 +98,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
     // (anulada, referencia inexistente, etc.) → mostramos una tarjeta amable, sin llamar a la API.
     const unavailable = this.route.snapshot.queryParamMap.get('unavailable');
     if (unavailable) {
-      this.invalidMessage.set(
-        unavailable === 'Payable.Revoked'
-          ? 'Esta factura fue anulada y ya no se puede pagar.'
-          : 'Este enlace de pago ya no está disponible.',
-      );
+      this.invalidMessage.set(UNAVAILABLE_MESSAGES[unavailable] ?? UNAVAILABLE_FALLBACK);
       this.phase.set('invalid');
       return;
     }
@@ -104,7 +113,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
         this.checkout.set(c);
         if (c.methods.length === 0) {
           this.phase.set('error');
-          this.errorMessage.set('El comercio no tiene un método de pago disponible todavía.');
+          this.errorMessage.set('This office has no payment method available yet.');
           return;
         }
         // Default: preferir Stripe (Card Element); si no, el primero.
@@ -167,7 +176,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
       this.card.on('change', ev => this.cardError.set(ev.error?.message ?? null));
     } catch {
       this.phase.set('error');
-      this.errorMessage.set('No se pudo inicializar el formulario de tarjeta.');
+      this.errorMessage.set('We could not load the card form.');
     }
   }
 
@@ -199,14 +208,14 @@ export class InvoiceCheckoutPageComponent implements OnInit {
         },
         onError: () => {
           this.phase.set('error');
-          this.errorMessage.set('No se pudo completar el pago con PayPal.');
+          this.errorMessage.set('We could not complete the PayPal payment.');
         },
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.paypalButtons as any).render('#paypal-buttons');
     } catch {
       this.phase.set('error');
-      this.errorMessage.set('No se pudo inicializar PayPal.');
+      this.errorMessage.set('We could not load PayPal.');
     }
   }
 
@@ -252,16 +261,16 @@ export class InvoiceCheckoutPageComponent implements OnInit {
           else if (res.status === 'RequiresAction') {
             this.phase.set('error');
             this.errorMessage.set(
-              'Esta tarjeta requiere autenticación adicional (3DS), no soportada en esta prueba. Usá 4242 4242 4242 4242.',
+              'This card needs extra authentication (3DS), which is not supported here yet.',
             );
           } else {
             this.phase.set('error');
-            this.errorMessage.set(res.failureMessage ?? 'El pago fue rechazado.');
+            this.errorMessage.set(res.failureMessage ?? 'The payment was declined.');
           }
         },
         error: err => {
           this.phase.set('error');
-          this.errorMessage.set(err?.error?.message ?? 'No se pudo completar el pago.');
+          this.errorMessage.set(err?.error?.message ?? 'We could not complete the payment.');
         },
       });
   }

@@ -1,13 +1,15 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { ProductTableComponent } from '../../ui/product-table/product-table.component';
 import { ProductFormPanelComponent } from '../../ui/product-form-panel/product-form-panel.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { InventoryStore } from '../../data-access/inventory.store';
-import { Product, ProductFormValue, stockLevel } from '../../data-access/inventory.model';
+import { Product, ProductFormValue } from '../../data-access/inventory.model';
 
 type CategoryFilter = 'All' | string;
 const PAGE_SIZE = 8;
@@ -23,11 +25,13 @@ const PAGE_SIZE = 8;
   selector: 'app-inventory-page',
   imports: [
     CommonModule,
-    FormsModule,
     ProductTableComponent,
     ProductFormPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './inventory-page.component.html',
@@ -45,10 +49,9 @@ export class InventoryPageComponent implements OnInit {
   readonly pendingDelete = signal<Product | null>(null);
 
   /** Filtros a partir de las categorías reales del backend. */
-  readonly categoryFilters = computed<CategoryFilter[]>(() => [
-    'All',
-    ...this.store.categories().map(category => category.name),
-  ]);
+  readonly categoryFilters = computed<FilterChipOption<CategoryFilter>[]>(() =>
+    ['All', ...this.store.categories().map(category => category.name)].map(name => ({ id: name, label: name })),
+  );
 
   readonly deleteMessage = computed(() => {
     const product = this.pendingDelete();
@@ -65,26 +68,6 @@ export class InventoryPageComponent implements OnInit {
   retryLoad(): void {
     this.store.refresh();
   }
-
-  readonly totalProducts = computed(() => this.store.products().length);
-
-  /** Solo suma los que llevan inventario: un ítem sin tracking no tiene cantidad real. */
-  readonly totalStockValue = computed(() =>
-    this.store
-      .products()
-      .filter(product => product.tracked)
-      .reduce((sum, product) => sum + product.price * product.stockQuantity, 0),
-  );
-
-  readonly lowStockCount = computed(
-    () =>
-      this.store.products().filter(product => {
-        const level = stockLevel(product);
-        return level === 'low' || level === 'out';
-      }).length,
-  );
-
-  readonly categoriesCount = computed(() => new Set(this.store.products().map(product => product.categoryId)).size);
 
   readonly visibleProducts = computed<Product[]>(() => {
     const query = this.search().trim().toLowerCase();
@@ -120,10 +103,6 @@ export class InventoryPageComponent implements OnInit {
   onSearchChange(value: string): void {
     this.search.set(value);
     this.currentPage.set(1);
-  }
-
-  formatCurrency(amount: number): string {
-    return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
   }
 
   openCreatePanel(): void {

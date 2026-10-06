@@ -14,43 +14,9 @@
         (ngModelChange)="description.set($event)"
         class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
 
-      <!-- Client (picker sobre GET /customers: el backend guarda customerId) -->
-      <div class="relative" data-dropdown="task-client">
-        <button type="button" (click)="toggleClientDropdown()"
-          class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          <span class="flex items-center gap-2">
-            <span class="text-sm text-gray-400">Client</span>
-            {{ selectedClient()?.displayName ?? 'No client' }}
-          </span>
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
-        <div *ngIf="isClientOpen()"
-          class="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <div class="border-b border-gray-100 p-2">
-            <input type="text" placeholder="Search clients" [ngModel]="clientSearch()" name="clientSearch"
-              (ngModelChange)="clientSearch.set($event)" (click)="$event.stopPropagation()"
-              class="h-9 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
-          </div>
-          <div class="max-h-52 overflow-y-auto">
-            <button type="button" (click)="selectClient(null)"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
-              No client
-              <ion-icon *ngIf="selectedClient() === null" name="checkmark-outline"
-                class="text-sm text-gray-900"></ion-icon>
-            </button>
-            <button *ngFor="let client of filteredClients()" type="button" (click)="selectClient(client)"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <span class="min-w-0 truncate text-left">
-                {{ client.displayName }}
-                <span class="block truncate text-xs text-gray-400">{{ client.primaryEmail }}</span>
-              </span>
-              <ion-icon *ngIf="client.id === selectedClient()?.id" name="checkmark-outline"
-                class="text-sm text-gray-900"></ion-icon>
-            </button>
-            <p *ngIf="filteredClients().length === 0" class="px-4 py-3 text-sm text-gray-400">No clients found</p>
-          </div>
-        </div>
-      </div>
+      <!-- Client (app-customer-picker sobre GET /customers: el backend guarda customerId; limpiar = sin cliente) -->
+      <app-customer-picker [selected]="selectedClient()" placeholder="Client — search by name (optional)"
+        (selectedChange)="selectClient($event)" />
 
       <!-- Due date -->
       <label
@@ -62,7 +28,7 @@
 
       <div class="grid grid-cols-2 gap-3">
         <!-- Priority dropdown -->
-        <div class="relative" data-dropdown="task-priority">
+        <div class="relative" appClickOutside [clickOutsideEnabled]="isPriorityOpen()" (appClickOutside)="isPriorityOpen.set(false)">
           <button type="button" (click)="togglePriorityDropdown()"
             class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
             <span>{{ priority() }}</span>
@@ -79,7 +45,7 @@
         </div>
 
         <!-- Status dropdown -->
-        <div class="relative" data-dropdown="task-status">
+        <div class="relative" appClickOutside [clickOutsideEnabled]="isStatusOpen()" (appClickOutside)="isStatusOpen.set(false)">
           <button type="button" (click)="toggleStatusDropdown()"
             class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
             <span>{{ statusLabel(status()) }}</span>
@@ -107,14 +73,15 @@
       </div>
 
       <!-- Assignee (type-ahead sobre el directorio de empleados) -->
-      <div class="relative" data-dropdown="task-assignee">
+      <div class="relative" appClickOutside [clickOutsideEnabled]="isAssigneeOpen()" (appClickOutside)="isAssigneeOpen.set(false)">
         <button type="button" (click)="toggleAssigneeDropdown()"
           class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
           <span class="flex items-center gap-2">
-            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-              [ngClass]="assigneeColor()">
-              {{ assigneeInitials() }}
-            </span>
+            @if (assignee(); as current) {
+              <app-avatar [name]="current.displayName" [seed]="current.userId" size="xs" />
+            } @else {
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+            }
             {{ assignee()?.displayName ?? 'Unassigned' }}
           </span>
           <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
@@ -138,10 +105,7 @@
             <button *ngFor="let member of assigneeResults()" type="button"
               (click)="selectAssignee({ userId: member.userId, displayName: member.displayName })"
               class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                [ngClass]="colorOf(member.userId)">
-                {{ initialsOf(member.displayName) }}
-              </span>
+              <app-avatar [name]="member.displayName" [seed]="member.userId" size="xs" />
               <span class="min-w-0 truncate text-left">
                 {{ member.displayName }}
                 <span class="block truncate text-xs text-gray-400">{{ member.email }}</span>

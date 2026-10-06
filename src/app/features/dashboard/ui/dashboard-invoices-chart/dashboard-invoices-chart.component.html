@@ -19,10 +19,10 @@
   </div>
 
   <!-- Cargando / sin permiso o error de Billing / todavía sin facturas -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || isEmpty()" [loading]="loading()" [error]="error()"
-    errorTitle="Revenue isn't available" icon="cash-outline" title="No revenue recorded yet"
-    message="Once invoices are issued and paid, collected revenue shows up here."
-    minHeight="15rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || isEmpty()" [loading]="loading()" [error]="error()" [empty]="true"
+    variant="inline" icon="cash-outline" emptyTitle="No revenue recorded yet"
+    emptyMessage="Once invoices are issued and paid, collected revenue shows up here."
+    minHeight="15rem" (retry)="retry()"></app-state-block>
 
   <ng-container *ngIf="!loading() && !error() && !isEmpty()">
     <!-- Pill bar chart: importes reales cobrados por mes -->

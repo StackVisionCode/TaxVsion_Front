@@ -1,6 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
  * Tabla "Performance Analytics".
@@ -17,7 +17,7 @@ import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboa
  */
 @Component({
   selector: 'app-dashboard-performance-table',
-  imports: [CommonModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-performance-table.component.html',
 })

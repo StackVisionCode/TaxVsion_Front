@@ -2,6 +2,7 @@ import { CUSTOM_ELEMENTS_SCHEMA, Component, EventEmitter, Input, OnInit, Output,
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { PermissionInfo, RoleSummary } from '../../data-access/user-management.model';
 import { RolesStore, notGrantableLabel, notGrantableReason } from '../../data-access/roles.store';
 
@@ -18,7 +19,7 @@ import { RolesStore, notGrantableLabel, notGrantableReason } from '../../data-ac
  */
 @Component({
   selector: 'app-role-editor-drawer',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DrawerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './role-editor-drawer.component.html',
 })

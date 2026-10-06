@@ -1,8 +1,10 @@
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnInit,
   Output,
@@ -24,11 +26,12 @@ import { AccessStore } from '@core/access/access.store';
  * user only, permissions their roles grant. Deny-only — turning a toggle OFF blocks that capability for
  * this user without touching anyone else; granting is still a role action, so permissions no role grants
  * show locked. Provides its own {@link EditAccessStore}, so each open starts from a clean baseline.
+ * The panel shell (backdrop, Escape, focus trap, scroll lock) is the shared `app-drawer`.
  * Role management is delegated to the existing panel via the `manageRoles` output (kept "quick").
  */
 @Component({
   selector: 'app-edit-access-drawer',
-  imports: [CommonModule, FormsModule],
+  imports: [SwitchComponent, DrawerComponent, AvatarComponent, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [EditAccessStore],
   templateUrl: './edit-access-drawer.component.html',
@@ -152,11 +155,6 @@ export class EditAccessDrawerComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load(this.member.id);
-  }
-
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    this.onCancel();
   }
 
   // ---- Accordion ----

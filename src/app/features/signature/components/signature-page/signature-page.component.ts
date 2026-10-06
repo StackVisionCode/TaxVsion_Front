@@ -1,7 +1,10 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
 import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
@@ -10,9 +13,17 @@ import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-m
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { toApiError } from '@core/models/api-error.model';
+import { SignatureDownloadKind, buildSignatureDownloadFilename } from '../../utils/download-filename.util';
+import { saveUrlAs } from '../../utils/save-file.util';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
@@ -40,6 +51,7 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   Drafts: 'Drafts',
   Draft: 'Draft',
   Ready: 'Ready',
+  Scheduled: 'Scheduled',
   InProgress: 'In Progress',
   Completed: 'Completed',
   Rejected: 'Rejected',
@@ -69,6 +81,10 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StateBlockComponent,
+    FileViewerComponent,
     SignatureTemplatePickerComponent,
     SignatureCategoryPickerComponent,
     SignatureCategoryManagerComponent,
@@ -76,13 +92,25 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-page.component.html',
 })
-export class SignaturePageComponent {
+export class SignaturePageComponent implements OnInit {
   /** B6 — la cabecera mostraba las 5 acciones a todos; las plantillas daban 403 al empleado. */
   protected readonly can = inject(SignatureCapabilities);
 
   readonly store = inject(SignatureStore);
+  private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly directory = inject(CustomerDirectoryStore);
 
-  readonly statusFilters = STATUS_FILTERS;
+  /** El wizard montado (solo existe con el panel abierto); lo usa el deep link para preseleccionar. */
+  private readonly requestPanel = viewChild(SignatureRequestPanelComponent);
+  /** Cliente del deep link esperando a que el wizard termine de montarse. */
+  private readonly pendingCustomer = signal<CustomerSummary | null>(null);
+
+  readonly statusFilters: FilterChipOption<SignatureStatusFilter>[] = STATUS_FILTERS.map(id => ({
+    id,
+    label: STATUS_FILTER_LABEL[id],
+  }));
   readonly search = signal('');
 
   readonly isPanelOpen = signal(false);
@@ -98,8 +126,6 @@ export class SignaturePageComponent {
 
   /** Read-only detail takeover; plain signal set explicitly (not a computed over an @Input) so it stays safe to extend later. */
   readonly previewRequest = signal<SignatureRequest | null>(null);
-
-  readonly toastMessage = signal<string | null>(null);
 
   // ---------- Modales de acción ----------
   readonly cancelTarget = signal<SignatureRequest | null>(null);
@@ -149,8 +175,51 @@ export class SignaturePageComponent {
 
   constructor() {
     this.store.refresh();
-    this.store.loadStats();
     this.store.loadSignatureProfiles();
+
+    // Deep link: en cuanto el wizard está montado y el cliente resuelto, se elige como en el paso 1.
+    effect(() => {
+      const panel = this.requestPanel();
+      const customer = this.pendingCustomer();
+      if (panel && customer) {
+        untracked(() => {
+          panel.onClientPicked(customer);
+          this.pendingCustomer.set(null);
+        });
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.consumeNewRequestDeepLink();
+  }
+
+  /**
+   * `/signature?new=1&customerId=<id>&customerName=<name>` (acción "Signature request" del perfil
+   * del cliente): abre el wizard nuevo con ese cliente elegido y limpia la URL para que un refresh
+   * o el "atrás" no lo vuelvan a abrir. Respeta el mismo gate que el botón "New request".
+   */
+  private consumeNewRequestDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const link = parseNewSignatureDeepLink(params);
+    if (hasNewSignatureParams(params)) {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    }
+    if (!link || !this.can.canCreate()) {
+      return;
+    }
+    this.openCreatePanel();
+    this.directory.byId([link.customerId]).subscribe({
+      next: found => {
+        const customer = found.get(link.customerId);
+        if (customer && this.isPanelOpen() && !this.continueRequestId()) {
+          this.pendingCustomer.set(customer);
+        } else if (!customer) {
+          this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`);
+        }
+      },
+      error: () => this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`),
+    });
   }
 
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
@@ -169,21 +238,6 @@ export class SignaturePageComponent {
       );
   });
 
-  readonly completionRateLabel = computed(() => {
-    const stats = this.store.stats();
-    return stats ? `${Math.round(stats.completionRate * 100)}%` : '—';
-  });
-
-  statValue(value: number | undefined | null): string {
-    // `== null` cubre null Y undefined: el backend puede devolver un stat en null (no solo ausente),
-    // y formatNumber reventaba con "Cannot read properties of null (reading 'toLocaleString')".
-    return value == null ? '—' : this.formatNumber(value);
-  }
-
-  filterLabel(filter: SignatureStatusFilter): string {
-    return STATUS_FILTER_LABEL[filter];
-  }
-
   setFilter(filter: SignatureStatusFilter): void {
     this.search.set('');
     this.store.setStatusFilter(filter);
@@ -199,11 +253,6 @@ export class SignaturePageComponent {
 
   retryLoad(): void {
     this.store.refresh();
-    this.store.loadStats();
-  }
-
-  formatNumber(value: number): string {
-    return value.toLocaleString('en-US');
   }
 
   openCreatePanel(): void {
@@ -218,6 +267,7 @@ export class SignaturePageComponent {
   }
 
   closePanel(): void {
+    this.pendingCustomer.set(null);
     this.isPanelOpen.set(false);
     this.continueRequestId.set(null);
   }
@@ -245,7 +295,7 @@ export class SignaturePageComponent {
   handleTemplateInstantiated(result: { detail: { title: string }; sent: boolean }): void {
     this.closeTemplatePicker();
     this.store.reloadTop();
-    this.showToast(
+    this.toast.success(
       result.sent
         ? `Sent to signers — "${result.detail.title}"`
         : `Saved as draft — "${result.detail.title}" is still scanning; send it from the list`,
@@ -265,7 +315,7 @@ export class SignaturePageComponent {
     this.closePanel();
     // La solicitud enviada queda InProgress: cae en "All" (no en el filtro previo, p. ej. Drafts).
     this.store.setStatusFilter('All');
-    this.showToast('Signature request sent — signers were notified by email');
+    this.toast.success('Signature request sent — signers were notified by email');
   }
 
   /** El wizard guardó la solicitud como borrador sin enviarla. */
@@ -273,7 +323,7 @@ export class SignaturePageComponent {
     this.closePanel();
     // Cae en la pestaña Drafts (donde está el borrador recién guardado), no en el filtro previo.
     this.store.setStatusFilter('Drafts');
-    this.showToast('Saved as draft — finish it from the Drafts tab when you are ready');
+    this.toast.success('Saved as draft — finish it from the Drafts tab when you are ready');
   }
 
   // ---------- Editar borrador (metadata) ----------
@@ -312,7 +362,7 @@ export class SignaturePageComponent {
         next: () => {
           this.actionBusy.set(false);
           this.editTarget.set(null);
-          this.showToast(`Draft "${this.editTitle().trim()}" updated`);
+          this.toast.success(`Draft "${this.editTitle().trim()}" updated`);
         },
         error: err => {
           this.actionBusy.set(false);
@@ -359,7 +409,7 @@ export class SignaturePageComponent {
         if (this.previewRequest()?.id === target.id) {
           this.previewRequest.set(null);
         }
-        this.showToast(`Draft "${target.documentName}" deleted`);
+        this.toast.success(`Draft "${target.documentName}" deleted`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -394,18 +444,36 @@ export class SignaturePageComponent {
               this.previewRequest.set(updated);
             }
             this.sendingRequest.set(false);
-            this.showToast('Signature request sent — signers were notified by email');
+            this.toast.success('Signature request sent — signers were notified by email');
           },
           error: () => {
             this.sendingRequest.set(false);
-            this.showToast('Sent — reopen the request to see the latest status');
+            this.toast.info('Sent — reopen the request to see the latest status');
           },
         });
       },
       error: err => {
         this.sendingRequest.set(false);
-        this.showToast(toApiError(err).message);
+        this.toast.error(toApiError(err).message);
       },
+    });
+  }
+
+  /** F3 — cancelar la programacion de envio desde el banner del preview. */
+  cancelScheduledSend(request: SignatureRequest): void {
+    this.store.cancelScheduleRequest(request.id).subscribe({
+      next: () => {
+        this.store.getRequestUi(request.id).subscribe({
+          next: updated => {
+            if (this.previewRequest()?.id === request.id) {
+              this.previewRequest.set(updated);
+            }
+            this.toast.success('Schedule canceled — the request is back to draft');
+          },
+          error: () => this.toast.info('Schedule canceled — reopen the request to see the latest status'),
+        });
+      },
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -414,8 +482,8 @@ export class SignaturePageComponent {
   /** Acción de la fila: reenvía la invitación a todos los firmantes pendientes. */
   resendReminder(request: SignatureRequest): void {
     this.store.resendAllPending(request).subscribe({
-      next: () => this.showToast(`Reminder resent for "${request.documentName}"`),
-      error: err => this.showToast(toApiError(err).message),
+      next: () => this.toast.success(`Reminder resent for "${request.documentName}"`),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -424,8 +492,8 @@ export class SignaturePageComponent {
       return;
     }
     this.store.resendSigner(event.request.id, event.signer.id).subscribe({
-      next: () => this.showToast(`Invitation resent to ${event.signer.name}`),
-      error: err => this.showToast(toApiError(err).message),
+      next: () => this.toast.success(`Invitation resent to ${event.signer.name}`),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -458,7 +526,7 @@ export class SignaturePageComponent {
         if (this.previewRequest()?.id === target.id) {
           this.previewRequest.set(null);
         }
-        this.showToast(`Signature request "${target.documentName}" canceled`);
+        this.toast.success(`Signature request "${target.documentName}" canceled`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -506,7 +574,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.pinTarget.set(null);
-        this.showToast(`${verb} "${target.documentName}"`);
+        this.toast.success(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -584,7 +652,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.preparerTarget.set(null);
-        this.showToast(`${verb} "${target.documentName}"`);
+        this.toast.success(`${verb} "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -624,7 +692,7 @@ export class SignaturePageComponent {
       next: () => {
         this.actionBusy.set(false);
         this.extendTarget.set(null);
-        this.showToast(`Expiration extended by ${hours}h for "${target.documentName}"`);
+        this.toast.success(`Expiration extended by ${hours}h for "${target.documentName}"`);
       },
       error: err => {
         this.actionBusy.set(false);
@@ -636,35 +704,63 @@ export class SignaturePageComponent {
   // ---------- Descargas (CloudStorage download-url) ----------
 
   downloadOriginal(request: SignatureRequest): void {
-    this.openDownload(request.originalFileId ?? null, 'Original document');
+    this.openDownload(request.originalFileId ?? null, 'Original document', request.documentName, 'original');
   }
 
   downloadSealed(request: SignatureRequest): void {
-    this.openDownload(request.sealedFileId ?? null, 'Signed document');
+    this.openDownload(request.sealedFileId ?? null, 'Signed document', request.documentName, 'signed');
   }
 
   downloadCertificate(request: SignatureRequest): void {
-    this.openDownload(request.certificateFileId ?? null, 'Certificate');
+    this.openDownload(request.certificateFileId ?? null, 'Certificate', request.documentName, 'certificate');
   }
 
-  private openDownload(fileId: string | null, label: string): void {
+  /**
+   * Baja el archivo con un nombre profesional derivado del título
+   * (`2026_Individual_Tax_Return_Signed.pdf`) en vez del nombre interno del storage.
+   */
+  private openDownload(fileId: string | null, label: string, title: string, kind: SignatureDownloadKind): void {
     if (!fileId) {
       return;
     }
     this.store.getDownloadUrl(fileId).subscribe({
-      next: url => {
-        window.open(url, '_blank', 'noopener');
-      },
-      error: err => this.showToast(`${label}: ${toApiError(err).message}`),
+      next: url => void saveUrlAs(url, buildSignatureDownloadFilename(title, kind)),
+      error: err => this.toast.error(`${label}: ${toApiError(err).message}`),
     });
   }
 
-  private showToast(message: string): void {
-    this.toastMessage.set(message);
-    setTimeout(() => {
-      if (this.toastMessage() === message) {
-        this.toastMessage.set(null);
-      }
-    }, 2500);
+  // ---------- Visor global (original / firmado / certificado) ----------
+
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /**
+   * Abre el visor con los documentos disponibles de la solicitud (original, firmado y certificado,
+   * navegables con ←/→), empezando por el pedido. El nombre de cada ítem es el profesional y no se
+   * escucha `(download)`: el visor guarda los bytes que ya bajó con ese nombre.
+   */
+  viewDocument(event: { request: SignatureRequest; kind: SignatureDownloadKind }): void {
+    const { request } = event;
+    const docs: { kind: SignatureDownloadKind; fileId: string | null | undefined }[] = [
+      { kind: 'original', fileId: request.originalFileId },
+      { kind: 'signed', fileId: request.status === 'completed' ? request.sealedFileId : null },
+      { kind: 'certificate', fileId: request.status === 'completed' ? request.certificateFileId : null },
+    ];
+    const available = docs.filter((doc): doc is { kind: SignatureDownloadKind; fileId: string } => !!doc.fileId);
+    const start = available.findIndex(doc => doc.kind === event.kind);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(
+      available.map(doc => ({
+        name: buildSignatureDownloadFilename(request.documentName, doc.kind),
+        contentType: 'application/pdf',
+        resolveUrl: () => this.store.getDownloadUrl(doc.fileId),
+        ref: doc.kind,
+      })),
+    );
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 }

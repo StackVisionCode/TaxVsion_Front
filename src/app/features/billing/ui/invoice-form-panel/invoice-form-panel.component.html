@@ -15,44 +15,8 @@
     <!-- Cliente -->
     <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
 
-    <div *ngIf="customer() as picked"
-      class="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-        <ion-icon name="person-outline" class="text-base text-brand-bold"></ion-icon>
-      </span>
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm font-medium text-gray-900">{{ picked.displayName }}</span>
-        <span class="block truncate text-xs text-gray-400">{{ picked.primaryEmail || 'No email on file' }}</span>
-      </span>
-      <button type="button" (click)="clearCustomer()" [disabled]="saving"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-        aria-label="Change client">
-        <ion-icon name="close-outline" class="text-base"></ion-icon>
-      </button>
-    </div>
-
-    <div *ngIf="!customer()" class="relative mt-2">
-      <ion-icon name="search-outline"
-        class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-gray-400"></ion-icon>
-      <input type="text" name="invoiceCustomer" autocomplete="off" placeholder="Search a client…"
-        [disabled]="saving" [ngModel]="customerQuery()" (ngModelChange)="onCustomerQuery($event)"
-        (focus)="onCustomerFocus()" (blur)="closeCustomerPickerSoon()"
-        class="h-11 w-full rounded-full border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-
-      <div *ngIf="customerPickerOpen() && (customerResults.length > 0 || customerSearching)"
-        class="absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
-        <div *ngIf="customerSearching && customerResults.length === 0"
-          class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-          <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
-        </div>
-        <button *ngFor="let option of customerResults" type="button" (mousedown)="$event.preventDefault()"
-          (click)="pickCustomer(option)"
-          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50">
-          <span class="min-w-0 flex-1 truncate text-gray-700">{{ option.displayName }}</span>
-          <span class="shrink-0 truncate text-[11px] text-gray-400">{{ option.primaryEmail }}</span>
-        </button>
-      </div>
-    </div>
+    <app-customer-picker class="mt-2" variant="field" [selected]="customer()" [disabled]="saving"
+      (selectedChange)="customer.set($event)"></app-customer-picker>
 
     <!-- (Client Tax ID y el selector de moneda se quitaron del formulario: la moneda es la default del
          tenant en Company settings; el Tax ID no se captura por factura.) -->

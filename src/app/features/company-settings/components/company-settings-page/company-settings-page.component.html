@@ -11,12 +11,6 @@
           <p class="mt-1 text-sm text-gray-500">Manage your firm's legal and business information</p>
         </div>
       </div>
-
-      <span *ngIf="toast()"
-        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
-        <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
-        {{ toast() }}
-      </span>
     </div>
   </div>
 
@@ -176,6 +170,11 @@
         <p *ngIf="store.assetProcessing() === 'logo'" class="flex items-center gap-1.5 text-xs text-gray-500">
           <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
           Scanning uploaded file — the logo will appear here in a few seconds.
+        </p>
+
+        <p *ngIf="logoIsSvg()" class="flex items-start gap-1.5 text-xs text-amber-700">
+          <ion-icon name="alert-circle-outline" class="mt-px text-sm shrink-0"></ion-icon>
+          <span>Email clients cannot display SVG, so your emails show your office name as text instead of this logo. Upload a PNG or JPEG to use it in email too.</span>
         </p>
       </div>
     </div>

@@ -170,3 +170,173 @@
     animation-delay: 0ms !important;
   }
 }
+
+/* ===== Editor compacto: objetivos táctiles, campos y asas ===== */
+
+/* Objetivos táctiles de 44 px por debajo de lg o con puntero grueso (tablet/móvil). */
+@media (max-width: 1023px), (pointer: coarse) {
+  .tap {
+    min-height: 44px;
+  }
+  button.tap:not(.w-full),
+  select.tap {
+    min-width: 44px;
+  }
+}
+
+.acc-chevron {
+  transition: transform 160ms ease;
+}
+
+/* Los campos no hacen scroll al arrastrarlos con el dedo. */
+.tpl-field {
+  touch-action: none;
+}
+
+.tpl-field:focus-visible,
+.tpl-field-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(17 24 39 / 0.55);
+  z-index: 5;
+}
+
+/* Botón eliminar: aparece al pasar el ratón o con el campo seleccionado… */
+.tpl-delete {
+  opacity: 0;
+}
+.tpl-field:hover .tpl-delete,
+.tpl-field-selected .tpl-delete,
+.tpl-field:focus-within .tpl-delete {
+  opacity: 1;
+}
+/* …y en táctil siempre visible (no hay hover). */
+@media (hover: none) {
+  .tpl-delete {
+    opacity: 1;
+  }
+}
+
+/* Asas pequeñas a la vista pero con zona de toque de 44 px en táctil. */
+.tpl-handle {
+  touch-action: none;
+}
+@media (pointer: coarse) {
+  .tpl-handle::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
+/* Con el inspector como panel inferior, el documento deja sitio para no quedar tapado. */
+.tpl-scroller-inspecting {
+  padding-bottom: 18rem;
+}
+@media (min-width: 1024px) {
+  .tpl-scroller-inspecting {
+    padding-bottom: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acc-chevron,
+  .tpl-delete {
+    transition: none;
+  }
+}
+
+/* ===== Arrastrar desde la paleta (palette-drag.util; mismo idioma que el editor de solicitudes) ===== */
+
+.palette-draggable:not(:disabled) {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Táctil: mientras se mantiene pulsado, el botón "se hunde" (el arrastre arranca a los 250 ms). */
+.palette-arming {
+  animation: palette-arming 250ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes palette-arming {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.94);
+    box-shadow: 0 0 0 3px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.25);
+  }
+}
+
+/* Fantasma: fijo al viewport (colgado de <body>), solo transform/opacity por frame. */
+.palette-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 90;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.palette-ghost-body {
+  transform-origin: center;
+  transform: rotate(-2deg) scale(1.04);
+  box-shadow: 0 14px 30px rgb(15 23 42 / 0.22);
+  transition:
+    transform 160ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    filter 160ms ease;
+  /* Sin fill-mode: al terminar no debe tapar las transiciones de is-blocked / is-settling. */
+  animation: ghost-lift 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes ghost-lift {
+  from {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.palette-ghost.is-blocked .palette-ghost-body {
+  opacity: 0.55;
+  filter: grayscale(1);
+  transform: rotate(-5deg) scale(0.92);
+}
+
+.palette-ghost.is-settling .palette-ghost-body {
+  transform: none;
+  box-shadow: none;
+}
+
+.tpl-page.is-drop-target {
+  outline: 2px solid rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.55);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 8px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.08);
+  transition:
+    outline-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.drop-preview {
+  animation: drop-preview-in 120ms ease-out both;
+}
+
+@keyframes drop-preview-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette-arming,
+  .palette-ghost-body,
+  .drop-preview {
+    animation: none;
+  }
+  .palette-ghost-body,
+  .palette-ghost.is-blocked .palette-ghost-body {
+    transform: none;
+    transition: none;
+  }
+}

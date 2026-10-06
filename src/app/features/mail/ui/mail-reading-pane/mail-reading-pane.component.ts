@@ -13,11 +13,11 @@ import { FormsModule } from '@angular/forms';
 import {
   MessageSummary,
   ThreadSummary,
-  avatarColorFor,
-  formatFileSize,
   formatMailTime,
-  initialsFor,
 } from '../../data-access/mail.model';
+import { avatarColorFor } from '@shared/utils/avatar.util';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { BytesPipe } from '@shared/pipes/bytes.pipe';
 import {
   MessageAttachmentsView,
   MessageBodyView,
@@ -38,7 +38,7 @@ import {
  */
 @Component({
   selector: 'app-mail-reading-pane',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AvatarComponent, BytesPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-reading-pane.component.html',
   styleUrl: './mail-reading-pane.component.css',
@@ -61,6 +61,8 @@ export class MailReadingPaneComponent implements OnChanges {
   @Output() bodyRetryRequested = new EventEmitter<string>();
   @Output() attachmentsRetryRequested = new EventEmitter<string>();
   @Output() attachmentDownloadRequested = new EventEmitter<{ messageId: string; attachmentId: string }>();
+  /** Abrir el adjunto en el visor global (lo monta la página). */
+  @Output() attachmentPreviewRequested = new EventEmitter<{ messageId: string; attachmentId: string }>();
   @Output() replyStarted = new EventEmitter<string>();
   @Output() replyCancelled = new EventEmitter<void>();
   @Output() replySent = new EventEmitter<string>();
@@ -118,20 +120,12 @@ export class MailReadingPaneComponent implements OnChanges {
     return message.from ?? '';
   }
 
-  initialsFor(message: MessageSummary): string {
-    return initialsFor(this.senderLabel(message));
-  }
-
   avatarColorFor(message: MessageSummary): string {
     return avatarColorFor(this.senderLabel(message));
   }
 
   timeFor(iso: string): string {
     return formatMailTime(iso);
-  }
-
-  fileSize(bytes: number): string {
-    return formatFileSize(bytes);
   }
 
   bodyFor(messageId: string): MessageBodyView | null {
@@ -191,6 +185,10 @@ export class MailReadingPaneComponent implements OnChanges {
 
   downloadAttachment(messageId: string, attachmentId: string): void {
     this.attachmentDownloadRequested.emit({ messageId, attachmentId });
+  }
+
+  previewAttachment(messageId: string, attachmentId: string): void {
+    this.attachmentPreviewRequested.emit({ messageId, attachmentId });
   }
 
   archive(): void {

@@ -1,8 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Referral, ReferralStatus, ReferralTableComponent } from '../../ui/referral-table/referral-table.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { ClipboardService } from '@shared/services/clipboard.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { ReferralsStore } from '../../data-access/referrals.store';
 
 type StatusFilter = 'All' | ReferralStatus;
@@ -20,12 +23,14 @@ const PAGE_SIZE = 8;
  */
 @Component({
   selector: 'app-referrals-page',
-  imports: [CommonModule, FormsModule, ReferralTableComponent, PaginationComponent],
+  imports: [CommonModule, ReferralTableComponent, PaginationComponent, FilterChipsComponent, SearchInputComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './referrals-page.component.html',
 })
 export class ReferralsPageComponent implements OnInit {
   private readonly store = inject(ReferralsStore);
+  private readonly clipboard = inject(ClipboardService);
+  private readonly toast = inject(ToastService);
 
   /** Vacío hasta que el backend exponga un listado (ver ReferralsStore.referrals). */
   readonly referrals = this.store.referrals;
@@ -37,6 +42,10 @@ export class ReferralsPageComponent implements OnInit {
   readonly search = signal('');
 
   readonly statusFilters: StatusFilter[] = ['All', 'pending', 'completed', 'rewarded'];
+  readonly filterOptions: FilterChipOption<StatusFilter>[] = this.statusFilters.map(filter => ({
+    id: filter,
+    label: this.filterLabel(filter),
+  }));
   readonly statusFilter = signal<StatusFilter>('All');
 
   /** Toast transitorio: true durante 2s tras copiar el enlace de referido. */
@@ -94,20 +103,23 @@ export class ReferralsPageComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  /** Copia el enlace real de referido y muestra el toast "Copied!" durante 2 segundos. */
+  /**
+   * Copia el enlace real de referido y muestra "Copied!" durante 2 segundos. Si ni la Clipboard API
+   * ni el fallback funcionan, avisa con un toast de error (antes decía "Copied!" igualmente).
+   */
   copyLink(): void {
     const link = this.referralLink();
     if (!link) {
       return;
     }
-    // navigator.clipboard es undefined fuera de contextos seguros (http plano).
-    const write = navigator.clipboard?.writeText(link) ?? Promise.reject(new Error('Clipboard API unavailable'));
-    write
-      .catch(() => copyWithTextarea(link))
-      .finally(() => {
-        this.copied.set(true);
-        setTimeout(() => this.copied.set(false), 2000);
-      });
+    void this.clipboard.copy(link).then(ok => {
+      if (!ok) {
+        this.toast.error("We couldn't copy the link. Copy it manually.");
+        return;
+      }
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2000);
+    });
   }
 
   shareOnX(): void {
@@ -132,20 +144,5 @@ export class ReferralsPageComponent implements OnInit {
       `Use my referral code ${code} when you sign up for TaxPro Office and we both get rewarded!\n\n${link}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  }
-}
-
-/** Fallback de copiado para contextos sin Clipboard API (http plano / navegadores viejos). */
-function copyWithTextarea(text: string): void {
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  try {
-    document.execCommand('copy');
-  } finally {
-    document.body.removeChild(textarea);
   }
 }

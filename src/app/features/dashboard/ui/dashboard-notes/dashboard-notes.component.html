@@ -27,10 +27,10 @@
   </div>
 
   <!-- Cargando / sin permiso notes.read / todavía sin notas -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || notes().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Notes aren't available" icon="document-text-outline" title="No notes yet"
-    message="Notes you write here or on a client profile will be listed."
-    minHeight="10rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || notes().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="document-text-outline" emptyTitle="No notes yet"
+    emptyMessage="Notes you write here or on a client profile will be listed."
+    minHeight="10rem" (retry)="loadNotes()"></app-state-block>
 
   <!-- Notas reales del usuario -->
   <div *ngIf="!loading() && !error() && notes().length > 0" class="mt-4 flex flex-col gap-3">

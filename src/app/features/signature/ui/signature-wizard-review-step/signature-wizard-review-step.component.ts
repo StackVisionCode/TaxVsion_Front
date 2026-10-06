@@ -4,8 +4,10 @@ import { FormsModule } from '@angular/forms';
 import {
   EditorSigner,
   FieldType,
+  PREPARER_PARTY_ID,
   PlacedField,
   RequestRules,
+  VerificationChannel,
   WizardClient,
   WizardDocKind,
   WizardDocument,
@@ -15,13 +17,28 @@ import {
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
   clientTypeBadge,
-  initialsOf,
   kindChip,
   kindCircle,
   kindIcon,
 } from '../signature-request-panel/signature-wizard.presenter';
 import { SignatureCategory } from '../../data-access/signature.model';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import {
+  ToggleableRule,
+  isPartialCopyAudienceInvalid,
+  isSigningPinInvalid,
+  reminderIntervalDays,
+  togglePartialCopyRecipient,
+  toggleRule,
+  withDefaultChannel,
+  withPartialCopyAudienceKind,
+  withReminderIntervalDays,
+  withSequential,
+  withSigningPin,
+} from '../../utils/request-rules.util';
+import { signersMissingSignature } from '../../utils/editor-fields.util';
 
 const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
 
@@ -31,10 +48,17 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
  * título, categoría legal (SignatureCategory), fecha límite (→ tokenExpirationHours)
  * y descripción. Presentacional puro: recibe snapshots por @Input y emite cambios
  * por @Output (two-way con el panel).
+ *
+ * Reglas de la solicitud (antes en la columna derecha del editor): orden de firma, canal por
+ * defecto, recordatorio + intervalo, certificado, entregas (solo con `canDeliverDocs`, el mismo
+ * permiso `signature.document.send` que ya evaluaba el editor) y PIN. Emite `rulesChange` con el
+ * objeto completo (transformaciones de request-rules.util, idénticas a las del editor); el panel lo
+ * vuelve a poner en el mismo signal del editor, así el payload no cambia. `goToSigner` lleva al
+ * editor con ese firmante activo (lista "Before you send").
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
-  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent],
+  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent, AvatarComponent, SwitchComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-review-step.component.html',
   styleUrl: './signature-wizard-review-step.component.css',
@@ -53,6 +77,88 @@ export class SignatureWizardReviewStepComponent {
   @Output() categoryChange = new EventEmitter<SignatureCategory>();
   @Output() dueDateChange = new EventEmitter<string>();
   @Output() notesChange = new EventEmitter<string>();
+  /** Permiso de entrega (signature.document.send) evaluado por el panel/editor; aquí solo se muestra u oculta. */
+  @Input() canDeliverDocs = false;
+  @Output() rulesChange = new EventEmitter<RequestRules>();
+  /** "Go to signer": volver al editor con ese firmante activo. */
+  @Output() goToSigner = new EventEmitter<string>();
+
+  /** Canales de ENTREGA para el default de firmantes nuevos (mismos que ofrecía el editor). */
+  readonly deliveryChannels: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'none'];
+
+  setSequential(sequential: boolean): void {
+    this.emitRules(r => withSequential(r, sequential));
+  }
+
+  setDefaultChannel(channel: VerificationChannel): void {
+    this.emitRules(r => withDefaultChannel(r, channel));
+  }
+
+  toggle(key: ToggleableRule): void {
+    this.emitRules(r => toggleRule(r, key));
+  }
+
+  setReminderIntervalDays(days: number): void {
+    this.emitRules(r => withReminderIntervalDays(r, days));
+  }
+
+  setSigningPin(value: string): void {
+    this.emitRules(r => withSigningPin(r, value));
+  }
+
+  /**
+   * El certificado se genera siempre en solicitudes nuevas; `rules.certificate === false` solo llega
+   * al continuar un borrador VIEJO creado sin certificado (GenerateCertificate es inmutable en el
+   * backend y SetCertificateDelivery(true) fallaría), así que "Send certificate" queda bloqueado.
+   */
+  certificateLocked(): boolean {
+    return this.rules?.certificate === false;
+  }
+
+  reminderDays(): number {
+    return this.rules ? reminderIntervalDays(this.rules) : 2;
+  }
+
+  signingPinInvalid(): boolean {
+    return isSigningPinInvalid(this.rules);
+  }
+
+  // ---------- F7 — audiencia de la copia parcial ----------
+
+  setAudienceKind(kind: 'All' | 'Specific'): void {
+    this.emitRules(r => withPartialCopyAudienceKind(r, kind));
+  }
+
+  toggleRecipient(signerId: string): void {
+    this.emitRules(r => togglePartialCopyRecipient(r, signerId));
+  }
+
+  isRecipient(signerId: string): boolean {
+    return !!this.rules?.partialCopyAudienceSignerIds.includes(signerId);
+  }
+
+  audienceInvalid(): boolean {
+    return isPartialCopyAudienceInvalid(this.rules);
+  }
+
+  trackSigner(_: number, s: EditorSigner): string {
+    return s.id;
+  }
+
+  private emitRules(change: (rules: RequestRules) => RequestRules): void {
+    if (!this.rules) {
+      return;
+    }
+    const next = change(this.rules);
+    if (next !== this.rules) {
+      this.rulesChange.emit(next);
+    }
+  }
+
+  /** Firmantes sin campo de Firma/Iniciales (los del preparador no cuentan): bloquean el envío. */
+  signersMissingSignature(): EditorSigner[] {
+    return signersMissingSignature(this.signers, this.fields);
+  }
 
   readonly fieldIcon = FIELD_TYPE_ICON;
   readonly channelMeta = CHANNEL_META;
@@ -60,10 +166,6 @@ export class SignatureWizardReviewStepComponent {
   /** Etiquetas de los canales habilitados, para la tarjeta de reglas. */
   channelLabels(): string {
     return (this.rules?.channels ?? []).map(ch => CHANNEL_META[ch].label).join(' · ');
-  }
-
-  initials(name: string): string {
-    return initialsOf(name);
   }
 
   typeBadge(client: WizardClient): string {
@@ -82,8 +184,9 @@ export class SignatureWizardReviewStepComponent {
     return kindIcon(kind);
   }
 
+  /** Campos de los firmantes (los del preparador se cuentan aparte). */
   totalFields(): number {
-    return this.fields.length;
+    return this.fields.filter(field => field.signerId !== PREPARER_PARTY_ID).length;
   }
 
   fieldCountFor(signerId: string): number {
@@ -107,9 +210,11 @@ export class SignatureWizardReviewStepComponent {
     return this.signers.filter(signer => this.fieldCountFor(signer.id) === 0);
   }
 
-  /** El backend exige al menos un campo Signature o Initials para poder enviar. */
+  /** El backend exige al menos un campo Signature o Initials (de un firmante; el del preparador no cuenta). */
   hasSignatureField(): boolean {
-    return this.fields.some(field => field.type === 'signature' || field.type === 'initials');
+    return this.fields.some(
+      field => field.signerId !== PREPARER_PARTY_ID && (field.type === 'signature' || field.type === 'initials'),
+    );
   }
 
   titleTooShort(): boolean {

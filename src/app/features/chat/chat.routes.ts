@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { ChatPageComponent } from './components/chat-page/chat-page.component';
 
 export const CHAT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/chat-page/chat-page.component').then(m => m.ChatPageComponent),
+    component: ChatPageComponent,
     title: 'Chat',
   },
 ];

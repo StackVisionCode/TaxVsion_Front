@@ -8,14 +8,9 @@ import { TeamMember } from '../user-table/user-table.component';
 import { EditAccessDrawerComponent } from './edit-access-drawer.component';
 
 /**
- * El interruptor maestro de un módulo, probado COMO LO USA UNA PERSONA: pulsando `.track`, que es
- * lo que se ve.
- *
- * El `<input>` del interruptor mide 0×0 y tiene `opacity: 0` — es imposible pulsarlo. Lo que
- * funcionaba en las filas era la asociación del `<label>` que las envuelve; la cabecera del módulo
- * usaba un `<span>`, así que el maestro estaba muerto para el usuario y VIVO para un test que
- * llamara a `input.click()`. Ese fue exactamente mi error al darlo por bueno: hay que pulsar lo que
- * se ve.
+ * El interruptor maestro de un módulo, probado COMO LO USA UNA PERSONA: pulsando el interruptor que
+ * se ve (`app-switch`, un `<button role="switch">`). Antes era un checkbox de 0×0 detrás de un `.track`
+ * y el maestro quedaba muerto para el usuario aunque un `input.click()` en el test pasara.
  */
 describe('EditAccessDrawerComponent · interruptor maestro de módulo', () => {
   const ACCESS: UserEffectiveAccess = {
@@ -64,39 +59,33 @@ describe('EditAccessDrawerComponent · interruptor maestro de módulo', () => {
     return fixture;
   }
 
-  /** El elemento que la persona pulsa de verdad. */
-  function masterTrack(fixture: ReturnType<typeof render>): HTMLElement {
-    const input = fixture.nativeElement.querySelector(
-      'input[aria-label^="Allow all of"]',
-    ) as HTMLInputElement;
-    return input.parentElement!.querySelector('.track') as HTMLElement;
+  /** El interruptor maestro: lo que la persona pulsa de verdad. */
+  function master(fixture: ReturnType<typeof render>): HTMLButtonElement {
+    return document.body.querySelector('button[role="switch"][aria-label^="Allow all of"]') as HTMLButtonElement;
   }
 
   /** Los interruptores de fila: todos menos el maestro. */
-  function rowInputs(fixture: ReturnType<typeof render>): HTMLInputElement[] {
-    const all = fixture.nativeElement.querySelectorAll('.perm-row input[type=checkbox]');
-    return [...all] as HTMLInputElement[];
+  function rowSwitches(fixture: ReturnType<typeof render>): HTMLButtonElement[] {
+    return [...document.body.querySelectorAll('.perm-row button[role="switch"]')] as HTMLButtonElement[];
   }
 
   function rowStates(fixture: ReturnType<typeof render>): boolean[] {
-    return rowInputs(fixture).map(input => input.checked);
+    return rowSwitches(fixture).map(button => button.getAttribute('aria-checked') === 'true');
   }
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('el maestro vive dentro de un label, no de un span', () => {
-    // Sin el label, un clic sobre `.track` no llega nunca al input de 0×0.
+  it('el maestro es un interruptor visible y accesible', () => {
     const fixture = render();
-    const input = fixture.nativeElement.querySelector('input[aria-label^="Allow all of"]') as HTMLInputElement;
-
-    expect(input.closest('label')).not.toBeNull();
+    expect(master(fixture)).not.toBeNull();
+    expect(master(fixture).getAttribute('aria-checked')).toBe('true');
   });
 
-  it('pulsar lo que se ve apaga TODAS las filas del módulo', () => {
+  it('pulsar el maestro apaga TODAS las filas del módulo', () => {
     const fixture = render();
     expect(rowStates(fixture)).toEqual([true, true]);
 
-    masterTrack(fixture).click();
+    master(fixture).click();
     fixture.detectChanges();
 
     expect(rowStates(fixture)).toEqual([false, false]);
@@ -104,23 +93,25 @@ describe('EditAccessDrawerComponent · interruptor maestro de módulo', () => {
 
   it('y volver a pulsarlo las enciende todas', () => {
     const fixture = render();
-    masterTrack(fixture).click();
+    master(fixture).click();
     fixture.detectChanges();
 
-    masterTrack(fixture).click();
+    master(fixture).click();
     fixture.detectChanges();
 
     expect(rowStates(fixture)).toEqual([true, true]);
   });
 
-  it('cada fila también se puede pulsar por lo que se ve', () => {
+  it('cada fila se puede pulsar en el interruptor y también en su nombre (una sola vez)', () => {
     const fixture = render();
-    const row = rowInputs(fixture)[0];
-    const track = row.parentElement!.querySelector('.track') as HTMLElement;
-
-    track.click();
+    rowSwitches(fixture)[0].click();
     fixture.detectChanges();
+    expect(rowStates(fixture)).toEqual([false, true]);
 
-    expect(row.checked).toBe(false);
+    // Clic en el texto de la fila: el label activa el interruptor una única vez.
+    const label = rowSwitches(fixture)[1].closest('label') as HTMLLabelElement;
+    (label.querySelector('div') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(rowStates(fixture)).toEqual([false, false]);
   });
 });

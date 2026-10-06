@@ -1,86 +1,70 @@
-<div class="fixed inset-0 z-50 flex justify-end">
-  <div class="absolute inset-0 bg-gray-900/30" (click)="closed.emit()"></div>
+<app-drawer [isOpen]="true" [heading]="title()" width="xl" (closed)="closed.emit()"
+  [subheading]="readOnly()
+    ? 'Built-in role — open for reference. Duplicate it to make your own.'
+    : 'Pick what this role can do. To give someone access, assign them the role.'">
 
-  <aside class="relative flex h-full w-full max-w-xl flex-col bg-white shadow-2xl sm:rounded-l-[28px]">
-    <header class="flex items-start gap-3 border-b border-gray-100 px-6 py-5">
-      <div class="min-w-0 flex-1">
-        <h2 class="truncate text-lg font-bold text-gray-900">{{ title() }}</h2>
-        <p class="mt-0.5 text-xs text-gray-500">
-          {{ readOnly()
-            ? 'Built-in role — open for reference. Duplicate it to make your own.'
-            : 'Pick what this role can do. To give someone access, assign them the role.' }}
-        </p>
-      </div>
-      <button type="button" (click)="closed.emit()" aria-label="Close"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
-        <ion-icon name="close-outline" class="text-xl"></ion-icon>
-      </button>
-    </header>
+    <div class="flex flex-col gap-3">
+      <label class="block">
+        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Name</span>
+        <input type="text" name="roleName" [ngModel]="name()" (ngModelChange)="name.set($event)"
+          [disabled]="readOnly()" placeholder="e.g. Junior preparer"
+          class="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3.5 text-sm outline-none transition-colors focus:border-gray-300 disabled:bg-gray-50 disabled:text-gray-500" />
+      </label>
 
-    <div class="flex-1 overflow-y-auto px-6 py-5">
-      <div class="flex flex-col gap-3">
-        <label class="block">
-          <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Name</span>
-          <input type="text" name="roleName" [ngModel]="name()" (ngModelChange)="name.set($event)"
-            [disabled]="readOnly()" placeholder="e.g. Junior preparer"
-            class="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3.5 text-sm outline-none transition-colors focus:border-gray-300 disabled:bg-gray-50 disabled:text-gray-500" />
-        </label>
-
-        <label class="block">
-          <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Description</span>
-          <input type="text" name="roleDescription" [ngModel]="description()"
-            (ngModelChange)="description.set($event)" [disabled]="readOnly()"
-            placeholder="What this role is for"
-            class="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3.5 text-sm outline-none transition-colors focus:border-gray-300 disabled:bg-gray-50 disabled:text-gray-500" />
-        </label>
-      </div>
-
-      <div class="mt-6 flex items-center justify-between gap-3">
-        <h3 class="text-sm font-bold text-gray-900">Permissions ({{ selectedCount() }})</h3>
-        <div class="relative w-48">
-          <input type="text" name="permissionSearch" [ngModel]="search()" (ngModelChange)="search.set($event)"
-            placeholder="Search…"
-            class="h-9 w-full rounded-full border border-gray-200 pl-3.5 pr-3 text-sm outline-none transition-colors focus:border-gray-300" />
-        </div>
-      </div>
-
-      @for (group of visibleModules(); track group.module) {
-        <section class="mt-4">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.module }}</p>
-          <div class="mt-2 flex flex-col gap-1.5">
-            @for (permission of group.permissions; track permission.id) {
-              <label class="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors"
-                [ngClass]="isLocked(permission) ? 'bg-gray-50' : 'hover:bg-gray-50 cursor-pointer'">
-                <input type="checkbox" [checked]="isSelected(permission.code)"
-                  [disabled]="readOnly() || isLocked(permission)" (change)="toggle(permission)"
-                  class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-brand-bold focus:ring-brand-bold disabled:opacity-40" />
-                <span class="min-w-0 flex-1">
-                  <span class="block text-sm text-gray-800" [class.text-gray-400]="isLocked(permission)">
-                    {{ permission.description }}
-                  </span>
-                  <span class="block font-mono text-[11px] text-gray-400">{{ permission.code }}</span>
-                  <!-- El motivo es el punto: una casilla apagada sin explicación se lee como un error
-                       de la aplicación, no como una decisión. -->
-                  @if (blockedReason(permission); as reason) {
-                    <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
-                      <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> {{ reason }}
-                    </span>
-                  }
-                </span>
-              </label>
-            }
-          </div>
-        </section>
-      } @empty {
-        <p class="mt-6 text-sm text-gray-400">No permissions match that search.</p>
-      }
+      <label class="block">
+        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Description</span>
+        <input type="text" name="roleDescription" [ngModel]="description()"
+          (ngModelChange)="description.set($event)" [disabled]="readOnly()"
+          placeholder="What this role is for"
+          class="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3.5 text-sm outline-none transition-colors focus:border-gray-300 disabled:bg-gray-50 disabled:text-gray-500" />
+      </label>
     </div>
 
-    @if (error()) {
-      <p class="border-t border-gray-100 px-6 py-3 text-sm text-red-600">{{ error() }}</p>
+    <div class="mt-6 flex items-center justify-between gap-3">
+      <h3 class="text-sm font-bold text-gray-900">Permissions ({{ selectedCount() }})</h3>
+      <div class="relative w-48">
+        <input type="text" name="permissionSearch" [ngModel]="search()" (ngModelChange)="search.set($event)"
+          placeholder="Search…"
+          class="h-9 w-full rounded-full border border-gray-200 pl-3.5 pr-3 text-sm outline-none transition-colors focus:border-gray-300" />
+      </div>
+    </div>
+
+    @for (group of visibleModules(); track group.module) {
+      <section class="mt-4">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.module }}</p>
+        <div class="mt-2 flex flex-col gap-1.5">
+          @for (permission of group.permissions; track permission.id) {
+            <label class="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors"
+              [ngClass]="isLocked(permission) ? 'bg-gray-50' : 'hover:bg-gray-50 cursor-pointer'">
+              <input type="checkbox" [checked]="isSelected(permission.code)"
+                [disabled]="readOnly() || isLocked(permission)" (change)="toggle(permission)"
+                class="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-brand-bold focus:ring-brand-bold disabled:opacity-40" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm text-gray-800" [class.text-gray-400]="isLocked(permission)">
+                  {{ permission.description }}
+                </span>
+                <span class="block font-mono text-[11px] text-gray-400">{{ permission.code }}</span>
+                <!-- El motivo es el punto: una casilla apagada sin explicación se lee como un error
+                     de la aplicación, no como una decisión. -->
+                @if (blockedReason(permission); as reason) {
+                  <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
+                    <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> {{ reason }}
+                  </span>
+                }
+              </span>
+            </label>
+          }
+        </div>
+      </section>
+    } @empty {
+      <p class="mt-6 text-sm text-gray-400">No permissions match that search.</p>
     }
 
-    <footer class="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
+  <div drawerFooter>
+    @if (error()) {
+      <p class="mb-3 text-sm text-red-600">{{ error() }}</p>
+    }
+    <div class="flex items-center justify-end gap-2">
       <button type="button" (click)="closed.emit()"
         class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900">
         {{ readOnly() ? 'Close' : 'Cancel' }}
@@ -91,6 +75,6 @@
           {{ saving() ? 'Saving…' : 'Save role' }}
         </button>
       }
-    </footer>
-  </aside>
-</div>
+    </div>
+  </div>
+</app-drawer>

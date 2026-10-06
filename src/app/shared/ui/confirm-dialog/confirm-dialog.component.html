@@ -1,19 +1,28 @@
-<app-modal [isOpen]="isOpen" [heading]="heading" size="sm" (closed)="cancelled.emit()">
+<app-modal [isOpen]="isOpen" [heading]="heading" size="sm" (closed)="onCancel()">
   <div class="mt-4 flex items-start gap-3">
-    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50">
-      <ion-icon name="alert-outline" class="text-xl text-red-500"></ion-icon>
+    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+      [ngClass]="tone === 'primary' ? 'bg-indigo-50' : 'bg-red-50'">
+      <ion-icon [name]="icon || (tone === 'primary' ? 'help-outline' : 'alert-outline')" class="text-xl"
+        [ngClass]="tone === 'primary' ? 'text-brand-bold' : 'text-red-500'"></ion-icon>
     </span>
     <p class="pt-2 text-sm leading-relaxed text-gray-600">{{ message }}</p>
   </div>
 
+  <!-- Contenido extra opcional (p. ej. un checkbox o un select); vacío no ocupa sitio -->
+  <div class="mt-4 empty:hidden"><ng-content></ng-content></div>
+
   <div class="mt-6 flex items-center justify-end gap-2">
-    <button type="button" (click)="cancelled.emit()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-      Cancel
+    <button type="button" (click)="onCancel()" [disabled]="busy"
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors disabled:cursor-not-allowed disabled:opacity-50">
+      {{ cancelLabel }}
     </button>
-    <button type="button" (click)="confirmed.emit()"
-      class="rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
-      {{ confirmLabel }}
+    <button type="button" (click)="onConfirm()" [disabled]="busy" [attr.aria-busy]="busy || null"
+      class="inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+      [ngClass]="tone === 'primary' ? 'bg-brand-bold hover:bg-brand-ink' : 'bg-red-500 hover:bg-red-600'">
+      @if (busy) {
+        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      }
+      {{ busy && busyLabel ? busyLabel : confirmLabel }}
     </button>
   </div>
 </app-modal>

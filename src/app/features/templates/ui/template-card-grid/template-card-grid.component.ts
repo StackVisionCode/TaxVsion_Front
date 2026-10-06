@@ -1,6 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Template, TemplateUiStatus } from '../../data-access/templates.model';
+import {
+  TEMPLATE_STATUS_LABEL,
+  TEMPLATE_STATUS_PILL,
+  Template,
+  templateCategoryChip,
+} from '../../data-access/templates.model';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
  * Grid de tarjetas de plantillas (patrón "Aether"; tarjetas en vez de tabla
@@ -15,7 +23,7 @@ import { Template, TemplateUiStatus } from '../../data-access/templates.model';
  */
 @Component({
   selector: 'app-template-card-grid',
-  imports: [CommonModule],
+  imports: [CommonModule, DropdownMenuComponent, MenuItemDirective, StatusPillComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './template-card-grid.component.html',
 })
@@ -26,16 +34,6 @@ export class TemplateCardGridComponent {
   @Output() editRequested = new EventEmitter<Template>();
   @Output() publishRequested = new EventEmitter<Template>();
   @Output() archiveRequested = new EventEmitter<Template>();
-
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="template-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
 
   trackByTemplateId(_index: number, template: Template): string {
     return template.id;
@@ -59,36 +57,9 @@ export class TemplateCardGridComponent {
     return 'bg-brand-surface-strong';
   }
 
-  categoryChip(category: string): string {
-    const key = category.toLowerCase();
-    if (key.includes('mail')) return 'border-indigo-200 text-indigo-600';
-    if (key.includes('letter')) return 'border-orange-200 text-orange-500';
-    if (key.includes('invoice') || key.includes('billing')) return 'border-brand-border text-brand-bold';
-    if (key.includes('remind') || key.includes('alert')) return 'border-gray-300 text-gray-500';
-    return 'border-gray-200 text-gray-500';
-  }
-
-  statusChip(status: TemplateUiStatus): string {
-    switch (status) {
-      case 'published':
-        return 'border-emerald-200 text-emerald-600';
-      case 'archived':
-        return 'border-gray-200 text-gray-400';
-      case 'draft':
-        return 'border-gray-300 text-gray-500';
-    }
-  }
-
-  statusLabel(status: TemplateUiStatus): string {
-    switch (status) {
-      case 'published':
-        return 'Published';
-      case 'archived':
-        return 'Archived';
-      case 'draft':
-        return 'Draft';
-    }
-  }
+  readonly categoryChip = templateCategoryChip;
+  readonly statusLabel = TEMPLATE_STATUS_LABEL;
+  readonly statusPill = TEMPLATE_STATUS_PILL;
 
   formatDate(iso: string): string {
     if (!iso) {
@@ -101,34 +72,7 @@ export class TemplateCardGridComponent {
     });
   }
 
-  toggleMenu(template: Template, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === template.id ? null : template.id);
-  }
-
-  onMenuClick(event: MouseEvent): void {
-    event.stopPropagation();
-  }
-
   onPreviewClick(template: Template): void {
     this.previewRequested.emit(template);
-  }
-
-  onEditClick(template: Template, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.editRequested.emit(template);
-  }
-
-  onPublishClick(template: Template, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.publishRequested.emit(template);
-  }
-
-  onArchiveClick(template: Template, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.archiveRequested.emit(template);
   }
 }

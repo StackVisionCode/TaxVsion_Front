@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { WorkflowListPageComponent } from './components/workflow-list-page/workflow-list-page.component';
 import { WorkflowStore } from './data-access/workflow.store';
 import { WorkflowPreviewService } from './data-access/workflow-preview.service';
 
@@ -8,10 +9,7 @@ export const WORKFLOW_ROUTES: Routes = [
     // pantalla del módulo — antes lo era porque solo existía un documento.
     path: '',
     providers: [WorkflowStore, WorkflowPreviewService],
-    loadComponent: () =>
-      import('./components/workflow-list-page/workflow-list-page.component').then(
-        m => m.WorkflowListPageComponent,
-      ),
+    component: WorkflowListPageComponent,
     title: 'Workflows',
   },
   {

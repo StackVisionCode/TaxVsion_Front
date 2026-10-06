@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -12,6 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import {
   SUPPORT_CATEGORY_OPTIONS,
   SupportCategory,
@@ -20,7 +20,7 @@ import {
 
 /**
  * Mini-formulario de tickets del módulo Support (estilo "Aether"): input
- * píldora, dropdown de categoría (patrón document:click como dashboard-filters)
+ * píldora, dropdown de categoría (cierra con `appClickOutside`)
  * y textarea. Componente dumb: emite `SupportTicketFormValue` y el contenedor
  * (support-page) lo manda al backend vía SupportStore; el chip de confirmación
  * muestra el `ticketId` real que llega por input. Cuando ese input pasa a un
@@ -28,7 +28,7 @@ import {
  */
 @Component({
   selector: 'app-support-ticket-form',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './support-ticket-form.component.html',
 })
@@ -63,14 +63,6 @@ export class SupportTicketFormComponent implements OnChanges {
       this.subject.set('');
       this.category.set('Technical');
       this.message.set('');
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="ticket-category"]') && this.isCategoryOpen()) {
-      this.isCategoryOpen.set(false);
     }
   }
 

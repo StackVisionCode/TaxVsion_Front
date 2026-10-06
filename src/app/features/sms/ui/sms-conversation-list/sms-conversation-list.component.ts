@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { SmsContactListItem } from '../../data-access/sms.model';
 
 /**
@@ -14,7 +15,7 @@ import { SmsContactListItem } from '../../data-access/sms.model';
  */
 @Component({
   selector: 'app-sms-conversation-list',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, AvatarComponent, SearchInputComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sms-conversation-list.component.html',
 })
@@ -38,15 +39,5 @@ export class SmsConversationListComponent {
 
   select(id: string): void {
     this.contactSelected.emit(id);
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
   }
 }

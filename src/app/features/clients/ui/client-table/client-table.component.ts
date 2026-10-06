@@ -1,6 +1,9 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StaffDirectoryStore, StaffMember } from '../../data-access/staff-directory.store';
 
 export type ClientType = 'individual' | 'company';
@@ -52,7 +55,7 @@ export interface ClientItem {
  */
 @Component({
   selector: 'app-client-table',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, AvatarComponent, StatusPillComponent, DropdownMenuComponent, MenuItemDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-table.component.html',
   styleUrl: './client-table.component.css',
@@ -75,21 +78,9 @@ export class ClientTableComponent {
 
   private readonly staff = inject(StaffDirectoryStore);
 
-  readonly openMenuId = signal<string | null>(null);
-
   constructor() {
     // Para resolver los avatares de los asignados (userId → iniciales/color).
     this.staff.ensureLoaded();
-  }
-
-  private readonly avatarPalette = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="client-menu"]')) {
-      this.openMenuId.set(null);
-    }
   }
 
   trackByClientId(_index: number, client: ClientItem): string {
@@ -117,31 +108,12 @@ export class ClientTableComponent {
     return { shown: members.slice(0, 3), extra: Math.max(0, ids.length - members.slice(0, 3).length) };
   }
 
-  initials(client: ClientItem): string {
-    const words = client.displayName.trim().split(/\s+/);
-    return words.length >= 2
-      ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
-      : client.displayName.substring(0, 2).toUpperCase();
-  }
-
-  avatarClass(index: number): string {
-    return this.avatarPalette[index % this.avatarPalette.length];
-  }
-
   typeLabel(client: ClientItem): string {
     return client.type === 'individual' ? 'Individual' : 'Business';
   }
 
   typeBadgeClass(client: ClientItem): string {
     return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
-  }
-
-  statusChip(client: ClientItem): string {
-    return client.isActive ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500';
-  }
-
-  statusDot(client: ClientItem): string {
-    return client.isActive ? 'bg-emerald-500' : 'bg-gray-400';
   }
 
   formatDate(iso: string): string {
@@ -156,38 +128,5 @@ export class ClientTableComponent {
   onSelectAll(event: Event): void {
     event.stopPropagation();
     this.selectAllToggled.emit();
-  }
-
-  toggleMenu(client: ClientItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === client.id ? null : client.id);
-  }
-
-  onEditClick(client: ClientItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.editRequested.emit(client);
-  }
-
-  onToggleActiveClick(client: ClientItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.toggleActiveRequested.emit(client);
-  }
-
-  onDeleteClick(client: ClientItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.deleteRequested.emit(client);
-  }
-
-  onAssignClick(client: ClientItem, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.assignRequested.emit(client);
-  }
-
-  onMenuClick(event: MouseEvent): void {
-    event.stopPropagation();
   }
 }

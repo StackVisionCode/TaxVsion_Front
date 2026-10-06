@@ -1,32 +1,4 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Stat cards (click → filter by status) -->
-  <div class="grid gap-4 grid-cols-2 lg:grid-cols-4">
-    <button type="button" (click)="setStatus('All')"
-      class="stat-card rounded-[24px] bg-indigo-50 p-5 text-left transition-shadow hover:shadow-md"
-      [class.ring-2]="status() === 'All'" [class.ring-brand-bold]="status() === 'All'">
-      <span class="text-sm text-gray-600">Total clients</span>
-      <span class="mt-2 block text-3xl font-bold text-gray-900">{{ counts().total.toLocaleString() }}</span>
-    </button>
-    <button type="button" (click)="setStatus('Active')"
-      class="stat-card rounded-[24px] bg-indigo-100 p-5 text-left transition-shadow hover:shadow-md"
-      [class.ring-2]="status() === 'Active'" [class.ring-brand-bold]="status() === 'Active'">
-      <span class="text-sm text-gray-600">Active</span>
-      <span class="mt-2 block text-3xl font-bold text-gray-900">{{ counts().active.toLocaleString() }}</span>
-    </button>
-    <button type="button" (click)="setStatus('Inactive')"
-      class="stat-card rounded-[24px] bg-gray-200 p-5 text-left transition-shadow hover:shadow-md"
-      [class.ring-2]="status() === 'Inactive'" [class.ring-brand-bold]="status() === 'Inactive'">
-      <span class="text-sm text-gray-600">Inactive</span>
-      <span class="mt-2 block text-3xl font-bold text-gray-900">{{ counts().inactive.toLocaleString() }}</span>
-    </button>
-    <button type="button" (click)="setStatus('Archived')"
-      class="stat-card rounded-[24px] bg-indigo-100 p-5 text-left transition-shadow hover:shadow-md"
-      [class.ring-2]="status() === 'Archived'" [class.ring-brand-bold]="status() === 'Archived'">
-      <span class="text-sm text-gray-600">Archived</span>
-      <span class="mt-2 block text-3xl font-bold text-gray-900">{{ counts().archived.toLocaleString() }}</span>
-    </button>
-  </div>
-
   <!-- Main card: header + filters + table -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -50,20 +22,10 @@
 
     <!-- Filters: status chips (left) + search (right) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Status filter">
-        <button *ngFor="let opt of statusOptions" type="button" (click)="setStatus(opt.value)"
-          class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="status() === opt.value ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-          {{ opt.label }}
-        </button>
-      </div>
-      <label class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-brand-bold transition-colors">
-        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-        <span class="sr-only">Search clients</span>
-        <input type="text" placeholder="Search clients" [ngModel]="searchInput()" name="search"
-          (ngModelChange)="onSearchChange($event)"
-          class="h-full w-44 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </label>
+      <app-filter-chips aria-label="Status filter" [options]="statusOptions" [value]="status()"
+        (valueChange)="setStatus($event)"></app-filter-chips>
+      <app-search-input class="ml-auto" placeholder="Search clients" widthClass="w-44" [debounceMs]="searchDebounceMs"
+        [value]="searchInput()" (valueChange)="onSearchChange($event)"></app-search-input>
     </div>
 
     <!-- Rows per page + count -->
@@ -122,12 +84,9 @@
     </div>
 
     <!-- Empty -->
-    <div *ngIf="!loading() && !loadError() && rows().length === 0"
-      class="mt-6 flex flex-col items-center justify-center gap-2 py-14 text-center">
-      <ion-icon name="people-outline" class="text-4xl text-gray-300"></ion-icon>
-      <p class="font-semibold text-gray-600">No clients match your filters</p>
-      <p class="text-sm text-gray-400">Try a different search term or status.</p>
-    </div>
+    <app-state-block *ngIf="!loading() && !loadError() && rows().length === 0" class="mt-6 block" variant="inline"
+      [empty]="true" icon="people-outline" emptyTitle="No clients match your filters"
+      emptyMessage="Try a different search term or status."></app-state-block>
 
     <!-- Table / cards -->
     <div *ngIf="rows().length > 0" class="mt-4" [class.opacity-60]="loading()" [class.transition-opacity]="true">
@@ -167,7 +126,7 @@
     </button>
   </ng-container>
   <ng-template #noBulkPerm>
-    <span class="px-2 text-xs text-gray-400">Status changes need a Tenant Admin</span>
+    <span class="px-2 text-xs text-gray-400">Status changes need an office administrator</span>
   </ng-template>
   <button *ngIf="canAssignPreparer()" type="button" (click)="openBulkAssign()"
     class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/10 transition-colors">

@@ -1,5 +1,6 @@
 import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { AVATAR_PALETTE, initialsOf } from '@shared/utils/avatar.util';
 import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
 
 /**
@@ -17,6 +18,7 @@ export type SignatureCategory = string;
 export type ApiSignatureRequestStatus =
   | 'Draft'
   | 'Ready'
+  | 'Scheduled'
   | 'InProgress'
   | 'Completed'
   | 'Rejected'
@@ -98,6 +100,11 @@ export interface SignatureSettings {
   maxPagesPerDocument: number;
   retentionYears: number;
   allowPurge: boolean;
+  // F7 — nuevos defaults de entrega + expiración.
+  sendPartialCopyDefault: boolean;
+  partialCopyDefaultAudienceKind: PartialCopyAudienceKind;
+  sendSealedDocumentDefault: boolean;
+  expirationEnabledByDefault: boolean;
 }
 
 /** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
@@ -132,6 +139,11 @@ export interface SignerResponse {
   status: ApiSignerStatus;
   signedAtUtc: string | null;
   fields: SignatureFieldResponse[];
+  // F7 — estado de la copia inmediata que recibe este firmante al firmar.
+  partialCopyRequestedAtUtc: string | null;
+  partialCopySentAtUtc: string | null;
+  partialCopyFileId: string | null;
+  partialCopyFailureReason: string | null;
 }
 
 /** Campo del preparador (canal paralelo Form 8879). Sin signerId: no pertenece a un firmante. */
@@ -163,14 +175,21 @@ export interface SignatureRequestDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
-  sendSignedDocumentToSigners: boolean;
+  // F7 — rename del flag histórico; semántica: PDF sellado final.
+  sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
+  // F7 — copia inmediata por firmante.
+  sendPartialCopyOnEachSignature: boolean;
+  partialCopyAudienceKind: PartialCopyAudienceKind;
+  partialCopyAudienceSignerIds: string[];
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
   requiresPractitionerPin: boolean;
   practitionerPinSetAtUtc: string | null;
-  tokenExpirationHours: number;
-  expiresAtUtc: string;
+  // F7 — expiración opcional. null si el enlace nunca vence.
+  expirationEnabled: boolean;
+  tokenExpirationHours: number | null;
+  expiresAtUtc: string | null;
   revocationEpoch: number;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -178,12 +197,16 @@ export interface SignatureRequestDetail {
   completedAtUtc: string | null;
   canceledAtUtc: string | null;
   expiredAtUtc: string | null;
+  // F3 — hora UTC programada (si status === 'Scheduled').
+  scheduledSendAtUtc: string | null;
   isPreparerSigned: boolean;
   preparerSignedAtUtc: string | null;
   preparerSignatureFileId: string | null;
   preparerFields: PreparerFieldResponse[];
   signers: SignerResponse[];
 }
+
+export type PartialCopyAudienceKind = 'All' | 'Specific';
 
 /** Fila de GET /signature/requests (listado paginado). */
 export interface SignatureRequestSummary {
@@ -193,10 +216,15 @@ export interface SignatureRequestSummary {
   status: ApiSignatureRequestStatus;
   originalFileId: string;
   signerCount: number;
-  expiresAtUtc: string;
+  // F7 — null si la request no expira.
+  expiresAtUtc: string | null;
   createdAtUtc: string;
   sentAtUtc: string | null;
   completedAtUtc: string | null;
+  // F2.5: borrador del propio actor → la UI lo pinta como "In preparation".
+  isOwnedByActor: boolean;
+  // F3: hora UTC programada (si status === 'Scheduled').
+  scheduledSendAtUtc: string | null;
 }
 
 export interface SignatureRequestListResult {
@@ -204,6 +232,56 @@ export interface SignatureRequestListResult {
   totalCount: number;
   page: number;
   pageSize: number;
+}
+
+// F2.5: autosave. Snapshot completo del editor en un solo PUT /signature/requests/{id}/draft.
+export interface UpsertDraftBody {
+  expectedUpdatedAtUtc: string | null;
+  title: string;
+  description: string | null;
+  category: SignatureCategory;
+  tokenExpirationHours: number;
+  sendSealedDocumentToSigners: boolean | null;
+  sendCertificateToSigners: boolean | null;
+  autoRemindersEnabled: boolean | null;
+  reminderIntervalHours: number | null;
+  signers: UpsertDraftSigner[];
+  fields: UpsertDraftField[];
+  // F7 — null = no tocar.
+  sendPartialCopyOnEachSignature: boolean | null;
+  partialCopyAudience: PartialCopyAudienceBody | null;
+  expirationEnabled: boolean | null;
+}
+
+export interface PartialCopyAudienceBody {
+  kind: PartialCopyAudienceKind;
+  signerIds?: string[];
+}
+
+export interface UpsertDraftSigner {
+  id: string | null;
+  email: string;
+  fullName: string;
+  phoneNumber: string | null;
+  language: SignerLanguage | null;
+  verificationMethod: SignerVerificationMethod | null;
+}
+
+export interface UpsertDraftField {
+  id: string | null;
+  signerIndex: number;
+  kind: SignatureFieldKind;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+  isRequired: boolean;
+}
+
+export interface UpsertDraftResponse {
+  updatedAtUtc: string;
 }
 
 /** POST /signature/documents/validate. */
@@ -310,7 +388,7 @@ export interface SignatureTemplateDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
-  sendSignedDocumentToSigners: boolean;
+  sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
@@ -359,7 +437,7 @@ export interface CreateTemplateBody {
   requiresConsent: boolean;
   generateCertificate: boolean;
   /** Opcionales al crear (el backend aplica sus defaults); se configuran luego en los defaults del editor. */
-  sendSignedDocumentToSigners?: boolean;
+  sendSealedDocumentToSigners?: boolean;
   sendCertificateToSigners?: boolean;
   autoRemindersEnabled?: boolean;
   reminderIntervalHours?: number;
@@ -380,7 +458,7 @@ export interface UpdateTemplateDefaultsBody {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
-  sendSignedDocumentToSigners: boolean;
+  sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
@@ -455,12 +533,16 @@ export interface CreateSignatureRequestBody {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
-  /** P2: entregar el documento firmado / el certificado a los firmantes (el backend los fuerza a false sin permiso). */
-  sendSignedDocumentToSigners?: boolean;
+  /** F7 — PDF sellado final al completar. null = default del tenant. */
+  sendSealedDocumentToSigners?: boolean | null;
   sendCertificateToSigners?: boolean;
   /** Recordatorios: on/off + intervalo (horas). null/omitido = usar el default del tenant. */
   autoRemindersEnabled?: boolean | null;
   reminderIntervalHours?: number | null;
+  // F7 — copia inmediata + expiración opcional. null = default del tenant.
+  sendPartialCopyOnEachSignature?: boolean | null;
+  partialCopyAudience?: PartialCopyAudienceBody | null;
+  expirationEnabled?: boolean | null;
 }
 
 /**
@@ -473,10 +555,14 @@ export interface UpdateSignatureRequestBody {
   category: SignatureCategory;
   tokenExpirationHours: number;
   // Opcionales (partial update): omitidos = el backend no toca entrega/reminders.
-  sendSignedDocumentToSigners?: boolean;
+  sendSealedDocumentToSigners?: boolean | null;
   sendCertificateToSigners?: boolean;
   autoRemindersEnabled?: boolean;
   reminderIntervalHours?: number;
+  // F7 — null = no tocar.
+  sendPartialCopyOnEachSignature?: boolean | null;
+  partialCopyAudience?: PartialCopyAudienceBody | null;
+  expirationEnabled?: boolean | null;
 }
 
 /** Idioma de los correos al firmante (backend Signer.Language). */
@@ -553,23 +639,14 @@ export interface ListSignatureRequestsParams {
 
 // ---------- Adaptadores backend -> shapes de UI existentes ----------
 
-const SIGNER_AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
-function initialsOf(name: string): string {
-  return name
-    .split(' ')
-    .map(part => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 export function apiStatusToUi(status: ApiSignatureRequestStatus): SignatureStatus {
   switch (status) {
     case 'Draft':
       return 'draft';
     case 'Ready':
       return 'ready';
+    case 'Scheduled':
+      return 'scheduled';
     case 'InProgress':
       return 'in-progress';
     case 'Completed':
@@ -602,14 +679,17 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
     name: signer.fullName,
     initials: initialsOf(signer.fullName),
     email: signer.email,
-    color: SIGNER_AVATAR_COLORS[index % SIGNER_AVATAR_COLORS.length],
+    color: AVATAR_PALETTE[index % AVATAR_PALETTE.length],
     status: apiSignerStatusToUi(signer.status),
-    signedAt: signer.signedAtUtc ? signer.signedAtUtc.slice(0, 10) : null,
+    signedAt: signer.signedAtUtc,
+    partialCopyRequestedAtUtc: signer.partialCopyRequestedAtUtc,
+    partialCopySentAtUtc: signer.partialCopySentAtUtc,
+    partialCopyFailureReason: signer.partialCopyFailureReason,
   };
 }
 
 /** Detalle del backend -> fila/preview de la tabla existente. El "client" se deriva del primer firmante (orden 1). */
-export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequest {
+export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?: string | null): SignatureRequest {
   const ordered = [...detail.signers].sort((a, b) => a.order - b.order);
   return {
     id: detail.id,
@@ -617,9 +697,10 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     client: ordered[0]?.fullName ?? '—',
     signers: ordered.map(signerToUi),
     status: apiStatusToUi(detail.status),
-    sentDate: detail.sentAtUtc ? detail.sentAtUtc.slice(0, 10) : null,
-    dueDate: detail.expiresAtUtc.slice(0, 10),
-    completedDate: detail.completedAtUtc ? detail.completedAtUtc.slice(0, 10) : null,
+    sentDate: detail.sentAtUtc,
+    // F7 — null cuando el enlace no expira; el <input type="date"> queda vacío.
+    dueDate: detail.expiresAtUtc?.slice(0, 10) ?? '',
+    completedDate: detail.completedAtUtc,
     notes: detail.description ?? '',
     category: detail.category,
     originalFileId: detail.originalFileId,
@@ -633,6 +714,8 @@ export function detailToUiRequest(detail: SignatureRequestDetail): SignatureRequ
     ),
     preparerSignatureFileId: detail.preparerSignatureFileId,
     preparerFieldCount: detail.preparerFields.length,
+    isOwnedByActor: currentUserId ? detail.createdByUserId === currentUserId : false,
+    scheduledSendAtUtc: detail.scheduledSendAtUtc,
   };
 }
 
@@ -661,4 +744,17 @@ export function fieldTypeToKind(type: FieldType): SignatureFieldKind {
     case 'text':
       return 'Text';
   }
+}
+
+/** F7 � GET /signature/requests/{id}/audit. */
+export interface AuditTrailResponse {
+  entries: AuditTrailEntry[];
+}
+
+export interface AuditTrailEntry {
+  sequence: number;
+  kind: string;
+  occurredAtUtc: string;
+  payloadJson: string;
+  chainHash: string;
 }

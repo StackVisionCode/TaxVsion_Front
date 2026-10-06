@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
+import { MeetingsPageComponent } from './components/meetings-page/meetings-page.component';
 
 export const MEETINGS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/meetings-page/meetings-page.component').then(m => m.MeetingsPageComponent),
+    component: MeetingsPageComponent,
     title: 'Meetings',
   },
 ];

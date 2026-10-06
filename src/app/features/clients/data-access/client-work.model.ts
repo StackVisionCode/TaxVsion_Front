@@ -12,8 +12,6 @@ import {
   ApiTaskPriority,
   ApiTaskStatus,
   TaskResponse,
-  avatarColorFor,
-  initialsFor,
 } from '@core/tasks/task-contract.model';
 
 /** Fila mínima de GET /auth/users — solo para resolver nombres de asignados (best-effort, requiere users.view). */
@@ -63,8 +61,6 @@ export interface WorkTaskItem {
   apiStatus: ApiTaskStatus;
   assigneeUserId: string | null;
   assigneeName: string;
-  assigneeInitials: string;
-  assigneeColor: string;
   isBlocked: boolean;
   taxYear: number | null;
   expectedItems: string;
@@ -123,8 +119,6 @@ export function toWorkTaskItem(response: TaskResponse, userNameById: ReadonlyMap
     apiStatus: response.status,
     assigneeUserId: response.assigneeUserId,
     assigneeName,
-    assigneeInitials: response.assigneeUserId ? initialsFor(assigneeName) : '—',
-    assigneeColor: response.assigneeUserId ? avatarColorFor(response.assigneeUserId) : 'bg-gray-300',
     isBlocked: response.isBlocked,
     taxYear: response.taxYear,
     expectedItems: response.expectedItems ?? '',

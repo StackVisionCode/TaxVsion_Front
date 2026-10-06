@@ -1,7 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, debounceTime, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, debounceTime, distinctUntilChanged, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { AuthService } from '@core/auth/auth.service';
+import { Subject } from 'rxjs';
+import { environment } from '../../../../environments/environment';
 import { SignatureRequest } from '../ui/signature-table/signature-table.component';
 import { WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { SignatureService } from './signature.service';
@@ -24,6 +27,7 @@ import {
   SlotBinding,
   TemplateSummary,
   UpdateSignatureRequestBody,
+  UpsertDraftBody,
   ValidateDocumentResponse,
   customerToWizardClient,
   detailToUiRequest,
@@ -79,8 +83,14 @@ export interface WizardRequestDraft {
   requiresConsent: boolean;
   generateCertificate: boolean;
   /** P2: entregar el documento firmado / el certificado a los firmantes (gateado por permiso en backend). */
-  sendSignedDocumentToSigners: boolean;
+  sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
+  // F7 — copia inmediata al firmar + audiencia.
+  sendPartialCopyOnEachSignature: boolean;
+  partialCopyAudienceKind: 'All' | 'Specific';
+  partialCopyAudienceSignerIds: string[];
+  // F7 — expiración opcional del enlace.
+  expirationEnabled: boolean;
   /** Recordatorios automáticos a firmantes: on/off + intervalo (horas). */
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
@@ -117,6 +127,8 @@ export interface WizardSendState {
   preparerSignatureSet: boolean;
   /** Ya se fijó la identidad 8879 del preparador — idempotencia entre reintentos. */
   preparerInfoSet: boolean;
+  /** F7 — ya se fijó la audiencia Specific con signerIds reales — idempotencia entre reintentos. */
+  audienceApplied: boolean;
   sent: boolean;
 }
 
@@ -129,6 +141,7 @@ export function emptySendState(): WizardSendState {
     postedPreparerFieldLocalIds: [],
     preparerSignatureSet: false,
     preparerInfoSet: false,
+    audienceApplied: false,
     sent: false,
   };
 }
@@ -174,18 +187,10 @@ export function computeDraftEditPlan(
   };
 }
 
-export interface SignatureStats {
-  totalRequests: number;
-  inProgress: number;
-  completedThisMonth: number;
-  /** 0..1 (analytics summary del mes en curso). */
-  completionRate: number;
-}
-
 /**
  * Store del módulo Signature (staff): listado paginado en servidor + filtro de
  * estado server-side, detalle hidratado por fila (el summary no trae firmantes y la
- * tabla los muestra), stats, picker de customers y orquestación del wizard.
+ * tabla los muestra), picker de customers y orquestación del wizard.
  * providedIn: 'root', mismo patrón que clients/documents.
  */
 @Injectable({ providedIn: 'root' })
@@ -193,6 +198,7 @@ export class SignatureStore {
   private readonly service = inject(SignatureService);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly realtime = inject(SignatureRealtimeService);
+  private readonly auth = inject(AuthService);
 
   constructor() {
     // Realtime: cuando alguien firma/rechaza o cambia el estado, Communication emite
@@ -205,9 +211,72 @@ export class SignatureStore {
       .subscribe(() => {
         if (this.refreshToken > 0) {
           this.refresh();
-          this.loadStats();
         }
       });
+
+    // F2.5: autoguardado — el editor empuja el estado completo. Pipeline:
+    //  - debounce 5s (antes 2.5s): colapsa ráfagas de resize/drag en una sola llamada.
+    //  - distinctUntilChanged por JSON: no se vuelve a mandar si el body no cambió realmente.
+    //  - switchMap: cancela request en vuelo si llega una nueva.
+    //  - catchError en el inner observable: así UN error no mata la suscripción (sin esto, un
+    //    429/500 cualquiera dejaba el autosave inservible hasta recargar la página).
+    //  - Si el server responde 429, entramos en cooldown 30s (se refleja en scheduleAutosave) para
+    //    no seguir empujando contra el rate-limit `signature.g.request_manage` (60/min).
+    this.autosave$
+      .pipe(
+        debounceTime(5000),
+        distinctUntilChanged(
+          (a, b) => a.id === b.id && JSON.stringify(a.body) === JSON.stringify(b.body),
+        ),
+        switchMap(req =>
+          this.service.upsertDraft(req.id, req.body).pipe(
+            map(resp => ({ ok: true as const, resp })),
+            catchError(err => {
+              const apiError = toApiError(err);
+              const isRateLimited = apiError.code === 'Http.429';
+              this._autosaveStatus.set(
+                apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error',
+              );
+              if (isRateLimited) {
+                this._autosaveCooldownUntil = Date.now() + 30_000;
+              }
+              return of({ ok: false as const });
+            }),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (result.ok) {
+          this._autosaveStatus.set('saved');
+          this._lastSavedAtUtc.set(result.resp.updatedAtUtc);
+        }
+      });
+  }
+
+  // ---------- Autosave (F2.5) ----------
+  // Snapshot completo del editor que el panel envía en cada cambio. SignerIndex ata cada campo al
+  // firmante por su posición en la lista — soporta firmantes recién creados sin Id de backend.
+  private readonly autosave$ = new Subject<{ id: string; body: UpsertDraftBody }>();
+  private readonly _autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
+  private readonly _lastSavedAtUtc = signal<string | null>(null);
+  readonly autosaveStatus = this._autosaveStatus.asReadonly();
+  readonly lastSavedAtUtc = this._lastSavedAtUtc.asReadonly();
+  readonly autosaveEnabled = environment.signatureAutosaveEnabled === true;
+
+  // Timestamp hasta el que el autosave está en cooldown (429 reciente). 0 = sin cooldown.
+  private _autosaveCooldownUntil = 0;
+
+  scheduleAutosave(id: string, body: UpsertDraftBody): void {
+    if (!this.autosaveEnabled) return;
+    if (Date.now() < this._autosaveCooldownUntil) return; // cooldown por rate-limit del backend
+    this._autosaveStatus.set('saving');
+    this.autosave$.next({ id, body });
+  }
+
+  resetAutosaveStatus(): void {
+    this._autosaveStatus.set('idle');
+    this._lastSavedAtUtc.set(null);
   }
 
   // ---------- Listado ----------
@@ -227,12 +296,6 @@ export class SignatureStore {
   readonly pageSize = SIGNATURE_PAGE_SIZE;
 
   private refreshToken = 0;
-
-  // ---------- Stats ----------
-  private readonly _stats = signal<SignatureStats | null>(null);
-  private readonly _statsLoading = signal(false);
-  readonly stats = this._stats.asReadonly();
-  readonly statsLoading = this._statsLoading.asReadonly();
 
   // ---------- Customers (picker del wizard) ----------
   private readonly _customers = signal<WizardClient[]>([]);
@@ -292,7 +355,8 @@ export class SignatureStore {
           if (token !== this.refreshToken) {
             return;
           }
-          this._requests.set(details.map(detailToUiRequest));
+          const uid = this.auth.currentUser()?.id ?? null;
+          this._requests.set(details.map(d => detailToUiRequest(d, uid)));
           this._totalCount.set(result.totalCount);
           this._loading.set(false);
         },
@@ -304,36 +368,6 @@ export class SignatureStore {
           this._loading.set(false);
         },
       });
-  }
-
-  // ==================================================================
-  // Stats (cards de la página)
-  // ==================================================================
-
-  loadStats(): void {
-    this._statsLoading.set(true);
-    const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const today = now.toISOString().slice(0, 10);
-    forkJoin({
-      all: this.service.list({ page: 1, size: 1 }),
-      inProgress: this.service.list({ status: 'InProgress', page: 1, size: 1 }),
-      month: this.service.analyticsSummary(monthStart, today),
-    }).subscribe({
-      next: ({ all, inProgress, month }) => {
-        this._stats.set({
-          totalRequests: all.totalCount,
-          inProgress: inProgress.totalCount,
-          completedThisMonth: month.requestsCompleted,
-          completionRate: month.completionRate,
-        });
-        this._statsLoading.set(false);
-      },
-      error: () => {
-        // Las cards no bloquean la página: se quedan en "—" si analytics falla.
-        this._statsLoading.set(false);
-      },
-    });
   }
 
   // ==================================================================
@@ -492,9 +526,20 @@ export class SignatureStore {
     return this.service.send(requestId).pipe(tap(() => this.refreshAfterAction()));
   }
 
+  /** F3 — Programa el envio futuro (Draft → Scheduled). La fecha va en UTC. */
+  scheduleSendRequest(requestId: string, scheduledSendAtUtc: string): Observable<void> {
+    return this.service.scheduleSend(requestId, scheduledSendAtUtc).pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  /** F3 — Cancela la programacion (Scheduled → Draft). */
+  cancelScheduleRequest(requestId: string): Observable<void> {
+    return this.service.cancelSchedule(requestId).pipe(tap(() => this.refreshAfterAction()));
+  }
+
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
   getRequestUi(requestId: string): Observable<SignatureRequest> {
-    return this.service.getById(requestId).pipe(map(detailToUiRequest));
+    const uid = this.auth.currentUser()?.id ?? null;
+    return this.service.getById(requestId).pipe(map(d => detailToUiRequest(d, uid)));
   }
 
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
@@ -721,7 +766,6 @@ export class SignatureStore {
 
   private refreshAfterAction(): void {
     this.refresh();
-    this.loadStats();
   }
 
   // ==================================================================
@@ -860,7 +904,7 @@ export class SignatureStore {
           description: draft.description,
           category: draft.category,
           tokenExpirationHours: draft.tokenExpirationHours,
-          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
           reminderIntervalHours: draft.reminderIntervalHours,
@@ -930,10 +974,19 @@ export class SignatureStore {
           requiresSequentialSigning: draft.requiresSequentialSigning,
           requiresConsent: draft.requiresConsent,
           generateCertificate: draft.generateCertificate,
-          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
           reminderIntervalHours: draft.reminderIntervalHours,
+          // F7 — propagamos los flags elegidos en Review al backend.
+          sendPartialCopyOnEachSignature: draft.sendPartialCopyOnEachSignature,
+          // La audiencia Specific se fija DESPUÉS, con los signerIds reales del backend (acá los
+          // locales son `client:xxx`). Create exige audience si sendPartialCopy=true, así que
+          // mandamos All como placeholder seguro — el PUT update siguiente la convierte a Specific
+          // si corresponde. Si el user solo Save-as-draft y nunca hace el PUT, All es el default
+          // razonable.
+          partialCopyAudience: draft.sendPartialCopyOnEachSignature ? { kind: 'All', signerIds: [] } : null,
+          expirationEnabled: draft.expirationEnabled,
         }),
       );
       state.requestId = created.id;
@@ -982,6 +1035,31 @@ export class SignatureStore {
       state.postedFieldLocalIds.push(field.localId);
     }
 
+    // F7 — audiencia Specific se fija ACÁ, cuando ya existen los signerIds reales del backend.
+    // En Create no se podía (eran localIds `client:xxx`). Idempotente por `audienceApplied`.
+    if (
+      draft.sendPartialCopyOnEachSignature &&
+      draft.partialCopyAudienceKind === 'Specific' &&
+      !state.audienceApplied
+    ) {
+      const resolvedIds = draft.partialCopyAudienceSignerIds
+        .map(local => state.signerIdByLocal[local])
+        .filter((id): id is string => !!id);
+      if (resolvedIds.length > 0) {
+        await firstValueFrom(
+          this.service.update(requestId, {
+            title: draft.title,
+            description: draft.description,
+            category: draft.category,
+            tokenExpirationHours: draft.tokenExpirationHours,
+            sendPartialCopyOnEachSignature: true,
+            partialCopyAudience: { kind: 'Specific', signerIds: resolvedIds },
+          }),
+        );
+        state.audienceApplied = true;
+      }
+    }
+
     // Practitioner PIN (Form 8879): se fija mientras la solicitud está Draft/Ready (el backend solo lo
     // permite ahí). Opcional; idempotente por `state.pinSet`.
     const signingPin = draft.signingPin?.trim();
@@ -1025,14 +1103,17 @@ export class SignatureStore {
   }
 
   /**
-   * Send exige estado Ready; la promoción Draft→Ready llega cuando CloudStorage
-   * termina el antivirus (evento FileAvailable). Se pollea el detalle unos segundos.
+   * Send exige que el hash del original este adjunto. Lo adjunta el consumer
+   * de `FileAvailable` cuando CloudStorage termina el antivirus — es la unica
+   * promocion que depende del scan ahora (F2 eliminó Ready: el estado se queda
+   * en Draft hasta que el preparador envie). Se pollea `documentHashPre`,
+   * no el status.
    */
   private async waitUntilReady(requestId: string): Promise<void> {
     for (let attempt = 0; attempt < READY_POLL_MAX_ATTEMPTS; attempt++) {
       const detail = await firstValueFrom(this.service.getById(requestId));
-      if (detail.status !== 'Draft') {
-        return; // Ready (o más allá): send decide el resto
+      if (detail.documentHashPre !== null) {
+        return; // Hash adjunto → send puede proceder
       }
       await new Promise(resolve => setTimeout(resolve, READY_POLL_INTERVAL_MS));
     }

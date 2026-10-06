@@ -1,7 +1,16 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { ClipboardService } from '@shared/services/clipboard.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { formatBytes } from '@shared/utils/format.util';
 import { DocumentsPermissions } from '../../data-access/documents-permissions';
 import { DocumentsStore } from '../../data-access/documents.store';
 import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
@@ -12,9 +21,12 @@ import {
   FolderResponse,
   RecycleBinItemResponse,
   ShareLinkResponse,
-  formatBytes,
   formatDate,
+  isFileReady,
 } from '../../data-access/documents.model';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { DocumentNavigatorComponent } from '../../ui/document-navigator/document-navigator.component';
 import { FileListComponent, FileRowAction } from '../../ui/file-list/file-list.component';
 import { FileDetailsPanelComponent } from '../../ui/file-details-panel/file-details-panel.component';
@@ -37,13 +49,21 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
 @Component({
   selector: 'app-documents-page',
   imports: [
-    FormsModule,
     ModalComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+    ClickOutsideDirective,
+    StateBlockComponent,
+    PaginationComponent,
+    AvatarComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
     ConfirmDialogComponent,
     DocumentNavigatorComponent,
     FileListComponent,
     FileDetailsPanelComponent,
     DocumentPreviewComponent,
+    FileViewerComponent,
     UploadDialogComponent,
     MoveDialogComponent,
     NamePromptDialogComponent,
@@ -59,6 +79,9 @@ export class DocumentsPageComponent {
   protected readonly can = inject(DocumentsPermissions);
 
   private readonly store = inject(DocumentsStore);
+  private readonly clipboard = inject(ClipboardService);
+  private readonly toast = inject(ToastService);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
 
   // Estado del store expuesto al template.
   readonly context = this.store.context;
@@ -71,9 +94,10 @@ export class DocumentsPageComponent {
   readonly clientsPage = this.store.clientsPage;
   readonly clientsStatus = this.store.clientsStatus;
   readonly clientsPageCount = this.store.clientsPageCount;
+  readonly clientsPageSize = this.store.clientsPageSize;
   readonly clientsFiltered = this.store.clientsFiltered;
   /** Filtros de estado del selector, en el orden en que se ofrecen. */
-  readonly clientStatusOptions: ReadonlyArray<{ id: CustomerStatusFilter; label: string }> = [
+  readonly clientStatusOptions: ReadonlyArray<FilterChipOption<CustomerStatusFilter>> = [
     { id: 'NotArchived', label: 'Active & inactive' },
     { id: 'Active', label: 'Active' },
     { id: 'Inactive', label: 'Inactive' },
@@ -86,12 +110,8 @@ export class DocumentsPageComponent {
   readonly folderLoading = this.store.folderLoading;
   // Paginación server-side del contenido de carpeta.
   readonly page = this.store.page;
-  readonly pageCount = this.store.pageCount;
   readonly totalCount = this.store.totalCount;
-  readonly hasPrevPage = this.store.hasPrevPage;
-  readonly hasNextPage = this.store.hasNextPage;
-  readonly pageStart = this.store.pageStart;
-  readonly pageEnd = this.store.pageEnd;
+  readonly pageSize = this.store.pageSize;
   readonly selectedFile = this.store.selectedFile;
   readonly folderTree = this.store.folderTree;
   readonly recycleBinItems = this.store.recycleBinItems;
@@ -127,7 +147,6 @@ export class DocumentsPageComponent {
   });
 
   // Estado local de la vista (menús/diálogos).
-  readonly newMenuOpen = signal(false);
   readonly filtersOpen = signal(false);
   readonly sortOpen = signal(false);
   readonly uploadOpen = signal(false);
@@ -142,7 +161,12 @@ export class DocumentsPageComponent {
   readonly pendingDeleteFolder = signal<FolderResponse | null>(null);
   readonly storageOpen = signal(false);
   readonly emptyTrashOpen = signal(false);
+  /** Archivo aún no listo (procesando/bloqueado): tarjeta de estado en vez del visor. */
   readonly previewFile = signal<FileResponse | null>(null);
+  /** Visor global: lista navegable (los archivos listos de la vista actual) y posición. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
 
   readonly filterYears = [2025, 2024, 2023];
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
@@ -233,9 +257,6 @@ export class DocumentsPageComponent {
   clearClientFilters(): void {
     this.store.clearClientFilters();
   }
-  clientInitials(name: string): string {
-    return name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
-  }
   openStorage(): void {
     this.store.loadUsage();
     this.storageOpen.set(true);
@@ -250,15 +271,10 @@ export class DocumentsPageComponent {
   }
 
   // ---------- Menú "New" ----------
-  toggleNewMenu(): void {
-    this.newMenuOpen.update(open => !open);
-  }
   startUpload(): void {
-    this.newMenuOpen.set(false);
     this.uploadOpen.set(true);
   }
   startNewFolder(): void {
-    this.newMenuOpen.set(false);
     this.newFolderOpen.set(true);
   }
 
@@ -288,7 +304,7 @@ export class DocumentsPageComponent {
         this.store.toggleFileSelection(action.file.id);
         break;
       case 'preview-file':
-        this.previewFile.set(action.file);
+        this.openPreview(action.file, this.visibleFiles());
         break;
       case 'download-file':
         this.store.downloadFile(action.file);
@@ -387,10 +403,12 @@ export class DocumentsPageComponent {
   closeCreatedShare(): void {
     this.store.clearCreatedShare();
   }
-  copyShareLink(): void {
+  async copyShareLink(): Promise<void> {
     const created = this.createdShare();
-    if (created) {
-      void navigator.clipboard?.writeText(this.shareUrl(created.plainToken));
+    if (created && !(await this.clipboard.copy(this.shareUrl(created.plainToken)))) {
+      // El link solo se muestra una vez: si no se pudo copiar, el modal sigue abierto para copiarlo a mano.
+      this.toast.error("Couldn't copy the link. Copy it manually before closing.");
+      return;
     }
     this.store.clearCreatedShare();
   }
@@ -479,6 +497,26 @@ export class DocumentsPageComponent {
   }
 
   // ---------- Panel de detalles / preview ----------
+
+  /**
+   * Abre el visor global con los archivos LISTOS de la lista (se navega entre ellos con ←/→).
+   * Un archivo procesando o bloqueado no se puede bajar: muestra la tarjeta de estado.
+   */
+  openPreview(file: FileResponse, list: readonly FileResponse[]): void {
+    if (!isFileReady(file.status)) {
+      this.previewFile.set(file);
+      return;
+    }
+    const ready = list.filter(f => isFileReady(f.status));
+    const files = ready.some(f => f.id === file.id) ? ready : [file];
+    this.viewerFiles.set(files.map(f => this.cloudStorage.viewerItem(f)));
+    this.viewerIndex.set(Math.max(0, files.findIndex(f => f.id === file.id)));
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.store.downloadFile(event.item.ref as FileResponse);
+  }
   closeDetails(): void {
     this.store.clearSelection();
   }

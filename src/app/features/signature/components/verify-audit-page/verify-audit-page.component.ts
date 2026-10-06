@@ -4,7 +4,8 @@ import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
-import { parseUtcDate } from '../../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { ClipboardService } from '@shared/services/clipboard.service';
 import {
   AUDIT_EVENT_KIND_ICON,
   AUDIT_EVENT_KIND_LABEL,
@@ -62,6 +63,7 @@ export interface ChainRow {
 export class VerifyAuditPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
+  private readonly clipboard = inject(ClipboardService);
 
   private token = '';
 
@@ -185,22 +187,20 @@ export class VerifyAuditPageComponent implements OnInit {
   }
 
   /**
-   * Copia el HMAC de una fila. `navigator.clipboard` no existe en contextos no seguros
-   * (http:// que no sea localhost) y puede rechazar sin permiso: el fallo se traga
-   * porque el hash sigue visible y seleccionable en pantalla.
+   * Copia el HMAC de una fila (ClipboardService: API moderna + fallback). Si falla, no se marca
+   * "Copied": el hash sigue visible y seleccionable en pantalla.
    */
   async copyHash(row: ChainRow): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(row.chainHash);
-      this.copiedSequence.set(row.sequence);
-      setTimeout(() => {
-        if (this.copiedSequence() === row.sequence) {
-          this.copiedSequence.set(null);
-        }
-      }, 1600);
-    } catch {
+    if (!(await this.clipboard.copy(row.chainHash))) {
       this.copiedSequence.set(null);
+      return;
     }
+    this.copiedSequence.set(row.sequence);
+    setTimeout(() => {
+      if (this.copiedSequence() === row.sequence) {
+        this.copiedSequence.set(null);
+      }
+    }, 1600);
   }
 }
 

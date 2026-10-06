@@ -1,6 +1,6 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, Subject, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { Observable, Subject, catchError, map, of, switchMap, tap } from 'rxjs';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { ClientItem } from '../ui/client-table/client-table.component';
 import { ClientsService } from './clients.service';
@@ -93,19 +93,6 @@ export class ClientsStore {
   readonly listError = this._listError.asReadonly();
   readonly listErrorKind = this._listErrorKind.asReadonly();
 
-  // ---------- Conteos por estado (stat cards) ----------
-  // Obtenidos con consultas de conteo dedicadas (size:1 → totalCount real por estado).
-  // No hay agregado por tipo (Individual/Business) en el backend, así que NO se exponen.
-  private readonly _counts = signal<{ active: number; inactive: number; archived: number }>({
-    active: 0,
-    inactive: 0,
-    archived: 0,
-  });
-  readonly counts: Signal<{ active: number; inactive: number; archived: number; total: number }> = computed(() => {
-    const c = this._counts();
-    return { ...c, total: c.active + c.inactive + c.archived };
-  });
-
   private readonly load$ = new Subject<void>();
   private started = false;
 
@@ -156,39 +143,17 @@ export class ClientsStore {
     if (query.page !== undefined) this._page.set(query.page);
     this.started = true;
     this.load$.next();
-    this.loadCounts();
   }
 
-  /** Refresca los conteos por estado (3 consultas de conteo en paralelo, best-effort). */
-  loadCounts(): void {
-    forkJoin({
-      active: this.service.search({ status: 'Active', page: 1, size: 1 }),
-      inactive: this.service.search({ status: 'Inactive', page: 1, size: 1 }),
-      archived: this.service.search({ status: 'Archived', page: 1, size: 1 }),
-    })
-      .pipe(catchError(() => of(null)))
-      .subscribe(result => {
-        if (result) {
-          this._counts.set({
-            active: result.active.totalCount,
-            inactive: result.inactive.totalCount,
-            archived: result.archived.totalCount,
-          });
-        }
-      });
-  }
-
-  /** Tras una mutación: re-sincroniza la página visible y los conteos, e invalida el cache
+  /** Tras una mutación: re-sincroniza la página visible e invalida el cache
    * compartido de clientes para que los pickers (mail/task/signature/billing/documents/sms) no
    * sirvan datos viejos. */
   private afterMutation(): void {
     this.reloadList();
-    this.loadCounts();
     this.directory.invalidate();
   }
 
-  /** Tras un cambio de asignación de UN cliente: desaloja ese cliente del cache compartido (los conteos
-   * no cambian). El diálogo refresca su propia vista y el listado se re-pide al cerrarlo. */
+  /** Tras un cambio de asignación de UN cliente: desaloja ese cliente del cache compartido El diálogo refresca su propia vista y el listado se re-pide al cerrarlo. */
   private afterAssignmentMutation(id: string): void {
     this.directory.evict(id);
   }

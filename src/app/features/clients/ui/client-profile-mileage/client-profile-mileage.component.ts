@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /**
  * Pestaña "Mileage" del perfil de cliente — VACÍA A PROPÓSITO, no es un olvido.
@@ -20,6 +21,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
  */
 @Component({
   selector: 'app-client-profile-mileage',
+  imports: [StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-mileage.component.html',
 })

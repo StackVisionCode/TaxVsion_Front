@@ -9,3 +9,11 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* Pestañas del rail (Chats / Clients / Team) a todo el ancho: app-segmented no trae opción "stretch". */
+.rail-tabs ::ng-deep [role='tablist'] {
+  flex: 1 1 0%;
+}
+.rail-tabs ::ng-deep [role='tab'] {
+  flex: 1 1 0%;
+}

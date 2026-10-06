@@ -157,10 +157,12 @@
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Tax snapshot</h2>
-          <p class="mt-1 text-sm text-gray-500">Sensitive — full ID stays masked here</p>
+          <p class="mt-1 text-sm text-gray-500">Sensitive — full ID stays masked unless revealed</p>
         </div>
-        <span class="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-600">
-          <ion-icon name="shield-checkmark-outline"></ion-icon> Masked
+        <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+          [ngClass]="revealedTaxId ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'">
+          <ion-icon [attr.name]="revealedTaxId ? 'eye-outline' : 'shield-checkmark-outline'"></ion-icon>
+          {{ revealedTaxId ? 'Revealed' : 'Masked' }}
         </span>
       </div>
 
@@ -171,7 +173,32 @@
         </div>
         <div>
           <p class="text-xs text-gray-400">{{ taxIdKindLabel() }}</p>
-          <p class="mt-0.5 font-mono text-sm font-medium tracking-wide text-gray-800">{{ taxIdMasked() }}</p>
+          <p class="mt-0.5 font-mono text-sm font-medium tracking-wide text-gray-800">{{ revealedTaxId ?? taxIdMasked() }}</p>
+          <!-- Reveal auditado (mismo flujo que Info): confirmación + re-enmascarado automático a los 30 s. -->
+          @if (revealedTaxId) {
+            <button type="button" (click)="hideTaxId.emit()"
+              class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              <ion-icon name="eye-off-outline"></ion-icon> Hide
+            </button>
+          } @else if (canReveal && client.fiscalProfile?.taxIdentifierLast4) {
+            @if (!confirmingReveal()) {
+              <button type="button" (click)="requestReveal()"
+                class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                <ion-icon name="eye-outline"></ion-icon> Reveal
+              </button>
+            } @else {
+              <div class="mt-2 rounded-xl bg-amber-50 p-2.5">
+                <p class="text-[11px] text-amber-700">This access is recorded in the audit log.</p>
+                <div class="mt-1.5 flex items-center gap-2">
+                  <button type="button" (click)="doReveal()" [disabled]="revealingTaxId"
+                    class="rounded-full bg-brand-bold px-3 py-1 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50">
+                    {{ revealingTaxId ? 'Revealing…' : 'Reveal now' }}
+                  </button>
+                  <button type="button" (click)="cancelReveal()" class="text-xs font-medium text-gray-500 hover:text-gray-800">Cancel</button>
+                </div>
+              </div>
+            }
+          }
         </div>
         <div>
           <p class="text-xs text-gray-400">Returning client</p>
@@ -218,11 +245,8 @@
         <div class="mt-5 flex flex-col gap-2">
           @for (row of assigneeRows(); track row.userId) {
             <div class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3">
-              <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                [ngClass]="row.member?.avatarColor ?? 'bg-slate-400'"
-                >{{ row.member?.initials ?? '?' }}</span
-              >
+              <app-avatar [name]="row.member?.name ?? null" [seed]="row.userId" [colorClass]="row.member ? null : 'bg-slate-400'"
+                sizeClass="h-9 w-9 text-xs" />
               <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-2 text-sm font-medium text-gray-800">
                   <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>

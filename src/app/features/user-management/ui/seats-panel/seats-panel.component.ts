@@ -1,9 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
-import { parseUtcDateOrNull } from '../../../../shared/utils/utc-date.util';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import { SeatResponse, statusTone } from '../../data-access/seats.model';
 import { SeatsStore } from '../../data-access/seats.store';
 import { TeamMember } from '../user-table/user-table.component';
@@ -15,7 +17,7 @@ import { TeamMember } from '../user-table/user-table.component';
 @Component({
   selector: 'app-seats-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, ModalComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, PaginationComponent, StateBlockComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './seats-panel.component.html',
 })
@@ -37,7 +39,7 @@ export class SeatsPanelComponent {
     this.store.load(1);
   }
 
-  tone(status: string): 'active' | 'warning' | 'ended' | 'neutral' {
+  tone(status: string): StatusTone {
     return statusTone(status);
   }
 

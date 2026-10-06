@@ -3,7 +3,6 @@ import {
   Observable,
   Subject,
   debounceTime,
-  distinctUntilChanged,
   of,
   switchMap,
   catchError,
@@ -12,10 +11,12 @@ import {
   throwError,
 } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
+import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { ClipboardService } from '@shared/services/clipboard.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { parseUtcDateOrNull, utcTime } from '@shared/utils/utc-date.util';
 import { BillingService } from './billing.service';
-import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import {
   BillingCatalogItem,
@@ -77,8 +78,10 @@ export interface InvoiceMetrics {
 @Injectable()
 export class BillingStore {
   private readonly service = inject(BillingService);
-  private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
+  private readonly clipboard = inject(ClipboardService);
+  /** Moneda de la oficina compartida con catálogo e inventario (que no pueden importar billing). */
+  private readonly officeCurrency = inject(OfficeCurrencyStore);
 
   // ---------- Facturas ----------
 
@@ -188,8 +191,8 @@ export class BillingStore {
       collectedCents: invoices.reduce((sum, inv) => sum + inv.amountPaidCents, 0),
       draftCount: invoices.filter(inv => inv.status === 'Draft').length,
       averageDaysToPay: paidCount === 0 ? null : Math.round((totalDays / paidCount) * 10) / 10,
-      // Billing no expone una moneda de cuenta: se toma la de la primera factura.
-      currency: invoices[0]?.currency ?? 'USD',
+      // Se toma la de la primera factura; sin facturas, la moneda por defecto de la oficina.
+      currency: invoices[0]?.currency ?? this.officeCurrency.currency(),
     };
   });
 
@@ -330,23 +333,23 @@ export class BillingStore {
     });
   }
 
-  /** Abre el PDF en otra pestaña vía URL presignada de CloudStorage. */
-  openPdf(invoice: InvoiceSummary): void {
-    if (!invoice.pdfFileId) {
+  /**
+   * Ítem del visor global para el PDF de la factura (antes se abría en otra pestaña). La URL
+   * presignada de CloudStorage se pide al mostrarlo. null (con aviso) si el PDF aún se genera.
+   */
+  pdfViewerItem(invoice: InvoiceSummary): FileViewerItem | null {
+    const fileId = invoice.pdfFileId;
+    if (!fileId) {
       this.toast.info('The PDF is still being generated. Refresh in a moment.');
-      return;
+      return null;
     }
-    this._busyInvoiceId.set(invoice.id);
-    this.service.getDownloadUrl(invoice.pdfFileId).subscribe({
-      next: result => {
-        this._busyInvoiceId.set(null);
-        window.open(result.downloadUrl, '_blank', 'noopener');
-      },
-      error: err => {
-        this._busyInvoiceId.set(null);
-        this.toast.error(toUserMessage(err));
-      },
-    });
+    const number = (invoice.invoiceNumber ?? '').trim().replace(/[\\/:*?"<>|]+/g, '-');
+    return {
+      name: number ? `Invoice ${number}.pdf` : 'Invoice.pdf',
+      contentType: 'application/pdf',
+      resolveUrl: () => this.service.getDownloadUrl(fileId).pipe(map(result => result.downloadUrl)),
+      ref: invoice.id,
+    };
   }
 
   // ---------- Detalle ----------
@@ -522,8 +525,11 @@ export class BillingStore {
   }
 
   /**
-   * Envía la factura al cliente por correo con el PDF adjunto. El email del cliente sale del detalle
-   * (el listado no lo trae); requiere que el PDF ya esté generado (factura emitida).
+   * Manda la factura al cliente. Un solo POST a Billing: el correo, el adjunto y el destinatario los
+   * resuelve el backend, que es el dueño de los datos de la factura.
+   *
+   * El PDF se sigue mirando acá solo para no pedir un envío que va a llegar sin adjunto; el resto de
+   * las validaciones (sin email, sin emitir) las contesta el backend con su mensaje.
    */
   sendInvoiceToClient(invoice: InvoiceSummary): void {
     if (!invoice.pdfFileId) {
@@ -531,32 +537,10 @@ export class BillingStore {
       return;
     }
     this._busyInvoiceId.set(invoice.id);
-    this.service.getInvoiceDetail(invoice.id).subscribe({
-      next: detail => {
-        const email = detail.customer.email?.trim();
-        if (!email) {
-          this._busyInvoiceId.set(null);
-          this.toast.error('This client has no email on file.');
-          return;
-        }
-        this.service
-          .sendInvoiceEmail({
-            invoiceNumber: invoice.invoiceNumber ?? null,
-            email,
-            name: detail.customer.name,
-            pdfFileId: invoice.pdfFileId!,
-            checkoutUrl: invoice.checkoutUrl,
-          })
-          .subscribe({
-            next: () => {
-              this._busyInvoiceId.set(null);
-              this.toast.success(`Invoice sent to ${email}.`);
-            },
-            error: err => {
-              this._busyInvoiceId.set(null);
-              this.toast.error(toUserMessage(err));
-            },
-          });
+    this.service.sendInvoiceToCustomer(invoice.id).subscribe({
+      next: () => {
+        this._busyInvoiceId.set(null);
+        this.toast.success('Invoice sent to the client.');
       },
       error: err => {
         this._busyInvoiceId.set(null);
@@ -624,19 +608,6 @@ export class BillingStore {
         this.toast.error(toUserMessage(err));
       },
     });
-  }
-
-  // ---------- Búsqueda de clientes (typeahead server-side) ----------
-
-  private readonly _customerResults = signal<CustomerSummary[]>([]);
-  private readonly _customerSearching = signal(false);
-  private readonly _customerSearch$ = new Subject<string>();
-
-  readonly customerResults = this._customerResults.asReadonly();
-  readonly customerSearching = this._customerSearching.asReadonly();
-
-  searchCustomers(term: string): void {
-    this._customerSearch$.next(term.trim());
   }
 
   // ---------- Búsqueda en el catálogo ----------
@@ -816,7 +787,8 @@ export class BillingStore {
 
   loadCompany(): void {
     this.service.getIssuerProfile().subscribe({
-      next: profile =>
+      next: profile => {
+        this.officeCurrency.set(profile.defaultCurrency);
         this._issuer.set({
           name: profile.name || '',
           taxId: profile.taxId || '',
@@ -829,7 +801,8 @@ export class BillingStore {
           email: profile.email || '',
           website: profile.website || '',
           defaultCurrency: profile.defaultCurrency || 'USD',
-        }),
+        });
+      },
       // El backend sintetiza un perfil vacío cuando no hay fila: un error acá no es "no existe".
       error: () => this._issuer.set({ ...EMPTY_ISSUER_PROFILE }),
     });
@@ -858,6 +831,7 @@ export class BillingStore {
         next: () => {
           this._savingCompany.set(false);
           this._issuer.set({ ...issuer });
+          this.officeCurrency.set(issuer.defaultCurrency);
           this._branding.set({ ...branding });
           this.toast.success('Company details saved. They will appear on the next invoices.');
         },
@@ -953,11 +927,10 @@ export class BillingStore {
 
   // ---------- Portapapeles ----------
 
-  /** Copiar al portapapeles con acuse; `writeText` puede fallar si el documento no tiene foco. */
+  /** Copiar al portapapeles con acuse (ClipboardService cae al fallback de textarea si hace falta). */
   copyToClipboard(value: string, successMessage: string): void {
-    navigator.clipboard?.writeText(value).then(
-      () => this.toast.success(successMessage),
-      () => this.toast.error("We couldn't copy that. Copy it manually."),
+    void this.clipboard.copy(value).then(ok =>
+      ok ? this.toast.success(successMessage) : this.toast.error("We couldn't copy that. Copy it manually."),
     );
   }
 
@@ -971,29 +944,10 @@ export class BillingStore {
       return;
     }
     this.initialized = true;
-    this.wireCustomerSearch();
     this.wireCatalogSearch();
     this.loadInvoices();
     this.loadPaymentConfigs();
     this.loadCompany();
-  }
-
-  private wireCustomerSearch(): void {
-    this._customerSearch$
-      .pipe(
-        debounceTime(250),
-        distinctUntilChanged(),
-        switchMap(term => {
-          this._customerSearching.set(true);
-          return this.directory
-            .search({ term, status: 'NotArchived', size: 20 })
-            .pipe(map(p => p.items), catchError(() => of<CustomerSummary[]>([])));
-        }),
-      )
-      .subscribe(items => {
-        this._customerResults.set(items);
-        this._customerSearching.set(false);
-      });
   }
 
   private wireCatalogSearch(): void {

@@ -1,13 +1,11 @@
 import { Routes } from '@angular/router';
+import { ClientDirectoryPageComponent } from './components/client-directory-page/client-directory-page.component';
 import { accessCanMatch } from '@core/access/access.guard';
 
 export const CLIENTS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/client-directory-page/client-directory-page.component').then(
-        m => m.ClientDirectoryPageComponent,
-      ),
+    component: ClientDirectoryPageComponent,
     title: 'Clients',
   },
   {

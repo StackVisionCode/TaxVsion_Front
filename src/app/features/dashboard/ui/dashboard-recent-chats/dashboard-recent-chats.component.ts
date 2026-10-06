@@ -5,23 +5,21 @@ import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { ChatService } from '../../../chat/data-access/chat.service';
 import { ConversationSummary } from '../../../chat/data-access/chat.model';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { formatRelativeTime } from '@shared/utils/format.util';
 
 /** Conversaciones que se piden (igual que la página de Chat) y cuántas se listan. */
 const FETCH_SIZE = 50;
 const MAX_ROWS = 5;
 
-const AVATAR_COLORS = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
-
 interface RecentChatRow {
   id: string;
   name: string;
-  initials: string;
   /** Metadato real de la conversación ("Direct message" / "4 participants"). */
   subtitle: string;
   time: string;
   unreadCount: number;
-  avatarBg: string;
 }
 
 /**
@@ -45,7 +43,7 @@ interface RecentChatRow {
  */
 @Component({
   selector: 'app-dashboard-recent-chats',
-  imports: [CommonModule, RouterLink, DashboardWidgetStateComponent],
+  imports: [CommonModule, RouterLink, StateBlockComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-recent-chats.component.html',
 })
@@ -67,25 +65,27 @@ export class DashboardRecentChatsComponent implements OnInit {
     return [...this.conversations()]
       .sort((a, b) => this.activityMs(b) - this.activityMs(a))
       .slice(0, MAX_ROWS)
-      .map((conversation, index) => {
+      .map(conversation => {
         const other = conversation.participants.find(p => p.userId !== currentUserId);
         const name = conversation.title ?? other?.displayName ?? 'Conversation';
         return {
           id: conversation.id,
           name,
-          initials: this.initialsOf(name),
           subtitle:
             conversation.kind === 'Direct'
               ? 'Direct message'
               : `${conversation.participants.length} participants`,
-          time: this.relativeTime(conversation.lastMessageAtUtc ?? conversation.updatedAtUtc),
+          time: formatRelativeTime(conversation.lastMessageAtUtc ?? conversation.updatedAtUtc),
           unreadCount: conversation.unreadCount,
-          avatarBg: AVATAR_COLORS[index % AVATAR_COLORS.length],
         };
       });
   });
 
   ngOnInit(): void {
+    this.load();
+  }
+
+  load(): void {
     this.loading.set(true);
     this.error.set(null);
     this.service.listConversations({ size: FETCH_SIZE }).subscribe({
@@ -107,29 +107,5 @@ export class DashboardRecentChatsComponent implements OnInit {
   private activityMs(conversation: ConversationSummary): number {
     const value = new Date(conversation.lastMessageAtUtc ?? conversation.updatedAtUtc).getTime();
     return Number.isNaN(value) ? 0 : value;
-  }
-
-  private initialsOf(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) {
-      return '?';
-    }
-    return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
-  }
-
-  private relativeTime(isoUtc: string): string {
-    const then = new Date(isoUtc).getTime();
-    if (Number.isNaN(then)) {
-      return '';
-    }
-    const minutes = Math.floor(Math.max(0, Date.now() - then) / 60_000);
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
-    return new Date(then).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 }

@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import {
   CatalogItemPickerComponent,
   CatalogQuickCreate,
@@ -59,7 +60,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, CatalogItemPickerComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, CatalogItemPickerComponent, CustomerPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })
@@ -67,8 +68,6 @@ export class InvoiceFormPanelComponent implements OnChanges {
   @Input() isOpen = false;
   /** Moneda por defecto del tenant (Company settings). La factura ya no la elige el usuario. */
   @Input() defaultCurrency = 'USD';
-  @Input() customerResults: CustomerSummary[] = [];
-  @Input() customerSearching = false;
   @Input() catalogResults: BillingCatalogItem[] = [];
   @Input() catalogSearching = false;
   /** El contenedor está guardando un alta rápida de catálogo (deshabilita el mini-formulario). */
@@ -84,7 +83,6 @@ export class InvoiceFormPanelComponent implements OnChanges {
   @Input() stockByItem: Record<string, number | null> = {};
 
   @Output() closed = new EventEmitter<void>();
-  @Output() customerSearchChanged = new EventEmitter<string>();
   @Output() catalogSearchChanged = new EventEmitter<string>();
   @Output() submitted = new EventEmitter<InvoiceFormSubmit>();
   /** Pide al contenedor el stock de un producto del catálogo (para el aviso de cantidad). */
@@ -98,8 +96,6 @@ export class InvoiceFormPanelComponent implements OnChanges {
   }
 
   readonly customer = signal<CustomerSummary | null>(null);
-  readonly customerQuery = signal('');
-  readonly customerPickerOpen = signal(false);
   readonly customerTaxId = signal('');
   readonly currency = signal('USD');
   readonly notes = signal('');
@@ -113,35 +109,6 @@ export class InvoiceFormPanelComponent implements OnChanges {
     if (changes['isOpen'] && this.isOpen) {
       this.reset();
     }
-  }
-
-  // ---------- Cliente ----------
-
-  onCustomerQuery(value: string): void {
-    this.customerQuery.set(value);
-    this.customerPickerOpen.set(true);
-    this.customerSearchChanged.emit(value);
-  }
-
-  onCustomerFocus(): void {
-    this.customerPickerOpen.set(true);
-    this.customerSearchChanged.emit(this.customerQuery());
-  }
-
-  /** Cierra con delay para que el click en un resultado gane al blur. */
-  closeCustomerPickerSoon(): void {
-    setTimeout(() => this.customerPickerOpen.set(false), 150);
-  }
-
-  pickCustomer(customer: CustomerSummary): void {
-    this.customer.set(customer);
-    this.customerQuery.set('');
-    this.customerPickerOpen.set(false);
-  }
-
-  clearCustomer(): void {
-    this.customer.set(null);
-    this.customerQuery.set('');
   }
 
   // ---------- Líneas ----------
@@ -314,8 +281,6 @@ export class InvoiceFormPanelComponent implements OnChanges {
   }
 
   private reset(): void {
-    this.customerQuery.set('');
-    this.customerPickerOpen.set(false);
     this.catalogTargetIndex.set(null);
 
     const editing = this.editing;

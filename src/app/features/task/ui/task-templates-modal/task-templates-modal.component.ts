@@ -10,7 +10,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +18,8 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
-import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { formatBytes } from '@shared/utils/format.util';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { TaskService } from '../../data-access/task.service';
 import {
   ApiTaskPriority,
@@ -51,14 +51,13 @@ interface EditableStep {
 @Component({
   selector: 'app-task-templates-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, CustomerPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-templates-modal.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskTemplatesModalComponent implements OnChanges {
   private readonly service = inject(TaskService);
-  private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
   private readonly cloud = inject(CloudStorageUploadService);
 
@@ -93,8 +92,6 @@ export class TaskTemplatesModalComponent implements OnChanges {
 
   // ----- Estado de "aplicar" -----
   readonly selected = signal<TaskTemplateResponse | null>(null);
-  readonly clientSearch = signal('');
-  readonly clientResults = signal<CustomerSummary[]>([]);
   readonly selectedClient = signal<CustomerSummary | null>(null);
   readonly taxYear = signal<number>(new Date().getFullYear());
   readonly anchorDate = signal<string>(this.todayIso());
@@ -102,7 +99,6 @@ export class TaskTemplatesModalComponent implements OnChanges {
   readonly applying = signal(false);
   readonly applyError = signal<string | null>(null);
   readonly result = signal<TemplateApplicationResponse | null>(null);
-  private clientSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
@@ -384,29 +380,6 @@ export class TaskTemplatesModalComponent implements OnChanges {
     });
   }
 
-  onClientSearch(term: string): void {
-    this.clientSearch.set(term);
-    this.selectedClient.set(null);
-    if (this.clientSearchTimer) clearTimeout(this.clientSearchTimer);
-    const q = term.trim();
-    if (q.length < 2) {
-      this.clientResults.set([]);
-      return;
-    }
-    this.clientSearchTimer = setTimeout(() => {
-      this.directory.search({ term: q, status: 'NotArchived', size: 8 }).subscribe({
-        next: page => this.clientResults.set(page.items),
-        error: () => this.clientResults.set([]),
-      });
-    }, 300);
-  }
-
-  chooseClient(c: CustomerSummary): void {
-    this.selectedClient.set(c);
-    this.clientSearch.set(c.displayName);
-    this.clientResults.set([]);
-  }
-
   canApply(): boolean {
     return !!this.selected() && !!this.selectedClient() && !!this.anchorDate() && !this.applying();
   }
@@ -452,8 +425,6 @@ export class TaskTemplatesModalComponent implements OnChanges {
 
   private resetApply(): void {
     this.selected.set(null);
-    this.clientSearch.set('');
-    this.clientResults.set([]);
     this.selectedClient.set(null);
     this.taxYear.set(new Date().getFullYear());
     this.anchorDate.set(this.todayIso());

@@ -1,4 +1,5 @@
 import { PermissionService } from '@core/auth/permission.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, Subscription, firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -16,10 +17,9 @@ import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
-import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { avatarColorFor } from '@shared/utils/avatar.util';
 import { chatStartErrorMessage } from './chat-start-error';
-
-const AVATAR_PALETTE = ['bg-brand-bold', 'bg-sky-700', 'bg-brand-ink', 'bg-slate-500', 'bg-indigo-400'];
 
 /** Corta el "typing" saliente tras esta inactividad (además el server auto-expira). */
 const TYPING_IDLE_MS = 3000;
@@ -29,14 +29,6 @@ const TYPING_EXPIRY_MS = 6000;
 const RECORDING_HEARTBEAT_MS = 12000;
 /** Red de seguridad del indicador "grabando…" entrante si no llega `recording.stopped`. */
 const RECORDING_EXPIRY_MS = 22000;
-
-function avatarColorFor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
 
 /** Id local para mensajes optimistas (no viaja al backend: el socket usa su propio clientKey). */
 function newLocalId(): string {
@@ -389,11 +381,28 @@ export class ChatStore {
     }
   }
 
+  /**
+   * Descarga un adjunto con un ancla oculta (la presignada viene con content-disposition=attachment):
+   * baja el archivo sin abrir una pestaña en blanco ni exponer la URL.
+   */
   downloadAttachment(fileId: string): void {
     this.cloudStorage.getDownloadUrl(fileId).subscribe({
-      next: res => window.open(res.downloadUrl, '_blank'),
-      error: err => console.warn('No se pudo descargar el adjunto:', toApiError(err).message),
+      next: res => {
+        const anchor = document.createElement('a');
+        anchor.href = res.downloadUrl;
+        anchor.rel = 'noopener';
+        anchor.download = '';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      },
+      error: err => this.toast.error(toApiError(err).message),
     });
+  }
+
+  /** Ítem del visor global para un adjunto (la URL presignada se pide al mostrarlo). */
+  attachmentViewerItem(fileId: string, name: string): FileViewerItem {
+    return this.cloudStorage.viewerItemForId(fileId, name);
   }
 
   // ---------- Typing ----------

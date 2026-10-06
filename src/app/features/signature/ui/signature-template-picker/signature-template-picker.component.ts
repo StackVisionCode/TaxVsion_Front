@@ -1,14 +1,13 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
 import { toApiError } from '@core/models/api-error.model';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 import { SignatureStore } from '../../data-access/signature.store';
-import { WizardClient } from '../signature-request-panel/signature-wizard.model';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import {
   SignatureRequestDetail,
   SignatureTemplateDetail,
@@ -46,7 +45,7 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
  */
 @Component({
   selector: 'app-signature-template-picker',
-  imports: [CommonModule, FormsModule, ModalComponent, SignatureDocumentLibraryComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, SignatureDocumentLibraryComponent, CustomerPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-picker.component.html',
   styleUrl: './signature-template-picker.component.css',
@@ -59,7 +58,6 @@ export class SignatureTemplatePickerComponent {
     if (value) {
       this.reset();
       this.store.loadTemplates();
-      this.store.loadCustomers();
     }
   }
   @Output() closed = new EventEmitter<void>();
@@ -104,31 +102,8 @@ export class SignatureTemplatePickerComponent {
   readonly docSource = signal<DocSource>('upload');
   readonly libraryFile = signal<FileResponse | null>(null);
 
-  /** Clientes del tenant para el buscador (mapeados a WizardClient por el store). */
-  readonly customers = this.store.customers;
-  readonly customersLoading = this.store.customersLoading;
   /** Slot cuyo buscador de clientes está abierto (solo uno a la vez). */
   readonly clientPickerSlot = signal<number | null>(null);
-  readonly clientQuery = signal('');
-
-  // El texto lo resuelve el backend (typeahead server-side, ver constructor): busca sobre
-  // TODO el tenant, no sólo el lote precargado. Aquí sólo recortamos a los primeros 8 del
-  // dropdown; ya vienen filtrados por el término.
-  readonly filteredClients = computed<WizardClient[]>(() => this.customers().slice(0, 8));
-
-  constructor() {
-    // Typeahead server-side del buscador de clientes por rol: cada término (debounced)
-    // consulta el backend, que busca sobre TODO el tenant — así se encuentran clientes
-    // fuera del lote inicial precargado.
-    toObservable(this.clientQuery)
-      .pipe(
-        map(term => term.trim()),
-        debounceTime(250),
-        distinctUntilChanged(),
-        takeUntilDestroyed(),
-      )
-      .subscribe(term => this.store.queryCustomers(term));
-  }
 
   /** true si la plantilla elegida trae un documento base (P7). */
   readonly hasTemplateDocument = computed(() => !!this.selected()?.baseDocumentFileId);
@@ -185,7 +160,6 @@ export class SignatureTemplatePickerComponent {
     this.docSource.set('upload');
     this.libraryFile.set(null);
     this.clientPickerSlot.set(null);
-    this.clientQuery.set('');
   }
 
   // ---------- Documento: subir vs librería ----------
@@ -208,15 +182,16 @@ export class SignatureTemplatePickerComponent {
   // ---------- Buscador de cliente por slot ----------
 
   toggleClientPicker(slotOrder: number): void {
-    this.clientQuery.set('');
     this.clientPickerSlot.update(current => (current === slotOrder ? null : slotOrder));
   }
 
-  pickClient(slotOrder: number, client: WizardClient): void {
+  pickClient(slotOrder: number, client: CustomerSummary | null): void {
+    if (!client) {
+      return;
+    }
     // Autollena nombre/email y — clave para SMS/WhatsApp — el teléfono del cliente registrado.
-    this.updateSlot(slotOrder, { fullName: client.displayName, email: client.email, phone: client.phone ?? '' });
+    this.updateSlot(slotOrder, { fullName: client.displayName, email: client.primaryEmail, phone: client.primaryPhone ?? '' });
     this.clientPickerSlot.set(null);
-    this.clientQuery.set('');
   }
 
   /** Al elegir un molde hay que traer su detalle: la lista no incluye los slots. */
@@ -257,15 +232,6 @@ export class SignatureTemplatePickerComponent {
 
   updateSlot(slotOrder: number, patch: Partial<SlotDraft>): void {
     this.slots.update(list => list.map(slot => (slot.slotOrder === slotOrder ? { ...slot, ...patch } : slot)));
-  }
-
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .map(part => part[0] ?? '')
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
   }
 
   /** Mismo límite que el wizard: PDF y ≤25 MB (el preflight del backend lo repite). */

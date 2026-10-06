@@ -1,9 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { EMPTY, Observable, catchError, expand, forkJoin, map, of, reduce, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { StorageService } from './storage.service';
 import {
   CATEGORY_META,
@@ -15,11 +17,9 @@ import {
   StorageCategory,
   StorageGroup,
   StorageUsageResponse,
-  avatarColorFor,
   categoryFromFileName,
   formatLastUpdate,
   iconForFileName,
-  initialsOf,
 } from './storage.model';
 
 /** El backend clampa take a 1..100; se pagina acumulando hasta un tope acotado. */
@@ -48,6 +48,7 @@ interface CategoryBucket {
 export class StorageStore {
   private readonly service = inject(StorageService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly toast = inject(ToastService);
 
   // ---------- Uso / cuota ----------
   private readonly _usage = signal<StorageUsageResponse | null>(null);
@@ -155,11 +156,8 @@ export class StorageStore {
 
   // ---------- Descarga ----------
   private readonly _downloadingId = signal<string | null>(null);
-  private readonly _downloadError = signal<string | null>(null);
-  private downloadErrorTimer?: ReturnType<typeof setTimeout>;
 
   readonly downloadingId = this._downloadingId.asReadonly();
-  readonly downloadError = this._downloadError.asReadonly();
 
   // ---------- Cargas ----------
 
@@ -269,9 +267,14 @@ export class StorageStore {
       },
       error: err => {
         this._downloadingId.set(null);
-        this.flashDownloadError(toApiError(err).message);
+        this.toast.error(toApiError(err).message);
       },
     });
+  }
+
+  /** Ítem del visor global para un archivo compartido (la URL presignada se pide al mostrarlo). */
+  viewerItem(item: SharedWithMeItem): FileViewerItem | null {
+    return item.fileId ? this.cloudStorage.viewerItemForId(item.fileId, item.name, null, item.sizeBytes) : null;
   }
 
   // ---------- Internos ----------
@@ -334,8 +337,7 @@ export class StorageStore {
       permission: link.permission,
       status: link.status,
       sharedByName,
-      sharedByInitials: sharer ? initialsOf(sharedByName) : '?',
-      sharedByColor: avatarColorFor(link.createdByUserId),
+      sharedById: link.createdByUserId,
       sharedAtUtc: link.createdAtUtc,
       sizeBytes: file?.sizeBytes ?? null,
       canDownload:
@@ -345,11 +347,5 @@ export class StorageStore {
         link.status === 'Active' &&
         DOWNLOAD_PERMISSIONS.has(link.permission),
     };
-  }
-
-  private flashDownloadError(message: string): void {
-    this._downloadError.set(message);
-    clearTimeout(this.downloadErrorTimer);
-    this.downloadErrorTimer = setTimeout(() => this._downloadError.set(null), 4000);
   }
 }

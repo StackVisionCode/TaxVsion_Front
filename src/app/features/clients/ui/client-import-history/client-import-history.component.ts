@@ -1,5 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import {
   CustomerImportAttempt,
   ImportStatus,
@@ -16,7 +18,7 @@ import {
  */
 @Component({
   selector: 'app-client-import-history',
-  imports: [CommonModule],
+  imports: [CommonModule, StateBlockComponent, PaginationComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-history.component.html',
   styleUrl: './client-import-history.component.css',

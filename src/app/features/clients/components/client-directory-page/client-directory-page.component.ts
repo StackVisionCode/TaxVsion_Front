@@ -9,6 +9,9 @@ import { PaginationComponent } from '@shared/ui/pagination/pagination.component'
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { toApiError } from '@core/models/api-error.model';
 import { ClientsStore, LIST_PAGE_SIZES } from '../../data-access/clients.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
@@ -18,11 +21,6 @@ import {
   CustomerStatusFilter,
   summaryToClientItem,
 } from '../../data-access/clients.model';
-
-interface StatusOption {
-  value: CustomerStatusFilter;
-  label: string;
-}
 
 const SEARCH_DEBOUNCE_MS = 300;
 const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived', 'NotArchived', 'All'];
@@ -44,6 +42,9 @@ const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived'
     ConfirmDialogComponent,
     ModalComponent,
     ClientAssignDialogComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-directory-page.component.html',
@@ -65,15 +66,14 @@ export class ClientDirectoryPageComponent {
   readonly size = this.store.size;
   readonly totalCount = this.store.totalCount;
   readonly status = this.store.status;
-  readonly counts = this.store.counts;
 
   readonly pageSizes = LIST_PAGE_SIZES;
-  readonly statusOptions: StatusOption[] = [
-    { value: 'Active', label: 'Active' },
-    { value: 'NotArchived', label: 'Active + Inactive' },
-    { value: 'Inactive', label: 'Inactive' },
-    { value: 'Archived', label: 'Archived' },
-    { value: 'All', label: 'All statuses' },
+  readonly statusOptions: FilterChipOption<CustomerStatusFilter>[] = [
+    { id: 'Active', label: 'Active' },
+    { id: 'NotArchived', label: 'Active + Inactive' },
+    { id: 'Inactive', label: 'Inactive' },
+    { id: 'Archived', label: 'Archived' },
+    { id: 'All', label: 'All statuses' },
   ];
 
   // Permisos.
@@ -83,9 +83,9 @@ export class ClientDirectoryPageComponent {
   readonly canAssignPreparer = this.caps.canAssignPreparer;
   readonly canViewAssignees = this.caps.canViewAssignees;
 
-  // Búsqueda (input local + debounce hacia el server).
+  // Búsqueda (el debounce hacia el server lo hace `app-search-input`).
   readonly searchInput = signal('');
-  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
+  readonly searchDebounceMs = SEARCH_DEBOUNCE_MS;
 
   // Selección.
   readonly selected = signal<ReadonlySet<string>>(new Set<string>());
@@ -168,14 +168,12 @@ export class ClientDirectoryPageComponent {
     });
   }
 
+  /** Llega ya con debounce (`SEARCH_DEBOUNCE_MS`) desde `app-search-input`. */
   onSearchChange(value: string): void {
     this.searchInput.set(value);
-    clearTimeout(this.searchDebounce);
-    this.searchDebounce = setTimeout(() => {
-      this.clearSelection();
-      this.store.setTerm(value);
-      this.syncUrl();
-    }, SEARCH_DEBOUNCE_MS);
+    this.clearSelection();
+    this.store.setTerm(value);
+    this.syncUrl();
   }
 
   /** Reintenta la carga del listado (botón del estado de error). */

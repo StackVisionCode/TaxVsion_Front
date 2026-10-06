@@ -1,12 +1,10 @@
 import { Routes } from '@angular/router';
+import { UserManagementPageComponent } from './components/user-management-page/user-management-page.component';
 
 export const USER_MANAGEMENT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/user-management-page/user-management-page.component').then(
-        m => m.UserManagementPageComponent,
-      ),
+    component: UserManagementPageComponent,
     title: 'User Management',
   },
 ];

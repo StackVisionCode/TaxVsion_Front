@@ -1,12 +1,10 @@
 import { Routes } from '@angular/router';
+import { NotificationsPageComponent } from './components/notifications-page/notifications-page.component';
 
 export const NOTIFICATIONS_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./components/notifications-page/notifications-page.component').then(
-        m => m.NotificationsPageComponent,
-      ),
+    component: NotificationsPageComponent,
     title: 'Notifications',
   },
 ];

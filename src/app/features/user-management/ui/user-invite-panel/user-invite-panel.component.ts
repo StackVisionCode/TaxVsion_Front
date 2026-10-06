@@ -2,7 +2,6 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   Output,
@@ -15,7 +14,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { TeamMember } from '../user-table/user-table.component';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { UserManagementStore } from '../../data-access/user-management.store';
 import { RoleSummary, UserActorType } from '../../data-access/user-management.model';
 
@@ -34,7 +34,7 @@ type StaffActorType = Extract<UserActorType, 'TenantEmployee' | 'TenantAdmin'>;
  */
 @Component({
   selector: 'app-user-invite-panel',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-invite-panel.component.html',
 })
@@ -127,14 +127,6 @@ export class UserInvitePanelComponent implements OnChanges {
     if (changes['member'] || changes['isOpen']) {
       this.isEditMode.set(this.member !== null);
       this.resetForm();
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="member-role"]')) {
-      this.isRoleOpen.set(false);
     }
   }
 

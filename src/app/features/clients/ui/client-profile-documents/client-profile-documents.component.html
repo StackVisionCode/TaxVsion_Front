@@ -1,5 +1,5 @@
-<div (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
-  class="relative rounded-2xl transition-colors" [class.ring-2]="isDragging()" [class.ring-brand-bold]="isDragging()">
+<div appFileDrop #drop="appFileDrop" [fileDropDisabled]="!canUpload()" (appFileDrop)="store.uploadFiles($event)"
+  class="relative rounded-2xl transition-colors" [class.ring-2]="drop.dragging()" [class.ring-brand-bold]="drop.dragging()">
 
   <!-- Header -->
   <div class="flex flex-wrap items-start justify-between gap-3">
@@ -20,7 +20,7 @@
   </div>
 
   <!-- Overlay de drag -->
-  <div *ngIf="isDragging()"
+  <div *ngIf="drop.dragging()"
     class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-bold bg-brand-white/80">
     <p class="text-sm font-semibold text-brand-bold">Drop files to upload</p>
   </div>
@@ -38,25 +38,13 @@
     </div>
 
     <!-- Error -->
-    <div *ngIf="store.error() as err" class="mt-5 rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-      <p class="text-sm text-red-700">{{ err }}</p>
-      <button type="button" (click)="retry()"
-        class="mt-3 rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors">
-        Try again
-      </button>
-    </div>
+    <app-state-block *ngIf="store.error() as err" class="mt-5 block" [error]="err" retryLabel="Try again"
+      (retry)="retry()"></app-state-block>
 
     <!-- Vacío -->
-    <div *ngIf="!store.loading() && !store.error() && store.total() === 0"
-      class="mt-5 rounded-2xl border border-dashed border-gray-200 p-10 text-center">
-      <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-        <ion-icon name="folder-open-outline" class="text-2xl"></ion-icon>
-      </span>
-      <p class="mt-3 text-sm font-medium text-gray-900">No documents yet</p>
-      <p class="mt-1 text-sm text-gray-400">
-        {{ canUpload() ? 'Upload a file or drag it here to store it for this client.' : 'No files stored for this client.' }}
-      </p>
-    </div>
+    <app-state-block *ngIf="!store.loading() && !store.error() && store.total() === 0" class="mt-5 block"
+      [empty]="true" icon="folder-open-outline" emptyTitle="No documents yet"
+      [emptyMessage]="canUpload() ? 'Upload a file or drag it here to store it for this client.' : 'No files stored for this client.'"></app-state-block>
 
     <!-- Lista -->
     <div *ngIf="store.total() > 0" class="mt-5 flex flex-col gap-2">
@@ -69,7 +57,9 @@
 
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <p class="truncate text-sm font-semibold text-gray-900">{{ doc.name }}</p>
+            <button *ngIf="canDownload() && doc.isReady; else plainName" type="button" (click)="preview(doc)"
+              class="truncate text-left text-sm font-semibold text-gray-900 hover:text-brand-bold hover:underline">{{ doc.name }}</button>
+            <ng-template #plainName><p class="truncate text-sm font-semibold text-gray-900">{{ doc.name }}</p></ng-template>
             <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
               [ngClass]="statusChipClass(doc.status)">
               {{ statusLabel(doc.status) }}
@@ -83,6 +73,11 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-1">
+          <button *ngIf="canDownload() && doc.isReady" type="button" (click)="preview(doc)"
+            title="Preview" aria-label="Preview file"
+            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+            <ion-icon name="eye-outline" class="text-base"></ion-icon>
+          </button>
           <button *ngIf="canDownload() && doc.isReady" type="button" (click)="download(doc)" [disabled]="store.isBusy(doc.id)"
             title="Download"
             class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors">
@@ -103,6 +98,11 @@
     </div>
   </ng-container>
 </div>
+
+<!-- Visor global de archivos -->
+<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+  [allowDownload]="canDownload()" (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+  (closed)="viewerOpen.set(false)"></app-file-viewer>
 
 <!-- Confirmar borrado -->
 <app-confirm-dialog [isOpen]="pendingDelete() !== null" heading="Delete document" [message]="pendingDeleteMessage()"

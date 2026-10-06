@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
-import { FileResponse, formatBytes as formatFileBytes } from '@core/cloud-storage/cloud-storage.model';
+import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 import { WizardDocKind, WizardDocument } from '../signature-request-panel/signature-wizard.model';
-import { formatBytes, kindChip, kindCircle, kindIcon } from '../signature-request-panel/signature-wizard.presenter';
+import { kindChip, kindCircle, kindIcon } from '../signature-request-panel/signature-wizard.presenter';
+import { formatBytes } from '@shared/utils/format.util';
+import { DropzoneComponent, DropzoneRejection } from '@shared/ui/dropzone/dropzone.component';
 import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
 import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
@@ -28,7 +30,7 @@ type DocSource = 'upload' | 'library';
  */
 @Component({
   selector: 'app-signature-wizard-document-step',
-  imports: [CommonModule, FormsModule, SignatureDocumentLibraryComponent],
+  imports: [CommonModule, FormsModule, SignatureDocumentLibraryComponent, DropzoneComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-document-step.component.html',
   styleUrl: './signature-wizard-document-step.component.css',
@@ -42,6 +44,8 @@ export class SignatureWizardDocumentStepComponent {
 
   private readonly store = inject(SignatureStore);
 
+  readonly maxUploadBytes = MAX_UPLOAD_BYTES;
+
   /** Origen del documento: subir o reusar de la oficina. */
   readonly docSource = signal<DocSource>('upload');
 
@@ -50,7 +54,6 @@ export class SignatureWizardDocumentStepComponent {
   readonly uploadError = signal('');
   readonly uploaded = signal<WizardDocument | null>(null);
   readonly validation = signal<ValidateDocumentResponse | null>(null);
-  readonly isDragging = signal(false);
 
   /** Token anti-carrera: si el usuario re-elige archivo a mitad del pipeline, el viejo se descarta. */
   private pipelineToken = 0;
@@ -84,30 +87,20 @@ export class SignatureWizardDocumentStepComponent {
     return kindChip(kind);
   }
 
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+  onFiles(files: File[]): void {
+    const file = files[0];
     if (file) {
       this.acceptFile(file);
     }
-    input.value = '';
   }
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    this.isDragging.set(true);
-  }
-
-  onDragLeave(): void {
-    this.isDragging.set(false);
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.isDragging.set(false);
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.acceptFile(file);
+  /** La dropzone ya filtró tipo/tamaño: se muestran los mismos mensajes de siempre. */
+  onRejected(rejections: DropzoneRejection[]): void {
+    const first = rejections[0];
+    if (first) {
+      this.uploadError.set(
+        first.reason === 'size' ? 'The file must be smaller than 25MB.' : 'Only PDF documents can be sent for signature.',
+      );
     }
   }
 
@@ -160,7 +153,7 @@ export class SignatureWizardDocumentStepComponent {
         id: file.id,
         name: file.originalName,
         kind: 'pdf',
-        size: formatFileBytes(file.sizeBytes),
+        size: formatBytes(file.sizeBytes),
         date: new Date(file.createdAtUtc).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

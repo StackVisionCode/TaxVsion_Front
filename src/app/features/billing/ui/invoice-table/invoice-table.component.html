@@ -15,11 +15,7 @@
       <tr *ngFor="let invoice of invoices; trackBy: trackByInvoiceId; let last = last" class="group">
         <td class="rounded-l-2xl px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
-          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-medium"
-            [ngClass]="statusChip(invoice.status)">
-            <span class="h-1.5 w-1.5 rounded-full" [ngClass]="statusDot(invoice.status)"></span>
-            {{ statusLabel(invoice.status) }}
-          </span>
+          <app-status-pill [tone]="statusTone(invoice.status)" [soft]="true">{{ statusLabel(invoice.status) }}</app-status-pill>
         </td>
 
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
@@ -71,10 +67,8 @@
     </tbody>
   </table>
 
-  <div *ngIf="invoices.length === 0" class="px-4 py-10 text-center">
-    <ion-icon name="receipt-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">{{ emptyText }}</p>
-  </div>
+  <app-state-block *ngIf="invoices.length === 0" variant="inline" [empty]="true" [emptyTitle]="emptyText"
+    icon="receipt-outline"></app-state-block>
 </div>
 
 <!-- Menú de acciones de la factura como MODAL CENTRADO (no un dropdown lateral que se corta) -->

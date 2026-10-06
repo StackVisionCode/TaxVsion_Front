@@ -1,4 +1,4 @@
-import { parseUtcDate } from '../../../shared/utils/utc-date.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 /**
  * Contrato de `RemindersController` (`/reminders`, servicio Reminder.Api vía Gateway).

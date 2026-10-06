@@ -1,24 +1,4 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Stats row -->
-  <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
-    <div class="rounded-[24px] bg-indigo-50 p-5">
-      <p class="text-sm text-gray-600">Total products</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ totalProducts() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Total stock value</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ formatCurrency(totalStockValue()) }}</p>
-    </div>
-    <div class="rounded-[24px] bg-gray-200 p-5">
-      <p class="text-sm text-gray-600">Low stock</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ lowStockCount() }}</p>
-    </div>
-    <div class="rounded-[24px] bg-indigo-100 p-5">
-      <p class="text-sm text-gray-600">Categories</p>
-      <p class="mt-2 text-3xl font-bold text-gray-900">{{ categoriesCount() }}</p>
-    </div>
-  </div>
-
   <!-- Inventory card -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -35,19 +15,11 @@
 
     <!-- Filter bar (categorías reales del backend; búsqueda client-side) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <button *ngFor="let option of categoryFilters()" type="button" (click)="setCategory(option)"
-        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-        [ngClass]="activeCategory() === option ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
-        {{ option }}
-      </button>
+      <app-filter-chips [options]="categoryFilters()" [value]="activeCategory()"
+        (valueChange)="setCategory($event)"></app-filter-chips>
 
-      <div
-        class="ml-auto flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <ion-icon name="search-outline" class="mr-2 text-base text-gray-400"></ion-icon>
-        <input type="text" placeholder="Search products or SKU" [ngModel]="search()" name="search"
-          (ngModelChange)="onSearchChange($event)"
-          class="h-full w-48 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
+      <app-search-input class="ml-auto" placeholder="Search products or SKU" [value]="search()"
+        (valueChange)="onSearchChange($event)"></app-search-input>
     </div>
 
     <!-- Error transitorio de una acción (ajuste rechazado, borrado fallido…) -->
@@ -61,19 +33,8 @@
     </div>
 
     <!-- Estados de carga / error -->
-    <div *ngIf="store.loading()" class="mt-5 flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
-      Loading inventory…
-    </div>
-
-    <div *ngIf="!store.loading() && store.error() as err"
-      class="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center">
-      <p class="text-sm text-red-600">{{ err }}</p>
-      <button type="button" (click)="retryLoad()"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        Retry
-      </button>
-    </div>
+    <app-state-block *ngIf="store.loading() || store.error()" class="mt-5 block" [loading]="store.loading()"
+      [error]="store.error()" loadingText="Loading inventory…" (retry)="retryLoad()"></app-state-block>
 
     <!-- Table -->
     <div *ngIf="!store.loading() && !store.error()" class="mt-5">
@@ -87,7 +48,7 @@
 
 <!-- Create / edit overlay -->
 <app-product-form-panel [isOpen]="isPanelOpen()" [product]="editingProduct()" [categories]="store.categories()"
-  [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
+  [defaultCurrency]="store.officeCurrency()" [saving]="panelSaving()" [errorMessage]="panelError()" (closed)="closePanel()" (saved)="handleSaved($event)"
   (categoryCreated)="handleCategoryCreated($event)"></app-product-form-panel>
 
 <!-- Delete confirmation -->

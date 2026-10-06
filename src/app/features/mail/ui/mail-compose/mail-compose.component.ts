@@ -19,11 +19,12 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
 import {
   DraftAttachmentSummary,
-  formatFileSize,
   htmlToPlainText,
   parseRecipients,
 } from '../../data-access/mail.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { formatBytes } from '@shared/utils/format.util';
+import { BytesPipe } from '@shared/pipes/bytes.pipe';
 import { ComposeState } from '../../data-access/mail.store';
 
 /** Lo que el editor emite al presionar Send; mail-page le agrega customerId/accountId del store. */
@@ -48,6 +49,7 @@ const EMPTY_STATE: ComposeState = {
   loadError: null,
   sending: false,
   error: null,
+  initialTo: null,
 };
 
 /** Campo de destinatarios con autocompletar. Bcc no existe en el payload del store. */
@@ -88,7 +90,7 @@ const MAX_RECIPIENT_OPTIONS = 6;
  */
 @Component({
   selector: 'app-mail-compose',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BytesPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-compose.component.html',
   styleUrl: './mail-compose.component.css',
@@ -130,6 +132,8 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
 
   /** Draft ya volcado al formulario: evita re-prellenar en cada cambio de estado. */
   private prefilledDraftId: string | null = null;
+  /** Último `state.initialTo` ya volcado en "To" (para no re-aplicarlo en cada cambio de estado). */
+  private appliedInitialTo: string | null = null;
 
   /** Último html escrito al DOM del editor: escribirlo de nuevo movería el cursor al inicio. */
   private lastRenderedHtml: string | null = null;
@@ -157,6 +161,14 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
       // Redacción nueva: si se venía de un draft retomado, limpiar el formulario.
       if (this.prefilledDraftId !== null) {
         this.reset();
+      }
+      // Destinatario precargado (deep link): se aplica UNA vez por valor, sin pisar lo tecleado.
+      const initialTo = this.state?.initialTo ?? null;
+      if (initialTo && initialTo !== this.appliedInitialTo) {
+        this.appliedInitialTo = initialTo;
+        if (!this.to().trim()) {
+          this.to.set(initialTo);
+        }
       }
       return;
     }
@@ -422,8 +434,8 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     }
     if (file.size > MAX_INLINE_IMAGE_BYTES) {
       this.bodyNotice.set(
-        `"${file.name}" is ${formatFileSize(file.size)} — inline images must stay under ` +
-          `${formatFileSize(MAX_INLINE_IMAGE_BYTES)}. Send it as an attachment instead.`,
+        `"${file.name}" is ${formatBytes(file.size)} — inline images must stay under ` +
+          `${formatBytes(MAX_INLINE_IMAGE_BYTES)}. Send it as an attachment instead.`,
       );
       return;
     }
@@ -610,10 +622,6 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     this.removedFileIds.update(list => (list.includes(fileId) ? list : [...list, fileId]));
   }
 
-  fileSize(bytes: number): string {
-    return formatFileSize(bytes);
-  }
-
   // ---------- Acciones ----------
 
   close(): void {
@@ -649,6 +657,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
 
   private reset(): void {
     this.prefilledDraftId = null;
+    this.appliedInitialTo = null;
     this.to.set('');
     this.cc.set('');
     this.subject.set('');

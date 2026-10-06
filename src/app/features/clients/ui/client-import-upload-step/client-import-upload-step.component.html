@@ -36,25 +36,16 @@
   <!-- Dropzone -->
   <div class="import-block">
     <h3 class="text-sm font-semibold text-gray-900">1. Choose your file</h3>
-    <div class="mt-3 rounded-[24px] border-2 border-dashed p-8 text-center transition-colors"
-      [ngClass]="dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'"
-      (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+    <app-dropzone *ngIf="!file(); else selectedFile" class="mt-3" [accept]="acceptAttribute" [multiple]="false"
+      label="Drop your client list here" hint="CSV or XLSX" (files)="acceptFile($event[0])"
+      (rejected)="onRejected()"></app-dropzone>
 
-      <ng-container *ngIf="!file(); else selectedFile">
-        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-surface-strong">
-          <ion-icon name="cloud-upload-outline" class="text-2xl text-brand-bold"></ion-icon>
-        </span>
-        <p class="mt-4 text-sm font-semibold text-gray-900">Drop your client list here</p>
-        <p class="mt-1 text-sm text-gray-500">CSV or XLSX</p>
-        <label
-          class="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
-          <ion-icon name="folder-open-outline" class="text-base"></ion-icon>
-          Browse files
-          <input type="file" class="hidden" [accept]="acceptAttribute" (change)="onFileInput($event)" />
-        </label>
-      </ng-container>
-
-      <ng-template #selectedFile>
+    <!-- Con archivo elegido, soltar otro encima lo reemplaza. -->
+    <ng-template #selectedFile>
+      <div appFileDrop #drop="appFileDrop" [accept]="acceptAttribute" [multiple]="false"
+        (appFileDrop)="acceptFile($event[0])" (appFileDropRejected)="onRejected()"
+        class="mt-3 rounded-[24px] border-2 border-dashed p-8 text-center transition-colors"
+        [ngClass]="drop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'">
         <div class="flex flex-wrap items-center justify-center gap-4">
           <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-surface-strong">
             <ion-icon name="document-text-outline" class="text-xl text-brand-bold"></ion-icon>
@@ -68,8 +59,8 @@
             Remove
           </button>
         </div>
-      </ng-template>
-    </div>
+      </div>
+    </ng-template>
 
     <p *ngIf="localError()" class="mt-3 text-sm text-red-600">{{ localError() }}</p>
   </div>

@@ -1,28 +1,22 @@
-import {
-  Component,
-  CUSTOM_ELEMENTS_SCHEMA,
-  EventEmitter,
-  HostListener,
-  Input,
-  Output,
-  signal,
-} from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Product, ProductStatus, StockBadge, stockLevel } from '../../data-access/inventory.model';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { MoneyPipe } from '@shared/pipes/money.pipe';
+import { Product, ProductStatus, stockLevel } from '../../data-access/inventory.model';
 
 /**
  * Tabla de productos (patrón "Aether", igual que invoice-table): header en
  * píldora `bg-brand-white` con extremos redondeados, columnas Product (nombre +
  * SKU) / Category (chip) / Price / Stock (cantidad + chip de nivel) / Status /
- * acciones, y un menú fantasma "..." por fila con Edit / Adjust stock (stepper
- * inline +/-) / Delete. Los datos vienen del join Catalog+Inventory que arma el
- * store; el stepper solo aparece para ítems con trackInventory (los untracked
- * no tienen ledger en el backend). Todo el estado del menú abierto vive en una
- * signal local y se cierra al hacer click fuera (HostListener document:click).
+ * acciones, y un menú "..." por fila (`app-dropdown-menu`) con Edit / Adjust stock
+ * (stepper inline +/-, que no cierra el menú) / Delete. Los datos vienen del join
+ * Catalog+Inventory que arma el store.
  */
 @Component({
   selector: 'app-product-table',
-  imports: [CommonModule],
+  imports: [CommonModule, DropdownMenuComponent, MenuItemDirective, StatusPillComponent, StateBlockComponent, MoneyPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './product-table.component.html',
 })
@@ -32,27 +26,8 @@ export class ProductTableComponent {
   @Output() adjustRequested = new EventEmitter<{ product: Product; delta: number }>();
   @Output() deleteRequested = new EventEmitter<Product>();
 
-  readonly openMenuId = signal<string | null>(null);
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="product-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
-
   trackByProductId(_index: number, product: Product): string {
     return product.id;
-  }
-
-  /** El precio viene como Money del backend: se formatea con SU moneda (USD por defecto). */
-  formatCurrency(amount: number, currency: string): string {
-    return amount.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 2 });
-  }
-
-  level(product: Product): StockBadge {
-    return stockLevel(product);
   }
 
   stockLabel(product: Product): string {
@@ -68,29 +43,16 @@ export class ProductTableComponent {
     }
   }
 
-  stockChip(product: Product): string {
+  stockTone(product: Product): StatusTone {
     switch (stockLevel(product)) {
       case 'untracked':
-        return 'border-gray-200 text-gray-400';
+        return 'muted';
       case 'out':
-        return 'border-red-200 text-red-500';
+        return 'danger';
       case 'low':
-        return 'border-orange-200 text-orange-500';
+        return 'warning';
       case 'in':
-        return 'border-emerald-200 text-emerald-600';
-    }
-  }
-
-  stockDot(product: Product): string {
-    switch (stockLevel(product)) {
-      case 'untracked':
-        return 'bg-gray-300';
-      case 'out':
-        return 'bg-red-500';
-      case 'low':
-        return 'bg-orange-500';
-      case 'in':
-        return 'bg-emerald-500';
+        return 'success';
     }
   }
 
@@ -98,34 +60,12 @@ export class ProductTableComponent {
     return status === 'active' ? 'Active' : 'Inactive';
   }
 
-  statusChip(status: ProductStatus): string {
-    return status === 'active' ? 'border-emerald-200 text-emerald-600' : 'border-gray-300 text-gray-500';
-  }
-
-  statusDot(status: ProductStatus): string {
-    return status === 'active' ? 'bg-emerald-500' : 'bg-gray-400';
-  }
-
-  toggleMenu(product: Product, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === product.id ? null : product.id);
-  }
-
-  onEditClick(product: Product, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.editRequested.emit(product);
+  statusTone(status: ProductStatus): StatusTone {
+    return status === 'active' ? 'success' : 'neutral';
   }
 
   /** Emite un ajuste de stock (+/-) desde el stepper inline del menú, sin cerrarlo. */
-  onAdjust(product: Product, delta: number, event: MouseEvent): void {
-    event.stopPropagation();
+  onAdjust(product: Product, delta: number): void {
     this.adjustRequested.emit({ product, delta });
-  }
-
-  onDeleteClick(product: Product, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.deleteRequested.emit(product);
   }
 }

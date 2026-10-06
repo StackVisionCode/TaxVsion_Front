@@ -4,10 +4,10 @@
   <p class="mt-1 text-sm text-gray-500">Latest events across your workspace</p>
 
   <!-- Cargando / error del feed / todavía sin eventos -->
-  <app-dashboard-widget-state *ngIf="loading() || error() || events().length === 0" [loading]="loading()"
-    [error]="error()" errorTitle="Activity isn't available" icon="pulse-outline" title="No activity yet"
-    message="Events from documents, signatures and clients will show up here."
-    minHeight="14rem"></app-dashboard-widget-state>
+  <app-state-block *ngIf="loading() || error() || events().length === 0" [loading]="loading()"
+    [error]="error()" [empty]="true" variant="inline" icon="pulse-outline" emptyTitle="No activity yet"
+    emptyMessage="Events from documents, signatures and clients will show up here."
+    minHeight="14rem" (retry)="retry()"></app-state-block>
 
   <!-- Timeline real: primeras filas del feed de notificaciones del tenant -->
   <div *ngIf="!loading() && !error() && events().length > 0" class="mt-4 flex flex-col">

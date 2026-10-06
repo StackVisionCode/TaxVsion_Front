@@ -1,0 +1,15 @@
+<button
+  type="button"
+  role="switch"
+  class="switch"
+  [class.switch-sm]="size === 'sm'"
+  [class.switch-on]="displayed()"
+  [class.switch-busy]="busy"
+  [attr.aria-checked]="displayed()"
+  [attr.aria-label]="ariaLabel"
+  [attr.aria-busy]="busy || null"
+  [disabled]="isDisabled"
+  (click)="toggle()"
+>
+  <span class="switch-knob"></span>
+</button>

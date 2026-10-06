@@ -1,10 +1,15 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, Input, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
-import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
-import { PaginationComponent } from '../../../../shared/ui/pagination/pagination.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { ClientRemindersStore } from '../../data-access/client-reminders.store';
 import {
   ClientReminderRow,
@@ -38,7 +43,19 @@ const PAGE_SIZE = 6;
  */
 @Component({
   selector: 'app-client-profile-reminders',
-  imports: [CommonModule, FormsModule, ModalComponent, ConfirmDialogComponent, PaginationComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    ConfirmDialogComponent,
+    PaginationComponent,
+    StateBlockComponent,
+    StatusPillComponent,
+    SearchInputComponent,
+    FilterChipsComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-reminders.component.html',
 })
@@ -61,7 +78,10 @@ export class ClientProfileRemindersComponent implements OnInit {
   readonly store = inject(ClientRemindersStore);
 
   readonly pageSize = PAGE_SIZE;
-  readonly statusFilters = REMINDER_STATUS_FILTERS;
+  readonly statusFilters: FilterChipOption<ReminderStatusFilter>[] = REMINDER_STATUS_FILTERS.map(option => ({
+    id: option.value,
+    label: option.label,
+  }));
   readonly snoozeOptions = REMINDER_SNOOZE_OPTIONS;
 
   readonly search = signal('');
@@ -123,9 +143,6 @@ export class ClientProfileRemindersComponent implements OnInit {
     return this.editingId() !== null || this.formDate().trim().length > 0;
   });
 
-  /** Menú de snooze abierto (uno por fila). */
-  readonly openSnoozeId = signal<string | null>(null);
-
   readonly pendingCancel = signal<ClientReminderRow | null>(null);
   readonly pendingCancelMessage = computed(() => {
     const reminder = this.pendingCancel();
@@ -136,14 +153,6 @@ export class ClientProfileRemindersComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.load();
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="reminder-snooze"]')) {
-      this.openSnoozeId.set(null);
-    }
   }
 
   retry(): void {
@@ -246,12 +255,7 @@ export class ClientProfileRemindersComponent implements OnInit {
 
   // ---------- Acciones de fila ----------
 
-  toggleSnoozeMenu(reminder: ClientReminderRow): void {
-    this.openSnoozeId.update(current => (current === reminder.id ? null : reminder.id));
-  }
-
   snooze(reminder: ClientReminderRow, minutes: number): void {
-    this.openSnoozeId.set(null);
     this.store.snooze(reminder.id, minutes);
   }
 

@@ -8,6 +8,7 @@ import {
 } from '@angular/cdk/drag-drop';
 import { ApiTaskPriority, TASK_COLUMNS, TaskItem, TaskStatus } from '../../data-access/task.model';
 import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 
 /**
  * Tablero Kanban del módulo Task (estilo "Aether"): 4 columnas fijas (Not
@@ -24,7 +25,7 @@ import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
  */
 @Component({
   selector: 'app-task-board',
-  imports: [CommonModule, DragDropModule],
+  imports: [CommonModule, DragDropModule, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-board.component.html',
   styleUrl: './task-board.component.css',

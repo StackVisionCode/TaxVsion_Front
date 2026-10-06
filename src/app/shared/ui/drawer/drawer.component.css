@@ -1,0 +1,99 @@
+/* Slide-over: el backdrop hace fade y el panel entra desde su lado (solo transform/opacity).
+   La SALIDA (`.is-closing`) invierte el gesto; el desmontaje se difiere `EXIT_MS` en el componente
+   (mismo patrón que app-modal). */
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes drawer-panel-in-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-panel-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes drawer-panel-in-left {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-panel-out-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+
+.drawer-backdrop {
+  animation: drawer-backdrop-in 200ms ease-out both;
+}
+
+.drawer-panel {
+  animation: drawer-panel-in-right 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.drawer-panel.is-left {
+  animation-name: drawer-panel-in-left;
+}
+
+.drawer-backdrop.is-closing {
+  animation: drawer-backdrop-out 180ms ease-in forwards;
+}
+
+.drawer-panel.is-closing {
+  animation: drawer-panel-out-right 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.drawer-panel.is-left.is-closing {
+  animation-name: drawer-panel-out-left;
+}
+
+/* Accesibilidad: sin movimiento el drawer aparece/desaparece sin animar (el componente además no
+   difiere el desmontaje con reduced-motion). */
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop,
+  .drawer-panel,
+  .drawer-backdrop.is-closing,
+  .drawer-panel.is-closing {
+    animation: none;
+  }
+}

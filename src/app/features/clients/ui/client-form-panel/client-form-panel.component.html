@@ -119,9 +119,30 @@
           </label>
         </div>
 
-        <app-catalog-picker label="Occupation" placeholder="Search occupations" scope="client-occupation"
-          [selectedName]="occupationName()" [search]="searchOccupations"
-          (picked)="onOccupationPicked($event)"></app-catalog-picker>
+        <!-- Ocupación: catálogo curado (se guarda el id). Con selección, chip + limpiar; sin ella, typeahead. -->
+        @if (occupationName(); as selectedName) {
+          <div class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="text-gray-400">Occupation</span>
+              <span class="truncate">{{ selectedName }}</span>
+            </span>
+            <button type="button" (click)="onOccupationPicked(null)" aria-label="Clear Occupation"
+              class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+        } @else {
+          <app-typeahead placeholder="Search occupations" ariaLabel="Search Occupation" emptyText="No matches"
+            [search]="searchOccupations" [displayWith]="catalogLabel" [trackBy]="catalogId"
+            (picked)="onOccupationPicked($event)">
+            <ng-template #option let-option>
+              <span class="min-w-0 flex-1 truncate text-gray-700">
+                {{ option.label }}
+                @if (option.hint) { <span class="block truncate text-xs text-gray-400">{{ option.hint }}</span> }
+              </span>
+            </ng-template>
+          </app-typeahead>
+        }
       }
 
       <!-- Company -->
@@ -167,7 +188,7 @@
         </div>
 
         <!-- Business structure dropdown -->
-        <div class="relative" data-dropdown="client-structure">
+        <div class="relative" appClickOutside [clickOutsideEnabled]="isStructureOpen()" (appClickOutside)="isStructureOpen.set(false)">
           <button type="button" (click)="toggleStructureDropdown()"
             class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
             <span [class.text-gray-400]="isEditMode() && !structureTouched()">
@@ -186,9 +207,30 @@
           }
         </div>
 
-        <app-catalog-picker label="Activity" placeholder="Search NAICS activities" scope="client-activity"
-          [selectedName]="businessActivityName()" [search]="searchBusinessActivities"
-          (picked)="onBusinessActivityPicked($event)"></app-catalog-picker>
+        <!-- Actividad NAICS: mismo patrón que la ocupación. -->
+        @if (businessActivityName(); as selectedName) {
+          <div class="flex h-11 w-full items-center justify-between rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="text-gray-400">Activity</span>
+              <span class="truncate">{{ selectedName }}</span>
+            </span>
+            <button type="button" (click)="onBusinessActivityPicked(null)" aria-label="Clear Activity"
+              class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+        } @else {
+          <app-typeahead placeholder="Search NAICS activities" ariaLabel="Search Activity" emptyText="No matches"
+            [search]="searchBusinessActivities" [displayWith]="catalogLabel" [trackBy]="catalogId"
+            (picked)="onBusinessActivityPicked($event)">
+            <ng-template #option let-option>
+              <span class="min-w-0 flex-1 truncate text-gray-700">
+                {{ option.label }}
+                @if (option.hint) { <span class="block truncate text-xs text-gray-400">{{ option.hint }}</span> }
+              </span>
+            </ng-template>
+          </app-typeahead>
+        }
       }
 
       <!-- Shared -->
@@ -239,11 +281,7 @@
       <div *ngIf="canChangeStatus()"
         class="flex items-center justify-between rounded-full border border-gray-200 bg-white px-4 py-2.5">
         <span class="text-sm font-medium text-gray-700">Active client</span>
-        <button type="button" (click)="isActive.set(!isActive())" class="relative h-6 w-11 rounded-full transition-colors"
-          [ngClass]="isActive() ? 'bg-brand-bold' : 'bg-gray-200'" role="switch" [attr.aria-checked]="isActive()">
-          <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
-            [ngClass]="isActive() ? 'translate-x-5' : 'translate-x-0.5'"></span>
-        </button>
+        <app-switch [checked]="isActive()" (checkedChange)="isActive.set($event)" ariaLabel="Active client"></app-switch>
       </div>
     </div>
 

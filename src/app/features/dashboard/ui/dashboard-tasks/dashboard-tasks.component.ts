@@ -4,7 +4,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { TaskStore } from '../../../task/data-access/task.store';
 import { ApiTaskPriority, TaskItem } from '../../../task/data-access/task.model';
 import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
-import { DashboardWidgetStateComponent } from '../dashboard-widget-state/dashboard-widget-state.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 type TaskFilter = 'All' | 'My Tasks' | 'Overdue';
 
@@ -30,7 +30,7 @@ const MAX_TASKS = 6;
  */
 @Component({
   selector: 'app-dashboard-tasks',
-  imports: [CommonModule, DashboardWidgetStateComponent],
+  imports: [CommonModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-tasks.component.html',
 })
@@ -87,6 +87,10 @@ export class DashboardTasksComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.init();
+  }
+
+  retry(): void {
+    this.store.refresh();
   }
 
   setFilter(filter: TaskFilter): void {

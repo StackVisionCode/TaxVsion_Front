@@ -1,10 +1,20 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
+import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { SmsStore, SMS_PAGE_SIZES } from '../../data-access/sms.store';
 import { SmsCapabilities } from '../../data-access/sms-permissions';
 import {
@@ -15,7 +25,8 @@ import {
   SmsMessageSummary,
   SmsOptOutSummary,
   SmsStatusFilter,
-  avatarColorFor,
+  toSmsContact,
+  toE164OrNull,
 } from '../../data-access/sms.model';
 
 /** Chip de estado en lenguaje simple (sin jerga técnica). */
@@ -33,13 +44,13 @@ interface Segments {
   perSegment: number;
 }
 
-const GSM_STATUS_FILTERS: { value: SmsStatusFilter; label: string }[] = [
-  { value: 'All', label: 'All' },
-  { value: 'Delivered', label: 'Delivered' },
-  { value: 'Accepted', label: 'Sent' },
-  { value: 'Failed', label: 'Not delivered' },
-  { value: 'Undeliverable', label: 'Invalid number' },
-  { value: 'Suppressed', label: 'Opted out' },
+const GSM_STATUS_FILTERS: FilterChipOption<SmsStatusFilter>[] = [
+  { id: 'All', label: 'All' },
+  { id: 'Delivered', label: 'Delivered' },
+  { id: 'Accepted', label: 'Sent' },
+  { id: 'Failed', label: 'Not delivered' },
+  { id: 'Undeliverable', label: 'Invalid number' },
+  { id: 'Suppressed', label: 'Opted out' },
 ];
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -51,7 +62,21 @@ const SEARCH_DEBOUNCE_MS = 300;
  */
 @Component({
   selector: 'app-sms-page',
-  imports: [CommonModule, FormsModule, ModalComponent, PaginationComponent],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    PaginationComponent,
+    AvatarComponent,
+    CustomerPickerComponent,
+    DrawerComponent,
+    FilterChipsComponent,
+    SearchInputComponent,
+    SegmentedComponent,
+    StateBlockComponent,
+    StatusPillComponent,
+  ],
   templateUrl: './sms-page.component.html',
 })
 export class SmsPageComponent implements OnInit {
@@ -59,10 +84,17 @@ export class SmsPageComponent implements OnInit {
   readonly caps = inject(SmsCapabilities);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly toastService = inject(ToastService);
 
   readonly pageSizes = SMS_PAGE_SIZES;
   readonly statusFilters = GSM_STATUS_FILTERS;
   readonly bodyMaxLength = SMS_BODY_MAX_LENGTH;
+
+  readonly searchDebounceMs = SEARCH_DEBOUNCE_MS;
+  readonly tabs: SegmentedOption<'messages' | 'optouts'>[] = [
+    { id: 'messages', label: 'Messages' },
+    { id: 'optouts', label: 'Opt-outs' },
+  ];
 
   readonly activeTab = signal<'messages' | 'optouts'>('messages');
   readonly searchText = signal('');
@@ -73,26 +105,29 @@ export class SmsPageComponent implements OnInit {
   readonly composeRecipients = signal<SmsContact[]>([]);
   readonly composeBody = signal('');
   readonly composeError = signal<string | null>(null);
-  readonly pickerQuery = signal('');
-  readonly pickerOpen = signal(false);
 
   // Detail slide-over
   readonly detailOpen = signal(false);
   readonly detail = signal<SmsMessageDetail | null>(null);
   readonly detailLoading = signal(false);
 
-  readonly toast = signal<string | null>(null);
-
-  private searchTimer: ReturnType<typeof setTimeout> | null = null;
-  private optSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Destinatarios deliverables (excluye opted-out) para el contador del botón Send. */
   readonly deliverableRecipients = computed(() => this.composeRecipients());
 
-  /** Candidatos del picker: resultados de la búsqueda server-side, menos los ya elegidos. */
-  readonly pickerResults = computed<SmsContact[]>(() => {
-    const chosen = new Set(this.composeRecipients().map(r => r.id));
-    return this.store.pickerResults().filter(c => !chosen.has(c.id));
+  /**
+   * Filtro del picker de destinatarios: solo clientes texteables (teléfono E.164 válido) y aún no
+   * elegidos. Lee la señal de destinatarios, así los recientes del picker se recalculan solos.
+   */
+  readonly pickerFilter = (customer: CustomerSummary): boolean =>
+    toE164OrNull(customer.primaryPhone) !== null && !this.composeRecipients().some(r => r.id === customer.id);
+
+  /** Mensaje del bloque de error del listado (en lenguaje simple, según el tipo de fallo). */
+  readonly listErrorText = computed<string | null>(() => {
+    if (!this.store.listError()) return null;
+    return this.store.listErrorKind() === 'network'
+      ? 'Can’t reach the server right now.'
+      : 'Something went wrong loading messages.';
   });
 
   readonly segments = computed<Segments>(() => this.computeSegments(this.composeBody()));
@@ -129,13 +164,11 @@ export class SmsPageComponent implements OnInit {
     this.syncUrl();
   }
 
+  /** Llega ya debounceado por `app-search-input`. */
   onSearch(value: string): void {
     this.searchText.set(value);
-    if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => {
-      this.store.setTerm(value);
-      this.syncUrl();
-    }, SEARCH_DEBOUNCE_MS);
+    this.store.setTerm(value);
+    this.syncUrl();
   }
 
   onPage(page: number): void {
@@ -164,18 +197,18 @@ export class SmsPageComponent implements OnInit {
 
   // ---------- Opt-outs ----------
 
+  /** Llega ya debounceado por `app-search-input`. */
   onOptSearch(value: string): void {
     this.optSearchText.set(value);
-    if (this.optSearchTimer) clearTimeout(this.optSearchTimer);
-    this.optSearchTimer = setTimeout(() => this.store.setOptTerm(value), SEARCH_DEBOUNCE_MS);
+    this.store.setOptTerm(value);
   }
 
   toggleConsent(row: SmsOptOutSummary): void {
     const action = row.status === 'OptedOut' ? 'OptIn' : 'OptOut';
     this.store.setConsent({ customerId: row.customerId, phone: row.phoneE164, action }).subscribe({
       next: () =>
-        this.showToast(action === 'OptOut' ? 'Client opted out of texts.' : 'Client re-subscribed to texts.'),
-      error: err => this.showToast(toApiError(err).message),
+        this.toastService.success(action === 'OptOut' ? 'Client opted out of texts.' : 'Client re-subscribed to texts.'),
+      error: err => this.toastService.error(toApiError(err).message),
     });
   }
 
@@ -185,25 +218,21 @@ export class SmsPageComponent implements OnInit {
     this.composeError.set(null);
     this.composeRecipients.set([]);
     this.composeBody.set('');
-    this.pickerQuery.set('');
     this.composeOpen.set(true);
-    this.store.searchPicker(''); // resultados iniciales (primeros clientes texteables)
-  }
-
-  onPickerInput(value: string): void {
-    this.pickerQuery.set(value);
-    this.pickerOpen.set(true);
-    this.store.searchPicker(value);
   }
 
   closeCompose(): void {
     this.composeOpen.set(false);
-    this.pickerOpen.set(false);
+  }
+
+  /** Elección del picker (variant inline: emite y se limpia). */
+  onPickCustomer(customer: CustomerSummary | null): void {
+    if (customer) this.addRecipient(toSmsContact(customer));
   }
 
   addRecipient(contact: SmsContact): void {
+    if (!contact.phoneE164 || this.composeRecipients().some(r => r.id === contact.id)) return;
     this.composeRecipients.update(list => [...list, contact]);
-    this.pickerQuery.set('');
   }
 
   removeRecipient(id: string): void {
@@ -226,7 +255,7 @@ export class SmsPageComponent implements OnInit {
           const parts = [`${summary.sent} sent`];
           if (summary.failed > 0) parts.push(`${summary.failed} failed`);
           if (summary.suppressed > 0) parts.push(`${summary.suppressed} opted out`);
-          this.showToast(parts.join(' · '));
+          this.toastService.success(parts.join(' · '));
         },
         error: err => this.composeError.set(toApiError(err).message),
       });
@@ -253,18 +282,9 @@ export class SmsPageComponent implements OnInit {
 
   // ---------- Presentación ----------
 
-  initials(name: string): string {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
-  }
-
-  avatarColor(id: string): string {
-    return avatarColorFor(id);
+  /** Colores exactos de los chips de sms sobre `app-status-pill` (sin borde visible, en negrita). */
+  pill(colorClass: string): string {
+    return `${colorClass} border-transparent font-bold`;
   }
 
   /** Estado → chip en lenguaje simple + clases de color (semánticas, no la marca). */
@@ -305,17 +325,10 @@ export class SmsPageComponent implements OnInit {
 
   private computeSegments(body: string): Segments {
     const count = body.length;
-    const isUnicode = /[^ -]/.test(body); // aprox: cualquier char fuera de ASCII → Unicode
+    const isUnicode = /[^\x00-\x7f]/.test(body); // aprox: cualquier char fuera de ASCII → Unicode
     const single = isUnicode ? 70 : 160;
     const multi = isUnicode ? 67 : 153;
     const segments = count === 0 ? 1 : count <= single ? 1 : Math.ceil(count / multi);
     return { count, segments, encoding: isUnicode ? 'Unicode' : 'GSM-7', perSegment: segments === 1 ? single : multi };
-  }
-
-  private showToast(message: string): void {
-    this.toast.set(message);
-    setTimeout(() => {
-      if (this.toast() === message) this.toast.set(null);
-    }, 3500);
   }
 }

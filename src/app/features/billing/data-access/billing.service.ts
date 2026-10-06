@@ -363,36 +363,14 @@ export class BillingService {
   }
 
   /**
-   * `POST /notifications/email/send` — envía la factura al cliente por correo con el PDF adjunto
-   * (`attachmentFileIds` son ids de CloudStorage, = `pdfFileId`). Es asíncrono (202): el servicio de
-   * correo lo entrega fuera del request. Usa el JWT del usuario (permiso `notification.email.send`).
+   * `POST .../send` — manda la factura al cliente. Asíncrono (202): Billing publica el evento y
+   * Notification arma el correo con la plantilla de Scribe (cáscara y logo de la oficina).
+   *
+   * Antes esto componía el HTML acá y lo mandaba a `/notifications/email/send`, así que llegaba un
+   * correo sin marca ni formato y el navegador decidía el cuerpo. El contenido es del backend.
    */
-  sendInvoiceEmail(input: {
-    invoiceNumber: string | null;
-    email: string;
-    name: string | null;
-    pdfFileId: string;
-    checkoutUrl?: string | null;
-  }): Observable<void> {
-    const number = input.invoiceNumber ?? '';
-    const payLink = input.checkoutUrl
-      ? `<p>You can pay online here: <a href="${input.checkoutUrl}">${input.checkoutUrl}</a></p>`
-      : '';
-    const body = {
-      subject: `Invoice ${number}`.trim(),
-      htmlBody:
-        `<p>Hello ${input.name ?? ''},</p>` +
-        `<p>Please find attached your invoice ${number}.</p>` +
-        payLink +
-        `<p>Thank you.</p>`,
-      textBody:
-        `Please find attached your invoice ${number}.` +
-        (input.checkoutUrl ? ` Pay online: ${input.checkoutUrl}` : ''),
-      priority: 'Normal',
-      recipients: [{ address: input.email, kind: 'To', name: input.name }],
-      attachmentFileIds: [input.pdfFileId],
-    };
-    return this.http.post<void>(`${this.base}/notifications/email/send`, body);
+  sendInvoiceToCustomer(invoiceId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/billing/invoices/${invoiceId}/send`, {});
   }
 
   /** URL temporal de descarga del PDF en CloudStorage. */

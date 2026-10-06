@@ -1,5 +1,8 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DropzoneComponent } from '@shared/ui/dropzone/dropzone.component';
+import { FileDropDirective } from '@shared/directives/file-drop.directive';
+import { formatBytes } from '@shared/utils/format.util';
 import { CustomerImportAttempt, DuplicateStrategy } from '../../data-access/client-imports.model';
 
 /** Payload del POST multipart, con la clave de idempotencia que sobrevive a los reintentos. */
@@ -27,7 +30,7 @@ const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx'];
  */
 @Component({
   selector: 'app-client-import-upload-step',
-  imports: [CommonModule],
+  imports: [CommonModule, DropzoneComponent, FileDropDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-upload-step.component.html',
   styleUrl: './client-import-upload-step.component.css',
@@ -46,7 +49,6 @@ export class ClientImportUploadStepComponent {
 
   readonly file = signal<File | null>(null);
   readonly strategy = signal<DuplicateStrategy>('Skip');
-  readonly dragging = signal(false);
   readonly localError = signal<string | null>(null);
 
   readonly acceptAttribute = ACCEPTED_EXTENSIONS.join(',');
@@ -77,33 +79,10 @@ export class ClientImportUploadStepComponent {
    */
   private idempotencyKey = newIdempotencyKey();
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    this.dragging.set(true);
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    this.dragging.set(false);
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.dragging.set(false);
-    const dropped = event.dataTransfer?.files?.[0];
-    if (dropped) {
-      this.acceptFile(dropped);
-    }
-  }
-
-  onFileInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const picked = input.files?.[0];
-    if (picked) {
-      this.acceptFile(picked);
-    }
-    // Permite volver a elegir el mismo archivo tras un error (si no, el change no dispara).
-    input.value = '';
+  /** Extensión fuera de `.csv/.xlsx` (la filtra la dropzone/`appFileDrop` con `accept`). */
+  onRejected(): void {
+    this.file.set(null);
+    this.localError.set('Only .csv and .xlsx files are supported.');
   }
 
   clearFile(): void {
@@ -128,15 +107,11 @@ export class ClientImportUploadStepComponent {
    *  configurable por despliegue), así que no se muestra ningún máximo inventado: si se pasa,
    *  el 400 `Import.FileTooLarge` trae el valor exacto y se pinta como error. */
   fileSizeLabel(file: File): string {
-    const kb = file.size / 1024;
-    return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(2)} MB`;
+    return formatBytes(file.size);
   }
 
-  private acceptFile(file: File): void {
-    const name = file.name.toLowerCase();
-    if (!ACCEPTED_EXTENSIONS.some(ext => name.endsWith(ext))) {
-      this.file.set(null);
-      this.localError.set('Only .csv and .xlsx files are supported.');
+  acceptFile(file: File | undefined): void {
+    if (!file) {
       return;
     }
     if (file.size === 0) {

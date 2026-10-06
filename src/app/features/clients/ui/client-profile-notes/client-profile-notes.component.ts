@@ -1,8 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, HostListener, Input, OnChanges, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
-import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { formatBytes } from '@shared/utils/format.util';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { ClientNotesStore } from '../../data-access/client-notes.store';
 import {
   ClientNoteCard,
@@ -12,7 +18,6 @@ import {
   NoteAttachmentStatus,
   NoteColorKind,
   NoteVisibility,
-  initialsOf,
 } from '../../data-access/client-notes.model';
 
 /**
@@ -33,7 +38,16 @@ import {
  */
 @Component({
   selector: 'app-client-profile-notes',
-  imports: [CommonModule, FormsModule, ConfirmDialogComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ConfirmDialogComponent,
+    AvatarComponent,
+    StateBlockComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+    FileViewerComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-notes.component.html',
 })
@@ -58,9 +72,6 @@ export class ClientProfileNotesComponent implements OnChanges {
   readonly editError = signal<string | null>(null);
   readonly editSaving = signal(false);
 
-  /** Menú de color abierto (uno por tarjeta). */
-  readonly openColorMenuId = signal<string | null>(null);
-
   readonly pendingDelete = signal<ClientNoteCard | null>(null);
   /** Adjunto pendiente de quitar (nota + adjunto) para el diálogo de confirmación. */
   readonly pendingDetach = signal<{ note: ClientNoteCard; attachment: NoteAttachmentResponse } | null>(null);
@@ -69,18 +80,6 @@ export class ClientProfileNotesComponent implements OnChanges {
     if (this.clientId) {
       this.store.load(this.clientId);
     }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="note-color"]')) {
-      this.openColorMenuId.set(null);
-    }
-  }
-
-  initials(name: string): string {
-    return initialsOf(name);
   }
 
   retry(): void {
@@ -163,12 +162,7 @@ export class ClientProfileNotesComponent implements OnChanges {
     }
   }
 
-  toggleColorMenu(note: ClientNoteCard): void {
-    this.openColorMenuId.update(current => (current === note.id ? null : note.id));
-  }
-
   pickColor(note: ClientNoteCard, colorKind: NoteColorKind): void {
-    this.openColorMenuId.set(null);
     if (colorKind !== note.colorKind) {
       this.store.setColor(note.id, colorKind);
     }
@@ -188,13 +182,7 @@ export class ClientProfileNotesComponent implements OnChanges {
 
   /** Tamaño legible de un adjunto. */
   attachmentSize(sizeBytes: number): string {
-    if (sizeBytes < 1024) {
-      return `${sizeBytes} B`;
-    }
-    if (sizeBytes < 1024 * 1024) {
-      return `${Math.round(sizeBytes / 1024)} KB`;
-    }
-    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+    return formatBytes(sizeBytes);
   }
 
   // ---------- Adjuntos ----------
@@ -210,6 +198,22 @@ export class ClientProfileNotesComponent implements OnChanges {
       this.store.attachFile(note.id, input.files[0]);
       input.value = '';
     }
+  }
+
+  /** Visor global: adjuntos listos de la nota, navegables con ←/→. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  previewAttachment(note: ClientNoteCard, attachment: NoteAttachmentResponse): void {
+    const ready = this.visibleAttachments(note).filter(a => a.status === 'Available');
+    const start = ready.findIndex(a => a.id === attachment.id);
+    if (start < 0) {
+      return;
+    }
+    this.viewerFiles.set(ready.map(a => this.store.viewerItem(a)));
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
   }
 
   downloadAttachment(attachment: NoteAttachmentResponse): void {

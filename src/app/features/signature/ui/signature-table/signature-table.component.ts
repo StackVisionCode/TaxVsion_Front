@@ -1,7 +1,13 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, HostListener, Input, Output, signal, inject } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
+import { SIGNATURE_STATUS_PILL, signatureStatusLabel } from '../../utils/signature-status.util';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 export type SignerStatus = 'pending' | 'signed' | 'rejected' | 'expired';
 
@@ -17,6 +23,10 @@ export interface Signer {
   signedAt: string | null;
   /** Canal de verificación preferido (wizard); opcional en los seeds antiguos. */
   channel?: VerificationChannel;
+  // F7 — estado de la copia inmediata que recibe este firmante al firmar.
+  partialCopyRequestedAtUtc?: string | null;
+  partialCopySentAtUtc?: string | null;
+  partialCopyFailureReason?: string | null;
 }
 
 /**
@@ -27,6 +37,7 @@ export interface Signer {
 export type SignatureStatus =
   | 'draft'
   | 'ready'
+  | 'scheduled'
   | 'pending'
   | 'in-progress'
   | 'completed'
@@ -80,6 +91,10 @@ export interface SignatureRequest {
   practitionerPinSetAtUtc?: string | null;
   /** true si tiene ≥1 campo de firma/iniciales colocado — condición para poder enviarla. */
   hasSignatureField?: boolean;
+  /** F2.5: borrador del actor logueado → se pinta "In preparation" en vez de "Draft". */
+  isOwnedByActor?: boolean;
+  /** F3: hora UTC programada; sólo cuando status === 'scheduled'. */
+  scheduledSendAtUtc?: string | null;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */
@@ -114,7 +129,7 @@ export function isActionableStatus(status: SignatureStatus): boolean {
  */
 @Component({
   selector: 'app-signature-table',
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent, DropdownMenuComponent, MenuItemDirective, StatusPillComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-table.component.html',
 })
@@ -147,14 +162,6 @@ export class SignatureTableComponent {
 
   readonly openMenuId = signal<string | null>(null);
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-dropdown="signature-menu"]')) {
-      this.openMenuId.set(null);
-    }
-  }
-
   trackByRequestId(_index: number, request: SignatureRequest): string {
     return request.id;
   }
@@ -167,75 +174,23 @@ export class SignatureTableComponent {
     return Math.max(0, request.signers.length - 4);
   }
 
+  // Backend manda fechas UTC a veces sin 'Z': parseUtcDate es la única forma segura de leerlas.
   formatDate(iso: string | null): string {
     if (!iso) {
       return '—';
     }
-    return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const d = parseUtcDate(iso);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   }
 
-  statusLabel(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-        return 'Draft';
-      case 'ready':
-        return 'Ready';
-      case 'pending':
-        return 'Pending';
-      case 'in-progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'rejected':
-        return 'Rejected';
-      case 'canceled':
-        return 'Canceled';
-      case 'expired':
-        return 'Expired';
-    }
-  }
-
-  statusChip(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-        return 'border-gray-300 text-gray-500';
-      case 'ready':
-        return 'border-indigo-100 text-blue-600';
-      case 'completed':
-        return 'border-emerald-200 text-emerald-600';
-      case 'pending':
-        return 'border-orange-200 text-orange-500';
-      case 'in-progress':
-        return 'border-indigo-200 text-indigo-500';
-      case 'rejected':
-        return 'border-red-200 text-red-500';
-      case 'canceled':
-        return 'border-gray-300 text-gray-500';
-      case 'expired':
-        return 'border-amber-200 text-amber-600';
-    }
-  }
-
-  statusDot(status: SignatureStatus): string {
-    switch (status) {
-      case 'draft':
-        return 'bg-gray-400';
-      case 'ready':
-        return 'bg-blue-500';
-      case 'completed':
-        return 'bg-emerald-500';
-      case 'pending':
-        return 'bg-orange-500';
-      case 'in-progress':
-        return 'bg-indigo-500';
-      case 'rejected':
-        return 'bg-red-500';
-      case 'canceled':
-        return 'bg-gray-400';
-      case 'expired':
-        return 'bg-amber-500';
-    }
-  }
+  readonly statusLabel = signatureStatusLabel;
+  readonly statusPill = SIGNATURE_STATUS_PILL;
 
   /** Cancelar/extender solo aplican a solicitudes YA ENVIADAS; un borrador sin enviar se borra, no se cancela. */
   private isSent(request: SignatureRequest): boolean {
@@ -282,97 +237,35 @@ export class SignatureTableComponent {
     return request.status === 'completed' && !!request.certificateFileId;
   }
 
-  toggleMenu(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === request.id ? null : request.id);
+  /** Menú abierto: la tabla reserva hueco inferior para que el panel no quede recortado. */
+  onMenuOpenChange(request: SignatureRequest, open: boolean): void {
+    if (open) {
+      this.openMenuId.set(request.id);
+    } else if (this.openMenuId() === request.id) {
+      this.openMenuId.set(null);
+    }
   }
 
   onRowClick(request: SignatureRequest): void {
     this.previewRequested.emit(request);
   }
 
-  onViewClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.previewRequested.emit(request);
-  }
-
   /**
-   * Enviable solo si está Ready (archivo disponible) Y tiene al menos un campo de firma colocado.
-   * Un borrador incompleto (sin campos) no ofrece Enviar: hay que terminarlo con "Continue editing".
+   * Enviable desde el menu de la fila si es un borrador editable (Draft) o un historico Ready, Y
+   * tiene al menos un campo de firma colocado. Un borrador incompleto (sin campos) no ofrece
+   * Enviar: hay que terminarlo con "Continue editing". F2 colapso Ready en Draft como estado
+   * estable; se mantiene `ready` por compatibilidad con filas historicas pre-F2.
    */
   canSendRow(request: SignatureRequest): boolean {
-    return request.status === 'ready' && !!request.hasSignatureField && this.can.canCreate();
-  }
-
-  onSendClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.sendRequested.emit(request);
+    return (
+      (request.status === 'draft' || request.status === 'ready') &&
+      !!request.hasSignatureField &&
+      this.can.canCreate()
+    );
   }
 
   /** Editar/borrar solo aplica a un borrador sin enviar (Draft/Ready). */
   canEditDraft(request: SignatureRequest): boolean {
     return (request.status === 'draft' || request.status === 'ready') && this.can.canCreate();
-  }
-
-  onContinueClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.continueRequested.emit(request);
-  }
-
-  onEditClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.editRequested.emit(request);
-  }
-
-  onDeleteClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.deleteRequested.emit(request);
-  }
-
-  onResendClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.resendRequested.emit(request);
-  }
-
-  onCancelClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.cancelRequested.emit(request);
-  }
-
-  onExtendClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.extendRequested.emit(request);
-  }
-
-  onPinClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.pinRequested.emit(request);
-  }
-
-  onPreparerClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.preparerRequested.emit(request);
-  }
-
-  onDownloadSealedClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.downloadSealedRequested.emit(request);
-  }
-
-  onDownloadCertificateClick(request: SignatureRequest, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openMenuId.set(null);
-    this.downloadCertificateRequested.emit(request);
   }
 }

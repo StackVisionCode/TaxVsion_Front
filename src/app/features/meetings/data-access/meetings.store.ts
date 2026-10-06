@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { MeetingsService } from './meetings.service';
 import {
@@ -17,11 +18,8 @@ import {
   MeetingItem,
   MeetingListItemResponse,
   MeetingsScope,
-  MeetingStatsResponse,
   toMeetingItem,
 } from './meeting.model';
-
-const EMPTY_STATS: MeetingStatsResponse = { today: 0, thisWeek: 0, liveNow: 0, transcriptsAvailable: 0 };
 
 const PAGE_SIZE = 20;
 
@@ -68,9 +66,6 @@ export class MeetingsStore {
   // ---------- Estado ----------
   private readonly _upcoming = signal<ScopeState>(EMPTY_SCOPE);
   private readonly _past = signal<ScopeState>(EMPTY_SCOPE);
-  private readonly _stats = signal<MeetingStatsResponse>(EMPTY_STATS);
-  /** Contadores reales del backend para las tarjetas (no dependen de la paginación del cliente). */
-  readonly stats = this._stats.asReadonly();
   private readonly _loading = signal(false);
   private readonly _loadingMore = signal(false);
   private readonly _error = signal<string | null>(null);
@@ -128,30 +123,18 @@ export class MeetingsStore {
     // Invitado o meeting iniciado → aparece/cambia en "upcoming".
     this.realtime.on<{ meetingId: string }>('meeting.invited').subscribe(() => {
       this.refreshScopeSilently('upcoming');
-      this.loadStats();
     });
     this.realtime.on<{ meetingId: string }>('meeting.started').subscribe(() => {
       this.refreshScopeSilently('upcoming');
-      this.loadStats();
     });
-    // Meeting terminado → sale de "upcoming" y entra a "past": refrescar ambos + contadores.
+    // Meeting terminado → sale de "upcoming" y entra a "past": refrescar ambos.
     this.realtime.on<{ meetingId: string }>('meeting.ended').subscribe(() => {
       this.refreshScopeSilently('upcoming');
       this.refreshScopeSilently('past');
-      this.loadStats();
     });
     this.realtime.reconnected$.subscribe(() => {
       this.refreshScopeSilently('upcoming');
       this.refreshScopeSilently('past');
-      this.loadStats();
-    });
-  }
-
-  /** Carga los contadores reales del backend para las tarjetas (best-effort). */
-  loadStats(): void {
-    this.service.stats().subscribe({
-      next: stats => this._stats.set(stats),
-      error: () => undefined,
     });
   }
 
@@ -256,7 +239,6 @@ export class MeetingsStore {
         ),
         tap(() => {
           this.loadScope('upcoming', true);
-          this.loadStats();
         }),
       );
   }
@@ -268,7 +250,6 @@ export class MeetingsStore {
     return this.service.start(id).pipe(
       tap(result => {
         this.patchUpcoming(id, item => ({ ...item, status: 'Live', startedAtUtc: result.startedAtUtc }));
-        this.loadStats();
       }),
       map(() => undefined),
     );
@@ -279,7 +260,6 @@ export class MeetingsStore {
     return this.service.end(id).pipe(
       tap(() => {
         this.moveOutOfUpcoming(id);
-        this.loadStats();
       }),
       map(() => undefined),
     );
@@ -290,7 +270,6 @@ export class MeetingsStore {
     return this.service.cancel(id, reason).pipe(
       tap(() => {
         this.moveOutOfUpcoming(id);
-        this.loadStats();
       }),
     );
   }
@@ -351,9 +330,12 @@ export class MeetingsStore {
 
   // ---------- Transcript ----------
 
-  /** Link presignado de descarga del transcript (POST /storage/files/{id}/download-url). */
-  transcriptUrl(fileId: string): Observable<string> {
-    return this.storage.getDownloadUrl(fileId).pipe(map(result => result.downloadUrl));
+  /**
+   * Ítem del visor global para el transcript: se lee la metadata del archivo (nombre y tipo reales,
+   * para que el visor sepa si es texto) y la URL presignada se pide al mostrarlo.
+   */
+  transcriptViewerItem(fileId: string): Observable<FileViewerItem> {
+    return this.storage.getFile(fileId).pipe(map(file => this.storage.viewerItem(file)));
   }
 }
 
