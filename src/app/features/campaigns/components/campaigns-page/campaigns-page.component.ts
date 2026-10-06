@@ -21,9 +21,12 @@ import {
   runStatusClass,
   unitStateClass,
 } from '../../data-access/campaigns.model';
-import { FilterChipOption } from '@shared/ui/filter-chips/filter-chips.component';
-import { SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { SegmentedOption, SegmentedComponent } from '@shared/ui/segmented/segmented.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 
 type Tab = 'campaigns' | 'runs' | 'audience' | 'schedules' | 'templates';
 const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor real hoy
@@ -52,7 +55,18 @@ const CHANNEL_META: ChannelMeta[] = [
  */
 @Component({
   selector: 'app-campaigns-page',
-  imports: [CommonModule, FormsModule, ModalComponent, RichEditorComponent, ChannelPreviewComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    RichEditorComponent,
+    ChannelPreviewComponent,
+    StatusPillComponent,
+    StateBlockComponent,
+    FilterChipsComponent,
+    SegmentedComponent,
+    SearchInputComponent,
+  ],
   templateUrl: './campaigns-page.component.html',
 })
 export class CampaignsPageComponent implements OnInit, OnDestroy {
