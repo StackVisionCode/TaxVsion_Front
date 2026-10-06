@@ -106,17 +106,29 @@
           <span class="min-w-0">
             <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Defaults</span>
             <span *ngIf="openSection() !== 'defaults'" class="block truncate text-[11px] text-gray-400">
-              Link {{ expirationHours() }}h{{ sequential() ? ' · in order' : '' }}{{ requiresPractitionerPin() ? ' · PIN' : '' }}
+              {{ expirationEnabled() ? 'Link ' + expirationHours() + 'h' : 'Link never expires' }}{{ sequential() ? ' · in order' : '' }}{{ requiresPractitionerPin() ? ' · PIN' : '' }}
             </span>
           </span>
           <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
             [class.rotate-180]="openSection() === 'defaults'"></ion-icon>
         </button>
         <div *ngIf="openSection() === 'defaults'" class="border-t border-gray-100 p-3">
-          <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-exp">Link valid for (hours)</label>
-          <input id="tpl-exp" type="number" min="1" max="720" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
-            [disabled]="!isDraft()"
-            class="tap mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          <!-- F7 — expiración opcional. Si está apagada, el link no caduca y los recordatorios por
+               vencimiento no aplican, así que ocultamos horas y auto-reminders. -->
+          <label class="tap mb-2 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Signing link expires
+            <input type="checkbox" [ngModel]="expirationEnabled()" (ngModelChange)="expirationEnabled.set($event)"
+              [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <ng-container *ngIf="expirationEnabled(); else noExpirationHint">
+            <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-exp">Link valid for (hours)</label>
+            <input id="tpl-exp" type="number" min="1" max="720" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
+              [disabled]="!isDraft()"
+              class="tap mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          </ng-container>
+          <ng-template #noExpirationHint>
+            <p class="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] text-gray-500">The link never expires and no reminders are sent.</p>
+          </ng-template>
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Sign in order
             <input type="checkbox" [ngModel]="sequential()" (ngModelChange)="sequential.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
@@ -135,16 +147,50 @@
             <input type="checkbox" [ngModel]="sendCertificate()" (ngModelChange)="sendCertificate.set($event)"
               [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
-          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          <!-- Auto-reminders solo tiene sentido si hay fecha de vencimiento (recordar antes de que caduque). -->
+          <label *ngIf="expirationEnabled()" class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Auto-reminders
             <input type="checkbox" [ngModel]="autoReminders()" (ngModelChange)="autoReminders.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
-          <label *ngIf="autoReminders()" class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+          <label *ngIf="expirationEnabled() && autoReminders()" class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Remind every (days)
             <input type="number" min="1" max="30" [ngModel]="reminderIntervalDays()" (ngModelChange)="setReminderIntervalDays(+$event)"
               [disabled]="!isDraft()"
               class="w-16 rounded-full border border-gray-200 px-2 py-1 text-center text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
           </label>
+
+          <!-- F7 — copia inmediata por firma + audiencia (por SLOT, no por signer: la plantilla no conoce signers). -->
+          <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
+            Email each signer a copy of what they signed
+            <input type="checkbox" [ngModel]="sendPartialCopy()" (ngModelChange)="sendPartialCopy.set($event)"
+              [disabled]="!isDraft()" class="accent-brand-bold" />
+          </label>
+          <div *ngIf="sendPartialCopy()" class="mb-2 space-y-2 pl-2">
+            <div class="flex items-center gap-3 text-[11px] text-gray-500">
+              <label class="flex items-center gap-1.5">
+                <input type="radio" name="tplAudienceKind" [checked]="partialCopyAudienceKind() === 'All'"
+                  (change)="setAudienceKind('All')" [disabled]="!isDraft()" />
+                <span>All roles</span>
+              </label>
+              <label class="flex items-center gap-1.5">
+                <input type="radio" name="tplAudienceKind" [checked]="partialCopyAudienceKind() === 'Specific'"
+                  (change)="setAudienceKind('Specific')" [disabled]="!isDraft()" />
+                <span>Specific roles</span>
+              </label>
+            </div>
+            <div *ngIf="partialCopyAudienceKind() === 'Specific'" class="flex flex-wrap gap-1.5">
+              <button *ngFor="let slot of slots()" type="button"
+                (click)="toggleAudienceSlot(slot.order)" [disabled]="!isDraft()"
+                [attr.aria-pressed]="isAudienceSlot(slot.order)"
+                [class]="isAudienceSlot(slot.order)
+                  ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm'
+                  : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-700 hover:bg-gray-50'">
+                <ion-icon *ngIf="isAudienceSlot(slot.order)" name="checkmark-outline" class="text-[13px]"></ion-icon>
+                {{ slot.order }} · {{ slot.role }}
+              </button>
+              <span *ngIf="audienceInvalid()" class="w-full text-[11px] text-red-500">Pick at least one role.</span>
+            </div>
+          </div>
 
           <!-- Practitioner PIN por defecto (Form 8879): las solicitudes desde esta plantilla lo heredan. -->
           <div class="mt-2 border-t border-gray-100 pt-2">

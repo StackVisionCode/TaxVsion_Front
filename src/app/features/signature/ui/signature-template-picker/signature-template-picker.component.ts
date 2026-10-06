@@ -25,6 +25,8 @@ interface SlotDraft {
   phone: string;
   /** Método OTP que exige el rol (del molde); decide si el teléfono es obligatorio. */
   verificationMethod?: SignerVerificationMethod | null;
+  /** 'client' = elegir del directorio; 'manual' = tipear datos externos. Elección independiente por slot. */
+  source: 'client' | 'manual';
 }
 
 /** Origen del documento: el documento base de la plantilla (P7), subir uno nuevo, o reusar un PDF de la oficina. */
@@ -102,8 +104,6 @@ export class SignatureTemplatePickerComponent {
   readonly docSource = signal<DocSource>('upload');
   readonly libraryFile = signal<FileResponse | null>(null);
 
-  /** Slot cuyo buscador de clientes está abierto (solo uno a la vez). */
-  readonly clientPickerSlot = signal<number | null>(null);
 
   /** true si la plantilla elegida trae un documento base (P7). */
   readonly hasTemplateDocument = computed(() => !!this.selected()?.baseDocumentFileId);
@@ -159,7 +159,6 @@ export class SignatureTemplatePickerComponent {
     this.error.set('');
     this.docSource.set('upload');
     this.libraryFile.set(null);
-    this.clientPickerSlot.set(null);
   }
 
   // ---------- Documento: subir vs librería ----------
@@ -181,8 +180,9 @@ export class SignatureTemplatePickerComponent {
 
   // ---------- Buscador de cliente por slot ----------
 
-  toggleClientPicker(slotOrder: number): void {
-    this.clientPickerSlot.update(current => (current === slotOrder ? null : slotOrder));
+  /** Cambia el modo del slot (sin tocar datos ya tipeados). Cliente ⇄ Manual. */
+  setSlotSource(slotOrder: number, source: 'client' | 'manual'): void {
+    this.updateSlot(slotOrder, { source });
   }
 
   pickClient(slotOrder: number, client: CustomerSummary | null): void {
@@ -190,8 +190,25 @@ export class SignatureTemplatePickerComponent {
       return;
     }
     // Autollena nombre/email y — clave para SMS/WhatsApp — el teléfono del cliente registrado.
-    this.updateSlot(slotOrder, { fullName: client.displayName, email: client.primaryEmail, phone: client.primaryPhone ?? '' });
-    this.clientPickerSlot.set(null);
+    this.updateSlot(slotOrder, {
+      fullName: client.displayName,
+      email: client.primaryEmail,
+      phone: client.primaryPhone ?? '',
+    });
+  }
+
+  /** true si el slot está completo (nombre + email + teléfono si aplica). */
+  slotReady(slot: SlotDraft): boolean {
+    return (
+      slot.email.trim().length > 0 &&
+      slot.fullName.trim().length > 0 &&
+      (!this.slotNeedsPhone(slot) || slot.phone.trim().length >= 7)
+    );
+  }
+
+  // F7 — resumen de un slot como etiqueta cuando ya está asignado.
+  slotSummaryName(slot: SlotDraft): string {
+    return slot.fullName.trim() || slot.email.trim();
   }
 
   /** Al elegir un molde hay que traer su detalle: la lista no incluye los slots. */
@@ -213,6 +230,8 @@ export class SignatureTemplatePickerComponent {
               fullName: '',
               phone: '',
               verificationMethod: slot.requiredVerificationMethod ?? null,
+              // Default: elegir del directorio (lo más común en la oficina).
+              source: 'client' as const,
             })),
         );
         this.loadingDetail.set(false);
