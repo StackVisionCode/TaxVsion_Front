@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, OnInit, computed, inject, signal } from '@angular/core';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
@@ -37,6 +37,12 @@ import { NamePromptDialogComponent } from '../../ui/name-prompt-dialog/name-prom
 import { BulkActionBarComponent } from '../../ui/bulk-action-bar/bulk-action-bar.component';
 import { ShareDialogComponent } from '../../ui/share-dialog/share-dialog.component';
 
+/** Cliente al que se fija la página en modo embebido (pestaña Documents del perfil). */
+export interface EmbeddedDocumentsClient {
+  id: string;
+  name: string;
+}
+
 /** Elemento que se está moviendo (archivo o carpeta) — el diálogo de destino es el mismo. */
 type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderResponse; file?: undefined };
 
@@ -45,6 +51,10 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
  * DocumentsStore y lo cablea al navegador y a las presentacionales por
  * input()/output(). El cliente es un contexto dentro del workspace, no una
  * pantalla previa: entrar a Documents abre directo el gestor.
+ *
+ * Modo embebido (`[embeddedClient]`): lo monta `ClientDocumentsWorkspaceComponent` dentro del
+ * perfil del cliente. Sin navegador lateral ni salto a Office/Clients: el gestor queda fijo al
+ * workspace de ESE cliente (carpetas, filtros, orden, subir, mover, compartir…).
  */
 @Component({
   selector: 'app-documents-page',
@@ -74,7 +84,9 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
   styleUrl: './documents-page.component.css',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
-export class DocumentsPageComponent {
+export class DocumentsPageComponent implements OnInit, OnChanges {
+  @Input() embeddedClient: EmbeddedDocumentsClient | null = null;
+
   /** B6 — qué acciones puede ofrecer esta pantalla. Antes no se gateaba ninguna. */
   protected readonly can = inject(DocumentsPermissions);
 
@@ -172,10 +184,16 @@ export class DocumentsPageComponent {
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
   readonly filterStatuses = ['ready', 'processing', 'blocked'] as const;
 
+  /** Signal del modo embebido para los computed (el @Input clásico no es reactivo). */
+  readonly embedded = signal(false);
+
   readonly title = computed(() => {
     const crumbs = this.breadcrumbs();
     if (this.isBrowsing() && crumbs.length > 0) {
       return crumbs[crumbs.length - 1].name;
+    }
+    if (this.embedded()) {
+      return 'Documents';
     }
     switch (this.section()) {
       case 'office':
@@ -194,6 +212,9 @@ export class DocumentsPageComponent {
   });
 
   readonly subtitle = computed(() => {
+    if (this.embedded()) {
+      return `Files stored for ${this.context().clientName ?? 'this client'}`;
+    }
     switch (this.section()) {
       case 'office':
         return 'Documents that belong to the office, not to a single client.';
@@ -220,10 +241,21 @@ export class DocumentsPageComponent {
     return crumbs.length > 0 ? crumbs[crumbs.length - 1].name : this.ownerLabel();
   });
 
-  constructor() {
+  ngOnInit(): void {
+    if (this.embeddedClient) {
+      return; // ngOnChanges ya abrió el workspace del cliente.
+    }
     this.store.refreshClients();
     this.store.loadUsage();
     this.store.openOffice();
+  }
+
+  ngOnChanges(): void {
+    const client = this.embeddedClient;
+    this.embedded.set(!!client);
+    if (client && client.id !== this.context().clientId) {
+      this.store.openClientById(client.id, client.name);
+    }
   }
 
   // ---------- Navegador ----------

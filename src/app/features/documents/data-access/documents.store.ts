@@ -286,7 +286,12 @@ export class DocumentsStore {
   }
 
   openClient(client: CustomerSummary): void {
-    this.setContext({ section: 'client', clientId: client.id, clientName: client.displayName });
+    this.openClientById(client.id, client.displayName);
+  }
+
+  /** Modo embebido (perfil del cliente): abre el workspace de ese cliente sin pasar por el selector. */
+  openClientById(clientId: string, clientName: string): void {
+    this.setContext({ section: 'client', clientId, clientName });
   }
 
   openRecycleBin(): void {

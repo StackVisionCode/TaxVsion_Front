@@ -9,7 +9,9 @@ import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.componen
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
-import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
+// Excepción a "una feature no importa de otra": el gestor documental completo, fijo a este cliente
+// (mismo diseño que /documents). Se monta con @defer, así que viaja en su propio chunk.
+import { ClientDocumentsWorkspaceComponent } from '../../../documents/components/client-documents-workspace/client-documents-workspace.component';
 import { ClientProfileSignaturesComponent } from '../../ui/client-profile-signatures/client-profile-signatures.component';
 import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
@@ -178,8 +180,8 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
  *  - REALES y filtradas por este cliente: Info, Family (del propio Customer),
  *    Notes (`/notes?targetType=Customer&targetId=`), Communication
  *    (`/correspondence/customers/{id}/threads`), Work
- *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents
- *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff), Signatures
+ *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents (gestor de
+ *    `features/documents` embebido: `/storage/folders?ownerType=Customer&ownerId=`), Signatures
  *    (`/signature/requests?customerId=` — firmante mapeado al cliente) y
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
@@ -200,7 +202,7 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
     RouterModule,
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
-    ClientProfileDocumentsComponent,
+    ClientDocumentsWorkspaceComponent,
     ClientProfileSignaturesComponent,
     ClientProfileWorkComponent,
     ClientProfileRequestsComponent,
