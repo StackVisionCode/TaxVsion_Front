@@ -10,7 +10,7 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
     requiresSequentialSigning: true,
     requiresConsent: true,
     generateCertificate: false,
-    sendSignedDocumentToSigners: true,
+    sendSealedDocumentToSigners: true,
     sendCertificateToSigners: false,
     autoRemindersEnabled: true,
     reminderIntervalHours: 48,

@@ -464,9 +464,10 @@ export class SignPageComponent implements OnInit, OnDestroy {
     return ctx ? SIGNATURE_CATEGORY_LABEL[ctx.category] : '';
   });
 
+  // F7 — expiresAtUtc es nullable: cuando null, el header no pinta "Due …".
   readonly expiresLabel = computed(() => {
-    const ctx = this.context();
-    return ctx ? formatDate(ctx.expiresAtUtc) : '';
+    const iso = this.context()?.expiresAtUtc;
+    return iso ? formatDate(iso) : '';
   });
 
   /** Campos ordenados por página: es todo lo que el firmante puede saber del documento. */

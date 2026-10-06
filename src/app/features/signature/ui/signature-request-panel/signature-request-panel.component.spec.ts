@@ -117,7 +117,7 @@ describe('SignatureRequestPanelComponent', () => {
       requiresSequentialSigning: true,
       requiresConsent: true,
       generateCertificate: true,
-      sendSignedDocumentToSigners: true,
+      sendSealedDocumentToSigners: true,
       sendCertificateToSigners: true,
       autoRemindersEnabled: true,
       reminderIntervalHours: 48,

@@ -128,7 +128,7 @@
           <!-- El certificado se genera siempre (generateCertificate = true); ya no hay switch para apagarlo. -->
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Email signed document to signers
-            <input type="checkbox" [ngModel]="sendSignedDocument()" (ngModelChange)="sendSignedDocument.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
+            <input type="checkbox" [ngModel]="sendSealedDocument()" (ngModelChange)="sendSealedDocument.set($event)" [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Email certificate to signers

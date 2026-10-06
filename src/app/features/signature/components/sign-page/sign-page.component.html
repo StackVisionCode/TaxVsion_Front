@@ -484,6 +484,13 @@
                   </span>
                 </div>
 
+                <!-- F7 — avisamos al firmante que recibirá su copia inmediata del documento parcial. -->
+                <div *ngIf="ctx.partialCopyWillBeSent && ctx.requestStatus !== 'Completed'"
+                     class="mt-3 flex items-start gap-2 rounded-xl bg-sky-50 px-3 py-2 text-left text-xs leading-snug text-sky-700">
+                  <ion-icon name="mail-outline" class="mt-0.5 shrink-0 text-sm"></ion-icon>
+                  <span>A copy of what you signed is on the way to <strong>{{ ctx.signerEmail }}</strong>.</span>
+                </div>
+
                 <!-- Return a la oficina: botón y cuenta atrás. Si no hay subdominio proyectado,
                      mantenemos el mensaje original sin forzar una redirección a ciegas. -->
                 <ng-container *ngIf="tenantReturnUrl() as returnUrl; else closeHint">

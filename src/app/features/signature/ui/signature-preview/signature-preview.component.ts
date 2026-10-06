@@ -186,6 +186,26 @@ export class SignaturePreviewComponent {
     this.resendSigner.emit({ request, signer });
   }
 
+  // F7 — línea de estado de la copia inmediata. Null si el signer no está en la audiencia.
+  partialCopyLabel(signer: Signer): { label: string; icon: string; tone: 'ok' | 'pending' | 'fail' } | null {
+    if (!signer.partialCopyRequestedAtUtc) return null;
+    if (signer.partialCopySentAtUtc) {
+      return {
+        label: `Copy sent to ${signer.email} · ${this.formatScheduledDateTime(signer.partialCopySentAtUtc)}`,
+        icon: 'checkmark-circle-outline',
+        tone: 'ok',
+      };
+    }
+    if (signer.partialCopyFailureReason) {
+      return {
+        label: `Copy failed to send · ${signer.partialCopyFailureReason}`,
+        icon: 'alert-circle-outline',
+        tone: 'fail',
+      };
+    }
+    return { label: 'Copy pending delivery…', icon: 'time-outline', tone: 'pending' };
+  }
+
   goBack(): void {
     this.back.emit();
   }

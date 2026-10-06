@@ -13,6 +13,7 @@ import {
   SignatureAnalyticsSummary,
   SignatureFieldKind,
   SignatureFieldResponse,
+  AuditTrailResponse,
   SignatureRequestDetail,
   SignatureRequestListResult,
   SignatureTemplateDetail,
@@ -124,6 +125,11 @@ export class SignatureService {
 
   getById(id: string): Observable<SignatureRequestDetail> {
     return this.http.get<SignatureRequestDetail>(`${this.base}/requests/${id}`);
+  }
+
+  /** F7 — timeline del audit chain para el preparador (signature.document.audit.read). */
+  getAuditTrail(id: string): Observable<AuditTrailResponse> {
+    return this.http.get<AuditTrailResponse>(`${this.base}/requests/${id}/audit`);
   }
 
   /** PUT /signature/requests/{id} — edita la metadata de un borrador (Draft/Ready). */
@@ -241,6 +247,11 @@ export class SignatureService {
     retentionPolicy: { retentionYears: number; allowPurge: boolean };
     defaultReminderIntervalHours: number;
     allowEmployeeOwnSignature: boolean;
+    // F7 — null = no tocar.
+    sendPartialCopyDefault?: boolean | null;
+    partialCopyDefaultAudienceKind?: string | null;
+    sendSealedDocumentDefault?: boolean | null;
+    expirationEnabledByDefault?: boolean | null;
   }): Observable<void> {
     return this.http.put<void>(`${this.base}/settings`, body);
   }

@@ -75,7 +75,7 @@
       <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Sent date</p>
       <p class="mt-1 flex items-center gap-2 text-base font-semibold text-gray-900">
         <ion-icon name="calendar-outline" class="text-base text-gray-400"></ion-icon>
-        {{ formatDate(req.sentDate) }}
+        {{ formatScheduledDateTime(req.sentDate) }}
       </p>
     </div>
     <div class="rounded-2xl border border-gray-100 p-4">
@@ -89,7 +89,7 @@
       <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Completed date</p>
       <p class="mt-1 flex items-center gap-2 text-base font-semibold text-gray-900">
         <ion-icon name="checkmark-done-outline" class="text-base text-gray-400"></ion-icon>
-        {{ formatDate(req.completedDate) }}
+        {{ formatScheduledDateTime(req.completedDate) }}
       </p>
     </div>
   </div>
@@ -132,7 +132,7 @@
         </div>
         <div class="flex items-center gap-2">
           <span *ngIf="signer.status === 'signed'" class="text-xs text-gray-400">
-            Signed {{ formatDate(signer.signedAt) }}
+            Signed {{ formatScheduledDateTime(signer.signedAt) }}
           </span>
           <button *ngIf="canResendSigner(req, signer)" type="button" (click)="onResendSigner(req, signer)"
             class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors">
@@ -145,6 +145,12 @@
               [ngClass]="signerStatusColor(displaySignerStatus(req, signer))"></ion-icon>
             {{ signerStatusLabel(displaySignerStatus(req, signer)) }}
           </app-status-pill>
+        </div>
+        <!-- F7 — estado de la copia inmediata (ancho completo bajo la fila del signer). -->
+        <div *ngIf="partialCopyLabel(signer) as pc" class="basis-full text-[11px]"
+          [ngClass]="pc.tone === 'ok' ? 'text-emerald-600' : pc.tone === 'pending' ? 'text-amber-600' : 'text-red-500'">
+          <ion-icon [name]="pc.icon" class="mr-1 align-middle text-sm"></ion-icon>
+          <span>{{ pc.label }}</span>
         </div>
       </div>
     </div>

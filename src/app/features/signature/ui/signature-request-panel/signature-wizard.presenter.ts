@@ -88,9 +88,14 @@ export function defaultRules(): RequestRules {
     autoReminder: true,
     reminderIntervalHours: 48, // cada 2 días
     certificate: true,
-    sendSignedDocument: true,
+    // F7 — alineado con los defaults del tenant (sealed=false, partialCopy=false, expiration=true).
+    sendSealedDocument: false,
     sendCertificate: false,
     signingPin: null,
+    sendPartialCopy: false,
+    partialCopyAudienceKind: 'All',
+    partialCopyAudienceSignerIds: [],
+    expirationEnabled: true,
   };
 }
 

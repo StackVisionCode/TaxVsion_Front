@@ -229,7 +229,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ya no hay switch. UpdateDefaults sí acepta cambiarlo, así que una plantilla vieja con false
   // queda en true al guardar.
   // Defaults de entrega/recordatorio que "from template" copia a la solicitud (mismos que la solicitud).
-  readonly sendSignedDocument = signal(true);
+  readonly sendSealedDocument = signal(true);
   readonly sendCertificate = signal(false);
   readonly autoReminders = signal(true);
   readonly reminderIntervalHours = signal(48);
@@ -430,7 +430,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     this.expirationHours.set(detail.defaultTokenExpirationHours);
     this.sequential.set(detail.requiresSequentialSigning);
     this.consent.set(detail.requiresConsent);
-    this.sendSignedDocument.set(detail.sendSignedDocumentToSigners);
+    this.sendSealedDocument.set(detail.sendSealedDocumentToSigners);
     this.sendCertificate.set(detail.sendCertificateToSigners);
     this.autoReminders.set(detail.autoRemindersEnabled);
     this.reminderIntervalHours.set(detail.reminderIntervalHours);
@@ -582,7 +582,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           requiresSequentialSigning: this.sequential(),
           requiresConsent: this.consent(),
           generateCertificate: true,
-          sendSignedDocumentToSigners: this.sendSignedDocument(),
+          sendSealedDocumentToSigners: this.sendSealedDocument(),
           // Independiente de la generación: el certificado siempre se genera.
           sendCertificateToSigners: this.sendCertificate(),
           autoRemindersEnabled: this.autoReminders(),

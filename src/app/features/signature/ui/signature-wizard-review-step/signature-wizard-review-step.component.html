@@ -104,12 +104,22 @@
           [allowCreate]="true"></app-signature-category-picker>
       </div>
 
-      <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
-        <span class="shrink-0 text-sm text-gray-400">Due date</span>
-        <input type="date" name="reviewDueDate" [ngModel]="dueDate" (ngModelChange)="dueDateChange.emit($event)"
-          class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
-      </label>
-      <p class="px-1 text-xs text-gray-400">Signing links expire {{ dueDateLabel() }} (30 days max).</p>
+      <!-- F7 — Due date vive aquí solo si el toggle "Set an expiration date" (sección Delivery) está ON.
+           Sin expiración, nada que elegir: se muestra una línea informativa. -->
+      <ng-container *ngIf="rules?.expirationEnabled !== false; else noExpirationHint">
+        <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+          <span class="shrink-0 text-sm text-gray-400">Due date</span>
+          <input type="date" name="reviewDueDate" [ngModel]="dueDate" (ngModelChange)="dueDateChange.emit($event)"
+            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+        </label>
+        <p class="px-1 text-xs text-gray-400">Signing links expire {{ dueDateLabel() }} (30 days max).</p>
+      </ng-container>
+      <ng-template #noExpirationHint>
+        <p class="px-1 text-xs text-gray-400">
+          <ion-icon name="infinite-outline" class="mr-1 align-middle text-sm"></ion-icon>
+          This signing link never expires. Toggle "Set an expiration date" below to pick one.
+        </p>
+      </ng-template>
 
       <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors">
         <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Description</span>
@@ -157,30 +167,70 @@
       </div>
 
       <div class="space-y-3">
-        <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-          <app-switch size="sm" [checked]="r.autoReminder" (checkedChange)="toggle('autoReminder')" ariaLabel="Auto reminder"></app-switch>
-          <span class="min-w-0">
-            <span class="block text-xs font-medium text-gray-700">Auto reminder</span>
-            <span class="block text-[11px] text-gray-400">Email/SMS pending signers until they sign</span>
-          </span>
-        </label>
-        <div *ngIf="r.autoReminder" class="flex items-center gap-2 pl-12">
-          <span class="text-[11px] text-gray-400">Remind every</span>
-          <input type="number" min="1" max="30" [ngModel]="reminderDays()" name="reminderIntervalDays"
-            (ngModelChange)="setReminderIntervalDays($event)" aria-label="Reminder interval in days"
-            class="h-9 w-16 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
-          <span class="text-[11px] text-gray-400">day(s)</span>
-        </div>
+        <!-- F7 — sin expiración no hay reloj: los recordatorios no corren, así que escondemos el toggle. -->
+        <ng-container *ngIf="r.expirationEnabled">
+          <label class="flex w-full cursor-pointer items-center gap-3 text-left">
+            <app-switch size="sm" [checked]="r.autoReminder" (checkedChange)="toggle('autoReminder')" ariaLabel="Auto reminder"></app-switch>
+            <span class="min-w-0">
+              <span class="block text-xs font-medium text-gray-700">Auto reminder</span>
+              <span class="block text-[11px] text-gray-400">Email/SMS pending signers until they sign</span>
+            </span>
+          </label>
+          <div *ngIf="r.autoReminder" class="flex items-center gap-2 pl-12">
+            <span class="text-[11px] text-gray-400">Remind every</span>
+            <input type="number" min="1" max="30" [ngModel]="reminderDays()" name="reminderIntervalDays"
+              (ngModelChange)="setReminderIntervalDays($event)" aria-label="Reminder interval in days"
+              class="h-9 w-16 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+            <span class="text-[11px] text-gray-400">day(s)</span>
+          </div>
+        </ng-container>
 
         <!-- El certificado de firma se genera siempre (generateCertificate = true): sin switch. -->
 
         <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
         <ng-container *ngIf="canDeliverDocs">
+          <!-- F7 — copia inmediata al firmante al terminar. Senior: aplica incluso con un solo firmante. -->
           <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-            <app-switch size="sm" [checked]="r.sendSignedDocument" (checkedChange)="toggle('sendSignedDocument')" ariaLabel="Send signed document"></app-switch>
+            <app-switch size="sm" [checked]="r.sendPartialCopy"
+              (checkedChange)="toggle('sendPartialCopy')" ariaLabel="Email each signer their copy as they sign"></app-switch>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-700">Send signed document</span>
-              <span class="block text-[11px] text-gray-400">Email/SMS to signers when complete</span>
+              <span class="block text-xs font-medium text-gray-700">Email each signer a copy of what they signed</span>
+              <span class="block text-[11px] text-gray-400">Sent to the signer the moment they finish</span>
+            </span>
+          </label>
+          <div *ngIf="r.sendPartialCopy && signers.length > 1" class="space-y-2 pl-12">
+            <div class="flex items-center gap-2 text-[11px] text-gray-500">
+              <label class="flex items-center gap-1.5">
+                <input type="radio" name="partialCopyAudienceKind" [checked]="r.partialCopyAudienceKind === 'All'"
+                  (change)="setAudienceKind('All')" />
+                <span>All signers</span>
+              </label>
+              <label class="flex items-center gap-1.5">
+                <input type="radio" name="partialCopyAudienceKind" [checked]="r.partialCopyAudienceKind === 'Specific'"
+                  (change)="setAudienceKind('Specific')" />
+                <span>Specific signers</span>
+              </label>
+            </div>
+            <div *ngIf="r.partialCopyAudienceKind === 'Specific'" class="flex flex-wrap gap-1.5">
+              <button *ngFor="let s of signers; trackBy: trackSigner" type="button"
+                (click)="toggleRecipient(s.id)"
+                [attr.aria-pressed]="isRecipient(s.id)"
+                [class]="isRecipient(s.id)
+                  ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-blue-700'
+                  : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50'">
+                <ion-icon *ngIf="isRecipient(s.id)" name="checkmark-outline" class="text-[13px]"></ion-icon>
+                {{ s.name }}
+              </button>
+              <span *ngIf="audienceInvalid()" class="w-full text-[11px] text-red-500">Pick at least one signer.</span>
+            </div>
+          </div>
+
+          <!-- F7 — PDF sellado final al completar. -->
+          <label class="flex w-full cursor-pointer items-center gap-3 text-left">
+            <app-switch size="sm" [checked]="r.sendSealedDocument" (checkedChange)="toggle('sendSealedDocument')" ariaLabel="Email the final sealed document"></app-switch>
+            <span class="min-w-0">
+              <span class="block text-xs font-medium text-gray-700">Email the final sealed document when everyone signs</span>
+              <span class="block text-[11px] text-gray-400">The signed PDF with every signature + PAdES seal</span>
             </span>
           </label>
 
@@ -188,14 +238,25 @@
                generateCertificate=false (inmutable en el backend; SetCertificateDelivery(true) fallaría). -->
           <label class="flex w-full cursor-pointer items-center gap-3 text-left" [class.opacity-50]="certificateLocked()">
             <app-switch size="sm" [checked]="r.sendCertificate && !certificateLocked()" (checkedChange)="toggle('sendCertificate')"
-              [disabled]="certificateLocked()" ariaLabel="Send certificate"></app-switch>
+              [disabled]="certificateLocked()" ariaLabel="Email the signing certificate"></app-switch>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-700">Send certificate</span>
-              <span *ngIf="!certificateLocked()" class="block text-[11px] text-gray-400">Email the signature certificate to signers when complete</span>
+              <span class="block text-xs font-medium text-gray-700">Email the signing certificate when complete</span>
+              <span *ngIf="!certificateLocked()" class="block text-[11px] text-gray-400">Audit trail PDF with legal evidence</span>
               <span *ngIf="certificateLocked()" data-testid="certificate-locked-note" class="block text-[11px] text-gray-400">Certificates weren't enabled when this draft was created.</span>
             </span>
           </label>
         </ng-container>
+
+        <!-- F7 — expiración opcional del enlace público. OFF = nunca vence, sin recordatorios. -->
+        <label class="flex w-full cursor-pointer items-center gap-3 text-left">
+          <app-switch size="sm" [checked]="r.expirationEnabled" (checkedChange)="toggle('expirationEnabled')" ariaLabel="Set an expiration date for this signing link"></app-switch>
+          <span class="min-w-0">
+            <span class="block text-xs font-medium text-gray-700">Set an expiration date for this signing link</span>
+            <span class="block text-[11px] text-gray-400">
+              {{ r.expirationEnabled ? 'The link stops working at the picked time.' : 'The link never expires and no reminders are sent.' }}
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   </div>

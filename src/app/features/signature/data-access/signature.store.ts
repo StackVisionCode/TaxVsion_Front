@@ -83,8 +83,14 @@ export interface WizardRequestDraft {
   requiresConsent: boolean;
   generateCertificate: boolean;
   /** P2: entregar el documento firmado / el certificado a los firmantes (gateado por permiso en backend). */
-  sendSignedDocumentToSigners: boolean;
+  sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
+  // F7 — copia inmediata al firmar + audiencia.
+  sendPartialCopyOnEachSignature: boolean;
+  partialCopyAudienceKind: 'All' | 'Specific';
+  partialCopyAudienceSignerIds: string[];
+  // F7 — expiración opcional del enlace.
+  expirationEnabled: boolean;
   /** Recordatorios automáticos a firmantes: on/off + intervalo (horas). */
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
@@ -121,6 +127,8 @@ export interface WizardSendState {
   preparerSignatureSet: boolean;
   /** Ya se fijó la identidad 8879 del preparador — idempotencia entre reintentos. */
   preparerInfoSet: boolean;
+  /** F7 — ya se fijó la audiencia Specific con signerIds reales — idempotencia entre reintentos. */
+  audienceApplied: boolean;
   sent: boolean;
 }
 
@@ -133,6 +141,7 @@ export function emptySendState(): WizardSendState {
     postedPreparerFieldLocalIds: [],
     preparerSignatureSet: false,
     preparerInfoSet: false,
+    audienceApplied: false,
     sent: false,
   };
 }
@@ -895,7 +904,7 @@ export class SignatureStore {
           description: draft.description,
           category: draft.category,
           tokenExpirationHours: draft.tokenExpirationHours,
-          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
           reminderIntervalHours: draft.reminderIntervalHours,
@@ -965,10 +974,19 @@ export class SignatureStore {
           requiresSequentialSigning: draft.requiresSequentialSigning,
           requiresConsent: draft.requiresConsent,
           generateCertificate: draft.generateCertificate,
-          sendSignedDocumentToSigners: draft.sendSignedDocumentToSigners,
+          sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
           reminderIntervalHours: draft.reminderIntervalHours,
+          // F7 — propagamos los flags elegidos en Review al backend.
+          sendPartialCopyOnEachSignature: draft.sendPartialCopyOnEachSignature,
+          // La audiencia Specific se fija DESPUÉS, con los signerIds reales del backend (acá los
+          // locales son `client:xxx`). Create exige audience si sendPartialCopy=true, así que
+          // mandamos All como placeholder seguro — el PUT update siguiente la convierte a Specific
+          // si corresponde. Si el user solo Save-as-draft y nunca hace el PUT, All es el default
+          // razonable.
+          partialCopyAudience: draft.sendPartialCopyOnEachSignature ? { kind: 'All', signerIds: [] } : null,
+          expirationEnabled: draft.expirationEnabled,
         }),
       );
       state.requestId = created.id;
@@ -1015,6 +1033,31 @@ export class SignatureStore {
         }),
       );
       state.postedFieldLocalIds.push(field.localId);
+    }
+
+    // F7 — audiencia Specific se fija ACÁ, cuando ya existen los signerIds reales del backend.
+    // En Create no se podía (eran localIds `client:xxx`). Idempotente por `audienceApplied`.
+    if (
+      draft.sendPartialCopyOnEachSignature &&
+      draft.partialCopyAudienceKind === 'Specific' &&
+      !state.audienceApplied
+    ) {
+      const resolvedIds = draft.partialCopyAudienceSignerIds
+        .map(local => state.signerIdByLocal[local])
+        .filter((id): id is string => !!id);
+      if (resolvedIds.length > 0) {
+        await firstValueFrom(
+          this.service.update(requestId, {
+            title: draft.title,
+            description: draft.description,
+            category: draft.category,
+            tokenExpirationHours: draft.tokenExpirationHours,
+            sendPartialCopyOnEachSignature: true,
+            partialCopyAudience: { kind: 'Specific', signerIds: resolvedIds },
+          }),
+        );
+        state.audienceApplied = true;
+      }
     }
 
     // Practitioner PIN (Form 8879): se fija mientras la solicitud está Draft/Ready (el backend solo lo
