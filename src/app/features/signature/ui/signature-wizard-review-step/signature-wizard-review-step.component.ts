@@ -27,10 +27,13 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   ToggleableRule,
+  isPartialCopyAudienceInvalid,
   isSigningPinInvalid,
   reminderIntervalDays,
+  togglePartialCopyRecipient,
   toggleRule,
   withDefaultChannel,
+  withPartialCopyAudienceKind,
   withReminderIntervalDays,
   withSequential,
   withSigningPin,
@@ -118,6 +121,28 @@ export class SignatureWizardReviewStepComponent {
 
   signingPinInvalid(): boolean {
     return isSigningPinInvalid(this.rules);
+  }
+
+  // ---------- F7 — audiencia de la copia parcial ----------
+
+  setAudienceKind(kind: 'All' | 'Specific'): void {
+    this.emitRules(r => withPartialCopyAudienceKind(r, kind));
+  }
+
+  toggleRecipient(signerId: string): void {
+    this.emitRules(r => togglePartialCopyRecipient(r, signerId));
+  }
+
+  isRecipient(signerId: string): boolean {
+    return !!this.rules?.partialCopyAudienceSignerIds.includes(signerId);
+  }
+
+  audienceInvalid(): boolean {
+    return isPartialCopyAudienceInvalid(this.rules);
+  }
+
+  trackSigner(_: number, s: EditorSigner): string {
+    return s.id;
   }
 
   private emitRules(change: (rules: RequestRules) => RequestRules): void {

@@ -10,11 +10,17 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { EMPTY, expand, reduce } from 'rxjs';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { formatBytes } from '@shared/utils/format.util';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
+
+// Backend acota `take` a 100; paginamos páginas enteras y cortamos cuando una página devuelve
+// menos (fin de la lista). El cap es un seguro para no dejar el componente colgado si algo falla.
+const PAGE_SIZE = 100;
+const MAX_PAGES = 50;
 
 /** true si el archivo es un PDF (por content-type declarado o por extensión). */
 function isPdf(file: FileResponse): boolean {
@@ -84,16 +90,25 @@ export class SignatureDocumentLibraryComponent implements OnInit {
   load(): void {
     this.loading.set(true);
     this.error.set('');
-    this.storage.listFiles(0, 100).subscribe({
-      next: files => {
-        this.all.set(files);
-        this.loading.set(false);
-      },
-      error: err => {
-        this.error.set(toApiError(err).message);
-        this.loading.set(false);
-      },
-    });
+    // expand pide la siguiente página mientras la anterior venga llena; reduce acumula los lotes.
+    this.storage
+      .listFiles(0, PAGE_SIZE)
+      .pipe(
+        expand((batch, i) =>
+          batch.length === PAGE_SIZE && i + 1 < MAX_PAGES ? this.storage.listFiles((i + 1) * PAGE_SIZE, PAGE_SIZE) : EMPTY
+        ),
+        reduce((acc, batch) => acc.concat(batch), [] as FileResponse[])
+      )
+      .subscribe({
+        next: files => {
+          this.all.set(files);
+          this.loading.set(false);
+        },
+        error: err => {
+          this.error.set(toApiError(err).message);
+          this.loading.set(false);
+        },
+      });
   }
 
   pick(file: FileResponse): void {

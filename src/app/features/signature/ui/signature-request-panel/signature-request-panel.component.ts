@@ -964,12 +964,22 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       description: this.notes().trim() || null,
       category: this.category(),
       tokenExpirationHours: this.tokenExpirationHours(),
-      sendSignedDocumentToSigners: rules.sendSignedDocument,
+      sendSealedDocumentToSigners: rules.sendSealedDocument,
       sendCertificateToSigners: rules.sendCertificate && rules.certificate,
       autoRemindersEnabled: rules.autoReminder,
       reminderIntervalHours: rules.reminderIntervalHours,
       signers,
       fields,
+      // F7 — flags de entrega + expiración.
+      sendPartialCopyOnEachSignature: rules.sendPartialCopy,
+      partialCopyAudience: rules.sendPartialCopy
+        ? {
+            kind: rules.partialCopyAudienceKind,
+            signerIds:
+              rules.partialCopyAudienceKind === 'Specific' ? rules.partialCopyAudienceSignerIds : [],
+          }
+        : null,
+      expirationEnabled: rules.expirationEnabled,
     };
   }
 
@@ -991,8 +1001,12 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       // Siempre true: el certificado de firma ya no es opcional (el switch se quitó del paso Review).
       // En un borrador existente no se usa (create no se llama; GenerateCertificate es inmutable).
       generateCertificate: true,
-      sendSignedDocumentToSigners: rules?.sendSignedDocument ?? true,
+      sendSealedDocumentToSigners: rules?.sendSealedDocument ?? false,
       sendCertificateToSigners: (rules?.sendCertificate ?? false) && (rules?.certificate ?? true),
+      sendPartialCopyOnEachSignature: rules?.sendPartialCopy ?? false,
+      partialCopyAudienceKind: rules?.partialCopyAudienceKind ?? 'All',
+      partialCopyAudienceSignerIds: rules?.partialCopyAudienceSignerIds ?? [],
+      expirationEnabled: rules?.expirationEnabled ?? true,
       autoRemindersEnabled: rules?.autoReminder ?? true,
       reminderIntervalHours: rules?.reminderIntervalHours ?? 48,
       signingPin: rules?.signingPin?.trim() || null,

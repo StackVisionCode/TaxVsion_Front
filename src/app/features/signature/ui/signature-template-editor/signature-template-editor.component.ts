@@ -26,6 +26,7 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { SignatureService } from '../../data-access/signature.service';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import {
+  PartialCopyAudienceKind,
   SignatureCategory,
   SignatureTemplateDetail,
   SignerLanguage,
@@ -229,11 +230,24 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ya no hay switch. UpdateDefaults sí acepta cambiarlo, así que una plantilla vieja con false
   // queda en true al guardar.
   // Defaults de entrega/recordatorio que "from template" copia a la solicitud (mismos que la solicitud).
-  readonly sendSignedDocument = signal(true);
+  readonly sendSealedDocument = signal(true);
   readonly sendCertificate = signal(false);
   readonly autoReminders = signal(true);
   readonly reminderIntervalHours = signal(48);
   readonly reminderIntervalDays = computed(() => Math.max(1, Math.round(this.reminderIntervalHours() / 24)));
+  // F7 — defaults heredables al instanciar. La audiencia Specific usa SLOT ORDERS (ints por
+  // posición), no GUIDs: la plantilla no conoce signers concretos.
+  readonly sendPartialCopy = signal(false);
+  readonly partialCopyAudienceKind = signal<PartialCopyAudienceKind>('All');
+  readonly partialCopyAudienceSlotOrders = signal<number[]>([]);
+  readonly expirationEnabled = signal(true);
+  /** true si la audiencia Specific no eligió ningún slot — bloquea Save. */
+  readonly audienceInvalid = computed(
+    () =>
+      this.sendPartialCopy() &&
+      this.partialCopyAudienceKind() === 'Specific' &&
+      this.partialCopyAudienceSlotOrders().length === 0,
+  );
   // Practitioner PIN por defecto de la plantilla (Form 8879). El hash no se expone: solo sabemos si HAY
   // uno (`requiresPractitionerPin`). `templatePin` es el valor NUEVO a fijar (vacío = no cambiar).
   readonly requiresPractitionerPin = signal(false);
@@ -430,10 +444,15 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     this.expirationHours.set(detail.defaultTokenExpirationHours);
     this.sequential.set(detail.requiresSequentialSigning);
     this.consent.set(detail.requiresConsent);
-    this.sendSignedDocument.set(detail.sendSignedDocumentToSigners);
+    this.sendSealedDocument.set(detail.sendSealedDocumentToSigners);
     this.sendCertificate.set(detail.sendCertificateToSigners);
     this.autoReminders.set(detail.autoRemindersEnabled);
     this.reminderIntervalHours.set(detail.reminderIntervalHours);
+    // F7 — hidratar los defaults nuevos.
+    this.sendPartialCopy.set(detail.sendPartialCopyOnEachSignature);
+    this.partialCopyAudienceKind.set(detail.partialCopyAudienceKind);
+    this.partialCopyAudienceSlotOrders.set([...detail.partialCopyAudienceSlotOrders]);
+    this.expirationEnabled.set(detail.expirationEnabled);
     this.requiresPractitionerPin.set(detail.requiresPractitionerPin);
     this.templatePin.set('');
     if (this.activeSlotOrder() === null || !detail.slots.some(s => s.order === this.activeSlotOrder())) {
@@ -568,6 +587,10 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
       this.error.set('The template title must be at least 3 characters.');
       return;
     }
+    if (this.audienceInvalid()) {
+      this.error.set('Pick at least one role for the partial-copy audience.');
+      return;
+    }
     await this.run('Saving template…', async () => {
       await firstValueFrom(
         this.service.updateTemplateMetadata(id, {
@@ -582,11 +605,19 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           requiresSequentialSigning: this.sequential(),
           requiresConsent: this.consent(),
           generateCertificate: true,
-          sendSignedDocumentToSigners: this.sendSignedDocument(),
+          sendSealedDocumentToSigners: this.sendSealedDocument(),
           // Independiente de la generación: el certificado siempre se genera.
           sendCertificateToSigners: this.sendCertificate(),
           autoRemindersEnabled: this.autoReminders(),
           reminderIntervalHours: this.reminderIntervalHours(),
+          // F7 — defaults heredables al instanciar.
+          sendPartialCopyOnEachSignature: this.sendPartialCopy(),
+          partialCopyAudienceKind: this.sendPartialCopy() ? this.partialCopyAudienceKind() : 'All',
+          partialCopyAudienceSlotOrders:
+            this.sendPartialCopy() && this.partialCopyAudienceKind() === 'Specific'
+              ? this.partialCopyAudienceSlotOrders()
+              : [],
+          expirationEnabled: this.expirationEnabled(),
         }),
       );
       // PIN nuevo (4–10 dígitos) → fijar/reemplazar. Vacío = no se toca el PIN existente.
@@ -602,6 +633,24 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
 
   setTemplatePin(value: string): void {
     this.templatePin.set((value ?? '').replace(/\D/g, '').slice(0, 10));
+  }
+
+  // F7 — helpers de la audiencia Specific por slot.
+  isAudienceSlot(slotOrder: number): boolean {
+    return this.partialCopyAudienceSlotOrders().includes(slotOrder);
+  }
+
+  toggleAudienceSlot(slotOrder: number): void {
+    this.partialCopyAudienceSlotOrders.update(list =>
+      list.includes(slotOrder) ? list.filter(o => o !== slotOrder) : [...list, slotOrder].sort((a, b) => a - b),
+    );
+  }
+
+  setAudienceKind(kind: PartialCopyAudienceKind): void {
+    this.partialCopyAudienceKind.set(kind);
+    if (kind === 'All') {
+      this.partialCopyAudienceSlotOrders.set([]);
+    }
   }
 
   /** Quita el Practitioner PIN por defecto de la plantilla (efecto inmediato). */

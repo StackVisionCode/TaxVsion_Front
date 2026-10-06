@@ -8,6 +8,8 @@ import {
   CampaignResponse,
   CampaignRunResponse,
   CampaignScheduleResponse,
+  CampaignTemplateRequest,
+  CampaignTemplateResponse,
   ContactListResponse,
   ContactResponse,
   CreateCampaignRequest,
@@ -66,6 +68,26 @@ export class CampaignsService {
 
   updateCampaign(id: string, req: CreateCampaignRequest): Observable<CampaignResponse> {
     return this.http.put<CampaignResponse>(this.url(`/campaigns/${id}`), req);
+  }
+
+  // ---------- Campaign templates (reusable, multichannel) ----------
+
+  listCampaignTemplates(p: { page?: number; size?: number } = {}): Observable<PagedResult<CampaignTemplateResponse>> {
+    return this.http.get<PagedResult<CampaignTemplateResponse>>(this.url('/campaign-templates'), {
+      params: this.paged(p.page, p.size),
+    });
+  }
+
+  createCampaignTemplate(req: CampaignTemplateRequest): Observable<CampaignTemplateResponse> {
+    return this.http.post<CampaignTemplateResponse>(this.url('/campaign-templates'), req);
+  }
+
+  updateCampaignTemplate(id: string, req: CampaignTemplateRequest): Observable<CampaignTemplateResponse> {
+    return this.http.put<CampaignTemplateResponse>(this.url(`/campaign-templates/${id}`), req);
+  }
+
+  deleteCampaignTemplate(id: string): Observable<void> {
+    return this.http.delete<void>(this.url(`/campaign-templates/${id}`));
   }
 
   markReady(id: string): Observable<CampaignResponse> {
@@ -166,6 +188,14 @@ export class CampaignsService {
 
   addListMember(listId: string, contactId: string): Observable<ContactListResponse> {
     return this.http.post<ContactListResponse>(this.url(`/contact-lists/${listId}/members`), { contactId });
+  }
+
+  listMembers(listId: string): Observable<ContactResponse[]> {
+    return this.http.get<ContactResponse[]>(this.url(`/contact-lists/${listId}/members`));
+  }
+
+  removeListMember(listId: string, contactId: string): Observable<void> {
+    return this.http.delete<void>(this.url(`/contact-lists/${listId}/members/${contactId}`));
   }
 
   // ---------- Sender profiles ----------

@@ -10,7 +10,13 @@ import {
  */
 
 // 'certificate' ya no se alterna: el certificado se genera siempre (generateCertificate = true).
-export type ToggleableRule = 'autoReminder' | 'sendSignedDocument' | 'sendCertificate';
+// F7 añade sendPartialCopy y expirationEnabled al conjunto editable desde el panel.
+export type ToggleableRule =
+  | 'autoReminder'
+  | 'sendSealedDocument'
+  | 'sendCertificate'
+  | 'sendPartialCopy'
+  | 'expirationEnabled';
 
 export function withSequential(rules: RequestRules, sequential: boolean): RequestRules {
   return { ...rules, sequential };
@@ -54,4 +60,35 @@ export function withSigningPin(rules: RequestRules, value: string): RequestRules
 export function isSigningPinInvalid(rules: RequestRules | null | undefined): boolean {
   const pin = rules?.signingPin ?? '';
   return pin.length > 0 && pin.length < 4;
+}
+
+/** F7 — intercambia el modo de la audiencia; "Specific" sin signers quedará inválida al enviar. */
+export function withPartialCopyAudienceKind(
+  rules: RequestRules,
+  kind: 'All' | 'Specific',
+): RequestRules {
+  return { ...rules, partialCopyAudienceKind: kind };
+}
+
+/** F7 — tilda/destilda un signer de la lista; solo tiene efecto cuando el modo es Specific. */
+export function togglePartialCopyRecipient(
+  rules: RequestRules,
+  signerId: string,
+): RequestRules {
+  const set = new Set(rules.partialCopyAudienceSignerIds);
+  if (set.has(signerId)) {
+    set.delete(signerId);
+  } else {
+    set.add(signerId);
+  }
+  return { ...rules, partialCopyAudienceSignerIds: [...set] };
+}
+
+/** F7 — true si el flag ON pide audiencia específica pero no se seleccionó nadie. */
+export function isPartialCopyAudienceInvalid(rules: RequestRules | null | undefined): boolean {
+  if (!rules?.sendPartialCopy) return false;
+  return (
+    rules.partialCopyAudienceKind === 'Specific' &&
+    rules.partialCopyAudienceSignerIds.length === 0
+  );
 }

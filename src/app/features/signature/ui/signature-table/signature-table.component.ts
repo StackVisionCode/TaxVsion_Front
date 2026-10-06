@@ -23,6 +23,10 @@ export interface Signer {
   signedAt: string | null;
   /** Canal de verificación preferido (wizard); opcional en los seeds antiguos. */
   channel?: VerificationChannel;
+  // F7 — estado de la copia inmediata que recibe este firmante al firmar.
+  partialCopyRequestedAtUtc?: string | null;
+  partialCopySentAtUtc?: string | null;
+  partialCopyFailureReason?: string | null;
 }
 
 /**
