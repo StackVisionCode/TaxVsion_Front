@@ -1,5 +1,6 @@
 <div class="flex min-h-0 flex-1 overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
-  <!-- Navegador del workspace -->
+  <!-- Navegador del workspace (no en modo embebido: ahí el gestor está fijo a un cliente) -->
+  @if (!embedded()) {
   <div class="hidden w-60 shrink-0 border-r border-gray-100 md:block">
     <app-document-navigator
       [section]="section()"
@@ -13,16 +14,20 @@
       (openTrash)="openTrash()"
       (openStorage)="openStorage()" />
   </div>
+  }
 
   <!-- Contenido -->
   <div class="relative flex min-w-0 flex-1 flex-col">
     <header class="shrink-0 px-5 pt-4">
       <!-- Breadcrumbs -->
       <nav class="flex flex-wrap items-center gap-1 text-xs text-gray-500" aria-label="Breadcrumb">
-        <button type="button" (click)="openOffice()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">
+        <!-- Embebido: "Documents" es la raíz del propio cliente; no hay salto a Office/Clients. -->
+        <button type="button" (click)="embedded() ? goToRoot() : openOffice()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">
           Documents
         </button>
-        @if (section() === 'office') {
+        @if (embedded()) {
+          <!-- sin tramo de sección -->
+        } @else if (section() === 'office') {
           <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
           <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Office Files</button>
         } @else if (section() === 'clients') {

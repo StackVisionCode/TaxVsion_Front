@@ -11,7 +11,7 @@ const FETCH_SIZE = 100;
 /**
  * Store de la pestaña "Signatures" del perfil (`GET /signature/requests?customerId=`).
  *
- * Mismo patrón que `ClientDocumentsStore`: `providedIn: 'root'` con estado por cliente
+ * Mismo patrón que los demás stores del perfil: `providedIn: 'root'` con estado por cliente
  * (`load(id)` limpia si cambió el cliente), `FetchGate` para no repetir el listado en cada
  * ida y vuelta de tab, y `refresh()` como camino forzado tras cancelar.
  */

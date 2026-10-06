@@ -213,9 +213,7 @@
 
   @defer (when activeTab() === 'documents'; prefetch on idle) {
     @if (activeTab() === 'documents') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-documents [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-documents>
-      </div>
+      <app-client-documents-workspace [clientId]="c.id" [clientName]="c.displayName" />
     }
   } @placeholder {
     @if (activeTab() === 'documents') {
