@@ -223,6 +223,19 @@
     }
   }
 
+  @defer (when activeTab() === 'signatures'; prefetch on idle) {
+    @if (activeTab() === 'signatures') {
+      <div class="bg-white rounded-[28px] p-6">
+        <app-client-profile-signatures [clientId]="c.id" [clientName]="c.displayName"
+          (newRequest)="requestSignature(c)"></app-client-profile-signatures>
+      </div>
+    }
+  } @placeholder {
+    @if (activeTab() === 'signatures') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+    }
+  }
+
   @defer (when activeTab() === 'invoices'; prefetch on idle) {
     @if (activeTab() === 'invoices') {
       <div class="bg-white rounded-[28px] p-6">
