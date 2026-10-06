@@ -15,6 +15,8 @@ import {
   CreateContactRequest,
   CreateSenderProfileRequest,
   EmailTemplateSummary,
+  CampaignTemplateRequest,
+  CampaignTemplateResponse,
   ImportContactsRequest,
   ImportContactsResponse,
   ScheduleAction,
@@ -67,6 +69,7 @@ export class CampaignsStore {
   private readonly _runs = signal<CampaignRunResponse[]>([]);
   private readonly _schedules = signal<CampaignScheduleResponse[]>([]);
   private readonly _templates = signal<EmailTemplateSummary[]>([]);
+  private readonly _campaignTemplates = signal<CampaignTemplateResponse[]>([]);
   /**
    * B5 — por qué falló cada sub-lista, o null si está bien.
    *
@@ -98,6 +101,7 @@ export class CampaignsStore {
   readonly runs = this._runs.asReadonly();
   readonly schedules = this._schedules.asReadonly();
   readonly templates = this._templates.asReadonly();
+  readonly campaignTemplates = this._campaignTemplates.asReadonly();
 
   // ---------- init ----------
   init(): void {
@@ -239,6 +243,47 @@ export class CampaignsStore {
   }
   deleteContactList(id: string): Observable<void> {
     return this.act(this.service.deleteContactList(id), () => this.loadLists());
+  }
+
+  // ---------- list members (edición de audiencia) ----------
+  private readonly _listMembers = signal<ContactResponse[]>([]);
+  readonly listMembers = this._listMembers.asReadonly();
+
+  loadListMembers(listId: string): void {
+    this._listMembers.set([]);
+    this.service.listMembers(listId).subscribe({
+      next: m => this._listMembers.set(m ?? []),
+      error: () => this._listMembers.set([]),
+    });
+  }
+  addListMember(listId: string, contactId: string): Observable<ContactListResponse> {
+    return this.act(this.service.addListMember(listId, contactId), () => {
+      this.loadListMembers(listId);
+      this.loadLists();
+    });
+  }
+  removeListMember(listId: string, contactId: string): Observable<void> {
+    return this.act(this.service.removeListMember(listId, contactId), () => {
+      this.loadListMembers(listId);
+      this.loadLists();
+    });
+  }
+
+  // ---------- campaign templates ----------
+  loadCampaignTemplates(): void {
+    this.service.listCampaignTemplates({ size: 100 }).subscribe({
+      next: p => this._campaignTemplates.set(p.items ?? []),
+      error: () => this._campaignTemplates.set([]),
+    });
+  }
+  createCampaignTemplate(req: CampaignTemplateRequest): Observable<CampaignTemplateResponse> {
+    return this.act(this.service.createCampaignTemplate(req), () => this.loadCampaignTemplates());
+  }
+  updateCampaignTemplate(id: string, req: CampaignTemplateRequest): Observable<CampaignTemplateResponse> {
+    return this.act(this.service.updateCampaignTemplate(id, req), () => this.loadCampaignTemplates());
+  }
+  deleteCampaignTemplate(id: string): Observable<void> {
+    return this.act(this.service.deleteCampaignTemplate(id), () => this.loadCampaignTemplates());
   }
   deleteContact(id: string): Observable<void> {
     return this.act(this.service.deleteContact(id), () => this.loadContacts());
