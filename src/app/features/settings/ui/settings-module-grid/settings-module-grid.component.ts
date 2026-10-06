@@ -33,6 +33,8 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'signature', featureId: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500' },
   { id: 'meetings', featureId: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-gray-200 text-gray-700' },
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
+  // Conexiones de terceros para la IA: API keys de proveedores, cuentas OAuth y servidores MCP.
+  { id: 'connections', featureId: 'ai-assistant', title: 'Connections & MCP', description: 'AI providers, connected accounts and MCP servers', icon: 'extension-puzzle-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/connections' },
   { id: 'storage', featureId: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/storage' },
   { id: 'templates', featureId: 'templates', title: 'Templates', description: 'Reusable email, letter and reminder content', icon: 'copy-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/templates' },
 ];
