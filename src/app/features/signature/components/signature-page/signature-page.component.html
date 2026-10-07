@@ -72,6 +72,7 @@
   <!-- Takeover: wizard de creación o vista previa (in-page, dentro del shell) -->
   <ng-template #takeoverView>
     <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" [continueRequestId]="continueRequestId()"
+      [fullscreenEditor]="embedded()"
       (closed)="closePanel()" (sent)="handleSent()" (saved)="handleDraftSaved()"></app-signature-request-panel>
     <ng-template #previewOnly>
       <app-signature-preview [request]="previewRequest()" [showClient]="!embedded()" [sending]="sendingRequest()" (back)="closePreview()"

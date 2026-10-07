@@ -1,15 +1,26 @@
-<div class="wizard-card bg-white rounded-[28px] p-4 sm:p-6" [class.max-md:pb-24]="currentStep() === 3">
+<!-- En pantalla completa (editor embebido en el perfil) la tarjeta cubre el viewport; el host ya
+     está portado al <body>, así que el `fixed` no queda encerrado por el perfil. -->
+<div class="wizard-card bg-white p-4 sm:p-6" [class.max-md:pb-24]="currentStep() === 3"
+  [ngClass]="fullscreen() ? 'fixed inset-0 z-[45] overflow-y-auto rounded-none' : 'rounded-[28px]'">
   <!-- Header: título + volver a la lista -->
   <div class="flex items-start justify-between gap-4">
     <div class="min-w-0">
       <h2 class="text-lg font-bold text-gray-900 sm:text-xl">{{ editingDraft() ? 'Continue Draft' : 'New Signature Request' }}</h2>
       <p class="mt-0.5 text-sm text-gray-500">{{ stepSubtitle() }}</p>
     </div>
-    <button type="button" (click)="close()" aria-label="Back to list"
-      class="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
-      <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
-      <span class="hidden sm:inline">Back to list</span>
-    </button>
+    <div class="flex shrink-0 items-center gap-2">
+      <button *ngIf="canFullscreen()" type="button" (click)="toggleFullscreen()"
+        [attr.aria-label]="fullscreen() ? 'Exit full screen' : 'Full screen'"
+        class="flex min-h-[44px] items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
+        <ion-icon [name]="fullscreen() ? 'contract-outline' : 'expand-outline'" class="text-base"></ion-icon>
+        <span class="hidden sm:inline">{{ fullscreen() ? 'Exit full screen' : 'Full screen' }}</span>
+      </button>
+      <button type="button" (click)="close()" aria-label="Back to list"
+        class="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
+        <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+        <span class="hidden sm:inline">Back to list</span>
+      </button>
+    </div>
   </div>
 
   <!-- Recuperación: trabajo sin guardar de una recarga/cierre anterior -->
