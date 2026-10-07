@@ -84,6 +84,23 @@
 
     <!-- Right section -->
     <nav class="flex items-center gap-3 ml-auto">
+      <!-- Wallet balance pill (00_Plan §10): siempre visible; click → apartado Wallet. -->
+      @if (canUse('wallet')) {
+        <a
+          routerLink="/wallet"
+          class="hidden h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-semibold transition-colors sm:flex"
+          [class]="
+            walletLowBalance()
+              ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'
+              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+          "
+          [attr.title]="'Wallet · ' + walletAvailableLabel() + ' available'"
+        >
+          <ion-icon name="wallet-outline" class="text-base" aria-hidden="true"></ion-icon>
+          {{ walletAvailableLabel() }}
+        </a>
+      }
+
       <!-- Notifications button -->
       <div class="relative" data-dropdown="notifications">
         <button (click)="toggleNotifications()"

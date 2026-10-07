@@ -566,15 +566,50 @@
         </label>
       }
       <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2.5 cursor-pointer" [class]="sendForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-        <input type="checkbox" [(ngModel)]="sendForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
-        <span class="flex-1"><b class="text-sm text-gray-800">All active clients</b> <span class="text-xs text-gray-400">from the Customer directory (M2M at send time)</span></span>
+        <input type="checkbox" [ngModel]="sendForm.includeCustomers" (ngModelChange)="sendForm.includeCustomers = $event; scheduleEstimate()" class="h-4 w-4 accent-blue-600" />
+        <span class="flex-1"><b class="text-sm text-gray-800">All active clients</b></span>
       </label>
     </div>
     <div>
       <label class="text-xs font-semibold text-gray-600">Manual entries <span class="text-gray-400">(emails or phones, one per line)</span></label>
-      <textarea rows="2" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="sendForm.manual" placeholder="extra@example.com&#10;+18095550142"></textarea>
+      <textarea rows="2" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="sendForm.manual" (ngModelChange)="sendForm.manual = $event; scheduleEstimate()" placeholder="extra@example.com&#10;+18095550142"></textarea>
     </div>
     <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Opt-outs and duplicates are removed automatically. Each recipient × channel becomes one dispatch unit.</div>
+
+    <!-- Cobro visible (00_Plan §10): saldo + tarifas + ESTIMADO exacto de la audiencia elegida. -->
+    <div
+      class="flex flex-col gap-1 rounded-xl border px-3.5 py-2.5 text-xs"
+      [class]="sendEstimate() && !sendEstimate()!.sufficient ? 'border-orange-200 bg-orange-50' : 'border-gray-100'"
+    >
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span class="font-semibold text-gray-700">Wallet: {{ walletAvailableLabel() }} available</span>
+        @for (r of walletRates(); track r.channel) {
+          <span class="text-gray-400">{{ r.channel }} {{ rateLabel(r.unitPriceMicros) }}</span>
+        }
+      </div>
+      @if (estimating()) {
+        <div class="text-gray-400">Estimating cost…</div>
+      } @else if (sendEstimate(); as est) {
+        <div class="font-semibold" [class]="est.sufficient ? 'text-emerald-600' : 'text-orange-700'">
+          {{ sendEstimateRecipients() }} unique recipients · this send costs {{ fmtMicros(est.costMicros) }}
+          @if (!est.sufficient) {
+            · short {{ fmtMicros(est.deficitMicros) }}
+          }
+        </div>
+       
+      }
+    </div>
+
+    <!-- Red de seguridad: saldo insuficiente (402) → faltante + Recargar y reintentar. -->
+    @if (sendDeficitMessage(); as deficit) {
+      <div class="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3.5 py-3 text-sm text-orange-700">
+        <span>{{ deficit }}</span>
+        <button type="button" (click)="goToWalletTopUp()" class="self-start rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink">
+          Top up and retry
+        </button>
+      </div>
+    }
+
     <div class="flex justify-end gap-2 pt-1">
       <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSend.set(false)">Cancel</button>
       <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSend()">Send now</button>
@@ -617,6 +652,11 @@
       </label>
     </div>
     <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Recurrence is by interval today (cron/timezone on the roadmap). Missed slots coalesce; overlapping runs are skipped.</div>
+    <!-- Cobro de los agendados: el costo se reserva/cobra en CADA disparo (la audiencia cambia), no al agendar. -->
+    <div class="rounded-xl border border-gray-100 px-3.5 py-2.5 text-xs text-gray-500">
+      <span class="font-semibold text-gray-700">Wallet: {{ walletAvailableLabel() }} available.</span>
+      Each run is charged at send time against your wallet (only Email &amp; SMS — Push is free). If the balance is short when a run fires, that run is skipped until you top up.
+    </div>
     <div class="flex justify-end gap-2 pt-1">
       <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSchedule.set(false)">Cancel</button>
       <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSchedule()">Schedule</button>

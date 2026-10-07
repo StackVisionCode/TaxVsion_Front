@@ -161,6 +161,15 @@ export interface SendToAudienceRequest {
   includeCustomers?: boolean;
 }
 
+/** Conteo de audiencia resuelta (opt-out/dedupe) para el estimado de costo — `POST /campaigns/{id}/preview-audience`. */
+export interface AudiencePreviewResponse {
+  recipientCount: number;
+  email: number;
+  sms: number;
+  push: number;
+  whatsApp: number;
+}
+
 // ---------- Contacts ----------
 
 export interface ContactResponse {

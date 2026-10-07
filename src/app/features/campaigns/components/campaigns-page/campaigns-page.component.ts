@@ -1,6 +1,12 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
+import { toApiError } from '@core/models/api-error.model';
+import { WalletStore } from '@features/wallet/data-access/wallet.store';
+import { EstimateView, formatMicros } from '@features/wallet/data-access/wallet.model';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RichEditorComponent } from '../../ui/rich-editor/rich-editor.component';
@@ -72,6 +78,28 @@ const CHANNEL_META: ChannelMeta[] = [
 export class CampaignsPageComponent implements OnInit, OnDestroy {
   readonly store = inject(CampaignsStore);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+  private readonly realtime = inject(CommunicationRealtimeService);
+  private runUpdatesSub?: Subscription;
+  private runsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Cobro visible (00_Plan §10): saldo del monedero + tarifas en el modal de envío, y red de seguridad
+  // ante el 402 InsufficientFunds del gate. Comparte el WalletStore singleton con el header/apartado.
+  private readonly wallet = inject(WalletStore);
+  readonly walletAvailableLabel = computed(() =>
+    formatMicros(this.wallet.availableMicros(), this.wallet.currency()),
+  );
+  readonly walletRates = this.wallet.displayRates;
+  readonly rateLabel = (micros: number): string => formatMicros(micros, this.wallet.currency(), 4);
+  readonly fmtMicros = (micros: number): string => formatMicros(micros, this.wallet.currency());
+  /** Mensaje del déficit cuando el envío se rechaza por saldo insuficiente (null = sin rechazo). */
+  readonly sendDeficitMessage = signal<string | null>(null);
+  /** Estimado de costo del envío (preview-audience → cotización Wallet). null = aún sin audiencia. */
+  readonly sendEstimate = signal<EstimateView | null>(null);
+  readonly sendEstimateRecipients = signal<number>(0);
+  readonly estimating = signal(false);
+  private estimateTimer: ReturnType<typeof setTimeout> | null = null;
+  private estimateSeq = 0;
 
   // view helpers (usados en el template)
   readonly channelClass = channelClass;
@@ -152,21 +180,62 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.store.init();
+    // Tiempo real: Communication relaya el avance del run por socket (`campaign.run.updated`). Al llegar
+    // uno de la campaña abierta, refresca runs/detalle/saldo (debounced) — sin refrescar a mano ni esperar
+    // al polling. El polling queda como red de seguridad si el socket está caído.
+    this.realtime.connect(); // idempotente; el shell ya es dueño del ciclo de vida del socket
+    this.runUpdatesSub = this.realtime
+      .on<{ campaignId: string; runId: string }>('campaign.run.updated')
+      .subscribe(e => {
+        const sel = this.selected();
+        if (sel && e.campaignId === sel.id) this.scheduleRunsRefresh(sel.id);
+      });
   }
   ngOnDestroy(): void {
     this.stopPolling();
+    this.runUpdatesSub?.unsubscribe();
+    if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
   }
 
-  /** Auto-refresh de runs mientras haya alguno Dispatching (efecto "live" sin socket). */
+  /** Coalesce de ráfagas (muchos dispatch.result seguidos) en un solo refresco ~800ms. */
+  private scheduleRunsRefresh(campaignId: string): void {
+    if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
+    this.runsRefreshTimer = setTimeout(() => {
+      this.store.loadRuns(campaignId);
+      this.syncOpenRun();
+      this.wallet.refresh();
+    }, 800);
+  }
+
+  /**
+   * Auto-refresh de runs mientras haya alguno Dispatching (efecto "live" sin socket): refresca la lista,
+   * el detalle del run abierto, y el saldo del monedero cuando todo cierra (el cargo es async). Corre
+   * hasta ~10 min (150 ticks) o hasta que no quede ninguno despachando — así no hay que refrescar a mano.
+   * Nota: el tiempo real por socket iría por Communication (fuera de alcance sin aprobar).
+   */
   private startPolling(campaignId: string): void {
     this.stopPolling();
     let ticks = 0;
     this.pollTimer = setInterval(() => {
       ticks++;
       this.store.loadRuns(campaignId);
+      this.syncOpenRun();
       const anyDispatching = this.store.runs().some(r => r.status === 'Dispatching');
-      if (!anyDispatching || ticks >= 15) this.stopPolling();
+      if (!anyDispatching) {
+        this.wallet.refresh(); // el cobro se liquidó al cerrar el run → actualiza el saldo visible
+        this.stopPolling();
+      } else if (ticks >= 150) {
+        this.stopPolling();
+      }
     }, 4000);
+  }
+
+  /** Mantiene el modal de detalle del run sincronizado con la última carga (estado por destinatario en vivo). */
+  private syncOpenRun(): void {
+    const open = this.selectedRun();
+    if (!open) return;
+    const updated = this.store.runs().find(r => r.id === open.id);
+    if (updated) this.selectedRun.set(updated);
   }
   private stopPolling(): void {
     if (this.pollTimer) {
@@ -518,10 +587,76 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   openSend(c: CampaignResponse): void {
     this.selected.set(c);
     this.sendForm = this.blankSend();
+    this.sendDeficitMessage.set(null);
+    this.sendEstimate.set(null);
+    this.sendEstimateRecipients.set(0);
+    this.estimating.set(false);
+    this.wallet.init(); // saldo + tarifas para el hint de costo (carga idempotente)
     this.showSend.set(true);
   }
   toggleList(id: string): void {
     this.sendForm.listIds[id] = !this.sendForm.listIds[id];
+    this.scheduleEstimate();
+  }
+
+  /** CTA "Recargar y reintentar" del banner de saldo insuficiente: lleva al apartado Wallet. */
+  goToWalletTopUp(): void {
+    this.showSend.set(false);
+    this.router.navigate(['/wallet']);
+  }
+
+  /** Reúne la audiencia seleccionada (listas + manual + clientes) — compartido por envío y estimado. */
+  private buildAudience() {
+    const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
+    const manual = this.sendForm.manual
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
+    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers };
+  }
+
+  private hasAudience(a: { contactListIds: string[]; manual: unknown[]; includeCustomers: boolean }): boolean {
+    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers;
+  }
+
+  /** Recalcula el estimado con un pequeño debounce (se dispara al tocar listas/clientes/manual). */
+  scheduleEstimate(): void {
+    if (this.estimateTimer) clearTimeout(this.estimateTimer);
+    this.estimateTimer = setTimeout(() => this.estimateNow(), 450);
+  }
+
+  /** preview-audience (conteo real por canal) → cotización en el Wallet (solo Email+SMS se cobran). */
+  private estimateNow(): void {
+    const c = this.selected();
+    if (!c) return;
+    const audience = this.buildAudience();
+    if (!this.hasAudience(audience)) {
+      this.sendEstimate.set(null);
+      this.sendEstimateRecipients.set(0);
+      this.estimating.set(false);
+      return;
+    }
+    const seq = ++this.estimateSeq;
+    this.estimating.set(true);
+    this.store.previewAudience(c.id, audience).subscribe({
+      next: preview => {
+        this.sendEstimateRecipients.set(preview.recipientCount);
+        this.wallet.estimate({ email: preview.email, sms: preview.sms }).subscribe({
+          next: est => {
+            if (seq !== this.estimateSeq) return; // respuesta vieja: la ignora
+            this.sendEstimate.set(est);
+            this.estimating.set(false);
+          },
+          error: () => {
+            if (seq === this.estimateSeq) this.estimating.set(false);
+          },
+        });
+      },
+      error: () => {
+        if (seq === this.estimateSeq) this.estimating.set(false);
+      },
+    });
   }
   submitSend(): void {
     const c = this.selected();
@@ -540,6 +675,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     if (!confirm(`Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`))
       return;
     this.busy.set(true);
+    this.sendDeficitMessage.set(null);
     this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers }).subscribe({
       next: run => {
         this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
@@ -548,9 +684,16 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
         this.tab.set('runs');
         this.startPolling(c.id);
       },
-      error: () => {
-        this.toast.error(this.store.actionError() ?? 'Could not start the run.');
+      error: err => {
         this.busy.set(false);
+        const e = toApiError(err);
+        // Red de seguridad del PEP: saldo insuficiente → se muestra el faltante + CTA Recargar (modal abierto).
+        if (e.code === 'CampaignRun.InsufficientFunds') {
+          this.sendDeficitMessage.set(e.message);
+          this.wallet.refresh();
+        } else {
+          this.toast.error(this.store.actionError() ?? 'Could not start the run.');
+        }
       },
     });
   }

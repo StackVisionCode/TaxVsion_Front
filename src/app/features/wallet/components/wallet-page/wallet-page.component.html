@@ -1,0 +1,201 @@
+<section class="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
+  <!-- Header -->
+  <header class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Wallet</h1>
+      <p class="mt-1 text-sm text-gray-500">Prepaid balance for sending campaigns and messages.</p>
+    </div>
+    <button
+      *appHasPermission="'wallet.manage'"
+      type="button"
+      (click)="openTopUp()"
+      class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+    >
+      <ion-icon name="add-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
+      Top up
+    </button>
+  </header>
+
+  <!-- Low balance banner -->
+  @if (store.lowBalance() && !store.loading() && !store.error()) {
+    <div class="flex items-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+      <ion-icon name="alert-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
+      Low balance. Top up to keep your campaigns sending.
+    </div>
+  }
+
+  <!-- Balance cards -->
+  @if (store.error() && !store.loading()) {
+    <app-state-block [error]="store.error()" (retry)="store.loadWallet()" />
+  } @else {
+    <app-stat-cards [items]="stats()" [loading]="store.loading()" />
+  }
+
+  <!-- Rates + Transactions -->
+  <div class="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
+    <!-- Rates -->
+    <div class="rounded-[24px] border border-gray-100 p-5">
+      <h2 class="text-sm font-semibold text-gray-900">Rates per message</h2>
+      <p class="mt-1 text-xs text-gray-400">What each channel costs to send.</p>
+      <app-state-block
+        [error]="store.ratesError()"
+        [empty]="store.displayRates().length === 0"
+        emptyTitle="No rates published"
+        icon="pricetag-outline"
+        variant="inline"
+        (retry)="store.loadRates()"
+      >
+        <ul class="mt-4 flex flex-col gap-2">
+          @for (r of store.displayRates(); track r.channel) {
+            <li class="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
+              <span class="font-medium text-gray-700">{{ r.channel }}</span>
+              <span class="font-semibold text-gray-900">{{ rateLabel(r) }}</span>
+            </li>
+          }
+        </ul>
+      </app-state-block>
+    </div>
+
+    <!-- Transactions -->
+    <div class="rounded-[24px] border border-gray-100 p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-900">Recent activity</h2>
+        <button type="button" (click)="store.loadTransactions()" class="text-xs font-medium text-brand-bold hover:underline">
+          Refresh
+        </button>
+      </div>
+      <app-state-block
+        [loading]="store.loading()"
+        [error]="store.txError()"
+        [empty]="store.transactions().length === 0"
+        emptyTitle="No transactions yet"
+        emptyMessage="Top-ups and charges will show up here."
+        icon="receipt-outline"
+        variant="inline"
+        (retry)="store.loadTransactions()"
+      >
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs uppercase tracking-wide text-gray-400">
+                <th class="pb-2 font-medium">Type</th>
+                <th class="pb-2 font-medium">Date</th>
+                <th class="pb-2 text-right font-medium">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (e of store.transactions(); track e.id) {
+                <tr class="border-t border-gray-50">
+                  <td class="py-2.5">
+                    <app-status-pill [tone]="movementPresentation(e.movement).tone" size="xs">
+                      {{ movementPresentation(e.movement).label }}
+                    </app-status-pill>
+                  </td>
+                  <td class="py-2.5 text-gray-500">{{ e.createdAtUtc | date: 'MMM d, h:mm a' }}</td>
+                  <td class="py-2.5 text-right font-semibold" [class]="amountClass(e)">
+                    {{ amountLabel(e) }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </app-state-block>
+    </div>
+  </div>
+</section>
+
+<!-- Top-up modal -->
+<app-modal
+  [isOpen]="showTopUp()"
+  heading="Top up your wallet"
+  subheading="You'll pay securely on the provider's page. We never store your card."
+  size="md"
+  (closed)="showTopUp.set(false)"
+>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-wrap gap-2">
+      @for (p of presets; track p) {
+        <button
+          type="button"
+          (click)="setPreset(p)"
+          class="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+          [class]="
+            topUpDollars() === p
+              ? 'border-brand-bold bg-brand-bold text-white'
+              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+          "
+        >
+          ${{ p }}
+        </button>
+      }
+    </div>
+    <label class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-gray-500">Amount (USD)</span>
+      <div class="flex items-center rounded-xl border border-gray-200 px-3 focus-within:border-brand-bold">
+        <span class="text-gray-400">$</span>
+        <input
+          type="number"
+          min="1"
+          step="1"
+          [ngModel]="topUpDollars()"
+          (ngModelChange)="topUpDollars.set($event)"
+          class="w-full bg-transparent px-2 py-2.5 text-sm outline-none"
+        />
+      </div>
+    </label>
+
+    <!-- Proveedor de pago (hosted checkout — se paga en Stripe/PayPal, sin guardar tarjeta) -->
+    <div class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-gray-500">Pay with</span>
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          (click)="selectProvider('Stripe')"
+          class="rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors"
+          [class]="
+            provider() === 'Stripe'
+              ? 'border-brand-bold bg-brand-bold/5 text-brand-bold'
+              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+          "
+        >
+          Card (Stripe)
+        </button>
+        <button
+          type="button"
+          (click)="selectProvider('PayPal')"
+          class="rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors"
+          [class]="
+            provider() === 'PayPal'
+              ? 'border-brand-bold bg-brand-bold/5 text-brand-bold'
+              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+          "
+        >
+          PayPal
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-2 flex justify-end gap-2">
+      <button
+        type="button"
+        (click)="showTopUp.set(false)"
+        [disabled]="busy()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        (click)="continueToCheckout()"
+        [disabled]="busy()"
+        class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-60"
+      >
+        @if (busy()) {
+          <ion-icon name="sync-outline" class="animate-spin" aria-hidden="true"></ion-icon>
+        }
+        {{ busy() ? 'Redirecting…' : 'Continue to checkout · ' + fmtDollars(topUpDollars()) }}
+      </button>
+    </div>
+  </div>
+</app-modal>
