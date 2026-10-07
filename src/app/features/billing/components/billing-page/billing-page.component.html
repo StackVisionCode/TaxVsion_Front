@@ -1,6 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Pestañas de la sección -->
-  <app-filter-chips [options]="tabOptions" [value]="tab()" (valueChange)="selectTab($event)"></app-filter-chips>
+  <!-- Pestañas de la sección (embebido en el perfil: solo facturas, sin pestañas) -->
+  <app-filter-chips *ngIf="!embedded()" [options]="tabOptions" [value]="tab()" (valueChange)="selectTab($event)"></app-filter-chips>
 
   <!-- ---------------- Facturas ---------------- -->
   <ng-container *ngIf="tab() === 'invoices'">
@@ -10,7 +10,12 @@
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Invoices</h2>
-          <p class="mt-1 text-sm text-gray-500">Create, issue and collect invoices for your clients</p>
+          <p *ngIf="embedded() as client; else globalSubtitle" class="mt-1 text-sm text-gray-500">
+            Create, issue and collect invoices for {{ client.name }}
+          </p>
+          <ng-template #globalSubtitle>
+            <p class="mt-1 text-sm text-gray-500">Create, issue and collect invoices for your clients</p>
+          </ng-template>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <button type="button" (click)="exportCsv()" [disabled]="store.filteredInvoices().length === 0"
@@ -33,7 +38,7 @@
       </div>
 
       <!-- Sin datos de empresa el PDF sale incompleto -->
-      <div *ngIf="!store.hasIssuerProfile()"
+      <div *ngIf="!store.hasIssuerProfile() && !embedded()"
         class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
         <p class="text-sm text-amber-800">
           Your company details are not set, so invoices will be issued without them.
@@ -66,7 +71,8 @@
             class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
         </div>
 
-        <div>
+        <!-- Embebido: se carga el máximo para el cliente, sin selector -->
+        <div *ngIf="!embedded()">
           <label for="takeSize" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Load</label>
           <select id="takeSize" name="takeSize" [ngModel]="store.take()" (ngModelChange)="store.setTake($event)"
             class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
@@ -95,15 +101,22 @@
         [pageSize]="store.pageSize" (pageChange)="store.setPage($event)"></app-pagination>
 
       <!-- Lo que el listado del backend no permite: se declara una vez, no por fila -->
-      <p class="mt-4 border-t border-gray-100 pt-4 text-xs leading-relaxed text-gray-400">
-        This list shows your office's {{ store.take() }} most recent invoices, and the filters above apply to those.
-        The client, due date and line items of each invoice are in its PDF.
+      <p *ngIf="embedded() as client; else globalFootnote"
+        class="mt-4 border-t border-gray-100 pt-4 text-xs leading-relaxed text-gray-400">
+        This list shows the {{ store.take() }} most recent invoices for {{ client.name }}, and the filters above apply
+        to those. The due date and line items of each invoice are in its PDF.
       </p>
+      <ng-template #globalFootnote>
+        <p class="mt-4 border-t border-gray-100 pt-4 text-xs leading-relaxed text-gray-400">
+          This list shows your office's {{ store.take() }} most recent invoices, and the filters above apply to those.
+          The client, due date and line items of each invoice are in its PDF.
+        </p>
+      </ng-template>
     </div>
   </ng-container>
 
   <!-- ---------------- Links de pago ---------------- -->
-  <app-payment-links-panel *ngIf="tab() === 'links'" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
+  <app-payment-links-panel *ngIf="tab() === 'links' && !embedded()" [links]="store.paymentLinks()" [loading]="store.linksLoading()"
     [error]="store.linksError()" [statusFilter]="store.linkStatusFilter()" [page]="store.linkPage()"
     [hasMore]="store.linksHasMore()" [creating]="store.creatingLink()" [canManage]="can.canManagePaymentLinks()"
     [defaultCurrency]="store.issuer().defaultCurrency"
@@ -118,7 +131,7 @@
   [catalogResults]="store.catalogResults()"
   [catalogSearching]="store.catalogSearching()" [catalogCreating]="store.catalogCreating()"
   [createCatalogItem]="createCatalogItemFn" [saving]="store.creating()"
-  [hasIssuerProfile]="store.hasIssuerProfile()" [stockByItem]="store.stockByItem()"
+  [hasIssuerProfile]="store.hasIssuerProfile()" [lockedCustomer]="lockedCustomer()" [stockByItem]="store.stockByItem()"
   (catalogSearchChanged)="store.searchCatalog($event)" (stockLookupRequested)="store.lookupStock($event)"
   (submitted)="onFormSubmit($event)" (closed)="closeForm()"></app-invoice-form-panel>
 

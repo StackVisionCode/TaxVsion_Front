@@ -8,79 +8,106 @@
       <span class="sr-only">Open menu</span>
     </button>
 
-    <!-- Search bar (left-aligned, reference style) -->
-    <div class="flex-1 flex items-center max-w-xl">
-      <div class="w-full relative">
-        <div
-          class="h-10 bg-white rounded-full flex items-center border border-gray-200 transition-colors duration-200 focus-within:border-gray-300">
-          <ion-icon name="search-outline" class="absolute left-4 text-lg text-gray-400 pointer-events-none"></ion-icon>
-          <input #searchInput type="text" placeholder="Search or type a command"
-            [value]="searchQuery()" (input)="onSearchChange($any($event.target).value)" (focus)="onSearchFocus()"
-            (blur)="onSearchBlur()"
-            class="w-full h-full bg-transparent pl-11 pr-16 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none">
+    <!-- Right section -->
+    <nav class="flex items-center gap-3 ml-auto">
+      <!-- Buscador expandible: lupa al lado de la campana que se abre animando el ancho hacia la izquierda.
+           Busca en el directorio real de clientes (solo quien puede ver clientes lo tiene). -->
+      @if (canSearchClients()) {
+        <div class="relative" data-dropdown="search">
+          <div class="search-shell flex h-10 items-center overflow-hidden rounded-full border border-gray-200 bg-white"
+            [class.is-open]="isSearchOpen()">
+            <button type="button" (click)="toggleSearch()" [attr.aria-expanded]="isSearchOpen()"
+              [attr.aria-label]="isSearchOpen() ? 'Close search' : 'Search clients'"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors duration-200 hover:text-gray-900">
+              <ion-icon name="search-outline" class="text-lg"></ion-icon>
+            </button>
+            <input #searchInput type="text" placeholder="Search clients" aria-label="Search clients" autocomplete="off"
+              role="combobox" aria-controls="navbar-search-results" [attr.aria-expanded]="isSearchDropdownOpen()"
+              [tabindex]="isSearchOpen() ? 0 : -1"
+              [value]="searchQuery()" (input)="onSearchChange($any($event.target).value)" (focus)="onSearchFocus()"
+              (blur)="onSearchBlur()" (keydown.escape)="closeSearch()" (keydown)="onSearchKeydown($event)"
+              class="search-input h-full min-w-0 flex-1 bg-transparent pr-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none">
 
-          <!-- Clear button -->
-          <button *ngIf="searchQuery()" (click)="clearSearch()"
-            class="absolute right-12 flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">
-            <ion-icon name="close-outline"></ion-icon>
-          </button>
-
-          <!-- Keyboard shortcut hint -->
-          <kbd
-            class="absolute right-4 hidden sm:flex items-center gap-0.5 text-xs font-medium text-gray-400 pointer-events-none select-none">
-            &#8984; F
-          </kbd>
-        </div>
-
-        <!-- Search Results Dropdown -->
-        <div *ngIf="isSearchDropdownOpen() && searchResults().length > 0"
-          class="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg z-50 max-h-80 overflow-y-auto">
-
-          <!-- Results header -->
-          <div class="px-4 py-2 border-b border-gray-100">
-            <span class="text-xs font-medium text-gray-500">
-              {{ searchResults().length }} client{{ searchResults().length !== 1 ? 's' : '' }} found
-            </span>
+            @if (searchLoading()) {
+              <span class="search-input mr-3 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"
+                aria-hidden="true"></span>
+            } @else if (searchQuery()) {
+              <!-- Clear button -->
+              <button type="button" (mousedown)="$event.preventDefault()" (click)="clearSearch()"
+                class="search-input mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                aria-label="Clear search">
+                <ion-icon name="close-outline"></ion-icon>
+              </button>
+            } @else {
+              <!-- Keyboard shortcut hint -->
+              <kbd
+                class="search-input mr-4 hidden shrink-0 items-center gap-0.5 text-xs font-medium text-gray-400 pointer-events-none select-none sm:flex">
+                &#8984; F
+              </kbd>
+            }
           </div>
 
-          <!-- Results list -->
-          <div class="py-1">
-            <div *ngFor="let customer of searchResults(); trackBy: trackByCustomer" (click)="selectCustomer(customer)"
-              class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
-
-              <!-- Customer avatar -->
-              <div
-                class="flex-shrink-0 w-8 h-8 bg-brand-bold rounded-full flex items-center justify-center text-white text-xs font-medium">
-                {{ getCustomerInitials(customer) }}
+          <!-- Resultados (o recientes sin texto) -->
+          @if (isSearchDropdownOpen()) {
+            <div id="navbar-search-results" role="listbox" (mousedown)="$event.preventDefault()"
+              class="dropdown-panel absolute top-full right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg z-50">
+              <div class="flex items-center justify-between border-b border-gray-100 px-4 py-2">
+                <span class="text-xs font-medium text-gray-500">
+                  @if (!hasSearchTerm()) {
+                    Recent clients
+                  } @else if (searchLoading()) {
+                    Searching…
+                  } @else {
+                    {{ searchTotal() }} client{{ searchTotal() !== 1 ? 's' : '' }} found
+                  }
+                </span>
+                <span class="hidden text-[11px] text-gray-400 sm:block">↑↓ to move · Enter to open</span>
               </div>
 
-              <!-- Customer info -->
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-900 truncate">
-                  {{ getCustomerFullName(customer) }}
+              @if (hasSearchTerm() && searchError()) {
+                <div class="px-4 py-6 text-center">
+                  <ion-icon name="cloud-offline-outline" class="text-2xl text-gray-300"></ion-icon>
+                  <p class="mt-1 text-sm text-gray-500">Couldn't search clients</p>
+                  <p class="mt-1 text-xs text-gray-400">Check your connection and try again.</p>
                 </div>
-                <div class="text-xs text-gray-500 truncate">
-                  {{ customer.email || 'No email' }}
+              } @else if (hasSearchTerm() && !searchLoading() && searchResults().length === 0) {
+                <div class="px-4 py-6 text-center">
+                  <ion-icon name="search-outline" class="text-2xl text-gray-300"></ion-icon>
+                  <p class="mt-1 text-sm text-gray-500">No clients found</p>
+                  <p class="mt-1 text-xs text-gray-400">Try a name, email or phone</p>
                 </div>
-                <div class="text-xs text-gray-400">
-                  SSN/ITIN: {{ customer.ssnOrItin }}
+              } @else {
+                <div class="max-h-80 overflow-y-auto py-1">
+                  @for (customer of visibleCustomers(); track customer.id; let i = $index) {
+                    <button type="button" role="option" [attr.aria-selected]="i === activeResultIndex()"
+                      (click)="selectCustomer(customer)" (mouseenter)="activeResultIndex.set(i)"
+                      class="search-result flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150"
+                      [ngClass]="i === activeResultIndex() ? 'bg-gray-50' : ''" [style.animation-delay.ms]="i * 30">
+                      <app-avatar [name]="customer.displayName" [seed]="customer.id" sizeClass="h-8 w-8 text-xs" />
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-medium text-gray-900">{{ customer.displayName }}</span>
+                        <span class="block truncate text-xs text-gray-500">{{ customer.primaryEmail || customer.primaryPhone || 'No contact on file' }}</span>
+                      </span>
+                      <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                        {{ customer.kind === 'Business' ? 'Company' : 'Individual' }}
+                      </span>
+                      <ion-icon name="chevron-forward-outline" class="shrink-0 text-sm text-gray-300"></ion-icon>
+                    </button>
+                  }
                 </div>
-              </div>
+              }
 
-              <!-- Arrow icon -->
-              <ion-icon name="chevron-forward-outline" class="flex-shrink-0 text-sm text-gray-300"></ion-icon>
+              @if (hasSearchTerm() && searchTotal() > searchResults().length) {
+                <button type="button" (click)="openClientDirectory()"
+                  class="flex w-full items-center justify-center gap-1 border-t border-gray-100 px-4 py-2.5 text-xs font-semibold text-brand-bold hover:bg-gray-50">
+                  View all {{ searchTotal() }} results
+                  <ion-icon name="arrow-forward-outline"></ion-icon>
+                </button>
+              }
             </div>
-          </div>
-
-          <!-- No results message -->
-          <div *ngIf="searchQuery() && searchResults().length === 0" class="px-4 py-6 text-center text-gray-500">
-            <ion-icon name="search-outline" class="text-2xl mx-auto mb-2 text-gray-300"></ion-icon>
-            <p class="text-sm">No clients found</p>
-            <p class="text-xs text-gray-400 mt-1">Try a different search term</p>
-          </div>
+          }
         </div>
-      </div>
-    </div>
+      }
 
     <!-- Right section -->
     <nav class="flex items-center gap-3 ml-auto">

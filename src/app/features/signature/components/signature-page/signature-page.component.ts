@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { EmbeddedCustomerContext, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
 import { Observable } from 'rxjs';
 import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
@@ -68,6 +69,12 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
  * expiración, reenviar invitaciones y descargar sealed/certificate vía
  * CloudStorage download-url. La búsqueda es client-side sobre la página cargada
  * (el endpoint de listado no expone `term`).
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`, ver `@core/customers/embedded-customer`): lo monta
+ * `ClientSignatureWorkspaceComponent` en el perfil de UN cliente. El listado se filtra por
+ * `customerId`, se ocultan las acciones de administración del tenant (plantillas, categorías,
+ * firmas del preparador) y la columna Client, no se consume el deep link de la URL y
+ * "New Signature Request" abre el wizard con el cliente ya elegido y bloqueado.
  */
 @Component({
   selector: 'app-signature-page',
@@ -101,6 +108,16 @@ export class SignaturePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly directory = inject(CustomerDirectoryStore);
+
+  /** Cliente fijo cuando la página va embebida en el perfil; `null` en /signature. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
+  readonly embeddedName = computed(() => this.embeddedCustomer()?.name ?? 'this client');
+  /**
+   * El wrapper publica el cliente en su input (después de construir esta página), así que en el
+   * constructor `embedded()` aún puede ser false: la presencia del contexto decide si se espera.
+   */
+  private readonly hosted = inject(EmbeddedCustomerContext, { optional: true }) !== null;
 
   /** El wizard montado (solo existe con el panel abierto); lo usa el deep link para preseleccionar. */
   private readonly requestPanel = viewChild(SignatureRequestPanelComponent);
@@ -174,8 +191,20 @@ export class SignaturePageComponent implements OnInit {
   }
 
   constructor() {
-    this.store.refresh();
+    if (!this.hosted) {
+      this.store.refresh();
+    }
     this.store.loadSignatureProfiles();
+
+    // Embebida: carga (y recarga si cambia) el listado del cliente fijado por el perfil.
+    let loadedFor: string | null = null;
+    effect(() => {
+      const customer = this.embeddedCustomer();
+      if (customer && customer.id !== loadedFor) {
+        loadedFor = customer.id;
+        untracked(() => this.store.setPage(1));
+      }
+    });
 
     // Deep link: en cuanto el wizard está montado y el cliente resuelto, se elige como en el paso 1.
     effect(() => {
@@ -191,7 +220,42 @@ export class SignaturePageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Embebida, los query params son de la página anfitriona (perfil): no se leen ni se limpian.
+    if (this.hosted) {
+      return;
+    }
     this.consumeNewRequestDeepLink();
+  }
+
+  /**
+   * "New Signature Request". Embebida: abre el wizard con el cliente del perfil ya elegido
+   * (mismo flujo `pendingCustomer` que el deep link). Fuera del perfil: wizard vacío.
+   */
+  openNewRequest(): void {
+    const customer = this.embeddedCustomer();
+    this.openCreatePanel();
+    if (!customer) {
+      return;
+    }
+    this.directory.byId([customer.id]).subscribe({
+      next: found => {
+        const summary = found.get(customer.id);
+        if (summary && this.isPanelOpen() && !this.continueRequestId()) {
+          this.pendingCustomer.set(summary);
+        } else if (!summary) {
+          this.failNewRequest(customer.name);
+        }
+      },
+      error: () => this.failNewRequest(customer.name),
+    });
+  }
+
+  /** Embebida el paso 1 está bloqueado: sin el cliente resuelto no se puede seguir, se cierra el wizard. */
+  private failNewRequest(name: string): void {
+    if (this.isPanelOpen() && !this.continueRequestId()) {
+      this.closePanel();
+    }
+    this.toast.error(`Could not load ${name}; try again in a moment`);
   }
 
   /**
@@ -225,6 +289,7 @@ export class SignaturePageComponent implements OnInit {
   /** Búsqueda client-side sobre la página cargada (el listado del backend no tiene `term`). */
   readonly visibleRequests = computed<SignatureRequest[]>(() => {
     const query = this.search().trim().toLowerCase();
+    const embedded = this.embedded();
     if (!query) {
       return this.store.requests();
     }
@@ -233,7 +298,7 @@ export class SignaturePageComponent implements OnInit {
       .filter(
         request =>
           request.documentName.toLowerCase().includes(query) ||
-          request.client.toLowerCase().includes(query) ||
+          (!embedded && request.client.toLowerCase().includes(query)) ||
           request.signers.some(s => s.name.toLowerCase().includes(query) || s.email.toLowerCase().includes(query)),
       );
   });

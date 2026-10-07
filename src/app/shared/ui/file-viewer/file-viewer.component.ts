@@ -65,7 +65,7 @@ import {
  *   0 ajustar, Esc cierra. Ctrl/⌘ + rueda = zoom.
  * - Accesible: role="dialog", aria-modal, focus-trap y el foco vuelve al disparador al cerrar.
  *   Comparte el contador de bloqueo de scroll con app-modal/app-drawer (overlay.util).
- * - Va por encima de modales y drawers (z-[55]) y por debajo de los toasts. El overlay se mueve al
+ * - Va por encima de modales y drawers (z-[68]) y por debajo de los toasts. El overlay se mueve al
  *   <body> al abrirse, así que puede declararse en cualquier plantilla (también dentro de un drawer).
  */
 

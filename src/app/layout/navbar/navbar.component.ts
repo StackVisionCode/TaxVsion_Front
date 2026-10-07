@@ -1,3 +1,6 @@
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
@@ -15,15 +18,22 @@ import {
 } from '@features/notifications/data-access/notifications.model';
 import { AccessStore } from '@core/access/access.store';
 import { AccountHandoffStore } from '@core/billing/account-handoff.store';
+import type { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import type { CustomerSummary } from '@core/customers/customer-summary.model';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+
+/** Cuántos clientes muestra el buscador del navbar (el listado completo vive en /clients). */
+const NAVBAR_SEARCH_SIZE = 8;
+const NAVBAR_SEARCH_DEBOUNCE_MS = 250;
 
 /** Pestañas de la campana. No hay "Mentions": este producto no genera menciones. */
 export type NotificationTab = 'all' | 'unread' | 'alerts';
 
 /**
  * Visual port of the production navbar. El usuario del menú viene de
- * AuthService.currentUser() (GET /auth/me); notifications y customer search
- * results siguen siendo datos locales de muestra. Search filtering es real
- * (computed) así la UI se siente interactiva aunque no toque backend. La
+ * AuthService.currentUser() (GET /auth/me). El buscador consulta el directorio real de clientes
+ * (`CustomerDirectoryStore`: GET /customers server-side, cacheado, + recientes); el store se
+ * descarga la primera vez que se abre el buscador para no engordar el bundle inicial (R3). La
  * campana de notificaciones abre un panel local, no un servicio de modal.
  */
 
@@ -38,17 +48,9 @@ interface NavbarUser {
   role: string;
 }
 
-interface NavbarCustomer {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  ssnOrItin: string;
-}
-
 @Component({
   selector: 'app-navbar',
-  imports: [CommonModule, RouterModule, SidebarComponent],
+  imports: [CommonModule, RouterModule, SidebarComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.css',
@@ -153,39 +155,60 @@ export class NavbarComponent {
     } satisfies Record<NotificationTab, number>;
   });
 
-  // Static customer directory used for the local search demo
-  private readonly customers: NavbarCustomer[] = [
-    { id: 'c1', firstName: 'Maria', lastName: 'Gonzalez', email: 'maria.gonzalez@example.com', ssnOrItin: '***-**-4821' },
-    { id: 'c2', firstName: 'David', lastName: 'Chen', email: 'david.chen@example.com', ssnOrItin: '***-**-1076' },
-    { id: 'c3', firstName: 'Sarah', lastName: 'Kim', email: 'sarah.kim@example.com', ssnOrItin: '***-**-2938' },
-    { id: 'c4', firstName: 'Alvarez Family Trust', lastName: '', email: 'contact@alvarezfamily.com', ssnOrItin: '**-***4455' },
-  ];
-
   readonly searchQuery = signal('');
   private readonly searchFocused = signal(false);
+  /** Buscador expandido (la cápsula crece desde la lupa, al lado de la campana). */
+  readonly isSearchOpen = signal(false);
+  /** Solo quien puede ver clientes tiene buscador: si no, cada búsqueda sería un 403. */
+  readonly canSearchClients = computed(() => this.access.canUseId('clients'));
 
-  readonly searchResults = computed<NavbarCustomer[]>(() => {
-    const term = this.searchQuery().trim().toLowerCase();
-    if (!term) {
-      return [];
-    }
-    return this.customers
-      .filter(customer => {
-        const firstName = customer.firstName.toLowerCase();
-        const lastName = customer.lastName.toLowerCase();
-        const email = customer.email.toLowerCase();
-        const ssnOrItin = customer.ssnOrItin.toLowerCase();
-        return (
-          firstName.includes(term) ||
-          lastName.includes(term) ||
-          email.includes(term) ||
-          ssnOrItin.includes(term)
+  /** Directorio de clientes, cargado a demanda (import dinámico) al abrir el buscador. */
+  private readonly directory = signal<CustomerDirectoryStore | null>(null);
+  private readonly searchTerm$ = new Subject<string>();
+  readonly searchResults = signal<CustomerSummary[]>([]);
+  readonly searchTotal = signal(0);
+  readonly searchLoading = signal(false);
+  readonly searchError = signal(false);
+  /** Fila resaltada con ↑/↓ (Enter la abre). */
+  readonly activeResultIndex = signal(0);
+
+  /** Sin texto se ofrecen los recientes del directorio (compartidos con los pickers de cada módulo). */
+  readonly recentCustomers = computed(() => (this.directory()?.recent() ?? []).slice(0, 5));
+  readonly hasSearchTerm = computed(() => this.searchQuery().trim().length > 0);
+  /** Lo que se navega con el teclado: resultados si hay texto, recientes si no. */
+  readonly visibleCustomers = computed(() => (this.hasSearchTerm() ? this.searchResults() : this.recentCustomers()));
+
+  readonly isSearchDropdownOpen = computed(
+    () => this.isSearchOpen() && this.searchFocused() && (this.hasSearchTerm() || this.recentCustomers().length > 0),
+  );
+
+  private readonly wireSearch = this.searchTerm$
+    .pipe(
+      map(term => term.trim()),
+      debounceTime(NAVBAR_SEARCH_DEBOUNCE_MS),
+      distinctUntilChanged(),
+      switchMap(term => {
+        const directory = this.directory();
+        if (!term || !directory) {
+          this.searchLoading.set(false);
+          return of({ items: [] as CustomerSummary[], totalCount: 0, failed: false });
+        }
+        this.searchLoading.set(true);
+        this.searchError.set(false);
+        return directory.search({ term, status: 'NotArchived', page: 1, size: NAVBAR_SEARCH_SIZE }).pipe(
+          map(page => ({ items: page.items, totalCount: page.totalCount, failed: false })),
+          catchError(() => of({ items: [] as CustomerSummary[], totalCount: 0, failed: true })),
         );
-      })
-      .slice(0, 10);
-  });
-
-  readonly isSearchDropdownOpen = computed(() => this.searchFocused() && this.searchQuery().trim().length > 0);
+      }),
+      takeUntilDestroyed(inject(DestroyRef)),
+    )
+    .subscribe(({ items, totalCount, failed }) => {
+      this.searchResults.set(items);
+      this.searchTotal.set(totalCount);
+      this.searchError.set(failed);
+      this.searchLoading.set(false);
+      this.activeResultIndex.set(0);
+    });
 
   // ==========================================
   // Mobile menu
@@ -213,6 +236,7 @@ export class NavbarComponent {
     const target = event.target as HTMLElement;
     const isUserDropdown = target.closest('[data-dropdown="user"]');
     const isNotificationsDropdown = target.closest('[data-dropdown="notifications"]');
+    const isSearch = target.closest('[data-dropdown="search"]');
 
     if (!isUserDropdown && this.isUserMenuOpen()) {
       this.isUserMenuOpen.set(false);
@@ -220,14 +244,19 @@ export class NavbarComponent {
     if (!isNotificationsDropdown && this.isNotificationsOpen()) {
       this.isNotificationsOpen.set(false);
     }
+    // Clic fuera: se pliega solo si no hay nada escrito (no se pierde una búsqueda a medias).
+    if (!isSearch && this.isSearchOpen() && !this.searchQuery()) {
+      this.isSearchOpen.set(false);
+    }
   }
 
   // Cmd+F / Ctrl+F focuses the command-style search (reference behavior).
   @HostListener('document:keydown', ['$event'])
   onDocumentKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    // Sin buscador (no puede ver clientes) se deja el ⌘F del navegador intacto.
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && this.canSearchClients()) {
       event.preventDefault();
-      this.searchInput?.nativeElement.focus();
+      this.openSearch();
     }
   }
 
@@ -380,6 +409,30 @@ export class NavbarComponent {
 
   onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.activeResultIndex.set(0);
+    if (query.trim()) {
+      this.searchLoading.set(true);
+    }
+    this.searchTerm$.next(query);
+  }
+
+  /** ↑/↓ recorren la lista visible (resultados o recientes) y Enter abre la fila resaltada. */
+  onSearchKeydown(event: KeyboardEvent): void {
+    const list = this.visibleCustomers();
+    if (!this.isSearchDropdownOpen() || list.length === 0) {
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      this.activeResultIndex.set((this.activeResultIndex() + step + list.length) % list.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const customer = list[this.activeResultIndex()];
+      if (customer) {
+        this.selectCustomer(customer);
+      }
+    }
   }
 
   onSearchFocus(): void {
@@ -387,41 +440,65 @@ export class NavbarComponent {
   }
 
   onSearchBlur(): void {
-    setTimeout(() => this.searchFocused.set(false), 200);
+    setTimeout(() => {
+      this.searchFocused.set(false);
+      if (!this.searchQuery()) {
+        this.isSearchOpen.set(false);
+      }
+    }, 200);
+  }
+
+  toggleSearch(): void {
+    if (this.isSearchOpen()) {
+      this.closeSearch();
+    } else {
+      this.openSearch();
+    }
+  }
+
+  /** Expande la cápsula y enfoca el input (la transición de ancho corre en CSS, ver .search-shell). */
+  openSearch(): void {
+    if (!this.canSearchClients()) {
+      return;
+    }
+    if (!this.directory()) {
+      void import('@core/customers/customer-directory.store').then(m =>
+        this.directory.set(this.injector.get(m.CustomerDirectoryStore)),
+      );
+    }
+    this.isSearchOpen.set(true);
+    this.isNotificationsOpen.set(false);
+    this.isUserMenuOpen.set(false);
+    // El input tiene tabindex -1 mientras está plegado: se enfoca en el siguiente frame, ya abierto.
+    requestAnimationFrame(() => this.searchInput?.nativeElement.focus({ preventScroll: true }));
+  }
+
+  /** Escape o la lupa con el buscador abierto: limpia y pliega. */
+  closeSearch(): void {
+    this.clearSearch();
+    this.isSearchOpen.set(false);
+    this.searchInput?.nativeElement.blur();
   }
 
   clearSearch(): void {
     this.searchQuery.set('');
-    this.searchFocused.set(false);
+    this.searchTerm$.next('');
+    this.searchResults.set([]);
+    this.searchTotal.set(0);
+    this.searchError.set(false);
+    this.activeResultIndex.set(0);
   }
 
-  selectCustomer(customer: NavbarCustomer): void {
-    this.clearSearch();
-    this.router.navigate(['/app/customers', customer.id]);
+  selectCustomer(customer: CustomerSummary): void {
+    this.directory()?.addRecent(customer);
+    this.closeSearch();
+    void this.router.navigate(['/clients', customer.id]);
   }
 
-  getCustomerFullName(customer: NavbarCustomer): string {
-    const fullName = `${customer.firstName} ${customer.lastName}`.trim();
-    return fullName || customer.email || 'Unnamed client';
-  }
-
-  getCustomerInitials(customer: NavbarCustomer): string {
-    if (customer.firstName && customer.lastName) {
-      return `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase();
-    }
-    if (customer.firstName) {
-      return customer.firstName.charAt(0).toUpperCase();
-    }
-    if (customer.lastName) {
-      return customer.lastName.charAt(0).toUpperCase();
-    }
-    if (customer.email) {
-      return customer.email.charAt(0).toUpperCase();
-    }
-    return 'C';
-  }
-
-  trackByCustomer(index: number, customer: NavbarCustomer): string {
-    return customer.id;
+  /** Ver todos: el directorio de /clients con el mismo término ya escrito. */
+  openClientDirectory(): void {
+    const term = this.searchQuery().trim();
+    this.closeSearch();
+    void this.router.navigate(['/clients'], term ? { queryParams: { term } } : {});
   }
 }

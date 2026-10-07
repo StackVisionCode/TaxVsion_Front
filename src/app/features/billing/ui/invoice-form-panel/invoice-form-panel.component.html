@@ -15,8 +15,19 @@
     <!-- Cliente -->
     <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
 
-    <app-customer-picker class="mt-2" variant="field" [selected]="customer()" [disabled]="saving"
-      (selectedChange)="customer.set($event)"></app-customer-picker>
+    <!-- Cliente fijo (perfil del cliente): solo lectura -->
+    <div *ngIf="customerLocked; else customerPicker"
+      class="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+      <app-avatar [name]="customer()?.displayName ?? ''" [seed]="customer()?.id ?? null" size="sm"></app-avatar>
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-gray-900">{{ customer()?.displayName }}</p>
+        <p *ngIf="customer()?.primaryEmail" class="truncate text-xs text-gray-500">{{ customer()?.primaryEmail }}</p>
+      </div>
+    </div>
+    <ng-template #customerPicker>
+      <app-customer-picker class="mt-2" variant="field" [selected]="customer()" [disabled]="saving"
+        (selectedChange)="customer.set($event)"></app-customer-picker>
+    </ng-template>
 
     <!-- (Client Tax ID y el selector de moneda se quitaron del formulario: la moneda es la default del
          tenant en Company settings; el Tax ID no se captura por factura.) -->

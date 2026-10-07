@@ -5,7 +5,7 @@
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Meetings</h2>
-          <p class="mt-1 text-sm text-gray-500">Your schedule at a glance</p>
+          <p class="mt-1 text-sm text-gray-500">{{ subtitle() }}</p>
         </div>
         <!-- Agendar exige el permiso communication.meeting.create -->
         <button *ngIf="store.canCreate()" type="button" (click)="openSchedulePanel()"

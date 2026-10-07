@@ -15,6 +15,8 @@ import { StateBlockComponent } from '@shared/ui/state-block/state-block.componen
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { SmsStore, SMS_PAGE_SIZES } from '../../data-access/sms.store';
 import { SmsCapabilities } from '../../data-access/sms-permissions';
 import {
@@ -59,6 +61,10 @@ const SEARCH_DEBOUNCE_MS = 300;
  * Página del módulo SMS (Sms.Api vía /sms). Historial server-paginado, stats, bajas (opt-outs) y
  * compose. Todo en lenguaje simple: nada de proveedor, ids técnicos ni códigos de error crudos. Los
  * colores salen de las clases de marca (branding dinámico del tenant).
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`, ver `@core/customers/embedded-customer`): lo monta
+ * `ClientSmsWorkspaceComponent` en el perfil del cliente. Fija el listado a ese cliente, no toca la
+ * URL, oculta Opt-outs (es de todo el tenant) y el compose va directo a ese único cliente.
  */
 @Component({
   selector: 'app-sms-page',
@@ -85,6 +91,18 @@ export class SmsPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toastService = inject(ToastService);
+  private readonly directory = inject(CustomerDirectoryStore);
+
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
+  /** Subtítulo de la cabecera (embebido: el cliente). */
+  readonly subtitle = computed(() => {
+    const customer = this.embeddedCustomer();
+    return customer ? `Text messages with ${customer.name}` : 'Text your clients and track delivery';
+  });
+  /** Contacto SMS del cliente embebido (resuelto vía el directorio al abrir el compose). */
+  private readonly embeddedContact = signal<SmsContact | null>(null);
+  readonly embeddedContactLoading = signal(false);
 
   readonly pageSizes = SMS_PAGE_SIZES;
   readonly statusFilters = GSM_STATUS_FILTERS;
@@ -141,6 +159,12 @@ export class SmsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const customer = this.embeddedCustomer();
+    if (customer) {
+      // Embebido: sin query params; el listado queda fijo al cliente del perfil.
+      this.store.initList({ customerId: customer.id });
+      return;
+    }
     const q = this.route.snapshot.queryParamMap;
     const status = (q.get('status') as SmsStatusFilter) ?? 'All';
     const term = q.get('term') ?? '';
@@ -182,6 +206,7 @@ export class SmsPageComponent implements OnInit {
   }
 
   private syncUrl(): void {
+    if (this.embedded()) return; // embebido: no se escribe en la URL del perfil
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
@@ -219,6 +244,32 @@ export class SmsPageComponent implements OnInit {
     this.composeRecipients.set([]);
     this.composeBody.set('');
     this.composeOpen.set(true);
+    const customer = this.embeddedCustomer();
+    if (customer) this.preselectEmbedded(customer.id);
+  }
+
+  /** Embebido: el único destinatario es el cliente del perfil (se resuelve su teléfono vía directorio). */
+  private preselectEmbedded(customerId: string): void {
+    const cached = this.embeddedContact();
+    if (cached?.id === customerId) {
+      this.composeRecipients.set(cached.phoneE164 ? [cached] : []);
+      return;
+    }
+    this.embeddedContactLoading.set(true);
+    this.directory.byId([customerId]).subscribe({
+      next: resolved => {
+        const summary = resolved.get(customerId);
+        const contact = summary ? toSmsContact(summary) : null;
+        this.embeddedContact.set(contact);
+        this.composeRecipients.set(contact?.phoneE164 ? [contact] : []);
+        this.embeddedContactLoading.set(false);
+        if (!contact?.phoneE164) this.composeError.set('This client doesn’t have a valid mobile number.');
+      },
+      error: () => {
+        this.embeddedContactLoading.set(false);
+        this.composeError.set('Couldn’t load this client’s phone number.');
+      },
+    });
   }
 
   closeCompose(): void {

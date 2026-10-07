@@ -1,4 +1,5 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
@@ -45,6 +46,10 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
  * DocumentsStore y lo cablea al navegador y a las presentacionales por
  * input()/output(). El cliente es un contexto dentro del workspace, no una
  * pantalla previa: entrar a Documents abre directo el gestor.
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`, ver `@core/customers/embedded-customer`): lo monta
+ * `ClientDocumentsWorkspaceComponent` dentro del perfil del cliente. Sin navegador lateral ni salto a Office/Clients: el gestor queda fijo al
+ * workspace de ESE cliente (carpetas, filtros, orden, subir, mover, compartir…).
  */
 @Component({
   selector: 'app-documents-page',
@@ -74,7 +79,8 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
   styleUrl: './documents-page.component.css',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
-export class DocumentsPageComponent {
+export class DocumentsPageComponent implements OnInit {
+
   /** B6 — qué acciones puede ofrecer esta pantalla. Antes no se gateaba ninguna. */
   protected readonly can = inject(DocumentsPermissions);
 
@@ -172,10 +178,17 @@ export class DocumentsPageComponent {
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
   readonly filterStatuses = ['ready', 'processing', 'blocked'] as const;
 
+  /** Cliente fijo cuando la página va embebida en el perfil; `null` en /documents. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
+
   readonly title = computed(() => {
     const crumbs = this.breadcrumbs();
     if (this.isBrowsing() && crumbs.length > 0) {
       return crumbs[crumbs.length - 1].name;
+    }
+    if (this.embedded()) {
+      return 'Documents';
     }
     switch (this.section()) {
       case 'office':
@@ -194,6 +207,9 @@ export class DocumentsPageComponent {
   });
 
   readonly subtitle = computed(() => {
+    if (this.embedded()) {
+      return `Files stored for ${this.context().clientName ?? 'this client'}`;
+    }
     switch (this.section()) {
       case 'office':
         return 'Documents that belong to the office, not to a single client.';
@@ -221,6 +237,19 @@ export class DocumentsPageComponent {
   });
 
   constructor() {
+    // Embebida: abre (y reabre si cambia) el workspace del cliente fijado por el perfil.
+    effect(() => {
+      const customer = this.embeddedCustomer();
+      if (customer && customer.id !== untracked(this.context).clientId) {
+        untracked(() => this.store.openClientById(customer.id, customer.name));
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    if (this.embedded()) {
+      return;
+    }
     this.store.refreshClients();
     this.store.loadUsage();
     this.store.openOffice();

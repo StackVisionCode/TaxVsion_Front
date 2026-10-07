@@ -15,7 +15,7 @@
 
     <!-- Filter bar (categorías reales del backend; búsqueda client-side) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      <app-filter-chips [options]="categoryFilters()" [value]="activeCategory()"
+      <app-filter-chips ariaLabel="Filter by category" [options]="categoryFilters()" [value]="activeCategory()"
         (valueChange)="setCategory($event)"></app-filter-chips>
 
       <app-search-input class="ml-auto" placeholder="Search products or SKU" [value]="search()"

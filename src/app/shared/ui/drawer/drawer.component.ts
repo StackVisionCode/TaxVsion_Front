@@ -63,10 +63,10 @@ let drawerInstanceSeq = 0;
   template: `
     @if (rendered()) {
       <div #portal>
-      <div class="drawer-backdrop fixed inset-0 z-40 bg-black/30" [class.is-closing]="closing()" (click)="close()"></div>
+      <div class="drawer-backdrop fixed inset-0 z-[64] bg-black/30 backdrop-blur-[3px]" [class.is-closing]="closing()" (click)="close()"></div>
       <aside #panel role="dialog" aria-modal="true" tabindex="-1"
         [attr.aria-labelledby]="heading ? headingId : null" [attr.aria-label]="heading ? null : ariaLabel || null"
-        class="drawer-panel fixed inset-y-0 z-50 flex w-full flex-col bg-white shadow-2xl focus:outline-none"
+        class="drawer-panel fixed inset-y-0 z-[65] flex w-full flex-col bg-white shadow-2xl focus:outline-none"
         [ngClass]="[widthClass, side === 'left' ? 'left-0 is-left' : 'right-0']" [class.is-closing]="closing()">
         @if (heading) {
           <div class="flex items-start justify-between gap-3 border-b border-gray-100 p-6">

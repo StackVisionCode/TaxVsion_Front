@@ -39,7 +39,7 @@
               <ion-icon name="shield-checkmark-outline" class="shrink-0 text-purple-400" title="Statutory"></ion-icon>
             }
           </div>
-          @if (task.client) {
+          @if (showClient && task.client) {
             <p class="truncate text-xs text-gray-400">{{ task.client }}</p>
           }
           <!-- Mobile meta -->

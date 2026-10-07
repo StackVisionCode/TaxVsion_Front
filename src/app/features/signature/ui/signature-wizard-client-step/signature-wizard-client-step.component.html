@@ -25,15 +25,18 @@
     </div>
   </div>
 
-  <button type="button" (click)="changing.set(!changing())"
+  <button *ngIf="!locked" type="button" (click)="changing.set(!changing())"
     class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
     <ion-icon [name]="changing() ? 'close-outline' : 'swap-horizontal-outline'" class="text-base"></ion-icon>
     {{ changing() ? 'Cancel' : 'Change' }}
   </button>
 </div>
 
+<!-- Bloqueado (embebido en el perfil): el cliente se está cargando -->
+<p *ngIf="locked && !selected" class="py-10 text-center text-sm text-gray-400">Loading client…</p>
+
 <!-- Buscador: sin cliente, o al pulsar "Change" -->
-<div *ngIf="!selected || changing()"
+<div *ngIf="!locked && (!selected || changing())"
   class="flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 px-6 py-10 text-center"
   [class.mt-4]="!!selected">
   <span class="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">

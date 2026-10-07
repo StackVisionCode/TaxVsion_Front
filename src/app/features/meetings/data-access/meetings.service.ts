@@ -33,8 +33,17 @@ export class MeetingsService {
   }
 
   /** GET /communication/meetings — upcoming = Scheduled+Live, past = Ended+Cancelled. */
-  list(params: { scope: MeetingsScope; page?: number; size?: number }): Observable<MeetingsPageResponse> {
+  list(params: {
+    scope: MeetingsScope;
+    page?: number;
+    size?: number;
+    /** Opcional: solo meetings donde el cliente (vía su usuario de portal) es participante/invitado. */
+    customerId?: string | null;
+  }): Observable<MeetingsPageResponse> {
     let query = new HttpParams().set('scope', params.scope);
+    if (params.customerId) {
+      query = query.set('customerId', params.customerId);
+    }
     if (params.page) {
       query = query.set('page', params.page);
     }

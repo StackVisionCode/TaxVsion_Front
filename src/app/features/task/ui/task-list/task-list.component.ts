@@ -31,6 +31,8 @@ type SortKey = 'due' | 'priority' | 'title';
 })
 export class TaskListComponent {
   @Input() tasks: TaskItem[] = [];
+  /** Línea del cliente en la fila; se oculta embebido en el perfil (todas son del mismo cliente). */
+  @Input() showClient = true;
 
   @Output() taskOpened = new EventEmitter<TaskItem>();
   @Output() statusChanged = new EventEmitter<{ id: string; status: TaskStatus }>();

@@ -114,20 +114,56 @@
       </div>
     </div>
 
-    <!-- Un firmante por rol del molde (a mano o desde el directorio de clientes) -->
-    <div class="tpl-card mt-4">
-      <p class="text-xs font-medium text-gray-500">Signers</p>
-      <div *ngFor="let slot of slots()" class="mt-2">
-        <div class="grid gap-2 sm:grid-cols-[8rem_1fr_1fr] sm:items-center">
-          <span class="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-            {{ slot.role }}
-            <button type="button" (click)="toggleClientPicker(slot.slotOrder)" [disabled]="busy()"
-              title="Pick from client directory"
-              class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-bold transition-colors"
-              [ngClass]="{ 'bg-brand-white text-brand-bold': clientPickerSlot() === slot.slotOrder }">
-              <ion-icon name="people-outline" class="text-sm"></ion-icon>
+    <!-- Un firmante por rol del molde. Cada rol elige independiente: cliente del directorio o manual.
+         relative + z alto: el dropdown del customer-picker (z-30 interno) debe quedar encima del
+         panel "Inherited" que viene después en el DOM. -->
+    <div class="tpl-card mt-4 relative z-20">
+      <div class="mb-2 flex items-center justify-between">
+        <p class="text-xs font-medium text-gray-500">Signers</p>
+        <span class="text-[11px] text-gray-400">{{ slots().length }} role(s) · each one picks client or manual</span>
+      </div>
+      <div *ngFor="let slot of slots(); let i = index"
+        class="mt-2 rounded-2xl border px-3 py-3 transition-colors"
+        [ngClass]="slotReady(slot) ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 bg-white'">
+        <!-- Encabezado del slot: índice + rol + status + toggle de fuente -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+            [ngClass]="slotReady(slot) ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600'">
+            {{ i + 1 }}
+          </span>
+          <span class="text-sm font-medium text-gray-700">{{ slot.role }}</span>
+          <span *ngIf="slotReady(slot)" class="truncate text-[11px] text-emerald-700">
+            · {{ slotSummaryName(slot) }}
+          </span>
+          <span class="ml-auto inline-flex rounded-full border border-gray-200 p-0.5">
+            <button type="button" (click)="setSlotSource(slot.slotOrder, 'client')" [disabled]="busy()"
+              class="rounded-full px-3 py-0.5 text-[11px] font-medium transition-colors"
+              [ngClass]="slot.source === 'client' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+              From clients
+            </button>
+            <button type="button" (click)="setSlotSource(slot.slotOrder, 'manual')" [disabled]="busy()"
+              class="rounded-full px-3 py-0.5 text-[11px] font-medium transition-colors"
+              [ngClass]="slot.source === 'manual' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+              Manual
             </button>
           </span>
+        </div>
+
+        <!-- Modo 'From clients': buscador inline por este slot -->
+        <div *ngIf="slot.source === 'client'" class="mt-2">
+          <app-customer-picker variant="inline" placeholder="Search clients by name or email" [disabled]="busy()"
+            (selectedChange)="pickClient(slot.slotOrder, $event)" />
+          <p *ngIf="!slotReady(slot)" class="mt-1 text-[11px] text-gray-400">
+            Pick a client — name, email{{ slotNeedsPhone(slot) ? ' and phone' : '' }} will fill in.
+          </p>
+          <p *ngIf="slotReady(slot)" class="mt-1 flex items-center gap-1 text-[11px] text-emerald-700">
+            <ion-icon name="checkmark-circle-outline" class="text-[13px]"></ion-icon>
+            {{ slot.fullName }} · {{ slot.email }}
+          </p>
+        </div>
+
+        <!-- Modo 'Manual': inputs sueltos -->
+        <div *ngIf="slot.source === 'manual'" class="mt-2 grid gap-2 sm:grid-cols-2">
           <input type="text" [ngModel]="slot.fullName" (ngModelChange)="updateSlot(slot.slotOrder, { fullName: $event })"
             [name]="'name' + slot.slotOrder" placeholder="Full name" [disabled]="busy()"
             class="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
@@ -136,8 +172,8 @@
             class="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none" />
         </div>
 
-        <!-- Teléfono: solo si el rol exige OTP por SMS/WhatsApp -->
-        <div *ngIf="slotNeedsPhone(slot)" class="mt-1.5">
+        <!-- Teléfono (solo si el rol exige OTP por SMS/WhatsApp). Se muestra en ambos modos cuando aplica. -->
+        <div *ngIf="slotNeedsPhone(slot)" class="mt-2">
           <div class="flex h-10 items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 focus-within:border-brand-bold transition-colors">
             <ion-icon name="call-outline" class="text-sm text-gray-400"></ion-icon>
             <input type="tel" [ngModel]="slot.phone" (ngModelChange)="updateSlot(slot.slotOrder, { phone: $event })"
@@ -146,16 +182,43 @@
           </div>
           <p class="mt-1 flex items-center gap-1 text-[11px] text-brand-bold">
             <ion-icon name="shield-checkmark-outline" class="text-[11px]"></ion-icon>
-            Verifies by {{ slotChannelLabel(slot) }} code — a phone is required. Pick a client to fill it automatically.
+            Verifies by {{ slotChannelLabel(slot) }} code — a phone is required.
           </p>
         </div>
-
-        <!-- Buscador de clientes para este rol -->
-        <div *ngIf="clientPickerSlot() === slot.slotOrder" class="mt-1.5">
-          <app-customer-picker variant="inline" placeholder="Search clients by name or email" [disabled]="busy()"
-            (selectedChange)="pickClient(slot.slotOrder, $event)" />
-        </div>
       </div>
+    </div>
+
+    <!-- F7 — preview de los defaults que el template va a heredar a la request. Solo lectura.
+         z menor que el card de signers para que su dropdown de clientes quede por encima. -->
+    <div class="tpl-card mt-4 relative z-0 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+      <p class="mb-1.5 text-xs font-medium text-gray-500">Inherited from the template</p>
+      <ul class="space-y-0.5 text-[11px] text-gray-600">
+        <li>
+          <ion-icon name="time-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          {{ template.expirationEnabled ? 'Link valid for ' + template.defaultTokenExpirationHours + 'h' : 'Link never expires' }}
+        </li>
+        <li *ngIf="template.sendPartialCopyOnEachSignature">
+          <ion-icon name="mail-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          Partial copy per signature ·
+          {{ template.partialCopyAudienceKind === 'All' ? 'all roles' : template.partialCopyAudienceSlotOrders.length + ' role(s)' }}
+        </li>
+        <li *ngIf="template.sendSealedDocumentToSigners">
+          <ion-icon name="shield-checkmark-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          Final sealed PDF emailed to signers on completion
+        </li>
+        <li *ngIf="template.sendCertificateToSigners">
+          <ion-icon name="ribbon-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          Signing certificate emailed to signers
+        </li>
+        <li *ngIf="template.autoRemindersEnabled && template.expirationEnabled">
+          <ion-icon name="alarm-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          Auto-reminders every {{ (template.reminderIntervalHours / 24) | number: '1.0-0' }} day(s)
+        </li>
+        <li *ngIf="template.requiresPractitionerPin">
+          <ion-icon name="lock-closed-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          Preparer PIN inherited (Form 8879)
+        </li>
+      </ul>
     </div>
 
     <div class="tpl-card mt-4">

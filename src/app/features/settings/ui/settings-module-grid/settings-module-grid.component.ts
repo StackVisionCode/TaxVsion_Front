@@ -24,6 +24,8 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   // (Billing /billing/issuer-profile + /tenants/{id}/...), pero se editan en su propia
   // pantalla: se enlaza en vez de duplicar el formulario acá.
   { id: 'company', featureId: 'company-settings', title: 'Company', description: 'Legal name, EIN, address, logo and brand colors', icon: 'business-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/company/settings' },
+  // Gestión de usuarios de la oficina: antes era una entrada del sidebar. Tiene su propia pantalla.
+  { id: 'users', featureId: 'users', title: 'Users', description: 'Team members, roles, invitations and seats', icon: 'person-circle-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/company/users' },
   { id: 'accounts', featureId: 'clients', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'documents', featureId: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
   // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO
@@ -33,6 +35,8 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'signature', featureId: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500' },
   { id: 'meetings', featureId: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-gray-200 text-gray-700' },
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
+  // Conexiones de terceros para la IA: API keys de proveedores, cuentas OAuth y servidores MCP.
+  { id: 'connections', featureId: 'ai-assistant', title: 'Connections & MCP', description: 'AI providers, connected accounts and MCP servers', icon: 'extension-puzzle-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/connections' },
   { id: 'storage', featureId: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/storage' },
   { id: 'templates', featureId: 'templates', title: 'Templates', description: 'Reusable email, letter and reminder content', icon: 'copy-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/templates' },
 ];

@@ -27,6 +27,8 @@ export class SignatureWizardClientStepComponent implements OnChanges {
   @Input() selected: WizardClient | null = null;
   /** Recientes del directorio compartido (se filtran por tipo aquí). */
   @Input() recent: CustomerSummary[] = [];
+  /** true = cliente fijado (wizard embebido en el perfil del cliente): sin "Change" ni buscador. */
+  @Input() locked = false;
   /** Cliente elegido en el buscador o en los recientes. */
   @Output() picked = new EventEmitter<CustomerSummary>();
 

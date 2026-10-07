@@ -1,20 +1,41 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  Injector,
+  OnDestroy,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
+import { ClientProfileTabId, TAB_ACCESS } from '../../data-access/client-tab-access';
+// Re-export: otros archivos de la feature importaban el tipo desde aquí.
+export type { ClientProfileTabId };
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
-import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
-import { ClientProfileDocumentsComponent } from '../../ui/client-profile-documents/client-profile-documents.component';
-import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
+// Excepción a "una feature no importa de otra": los módulos completos del CRM fijos a este cliente
+// (patrón `@core/customers/embedded-customer`: mismo diseño que su página, su propio store). Se
+// montan con @defer, así que cada uno viaja en su propio chunk.
+import { ClientDocumentsWorkspaceComponent } from '../../../documents/components/client-documents-workspace/client-documents-workspace.component';
+import { ClientSignatureWorkspaceComponent } from '../../../signature/components/client-signature-workspace/client-signature-workspace.component';
+import { ClientTaskWorkspaceComponent } from '../../../task/components/client-task-workspace/client-task-workspace.component';
+import { ClientBillingWorkspaceComponent } from '../../../billing/components/client-billing-workspace/client-billing-workspace.component';
+import { ClientMailWorkspaceComponent } from '../../../mail/components/client-mail-workspace/client-mail-workspace.component';
+import { ClientSmsWorkspaceComponent } from '../../../sms/components/client-sms-workspace/client-sms-workspace.component';
+import { ClientMeetingsWorkspaceComponent } from '../../../meetings/components/client-meetings-workspace/client-meetings-workspace.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
-import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
-import { ClientProfileCommunicationComponent } from '../../ui/client-profile-communication/client-profile-communication.component';
 import { ClientChatCardComponent } from '../../ui/client-chat-card/client-chat-card.component';
 import { ClientProfileCallsComponent } from '../../ui/client-profile-calls/client-profile-calls.component';
 import { ClientProfileBankComponent } from '../../ui/client-profile-bank/client-profile-bank.component';
@@ -77,92 +98,69 @@ const ACTION_ACCESS = {
   email: { feature: 'email', action: { module: 'email', anyOf: ['correspondence.compose'] } },
 } as const satisfies Record<string, { feature: string; action: AccessRequirement }>;
 
-export type ClientProfileTabId =
-  | 'overview'
-  | 'info'
-  | 'family'
-  | 'documents'
-  | 'invoices'
-  | 'work'
-  | 'notes'
-  | 'communication'
-  | 'calls'
-  | 'bank'
-  | 'reminders'
-  | 'mileage'
-  | 'portal';
 
 interface ClientProfileTab {
   id: ClientProfileTabId;
   label: string;
+  /** Icono de ionicons (registrado en src/main.ts). */
+  icon: string;
 }
 
-/** Entrada de la fila de tabs: una píldora simple, o una píldora "grupo" que despliega varias tabs relacionadas. */
+/** Entrada del menú lateral: una pestaña suelta, o un grupo con título y sus pestañas debajo. */
 type ClientProfileNavEntry =
-  | { kind: 'tab'; id: ClientProfileTabId; label: string }
+  | ({ kind: 'tab' } & ClientProfileTab)
   | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
 
 /**
- * Se agrupan las tabs de Info, Finance y Activity para no alargar la fila de
- * píldoras (12 tabs individuales no cabían sin scroll horizontal). Info agrupa
- * los datos del cliente (Details) y su hogar fiscal (Family: cónyuge y
- * dependientes). Overview y Portal quedan sueltas.
+ * Menú lateral del perfil: Info, Finance y Activity son secciones con título
+ * y sus pestañas debajo. Info agrupa los datos del cliente (Details) y su
+ * hogar fiscal (Family: cónyuge y dependientes). Overview y Portal quedan
+ * sueltas.
  */
 const PROFILE_NAV: ClientProfileNavEntry[] = [
-  { kind: 'tab', id: 'overview', label: 'Overview' },
+  { kind: 'tab', id: 'overview', label: 'Overview', icon: 'grid-outline' },
   {
     kind: 'group',
     label: 'Info',
     tabs: [
-      { id: 'info', label: 'Details' },
-      { id: 'family', label: 'Family' },
+      { id: 'info', label: 'Details', icon: 'person-outline' },
+      { id: 'family', label: 'Family', icon: 'people-outline' },
     ],
   },
   {
     kind: 'group',
     label: 'Finance',
     tabs: [
-      { id: 'invoices', label: 'Invoices' },
-      { id: 'bank', label: 'Bank' },
-      { id: 'mileage', label: 'Mileage' },
+      { id: 'invoices', label: 'Invoices', icon: 'receipt-outline' },
+      { id: 'bank', label: 'Bank', icon: 'wallet-outline' },
+      { id: 'mileage', label: 'Mileage', icon: 'car-outline' },
     ],
   },
   {
     kind: 'group',
     label: 'Activity',
     tabs: [
-      { id: 'work', label: 'Work' },
-      { id: 'documents', label: 'Documents' },
-      { id: 'notes', label: 'Notes' },
-      { id: 'communication', label: 'Communication' },
-      { id: 'calls', label: 'Calls' },
-      { id: 'reminders', label: 'Reminders' },
+      { id: 'work', label: 'Work', icon: 'checkbox-outline' },
+      { id: 'documents', label: 'Documents', icon: 'document-text-outline' },
+      { id: 'signatures', label: 'Signatures', icon: 'create-outline' },
+      { id: 'notes', label: 'Notes', icon: 'reader-outline' },
+      { id: 'communication', label: 'Email', icon: 'mail-outline' },
+      { id: 'sms', label: 'SMS', icon: 'chatbox-ellipses-outline' },
+      { id: 'meetings', label: 'Meetings', icon: 'videocam-outline' },
+      { id: 'calls', label: 'Calls', icon: 'call-outline' },
+      { id: 'reminders', label: 'Reminders', icon: 'alarm-outline' },
     ],
   },
-  { kind: 'tab', id: 'portal', label: 'Portal' },
+  { kind: 'tab', id: 'portal', label: 'Portal', icon: 'globe-outline' },
 ];
 
-/**
- * B5 — qué hace falta para que una pestaña tenga contenido. Lo que no está acá no depende de
- * nada: Overview, Details y Family son el propio cliente, y quien llegó a esta pantalla ya pasó
- * por `customers.view`; Invoices, Bank y Mileage son estados vacíos declarados, sin backend
- * todavía. Lo que se gatea es lo que llama a OTRO servicio y hoy contesta 403 en silencio.
- */
-const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
-  documents: { module: 'documents', anyOf: ['cloudstorage.file.view'] },
-  work: { module: 'planner', anyOf: ['tasks.read'] },
-  notes: { module: 'planner', anyOf: ['notes.read'] },
-  reminders: { module: 'planner', anyOf: ['reminders.read'] },
-  communication: { module: 'email', anyOf: ['correspondence.read'] },
-  calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
-};
 
 /**
- * Shell del perfil de cliente (patrón "Aether" tipo takeover, con
- * navegación por tabs estilo invoice-preview + settings-page): header con
- * botón de volver, avatar/nombre/chips de tipo y estado, botón "Edit" (abre
- * el mismo `app-client-form-panel` del directorio, precargado con este
- * cliente) y fila de tabs tipo píldora. El contenido de cada tab se resuelve
+ * Shell del perfil de cliente: barra superior con botón de volver y las
+ * acciones (Actions y "Edit", que abre el mismo `app-client-form-panel` del
+ * directorio, precargado con este cliente); columna izquierda con
+ * avatar/nombre/chips de tipo y estado, contacto y menú vertical de
+ * pestañas; contenido a la derecha. El contenido de cada tab se resuelve
  * por *ngSwitch sobre activeTab().
  *
  * `client` viene de GET /customers/{id} (ClientsStore) — no de una seed
@@ -171,16 +169,20 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
  *
  * Estado de los datos por tab (auditoría ago-2026, ver el comentario de clase
  * de cada componente para el detalle del contrato):
+ *  - MÓDULOS EMBEBIDOS (página completa del módulo fija a este cliente, patrón
+ *    `@core/customers/embedded-customer`): Work (Task + solicitudes del cliente), Documents,
+ *    Signatures (`?customerId=` — firmante mapeado al cliente), Invoices (Billing,
+ *    `?customerId=`), Email (Mail + tarjeta de chat), SMS (`?customerId=`) y Meetings
+ *    (`?customerId=` — vía la cuenta de portal del cliente).
  *  - REALES y filtradas por este cliente: Info, Family (del propio Customer),
- *    Notes (`/notes?targetType=Customer&targetId=`), Communication
- *    (`/correspondence/customers/{id}/threads`), Work
- *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents
- *    (`/storage/files?ownerType=Customer&ownerId=` — filtro de dueño de staff) y
+ *    Notes (`/notes?targetType=Customer&targetId=`) y
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
- *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
- *    (parcial), Invoices, Bank, Mileage y Calls. Cada
+ *  - Overview: resumen REAL de todas las fuentes de arriba (ClientOverviewStore), cada tarjeta
+ *    gateada por el mismo TAB_ACCESS que el menú. Calls también es real
+ *    (GET /communication/customers/{id}/calls).
+ *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Bank y Mileage. Cada
  *    una muestra un estado vacío que explica qué falta. NO son un olvido:
  *    antes pintaban mocks estáticos bajo el nombre de un cliente real, que es
  *    justo lo que había que quitar antes de producción.
@@ -190,17 +192,19 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   imports: [
     AvatarComponent,
     StatusPillComponent,
-    ClickOutsideDirective,
     CommonModule,
     RouterModule,
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
-    ClientProfileDocumentsComponent,
-    ClientProfileWorkComponent,
+    ClientDocumentsWorkspaceComponent,
+    ClientSignatureWorkspaceComponent,
+    ClientTaskWorkspaceComponent,
+    ClientBillingWorkspaceComponent,
+    ClientMailWorkspaceComponent,
+    ClientSmsWorkspaceComponent,
+    ClientMeetingsWorkspaceComponent,
     ClientProfileRequestsComponent,
-    ClientProfileInvoicesComponent,
     ClientProfileNotesComponent,
-    ClientProfileCommunicationComponent,
     ClientChatCardComponent,
     ClientProfileCallsComponent,
     ClientProfileBankComponent,
@@ -239,8 +243,8 @@ export class ClientProfilePageComponent implements OnDestroy {
   private readonly access = inject(AccessStore);
 
   /**
-   * La fila de pestañas, ya filtrada. Un grupo cuyas pestañas se fueron todas desaparece con
-   * ellas: un desplegable vacío es peor que no tener el desplegable.
+   * El menú de pestañas, ya filtrado. Un grupo cuyas pestañas se fueron todas desaparece con
+   * ellas: una sección vacía es peor que no tener la sección.
    */
   readonly navItems = computed<ClientProfileNavEntry[]>(() =>
     PROFILE_NAV.map(entry =>
@@ -268,8 +272,13 @@ export class ClientProfilePageComponent implements OnDestroy {
 
   readonly activeTab = signal<ClientProfileTabId>('overview');
 
-  /** Label del grupo (Finance/Activity) cuyo dropdown está abierto, o null si ninguno. */
-  readonly openGroupLabel = signal<string | null>(null);
+  /**
+   * Píldora que se desliza hasta la pestaña activa del menú lateral (mismo efecto que el sidebar
+   * principal). Se mide con offsetTop/offsetLeft: los botones cuelgan directo del <nav> relativo.
+   */
+  private readonly injector = inject(Injector);
+  private readonly profileNav = viewChild<ElementRef<HTMLElement>>('profileNav');
+  readonly navIndicator = signal<{ top: number; left: number; width: number; height: number } | null>(null);
 
   /**
    * Signal reactiva sobre paramMap (no un snapshot leído una sola vez): con
@@ -365,9 +374,42 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(id);
       }
     });
+
+    // Re-mide la píldora al cambiar de pestaña, cuando cambia el menú filtrado o el ancho del menú.
+    effect(onCleanup => {
+      const nav = this.profileNav()?.nativeElement;
+      const tab = this.activeTab();
+      this.navItems();
+      if (!nav) {
+        this.navIndicator.set(null);
+        return;
+      }
+      afterNextRender(() => this.syncNavIndicator(nav, tab), { injector: this.injector });
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(() => this.syncNavIndicator(nav, untracked(this.activeTab)));
+        observer.observe(nav);
+        onCleanup(() => observer.disconnect());
+      }
+    });
+  }
+
+  private syncNavIndicator(nav: HTMLElement, tab: ClientProfileTabId): void {
+    const button = nav.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
+    this.navIndicator.set(
+      button
+        ? { top: button.offsetTop, left: button.offsetLeft, width: button.offsetWidth, height: button.offsetHeight }
+        : null,
+    );
   }
 
   private loadClient(id: string): void {
+    // Cambio de cliente sin salir de la ruta: volver a Overview desmonta los módulos embebidos
+    // (cada uno con su store fijado al cliente anterior) y se montan limpios con el nuevo.
+    const current = untracked(this.client);
+    if (current && current.id !== id) {
+      this.activeTab.set('overview');
+    }
     this.loading.set(true);
     this.loadError.set(null);
     this.hideTaxId();
@@ -781,16 +823,6 @@ export class ClientProfilePageComponent implements OnDestroy {
       this.hideTaxId();
     }
     this.activeTab.set(id);
-    this.openGroupLabel.set(null);
-  }
-
-  toggleGroup(label: string, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openGroupLabel.set(this.openGroupLabel() === label ? null : label);
-  }
-
-  isGroupActive(group: Extract<ClientProfileNavEntry, { kind: 'group' }>): boolean {
-    return group.tabs.some(tab => tab.id === this.activeTab());
   }
 
   openEditPanel(): void {

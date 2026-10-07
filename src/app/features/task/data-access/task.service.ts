@@ -66,9 +66,22 @@ export class TaskService {
 
   // ---------- Tablero + búsqueda ----------
 
-  /** GET /tasks/board — solo abiertas (excluye Completed/Cancelled), tope 500. */
-  board(): Observable<TaskBoardApiResponse> {
-    return this.http.get<TaskBoardApiResponse>(`${this.base}/board`);
+  /**
+   * GET /tasks/board — solo abiertas (excluye Completed/Cancelled), tope 500. Filtros opcionales
+   * server-side (`customerId` lo usa el modo embebido en el perfil del cliente).
+   */
+  board(params: { customerId?: string; assigneeUserId?: string; taxYear?: number } = {}): Observable<TaskBoardApiResponse> {
+    let query = new HttpParams();
+    if (params.customerId) {
+      query = query.set('customerId', params.customerId);
+    }
+    if (params.assigneeUserId) {
+      query = query.set('assigneeUserId', params.assigneeUserId);
+    }
+    if (params.taxYear) {
+      query = query.set('taxYear', params.taxYear);
+    }
+    return this.http.get<TaskBoardApiResponse>(`${this.base}/board`, { params: query });
   }
 
   /** GET /tasks/search — el filtro de texto es `q` (no `term`); paginado con `page`/`size`. */

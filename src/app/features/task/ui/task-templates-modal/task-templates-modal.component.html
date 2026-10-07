@@ -101,8 +101,17 @@
 
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Client</label>
-          <app-customer-picker [selected]="selectedClient()" placeholder="Search clients…"
-            (selectedChange)="selectedClient.set($event)" />
+          @if (lockedClient; as locked) {
+            <!-- Embebido en el perfil: cliente fijo, solo lectura -->
+            <div class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 text-sm text-gray-700">
+              <ion-icon name="person-outline" class="text-gray-400"></ion-icon>
+              <span class="truncate">{{ locked.displayName }}</span>
+              <ion-icon name="lock-closed-outline" class="ml-auto text-gray-400"></ion-icon>
+            </div>
+          } @else {
+            <app-customer-picker [selected]="selectedClient()" placeholder="Search clients…"
+              (selectedChange)="selectedClient.set($event)" />
+          }
         </div>
 
         <div class="grid grid-cols-2 gap-3">

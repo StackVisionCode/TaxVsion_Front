@@ -13,6 +13,7 @@ import { MeetingRtcService } from './meeting-rtc.service';
 import { MeetingSfuService } from './meeting-sfu.service';
 import { CallsService } from './calls.service';
 import { CallRecordingService } from './call-recording.service';
+import { MeetingSoundsService } from './meeting-sounds.service';
 import { IceServer } from './call.model';
 import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
 
@@ -82,6 +83,7 @@ export class ActiveMeetingService {
   private readonly recording = inject(CallRecordingService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly sfu = inject(MeetingSfuService);
+  private readonly sounds = inject(MeetingSoundsService);
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
 
@@ -186,10 +188,12 @@ export class ActiveMeetingService {
       // sala en 'joined'. Se trata como fin del meeting (pantalla de terminado / toast del mini-player).
       if (dto.participant.userId === this.myUserId() && dto.participant.status === 'Removed' && this.phase() !== 'idle') {
         this.errorMessage.set('You were removed from the meeting.');
+        this.sounds.play('leave');
         this.phase.set('ended');
         this.stopLocalMedia();
         return;
       }
+      this.playParticipantSound(dto.participant);
       this.applyParticipantChange(dto.participant);
       const p = dto.participant;
       if (p.userId === this.myUserId() || this.strategy() === 'Sfu') {
@@ -234,6 +238,9 @@ export class ActiveMeetingService {
         if (list.some(m => m.id === dto.id)) {
           return list; // dedupe (el propio broadcast del remitente)
         }
+        if (dto.senderId !== this.myUserId() && dto.kind !== 'System') {
+          this.sounds.play('notification');
+        }
         return [...list, this.toChatView(dto)];
       });
     });
@@ -244,6 +251,9 @@ export class ActiveMeetingService {
       }
       this.isLocked.set(dto.isLocked);
       if (dto.status === 'Ended' || dto.status === 'Cancelled') {
+        if (this.phase() === 'joined') {
+          this.sounds.play('leave');
+        }
         this.phase.set('ended');
         this.stopLocalMedia(); // apagar cámara/mic al terminar el meeting (no se llega por leave())
       }
@@ -260,6 +270,7 @@ export class ActiveMeetingService {
         void this.rtc.respondRecordingConsent(dto.meetingId, 'Accepted').catch(() => undefined); // el que pide, consiente
       } else {
         this.recordingConsentFrom.set(dto.requestedByUserId); // modal a los demás
+        this.sounds.play('notification');
       }
     });
 
@@ -338,6 +349,9 @@ export class ActiveMeetingService {
     this.yourRole.set(snap.yourRole);
     this.isLocked.set(snap.isLocked);
     this.participants.set(snap.participants);
+    if (this.phase() !== 'joined') {
+      this.sounds.play('join');
+    }
     this.phase.set('joined');
 
     if (snap.strategy === 'Sfu') {
@@ -346,6 +360,31 @@ export class ActiveMeetingService {
     }
     // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
     this.reconcileMeshPeers(snap.participants);
+  }
+
+  /**
+   * Sonido por el cambio de OTRO participante, comparando con su estado anterior (el mismo evento
+   * llega en cada toggle de mic/cámara, así que solo suena en las transiciones que importan).
+   */
+  private playParticipantSound(next: MeetingParticipantDto): void {
+    if (next.userId === this.myUserId() || this.phase() !== 'joined') {
+      return;
+    }
+    const prev = this.participants().find(p => p.userId === next.userId);
+    const wasIn = prev?.status === 'Joined';
+    if (!wasIn && next.status === 'Joined') {
+      this.sounds.play('join');
+    } else if (wasIn && (next.status === 'Left' || next.status === 'Removed')) {
+      this.sounds.play('leave');
+    } else if (next.status === 'Waiting' && prev?.status !== 'Waiting' && this.isHost()) {
+      this.sounds.play('notification'); // alguien pide entrar: solo el host puede admitirlo
+    } else if (wasIn && next.status === 'Joined') {
+      if (!prev.screenSharing && next.screenSharing) {
+        this.sounds.play('screen-share');
+      } else if (!prev.handRaised && next.handRaised) {
+        this.sounds.play('notification');
+      }
+    }
   }
 
   /** Upsert/baja de un participante según el contrato real (`status`). */
@@ -850,6 +889,7 @@ export class ActiveMeetingService {
     await this.applyScreenTrack(track); // al screenSender de cada peer (o producer 'screen' en SFU), sin renegociar
     track.onended = () => void this.stopScreenShare(); // botón nativo "Dejar de compartir"
     this.screenSharing.set(true);
+    this.sounds.play('screen-share');
     this.publishMediaStatus();
   }
 
@@ -1110,6 +1150,9 @@ export class ActiveMeetingService {
         }
       }
       pendingBlob = await this.recording.stop();
+    }
+    if (this.phase() === 'joined') {
+      this.sounds.play('leave');
     }
     // Reset LOCAL SINCRÓNICO (phase→'idle' YA). Antes se hacía `await rtc.leave()` y LUEGO reset(), así
     // que phase quedaba en 'joined' unos ms; si el usuario le daba a Join enseguida, el guard de join()

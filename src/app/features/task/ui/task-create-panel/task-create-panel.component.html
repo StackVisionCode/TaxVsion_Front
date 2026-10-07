@@ -14,9 +14,18 @@
         (ngModelChange)="description.set($event)"
         class="w-full resize-none rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
 
-      <!-- Client (app-customer-picker sobre GET /customers: el backend guarda customerId; limpiar = sin cliente) -->
-      <app-customer-picker [selected]="selectedClient()" placeholder="Client — search by name (optional)"
-        (selectedChange)="selectClient($event)" />
+      <!-- Client (app-customer-picker sobre GET /customers: el backend guarda customerId; limpiar = sin cliente).
+           Embebido en el perfil: cliente fijo, se muestra solo lectura. -->
+      @if (lockedClient(); as locked) {
+        <div class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 text-sm text-gray-700">
+          <ion-icon name="person-outline" class="text-gray-400"></ion-icon>
+          <span class="truncate">{{ locked.displayName }}</span>
+          <ion-icon name="lock-closed-outline" class="ml-auto text-gray-400" title="Client fixed by this profile"></ion-icon>
+        </div>
+      } @else {
+        <app-customer-picker [selected]="selectedClient()" placeholder="Client — search by name (optional)"
+          (selectedChange)="selectClient($event)" />
+      }
 
       <!-- Due date -->
       <label

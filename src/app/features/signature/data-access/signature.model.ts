@@ -392,6 +392,12 @@ export interface SignatureTemplateDetail {
   sendCertificateToSigners: boolean;
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
+  // F7 — defaults heredables al instanciar. La audiencia Specific usa SLOT ORDERS (ints), no GUIDs,
+  // porque la plantilla no conoce signers concretos; se resuelve a signerIds reales al instanciar.
+  sendPartialCopyOnEachSignature: boolean;
+  partialCopyAudienceKind: PartialCopyAudienceKind;
+  partialCopyAudienceSlotOrders: number[];
+  expirationEnabled: boolean;
   /** true si la plantilla tiene un Practitioner PIN por defecto (el hash nunca se expone). */
   requiresPractitionerPin: boolean;
   /** P7: documento base de la plantilla; si está, "from template" lo pre-selecciona. */
@@ -441,6 +447,11 @@ export interface CreateTemplateBody {
   sendCertificateToSigners?: boolean;
   autoRemindersEnabled?: boolean;
   reminderIntervalHours?: number;
+  // F7 — defaults heredables al instanciar. Audiencia Specific usa slotOrders.
+  sendPartialCopyOnEachSignature?: boolean;
+  partialCopyAudienceKind?: PartialCopyAudienceKind;
+  partialCopyAudienceSlotOrders?: number[];
+  expirationEnabled?: boolean;
   /** P7: documento base opcional del que se crea la plantilla. */
   baseDocumentFileId?: string | null;
 }
@@ -462,6 +473,11 @@ export interface UpdateTemplateDefaultsBody {
   sendCertificateToSigners: boolean;
   autoRemindersEnabled: boolean;
   reminderIntervalHours: number;
+  // F7 — defaults heredables.
+  sendPartialCopyOnEachSignature?: boolean;
+  partialCopyAudienceKind?: PartialCopyAudienceKind;
+  partialCopyAudienceSlotOrders?: number[];
+  expirationEnabled?: boolean;
 }
 
 /** POST /signature/templates/{id}/slots. `defaultLanguage` = 'Es' | 'En'. */
@@ -633,6 +649,8 @@ export interface ListSignatureRequestsParams {
   size?: number;
   /** Solo borradores editables (Draft/Ready), para la pestaña Drafts. */
   editableOnly?: boolean;
+  /** Filtra por cliente (módulo embebido en el perfil del cliente). */
+  customerId?: string;
 }
 
 // ---------- Customers: el picker del wizard usa el DTO compartido @core/customers ----------
