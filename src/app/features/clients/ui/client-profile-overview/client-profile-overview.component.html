@@ -1,19 +1,19 @@
-<div class="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-3">
+<div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
   <!-- ========== Workload: medidor de tareas al día + contadores ========== -->
-  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md">
-    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
-        <ion-icon name="speedometer-outline" class="text-lg text-gray-500"></ion-icon>
+  <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+        <ion-icon name="speedometer-outline" class="text-base text-gray-500"></ion-icon>
         Workload
       </h2>
       <button type="button" (click)="openTab.emit('work')"
-        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
         See all
       </button>
     </div>
 
     <!-- Medidor semicircular (pathLength = 100: el offset es directamente el % que falta) -->
-    <div class="relative mx-auto mt-5 w-full max-w-[220px]">
+    <div class="relative mx-auto mt-3 w-full max-w-[150px]">
       <svg viewBox="0 0 120 68" class="w-full" aria-hidden="true">
         <path d="M 10 60 A 50 50 0 0 1 110 60" pathLength="100" fill="none" stroke-width="12" stroke-linecap="round"
           class="stroke-gray-200" />
@@ -22,64 +22,64 @@
           class="ov-gauge-arc stroke-brand-bold" />
       </svg>
       <div class="absolute inset-x-0 bottom-0 flex flex-col items-center">
-        <span class="text-3xl font-bold leading-none text-gray-900" [appCountUp]="onTrackCount()">0</span>
-        <span class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+        <span class="text-2xl font-bold leading-none text-gray-900" [appCountUp]="onTrackCount()">0</span>
+        <span class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
           out of {{ summary.openTaskCount() }} on track
         </span>
       </div>
     </div>
     <span class="sr-only">{{ onTrackCount() }} of {{ summary.openTaskCount() }} open tasks are on track</span>
 
-    <div class="mt-5 flex flex-col divide-y divide-gray-100 border-t border-gray-100">
+    <div class="mt-3 flex flex-col divide-y divide-gray-100 border-t border-gray-100">
       <button type="button" (click)="openTab.emit('work')" style="animation-delay: 120ms"
-        class="ov-item group flex items-center gap-3 py-3 text-left">
-        <ion-icon name="alert-circle-outline" class="text-lg text-red-500"></ion-icon>
-        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Overdue</span>
-        <span class="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-600"
+        class="ov-item group flex items-center gap-2.5 py-2 text-left">
+        <ion-icon name="alert-circle-outline" class="text-base text-red-500"></ion-icon>
+        <span class="flex-1 text-[13px] font-medium text-gray-800 group-hover:text-gray-900">Overdue</span>
+        <span class="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600"
           [appCountUp]="summary.overdueCount()">0</span>
       </button>
       <button type="button" (click)="openTab.emit('work')" style="animation-delay: 180ms"
-        class="ov-item group flex items-center gap-3 py-3 text-left">
-        <ion-icon name="checkmark-circle-outline" class="text-lg text-emerald-500"></ion-icon>
-        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">On track</span>
-        <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-600"
+        class="ov-item group flex items-center gap-2.5 py-2 text-left">
+        <ion-icon name="checkmark-circle-outline" class="text-base text-emerald-500"></ion-icon>
+        <span class="flex-1 text-[13px] font-medium text-gray-800 group-hover:text-gray-900">On track</span>
+        <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600"
           [appCountUp]="onTrackCount()">0</span>
       </button>
       <button type="button" (click)="openTab.emit('documents')" style="animation-delay: 240ms"
-        class="ov-item group flex items-center gap-3 py-3 text-left">
-        <ion-icon name="document-text-outline" class="text-lg text-amber-500"></ion-icon>
-        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Documents</span>
-        <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-600"
+        class="ov-item group flex items-center gap-2.5 py-2 text-left">
+        <ion-icon name="document-text-outline" class="text-base text-amber-500"></ion-icon>
+        <span class="flex-1 text-[13px] font-medium text-gray-800 group-hover:text-gray-900">Documents</span>
+        <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600"
           [appCountUp]="summary.docsCount()">0</span>
       </button>
       <button type="button" (click)="openTab.emit('communication')" style="animation-delay: 300ms"
-        class="ov-item group flex items-center gap-3 pt-3 text-left">
-        <ion-icon name="mail-outline" class="text-lg text-brand-bold"></ion-icon>
-        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Email threads</span>
-        <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-brand-bold"
+        class="ov-item group flex items-center gap-2.5 pt-2 text-left">
+        <ion-icon name="mail-outline" class="text-base text-brand-bold"></ion-icon>
+        <span class="flex-1 text-[13px] font-medium text-gray-800 group-hover:text-gray-900">Email threads</span>
+        <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-brand-bold"
           [appCountUp]="summary.threadCount()">0</span>
       </button>
     </div>
   </section>
 
   <!-- ========== Client profile: cómo contactarlo ========== -->
-  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+  <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
     style="animation-delay: 80ms">
-    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
-        <ion-icon name="person-circle-outline" class="text-lg text-gray-500"></ion-icon>
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+        <ion-icon name="person-circle-outline" class="text-base text-gray-500"></ion-icon>
         Client profile
       </h2>
       <button type="button" (click)="openTab.emit('info')"
-        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
         See all
       </button>
     </div>
 
-    <div class="mt-4 flex flex-col gap-4">
+    <div class="mt-3 flex flex-col gap-2.5">
       <div>
-        <p class="text-xs text-gray-400">Client since</p>
-        <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+        <p class="text-[11px] text-gray-400">Client since</p>
+        <p class="mt-0.5 flex items-center gap-2 text-[13px] font-medium text-gray-800">
           <ion-icon name="calendar-outline" class="text-base text-gray-500"></ion-icon>
           {{ clientSince() }}
           <span class="rounded-full px-2 py-0.5 text-[11px] font-medium"
@@ -90,9 +90,9 @@
       </div>
 
       <div>
-        <p class="text-xs text-gray-400">Email</p>
+        <p class="text-[11px] text-gray-400">Email</p>
         <button type="button" (click)="copy(client.email, 'Email')" [disabled]="!client.email"
-          class="group mt-1 flex w-full min-w-0 items-center gap-2 rounded-xl text-left text-sm font-medium text-gray-800 disabled:cursor-default"
+          class="group mt-0.5 flex w-full min-w-0 items-center gap-2 rounded-xl text-left text-[13px] font-medium text-gray-800 disabled:cursor-default"
           [attr.title]="client.email ? 'Copy email' : null">
           <ion-icon name="mail-outline" class="shrink-0 text-base text-gray-500"></ion-icon>
           <span class="truncate">{{ client.email || '—' }}</span>
@@ -104,9 +104,9 @@
       </div>
 
       <div>
-        <p class="text-xs text-gray-400">Phone</p>
+        <p class="text-[11px] text-gray-400">Phone</p>
         <button type="button" (click)="copy(client.phone, 'Phone')" [disabled]="!client.phone"
-          class="group mt-1 flex items-center gap-2 rounded-xl text-left text-sm font-medium text-gray-800 disabled:cursor-default"
+          class="group mt-0.5 flex items-center gap-2 rounded-xl text-left text-[13px] font-medium text-gray-800 disabled:cursor-default"
           [attr.title]="client.phone ? 'Copy phone' : null">
           <ion-icon name="call-outline" class="shrink-0 text-base text-gray-500"></ion-icon>
           {{ phoneDisplay() }}
@@ -117,17 +117,17 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-2 gap-3">
         <div>
-          <p class="text-xs text-gray-400">Preferred channel</p>
-          <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+          <p class="text-[11px] text-gray-400">Preferred channel</p>
+          <p class="mt-0.5 flex items-center gap-2 text-[13px] font-medium text-gray-800">
             <ion-icon name="chatbubbles-outline" class="text-base text-gray-500"></ion-icon>
             {{ channelLabel() }}
           </p>
         </div>
         <div>
-          <p class="text-xs text-gray-400">Language</p>
-          <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+          <p class="text-[11px] text-gray-400">Language</p>
+          <p class="mt-0.5 flex items-center gap-2 text-[13px] font-medium text-gray-800">
             <ion-icon name="globe-outline" class="text-base text-gray-500"></ion-icon>
             {{ languageLabel() }}
           </p>
@@ -138,30 +138,30 @@
 
   <!-- ========== Activity: tareas / emails con tarjetas desplegables ========== -->
   <section
-    class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md md:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1"
+    class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md md:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1"
     style="animation-delay: 160ms">
-    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
-        <ion-icon name="pulse-outline" class="text-lg text-gray-500"></ion-icon>
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+        <ion-icon name="pulse-outline" class="text-base text-gray-500"></ion-icon>
         Activity
       </h2>
       <button type="button" (click)="openTab.emit(activityTab() === 'tasks' ? 'work' : 'communication')"
-        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
         See all
       </button>
     </div>
 
     <!-- Pestañas con subrayado deslizante -->
-    <div class="relative mt-3 grid grid-cols-2 border-b border-gray-100" role="tablist">
+    <div class="relative mt-2 grid grid-cols-2 border-b border-gray-100" role="tablist">
       <button type="button" role="tab" [attr.aria-selected]="activityTab() === 'tasks'" (click)="setActivityTab('tasks')"
-        class="flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors"
+        class="flex items-center justify-center gap-1.5 py-2 text-[13px] font-medium transition-colors"
         [ngClass]="activityTab() === 'tasks' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'">
         <ion-icon name="checkbox-outline" class="text-base"></ion-icon>
         Tasks
         <span class="rounded-full bg-gray-100 px-1.5 text-[11px] text-gray-500">{{ summary.openTaskCount() }}</span>
       </button>
       <button type="button" role="tab" [attr.aria-selected]="activityTab() === 'emails'" (click)="setActivityTab('emails')"
-        class="flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors"
+        class="flex items-center justify-center gap-1.5 py-2 text-[13px] font-medium transition-colors"
         [ngClass]="activityTab() === 'emails' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'">
         <ion-icon name="mail-outline" class="text-base"></ion-icon>
         Emails
@@ -171,10 +171,10 @@
         [ngClass]="activityTab() === 'emails' ? 'translate-x-full' : 'translate-x-0'"></span>
     </div>
 
-    <div class="mt-4 flex flex-col gap-3">
+    <div class="mt-3 flex flex-1 flex-col gap-2">
       @if (activityTab() === 'tasks') {
         @for (task of summary.needsAttention(); track task.id; let i = $index) {
-          <div class="ov-item rounded-2xl border bg-gradient-to-br p-4 transition-shadow hover:shadow-sm"
+          <div class="ov-item rounded-2xl border bg-gradient-to-br p-3 transition-shadow hover:shadow-sm"
             [ngClass]="activityTint(i)" [style.animation-delay.ms]="i * 70">
             <button type="button" (click)="toggleExpanded(task.id)" [attr.aria-expanded]="expandedId() === task.id"
               class="flex w-full items-start gap-3 text-left">
@@ -211,7 +211,7 @@
               </div>
             </div>
 
-            <div class="mt-3 flex items-center justify-between gap-2">
+            <div class="mt-2 flex items-center justify-between gap-2">
               <span class="text-xs text-gray-500">{{ task.assigneeName || 'Unassigned' }}</span>
               <span class="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
                 [ngClass]="priorityChip(task.priority)">
@@ -220,15 +220,15 @@
             </div>
           </div>
         } @empty {
-          <div class="ov-item rounded-2xl border border-gray-100 px-4 py-10 text-center">
-            <ion-icon name="checkmark-done-outline" class="text-3xl text-emerald-300"></ion-icon>
-            <p class="mt-2 text-sm text-gray-500">All caught up</p>
+          <div class="ov-item flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+            <ion-icon name="checkmark-done-outline" class="text-2xl text-emerald-300"></ion-icon>
+            <p class="mt-1 text-[13px] text-gray-500">All caught up</p>
             <p class="mt-1 text-xs text-gray-400">No open tasks for {{ firstName() }} right now.</p>
           </div>
         }
       } @else {
         @for (thread of summary.recentActivity(); track thread.id; let i = $index) {
-          <div class="ov-item rounded-2xl border bg-gradient-to-br p-4 transition-shadow hover:shadow-sm"
+          <div class="ov-item rounded-2xl border bg-gradient-to-br p-3 transition-shadow hover:shadow-sm"
             [ngClass]="activityTint(i)" [style.animation-delay.ms]="i * 70">
             <button type="button" (click)="toggleExpanded(thread.id)" [attr.aria-expanded]="expandedId() === thread.id"
               class="flex w-full items-start gap-3 text-left">
@@ -251,7 +251,7 @@
               </div>
             </div>
 
-            <div class="mt-3 flex items-center justify-between gap-2">
+            <div class="mt-2 flex items-center justify-between gap-2">
               <span class="flex items-center gap-1.5 text-xs text-gray-500">
                 <ion-icon name="chatbubbles-outline" class="text-sm"></ion-icon>
                 {{ thread.messageCountLabel }}
@@ -263,9 +263,9 @@
             </div>
           </div>
         } @empty {
-          <div class="ov-item rounded-2xl border border-gray-100 px-4 py-10 text-center">
-            <ion-icon name="chatbubbles-outline" class="text-3xl text-gray-300"></ion-icon>
-            <p class="mt-2 text-sm text-gray-500">No recent email activity</p>
+          <div class="ov-item flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+            <ion-icon name="chatbubbles-outline" class="text-2xl text-gray-300"></ion-icon>
+            <p class="mt-1 text-[13px] text-gray-500">No recent email activity</p>
             <p class="mt-1 text-xs text-gray-400">Email conversations with this client will show up here.</p>
           </div>
         }
@@ -274,11 +274,11 @@
   </section>
 
   <!-- ========== Tax snapshot (enmascarado) ========== -->
-  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+  <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
     [ngClass]="canViewAssignees() ? '' : 'md:col-span-2'" style="animation-delay: 240ms">
-    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
-        <ion-icon name="shield-checkmark-outline" class="text-lg text-gray-500"></ion-icon>
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+        <ion-icon name="shield-checkmark-outline" class="text-base text-gray-500"></ion-icon>
         Tax snapshot
       </h2>
       <div class="flex items-center gap-2">
@@ -288,24 +288,24 @@
           {{ revealedTaxId ? 'Revealed' : 'Masked' }}
         </span>
         <button type="button" (click)="openTab.emit('info')"
-          class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
           See all
         </button>
       </div>
     </div>
 
     @if (hasFiscal) {
-      <div class="mt-4 flex flex-col divide-y divide-gray-100">
-        <div class="flex items-center justify-between gap-3 pb-3">
+      <div class="mt-2 flex flex-col divide-y divide-gray-100">
+        <div class="flex items-center justify-between gap-3 py-2">
           <div>
-            <p class="text-xs text-gray-400">Filing status</p>
-            <p class="mt-0.5 text-sm font-medium text-gray-800">{{ filingLabel() }}</p>
+            <p class="text-[11px] text-gray-400">Filing status</p>
+            <p class="mt-0.5 text-[13px] font-medium text-gray-800">{{ filingLabel() }}</p>
           </div>
           <ion-icon name="reader-outline" class="text-lg text-gray-300"></ion-icon>
         </div>
 
-        <div class="py-3">
-          <p class="text-xs text-gray-400">{{ taxIdKindLabel() }}</p>
+        <div class="py-2">
+          <p class="text-[11px] text-gray-400">{{ taxIdKindLabel() }}</p>
           <div class="mt-0.5 flex items-center justify-between gap-3">
             <p class="font-mono text-sm font-medium tracking-wide text-gray-800">{{ revealedTaxId ?? taxIdMasked() }}</p>
             <!-- Reveal auditado (mismo flujo que Info): confirmación + re-enmascarado automático a los 30 s. -->
@@ -337,16 +337,16 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-between gap-3 py-3">
-          <p class="text-sm text-gray-600">Returning client</p>
+        <div class="flex items-center justify-between gap-3 py-2">
+          <p class="text-[13px] text-gray-600">Returning client</p>
           <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
             [ngClass]="client.fiscalProfile?.isReturningCustomer ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'">
             {{ returningLabel() }}
           </span>
         </div>
 
-        <div class="flex items-center justify-between gap-3 pt-3">
-          <p class="text-sm text-gray-600">Refund bank info</p>
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <p class="text-[13px] text-gray-600">Refund bank info</p>
           <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
             [ngClass]="client.fiscalProfile?.hasRefundBankInfo ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
             {{ client.fiscalProfile?.hasRefundBankInfo ? 'On file' : 'Not set' }}
@@ -354,9 +354,9 @@
         </div>
       </div>
     } @else {
-      <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-8 text-center">
-        <ion-icon name="shield-outline" class="text-3xl text-gray-300"></ion-icon>
-        <p class="mt-2 text-sm text-gray-500">No tax profile yet</p>
+      <div class="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+        <ion-icon name="shield-outline" class="text-2xl text-gray-300"></ion-icon>
+        <p class="mt-1 text-[13px] text-gray-500">No tax profile yet</p>
         <p class="mt-1 text-xs text-gray-400">Add one from the Info tab to see filing status and tax ID here.</p>
       </div>
     }
@@ -364,28 +364,28 @@
 
   <!-- ========== Assigned staff (solo admin/view_all) ========== -->
   @if (canViewAssignees()) {
-    <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
       style="animation-delay: 320ms">
-      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
-        <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
-          <ion-icon name="people-outline" class="text-lg text-gray-500"></ion-icon>
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="people-outline" class="text-base text-gray-500"></ion-icon>
           Assigned staff
         </h2>
         @if (canAssignPreparer()) {
           <button type="button" (click)="openAssign()"
-            class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+            class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
             Manage
           </button>
         }
       </div>
 
       @if (assigneeRows().length > 0) {
-        <div class="mt-4 flex flex-col gap-1">
+        <div class="mt-2 flex flex-col">
           @for (row of assigneeRows(); track row.userId; let i = $index) {
-            <div class="ov-item flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors hover:bg-gray-50"
+            <div class="ov-item flex items-center gap-3 rounded-2xl px-2 py-1.5 transition-colors hover:bg-gray-50"
               [style.animation-delay.ms]="i * 60">
               <app-avatar [name]="row.member?.name ?? null" [seed]="row.userId" [colorClass]="row.member ? null : 'bg-slate-400'"
-                sizeClass="h-10 w-10 text-xs" />
+                sizeClass="h-8 w-8 text-xs" />
               <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-2 text-sm font-semibold text-gray-800">
                   <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
@@ -406,16 +406,477 @@
           }
         </div>
       } @else {
-        <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-8 text-center">
-          <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">No one is assigned yet</p>
+        <div class="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+          <ion-icon name="people-outline" class="text-2xl text-gray-300"></ion-icon>
+          <p class="mt-1 text-[13px] text-gray-500">No one is assigned yet</p>
           @if (canAssignPreparer()) {
             <button type="button" (click)="openAssign()"
-              class="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+              class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
               <ion-icon name="add-outline"></ion-icon> Assign staff
             </button>
           } @else {
             <p class="mt-1 text-xs text-gray-400">An admin can assign staff to this client.</p>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ========== Finance: facturas (+ Bank y Mileage) ========== -->
+  @if (isAvailable('invoices')) {
+    @let inv = summary.invoiceSummary();
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 360ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="receipt-outline" class="text-base text-gray-500"></ion-icon>
+          Finance
+        </h2>
+        <button type="button" (click)="openTab.emit('invoices')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      <div class="mt-3 grid grid-cols-2 gap-3">
+        <div class="rounded-2xl bg-emerald-50/60 p-3">
+          <p class="text-[11px] text-emerald-700/70">Collected</p>
+          <p class="mt-0.5 text-base font-bold text-emerald-700">{{ money(inv.collectedCents, inv.currency) }}</p>
+        </div>
+        <div class="rounded-2xl p-3" [ngClass]="inv.outstandingCents > 0 ? 'bg-amber-50/70' : 'bg-gray-50'">
+          <p class="text-[11px]" [ngClass]="inv.outstandingCents > 0 ? 'text-amber-700/70' : 'text-gray-400'">Outstanding</p>
+          <p class="mt-0.5 text-base font-bold" [ngClass]="inv.outstandingCents > 0 ? 'text-amber-700' : 'text-gray-500'">
+            {{ money(inv.outstandingCents, inv.currency) }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Barra de cobrado: se llena al entrar -->
+      <div class="mt-3">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
+          <span>{{ inv.collectedPercent }}% collected</span>
+          <span>{{ inv.paid }} paid · {{ inv.open }} open · {{ inv.draft }} draft</span>
+        </div>
+        <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+          <div class="h-full rounded-full bg-emerald-500 transition-[width] duration-700 ease-out"
+            [style.width.%]="collectedBarPercent()"></div>
+        </div>
+      </div>
+
+      @if (inv.recent.length > 0) {
+        <div class="mt-3 flex flex-col divide-y divide-gray-100">
+          @for (invoice of inv.recent; track invoice.id; let i = $index) {
+            <button type="button" (click)="openTab.emit('invoices')" [style.animation-delay.ms]="400 + i * 60"
+              class="ov-item flex items-center gap-2.5 py-2 text-left">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-mono text-xs text-gray-700">{{ invoice.invoiceNumber || 'Draft invoice' }}</span>
+                <span class="block text-[11px] text-gray-400">{{ invoice.createdAtUtc | timeAgo }}</span>
+              </span>
+              <span class="text-[13px] font-semibold text-gray-900">{{ money(invoice.totalCents, invoice.currency) }}</span>
+              <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" [ngClass]="invoiceChip(invoice.status)">
+                {{ invoiceLabel(invoice.status) }}
+              </span>
+            </button>
+          }
+        </div>
+      } @else if (summary.loaded()) {
+        <p class="mt-3 text-center text-xs text-gray-400">No invoices for this client yet.</p>
+      }
+
+      <!-- Bank y Mileage: sin backend propio; se muestra lo que sí se sabe -->
+      <div class="mt-auto flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+        <button type="button" (click)="openTab.emit('bank')"
+          class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors hover:bg-gray-50"
+          [ngClass]="client.fiscalProfile?.hasRefundBankInfo ? 'border-emerald-200 text-emerald-600' : 'border-gray-200 text-gray-500'">
+          <ion-icon name="wallet-outline"></ion-icon>
+          {{ client.fiscalProfile?.hasRefundBankInfo ? 'Refund bank on file' : 'No refund bank' }}
+        </button>
+        <button type="button" (click)="openTab.emit('mileage')"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-50">
+          <ion-icon name="car-outline"></ion-icon> Mileage
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- ========== Signatures ========== -->
+  @if (isAvailable('signatures')) {
+    @let sig = summary.signatureSummary();
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 400ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="create-outline" class="text-base text-gray-500"></ion-icon>
+          Signatures
+          <span class="rounded-full bg-gray-100 px-1.5 text-[11px] font-medium text-gray-500">{{ sig.total }}</span>
+        </h2>
+        <button type="button" (click)="openTab.emit('signatures')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      <!-- Barra segmentada por estado (anima su ancho al entrar) -->
+      <div class="mt-3 flex h-2 overflow-hidden rounded-full bg-gray-100">
+        <div class="h-full bg-emerald-500 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().completed"></div>
+        <div class="h-full bg-amber-400 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().pending"></div>
+        <div class="h-full bg-red-400 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().attention"></div>
+        <div class="h-full bg-gray-300 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().draft"></div>
+      </div>
+      <div class="mt-2 grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p class="text-lg font-bold text-emerald-600" [appCountUp]="sig.completed">0</p>
+          <p class="text-[10px] uppercase tracking-wide text-gray-400">Signed</p>
+        </div>
+        <div>
+          <p class="text-lg font-bold text-amber-500" [appCountUp]="sig.pending">0</p>
+          <p class="text-[10px] uppercase tracking-wide text-gray-400">Awaiting</p>
+        </div>
+        <div>
+          <p class="text-lg font-bold text-red-500" [appCountUp]="sig.attention">0</p>
+          <p class="text-[10px] uppercase tracking-wide text-gray-400">Needs action</p>
+        </div>
+      </div>
+
+      @if (sig.recent.length > 0) {
+        <div class="mt-3 flex flex-col divide-y divide-gray-100 border-t border-gray-100">
+          @for (request of sig.recent; track request.id; let i = $index) {
+            <button type="button" (click)="openTab.emit('signatures')" [style.animation-delay.ms]="440 + i * 60"
+              class="ov-item flex items-center gap-2.5 py-2 text-left">
+              <ion-icon name="document-text-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-medium text-gray-800">{{ request.title }}</span>
+                <span class="block text-[11px] text-gray-400">
+                  {{ (request.completedAtUtc ?? request.sentAtUtc ?? request.createdAtUtc) | timeAgo }}
+                  · {{ request.signerCount }} signer{{ request.signerCount === 1 ? '' : 's' }}
+                </span>
+              </span>
+              <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" [ngClass]="signatureChip(request.status)">
+                {{ signatureLabel(request.status) }}
+              </span>
+            </button>
+          }
+        </div>
+      } @else if (summary.loaded()) {
+        <p class="mt-3 text-center text-xs text-gray-400">No signature requests yet.</p>
+      }
+    </section>
+  }
+
+  <!-- ========== Household: datos personales + cónyuge y dependientes ========== -->
+  <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+    style="animation-delay: 440ms">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+        <ion-icon name="people-outline" class="text-base text-gray-500"></ion-icon>
+        {{ client.type === 'company' ? 'Business' : 'Household' }}
+      </h2>
+      <button type="button" (click)="openTab.emit(client.type === 'company' ? 'info' : 'family')"
+        class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        See all
+      </button>
+    </div>
+
+    <div class="mt-3 grid grid-cols-2 gap-3">
+      @if (client.type === 'company') {
+        <div>
+          <p class="text-[11px] text-gray-400">Structure</p>
+          <p class="mt-0.5 truncate text-[13px] font-medium text-gray-800">{{ client.company?.businessStructure || '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] text-gray-400">Activity</p>
+          <p class="mt-0.5 truncate text-[13px] font-medium text-gray-800">{{ client.company?.principalBusinessActivity || '—' }}</p>
+        </div>
+      } @else {
+        <div>
+          <p class="text-[11px] text-gray-400">Age</p>
+          <p class="mt-0.5 text-[13px] font-medium text-gray-800">{{ clientAge() ?? '—' }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] text-gray-400">Occupation</p>
+          <p class="mt-0.5 truncate text-[13px] font-medium text-gray-800">{{ client.individual?.occupation || '—' }}</p>
+        </div>
+      }
+    </div>
+
+    @if (primaryAddress()) {
+      <p class="mt-3 flex items-start gap-2 text-xs text-gray-600">
+        <ion-icon name="location-outline" class="mt-0.5 shrink-0 text-sm text-gray-400"></ion-icon>
+        <span class="line-clamp-2">{{ primaryAddress() }}</span>
+      </p>
+    }
+
+    @if (client.type !== 'company') {
+      @if (familyMembers().length > 0) {
+        <div class="mt-3 flex flex-col border-t border-gray-100 pt-2">
+          @for (member of familyMembers(); track member.name + $index; let i = $index) {
+            <div class="ov-item flex items-center gap-2.5 rounded-xl px-1 py-1.5 transition-colors hover:bg-gray-50"
+              [style.animation-delay.ms]="480 + i * 60">
+              <app-avatar [name]="member.name" [seed]="member.name" sizeClass="h-8 w-8 text-xs" />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-medium text-gray-800">{{ member.name }}</span>
+                <span class="block truncate text-[11px] text-gray-400">{{ member.contact || member.relation }}</span>
+              </span>
+              <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                [ngClass]="member.relation === 'Spouse' ? 'bg-pink-50 text-pink-600' : 'bg-indigo-50 text-indigo-600'">
+                {{ member.relation }}{{ member.age !== null ? ' · ' + member.age : '' }}
+              </span>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="mt-3 border-t border-gray-100 pt-3 text-center text-xs text-gray-400">No spouse or dependents on file.</p>
+      }
+    }
+  </section>
+
+  <!-- ========== Upcoming meetings ========== -->
+  @if (isAvailable('meetings')) {
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 480ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="videocam-outline" class="text-base text-gray-500"></ion-icon>
+          Meetings
+        </h2>
+        <button type="button" (click)="openTab.emit('meetings')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      @if (summary.upcomingMeetings().length > 0) {
+        <div class="mt-3 flex flex-col gap-2">
+          @for (meeting of summary.upcomingMeetings(); track meeting.id; let i = $index) {
+            @let day = meetingDay(meeting);
+            <button type="button" (click)="openTab.emit('meetings')" [style.animation-delay.ms]="520 + i * 60"
+              class="ov-item flex items-center gap-3 rounded-2xl border p-2.5 text-left transition-colors hover:bg-gray-50"
+              [ngClass]="i === 0 ? 'border-indigo-100 bg-indigo-50/40' : 'border-gray-100'">
+              <span class="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl"
+                [ngClass]="i === 0 ? 'bg-brand-bold text-white' : 'bg-gray-100 text-gray-600'">
+                <span class="text-[10px] font-medium uppercase leading-none">{{ day.month }}</span>
+                <span class="text-base font-bold leading-tight">{{ day.day }}</span>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-semibold text-gray-900">{{ meeting.title }}</span>
+                <span class="mt-0.5 flex items-center gap-1.5 text-[11px]"
+                  [ngClass]="meeting.status === 'Live' ? 'text-red-500' : 'text-gray-500'">
+                  @if (meeting.status === 'Live') {
+                    <span class="relative flex h-2 w-2">
+                      <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                      <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                    </span>
+                  }
+                  {{ meetingWhen(meeting) }}
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      } @else if (summary.loaded()) {
+        <div class="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+          <ion-icon name="calendar-outline" class="text-2xl text-gray-300"></ion-icon>
+          <p class="mt-1 text-[13px] text-gray-500">No upcoming meetings</p>
+          <p class="mt-1 text-xs text-gray-400">Meetings with this client's portal account show up here.</p>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ========== Calls ========== -->
+  @if (isAvailable('calls')) {
+    @let callData = summary.calls();
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 520ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="call-outline" class="text-base text-gray-500"></ion-icon>
+          Calls
+        </h2>
+        <button type="button" (click)="openTab.emit('calls')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      <div class="mt-3 grid grid-cols-2 gap-2">
+        <div class="rounded-2xl bg-gray-50 p-2.5">
+          <p class="text-[11px] text-gray-400">Total</p>
+          <p class="text-lg font-bold text-gray-900" [appCountUp]="callData?.stats?.total ?? 0">0</p>
+        </div>
+        <div class="rounded-2xl bg-emerald-50/60 p-2.5">
+          <p class="text-[11px] text-emerald-700/70">Completed</p>
+          <p class="text-lg font-bold text-emerald-700" [appCountUp]="callData?.stats?.completed ?? 0">0</p>
+        </div>
+        <div class="rounded-2xl bg-red-50/60 p-2.5">
+          <p class="text-[11px] text-red-600/70">Missed</p>
+          <p class="text-lg font-bold text-red-600" [appCountUp]="callData?.stats?.missed ?? 0">0</p>
+        </div>
+        <div class="rounded-2xl bg-indigo-50/60 p-2.5">
+          <p class="text-[11px] text-indigo-600/70">Avg. duration</p>
+          <p class="text-lg font-bold text-brand-bold">{{ duration(callData?.stats?.avgDurationSeconds) }}</p>
+        </div>
+      </div>
+
+      @if (callData?.items?.length) {
+        @let last = callData!.items[0];
+        <p class="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2 text-xs text-gray-500">
+          <ion-icon [name]="last.direction === 'incoming' ? 'arrow-down-outline' : 'arrow-up-outline'"
+            class="text-sm" [ngClass]="last.direction === 'incoming' ? 'text-emerald-500' : 'text-indigo-500'"></ion-icon>
+          Last call {{ last.ringingAtUtc | timeAgo }} · {{ duration(last.durationSeconds) }}
+        </p>
+      } @else if (callData && !callData.hasPortalAccount) {
+        <p class="mt-3 border-t border-gray-100 pt-2 text-center text-xs text-gray-400">Calls need a client portal account.</p>
+      }
+    </section>
+  }
+
+  <!-- ========== Notes ========== -->
+  @if (isAvailable('notes')) {
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 560ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="reader-outline" class="text-base text-gray-500"></ion-icon>
+          Notes
+          <span class="rounded-full bg-gray-100 px-1.5 text-[11px] font-medium text-gray-500">{{ summary.notesTotal() }}</span>
+        </h2>
+        <button type="button" (click)="openTab.emit('notes')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      @if (summary.recentNotes().length > 0) {
+        <div class="mt-2 flex flex-col divide-y divide-gray-100">
+          @for (note of summary.recentNotes(); track note.id; let i = $index) {
+            <button type="button" (click)="openTab.emit('notes')" [style.animation-delay.ms]="600 + i * 60"
+              class="ov-item flex items-start gap-2.5 py-2.5 text-left">
+              <ion-icon [name]="note.isPinned ? 'bookmark-outline' : 'ellipse-outline'"
+                class="mt-0.5 shrink-0 text-sm" [ngClass]="note.isPinned ? 'text-brand-bold' : 'text-gray-300'"></ion-icon>
+              <span class="min-w-0 flex-1">
+                <span class="line-clamp-2 text-[13px] text-gray-800">{{ note.contentPreview || 'Empty note' }}</span>
+                <span class="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
+                  {{ note.updatedAtUtc | timeAgo }}
+                  @if (note.visibility === 'ClientVisible') {
+                    <span class="rounded-full bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-600">Client visible</span>
+                  }
+                  @if (note.attachments.length > 0) {
+                    <span class="flex items-center gap-0.5"><ion-icon name="attach-outline"></ion-icon>{{ note.attachments.length }}</span>
+                  }
+                </span>
+              </span>
+            </button>
+          }
+        </div>
+      } @else if (summary.loaded()) {
+        <div class="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+          <ion-icon name="reader-outline" class="text-2xl text-gray-300"></ion-icon>
+          <p class="mt-1 text-[13px] text-gray-500">No notes yet</p>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ========== SMS ========== -->
+  @if (isAvailable('sms')) {
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 600ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="chatbox-ellipses-outline" class="text-base text-gray-500"></ion-icon>
+          SMS
+          <span class="rounded-full bg-gray-100 px-1.5 text-[11px] font-medium text-gray-500">{{ summary.smsTotal() }}</span>
+        </h2>
+        <button type="button" (click)="openTab.emit('sms')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      @if (summary.recentSms().length > 0) {
+        <!-- Burbujas salientes, como en el hilo de SMS -->
+        <div class="mt-3 flex flex-col items-end gap-2">
+          @for (message of summary.recentSms(); track message.id; let i = $index) {
+            <button type="button" (click)="openTab.emit('sms')" [style.animation-delay.ms]="640 + i * 60"
+              class="ov-item max-w-[90%] text-right">
+              <span class="block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2 text-left text-[13px] text-white">
+                <span class="line-clamp-2">{{ message.body }}</span>
+              </span>
+              <span class="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                {{ message.createdAtUtc | timeAgo }} ·
+                <span [ngClass]="smsStatusClass(message.status)">{{ message.status }}</span>
+              </span>
+            </button>
+          }
+        </div>
+      } @else if (summary.loaded()) {
+        <div class="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
+          <ion-icon name="chatbox-ellipses-outline" class="text-2xl text-gray-300"></ion-icon>
+          <p class="mt-1 text-[13px] text-gray-500">No text messages yet</p>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ========== Portal + solicitudes de documentos ========== -->
+  @if (isAvailable('portal') || isAvailable('requests')) {
+    <section class="ov-card flex flex-col rounded-[24px] bg-white p-4 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 640ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <h2 class="flex items-center gap-2 text-sm font-bold text-gray-900">
+          <ion-icon name="globe-outline" class="text-base text-gray-500"></ion-icon>
+          Client portal
+        </h2>
+        <button type="button" (click)="openTab.emit('portal')"
+          class="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
+      </div>
+
+      @if (summary.portal(); as portal) {
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <span class="min-w-0">
+            <span class="block truncate text-[13px] font-medium text-gray-800">{{ portal.email || client.email || '—' }}</span>
+            <span class="block text-[11px] text-gray-400">
+              @if (portal.status === 'pending' && portal.expiresAtUtc) {
+                Invite expires {{ portal.expiresAtUtc | timeAgo }}
+              } @else if (portal.invitedAtUtc) {
+                Invited {{ portal.invitedAtUtc | timeAgo }}
+              } @else {
+                Not invited yet
+              }
+            </span>
+          </span>
+          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold" [ngClass]="portalChip()">
+            {{ portalLabel() }}
+          </span>
+        </div>
+      }
+
+      @if (isAvailable('requests')) {
+        <div class="mt-3 border-t border-gray-100 pt-3">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="font-semibold uppercase tracking-wide text-gray-400">Document requests</span>
+            <span class="text-gray-500">
+              {{ summary.openRequests().length }} open
+              @if (summary.requestsToReview() > 0) {
+                · <span class="font-semibold text-amber-600">{{ summary.requestsToReview() }} to review</span>
+              }
+            </span>
+          </div>
+          @for (request of summary.openRequests().slice(0, 3); track request.id; let i = $index) {
+            <button type="button" (click)="openTab.emit('work')" [style.animation-delay.ms]="680 + i * 60"
+              class="ov-item mt-2 flex w-full items-center gap-2.5 text-left">
+              <span class="h-2 w-2 shrink-0 rounded-full"
+                [ngClass]="request.status === 'Submitted' ? 'bg-amber-400' : 'bg-gray-300'"></span>
+              <span class="min-w-0 flex-1 truncate text-[13px] text-gray-800">{{ request.title }}</span>
+              <span class="text-[11px] text-gray-400">
+                {{ request.status === 'Submitted' ? request.documentCount + ' file' + (request.documentCount === 1 ? '' : 's') : 'Waiting' }}
+              </span>
+            </button>
+          } @empty {
+            <p class="mt-2 text-xs text-gray-400">No open document requests.</p>
           }
         </div>
       }

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActiveMeetingService } from './active-meeting.service';
+import { MeetingSoundsService } from './meeting-sounds.service';
 import { MeetingRtcService } from './meeting-rtc.service';
 import { MeetingSfuService } from './meeting-sfu.service';
 import { CallsService } from './calls.service';
@@ -70,6 +71,7 @@ function configureWith(rtc: ReturnType<typeof fakeRtc>, http: unknown = { get: (
       { provide: MeetingSfuService, useValue: { leave: vi.fn() } },
       { provide: CallsService, useValue: { getIceServers: () => of({ iceServers: [] }) } },
       { provide: CallRecordingService, useValue: {} },
+      { provide: MeetingSoundsService, useValue: { play: vi.fn() } },
       { provide: AuthService, useValue: { currentUser: () => ({ id: 'me' }) } },
       { provide: ApiConfigService, useValue: { tenantUrl: (p: string) => `https://x${p}` } },
       { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn(), success: vi.fn() } },

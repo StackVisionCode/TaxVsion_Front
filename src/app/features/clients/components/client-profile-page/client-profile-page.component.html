@@ -62,14 +62,17 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
   <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
     <!-- Columna izquierda fija (sticky, misma altura que el sidebar principal): volver + perfil y menú.
-         La tarjeta scrollea por dentro, así nunca se sale de la pantalla. -->
-    <div class="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-72">
+         En desktop sube al hueco libre junto al navbar (-75px = navbar 63px + pt-3 12px) para quedar
+         alineada con el sidebar desde arriba; z-[60] la pone sobre el <header> transparente (z-50) para
+         que "Back to clients" reciba los clics. La tarjeta scrollea por dentro, así nunca se sale de la
+         pantalla. -->
+    <div class="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:z-[60] lg:-mt-[75px] lg:h-[calc(100vh-2rem)] lg:w-72">
       <a routerLink="/clients"
         class="flex w-fit shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
         <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
         Back to clients
       </a>
-      <aside class="min-h-0 w-full overflow-y-auto bg-white rounded-[28px] p-5">
+      <aside class="min-h-0 w-full flex-1 overflow-y-auto bg-white rounded-[28px] p-5">
         <div class="flex items-center gap-4">
           <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
           <div class="min-w-0">

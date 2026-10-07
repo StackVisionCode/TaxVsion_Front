@@ -17,6 +17,9 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
+import { ClientProfileTabId, TAB_ACCESS } from '../../data-access/client-tab-access';
+// Re-export: otros archivos de la feature importaban el tipo desde aquí.
+export type { ClientProfileTabId };
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
@@ -95,23 +98,6 @@ const ACTION_ACCESS = {
   email: { feature: 'email', action: { module: 'email', anyOf: ['correspondence.compose'] } },
 } as const satisfies Record<string, { feature: string; action: AccessRequirement }>;
 
-export type ClientProfileTabId =
-  | 'overview'
-  | 'info'
-  | 'family'
-  | 'documents'
-  | 'signatures'
-  | 'invoices'
-  | 'work'
-  | 'notes'
-  | 'communication'
-  | 'sms'
-  | 'meetings'
-  | 'calls'
-  | 'bank'
-  | 'reminders'
-  | 'mileage'
-  | 'portal';
 
 interface ClientProfileTab {
   id: ClientProfileTabId;
@@ -168,23 +154,6 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   { kind: 'tab', id: 'portal', label: 'Portal', icon: 'globe-outline' },
 ];
 
-/**
- * B5 — qué hace falta para que una pestaña tenga contenido. Lo que no está acá no depende de
- * nada: Overview, Details y Family son el propio cliente, y quien llegó a esta pantalla ya pasó
- * por `customers.view`; Bank y Mileage son estados vacíos declarados, sin backend todavía. Lo que se gatea es lo que llama a OTRO servicio y hoy contesta 403 en silencio.
- */
-const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
-  documents: { module: 'documents', anyOf: ['cloudstorage.file.view'] },
-  signatures: { module: 'signatures', anyOf: ['signature.request.read'] },
-  work: { module: 'planner', anyOf: ['tasks.read'] },
-  notes: { module: 'planner', anyOf: ['notes.read'] },
-  reminders: { module: 'planner', anyOf: ['reminders.read'] },
-  communication: { module: 'email', anyOf: ['correspondence.read'] },
-  sms: { module: null, anyOf: ['sms.read'] },
-  meetings: { module: 'meetings', anyOf: ['communication.meeting.create', 'communication.meeting.join'] },
-  invoices: { module: null, anyOf: ['invoicing.view'] },
-  calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
-};
 
 /**
  * Shell del perfil de cliente: barra superior con botón de volver y las
@@ -210,8 +179,10 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
- *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
- *    (parcial), Bank, Mileage y Calls. Cada
+ *  - Overview: resumen REAL de todas las fuentes de arriba (ClientOverviewStore), cada tarjeta
+ *    gateada por el mismo TAB_ACCESS que el menú. Calls también es real
+ *    (GET /communication/customers/{id}/calls).
+ *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Bank y Mileage. Cada
  *    una muestra un estado vacío que explica qué falta. NO son un olvido:
  *    antes pintaban mocks estáticos bajo el nombre de un cliente real, que es
  *    justo lo que había que quitar antes de producción.
