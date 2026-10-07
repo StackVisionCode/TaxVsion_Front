@@ -6,7 +6,7 @@
   </div>
 
   <!-- Pestañas por tipo: separa Productos y Servicios (cada uno conserva sus categorías) -->
-  <div *ngIf="!store.loading() && !store.error()" class="mb-4 flex flex-wrap items-center gap-2">
+  <div *ngIf="!store.loading() && !store.error()" class="mb-4 flex flex-wrap items-center gap-2 lg:pr-[var(--shell-notch-width)]">
     <app-filter-chips size="sm" [options]="kindOptions()" [value]="kindFilter()"
       (valueChange)="kindFilter.set($event)"></app-filter-chips>
     <button type="button" (click)="openCategories()"

@@ -91,7 +91,7 @@
   </div>
 
   <!-- Thread card: min-h-0 para que respete la fila minmax(0,1fr) y el hilo scrollee por dentro. -->
-  <div class="bg-white rounded-[28px] p-4 sm:p-6 lg:col-span-3 flex-col min-h-0"
+  <div class="bg-white rounded-[28px] p-4 sm:p-6 lg:col-span-3 flex-col min-h-0 lg:pt-[var(--shell-notch-height)]"
     [ngClass]="mobilePane() === 'list' ? 'hidden lg:flex' : 'flex'">
     <!-- Empty state: no conversation selected yet -->
     <div *ngIf="!hasActiveConversation()" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10">
