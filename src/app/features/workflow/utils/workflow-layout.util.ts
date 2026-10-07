@@ -1,9 +1,9 @@
 import {
+  WorkflowAnnotation,
   WorkflowConnection,
   WorkflowDataField,
+  WorkflowPort,
   WorkflowStep,
-  connectionsFrom,
-  connectionsTo,
   missingInputs,
   outputsOf,
   predecessorsOf,
@@ -46,6 +46,18 @@ const ROW_GAP = 96;
 const COLUMN_GAP = 40;
 /** Radio de los codos de los hilos. */
 const ELBOW = 14;
+/**
+ * Holgura alrededor del contenido. Es lo que hace que SIEMPRE haya lienzo por delante: al
+ * arrastrar hacia fuera el contenido crece y el margen se recalcula detrás, así que el
+ * borde nunca se alcanza. Los 192px de antes (PADDING*4) se acababan a la primera.
+ */
+const CANVAS_MARGIN = 900;
+/**
+ * Lienzo mínimo, ~2,5 pantallas a zoom 1. Un flujo de dos cartas no debe sentirse
+ * encajonado, y hace falta sitio vacío donde dejar notas al lado del diagrama.
+ */
+const MIN_CANVAS_WIDTH = 3600;
+const MIN_CANVAS_HEIGHT = 2600;
 const END_WIDTH = 118;
 const END_HEIGHT = 44;
 const PADDING = 48;
@@ -102,11 +114,42 @@ export interface OpenEnd {
   y: number;
 }
 
+/** Rectángulo que envuelve algo dibujado en el lienzo. */
+export interface ContentBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Sitio que la ESTRUCTURA le reserva a una carta, sin mirar dónde está. */
+interface NodeSlot {
+  level: number;
+  index: number;
+  height: number;
+  /** Dónde iría si el usuario no la hubiera movido a mano. */
+  autoX: number;
+  autoY: number;
+}
+
+/** Todo lo que se puede calcular sin saber dónde está cada carta. */
+export interface WorkflowSkeleton {
+  slots: Map<string, NodeSlot>;
+  ports: Map<string, WorkflowPort[]>;
+  missing: Map<string, WorkflowDataField[]>;
+  inDegree: Map<string, number>;
+  outDegree: Map<string, number>;
+  /** Salidas sin hilo: que EXISTAN es estructural; dónde cae su `+`, no. */
+  openPorts: { stepId: string; port: string }[];
+}
+
 export interface WorkflowLayout {
   nodes: PositionedNode[];
   connectors: Connector[];
   openEnds: OpenEnd[];
   end: { x: number; y: number; width: number; height: number } | null;
+  /** Caja ajustada al contenido. `fit()` encaja ESTO, no el lienzo entero. */
+  content: ContentBox;
   width: number;
   height: number;
 }
@@ -176,9 +219,44 @@ function connectorPath(fromX: number, fromY: number, toX: number, toY: number): 
   ].join(' ');
 }
 
-export function layoutWorkflow(steps: WorkflowStep[], connections: WorkflowConnection[]): WorkflowLayout {
+/**
+ * Fase CARA: niveles, orden, alturas, grados, datos que faltan y salidas libres.
+ *
+ * Recorre el grafo varias veces y no depende de dónde esté cada carta. Está separada para
+ * poder memoizarla: arrastrar mueve una carta, no cambia la estructura, así que por frame
+ * solo debería pagarse la fase de posiciones. Antes todo esto —incluido un recorrido
+ * ascendente completo del grafo POR CADA nodo, dentro de `missingInputs`— se rehacía
+ * sesenta veces por segundo mientras se arrastraba. Ese era el lag.
+ *
+ * Matiz: el orden dentro de un nivel usa el baricentro de los padres ya colocados, así que
+ * sí lee `x`. Congelarlo mientras dura el arrastre es además una mejora: hoy las cartas sin
+ * posición manual se recolocan bajo el cursor mientras mueves otra.
+ */
+export function layoutSkeleton(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+): WorkflowSkeleton {
+  // Índices por extremo. `predecessorsOf`/`connectionsFrom` filtran el array ENTERO por
+  // carta, y el ranking los llama N veces por pasada: de ahí sale el coste cuadrático.
+  const byFrom = new Map<string, WorkflowConnection[]>();
+  const byTo = new Map<string, WorkflowConnection[]>();
+  for (const link of connections) {
+    const out = byFrom.get(link.fromStepId);
+    out ? out.push(link) : byFrom.set(link.fromStepId, [link]);
+    const into = byTo.get(link.toStepId);
+    into ? into.push(link) : byTo.set(link.toStepId, [link]);
+  }
+  const parentsOf = (id: string): string[] => (byTo.get(id) ?? []).map(link => link.fromStepId);
+
+  const slots = new Map<string, NodeSlot>();
+  const ports = new Map<string, WorkflowPort[]>();
+  const missing = new Map<string, WorkflowDataField[]>();
+  const inDegree = new Map<string, number>();
+  const outDegree = new Map<string, number>();
+  const openPorts: { stepId: string; port: string }[] = [];
+
   if (steps.length === 0) {
-    return { nodes: [], connectors: [], openEnds: [], end: null, width: 0, height: 0 };
+    return { slots, ports, missing, inDegree, outDegree, openPorts };
   }
 
   const rank = rankSteps(steps, connections);
@@ -204,12 +282,11 @@ export function layoutWorkflow(steps: WorkflowStep[], connections: WorkflowConne
   // Orden dentro del nivel: baricentro de los predecesores ya colocados.
   const lane = NODE_WIDTH + COLUMN_GAP;
   const centerX = new Map<string, number>();
-  const nodes: PositionedNode[] = [];
 
   for (const level of levels) {
     const inLevel = [...byLevel.get(level)!];
     const barycenter = (step: WorkflowStep): number => {
-      const parents = predecessorsOf(connections, step.id)
+      const parents = parentsOf(step.id)
         .map(id => centerX.get(id))
         .filter((value): value is number => value !== undefined);
       return parents.length > 0 ? parents.reduce((a, b) => a + b, 0) / parents.length : Number.MAX_SAFE_INTEGER;
@@ -219,33 +296,85 @@ export function layoutWorkflow(steps: WorkflowStep[], connections: WorkflowConne
     inLevel.forEach((step, index) => {
       const autoCenter = PADDING + NODE_WIDTH / 2 + index * lane;
       const height = nodeHeight(step);
-      const x = typeof step.x === 'number' ? step.x : autoCenter - NODE_WIDTH / 2;
-      const y = typeof step.y === 'number' ? step.y : levelTop.get(level)!;
+      const autoX = autoCenter - NODE_WIDTH / 2;
+      const autoY = levelTop.get(level)!;
+      // El baricentro del siguiente nivel se mide contra la posición EFECTIVA, que es la
+      // manual si la hay: si no, mover una carta a mano no reordenaría a sus hijas.
+      const x = typeof step.x === 'number' ? step.x : autoX;
       centerX.set(step.id, x + NODE_WIDTH / 2);
 
-      const ports = outputsOf(step);
-      const outputs: PortAnchor[] = ports.map((port, portIndex) => ({
+      slots.set(step.id, { level, index, height, autoX, autoY });
+      ports.set(step.id, outputsOf(step));
+      missing.set(step.id, missingInputs(steps, connections, step.id));
+      inDegree.set(step.id, (byTo.get(step.id) ?? []).length);
+      outDegree.set(step.id, (byFrom.get(step.id) ?? []).length);
+
+      for (const port of outputsOf(step)) {
+        // Que una salida esté libre es estructural; dónde cae su `+`, no.
+        if (!(byFrom.get(step.id) ?? []).some(link => link.fromPort === port.id)) {
+          openPorts.push({ stepId: step.id, port: port.id });
+        }
+      }
+    });
+  }
+
+  return { slots, ports, missing, inDegree, outDegree, openPorts };
+}
+
+/**
+ * Fase BARATA: solo posiciones. O(N + E), sin recorrer el grafo.
+ *
+ * Es lo único que debe correr por frame mientras se arrastra.
+ */
+export function positionLayout(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+  skeleton: WorkflowSkeleton,
+  annotations: readonly WorkflowAnnotation[] = [],
+): WorkflowLayout {
+  // Un esqueleto que no conoce a algún paso está desfasado, y dibujar sin él sería perder
+  // cartas. Comprobarlo cuesta O(N) y cierra una clase entera de bugs de sincronización.
+  const shape = steps.every(step => skeleton.slots.has(step.id))
+    ? skeleton
+    : layoutSkeleton(steps, connections);
+
+  if (steps.length === 0) {
+    const content = contentBox([], annotations);
+    return {
+      nodes: [],
+      connectors: [],
+      openEnds: [],
+      end: null,
+      content,
+      ...canvasSize(content),
+    };
+  }
+
+  const nodes: PositionedNode[] = steps.map(step => {
+    const slot = shape.slots.get(step.id)!;
+    const x = typeof step.x === 'number' ? step.x : slot.autoX;
+    const y = typeof step.y === 'number' ? step.y : slot.autoY;
+    const portList = shape.ports.get(step.id) ?? [{ id: 'main' }];
+
+    return {
+      step,
+      x,
+      y,
+      width: NODE_WIDTH,
+      height: slot.height,
+      input: { x: x + NODE_WIDTH / 2, y },
+      outputs: portList.map((port, portIndex) => ({
         portId: port.id,
         label: port.label,
         // Varias salidas se reparten a lo ancho del borde inferior.
-        x: x + (NODE_WIDTH * (portIndex + 1)) / (ports.length + 1),
-        y: y + height,
-      }));
-
-      nodes.push({
-        step,
-        x,
-        y,
-        width: NODE_WIDTH,
-        height,
-        input: { x: x + NODE_WIDTH / 2, y },
-        outputs,
-        inDegree: connectionsTo(connections, step.id).length,
-        outDegree: connectionsFrom(connections, step.id).length,
-        missing: missingInputs(steps, connections, step.id),
-      });
-    });
-  }
+        x: x + (NODE_WIDTH * (portIndex + 1)) / (portList.length + 1),
+        y: y + slot.height,
+      })),
+      inDegree: shape.inDegree.get(step.id) ?? 0,
+      outDegree: shape.outDegree.get(step.id) ?? 0,
+      missing: shape.missing.get(step.id) ?? [],
+    };
+  });
 
   // Los hilos, contra las posiciones finales y conservando su id real.
   const byId = new Map(nodes.map(node => [node.step.id, node]));
@@ -275,17 +404,16 @@ export function layoutWorkflow(steps: WorkflowStep[], connections: WorkflowConne
   // Salidas sin hilo: ahí va el `+` para seguir. Antes esto se solapaba con el
   // conector al END y el clic acababa creando una raíz nueva.
   const openEnds: OpenEnd[] = [];
-  for (const node of nodes) {
-    for (const port of node.outputs) {
-      if (connectionsFrom(connections, node.step.id, port.portId).length === 0) {
-        openEnds.push({
-          id: `${node.step.id}:${port.portId}`,
-          stepId: node.step.id,
-          port: port.portId,
-          x: port.x,
-          y: port.y + ROW_GAP / 2,
-        });
-      }
+  for (const { stepId, port } of shape.openPorts) {
+    const anchor = byId.get(stepId)?.outputs.find(output => output.portId === port);
+    if (anchor) {
+      openEnds.push({
+        id: `${stepId}:${port}`,
+        stepId,
+        port,
+        x: anchor.x,
+        y: anchor.y + ROW_GAP / 2,
+      });
     }
   }
 
@@ -295,7 +423,96 @@ export function layoutWorkflow(steps: WorkflowStep[], connections: WorkflowConne
     (Math.min(...spread) + Math.max(...nodes.map(node => node.x + node.width))) / 2;
   const end = { x: canvasCenter - END_WIDTH / 2, y: bottom + ROW_GAP, width: END_WIDTH, height: END_HEIGHT };
 
-  const width = Math.max(...nodes.map(node => node.x + node.width), end.x + end.width) + PADDING * 4;
-  const height = Math.max(end.y + end.height, bottom) + PADDING * 4;
-  return { nodes, connectors, openEnds, end, width, height };
+  const content = contentBox(nodes, annotations, end);
+  return { nodes, connectors, openEnds, end, content, ...canvasSize(content) };
+}
+
+/**
+ * Huella de la ESTRUCTURA. Mientras no cambie, el esqueleto memoizado sigue valiendo.
+ *
+ * Se recalcula por frame —es O(N+E) y solo construye texto— pero devuelve el MISMO valor
+ * mientras se arrastra, que es justo lo que evita invalidar el `computed` caro.
+ *
+ * `nodeHeight` entra porque el alto de la carta decide el alto del nivel; `typeId` porque
+ * decide puertos, `produces` y `consumes`; y la bandera de posición manual porque decide si
+ * `autoX`/`autoY` llegan a usarse.
+ */
+export function workflowStructureKey(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+): string {
+  const cards = steps
+    .map(
+      step =>
+        `${step.id}|${step.typeId}|${nodeHeight(step)}|${typeof step.x === 'number' ? 1 : 0}${
+          typeof step.y === 'number' ? 1 : 0
+        }`,
+    )
+    .join(';');
+  const links = connections.map(c => `${c.fromStepId}>${c.fromPort}>${c.toStepId}`).join(';');
+  return `${cards}#${links}`;
+}
+
+/**
+ * Caja de una anotación.
+ *
+ * `arrow` guarda en width/height el DESPLAZAMIENTO hasta la punta, que puede ser negativo:
+ * sin normalizar, una flecha hacia arriba mediría al revés y se saldría del lienzo.
+ */
+function annotationBox(annotation: WorkflowAnnotation): ContentBox {
+  return {
+    minX: Math.min(annotation.x, annotation.x + annotation.width),
+    minY: Math.min(annotation.y, annotation.y + annotation.height),
+    maxX: Math.max(annotation.x, annotation.x + annotation.width),
+    maxY: Math.max(annotation.y, annotation.y + annotation.height),
+  };
+}
+
+/** Lo que ocupa TODO lo dibujado: cartas, el END y las anotaciones. */
+function contentBox(
+  nodes: readonly PositionedNode[],
+  annotations: readonly WorkflowAnnotation[],
+  end?: { x: number; y: number; width: number; height: number } | null,
+): ContentBox {
+  const boxes: ContentBox[] = nodes.map(node => ({
+    minX: node.x,
+    minY: node.y,
+    maxX: node.x + node.width,
+    maxY: node.y + node.height,
+  }));
+  if (end) {
+    boxes.push({ minX: end.x, minY: end.y, maxX: end.x + end.width, maxY: end.y + end.height });
+  }
+  // Las anotaciones ENTRAN en los límites. Antes el layout ni las recibía, así que una nota
+  // arrastrada más allá de la última carta no ensanchaba el área desplazable y quedaba
+  // recortada fuera, sin forma de llegar a ella.
+  for (const annotation of annotations) {
+    boxes.push(annotationBox(annotation));
+  }
+  if (boxes.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+  }
+  return {
+    minX: Math.min(...boxes.map(box => box.minX)),
+    minY: Math.min(...boxes.map(box => box.minY)),
+    maxX: Math.max(...boxes.map(box => box.maxX)),
+    maxY: Math.max(...boxes.map(box => box.maxY)),
+  };
+}
+
+/** Tamaño del lienzo: el contenido más holgura, y nunca menos que el mínimo. */
+function canvasSize(content: ContentBox): { width: number; height: number } {
+  return {
+    width: Math.max(content.maxX + CANVAS_MARGIN, MIN_CANVAS_WIDTH),
+    height: Math.max(content.maxY + CANVAS_MARGIN, MIN_CANVAS_HEIGHT),
+  };
+}
+
+/** API pública: las dos fases compuestas. Mismo resultado que siempre. */
+export function layoutWorkflow(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+  annotations: readonly WorkflowAnnotation[] = [],
+): WorkflowLayout {
+  return positionLayout(steps, connections, layoutSkeleton(steps, connections), annotations);
 }

@@ -234,3 +234,94 @@ describe('connectorPath', () => {
     expect(layout.connectors[0].path).not.toContain('Q');
   });
 });
+
+import {
+  ContentBox,
+  layoutSkeleton,
+  positionLayout,
+  workflowStructureKey,
+} from './workflow-layout.util';
+import { WorkflowAnnotation } from '../data-access/workflow.model';
+
+function note(over: Partial<WorkflowAnnotation> = {}): WorkflowAnnotation {
+  return { id: 'n1', kind: 'note', x: 0, y: 0, width: 220, height: 180, ...over };
+}
+
+/**
+ * La memoización del esqueleto se apoya en esta huella: si alguna vez incluyera `x`/`y`,
+ * volvería a recalcularse el grafo entero en cada frame de arrastre y el lag regresaría
+ * sin que nada fallara a la vista. Por eso se fija aquí.
+ */
+describe('workflowStructureKey', () => {
+  const steps = [step('a', 'send-email', { x: 10, y: 10 }), step('b')];
+  const links = [link('l1', 'a', 'b')];
+
+  it('arrastrar una carta NO cambia la huella', () => {
+    const before = workflowStructureKey(steps, links);
+    const moved = steps.map(s => (s.id === 'a' ? { ...s, x: 900, y: 40 } : s));
+    expect(workflowStructureKey(moved, links)).toBe(before);
+  });
+
+  it('pero pasar de automático a manual SÍ la cambia: decide si autoX llega a usarse', () => {
+    const before = workflowStructureKey(steps, links);
+    expect(workflowStructureKey([{ ...steps[0], x: undefined, y: undefined }, steps[1]], links)).not.toBe(
+      before,
+    );
+  });
+
+  it('añadir un hilo o cambiar un tipo la cambia', () => {
+    const before = workflowStructureKey(steps, links);
+    expect(workflowStructureKey(steps, [...links, link('l2', 'b', 'a')])).not.toBe(before);
+    expect(workflowStructureKey([step('a', 'condition'), steps[1]], links)).not.toBe(before);
+  });
+});
+
+describe('layout en dos fases', () => {
+  it('componer las dos fases da lo mismo que el layout de siempre', () => {
+    const steps = [step('root', 'condition'), step('a'), step('b')];
+    const links = [link('l1', 'root', 'a', 'yes'), link('l2', 'root', 'b', 'no')];
+
+    const composed = positionLayout(steps, links, layoutSkeleton(steps, links));
+    expect(composed).toEqual(layoutWorkflow(steps, links));
+  });
+
+  it('un esqueleto desfasado no pierde cartas: se recalcula', () => {
+    const steps = [step('a')];
+    const stale = layoutSkeleton(steps, []);
+    const grown = [step('a'), step('b')];
+
+    expect(positionLayout(grown, [], stale).nodes.length).toBe(2);
+  });
+});
+
+describe('límites del lienzo', () => {
+  const box = (layout: { content: ContentBox }) => layout.content;
+
+  it('una nota lejos del diagrama ensancha el lienzo', () => {
+    // El bug: el layout ni recibía las anotaciones, así que una nota arrastrada más allá
+    // de la última carta quedaba fuera del área desplazable y no había forma de llegar.
+    const far = layoutWorkflow([step('a')], [], [note({ x: 4000, y: 3000 })]);
+    expect(box(far).maxX).toBeGreaterThanOrEqual(4220);
+    expect(far.width).toBeGreaterThan(4220);
+    expect(far.height).toBeGreaterThan(3180);
+  });
+
+  it('una flecha hacia arriba-izquierda mide bien, no al revés', () => {
+    // `arrow` guarda el DESPLAZAMIENTO hasta la punta y puede ser negativo.
+    const arrow = note({ kind: 'arrow', x: 900, y: 900, width: -400, height: -300 });
+    expect(box(layoutWorkflow([step('a')], [], [arrow])).minX).toBeLessThanOrEqual(500);
+  });
+
+  it('un flujo de dos cartas no queda encajonado', () => {
+    const small = layoutWorkflow([step('a'), step('b')], [link('l', 'a', 'b')]);
+    expect(small.width).toBeGreaterThanOrEqual(3600);
+    expect(small.height).toBeGreaterThanOrEqual(2600);
+  });
+
+  it('un documento sin pasos pero con notas sigue siendo navegable', () => {
+    // Antes devolvía 0×0: las notas existían pero eran inalcanzables por scroll.
+    const onlyNotes = layoutWorkflow([], [], [note({ x: 300, y: 200 })]);
+    expect(onlyNotes.width).toBeGreaterThan(0);
+    expect(onlyNotes.height).toBeGreaterThan(0);
+  });
+});

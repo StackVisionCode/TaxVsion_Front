@@ -4,6 +4,7 @@
     [class.wf-viewport--place]="tool() === 'note' || tool() === 'text'"
     [class.wf-viewport--draw]="tool() === 'draw' || tool() === 'arrow' || tool() === 'rect'"
     [class.wf-viewport--erase]="tool() === 'eraser'" (click)="onCanvasClick($event)"
+    (wheel)="onWheel($event)"
     (pointerdown)="startPan($event)" (dragover)="allowDrop($event)" (drop)="onDrop($event)">
 
     <!-- sizer: reserva el área desplazable ya escalada -->
@@ -116,8 +117,10 @@
 
         <!-- Conectores por DEBAJO de los nodos: así las líneas no tapan el contenido
              ni bloquean el menú de la tarjeta. La semántica la ponen los botones. -->
-        <svg class="absolute left-0 top-0" [attr.width]="layout.width" [attr.height]="layout.height"
-          aria-hidden="true">
+        <!-- `overflow-visible`: sin él, el hilo que se está tirando se recorta en el
+             borde del SVG en cuanto el cursor pasa del área del contenido. -->
+        <svg class="absolute left-0 top-0 overflow-visible" [attr.width]="layout.width"
+          [attr.height]="layout.height" aria-hidden="true">
           <!-- Dos paths por hilo: uno grueso e invisible que hace de zona de
                clic (una línea de 1.5px es imposible de acertar) y el visible. -->
           <g *ngFor="let connector of layout.connectors; trackBy: trackConnector">
