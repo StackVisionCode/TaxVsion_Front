@@ -74,6 +74,38 @@ export class AppShellComponent implements OnInit, OnDestroy {
   protected readonly isSidebarExpanded = signal(true);
 
   /**
+   * Ancho REAL del hueco del navbar → `--shell-notch-width`. Las filas de encabezado de las páginas
+   * reservan ese padding, así que cuando la lupa se abre (el hueco se ensancha animado) el ResizeObserver
+   * lo sigue frame a frame y los botones de al lado se corren en vez de quedar tapados. Fuera de lg+
+   * (navbar en su fila) se quita la variable y vale el default del CSS.
+   */
+  @ViewChild('shellNotch', { static: true }) private shellNotch?: ElementRef<HTMLElement>;
+  private readonly hostEl = inject(ElementRef<HTMLElement>);
+  private readonly trackNotchWidth = afterNextRender(() => {
+    const notch = this.shellNotch?.nativeElement;
+    if (!notch || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const host = this.hostEl.nativeElement as HTMLElement;
+    const sync = () => {
+      if (getComputedStyle(notch).position === 'absolute') {
+        // + 1rem de aire entre los botones de la página y el hueco.
+        host.style.setProperty('--shell-notch-width', `${notch.offsetWidth + 16}px`);
+      } else {
+        host.style.removeProperty('--shell-notch-width');
+      }
+    };
+    const observer = new ResizeObserver(sync);
+    observer.observe(notch);
+    window.addEventListener('resize', sync);
+    sync();
+    this.destroyRef.onDestroy(() => {
+      observer.disconnect();
+      window.removeEventListener('resize', sync);
+    });
+  });
+
+  /**
    * Barra de progreso de navegación. Entre el clic en el sidebar y el pintado de la página
    * no había NINGUNA señal: la app parecía colgada mientras bajaba el chunk de la sección.
    *
