@@ -1,7 +1,7 @@
 <!-- En pantalla completa (editor embebido en el perfil) la tarjeta cubre el viewport; el host ya
      está portado al <body>, así que el `fixed` no queda encerrado por el perfil. -->
 <div class="wizard-card bg-white p-4 sm:p-6" [class.max-md:pb-24]="currentStep() === 3"
-  [ngClass]="fullscreen() ? 'fixed inset-0 z-[45] overflow-y-auto rounded-none' : 'rounded-[28px]'">
+  [ngClass]="fullscreen() ? 'fixed inset-0 z-[62] overflow-y-auto rounded-none' : 'rounded-[28px]'">
   <!-- Header: título + volver a la lista -->
   <div class="flex items-start justify-between gap-4">
     <div class="min-w-0">
@@ -221,13 +221,13 @@
 </app-confirm-dialog>
 
 <!-- Cargando el borrador a continuar (detalle + bytes del PDF). -->
-<div *ngIf="hydrating()" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95">
+<div *ngIf="hydrating()" class="fixed inset-0 z-[63] flex flex-col items-center justify-center bg-brand-white/95">
   <span class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
   <p class="mt-4 text-sm font-medium text-gray-500">Loading draft…</p>
 </div>
 
 <!-- Coreografía de envío: el papel se crea, se firma y sale (pantalla completa) -->
-<div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[60] flex flex-col items-center justify-center bg-brand-white/95"
+<div *ngIf="isSending()" class="send-overlay fixed inset-0 z-[63] flex flex-col items-center justify-center bg-brand-white/95"
   [class.send-overlay-out]="sendPhase() === 'done'">
   <!-- Papel -->
   <div class="send-paper relative w-64 rounded-xl border border-gray-100 bg-white p-6 shadow-2xl shadow-indigo-200/40"

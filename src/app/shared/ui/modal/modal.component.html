@@ -1,6 +1,9 @@
-<div *ngIf="rendered()" #portal class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+<div *ngIf="rendered()" #portal class="modal-backdrop fixed inset-0 z-[66] flex items-center justify-center bg-black/25 p-4"
   [class.is-closing]="closing()" (click)="close()">
-  <div #panel class="modal-panel max-h-[90vh] w-full overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
+  <!-- Blur suave del fondo en una capa aparte: un backdrop-filter en el contenedor encerraría los
+       `fixed` del panel (mismo problema que un transform, ver R8). -->
+  <div class="pointer-events-none absolute inset-0 backdrop-blur-[3px]" aria-hidden="true"></div>
+  <div #panel class="modal-panel relative max-h-[90vh] w-full overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
     [ngClass]="sizeClass" [class.is-closing]="closing()" (click)="$event.stopPropagation()" role="dialog"
     aria-modal="true" [attr.aria-labelledby]="headingId" tabindex="-1">
     <!-- Header -->
