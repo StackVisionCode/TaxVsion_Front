@@ -64,7 +64,7 @@
 
   <!-- Client + dates -->
   <div class="mt-6 grid gap-4 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
-    <div class="rounded-2xl border border-gray-100 p-4">
+    <div *ngIf="showClient" class="rounded-2xl border border-gray-100 p-4">
       <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
       <p class="mt-1 flex items-center gap-2 text-base font-semibold text-gray-900">
         <ion-icon name="person-outline" class="text-base text-gray-400"></ion-icon>

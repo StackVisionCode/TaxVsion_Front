@@ -40,6 +40,8 @@ export class TaskBoardComponent implements OnChanges {
    * tarjeta, la veía moverse y el backend la devolvía a su sitio con un 403.
    */
   @Input() canWrite = true;
+  /** Línea del cliente en la tarjeta; se oculta embebido en el perfil (todas son del mismo cliente). */
+  @Input() showClient = true;
   @Output() taskOpened = new EventEmitter<TaskItem>();
   @Output() statusChanged = new EventEmitter<{ id: string; status: TaskStatus }>();
 

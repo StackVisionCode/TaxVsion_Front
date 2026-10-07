@@ -60,6 +60,7 @@ import {
 } from '../../data-access/signature.store';
 import { buildDraftHydration } from '../../utils/draft-hydration.util';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
@@ -117,6 +118,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly store = inject(SignatureStore);
   private readonly toast = inject(ToastService);
   private readonly directory = inject(CustomerDirectoryStore);
+  /** Cliente fijo cuando el wizard corre embebido en su perfil: el paso 1 queda bloqueado. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly clientLocked = computed(() => this.embeddedCustomer() !== null);
 
   readonly currentStep = signal<WizardStep>(1);
   /** Rehidratando un borrador (fetch del detalle + bytes del PDF). */
@@ -310,7 +314,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     // (recarga/cierre accidental), ofrecemos restaurar el trabajo del editor.
     if (!this.continueRequestId) {
       const snapshot = readDraftSnapshot();
-      if (snapshot) {
+      // Embebido en el perfil: solo se ofrece un snapshot de ESE cliente (el snapshot es global).
+      const embedded = this.embeddedCustomer();
+      if (snapshot && (!embedded || snapshot.client.id === embedded.id)) {
         this.recoverable.set(snapshot);
       }
     }

@@ -70,7 +70,7 @@
   <div class="mt-4">
     <!-- Step 1: client -->
     <div *ngIf="currentStep() === 1" class="step-content">
-      <app-signature-wizard-client-step [selected]="selectedClient()" [recent]="recentClients()"
+      <app-signature-wizard-client-step [selected]="selectedClient()" [recent]="recentClients()" [locked]="clientLocked()"
         (picked)="onClientPicked($event)"></app-signature-wizard-client-step>
     </div>
 

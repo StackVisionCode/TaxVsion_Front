@@ -201,7 +201,7 @@
   @defer (when activeTab() === 'work'; prefetch on idle) {
     @if (activeTab() === 'work') {
       <div class="flex flex-col gap-6">
-        <app-client-profile-work [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-work>
+        <app-client-task-workspace [clientId]="c.id" [clientName]="c.displayName" />
         <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
       </div>
     }
@@ -223,10 +223,7 @@
 
   @defer (when activeTab() === 'signatures'; prefetch on idle) {
     @if (activeTab() === 'signatures') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-signatures [clientId]="c.id" [clientName]="c.displayName"
-          (newRequest)="requestSignature(c)"></app-client-profile-signatures>
-      </div>
+      <app-client-signature-workspace [clientId]="c.id" [clientName]="c.displayName" />
     }
   } @placeholder {
     @if (activeTab() === 'signatures') {
@@ -236,9 +233,7 @@
 
   @defer (when activeTab() === 'invoices'; prefetch on idle) {
     @if (activeTab() === 'invoices') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-invoices [clientId]="c.id"></app-client-profile-invoices>
-      </div>
+      <app-client-billing-workspace [clientId]="c.id" [clientName]="c.displayName" />
     }
   } @placeholder {
     @if (activeTab() === 'invoices') {
@@ -266,13 +261,31 @@
           [email]="c.email"
           [displayName]="c.displayName"
         ></app-client-chat-card>
-        <div class="bg-white rounded-[28px] p-6">
-          <app-client-profile-communication [clientId]="c.id"></app-client-profile-communication>
-        </div>
+        <app-client-mail-workspace [clientId]="c.id" [clientName]="c.displayName" />
       </div>
     }
   } @placeholder {
     @if (activeTab() === 'communication') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
+
+  @defer (when activeTab() === 'sms'; prefetch on idle) {
+    @if (activeTab() === 'sms') {
+      <app-client-sms-workspace [clientId]="c.id" [clientName]="c.displayName" />
+    }
+  } @placeholder {
+    @if (activeTab() === 'sms') {
+      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+    }
+  }
+
+  @defer (when activeTab() === 'meetings'; prefetch on idle) {
+    @if (activeTab() === 'meetings') {
+      <app-client-meetings-workspace [clientId]="c.id" [clientName]="c.displayName" />
+    }
+  } @placeholder {
+    @if (activeTab() === 'meetings') {
       <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
     }
   }

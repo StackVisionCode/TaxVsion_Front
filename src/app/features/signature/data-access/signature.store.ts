@@ -9,6 +9,7 @@ import { SignatureRequest } from '../ui/signature-table/signature-table.componen
 import { WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
 import { SignatureService } from './signature.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { SignatureRealtimeService } from './signature-realtime.service';
 import {
   ApiSignatureRequestStatus,
@@ -191,7 +192,9 @@ export function computeDraftEditPlan(
  * Store del módulo Signature (staff): listado paginado en servidor + filtro de
  * estado server-side, detalle hidratado por fila (el summary no trae firmantes y la
  * tabla los muestra), picker de customers y orquestación del wizard.
- * providedIn: 'root', mismo patrón que clients/documents.
+ * providedIn: 'root', mismo patrón que clients/documents. Embebido en el perfil de un cliente
+ * (`ClientSignatureWorkspaceComponent`) se provee una instancia propia y el listado se filtra
+ * por `customerId` (ver `@core/customers/embedded-customer`).
  */
 @Injectable({ providedIn: 'root' })
 export class SignatureStore {
@@ -199,6 +202,8 @@ export class SignatureStore {
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly realtime = inject(SignatureRealtimeService);
   private readonly auth = inject(AuthService);
+  /** Cliente fijo cuando el módulo está embebido en su perfil; null en la página global. */
+  private readonly embedded = injectEmbeddedCustomer();
 
   constructor() {
     // Realtime: cuando alguien firma/rechaza o cambia el estado, Communication emite
@@ -340,6 +345,7 @@ export class SignatureStore {
         editableOnly: filter === 'Drafts',
         page: this._page(),
         size: SIGNATURE_PAGE_SIZE,
+        customerId: this.embedded()?.id,
       })
       .pipe(
         switchMap(result =>

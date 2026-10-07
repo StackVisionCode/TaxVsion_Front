@@ -1,5 +1,7 @@
 import { PermissionService } from '@core/auth/permission.service';
-import { Injectable, computed, inject, signal, type WritableSignal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal, type WritableSignal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { Observable, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { toApiError } from '@core/models/api-error.model';
@@ -61,6 +63,9 @@ export class MeetingsStore {
   private readonly auth = inject(AuthService);
   private readonly storage = inject(CloudStorageUploadService);
   private readonly realtime = inject(CommunicationRealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
+  /** Embebido en el perfil (instancia por componente): el listado se filtra por ese cliente. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
   private realtimeBound = false;
 
   // ---------- Estado ----------
@@ -103,6 +108,12 @@ export class MeetingsStore {
     return scope === 'upcoming' ? this._upcoming : this._past;
   }
 
+  /** Filtro `customerId` del listado si está embebido; vacío en la página normal (misma llamada que antes). */
+  private customerFilter(): { customerId?: string } {
+    const id = this.embeddedCustomer()?.id;
+    return id ? { customerId: id } : {};
+  }
+
   clearActionError(): void {
     this._actionError.set(null);
   }
@@ -120,19 +131,21 @@ export class MeetingsStore {
       return;
     }
     this.realtimeBound = true;
+    // Teardown con el DestroyRef del injector: en root no cambia nada; la instancia del perfil
+    // (provider de componente) se desuscribe al destruirse y no queda colgada del socket.
     // Invitado o meeting iniciado → aparece/cambia en "upcoming".
-    this.realtime.on<{ meetingId: string }>('meeting.invited').subscribe(() => {
+    this.realtime.on<{ meetingId: string }>('meeting.invited').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
     });
-    this.realtime.on<{ meetingId: string }>('meeting.started').subscribe(() => {
+    this.realtime.on<{ meetingId: string }>('meeting.started').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
     });
     // Meeting terminado → sale de "upcoming" y entra a "past": refrescar ambos.
-    this.realtime.on<{ meetingId: string }>('meeting.ended').subscribe(() => {
+    this.realtime.on<{ meetingId: string }>('meeting.ended').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
       this.refreshScopeSilently('past');
     });
-    this.realtime.reconnected$.subscribe(() => {
+    this.realtime.reconnected$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
       this.refreshScopeSilently('past');
     });
@@ -144,7 +157,7 @@ export class MeetingsStore {
     if (!target().loaded) {
       return;
     }
-    this.service.list({ scope, page: 1, size: PAGE_SIZE }).subscribe({
+    this.service.list({ scope, page: 1, size: PAGE_SIZE, ...this.customerFilter() }).subscribe({
       next: result => target.set({ responses: result.items, page: 1, totalCount: result.totalCount, loaded: true }),
       error: () => undefined, // best-effort: un refresh fallido no rompe la vista actual
     });
@@ -160,7 +173,7 @@ export class MeetingsStore {
     }
     this._loading.set(true);
     this._error.set(null);
-    this.service.list({ scope, page: 1, size: PAGE_SIZE }).subscribe({
+    this.service.list({ scope, page: 1, size: PAGE_SIZE, ...this.customerFilter() }).subscribe({
       next: result => {
         target.set({ responses: result.items, page: 1, totalCount: result.totalCount, loaded: true });
         this._loading.set(false);
@@ -181,7 +194,7 @@ export class MeetingsStore {
     }
     const nextPage = current.page + 1;
     this._loadingMore.set(true);
-    this.service.list({ scope, page: nextPage, size: PAGE_SIZE }).subscribe({
+    this.service.list({ scope, page: nextPage, size: PAGE_SIZE, ...this.customerFilter() }).subscribe({
       next: result => {
         const known = new Set(current.responses.map(item => item.id));
         target.set({

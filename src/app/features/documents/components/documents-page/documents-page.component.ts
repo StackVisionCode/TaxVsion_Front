@@ -1,4 +1,5 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
@@ -37,12 +38,6 @@ import { NamePromptDialogComponent } from '../../ui/name-prompt-dialog/name-prom
 import { BulkActionBarComponent } from '../../ui/bulk-action-bar/bulk-action-bar.component';
 import { ShareDialogComponent } from '../../ui/share-dialog/share-dialog.component';
 
-/** Cliente al que se fija la página en modo embebido (pestaña Documents del perfil). */
-export interface EmbeddedDocumentsClient {
-  id: string;
-  name: string;
-}
-
 /** Elemento que se está moviendo (archivo o carpeta) — el diálogo de destino es el mismo. */
 type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderResponse; file?: undefined };
 
@@ -52,8 +47,8 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
  * input()/output(). El cliente es un contexto dentro del workspace, no una
  * pantalla previa: entrar a Documents abre directo el gestor.
  *
- * Modo embebido (`[embeddedClient]`): lo monta `ClientDocumentsWorkspaceComponent` dentro del
- * perfil del cliente. Sin navegador lateral ni salto a Office/Clients: el gestor queda fijo al
+ * Modo embebido (`injectEmbeddedCustomer()`, ver `@core/customers/embedded-customer`): lo monta
+ * `ClientDocumentsWorkspaceComponent` dentro del perfil del cliente. Sin navegador lateral ni salto a Office/Clients: el gestor queda fijo al
  * workspace de ESE cliente (carpetas, filtros, orden, subir, mover, compartir…).
  */
 @Component({
@@ -84,8 +79,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
   styleUrl: './documents-page.component.css',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
-export class DocumentsPageComponent implements OnInit, OnChanges {
-  @Input() embeddedClient: EmbeddedDocumentsClient | null = null;
+export class DocumentsPageComponent implements OnInit {
 
   /** B6 — qué acciones puede ofrecer esta pantalla. Antes no se gateaba ninguna. */
   protected readonly can = inject(DocumentsPermissions);
@@ -184,8 +178,9 @@ export class DocumentsPageComponent implements OnInit, OnChanges {
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
   readonly filterStatuses = ['ready', 'processing', 'blocked'] as const;
 
-  /** Signal del modo embebido para los computed (el @Input clásico no es reactivo). */
-  readonly embedded = signal(false);
+  /** Cliente fijo cuando la página va embebida en el perfil; `null` en /documents. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
 
   readonly title = computed(() => {
     const crumbs = this.breadcrumbs();
@@ -241,21 +236,23 @@ export class DocumentsPageComponent implements OnInit, OnChanges {
     return crumbs.length > 0 ? crumbs[crumbs.length - 1].name : this.ownerLabel();
   });
 
+  constructor() {
+    // Embebida: abre (y reabre si cambia) el workspace del cliente fijado por el perfil.
+    effect(() => {
+      const customer = this.embeddedCustomer();
+      if (customer && customer.id !== untracked(this.context).clientId) {
+        untracked(() => this.store.openClientById(customer.id, customer.name));
+      }
+    });
+  }
+
   ngOnInit(): void {
-    if (this.embeddedClient) {
-      return; // ngOnChanges ya abrió el workspace del cliente.
+    if (this.embedded()) {
+      return;
     }
     this.store.refreshClients();
     this.store.loadUsage();
     this.store.openOffice();
-  }
-
-  ngOnChanges(): void {
-    const client = this.embeddedClient;
-    this.embedded.set(!!client);
-    if (client && client.id !== this.context().clientId) {
-      this.store.openClientById(client.id, client.name);
-    }
   }
 
   // ---------- Navegador ----------

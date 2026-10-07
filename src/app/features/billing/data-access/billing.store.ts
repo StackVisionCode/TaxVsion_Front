@@ -12,6 +12,7 @@ import {
 } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
 import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -82,13 +83,16 @@ export class BillingStore {
   private readonly clipboard = inject(ClipboardService);
   /** Moneda de la oficina compartida con catálogo e inventario (que no pueden importar billing). */
   private readonly officeCurrency = inject(OfficeCurrencyStore);
+  /** Cliente fijo cuando el módulo vive en el perfil del cliente (`null` en la página normal). */
+  readonly embeddedCustomer = injectEmbeddedCustomer();
 
   // ---------- Facturas ----------
 
   private readonly _invoices = signal<InvoiceSummary[]>([]);
   private readonly _invoicesLoading = signal(false);
   private readonly _invoicesError = signal<string | null>(null);
-  private readonly _take = signal(TAKE_OPTIONS[1]);
+  // Embebido (un solo cliente) se pide el máximo y la UI oculta el selector "Load".
+  private readonly _take = signal(this.embeddedCustomer() ? TAKE_OPTIONS[TAKE_OPTIONS.length - 1] : TAKE_OPTIONS[1]);
 
   readonly invoices = this._invoices.asReadonly();
   readonly invoicesLoading = this._invoicesLoading.asReadonly();
@@ -247,7 +251,7 @@ export class BillingStore {
     }
     this._invoicesLoading.set(true);
     this._invoicesError.set(null);
-    this.service.listInvoices(this._take()).subscribe({
+    this.service.listInvoices(this._take(), this.embeddedCustomer()?.id ?? null).subscribe({
       next: invoices => {
         this._invoices.set(invoices ?? []);
         this.invoicesLoaded = true;
@@ -946,7 +950,11 @@ export class BillingStore {
     this.initialized = true;
     this.wireCatalogSearch();
     this.loadInvoices();
-    this.loadPaymentConfigs();
+    // Embebido en el perfil no hay links de pago ni config de cobro: solo facturas. La empresa sí
+    // (su moneda por defecto alimenta el formulario).
+    if (!this.embeddedCustomer()) {
+      this.loadPaymentConfigs();
+    }
     this.loadCompany();
   }
 

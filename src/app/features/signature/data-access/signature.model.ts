@@ -649,6 +649,8 @@ export interface ListSignatureRequestsParams {
   size?: number;
   /** Solo borradores editables (Draft/Ready), para la pestaña Drafts. */
   editableOnly?: boolean;
+  /** Filtra por cliente (módulo embebido en el perfil del cliente). */
+  customerId?: string;
 }
 
 // ---------- Customers: el picker del wizard usa el DTO compartido @core/customers ----------

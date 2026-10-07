@@ -10,7 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
 import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-reading-pane.component';
@@ -31,6 +31,7 @@ import { ComposeMailDeepLink, hasComposeMailParams, parseComposeMailDeepLink } f
 import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -47,6 +48,10 @@ import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-
  * backend respalda: Conversations, Archived y Drafts. Toda la lógica (paginación,
  * cuerpos en vivo, adjuntos bajo demanda, reply y compose) vive en MailStore;
  * este componente sólo traduce estado a la UI y despacha intenciones.
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`): lo monta `ClientMailWorkspaceComponent` en el perfil
+ * del cliente. Cliente fijo (sin picker), sin consumir query params (OAuth / deep link) y sin el
+ * gestor de buzones: si no hay buzón se enlaza a /email y los hilos se ven en solo lectura.
  */
 @Component({
   selector: 'app-mail-page',
@@ -59,6 +64,7 @@ import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-
     MailConnectManualComponent,
     CustomerPickerComponent,
     FileViewerComponent,
+    RouterLink,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -72,6 +78,10 @@ export class MailPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly directory = inject(CustomerDirectoryStore);
+
+  /** Cliente fijado por el perfil; `null` en /email. */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
 
   /**
    * Deep link `/email?compose=1&customerId=&to=` en espera: el composer se abre cuando el cliente
@@ -106,6 +116,10 @@ export class MailPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
     this.store.init();
+    // Embebido: los query params son del perfil, no de Mail (ni OAuth ni deep link de compose).
+    if (this.embedded()) {
+      return;
+    }
     this.consumeOAuthCallback();
     this.consumeComposeDeepLink();
   }
@@ -352,10 +366,11 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   /** Estados vacíos honestos: distinguen "falta elegir cliente" de "no hay nada". */
   readonly listEmptyText = computed(() => {
-    if (this.store.customers().length === 0) {
+    // Embebido: el cliente siempre está fijado, solo aplican los textos por carpeta.
+    if (!this.embedded() && this.store.customers().length === 0) {
       return 'No clients yet — mail threads belong to a client';
     }
-    if (!this.store.selectedCustomerId()) {
+    if (!this.embedded() && !this.store.selectedCustomerId()) {
       return 'Select a client to see their mail';
     }
     switch (this.store.activeFolderId()) {
@@ -694,7 +709,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   openCompose(): void {
     this.selectedDraftId.set(null);
-    this.store.openCompose();
+    // Embebido: "To" arranca con el email principal del cliente (si el directorio lo trajo).
+    this.store.openCompose(this.embedded() ? this.store.selectedCustomer()?.primaryEmail || null : null);
   }
 
   closeCompose(): void {

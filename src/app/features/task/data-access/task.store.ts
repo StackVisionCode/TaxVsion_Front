@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { Observable, concatMap, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
@@ -34,12 +35,18 @@ function isClosed(status: ApiTaskStatus): boolean {
  * para la ruta del módulo. Guarda los TaskResponse crudos y deriva las tarjetas con
  * computed(): así los nombres de cliente/asignado se re-resuelven solos cuando llegan
  * los catálogos (GET /customers, GET /auth/users best-effort, directorio de Communication).
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`): `ClientTaskWorkspaceComponent` provee su PROPIA
+ * instancia con el cliente del perfil. Ese cliente queda "fijo" (`lockedCustomerId`): se suma con
+ * AND al tablero, a la columna Completed y a la búsqueda, pero NO es `_filterCustomer` — no activa el
+ * modo búsqueda ni lo borra `clearFilters()`.
  */
 @Injectable({ providedIn: 'root' })
 export class TaskStore {
   private readonly service = inject(TaskService);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly auth = inject(AuthService);
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
 
   // ---------- Estado crudo ----------
   private readonly _raw = signal<TaskResponse[]>([]);
@@ -68,12 +75,44 @@ export class TaskStore {
   // ---------- Catálogos para nombres/pickers ----------
   private readonly _clients = signal<CustomerSummary[]>([]);
   private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
+  /** Ficha real del cliente embebido (CustomerDirectoryStore.byId); hasta que llega se usa un stub. */
+  private readonly _lockedSummary = signal<CustomerSummary | null>(null);
 
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly actionError = this._actionError.asReadonly();
   readonly search = this._search.asReadonly();
-  readonly clients = this._clients.asReadonly();
+
+  /** Id del cliente fijado por el perfil (modo embebido) o null en la página normal. */
+  readonly lockedCustomerId = computed(() => this.embeddedCustomer()?.id ?? null);
+
+  /** Cliente fijado como CustomerSummary (para preseleccionarlo en crear/plantillas). */
+  readonly lockedClient = computed<CustomerSummary | null>(() => {
+    const customer = this.embeddedCustomer();
+    if (!customer) {
+      return null;
+    }
+    const resolved = this._lockedSummary();
+    if (resolved && resolved.id === customer.id) {
+      return resolved;
+    }
+    // Stub mínimo (mismo criterio que el panel en edición) mientras no llega la ficha real.
+    return {
+      id: customer.id,
+      displayName: customer.name,
+      primaryEmail: '',
+      status: 'Active',
+      kind: 'Individual',
+      primaryPhone: null,
+      createdAtUtc: '',
+    };
+  });
+
+  /** Catálogo de clientes: embebido = solo el cliente fijado (no se descarga el directorio). */
+  readonly clients = computed<CustomerSummary[]>(() => {
+    const locked = this.lockedClient();
+    return locked ? [locked] : this._clients();
+  });
 
   /** Modo búsqueda = hay término O algún filtro → resultados server-paginados de /tasks/search. */
   readonly isSearching = computed(
@@ -96,7 +135,7 @@ export class TaskStore {
   );
 
   private readonly clientNameById = computed<ReadonlyMap<string, string>>(
-    () => new Map(this._clients().map(client => [client.id, client.displayName])),
+    () => new Map(this.clients().map(client => [client.id, client.displayName])),
   );
 
   /** Tarjetas del tablero (las Cancelled quedan fuera: no tienen columna). */
@@ -120,9 +159,24 @@ export class TaskStore {
     // gate es la avalancha repetida, no el fallo individual de una de ellas.
     this.initGate.settle(true);
     this.registerCurrentUserName();
-    this.loadClients();
+    if (this.lockedCustomerId()) {
+      this.loadLockedClient();
+    } else {
+      this.loadClients();
+    }
     this.loadUserNames();
     this.loadTaxonomies();
+    this.refresh();
+  }
+
+  /**
+   * Embebido: el perfil cambió de cliente sin destruir el workspace → re-resuelve la ficha del
+   * cliente fijado y recarga el tablero (vuelve a la primera página).
+   */
+  reloadLockedCustomer(): void {
+    this._lockedSummary.set(null);
+    this._searchPage.set(1);
+    this.loadLockedClient();
     this.refresh();
   }
 
@@ -204,9 +258,14 @@ export class TaskStore {
   private loadBoard(): void {
     this._loading.set(true);
     this._error.set(null);
+    const customerId = this.lockedCustomerId() ?? undefined;
     forkJoin({
-      board: this.service.board(),
-      completed: this.service.search({ status: 'Completed', size: COMPLETED_FETCH_SIZE }),
+      board: this.service.board(customerId ? { customerId } : {}),
+      completed: this.service.search({
+        status: 'Completed',
+        size: COMPLETED_FETCH_SIZE,
+        ...(customerId ? { customerId } : {}),
+      }),
     }).subscribe({
       next: ({ board, completed }) => {
         const open = board.columns.flatMap(column => column.tasks);
@@ -226,11 +285,13 @@ export class TaskStore {
     this._loading.set(true);
     this._error.set(null);
     const term = this._search().trim();
+    // Embebido: el cliente fijado manda sobre el filtro de cliente (que allí no se muestra).
+    const customerId = this.lockedCustomerId() ?? this._filterCustomer();
     this.service
       .search({
         ...(term ? { q: term } : {}),
         ...(this._filterAssignee() ? { assigneeUserId: this._filterAssignee()! } : {}),
-        ...(this._filterCustomer() ? { customerId: this._filterCustomer()! } : {}),
+        ...(customerId ? { customerId } : {}),
         ...(this._filterTaxYear() ? { taxYear: this._filterTaxYear()! } : {}),
         page: this._searchPage(),
         size: SEARCH_PAGE_SIZE,
@@ -254,6 +315,25 @@ export class TaskStore {
     this.directory.search({ status: 'NotArchived', size: 200 }).subscribe({
       next: result => this._clients.set(result.items),
       error: err => console.warn('Tasks: no se pudo cargar el picker de clientes:', toApiError(err).message),
+    });
+  }
+
+  /** Embebido: resuelve solo la ficha del cliente fijado (best-effort; si falla queda el stub). */
+  private loadLockedClient(): void {
+    const id = this.lockedCustomerId();
+    if (!id) {
+      return;
+    }
+    this.directory.byId([id]).subscribe({
+      next: found => {
+        const customer = found.get(id);
+        if (customer) {
+          this._lockedSummary.set(customer);
+        }
+      },
+      error: () => {
+        /* best-effort: el stub con el nombre del perfil alcanza */
+      },
     });
   }
 

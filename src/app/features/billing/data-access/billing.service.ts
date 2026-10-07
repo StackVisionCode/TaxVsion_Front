@@ -54,8 +54,12 @@ export class BillingService {
    * pagina ni filtra, solo recorta. Sin `take` el controller bindea 0 y no vuelve nada, así que
    * siempre se manda.
    */
-  listInvoices(take: number): Observable<InvoiceSummary[]> {
-    const params = new HttpParams().set('take', take);
+  /** `customerId` opcional: lo manda el módulo embebido en el perfil para listar solo ese cliente. */
+  listInvoices(take: number, customerId?: string | null): Observable<InvoiceSummary[]> {
+    let params = new HttpParams().set('take', take);
+    if (customerId) {
+      params = params.set('customerId', customerId);
+    }
     return this.http.get<InvoiceSummary[]>(`${this.base}/billing/invoices`, { params });
   }
 

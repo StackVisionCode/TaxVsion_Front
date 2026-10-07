@@ -142,6 +142,8 @@ export class SignatureTableComponent {
   private readonly can = inject(SignatureCapabilities);
 
   @Input() requests: SignatureRequest[] = [];
+  /** false = oculta la columna Client (módulo embebido en el perfil de un solo cliente). */
+  @Input() showClient = true;
   @Output() previewRequested = new EventEmitter<SignatureRequest>();
   @Output() sendRequested = new EventEmitter<SignatureRequest>();
   @Output() resendRequested = new EventEmitter<SignatureRequest>();

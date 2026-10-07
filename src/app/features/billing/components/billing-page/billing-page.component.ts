@@ -34,6 +34,21 @@ import {
 import { AdminCapabilities } from '@core/access/admin-capabilities';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
+
+/** Nombre de cliente → fragmento seguro para nombre de archivo ("Acme, Inc." → "acme-inc"). */
+function fileSlug(value: string): string {
+  return (
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'client'
+  );
+}
 
 /** Pestañas de la sección. */
 type BillingTab = 'invoices' | 'links';
@@ -74,6 +89,16 @@ export class BillingPageComponent implements OnInit {
   protected readonly can = inject(AdminCapabilities);
 
   readonly store = inject(BillingStore);
+  private readonly directory = inject(CustomerDirectoryStore);
+
+  /** Cliente fijo cuando la página vive en el perfil del cliente (`null` en /billing). */
+  readonly embedded = this.store.embeddedCustomer;
+
+  /**
+   * Cliente fijo para el formulario de alta. Arranca con lo que da el perfil (id + nombre) y se
+   * completa con el directorio (email/teléfono) en `ngOnInit`.
+   */
+  readonly lockedCustomer = signal<CustomerSummary | null>(null);
 
   /**
    * Fábrica de alta rápida de catálogo pasada al formulario de factura. Referencia ESTABLE (campo, no
@@ -109,6 +134,34 @@ export class BillingPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.init();
+    this.resolveLockedCustomer();
+  }
+
+  /** Embebido: resuelve el `CustomerSummary` del cliente fijo (cacheado en el directorio). */
+  private resolveLockedCustomer(): void {
+    const embedded = this.embedded();
+    if (!embedded) {
+      return;
+    }
+    // Placeholder inmediato: el alta funciona aunque el directorio tarde o falle.
+    this.lockedCustomer.set({
+      id: embedded.id,
+      displayName: embedded.name,
+      primaryEmail: '',
+      primaryPhone: null,
+      kind: 'Individual',
+      status: 'Active',
+      createdAtUtc: '',
+    });
+    this.directory.byId([embedded.id]).subscribe({
+      next: found => {
+        const customer = found.get(embedded.id);
+        if (customer) {
+          this.lockedCustomer.set(customer);
+        }
+      },
+      error: () => undefined,
+    });
   }
 
   selectTab(tab: BillingTab): void {
@@ -193,7 +246,9 @@ export class BillingPageComponent implements OnInit {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+    const embedded = this.embedded();
+    const prefix = embedded ? `invoices-${fileSlug(embedded.name)}` : 'invoices';
+    anchor.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }

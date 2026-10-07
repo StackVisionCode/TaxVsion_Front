@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, computed, effect, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -9,15 +9,18 @@ import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.componen
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
-// Excepción a "una feature no importa de otra": el gestor documental completo, fijo a este cliente
-// (mismo diseño que /documents). Se monta con @defer, así que viaja en su propio chunk.
+// Excepción a "una feature no importa de otra": los módulos completos del CRM fijos a este cliente
+// (patrón `@core/customers/embedded-customer`: mismo diseño que su página, su propio store). Se
+// montan con @defer, así que cada uno viaja en su propio chunk.
 import { ClientDocumentsWorkspaceComponent } from '../../../documents/components/client-documents-workspace/client-documents-workspace.component';
-import { ClientProfileSignaturesComponent } from '../../ui/client-profile-signatures/client-profile-signatures.component';
-import { ClientProfileWorkComponent } from '../../ui/client-profile-work/client-profile-work.component';
+import { ClientSignatureWorkspaceComponent } from '../../../signature/components/client-signature-workspace/client-signature-workspace.component';
+import { ClientTaskWorkspaceComponent } from '../../../task/components/client-task-workspace/client-task-workspace.component';
+import { ClientBillingWorkspaceComponent } from '../../../billing/components/client-billing-workspace/client-billing-workspace.component';
+import { ClientMailWorkspaceComponent } from '../../../mail/components/client-mail-workspace/client-mail-workspace.component';
+import { ClientSmsWorkspaceComponent } from '../../../sms/components/client-sms-workspace/client-sms-workspace.component';
+import { ClientMeetingsWorkspaceComponent } from '../../../meetings/components/client-meetings-workspace/client-meetings-workspace.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
-import { ClientProfileInvoicesComponent } from '../../ui/client-profile-invoices/client-profile-invoices.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
-import { ClientProfileCommunicationComponent } from '../../ui/client-profile-communication/client-profile-communication.component';
 import { ClientChatCardComponent } from '../../ui/client-chat-card/client-chat-card.component';
 import { ClientProfileCallsComponent } from '../../ui/client-profile-calls/client-profile-calls.component';
 import { ClientProfileBankComponent } from '../../ui/client-profile-bank/client-profile-bank.component';
@@ -90,6 +93,8 @@ export type ClientProfileTabId =
   | 'work'
   | 'notes'
   | 'communication'
+  | 'sms'
+  | 'meetings'
   | 'calls'
   | 'bank'
   | 'reminders'
@@ -139,7 +144,9 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
       { id: 'documents', label: 'Documents' },
       { id: 'signatures', label: 'Signatures' },
       { id: 'notes', label: 'Notes' },
-      { id: 'communication', label: 'Communication' },
+      { id: 'communication', label: 'Email' },
+      { id: 'sms', label: 'SMS' },
+      { id: 'meetings', label: 'Meetings' },
       { id: 'calls', label: 'Calls' },
       { id: 'reminders', label: 'Reminders' },
     ],
@@ -150,8 +157,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
 /**
  * B5 — qué hace falta para que una pestaña tenga contenido. Lo que no está acá no depende de
  * nada: Overview, Details y Family son el propio cliente, y quien llegó a esta pantalla ya pasó
- * por `customers.view`; Invoices, Bank y Mileage son estados vacíos declarados, sin backend
- * todavía. Lo que se gatea es lo que llama a OTRO servicio y hoy contesta 403 en silencio.
+ * por `customers.view`; Bank y Mileage son estados vacíos declarados, sin backend todavía. Lo que se gatea es lo que llama a OTRO servicio y hoy contesta 403 en silencio.
  */
 const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   documents: { module: 'documents', anyOf: ['cloudstorage.file.view'] },
@@ -160,6 +166,9 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   notes: { module: 'planner', anyOf: ['notes.read'] },
   reminders: { module: 'planner', anyOf: ['reminders.read'] },
   communication: { module: 'email', anyOf: ['correspondence.read'] },
+  sms: { module: null, anyOf: ['sms.read'] },
+  meetings: { module: 'meetings', anyOf: ['communication.meeting.create', 'communication.meeting.join'] },
+  invoices: { module: null, anyOf: ['invoicing.view'] },
   calls: { module: 'comms', anyOf: ['communication.call.start', 'communication.videocall.start'] },
 };
 
@@ -177,17 +186,18 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
  *
  * Estado de los datos por tab (auditoría ago-2026, ver el comentario de clase
  * de cada componente para el detalle del contrato):
+ *  - MÓDULOS EMBEBIDOS (página completa del módulo fija a este cliente, patrón
+ *    `@core/customers/embedded-customer`): Work (Task + solicitudes del cliente), Documents,
+ *    Signatures (`?customerId=` — firmante mapeado al cliente), Invoices (Billing,
+ *    `?customerId=`), Email (Mail + tarjeta de chat), SMS (`?customerId=`) y Meetings
+ *    (`?customerId=` — vía la cuenta de portal del cliente).
  *  - REALES y filtradas por este cliente: Info, Family (del propio Customer),
- *    Notes (`/notes?targetType=Customer&targetId=`), Communication
- *    (`/correspondence/customers/{id}/threads`), Work
- *    (`/tasks/by-customer/{id}` — cada tarea lleva `customerId`), Documents (gestor de
- *    `features/documents` embebido: `/storage/folders?ownerType=Customer&ownerId=`), Signatures
- *    (`/signature/requests?customerId=` — firmante mapeado al cliente) y
+ *    Notes (`/notes?targetType=Customer&targetId=`) y
  *    Portal (invitar en Customer + estado/gestión en Auth `/auth/invitations|users?customerId=`).
  *  - REAL pero NO filtrable por cliente: Reminders (el servicio Reminder no
  *    tiene categoría `Customer`); lo declara en pantalla.
  *  - VACÍAS A PROPÓSITO, sin backend que las respalde por cliente: Overview
- *    (parcial), Invoices, Bank, Mileage y Calls. Cada
+ *    (parcial), Bank, Mileage y Calls. Cada
  *    una muestra un estado vacío que explica qué falta. NO son un olvido:
  *    antes pintaban mocks estáticos bajo el nombre de un cliente real, que es
  *    justo lo que había que quitar antes de producción.
@@ -203,12 +213,14 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
     ClientProfileOverviewComponent,
     ClientProfileInfoComponent,
     ClientDocumentsWorkspaceComponent,
-    ClientProfileSignaturesComponent,
-    ClientProfileWorkComponent,
+    ClientSignatureWorkspaceComponent,
+    ClientTaskWorkspaceComponent,
+    ClientBillingWorkspaceComponent,
+    ClientMailWorkspaceComponent,
+    ClientSmsWorkspaceComponent,
+    ClientMeetingsWorkspaceComponent,
     ClientProfileRequestsComponent,
-    ClientProfileInvoicesComponent,
     ClientProfileNotesComponent,
-    ClientProfileCommunicationComponent,
     ClientChatCardComponent,
     ClientProfileCallsComponent,
     ClientProfileBankComponent,
@@ -376,6 +388,12 @@ export class ClientProfilePageComponent implements OnDestroy {
   }
 
   private loadClient(id: string): void {
+    // Cambio de cliente sin salir de la ruta: volver a Overview desmonta los módulos embebidos
+    // (cada uno con su store fijado al cliente anterior) y se montan limpios con el nuevo.
+    const current = untracked(this.client);
+    if (current && current.id !== id) {
+      this.activeTab.set('overview');
+    }
     this.loading.set(true);
     this.loadError.set(null);
     this.hideTaxId();
