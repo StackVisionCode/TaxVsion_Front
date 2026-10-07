@@ -1,0 +1,47 @@
+@if (transition.active()) {
+  <!-- z-[90]: sobre los toasts (80) y debajo de los modales de sesión (100). -->
+  <div
+    class="login-transition fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden bg-indigo-50"
+    [class.is-leaving]="transition.leaving()"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <!-- Mismos resplandores que el login: el fondo no "cambia" cuando aparece el overlay. -->
+    <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-300/40 blur-3xl" aria-hidden="true"></div>
+    <div class="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-indigo-300/30 blur-3xl" aria-hidden="true"></div>
+
+    <!-- Marca del tenant (o asterisco) dentro de la "lente" -->
+    <div class="brand-tile relative flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-xl shadow-indigo-600/10 ring-1 ring-indigo-100">
+      <span class="pointer-events-none absolute -inset-3 rounded-full ring-2 ring-indigo-200/70" aria-hidden="true"></span>
+      @if (logoUrl() && !logoFailed()) {
+        <img [src]="logoUrl()" alt="" class="h-10 max-w-[64px] object-contain" (error)="logoFailed.set(true)" />
+      } @else {
+        <span class="select-none text-4xl font-bold leading-none text-indigo-600" aria-hidden="true">*</span>
+      }
+    </div>
+
+    <!-- Cinta de módulos: nítida en el centro, desenfocada hacia los bordes. El paso entre tiles es
+         uniforme (mx-3, nunca gap) para que media pista mida exactamente una copia. -->
+    <div class="conveyor relative mt-10 h-28 w-full max-w-4xl overflow-hidden" aria-hidden="true">
+      <div class="conveyor-track absolute inset-y-0 left-0 flex items-center">
+        @for (icon of conveyor; track $index) {
+          <span class="conveyor-tile mx-3 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm">
+            <ion-icon [name]="icon" class="text-2xl"></ion-icon>
+          </span>
+        }
+      </div>
+
+      <!-- Blur progresivo: cada capa desenfoca más y empieza más cerca del borde. -->
+      <div class="blur-layer blur-layer-1 absolute inset-0"></div>
+      <div class="blur-layer blur-layer-2 absolute inset-0"></div>
+      <div class="blur-layer blur-layer-3 absolute inset-0"></div>
+      <div class="blur-layer blur-layer-4 absolute inset-0"></div>
+      <div class="edge-veil absolute inset-0"></div>
+      <!-- Enfoque inicial: toda la cinta arranca borrosa y "entra en foco". -->
+      <div class="focus-in absolute inset-0"></div>
+    </div>
+
+    <p class="caption mt-8 text-sm font-medium text-gray-500">{{ transition.caption() }}</p>
+  </div>
+}

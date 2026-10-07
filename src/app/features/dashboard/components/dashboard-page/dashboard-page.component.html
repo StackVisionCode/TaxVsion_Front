@@ -4,15 +4,19 @@
   <app-dashboard-filters class="block mb-6 lg:pr-[var(--shell-notch-width)]"></app-dashboard-filters>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" [class.edit-mode]="layout.editMode()" cdkDropList
-    cdkDropListOrientation="mixed" [cdkDropListData]="layout.widgets()" (cdkDropListDropped)="onDrop($event)">
+    cdkDropListOrientation="mixed" [cdkDropListData]="layout.widgets()" (cdkDropListDropped)="onDrop($event)"
+    (cdkDropListSorted)="onSorted()">
 
     @for (widget of layout.widgets(); track widget.id) {
       <div class="widget-cell relative" [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }"
-        [attr.data-widget-id]="widget.id" cdkDrag [cdkDragDisabled]="!layout.editMode()">
-        <!-- Placeholder mientras se arrastra: hueco del mismo tamaño, en el color
-             de marca para que se lea como "aquí cae" y no como un widget roto -->
-        <div *cdkDragPlaceholder
-          class="drop-slot h-full min-h-32 rounded-[28px] border-2 border-dashed bg-white/50"></div>
+        [attr.data-widget-id]="widget.id" cdkDrag [cdkDragDisabled]="!layout.editMode()"
+        [cdkDragStartDelay]="{ touch: 150, mouse: 0 }"
+        (pointerdown)="primeDrag($event, widget.colSpan)" (cdkDragStarted)="onDragStarted()">
+        <!-- Placeholder mientras se arrastra: hueco del MISMO tamaño que el widget agarrado (ancho por
+             columnas y alto real), en el color de marca, para que la grilla no salte al levantarlo -->
+        <div *cdkDragPlaceholder class="drop-slot rounded-[28px] border-2 border-dashed"
+          [ngClass]="{ 'lg:col-span-2': dragSize()?.colSpan === 2 }"
+          [style.height.px]="dragSize()?.height"></div>
 
         <!-- Handle visual en modo edición -->
         @if (layout.editMode()) {

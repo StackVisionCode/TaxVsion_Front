@@ -1,7 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, ElementRef, Injector, NgZone, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
+import { measureRects, playFlip } from '@shared/utils/flip.util';
 import { AuthService } from '@core/auth/auth.service';
 import { DashboardLayoutStore, DashboardWidgetConfig } from '../../data-access/dashboard-layout.store';
 import { DashboardHeroComponent } from '../../ui/dashboard-hero/dashboard-hero.component';
@@ -26,6 +27,12 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
  * renderizan desde el DashboardLayoutStore (orden reordenable): el botón
  * "Edit layout" de la barra superior activa el modo edición y cada widget se
  * puede arrastrar (CDK drag & drop). El orden persiste en localStorage.
+ *
+ * Arrastre fluido (modo edición): con `cdkDropListOrientation="mixed"` el CDK reordena moviendo
+ * nodos del DOM y NO anima a los vecinos, así que se animan aquí con FLIP (`shared/utils/flip.util`):
+ * en cada `cdkDropListSorted` los demás widgets se deslizan a su nuevo sitio, y al soltar se anima
+ * también el cambio de ancho por slot. El hueco toma el tamaño real del widget agarrado y el
+ * preview se "levanta" (escala + giro) y se "asienta" al soltar (ver el CSS).
  *
  * Los datos NO son estáticos: cada widget carga lo suyo desde su servicio o
  * store real (clientes, facturas, tareas, firmas, chats, reuniones, notas,
@@ -64,9 +71,69 @@ export class DashboardPageComponent {
   readonly layout = inject(DashboardLayoutStore);
   private readonly auth = inject(AuthService);
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly zone = inject(NgZone);
+
   readonly userName = computed(() => this.auth.currentUser()?.name ?? '');
 
-  onDrop(event: CdkDragDrop<DashboardWidgetConfig[]>): void {
-    this.layout.move(event.previousIndex, event.currentIndex);
+  /** Tamaño del widget agarrado: el hueco (placeholder) lo copia para que la grilla no salte. */
+  readonly dragSize = signal<{ height: number; colSpan: 1 | 2 } | null>(null);
+
+  /** Posiciones de layout de las celdas tras el último reordenamiento (el "First" del FLIP). */
+  private cellRects = new Map<HTMLElement, DOMRect>();
+
+  /** Celdas reales de la grilla + el hueco (sin el preview que sigue al cursor). */
+  private cells(): HTMLElement[] {
+    return Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.widget-cell:not(.cdk-drag-preview), .drop-slot'));
   }
+
+  /**
+   * Al presionar sobre un widget (antes de que arranque el drag) se guarda su tamaño: el CDK crea
+   * el hueco ANTES de emitir `cdkDragStarted`, y así nace ya con el tamaño correcto.
+   */
+  primeDrag(event: PointerEvent, colSpan: 1 | 2): void {
+    if (!this.layout.editMode()) {
+      return;
+    }
+    const height = (event.currentTarget as HTMLElement).getBoundingClientRect().height;
+    this.dragSize.set({ height, colSpan });
+  }
+
+  onDragStarted(): void {
+    // Tras pintar el hueco se toma la foto inicial de la grilla.
+    afterNextRender(() => (this.cellRects = measureRects(this.cells())), { injector: this.injector });
+  }
+
+  /** El CDK ya movió el hueco en el DOM: los vecinos se deslizan desde donde estaban. */
+  onSorted(): void {
+    this.zone.runOutsideAngular(() => {
+      const cells = this.cells();
+      const before = this.cellRects;
+      // Se guarda la posición de LAYOUT nueva (antes de invertir) para el próximo reordenamiento.
+      playFlip(cells, before, { duration: 240 });
+      this.cellRects = new Map(cells.map(cell => [cell, layoutRect(cell)]));
+    });
+  }
+
+  onDrop(event: CdkDragDrop<DashboardWidgetConfig[]>): void {
+    const before = measureRects(this.cells());
+    this.dragSize.set(null);
+    this.layout.move(event.previousIndex, event.currentIndex);
+    // Tras el re-render (nuevo orden + anchos por slot) todo se desliza a su lugar en vez de saltar.
+    afterNextRender(
+      () => this.zone.runOutsideAngular(() => playFlip(this.cells(), before, { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })),
+      { injector: this.injector },
+    );
+  }
+}
+
+/** Rect de layout del elemento, descontando el `translate` de una animación FLIP en curso. */
+function layoutRect(el: HTMLElement): DOMRect {
+  const rect = el.getBoundingClientRect();
+  if (!el.style.translate) {
+    return rect;
+  }
+  const [x = '0', y = '0'] = el.style.translate.split(/\s+/);
+  return new DOMRect(rect.left - parseFloat(x), rect.top - parseFloat(y), rect.width, rect.height);
 }

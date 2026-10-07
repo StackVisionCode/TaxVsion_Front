@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
+import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
 /**
@@ -27,6 +28,7 @@ export class MfaVerifyPageComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly takeover = inject(SessionTakeoverService);
+  private readonly transition = inject(LoginTransitionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly pending = this.auth.pendingMfa;
@@ -120,7 +122,9 @@ export class MfaVerifyPageComponent implements OnDestroy {
             this.takeover.prompt(outcome.ticket);
             return;
           }
-          // Hidratar el usuario de sesión (GET /auth/me) y recién ahí entrar al shell.
+          // Hidratar el usuario de sesión (GET /auth/me) y recién ahí entrar al shell. La escena
+          // global cubre la espera de /auth/me y la navegación hasta que el dashboard pinte.
+          this.transition.start();
           this.auth
             .me()
             .pipe(takeUntilDestroyed(this.destroyRef))

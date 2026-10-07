@@ -122,7 +122,12 @@ export class MeetingRoomComponent {
     // Con la sala montada se oculta el mini-player global; al salir de /meetings (sin dejar el meeting)
     // se desmonta la sala y el mini-player toma el relevo con la sesión intacta.
     this.meeting.roomViewAttached.set(true);
-    inject(DestroyRef).onDestroy(() => this.meeting.roomViewAttached.set(false));
+    inject(DestroyRef).onDestroy(() => {
+      this.meeting.roomViewAttached.set(false);
+      this.meeting.chatPanelOpen.set(false); // sala desmontada (mini-player): ya no hay chat a la vista
+    });
+    // El service decide el sonido del mensaje entrante según si el chat está abierto.
+    effect(() => this.meeting.chatPanelOpen.set(this.chatOpen()));
 
     // Badge de no-leídos: cuenta mensajes ajenos nuevos mientras el panel está cerrado.
     effect(() => {

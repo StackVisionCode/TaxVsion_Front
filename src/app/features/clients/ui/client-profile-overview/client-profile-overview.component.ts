@@ -29,6 +29,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BytesPipe } from '@shared/pipes/bytes.pipe';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { FileResponse, FileStatus } from '@core/cloud-storage/cloud-storage.model';
 import { formatMoney } from '@shared/utils/format.util';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
@@ -159,6 +160,7 @@ const TASK_STATUS_LABELS: Partial<Record<ApiTaskStatus, string>> = {
     TimeAgoPipe,
     BytesPipe,
     FileViewerComponent,
+    SkeletonComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-overview.component.html',
@@ -175,6 +177,13 @@ export class ClientProfileOverviewComponent implements OnChanges {
   private readonly store = inject(ClientsStore);
   private readonly clipboard = inject(ClipboardService);
   private readonly toast = inject(ToastService);
+
+  /** Altos del esqueleto de la primera carga, por columna (aprox. a las tarjetas reales). */
+  readonly skeletonColumns = [
+    ['24rem', '22rem', '14rem'],
+    ['20rem', '16rem', '18rem'],
+    ['14rem', '24rem', '16rem'],
+  ];
 
   // ---------- Workload (dona por estado) ----------
 

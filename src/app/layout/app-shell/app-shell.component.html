@@ -9,7 +9,7 @@
   <!-- Right column: routed content + navbar. En desktop (lg+) el navbar NO ocupa una fila: flota arriba a la
        derecha dentro de un "hueco" (notch) recortado en el contenido, así las páginas suben hasta arriba. -->
   <div class="relative flex-1 min-w-0 flex flex-col">
-    <div class="shell-notch lg:absolute lg:right-0 lg:top-0 lg:z-40">
+    <div #shellNotch class="shell-notch lg:absolute lg:right-0 lg:top-0 lg:z-40">
       <app-navbar></app-navbar>
     </div>
     <!-- Banner global del ciclo de vida de la suscripción (Expiración/Dunning). Se auto-oculta si está OK.

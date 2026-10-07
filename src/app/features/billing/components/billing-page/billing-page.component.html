@@ -125,13 +125,14 @@
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
 </div>
 
-<!-- Modales -->
+<!-- Modales (New/Edit invoice es una vista a pantalla completa portada al <body>) -->
 <app-invoice-form-panel [isOpen]="formOpen()" [editing]="store.editingDetail()"
   [defaultCurrency]="store.issuer().defaultCurrency"
   [catalogResults]="store.catalogResults()"
   [catalogSearching]="store.catalogSearching()" [catalogCreating]="store.catalogCreating()"
   [createCatalogItem]="createCatalogItemFn" [saving]="store.creating()"
   [hasIssuerProfile]="store.hasIssuerProfile()" [lockedCustomer]="lockedCustomer()" [stockByItem]="store.stockByItem()"
+  [issuer]="store.issuer()" [branding]="store.branding()"
   (catalogSearchChanged)="store.searchCatalog($event)" (stockLookupRequested)="store.lookupStock($event)"
   (submitted)="onFormSubmit($event)" (closed)="closeForm()"></app-invoice-form-panel>
 
