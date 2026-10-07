@@ -1,4 +1,17 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnDestroy, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  Injector,
+  OnDestroy,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -289,6 +302,14 @@ export class ClientProfilePageComponent implements OnDestroy {
   readonly activeTab = signal<ClientProfileTabId>('overview');
 
   /**
+   * Píldora que se desliza hasta la pestaña activa del menú lateral (mismo efecto que el sidebar
+   * principal). Se mide con offsetTop/offsetLeft: los botones cuelgan directo del <nav> relativo.
+   */
+  private readonly injector = inject(Injector);
+  private readonly profileNav = viewChild<ElementRef<HTMLElement>>('profileNav');
+  readonly navIndicator = signal<{ top: number; left: number; width: number; height: number } | null>(null);
+
+  /**
    * Signal reactiva sobre paramMap (no un snapshot leído una sola vez): con
    * la RouteReuseStrategy de la app, navegar entre /clients/:id distintos
    * puede reutilizar esta misma instancia de componente en el lugar, así
@@ -382,6 +403,33 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(id);
       }
     });
+
+    // Re-mide la píldora al cambiar de pestaña, cuando cambia el menú filtrado o el ancho del menú.
+    effect(onCleanup => {
+      const nav = this.profileNav()?.nativeElement;
+      const tab = this.activeTab();
+      this.navItems();
+      if (!nav) {
+        this.navIndicator.set(null);
+        return;
+      }
+      afterNextRender(() => this.syncNavIndicator(nav, tab), { injector: this.injector });
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(() => this.syncNavIndicator(nav, untracked(this.activeTab)));
+        observer.observe(nav);
+        onCleanup(() => observer.disconnect());
+      }
+    });
+  }
+
+  private syncNavIndicator(nav: HTMLElement, tab: ClientProfileTabId): void {
+    const button = nav.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
+    this.navIndicator.set(
+      button
+        ? { top: button.offsetTop, left: button.offsetLeft, width: button.offsetWidth, height: button.offsetHeight }
+        : null,
+    );
   }
 
   private loadClient(id: string): void {

@@ -6,6 +6,7 @@ import {
   OnChanges,
   Output,
   SimpleChanges,
+  afterNextRender,
   computed,
   inject,
   signal,
@@ -13,7 +14,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 import { CustomerAssignee, CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
-import { ApiTaskPriority } from '../../data-access/client-work.model';
+import { ApiTaskPriority, ApiTaskStatus } from '../../data-access/client-work.model';
 import { ClientOverviewStore } from '../../data-access/client-overview.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsStore } from '../../data-access/clients.store';
@@ -22,6 +23,18 @@ import { ClientAssignDialogComponent } from '../client-assign-dialog/client-assi
 import { CountUpDirective } from '@shared/directives/count-up.directive';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { formatPhoneForDisplay } from '@shared/utils/phone.util';
+import { ClipboardService } from '@shared/services/clipboard.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
+
+/** Pestañas del perfil a las que el Overview puede saltar desde sus "See all". */
+export type OverviewTabLink = 'work' | 'documents' | 'communication' | 'info';
+
+/** Fondos de las tarjetas de Activity, rotando como en una agenda (mismos tonos de marca/Tailwind). */
+const ACTIVITY_TINTS = [
+  'from-orange-50 to-amber-50/40 border-orange-100',
+  'from-indigo-50 to-sky-50/40 border-indigo-100',
+  'from-violet-50 to-indigo-50/40 border-violet-100',
+];
 
 const LANGUAGE_LABELS: Record<CustomerLanguage, string> = {
   En: 'English',
@@ -51,6 +64,12 @@ const PRIORITY_LABELS: Record<ApiTaskPriority, string> = {
   Low: 'Low',
 };
 
+const TASK_STATUS_LABELS: Partial<Record<ApiTaskStatus, string>> = {
+  NotStarted: 'Not started',
+  InProgress: 'In progress',
+  WaitingOnClient: 'Waiting on client',
+};
+
 /** Chip de prioridad (mismos tonos que la tabla del tab Work). */
 const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
   Urgent: 'border-red-200 bg-red-50 text-red-600',
@@ -60,7 +79,10 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
 };
 
 /**
- * Tab "Overview" del perfil: el "360 de un vistazo". Combina lo que sale del cliente real
+ * Tab "Overview" del perfil: el "360 de un vistazo", en tarjetas con cabecera (icono + título +
+ * "See all" que salta a la pestaña correspondiente): Workload (medidor animado de tareas al día vs.
+ * vencidas + contadores), Client profile, Activity (tareas/emails con pestañas y tarjetas
+ * desplegables), Tax snapshot y Assigned staff. Combina lo que sale del cliente real
  * (GET /customers/{id}: antigüedad, cómo contactarlo, snapshot fiscal enmascarado) con un
  * resumen agregado de tres listados REALES por cliente vía `ClientOverviewStore` — tareas
  * abiertas, documentos e hilos de email — que alimentan las stats, "Needs attention" y
@@ -71,6 +93,7 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
   imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-overview.component.html',
+  styleUrl: './client-profile-overview.component.css',
 })
 export class ClientProfileOverviewComponent implements OnChanges {
   @Input() client!: ClientProfile;
@@ -84,6 +107,8 @@ export class ClientProfileOverviewComponent implements OnChanges {
   @Output() revealTaxId = new EventEmitter<string>();
   /** Volver a enmascarar. */
   @Output() hideTaxId = new EventEmitter<void>();
+  /** "See all" de cada tarjeta: el contenedor cambia a esa pestaña. */
+  @Output() openTab = new EventEmitter<OverviewTabLink>();
 
   /** Confirmación de un paso antes de revelar (mismo flujo que la pestaña Info). */
   readonly confirmingReveal = signal(false);
@@ -92,6 +117,55 @@ export class ClientProfileOverviewComponent implements OnChanges {
   private readonly staff = inject(StaffDirectoryStore);
   private readonly perms = inject(ClientPermissions);
   private readonly store = inject(ClientsStore);
+  private readonly clipboard = inject(ClipboardService);
+  private readonly toast = inject(ToastService);
+
+  // ---------- Workload (medidor) ----------
+
+  /** El arco arranca vacío y se llena tras el primer render, para que se vea la animación. */
+  readonly gaugeReady = signal(false);
+  readonly onTrackCount = computed(() => Math.max(0, this.summary.openTaskCount() - this.summary.overdueCount()));
+  /** % de tareas abiertas al día (sin tareas abiertas, el medidor queda lleno: nada pendiente). */
+  readonly onTrackPercent = computed(() => {
+    const open = this.summary.openTaskCount();
+    return open === 0 ? 100 : Math.round((this.onTrackCount() / open) * 100);
+  });
+  /** stroke-dashoffset del arco (pathLength = 100). */
+  readonly gaugeOffset = computed(() => (this.gaugeReady() ? 100 - this.onTrackPercent() : 100));
+
+  // ---------- Activity (pestañas + tarjetas desplegables) ----------
+
+  readonly activityTab = signal<'tasks' | 'emails'>('tasks');
+  /** Tarjeta abierta (id de tarea o hilo), o null. */
+  readonly expandedId = signal<string | null>(null);
+
+  constructor() {
+    afterNextRender(() => this.gaugeReady.set(true));
+  }
+
+  setActivityTab(tab: 'tasks' | 'emails'): void {
+    this.activityTab.set(tab);
+    this.expandedId.set(null);
+  }
+
+  toggleExpanded(id: string): void {
+    this.expandedId.set(this.expandedId() === id ? null : id);
+  }
+
+  activityTint(index: number): string {
+    return ACTIVITY_TINTS[index % ACTIVITY_TINTS.length];
+  }
+
+  async copy(value: string, label: string): Promise<void> {
+    if (!value) {
+      return;
+    }
+    if (await this.clipboard.copy(value)) {
+      this.toast.success(`${label} copied`);
+    } else {
+      this.toast.error(`Couldn't copy the ${label.toLowerCase()}`);
+    }
+  }
 
   // Roster de asignados (solo admin/view_all lo ve; el backend no lo envía a un no-admin).
   readonly canViewAssignees = this.perms.canViewAssignees;
@@ -110,6 +184,7 @@ export class ClientProfileOverviewComponent implements OnChanges {
       return;
     }
     this.confirmingReveal.set(false);
+    this.expandedId.set(null);
     if (this.client?.id) {
       this.summary.load(this.client.id);
       this._assignees.set(this.client.assignees ?? []);
@@ -137,6 +212,10 @@ export class ClientProfileOverviewComponent implements OnChanges {
 
   priorityLabel(priority: ApiTaskPriority): string {
     return PRIORITY_LABELS[priority] ?? priority;
+  }
+
+  taskStatusLabel(status: ApiTaskStatus): string {
+    return TASK_STATUS_LABELS[status] ?? status;
   }
 
   priorityChip(priority: ApiTaskPriority): string {

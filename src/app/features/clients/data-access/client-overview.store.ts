@@ -46,6 +46,8 @@ export class ClientOverviewStore {
   readonly loading = this._loading.asReadonly();
 
   readonly openTaskCount = computed(() => this._openTasks().length);
+  /** Tareas abiertas ya vencidas (para el medidor de carga del Overview). */
+  readonly overdueCount = computed(() => this._openTasks().filter(task => task.overdue).length);
   readonly docsCount = this._docsCount.asReadonly();
   readonly threadCount = computed(() => this._threads().length);
 

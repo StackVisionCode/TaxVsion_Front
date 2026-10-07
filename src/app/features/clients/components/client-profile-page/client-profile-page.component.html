@@ -137,7 +137,13 @@
       </div>
 
       <!-- Menú vertical de pestañas -->
-      <nav class="mt-5 flex flex-col gap-1" aria-label="Client sections">
+      <nav #profileNav class="relative mt-5 flex flex-col gap-1" aria-label="Client sections">
+        <!-- Píldora deslizante del ítem activo (mismo efecto que el sidebar principal) -->
+        @if (navIndicator(); as pill) {
+          <div class="pointer-events-none absolute rounded-full bg-brand-bold shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            [style.top.px]="pill.top" [style.left.px]="pill.left" [style.width.px]="pill.width"
+            [style.height.px]="pill.height"></div>
+        }
         <ng-container *ngFor="let item of navItems()">
           <ng-container *ngIf="item.kind === 'tab'">
             <ng-container *ngTemplateOutlet="navTab; context: { $implicit: item }"></ng-container>
@@ -153,11 +159,12 @@
       </nav>
 
       <ng-template #navTab let-tab>
-        <button type="button" (click)="selectTab(tab.id)"
+        <button type="button" (click)="selectTab(tab.id)" [attr.data-tab]="tab.id"
           [attr.aria-current]="tab.id === activeTab() ? 'page' : null"
-          class="flex w-full items-center gap-3 rounded-r-xl border-l-[3px] px-3 py-2.5 text-left text-sm transition-colors"
-          [ngClass]="tab.id === activeTab() ? 'border-brand-bold bg-brand-surface font-semibold text-gray-900' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'">
-          <ion-icon [name]="tab.icon" class="shrink-0 text-lg"></ion-icon>
+          class="relative flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-left text-sm font-medium transition-colors duration-300"
+          [ngClass]="tab.id === activeTab() ? 'text-white' : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900'">
+          <ion-icon [name]="tab.icon" class="shrink-0 text-lg transition-transform duration-300"
+            [ngClass]="tab.id === activeTab() ? 'scale-110 text-white' : 'text-gray-500'"></ion-icon>
           {{ tab.label }}
         </button>
       </ng-template>
@@ -181,7 +188,7 @@
       @if (activeTab() === 'overview') {
         <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
           [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)"
-          (hideTaxId)="hideTaxId()"></app-client-profile-overview>
+          (hideTaxId)="hideTaxId()" (openTab)="selectTab($event)"></app-client-profile-overview>
       }
 
       @if (activeTab() === 'info') {
