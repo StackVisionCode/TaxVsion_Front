@@ -24,6 +24,8 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   // (Billing /billing/issuer-profile + /tenants/{id}/...), pero se editan en su propia
   // pantalla: se enlaza en vez de duplicar el formulario acá.
   { id: 'company', featureId: 'company-settings', title: 'Company', description: 'Legal name, EIN, address, logo and brand colors', icon: 'business-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/company/settings' },
+  // Gestión de usuarios de la oficina: antes era una entrada del sidebar. Tiene su propia pantalla.
+  { id: 'users', featureId: 'users', title: 'Users', description: 'Team members, roles, invitations and seats', icon: 'person-circle-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/company/users' },
   { id: 'accounts', featureId: 'clients', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'documents', featureId: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
   // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO

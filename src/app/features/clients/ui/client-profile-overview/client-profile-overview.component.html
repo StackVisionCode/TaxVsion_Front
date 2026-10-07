@@ -1,192 +1,328 @@
-<div class="flex flex-col gap-6">
-  <!-- 360 at a glance: stat grid -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <div class="bg-white rounded-[28px] p-5 flex items-center gap-4">
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-brand-bold">
-        <ion-icon name="calendar-outline" class="text-lg"></ion-icon>
-      </span>
-      <div class="min-w-0">
-        <p class="text-xs text-gray-400">Client since</p>
-        <p class="truncate text-lg font-bold text-gray-900">{{ clientSince() }}</p>
-      </div>
+<div class="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-3">
+  <!-- ========== Workload: medidor de tareas al día + contadores ========== -->
+  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+        <ion-icon name="speedometer-outline" class="text-lg text-gray-500"></ion-icon>
+        Workload
+      </h2>
+      <button type="button" (click)="openTab.emit('work')"
+        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        See all
+      </button>
     </div>
-    <div class="bg-white rounded-[28px] p-5 flex items-center gap-4">
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-brand-bold">
-        <ion-icon name="checkbox-outline" class="text-lg"></ion-icon>
-      </span>
-      <div class="min-w-0">
-        <p class="text-xs text-gray-400">Open tasks</p>
-        <p class="text-lg font-bold text-gray-900" [appCountUp]="summary.openTaskCount()">0</p>
-      </div>
-    </div>
-    <div class="bg-white rounded-[28px] p-5 flex items-center gap-4">
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-brand-bold">
-        <ion-icon name="document-text-outline" class="text-lg"></ion-icon>
-      </span>
-      <div class="min-w-0">
-        <p class="text-xs text-gray-400">Documents</p>
-        <p class="text-lg font-bold text-gray-900" [appCountUp]="summary.docsCount()">0</p>
-      </div>
-    </div>
-    <div class="bg-white rounded-[28px] p-5 flex items-center gap-4">
-      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-brand-bold">
-        <ion-icon name="mail-outline" class="text-lg"></ion-icon>
-      </span>
-      <div class="min-w-0">
-        <p class="text-xs text-gray-400">Email threads</p>
-        <p class="text-lg font-bold text-gray-900" [appCountUp]="summary.threadCount()">0</p>
-      </div>
-    </div>
-  </div>
 
-  <!-- Needs attention + Recent activity -->
-  <div class="grid gap-6 lg:grid-cols-2">
-    <!-- Needs attention (open tasks, prioritized) -->
-    <div class="bg-white rounded-[28px] p-6">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="text-xl font-bold text-gray-900">Needs attention</h2>
-        <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-brand-bold">
-          {{ summary.openTaskCount() }} open
+    <!-- Medidor semicircular (pathLength = 100: el offset es directamente el % que falta) -->
+    <div class="relative mx-auto mt-5 w-full max-w-[220px]">
+      <svg viewBox="0 0 120 68" class="w-full" aria-hidden="true">
+        <path d="M 10 60 A 50 50 0 0 1 110 60" pathLength="100" fill="none" stroke-width="12" stroke-linecap="round"
+          class="stroke-gray-200" />
+        <path d="M 10 60 A 50 50 0 0 1 110 60" pathLength="100" fill="none" stroke-width="12" stroke-linecap="round"
+          stroke-dasharray="100" [attr.stroke-dashoffset]="gaugeOffset()"
+          class="ov-gauge-arc stroke-brand-bold" />
+      </svg>
+      <div class="absolute inset-x-0 bottom-0 flex flex-col items-center">
+        <span class="text-3xl font-bold leading-none text-gray-900" [appCountUp]="onTrackCount()">0</span>
+        <span class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+          out of {{ summary.openTaskCount() }} on track
         </span>
       </div>
-      <p class="mt-1 text-sm text-gray-500">Open tasks for {{ firstName() }}, most urgent first</p>
+    </div>
+    <span class="sr-only">{{ onTrackCount() }} of {{ summary.openTaskCount() }} open tasks are on track</span>
 
-      <div *ngIf="summary.needsAttention().length > 0; else noOpenTasks" class="mt-5 flex flex-col gap-2">
-        <div
-          *ngFor="let task of summary.needsAttention()"
-          class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3"
-        >
-          <span
-            class="h-2 w-2 shrink-0 rounded-full"
-            [ngClass]="task.overdue ? 'bg-red-500' : 'bg-brand-bold'"
-          ></span>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-gray-800">{{ task.title }}</p>
-            <p class="mt-0.5 text-xs" [ngClass]="task.overdue ? 'text-red-500' : 'text-gray-400'">
-              <span *ngIf="task.dueDate">{{ task.overdue ? 'Overdue · ' : 'Due ' }}{{ dueLabel(task.dueDate) }}</span>
-              <span *ngIf="!task.dueDate">No due date</span>
-            </p>
-          </div>
-          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium" [ngClass]="priorityChip(task.priority)">
-            {{ priorityLabel(task.priority) }}
-          </span>
-        </div>
-      </div>
+    <div class="mt-5 flex flex-col divide-y divide-gray-100 border-t border-gray-100">
+      <button type="button" (click)="openTab.emit('work')" style="animation-delay: 120ms"
+        class="ov-item group flex items-center gap-3 py-3 text-left">
+        <ion-icon name="alert-circle-outline" class="text-lg text-red-500"></ion-icon>
+        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Overdue</span>
+        <span class="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-600"
+          [appCountUp]="summary.overdueCount()">0</span>
+      </button>
+      <button type="button" (click)="openTab.emit('work')" style="animation-delay: 180ms"
+        class="ov-item group flex items-center gap-3 py-3 text-left">
+        <ion-icon name="checkmark-circle-outline" class="text-lg text-emerald-500"></ion-icon>
+        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">On track</span>
+        <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-600"
+          [appCountUp]="onTrackCount()">0</span>
+      </button>
+      <button type="button" (click)="openTab.emit('documents')" style="animation-delay: 240ms"
+        class="ov-item group flex items-center gap-3 py-3 text-left">
+        <ion-icon name="document-text-outline" class="text-lg text-amber-500"></ion-icon>
+        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Documents</span>
+        <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-600"
+          [appCountUp]="summary.docsCount()">0</span>
+      </button>
+      <button type="button" (click)="openTab.emit('communication')" style="animation-delay: 300ms"
+        class="ov-item group flex items-center gap-3 pt-3 text-left">
+        <ion-icon name="mail-outline" class="text-lg text-brand-bold"></ion-icon>
+        <span class="flex-1 text-sm font-medium text-gray-800 group-hover:text-gray-900">Email threads</span>
+        <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-brand-bold"
+          [appCountUp]="summary.threadCount()">0</span>
+      </button>
+    </div>
+  </section>
 
-      <ng-template #noOpenTasks>
-        <div class="mt-5 rounded-2xl border border-gray-100 px-4 py-8 text-center">
-          <ion-icon name="checkmark-done-outline" class="text-3xl text-emerald-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">All caught up</p>
-          <p class="mt-1 text-xs text-gray-400">No open tasks for this client right now.</p>
-        </div>
-      </ng-template>
+  <!-- ========== Client profile: cómo contactarlo ========== -->
+  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+    style="animation-delay: 80ms">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+        <ion-icon name="person-circle-outline" class="text-lg text-gray-500"></ion-icon>
+        Client profile
+      </h2>
+      <button type="button" (click)="openTab.emit('info')"
+        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        See all
+      </button>
     </div>
 
-    <!-- Recent activity (email threads) -->
-    <div class="bg-white rounded-[28px] p-6">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="text-xl font-bold text-gray-900">Recent activity</h2>
-        <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-brand-bold">Email</span>
-      </div>
-      <p class="mt-1 text-sm text-gray-500">Latest email conversations with this client</p>
-
-      <div *ngIf="summary.recentActivity().length > 0; else noActivity" class="mt-5 flex flex-col gap-2">
-        <div
-          *ngFor="let thread of summary.recentActivity()"
-          class="flex items-start gap-3 rounded-2xl border border-gray-100 px-4 py-3"
-        >
-          <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-            <ion-icon name="mail-outline" class="text-sm"></ion-icon>
+    <div class="mt-4 flex flex-col gap-4">
+      <div>
+        <p class="text-xs text-gray-400">Client since</p>
+        <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+          <ion-icon name="calendar-outline" class="text-base text-gray-500"></ion-icon>
+          {{ clientSince() }}
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+            [ngClass]="client.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'">
+            {{ client.isActive ? 'Active' : 'Inactive' }}
           </span>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-gray-800">{{ thread.subject }}</p>
-            <p class="mt-0.5 text-xs text-gray-400">{{ thread.messageCountLabel }} · {{ thread.lastMessageLabel }}</p>
-          </div>
-        </div>
+        </p>
       </div>
 
-      <ng-template #noActivity>
-        <div class="mt-5 rounded-2xl border border-gray-100 px-4 py-8 text-center">
-          <ion-icon name="chatbubbles-outline" class="text-3xl text-gray-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">No recent email activity</p>
-          <p class="mt-1 text-xs text-gray-400">Email conversations with this client will show up here.</p>
-        </div>
-      </ng-template>
-    </div>
-  </div>
-
-  <div class="grid gap-6 lg:grid-cols-2">
-    <!-- How to reach -->
-    <div class="bg-white rounded-[28px] p-6">
-      <h2 class="text-xl font-bold text-gray-900">How to reach {{ firstName() }}</h2>
-      <p class="mt-1 text-sm text-gray-500">Primary contact details</p>
-
-      <div class="mt-5 flex flex-col gap-4">
-        <div class="flex items-center gap-3">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-            <ion-icon name="mail-outline" class="text-base"></ion-icon>
-          </span>
-          <div class="min-w-0">
-            <p class="text-xs text-gray-400">Email</p>
-            <p class="truncate text-sm font-medium text-gray-800">{{ client.email }}</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-            <ion-icon name="call-outline" class="text-base"></ion-icon>
-          </span>
-          <div>
-            <p class="text-xs text-gray-400">Phone</p>
-            <p class="text-sm font-medium text-gray-800">{{ phoneDisplay() }}</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-            <ion-icon name="chatbubbles-outline" class="text-base"></ion-icon>
-          </span>
-          <div>
-            <p class="text-xs text-gray-400">Preferred contact</p>
-            <p class="text-sm font-medium text-gray-800">{{ channelLabel() }} · {{ languageLabel() }}</p>
-          </div>
-        </div>
+      <div>
+        <p class="text-xs text-gray-400">Email</p>
+        <button type="button" (click)="copy(client.email, 'Email')" [disabled]="!client.email"
+          class="group mt-1 flex w-full min-w-0 items-center gap-2 rounded-xl text-left text-sm font-medium text-gray-800 disabled:cursor-default"
+          [attr.title]="client.email ? 'Copy email' : null">
+          <ion-icon name="mail-outline" class="shrink-0 text-base text-gray-500"></ion-icon>
+          <span class="truncate">{{ client.email || '—' }}</span>
+          @if (client.email) {
+            <ion-icon name="copy-outline"
+              class="shrink-0 text-sm text-gray-300 opacity-0 transition-opacity group-hover:opacity-100"></ion-icon>
+          }
+        </button>
       </div>
-    </div>
 
-    <!-- Tax snapshot (masked) -->
-    <div class="bg-white rounded-[28px] p-6">
-      <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-xs text-gray-400">Phone</p>
+        <button type="button" (click)="copy(client.phone, 'Phone')" [disabled]="!client.phone"
+          class="group mt-1 flex items-center gap-2 rounded-xl text-left text-sm font-medium text-gray-800 disabled:cursor-default"
+          [attr.title]="client.phone ? 'Copy phone' : null">
+          <ion-icon name="call-outline" class="shrink-0 text-base text-gray-500"></ion-icon>
+          {{ phoneDisplay() }}
+          @if (client.phone) {
+            <ion-icon name="copy-outline"
+              class="shrink-0 text-sm text-gray-300 opacity-0 transition-opacity group-hover:opacity-100"></ion-icon>
+          }
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
         <div>
-          <h2 class="text-xl font-bold text-gray-900">Tax snapshot</h2>
-          <p class="mt-1 text-sm text-gray-500">Sensitive — full ID stays masked unless revealed</p>
+          <p class="text-xs text-gray-400">Preferred channel</p>
+          <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+            <ion-icon name="chatbubbles-outline" class="text-base text-gray-500"></ion-icon>
+            {{ channelLabel() }}
+          </p>
         </div>
-        <span class="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+        <div>
+          <p class="text-xs text-gray-400">Language</p>
+          <p class="mt-1 flex items-center gap-2 text-sm font-medium text-gray-800">
+            <ion-icon name="globe-outline" class="text-base text-gray-500"></ion-icon>
+            {{ languageLabel() }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Activity: tareas / emails con tarjetas desplegables ========== -->
+  <section
+    class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md md:col-span-2 2xl:col-span-1 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1"
+    style="animation-delay: 160ms">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+        <ion-icon name="pulse-outline" class="text-lg text-gray-500"></ion-icon>
+        Activity
+      </h2>
+      <button type="button" (click)="openTab.emit(activityTab() === 'tasks' ? 'work' : 'communication')"
+        class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+        See all
+      </button>
+    </div>
+
+    <!-- Pestañas con subrayado deslizante -->
+    <div class="relative mt-3 grid grid-cols-2 border-b border-gray-100" role="tablist">
+      <button type="button" role="tab" [attr.aria-selected]="activityTab() === 'tasks'" (click)="setActivityTab('tasks')"
+        class="flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors"
+        [ngClass]="activityTab() === 'tasks' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'">
+        <ion-icon name="checkbox-outline" class="text-base"></ion-icon>
+        Tasks
+        <span class="rounded-full bg-gray-100 px-1.5 text-[11px] text-gray-500">{{ summary.openTaskCount() }}</span>
+      </button>
+      <button type="button" role="tab" [attr.aria-selected]="activityTab() === 'emails'" (click)="setActivityTab('emails')"
+        class="flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors"
+        [ngClass]="activityTab() === 'emails' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'">
+        <ion-icon name="mail-outline" class="text-base"></ion-icon>
+        Emails
+        <span class="rounded-full bg-gray-100 px-1.5 text-[11px] text-gray-500">{{ summary.threadCount() }}</span>
+      </button>
+      <span class="pointer-events-none absolute -bottom-px left-0 h-0.5 w-1/2 rounded-full bg-brand-bold transition-transform duration-300 ease-out"
+        [ngClass]="activityTab() === 'emails' ? 'translate-x-full' : 'translate-x-0'"></span>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-3">
+      @if (activityTab() === 'tasks') {
+        @for (task of summary.needsAttention(); track task.id; let i = $index) {
+          <div class="ov-item rounded-2xl border bg-gradient-to-br p-4 transition-shadow hover:shadow-sm"
+            [ngClass]="activityTint(i)" [style.animation-delay.ms]="i * 70">
+            <button type="button" (click)="toggleExpanded(task.id)" [attr.aria-expanded]="expandedId() === task.id"
+              class="flex w-full items-start gap-3 text-left">
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-gray-900">{{ task.title }}</p>
+                <p class="mt-1 text-xs" [ngClass]="task.overdue ? 'text-red-500' : 'text-gray-500'">
+                  @if (task.dueDate) {
+                    {{ task.overdue ? 'Overdue · ' : 'Due ' }}{{ dueLabel(task.dueDate) }}
+                  } @else {
+                    No due date
+                  }
+                </p>
+              </div>
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-gray-500 shadow-sm">
+                <ion-icon name="chevron-down-outline" class="text-sm transition-transform duration-300"
+                  [ngClass]="expandedId() === task.id ? 'rotate-180' : ''"></ion-icon>
+              </span>
+            </button>
+
+            <div class="ov-collapse" [class.is-open]="expandedId() === task.id">
+              <div>
+                <div class="mt-3 space-y-1.5 text-xs text-gray-600">
+                  @if (task.description) {
+                    <p class="line-clamp-3">{{ task.description }}</p>
+                  }
+                  <p><span class="text-gray-400">Status:</span> {{ taskStatusLabel(task.apiStatus) }}</p>
+                  @if (task.taxYear) {
+                    <p><span class="text-gray-400">Tax year:</span> {{ task.taxYear }}</p>
+                  }
+                  @if (task.isBlocked) {
+                    <p class="font-medium text-red-500">Blocked</p>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <span class="text-xs text-gray-500">{{ task.assigneeName || 'Unassigned' }}</span>
+              <span class="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                [ngClass]="priorityChip(task.priority)">
+                {{ priorityLabel(task.priority) }}
+              </span>
+            </div>
+          </div>
+        } @empty {
+          <div class="ov-item rounded-2xl border border-gray-100 px-4 py-10 text-center">
+            <ion-icon name="checkmark-done-outline" class="text-3xl text-emerald-300"></ion-icon>
+            <p class="mt-2 text-sm text-gray-500">All caught up</p>
+            <p class="mt-1 text-xs text-gray-400">No open tasks for {{ firstName() }} right now.</p>
+          </div>
+        }
+      } @else {
+        @for (thread of summary.recentActivity(); track thread.id; let i = $index) {
+          <div class="ov-item rounded-2xl border bg-gradient-to-br p-4 transition-shadow hover:shadow-sm"
+            [ngClass]="activityTint(i)" [style.animation-delay.ms]="i * 70">
+            <button type="button" (click)="toggleExpanded(thread.id)" [attr.aria-expanded]="expandedId() === thread.id"
+              class="flex w-full items-start gap-3 text-left">
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-gray-900">{{ thread.subject }}</p>
+                <p class="mt-1 text-xs text-gray-500">{{ thread.lastMessageLabel }}</p>
+              </div>
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-gray-500 shadow-sm">
+                <ion-icon name="chevron-down-outline" class="text-sm transition-transform duration-300"
+                  [ngClass]="expandedId() === thread.id ? 'rotate-180' : ''"></ion-icon>
+              </span>
+            </button>
+
+            <div class="ov-collapse" [class.is-open]="expandedId() === thread.id">
+              <div>
+                <div class="mt-3 space-y-1.5 text-xs text-gray-600">
+                  <p><span class="text-gray-400">Started:</span> {{ thread.firstMessageLabel }}</p>
+                  <p><span class="text-gray-400">Last message:</span> {{ thread.lastMessageLabel }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                <ion-icon name="chatbubbles-outline" class="text-sm"></ion-icon>
+                {{ thread.messageCountLabel }}
+              </span>
+              <span class="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                [ngClass]="thread.statusChip">
+                {{ thread.statusLabel }}
+              </span>
+            </div>
+          </div>
+        } @empty {
+          <div class="ov-item rounded-2xl border border-gray-100 px-4 py-10 text-center">
+            <ion-icon name="chatbubbles-outline" class="text-3xl text-gray-300"></ion-icon>
+            <p class="mt-2 text-sm text-gray-500">No recent email activity</p>
+            <p class="mt-1 text-xs text-gray-400">Email conversations with this client will show up here.</p>
+          </div>
+        }
+      }
+    </div>
+  </section>
+
+  <!-- ========== Tax snapshot (enmascarado) ========== -->
+  <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+    [ngClass]="canViewAssignees() ? '' : 'md:col-span-2'" style="animation-delay: 240ms">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+      <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+        <ion-icon name="shield-checkmark-outline" class="text-lg text-gray-500"></ion-icon>
+        Tax snapshot
+      </h2>
+      <div class="flex items-center gap-2">
+        <span class="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
           [ngClass]="revealedTaxId ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'">
-          <ion-icon [attr.name]="revealedTaxId ? 'eye-outline' : 'shield-checkmark-outline'"></ion-icon>
+          <ion-icon [attr.name]="revealedTaxId ? 'eye-outline' : 'lock-closed-outline'"></ion-icon>
           {{ revealedTaxId ? 'Revealed' : 'Masked' }}
         </span>
+        <button type="button" (click)="openTab.emit('info')"
+          class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+          See all
+        </button>
       </div>
+    </div>
 
-      <div *ngIf="hasFiscal; else noFiscal" class="mt-5 grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-xs text-gray-400">Filing status</p>
-          <p class="mt-0.5 text-sm font-medium text-gray-800">{{ filingLabel() }}</p>
+    @if (hasFiscal) {
+      <div class="mt-4 flex flex-col divide-y divide-gray-100">
+        <div class="flex items-center justify-between gap-3 pb-3">
+          <div>
+            <p class="text-xs text-gray-400">Filing status</p>
+            <p class="mt-0.5 text-sm font-medium text-gray-800">{{ filingLabel() }}</p>
+          </div>
+          <ion-icon name="reader-outline" class="text-lg text-gray-300"></ion-icon>
         </div>
-        <div>
+
+        <div class="py-3">
           <p class="text-xs text-gray-400">{{ taxIdKindLabel() }}</p>
-          <p class="mt-0.5 font-mono text-sm font-medium tracking-wide text-gray-800">{{ revealedTaxId ?? taxIdMasked() }}</p>
-          <!-- Reveal auditado (mismo flujo que Info): confirmación + re-enmascarado automático a los 30 s. -->
-          @if (revealedTaxId) {
-            <button type="button" (click)="hideTaxId.emit()"
-              class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
-              <ion-icon name="eye-off-outline"></ion-icon> Hide
-            </button>
-          } @else if (canReveal && client.fiscalProfile?.taxIdentifierLast4) {
-            @if (!confirmingReveal()) {
+          <div class="mt-0.5 flex items-center justify-between gap-3">
+            <p class="font-mono text-sm font-medium tracking-wide text-gray-800">{{ revealedTaxId ?? taxIdMasked() }}</p>
+            <!-- Reveal auditado (mismo flujo que Info): confirmación + re-enmascarado automático a los 30 s. -->
+            @if (revealedTaxId) {
+              <button type="button" (click)="hideTaxId.emit()"
+                class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50">
+                <ion-icon name="eye-off-outline"></ion-icon> Hide
+              </button>
+            } @else if (canReveal && client.fiscalProfile?.taxIdentifierLast4 && !confirmingReveal()) {
               <button type="button" (click)="requestReveal()"
-                class="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50">
                 <ion-icon name="eye-outline"></ion-icon> Reveal
               </button>
-            } @else {
+            }
+          </div>
+          <div class="ov-collapse" [class.is-open]="confirmingReveal() && !revealedTaxId">
+            <div>
               <div class="mt-2 rounded-xl bg-amber-50 p-2.5">
                 <p class="text-[11px] text-amber-700">This access is recorded in the audit log.</p>
                 <div class="mt-1.5 flex items-center gap-2">
@@ -197,58 +333,61 @@
                   <button type="button" (click)="cancelReveal()" class="text-xs font-medium text-gray-500 hover:text-gray-800">Cancel</button>
                 </div>
               </div>
-            }
-          }
+            </div>
+          </div>
         </div>
-        <div>
-          <p class="text-xs text-gray-400">Returning client</p>
-          <p class="mt-0.5 text-sm font-medium text-gray-800">{{ returningLabel() }}</p>
+
+        <div class="flex items-center justify-between gap-3 py-3">
+          <p class="text-sm text-gray-600">Returning client</p>
+          <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [ngClass]="client.fiscalProfile?.isReturningCustomer ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'">
+            {{ returningLabel() }}
+          </span>
         </div>
-        <div>
-          <p class="text-xs text-gray-400">Refund bank info</p>
-          <p class="mt-0.5 text-sm font-medium text-gray-800">
+
+        <div class="flex items-center justify-between gap-3 pt-3">
+          <p class="text-sm text-gray-600">Refund bank info</p>
+          <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [ngClass]="client.fiscalProfile?.hasRefundBankInfo ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
             {{ client.fiscalProfile?.hasRefundBankInfo ? 'On file' : 'Not set' }}
-          </p>
+          </span>
         </div>
       </div>
+    } @else {
+      <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-8 text-center">
+        <ion-icon name="shield-outline" class="text-3xl text-gray-300"></ion-icon>
+        <p class="mt-2 text-sm text-gray-500">No tax profile yet</p>
+        <p class="mt-1 text-xs text-gray-400">Add one from the Info tab to see filing status and tax ID here.</p>
+      </div>
+    }
+  </section>
 
-      <ng-template #noFiscal>
-        <div class="mt-5 rounded-2xl border border-gray-100 px-4 py-8 text-center">
-          <ion-icon name="shield-outline" class="text-3xl text-gray-300"></ion-icon>
-          <p class="mt-2 text-sm text-gray-500">No tax profile yet</p>
-          <p class="mt-1 text-xs text-gray-400">Add one from the Info tab to see filing status and tax ID here.</p>
-        </div>
-      </ng-template>
-    </div>
-  </div>
-
-  <!-- Assigned staff (solo admin/view_all) -->
+  <!-- ========== Assigned staff (solo admin/view_all) ========== -->
   @if (canViewAssignees()) {
-    <div class="bg-white rounded-[28px] p-6">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">Assigned staff</h2>
-          <p class="mt-1 text-sm text-gray-500">Who can see and work this client</p>
-        </div>
+    <section class="ov-card flex flex-col rounded-[28px] bg-white p-5 transition-shadow duration-300 hover:shadow-md"
+      style="animation-delay: 320ms">
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+        <h2 class="flex items-center gap-2 text-base font-bold text-gray-900">
+          <ion-icon name="people-outline" class="text-lg text-gray-500"></ion-icon>
+          Assigned staff
+        </h2>
         @if (canAssignPreparer()) {
-          <button
-            type="button"
-            (click)="openAssign()"
-            class="flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-sm font-semibold text-brand-bold transition-colors hover:bg-indigo-100"
-          >
-            <ion-icon name="settings-outline"></ion-icon> Manage
+          <button type="button" (click)="openAssign()"
+            class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900">
+            Manage
           </button>
         }
       </div>
 
       @if (assigneeRows().length > 0) {
-        <div class="mt-5 flex flex-col gap-2">
-          @for (row of assigneeRows(); track row.userId) {
-            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+        <div class="mt-4 flex flex-col gap-1">
+          @for (row of assigneeRows(); track row.userId; let i = $index) {
+            <div class="ov-item flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors hover:bg-gray-50"
+              [style.animation-delay.ms]="i * 60">
               <app-avatar [name]="row.member?.name ?? null" [seed]="row.userId" [colorClass]="row.member ? null : 'bg-slate-400'"
-                sizeClass="h-9 w-9 text-xs" />
+                sizeClass="h-10 w-10 text-xs" />
               <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                <p class="flex items-center gap-2 text-sm font-semibold text-gray-800">
                   <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
                   @if (row.member && !row.member.isActive) {
                     <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600">Suspended</span>
@@ -257,10 +396,8 @@
                 <p class="truncate text-xs text-gray-400">{{ row.member?.email }}</p>
               </div>
               @if (row.isPrimary) {
-                <span
-                  class="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-brand-bold"
-                >
-                  <ion-icon name="star"></ion-icon> Primary
+                <span class="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-brand-bold">
+                  <ion-icon name="star-outline"></ion-icon> Primary
                 </span>
               } @else {
                 <span class="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-400">Access</span>
@@ -269,15 +406,12 @@
           }
         </div>
       } @else {
-        <div class="mt-5 rounded-2xl border border-gray-100 px-4 py-8 text-center">
+        <div class="mt-4 rounded-2xl border border-gray-100 px-4 py-8 text-center">
           <ion-icon name="people-outline" class="text-3xl text-gray-300"></ion-icon>
           <p class="mt-2 text-sm text-gray-500">No one is assigned yet</p>
           @if (canAssignPreparer()) {
-            <button
-              type="button"
-              (click)="openAssign()"
-              class="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
-            >
+            <button type="button" (click)="openAssign()"
+              class="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
               <ion-icon name="add-outline"></ion-icon> Assign staff
             </button>
           } @else {
@@ -285,13 +419,16 @@
           }
         </div>
       }
-    </div>
-
-    <app-client-assign-dialog
-      mode="single"
-      [isOpen]="assignOpen()"
-      [client]="{ id: client.id, displayName: client.displayName }"
-      (closed)="onAssignClosed($event)"
-    ></app-client-assign-dialog>
+    </section>
   }
 </div>
+
+<!-- Fuera de la grilla: el diálogo es un overlay y no debe ocupar una celda. -->
+@if (canViewAssignees()) {
+  <app-client-assign-dialog
+    mode="single"
+    [isOpen]="assignOpen()"
+    [client]="{ id: client.id, displayName: client.displayName }"
+    (closed)="onAssignClosed($event)"
+  ></app-client-assign-dialog>
+}

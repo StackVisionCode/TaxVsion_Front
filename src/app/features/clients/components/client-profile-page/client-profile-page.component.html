@@ -59,112 +59,121 @@
   </div>
 </div>
 
-<div class="min-h-full pt-3 pb-1 flex flex-col gap-4" *ngIf="client() as c">
-  <!-- Barra superior: volver + acciones -->
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <a routerLink="/clients"
-      class="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
-      <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
-      Back to clients
-    </a>
-
-    <div class="flex flex-wrap items-center gap-2">
-      <!-- Acciones sobre otros módulos: cada una solo si el usuario puede entrar al módulo y hacerla -->
-      @if (hasActions()) {
-        <app-dropdown-menu align="right" panelClass="w-56" [ariaLabel]="'Actions for ' + c.displayName">
-          <button menuTrigger type="button"
-            class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-            <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
-            Actions
-            <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
-          </button>
-          @if (canRequestSignature()) {
-            <button appMenuItem type="button" (click)="requestSignature(c)">
-              <ion-icon name="document-text-outline" class="text-base"></ion-icon> Signature request
-            </button>
-          }
-          @if (canSendSms()) {
-            <button appMenuItem type="button" (click)="openSms()">
-              <ion-icon name="chatbox-ellipses-outline" class="text-base"></ion-icon> Send SMS
-            </button>
-          }
-          @if (canScheduleMeeting()) {
-            <button appMenuItem type="button" (click)="scheduleMeeting(c)">
-              <ion-icon name="videocam-outline" class="text-base"></ion-icon> Schedule meeting
-            </button>
-          }
-          @if (canComposeEmail()) {
-            <button appMenuItem type="button" (click)="composeEmail(c)">
-              <ion-icon name="mail-outline" class="text-base"></ion-icon> Send email
-            </button>
-          }
-        </app-dropdown-menu>
-      }
-      <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
-        class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-        <ion-icon name="create-outline" class="text-base"></ion-icon>
-        Edit
-      </button>
-    </div>
-  </div>
-
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
   <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
-    <!-- Columna izquierda: perfil + menú de pestañas -->
-    <aside class="w-full shrink-0 bg-white rounded-[28px] p-5 lg:sticky lg:top-3 lg:w-72">
-      <div class="flex items-center gap-4">
-        <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
-        <div class="min-w-0">
-          <h2 class="text-lg font-bold leading-tight text-gray-900 break-words">{{ c.displayName }}</h2>
-          <div class="mt-2 flex flex-wrap items-center gap-2">
-            <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
-              [ngClass]="typeBadgeClass(c)">
-              {{ typeLabel(c) }}
-            </span>
-            <app-status-pill [tone]="c.isActive ? 'success' : 'neutral'">{{ statusLabel(c) }}</app-status-pill>
+    <!-- Columna izquierda fija (sticky, misma altura que el sidebar principal): volver + perfil y menú.
+         La tarjeta scrollea por dentro, así nunca se sale de la pantalla. -->
+    <div class="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-72">
+      <a routerLink="/clients"
+        class="flex w-fit shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
+        <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+        Back to clients
+      </a>
+      <aside class="min-h-0 w-full overflow-y-auto bg-white rounded-[28px] p-5">
+        <div class="flex items-center gap-4">
+          <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
+          <div class="min-w-0">
+            <h2 class="text-lg font-bold leading-tight text-gray-900 break-words">{{ c.displayName }}</h2>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
+                [ngClass]="typeBadgeClass(c)">
+                {{ typeLabel(c) }}
+              </span>
+              <app-status-pill [tone]="c.isActive ? 'success' : 'neutral'">{{ statusLabel(c) }}</app-status-pill>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div *ngIf="c.email || c.phone" class="mt-5 space-y-2 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
-        <div *ngIf="c.email" class="flex items-center gap-2 min-w-0">
-          <ion-icon name="mail-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
-          <span class="truncate">{{ c.email }}</span>
+        <div *ngIf="c.email || c.phone" class="mt-5 space-y-2 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
+          <div *ngIf="c.email" class="flex items-center gap-2 min-w-0">
+            <ion-icon name="mail-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+            <span class="truncate">{{ c.email }}</span>
+          </div>
+          <div *ngIf="c.phone" class="flex items-center gap-2">
+            <ion-icon name="call-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+            <span>{{ c.phone }}</span>
+          </div>
         </div>
-        <div *ngIf="c.phone" class="flex items-center gap-2">
-          <ion-icon name="call-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
-          <span>{{ c.phone }}</span>
-        </div>
-      </div>
 
-      <!-- Menú vertical de pestañas -->
-      <nav class="mt-5 flex flex-col gap-1" aria-label="Client sections">
-        <ng-container *ngFor="let item of navItems()">
-          <ng-container *ngIf="item.kind === 'tab'">
-            <ng-container *ngTemplateOutlet="navTab; context: { $implicit: item }"></ng-container>
-          </ng-container>
+        <!-- Menú vertical de pestañas -->
+        <nav #profileNav class="relative mt-5 flex flex-col gap-1" aria-label="Client sections">
+          <!-- Píldora deslizante del ítem activo (mismo efecto que el sidebar principal) -->
+          @if (navIndicator(); as pill) {
+            <div class="pointer-events-none absolute rounded-full bg-brand-bold shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              [style.top.px]="pill.top" [style.left.px]="pill.left" [style.width.px]="pill.width"
+              [style.height.px]="pill.height"></div>
+          }
+          <ng-container *ngFor="let item of navItems()">
+            <ng-container *ngIf="item.kind === 'tab'">
+              <ng-container *ngTemplateOutlet="navTab; context: { $implicit: item }"></ng-container>
+            </ng-container>
 
-          <ng-container *ngIf="item.kind === 'group'">
-            <p class="mt-3 mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ item.label }}</p>
-            <ng-container *ngFor="let tab of item.tabs">
-              <ng-container *ngTemplateOutlet="navTab; context: { $implicit: tab }"></ng-container>
+            <ng-container *ngIf="item.kind === 'group'">
+              <p class="mt-3 mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ item.label }}</p>
+              <ng-container *ngFor="let tab of item.tabs">
+                <ng-container *ngTemplateOutlet="navTab; context: { $implicit: tab }"></ng-container>
+              </ng-container>
             </ng-container>
           </ng-container>
-        </ng-container>
-      </nav>
+        </nav>
 
-      <ng-template #navTab let-tab>
-        <button type="button" (click)="selectTab(tab.id)"
-          [attr.aria-current]="tab.id === activeTab() ? 'page' : null"
-          class="flex w-full items-center gap-3 rounded-r-xl border-l-[3px] px-3 py-2.5 text-left text-sm transition-colors"
-          [ngClass]="tab.id === activeTab() ? 'border-brand-bold bg-brand-surface font-semibold text-gray-900' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'">
-          <ion-icon [name]="tab.icon" class="shrink-0 text-lg"></ion-icon>
-          {{ tab.label }}
-        </button>
-      </ng-template>
-    </aside>
+        <ng-template #navTab let-tab>
+          <button type="button" (click)="selectTab(tab.id)" [attr.data-tab]="tab.id"
+            [attr.aria-current]="tab.id === activeTab() ? 'page' : null"
+            class="relative flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-left text-sm font-medium transition-colors duration-300"
+            [ngClass]="tab.id === activeTab() ? 'text-white' : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900'">
+            <ion-icon [name]="tab.icon" class="shrink-0 text-lg transition-transform duration-300"
+              [ngClass]="tab.id === activeTab() ? 'scale-110 text-white' : 'text-gray-500'"></ion-icon>
+            {{ tab.label }}
+          </button>
+        </ng-template>
+      </aside>
+    </div>
 
-    <!-- Contenido de la pestaña activa -->
+    <!-- Contenido de la pestaña activa (las acciones van arriba, a la derecha) -->
     <div class="flex min-w-0 flex-1 flex-col gap-6">
+      @if (hasActions() || canManage()) {
+        <div class="flex justify-end">
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Acciones sobre otros módulos: cada una solo si el usuario puede entrar al módulo y hacerla -->
+            @if (hasActions()) {
+              <app-dropdown-menu align="right" panelClass="w-56" [ariaLabel]="'Actions for ' + c.displayName">
+                <button menuTrigger type="button"
+                  class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+                  <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+                  Actions
+                  <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
+                </button>
+                @if (canRequestSignature()) {
+                  <button appMenuItem type="button" (click)="requestSignature(c)">
+                    <ion-icon name="document-text-outline" class="text-base"></ion-icon> Signature request
+                  </button>
+                }
+                @if (canSendSms()) {
+                  <button appMenuItem type="button" (click)="openSms()">
+                    <ion-icon name="chatbox-ellipses-outline" class="text-base"></ion-icon> Send SMS
+                  </button>
+                }
+                @if (canScheduleMeeting()) {
+                  <button appMenuItem type="button" (click)="scheduleMeeting(c)">
+                    <ion-icon name="videocam-outline" class="text-base"></ion-icon> Schedule meeting
+                  </button>
+                }
+                @if (canComposeEmail()) {
+                  <button appMenuItem type="button" (click)="composeEmail(c)">
+                    <ion-icon name="mail-outline" class="text-base"></ion-icon> Send email
+                  </button>
+                }
+              </app-dropdown-menu>
+            }
+            <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
+              class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <ion-icon name="create-outline" class="text-base"></ion-icon>
+              Edit
+            </button>
+          </div>
+        </div>
+      }
       <!--
         Contenido de la pestaña activa.
 
@@ -181,7 +190,7 @@
       @if (activeTab() === 'overview') {
         <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
           [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)"
-          (hideTaxId)="hideTaxId()"></app-client-profile-overview>
+          (hideTaxId)="hideTaxId()" (openTab)="selectTab($event)"></app-client-profile-overview>
       }
 
       @if (activeTab() === 'info') {
