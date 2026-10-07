@@ -985,3 +985,75 @@ export function summaryPairs(step: WorkflowStep): { label: string; value: string
 
   return [...configured, ...sends].slice(0, 3);
 }
+
+// ---------- Qué se puede enganchar detrás de qué ----------
+
+/**
+ * Por qué NO encaja un paso detrás de otro.
+ *
+ * `blocked` rompería el flujo y no se deja insertar; `warning` se puede insertar
+ * pero quedará incompleto (le falta un dato) y se avisa antes, no después.
+ */
+export interface InsertionIssue {
+  severity: 'blocked' | 'warning';
+  reason: string;
+}
+
+/** Une con comas y una "and" final: "Email, Name and Phone". */
+function listOf(labels: string[]): string {
+  if (labels.length <= 1) {
+    return labels[0] ?? '';
+  }
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * Por qué no encaja `typeId` justo detrás de `fromStepId` (por el puerto
+ * `fromPort`), o null si encaja.
+ *
+ * El texto se enseña en el menú, así que explica la REGLA, no la infracción:
+ * quien lo lee tiene que saber qué hacer en su lugar.
+ *
+ * Insertar en medio nunca puede romper a los que ya venían detrás: al meter un
+ * paso solo se AÑADEN campos aguas arriba, nunca se quitan. Por eso solo se
+ * mira hacia atrás.
+ */
+export function insertionIssue(
+  steps: WorkflowStep[],
+  connections: WorkflowConnection[],
+  fromStepId: string | null,
+  typeId: WorkflowStepTypeId,
+): InsertionIssue | null {
+  const type = stepTypeOrFallback(typeId);
+
+  if (type.category === 'trigger' && fromStepId !== null) {
+    return { severity: 'blocked', reason: 'Triggers can only start a flow' };
+  }
+  if (type.category !== 'trigger' && fromStepId === null) {
+    return { severity: 'blocked', reason: 'A flow has to start with a trigger' };
+  }
+  if (type.consumes.length === 0 || fromStepId === null) {
+    return null;
+  }
+
+  // Lo que tendrá disponible el paso nuevo: lo que llega a la carta de la que
+  // cuelga MÁS lo que esa carta produce.
+  const available = new Set(
+    availableFieldsAt(steps, connections, fromStepId).map(field => field.key),
+  );
+  const from = steps.find(step => step.id === fromStepId);
+  if (from) {
+    for (const field of stepTypeOrFallback(from.typeId).produces) {
+      available.add(field.key);
+    }
+  }
+
+  const missing = type.consumes.filter(field => !available.has(field.key));
+  if (missing.length === 0) {
+    return null;
+  }
+  return {
+    severity: 'warning',
+    reason: `Needs ${listOf(missing.map(field => field.label))}, and nothing before it sends that`,
+  };
+}

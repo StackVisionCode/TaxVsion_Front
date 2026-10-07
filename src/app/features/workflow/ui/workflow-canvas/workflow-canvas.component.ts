@@ -4,11 +4,15 @@ import {
   ElementRef,
   EventEmitter,
   HostListener,
+  Injector,
   Input,
   OnDestroy,
   Output,
   ViewChild,
+  afterNextRender,
   computed,
+  inject,
+  input,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -63,9 +67,15 @@ interface SketchState {
   currentY: number;
 }
 
-const ZOOM_MIN = 0.4;
+/**
+ * Se baja a 0.2 a propósito: con el lienzo grande, 0.4 no daba para ver un flujo
+ * largo entero y "ajustar" se quedaba corto sin poder alejarse más.
+ */
+const ZOOM_MIN = 0.2;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
+/** Aire alrededor del contenido al ajustar, para que no toque los bordes. */
+const FIT_MARGIN = 64;
 
 /** Estado del arrastre del lienzo con la herramienta mano. */
 interface PanState {
@@ -170,8 +180,12 @@ export class WorkflowCanvasComponent implements OnDestroy {
   /** Qué anotación está seleccionada, para que la página abra Propiedades. */
   @Output() annotationSelected = new EventEmitter<string | null>();
 
-  /** Notas e imágenes sueltas del documento. */
-  @Input() annotations: readonly WorkflowAnnotation[] = [];
+  /**
+   * Notas e imágenes sueltas del documento. Es `input()` y no `@Input` porque los
+   * tres repartos de abajo son `computed`: como métodos alocaban tres arrays
+   * nuevos en CADA ciclo de detección, también mientras se arrastra un nodo.
+   */
+  readonly annotations = input<readonly WorkflowAnnotation[]>([]);
   /** Cursores de quien más está mirando el mismo workflow. */
   @Input() peers: readonly PeerCursor[] = [];
 
@@ -181,6 +195,8 @@ export class WorkflowCanvasComponent implements OnDestroy {
   readonly tool = signal<CanvasTool>('select');
   /** Nodo que se está arrastrando: solo ese se promociona a capa propia. */
   readonly draggingId = signal<string | null>(null);
+
+  private readonly injector = inject(Injector);
 
   private pan: PanState | null = null;
   private nodeDrag: NodeDragState | null = null;
@@ -208,19 +224,17 @@ export class WorkflowCanvasComponent implements OnDestroy {
   });
 
   /** Las que son cajas (nota, texto, imagen): van como divs posicionados. */
-  boxAnnotations(): WorkflowAnnotation[] {
-    return this.annotations.filter(a => a.kind === 'note' || a.kind === 'text' || a.kind === 'image');
-  }
+  readonly boxAnnotations = computed(() =>
+    this.annotations().filter(a => a.kind === 'note' || a.kind === 'text' || a.kind === 'image'),
+  );
 
   /** Las que son formas: van al SVG, con coordenadas absolutas del lienzo. */
-  inkAnnotations(): WorkflowAnnotation[] {
-    return this.annotations.filter(a => a.kind === 'draw' || a.kind === 'arrow' || a.kind === 'rect');
-  }
+  readonly inkAnnotations = computed(() =>
+    this.annotations().filter(a => a.kind === 'draw' || a.kind === 'arrow' || a.kind === 'rect'),
+  );
 
   /** Cada flecha necesita su propio marker: el color de la punta es el suyo. */
-  arrowAnnotations(): WorkflowAnnotation[] {
-    return this.annotations.filter(a => a.kind === 'arrow');
-  }
+  readonly arrowAnnotations = computed(() => this.annotations().filter(a => a.kind === 'arrow'));
 
   /** Herramientas de anotación, en el orden de la barra. */
   readonly drawTools: ReadonlyArray<{ id: CanvasTool; icon: string; label: string }> = [
@@ -521,38 +535,96 @@ export class WorkflowCanvasComponent implements OnDestroy {
     return this.zoom() > ZOOM_MIN;
   }
 
-  /** El zoom se ancla al centro del viewport para que no salte el contenido. */
-  zoomBy(delta: number): void {
+  /**
+   * Cambia el zoom dejando quieto el punto del lienzo que hay bajo el ancla
+   * (por defecto, el centro del viewport).
+   *
+   * El scroll se escribe DESPUÉS del render, y esa es la parte importante: el
+   * `sizer` todavía mide con el zoom viejo, así que un `scrollLeft` inmediato lo
+   * recorta el navegador al `scrollWidth` anterior y el contenido pega un salto.
+   * Era el "se corta cuando me deslizo".
+   */
+  private applyZoom(after: number, anchorClientX?: number, anchorClientY?: number): void {
     const before = this.zoom();
-    const after = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((before + delta) * 10) / 10));
     if (after === before) {
       return;
     }
     const viewport = this.viewportRef?.nativeElement;
-    this.zoom.set(after);
     if (!viewport) {
+      this.zoom.set(after);
       return;
     }
-    const ratio = after / before;
-    const halfW = viewport.clientWidth / 2;
-    const halfH = viewport.clientHeight / 2;
-    viewport.scrollLeft = (viewport.scrollLeft + halfW) * ratio - halfW;
-    viewport.scrollTop = (viewport.scrollTop + halfH) * ratio - halfH;
+    const rect = viewport.getBoundingClientRect();
+    const anchorX = anchorClientX === undefined ? viewport.clientWidth / 2 : anchorClientX - rect.left;
+    const anchorY = anchorClientY === undefined ? viewport.clientHeight / 2 : anchorClientY - rect.top;
+    // El punto del lienzo bajo el ancla: es el que NO se debe mover.
+    const canvasX = (viewport.scrollLeft + anchorX) / before;
+    const canvasY = (viewport.scrollTop + anchorY) / before;
+
+    this.zoom.set(after);
+    afterNextRender(
+      () => {
+        viewport.scrollLeft = canvasX * after - anchorX;
+        viewport.scrollTop = canvasY * after - anchorY;
+      },
+      { injector: this.injector },
+    );
   }
 
-  /** Ajusta el zoom para que quepa el diagrama entero. */
-  fit(): void {
-    const viewport = this.viewportRef?.nativeElement;
-    if (!viewport || !this.layout.width || !this.layout.height) {
+  /** Los botones +/- de la barra: anclados al centro. */
+  zoomBy(delta: number): void {
+    const target = Math.round((this.zoom() + delta) * 10) / 10;
+    this.applyZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, target)));
+  }
+
+  /**
+   * Zoom con rueda o pellizco del trackpad, anclado al puntero.
+   *
+   * Sin `preventDefault` el navegador hace zoom de la PÁGINA entera (el trackpad
+   * manda el pellizco como `ctrl+wheel`). Sin modificador no se toca nada: la
+   * rueda a secas es el scroll nativo, que es el pan.
+   */
+  onWheel(event: WheelEvent): void {
+    if (!event.ctrlKey && !event.metaKey) {
       return;
     }
-    const scale = Math.min(
-      viewport.clientWidth / this.layout.width,
-      viewport.clientHeight / this.layout.height,
+    event.preventDefault();
+    // `deltaY` viene en píxeles, líneas o páginas según el dispositivo.
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+    // Exponencial para que alejarse y acercarse cuesten lo mismo.
+    const raw = this.zoom() * Math.exp(-event.deltaY * unit * 0.002);
+    const next = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, raw)) * 100) / 100;
+    this.applyZoom(next, event.clientX, event.clientY);
+  }
+
+  /** Ajusta el zoom para que quepa el contenido entero, y lo centra. */
+  fit(): void {
+    const viewport = this.viewportRef?.nativeElement;
+    const box = this.layout.content;
+    // Se mide el CONTENIDO, no el lienzo: `layout.width` incluye el margen para
+    // arrastrar hacia fuera, así que ajustar por él alejaba muchísimo de más.
+    const width = box.maxX - box.minX;
+    const height = box.maxY - box.minY;
+    if (!viewport || width <= 0 || height <= 0) {
+      return;
+    }
+    const raw = Math.min(
+      (viewport.clientWidth - FIT_MARGIN) / width,
+      (viewport.clientHeight - FIT_MARGIN) / height,
+      // No se amplía por encima del 100 %: un flujo de dos cartas llenando la
+      // pantalla a 2x se lee como un fallo, no como un ajuste.
       1,
     );
-    this.zoom.set(Math.max(ZOOM_MIN, Math.round(scale * 10) / 10));
-    viewport.scrollTo({ left: 0, top: 0 });
+    // Hacia ABAJO. Redondear al alza dejaba un zoom con el que seguía sin caber.
+    const scale = Math.max(ZOOM_MIN, Math.floor(raw * 100) / 100);
+    this.zoom.set(scale);
+    afterNextRender(
+      () => {
+        viewport.scrollLeft = (box.minX + width / 2) * scale - viewport.clientWidth / 2;
+        viewport.scrollTop = (box.minY + height / 2) * scale - viewport.clientHeight / 2;
+      },
+      { injector: this.injector },
+    );
   }
 
   setTool(tool: CanvasTool): void {

@@ -31,7 +31,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { ImageTooLargeError, prepareImage } from '../../utils/workflow-image.util';
 import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
 import { WorkflowStepTypeId } from '../../data-access/workflow.model';
-import { layoutWorkflow } from '../../utils/workflow-layout.util';
+import { layoutSkeleton, positionLayout, workflowStructureKey } from '../../utils/workflow-layout.util';
 
 type WorkflowTab = 'builder' | 'debugger';
 
@@ -193,7 +193,42 @@ export class WorkflowPageComponent implements OnDestroy {
   readonly pendingInsert = signal<InsertRequest | null>(null);
 
   /** El layout es derivado: misma lista de pasos, mismo dibujo. */
-  readonly layout = computed(() => layoutWorkflow(this.store.steps(), this.store.connections()));
+  private readonly structureKey = computed(() =>
+    workflowStructureKey(this.store.steps(), this.store.connections()),
+  );
+
+  /**
+   * Sube al SOLTAR. Mientras se arrastra, el orden por baricentro se congela; si no, las
+   * cartas sin posición manual bailan bajo el cursor mientras mueves otra. Al terminar el
+   * gesto se recoloca una sola vez.
+   */
+  private readonly settleTick = signal(0);
+
+  /**
+   * Fase CARA del layout. Solo declara como dependencia la huella de la estructura: las
+   * posiciones se leen con `untracked` porque alimentan el baricentro, pero no deben
+   * disparar un recálculo en cada frame del arrastre — que es de donde venía el lag.
+   */
+  private readonly skeleton = computed(() => {
+    this.structureKey();
+    this.settleTick();
+    return untracked(() => layoutSkeleton(this.store.steps(), this.store.connections()));
+  });
+
+  readonly layout = computed(() =>
+    positionLayout(
+      this.store.steps(),
+      this.store.connections(),
+      this.skeleton(),
+      this.store.annotations(),
+    ),
+  );
+
+  /** Fin del arrastre: cierra el historial y recoloca el orden una sola vez. */
+  onMoveEnd(): void {
+    this.store.endMove();
+    this.settleTick.update(tick => tick + 1);
+  }
 
   readonly savedLabel = computed(() => {
     const iso = this.store.doc().updatedAtIso;

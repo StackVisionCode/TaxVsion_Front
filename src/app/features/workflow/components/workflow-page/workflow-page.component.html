@@ -123,7 +123,7 @@
         (duplicateStep)="store.duplicateStep($event)"
         (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
         (moveStepStart)="store.beginMove()" (moveStepLive)="onMoveLive($event)"
-        (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"
+        (moveStepEnd)="onMoveEnd()" (tidy)="store.tidyLayout()"
         [selectedConnectionId]="store.selectedConnectionId()" (selectConnection)="store.selectConnection($event)"
         (deleteConnection)="store.disconnect($event)" (connectSteps)="onConnect($event)"
         [stepPreview]="preview.status() === 'idle' ? null : preview.stepStates()"

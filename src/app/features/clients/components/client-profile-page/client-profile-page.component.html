@@ -59,291 +59,299 @@
   </div>
 </div>
 
-<div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
-  <!-- Header -->
-  <div class="bg-white rounded-[28px] p-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <a routerLink="/clients"
-          class="-ml-3 flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-          <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
-          Back to clients
-        </a>
+<div class="min-h-full pt-3 pb-1 flex flex-col gap-4" *ngIf="client() as c">
+  <!-- Barra superior: volver + acciones -->
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <a routerLink="/clients"
+      class="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
+      <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+      Back to clients
+    </a>
 
-        <div class="mt-3 flex items-center gap-4">
-          <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">{{ c.displayName }}</h2>
-            <div class="mt-2 flex flex-wrap items-center gap-2">
-              <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
-                [ngClass]="typeBadgeClass(c)">
-                {{ typeLabel(c) }}
-              </span>
-              <app-status-pill [tone]="c.isActive ? 'success' : 'neutral'">{{ statusLabel(c) }}</app-status-pill>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Acciones sobre otros módulos: cada una solo si el usuario puede entrar al módulo y hacerla -->
-        @if (hasActions()) {
-          <app-dropdown-menu align="right" panelClass="w-56" [ariaLabel]="'Actions for ' + c.displayName">
-            <button menuTrigger type="button"
-              class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-              <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
-              Actions
-              <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
-            </button>
-            @if (canRequestSignature()) {
-              <button appMenuItem type="button" (click)="requestSignature(c)">
-                <ion-icon name="document-text-outline" class="text-base"></ion-icon> Signature request
-              </button>
-            }
-            @if (canSendSms()) {
-              <button appMenuItem type="button" (click)="openSms()">
-                <ion-icon name="chatbox-ellipses-outline" class="text-base"></ion-icon> Send SMS
-              </button>
-            }
-            @if (canScheduleMeeting()) {
-              <button appMenuItem type="button" (click)="scheduleMeeting(c)">
-                <ion-icon name="videocam-outline" class="text-base"></ion-icon> Schedule meeting
-              </button>
-            }
-            @if (canComposeEmail()) {
-              <button appMenuItem type="button" (click)="composeEmail(c)">
-                <ion-icon name="mail-outline" class="text-base"></ion-icon> Send email
-              </button>
-            }
-          </app-dropdown-menu>
-        }
-        <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
-          class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          <ion-icon name="create-outline" class="text-base"></ion-icon>
-          Edit
-        </button>
-      </div>
-    </div>
-
-    <!-- Tab nav -->
-    <div class="mt-6 flex flex-wrap gap-2">
-      <ng-container *ngFor="let item of navItems()">
-        <!-- Single tab -->
-        <button *ngIf="item.kind === 'tab'" type="button" (click)="selectTab(item.id)"
-          class="shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-          [ngClass]="item.id === activeTab() ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
-          {{ item.label }}
-        </button>
-
-        <!-- Group of tabs behind a dropdown -->
-        <div *ngIf="item.kind === 'group'" class="relative shrink-0" appClickOutside
-          [clickOutsideEnabled]="openGroupLabel() === item.label" (appClickOutside)="openGroupLabel.set(null)">
-          <button type="button" (click)="toggleGroup(item.label, $event)"
-            class="flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-            [ngClass]="isGroupActive(item) ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'">
-            {{ item.label }}
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Acciones sobre otros módulos: cada una solo si el usuario puede entrar al módulo y hacerla -->
+      @if (hasActions()) {
+        <app-dropdown-menu align="right" panelClass="w-56" [ariaLabel]="'Actions for ' + c.displayName">
+          <button menuTrigger type="button"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+            <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
+            Actions
             <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
           </button>
-
-          <div *ngIf="openGroupLabel() === item.label"
-            class="absolute left-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-            <button *ngFor="let tab of item.tabs" type="button" (click)="selectTab(tab.id)"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors"
-              [ngClass]="tab.id === activeTab() ? 'text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-50'">
-              {{ tab.label }}
-              <ion-icon *ngIf="tab.id === activeTab()" name="checkmark-outline" class="text-sm"></ion-icon>
+          @if (canRequestSignature()) {
+            <button appMenuItem type="button" (click)="requestSignature(c)">
+              <ion-icon name="document-text-outline" class="text-base"></ion-icon> Signature request
             </button>
-          </div>
-        </div>
-      </ng-container>
+          }
+          @if (canSendSms()) {
+            <button appMenuItem type="button" (click)="openSms()">
+              <ion-icon name="chatbox-ellipses-outline" class="text-base"></ion-icon> Send SMS
+            </button>
+          }
+          @if (canScheduleMeeting()) {
+            <button appMenuItem type="button" (click)="scheduleMeeting(c)">
+              <ion-icon name="videocam-outline" class="text-base"></ion-icon> Schedule meeting
+            </button>
+          }
+          @if (canComposeEmail()) {
+            <button appMenuItem type="button" (click)="composeEmail(c)">
+              <ion-icon name="mail-outline" class="text-base"></ion-icon> Send email
+            </button>
+          }
+        </app-dropdown-menu>
+      }
+      <button *ngIf="canManage()" type="button" (click)="openEditPanel()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        <ion-icon name="create-outline" class="text-base"></ion-icon>
+        Edit
+      </button>
     </div>
   </div>
 
-  <!--
-    Contenido de la pestaña activa.
+  <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <!-- Columna izquierda: perfil + menú de pestañas -->
+    <aside class="w-full shrink-0 bg-white rounded-[28px] p-5 lg:sticky lg:top-3 lg:w-72">
+      <div class="flex items-center gap-4">
+        <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
+        <div class="min-w-0">
+          <h2 class="text-lg font-bold leading-tight text-gray-900 break-words">{{ c.displayName }}</h2>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
+              [ngClass]="typeBadgeClass(c)">
+              {{ typeLabel(c) }}
+            </span>
+            <app-status-pill [tone]="c.isActive ? 'success' : 'neutral'">{{ statusLabel(c) }}</app-status-pill>
+          </div>
+        </div>
+      </div>
 
-    Overview e Info (Details y Family) van sin diferir: son las dos que más se abren y las que reciben el
-    objeto completo, así que entrar a un cliente no debe esperar por ningún chunk. Las
-    otras 11 se cargan la primera vez que se abren — antes las 15 pestañas viajaban en el
-    chunk del perfil aunque solo miraras Overview.
+      <div *ngIf="c.email || c.phone" class="mt-5 space-y-2 rounded-2xl border border-gray-200 p-4 text-sm text-gray-600">
+        <div *ngIf="c.email" class="flex items-center gap-2 min-w-0">
+          <ion-icon name="mail-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+          <span class="truncate">{{ c.email }}</span>
+        </div>
+        <div *ngIf="c.phone" class="flex items-center gap-2">
+          <ion-icon name="call-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
+          <span>{{ c.phone }}</span>
+        </div>
+      </div>
 
-    El `@if` de dentro de cada `@defer` es OBLIGATORIO y no es redundante: un
-    `@defer (when …)` NO vuelve al placeholder cuando la condición pasa a false, así que
-    sin él la pestaña quedaría montada para siempre. Con él se conserva el destruir/recrear
-    que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
-  -->
-  @if (activeTab() === 'overview') {
-    <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
-      [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)"
-      (hideTaxId)="hideTaxId()"></app-client-profile-overview>
-  }
+      <!-- Menú vertical de pestañas -->
+      <nav class="mt-5 flex flex-col gap-1" aria-label="Client sections">
+        <ng-container *ngFor="let item of navItems()">
+          <ng-container *ngIf="item.kind === 'tab'">
+            <ng-container *ngTemplateOutlet="navTab; context: { $implicit: item }"></ng-container>
+          </ng-container>
 
-  @if (activeTab() === 'info') {
-    <div class="flex flex-col gap-6">
-      <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
-        [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
-        (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
-        (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
-      <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
-        [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
-        (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"
-        (editFiscal)="openFiscalForm()" (editSection)="openSectionEdit($event)"></app-client-profile-info>
+          <ng-container *ngIf="item.kind === 'group'">
+            <p class="mt-3 mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ item.label }}</p>
+            <ng-container *ngFor="let tab of item.tabs">
+              <ng-container *ngTemplateOutlet="navTab; context: { $implicit: tab }"></ng-container>
+            </ng-container>
+          </ng-container>
+        </ng-container>
+      </nav>
+
+      <ng-template #navTab let-tab>
+        <button type="button" (click)="selectTab(tab.id)"
+          [attr.aria-current]="tab.id === activeTab() ? 'page' : null"
+          class="flex w-full items-center gap-3 rounded-r-xl border-l-[3px] px-3 py-2.5 text-left text-sm transition-colors"
+          [ngClass]="tab.id === activeTab() ? 'border-brand-bold bg-brand-surface font-semibold text-gray-900' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'">
+          <ion-icon [name]="tab.icon" class="shrink-0 text-lg"></ion-icon>
+          {{ tab.label }}
+        </button>
+      </ng-template>
+    </aside>
+
+    <!-- Contenido de la pestaña activa -->
+    <div class="flex min-w-0 flex-1 flex-col gap-6">
+      <!--
+        Contenido de la pestaña activa.
+
+        Overview e Info (Details y Family) van sin diferir: son las dos que más se abren y las que reciben el
+        objeto completo, así que entrar a un cliente no debe esperar por ningún chunk. Las
+        otras 11 se cargan la primera vez que se abren — antes las 15 pestañas viajaban en el
+        chunk del perfil aunque solo miraras Overview.
+
+        El `@if` de dentro de cada `@defer` es OBLIGATORIO y no es redundante: un
+        `@defer (when …)` NO vuelve al placeholder cuando la condición pasa a false, así que
+        sin él la pestaña quedaría montada para siempre. Con él se conserva el destruir/recrear
+        que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
+      -->
+      @if (activeTab() === 'overview') {
+        <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
+          [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)"
+          (hideTaxId)="hideTaxId()"></app-client-profile-overview>
+      }
+
+      @if (activeTab() === 'info') {
+        <div class="flex flex-col gap-6">
+          <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
+            [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
+            (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
+            (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
+          <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
+            [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
+            (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"
+            (editFiscal)="openFiscalForm()" (editSection)="openSectionEdit($event)"></app-client-profile-info>
+        </div>
+      }
+
+      <!-- Info ▸ Family: hogar fiscal (cónyuge + dependientes) -->
+      @if (activeTab() === 'family') {
+        <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()" [canManage]="canManage()"
+          (saveRelation)="handleSaveRelation($event)"
+          (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
+      }
+
+      @defer (when activeTab() === 'work'; prefetch on idle) {
+        @if (activeTab() === 'work') {
+          <div class="flex flex-col gap-6">
+            <app-client-task-workspace [clientId]="c.id" [clientName]="c.displayName" />
+            <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'work') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+        }
+      }
+
+      @defer (when activeTab() === 'documents'; prefetch on idle) {
+        @if (activeTab() === 'documents') {
+          <app-client-documents-workspace [clientId]="c.id" [clientName]="c.displayName" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'documents') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+        }
+      }
+
+      @defer (when activeTab() === 'signatures'; prefetch on idle) {
+        @if (activeTab() === 'signatures') {
+          <app-client-signature-workspace [clientId]="c.id" [clientName]="c.displayName" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'signatures') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+        }
+      }
+
+      @defer (when activeTab() === 'invoices'; prefetch on idle) {
+        @if (activeTab() === 'invoices') {
+          <app-client-billing-workspace [clientId]="c.id" [clientName]="c.displayName" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'invoices') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
+        }
+      }
+
+      @defer (when activeTab() === 'notes'; prefetch on idle) {
+        @if (activeTab() === 'notes') {
+          <div class="bg-white rounded-[28px] p-6">
+            <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'notes') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+        }
+      }
+
+      @defer (when activeTab() === 'communication'; prefetch on idle) {
+        @if (activeTab() === 'communication') {
+          <div class="flex flex-col gap-6">
+            <app-client-chat-card
+              [customerId]="c.id"
+              [email]="c.email"
+              [displayName]="c.displayName"
+            ></app-client-chat-card>
+            <app-client-mail-workspace [clientId]="c.id" [clientName]="c.displayName" />
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'communication') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+        }
+      }
+
+      @defer (when activeTab() === 'sms'; prefetch on idle) {
+        @if (activeTab() === 'sms') {
+          <app-client-sms-workspace [clientId]="c.id" [clientName]="c.displayName" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'sms') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+        }
+      }
+
+      @defer (when activeTab() === 'meetings'; prefetch on idle) {
+        @if (activeTab() === 'meetings') {
+          <app-client-meetings-workspace [clientId]="c.id" [clientName]="c.displayName" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'meetings') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+        }
+      }
+
+      @defer (when activeTab() === 'calls'; prefetch on idle) {
+        @if (activeTab() === 'calls') {
+          <app-client-profile-calls [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-calls>
+        }
+      } @placeholder {
+        @if (activeTab() === 'calls') {
+          <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
+        }
+      }
+
+      @defer (when activeTab() === 'bank'; prefetch on idle) {
+        @if (activeTab() === 'bank') {
+          <div class="bg-white rounded-[28px] p-6">
+            <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'bank') {
+          <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+        }
+      }
+
+      @defer (when activeTab() === 'reminders'; prefetch on idle) {
+        @if (activeTab() === 'reminders') {
+          <div class="bg-white rounded-[28px] p-6">
+            <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'reminders') {
+          <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+        }
+      }
+
+      @defer (when activeTab() === 'mileage'; prefetch on idle) {
+        @if (activeTab() === 'mileage') {
+          <app-client-profile-mileage [clientId]="c.id"></app-client-profile-mileage>
+        }
+      } @placeholder {
+        @if (activeTab() === 'mileage') {
+          <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+        }
+      }
+
+      @defer (when activeTab() === 'portal'; prefetch on idle) {
+        @if (activeTab() === 'portal') {
+          <app-client-profile-portal [clientId]="c.id" [clientEmail]="c.email"
+            [clientName]="c.displayName"></app-client-profile-portal>
+        }
+      } @placeholder {
+        @if (activeTab() === 'portal') {
+          <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
+        }
+      }
     </div>
-  }
-
-  <!-- Info ▸ Family: hogar fiscal (cónyuge + dependientes) -->
-  @if (activeTab() === 'family') {
-    <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()" [canManage]="canManage()"
-      (saveRelation)="handleSaveRelation($event)"
-      (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
-  }
-
-  @defer (when activeTab() === 'work'; prefetch on idle) {
-    @if (activeTab() === 'work') {
-      <div class="flex flex-col gap-6">
-        <app-client-task-workspace [clientId]="c.id" [clientName]="c.displayName" />
-        <app-client-profile-requests [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-requests>
-      </div>
-    }
-  } @placeholder {
-    @if (activeTab() === 'work') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
-    }
-  }
-
-  @defer (when activeTab() === 'documents'; prefetch on idle) {
-    @if (activeTab() === 'documents') {
-      <app-client-documents-workspace [clientId]="c.id" [clientName]="c.displayName" />
-    }
-  } @placeholder {
-    @if (activeTab() === 'documents') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
-    }
-  }
-
-  @defer (when activeTab() === 'signatures'; prefetch on idle) {
-    @if (activeTab() === 'signatures') {
-      <app-client-signature-workspace [clientId]="c.id" [clientName]="c.displayName" />
-    }
-  } @placeholder {
-    @if (activeTab() === 'signatures') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
-    }
-  }
-
-  @defer (when activeTab() === 'invoices'; prefetch on idle) {
-    @if (activeTab() === 'invoices') {
-      <app-client-billing-workspace [clientId]="c.id" [clientName]="c.displayName" />
-    }
-  } @placeholder {
-    @if (activeTab() === 'invoices') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="6" />
-    }
-  }
-
-  @defer (when activeTab() === 'notes'; prefetch on idle) {
-    @if (activeTab() === 'notes') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
-      </div>
-    }
-  } @placeholder {
-    @if (activeTab() === 'notes') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
-    }
-  }
-
-  @defer (when activeTab() === 'communication'; prefetch on idle) {
-    @if (activeTab() === 'communication') {
-      <div class="flex flex-col gap-6">
-        <app-client-chat-card
-          [customerId]="c.id"
-          [email]="c.email"
-          [displayName]="c.displayName"
-        ></app-client-chat-card>
-        <app-client-mail-workspace [clientId]="c.id" [clientName]="c.displayName" />
-      </div>
-    }
-  } @placeholder {
-    @if (activeTab() === 'communication') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
-    }
-  }
-
-  @defer (when activeTab() === 'sms'; prefetch on idle) {
-    @if (activeTab() === 'sms') {
-      <app-client-sms-workspace [clientId]="c.id" [clientName]="c.displayName" />
-    }
-  } @placeholder {
-    @if (activeTab() === 'sms') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
-    }
-  }
-
-  @defer (when activeTab() === 'meetings'; prefetch on idle) {
-    @if (activeTab() === 'meetings') {
-      <app-client-meetings-workspace [clientId]="c.id" [clientName]="c.displayName" />
-    }
-  } @placeholder {
-    @if (activeTab() === 'meetings') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
-    }
-  }
-
-  @defer (when activeTab() === 'calls'; prefetch on idle) {
-    @if (activeTab() === 'calls') {
-      <app-client-profile-calls [clientId]="c.id" [clientName]="c.displayName"></app-client-profile-calls>
-    }
-  } @placeholder {
-    @if (activeTab() === 'calls') {
-      <app-skeleton variant="rows" minHeight="20rem" [rows]="5" />
-    }
-  }
-
-  @defer (when activeTab() === 'bank'; prefetch on idle) {
-    @if (activeTab() === 'bank') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
-      </div>
-    }
-  } @placeholder {
-    @if (activeTab() === 'bank') {
-      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
-    }
-  }
-
-  @defer (when activeTab() === 'reminders'; prefetch on idle) {
-    @if (activeTab() === 'reminders') {
-      <div class="bg-white rounded-[28px] p-6">
-        <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
-      </div>
-    }
-  } @placeholder {
-    @if (activeTab() === 'reminders') {
-      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
-    }
-  }
-
-  @defer (when activeTab() === 'mileage'; prefetch on idle) {
-    @if (activeTab() === 'mileage') {
-      <app-client-profile-mileage [clientId]="c.id"></app-client-profile-mileage>
-    }
-  } @placeholder {
-    @if (activeTab() === 'mileage') {
-      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
-    }
-  }
-
-  @defer (when activeTab() === 'portal'; prefetch on idle) {
-    @if (activeTab() === 'portal') {
-      <app-client-profile-portal [clientId]="c.id" [clientEmail]="c.email"
-        [clientName]="c.displayName"></app-client-profile-portal>
-    }
-  } @placeholder {
-    @if (activeTab() === 'portal') {
-      <app-skeleton variant="rows" minHeight="16rem" [rows]="4" />
-    }
-  }
+  </div>
 
   <!--
     Los dos paneles se montaban siempre, aunque nadie los abriera nunca. Aquí NO hace falta

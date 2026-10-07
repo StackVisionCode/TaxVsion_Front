@@ -6,7 +6,6 @@ import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
-import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClientProfileOverviewComponent } from '../../ui/client-profile-overview/client-profile-overview.component';
 import { ClientProfileInfoComponent } from '../../ui/client-profile-info/client-profile-info.component';
 // Excepción a "una feature no importa de otra": los módulos completos del CRM fijos a este cliente
@@ -104,54 +103,56 @@ export type ClientProfileTabId =
 interface ClientProfileTab {
   id: ClientProfileTabId;
   label: string;
+  /** Icono de ionicons (registrado en src/main.ts). */
+  icon: string;
 }
 
-/** Entrada de la fila de tabs: una píldora simple, o una píldora "grupo" que despliega varias tabs relacionadas. */
+/** Entrada del menú lateral: una pestaña suelta, o un grupo con título y sus pestañas debajo. */
 type ClientProfileNavEntry =
-  | { kind: 'tab'; id: ClientProfileTabId; label: string }
+  | ({ kind: 'tab' } & ClientProfileTab)
   | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
 
 /**
- * Se agrupan las tabs de Info, Finance y Activity para no alargar la fila de
- * píldoras (12 tabs individuales no cabían sin scroll horizontal). Info agrupa
- * los datos del cliente (Details) y su hogar fiscal (Family: cónyuge y
- * dependientes). Overview y Portal quedan sueltas.
+ * Menú lateral del perfil: Info, Finance y Activity son secciones con título
+ * y sus pestañas debajo. Info agrupa los datos del cliente (Details) y su
+ * hogar fiscal (Family: cónyuge y dependientes). Overview y Portal quedan
+ * sueltas.
  */
 const PROFILE_NAV: ClientProfileNavEntry[] = [
-  { kind: 'tab', id: 'overview', label: 'Overview' },
+  { kind: 'tab', id: 'overview', label: 'Overview', icon: 'grid-outline' },
   {
     kind: 'group',
     label: 'Info',
     tabs: [
-      { id: 'info', label: 'Details' },
-      { id: 'family', label: 'Family' },
+      { id: 'info', label: 'Details', icon: 'person-outline' },
+      { id: 'family', label: 'Family', icon: 'people-outline' },
     ],
   },
   {
     kind: 'group',
     label: 'Finance',
     tabs: [
-      { id: 'invoices', label: 'Invoices' },
-      { id: 'bank', label: 'Bank' },
-      { id: 'mileage', label: 'Mileage' },
+      { id: 'invoices', label: 'Invoices', icon: 'receipt-outline' },
+      { id: 'bank', label: 'Bank', icon: 'wallet-outline' },
+      { id: 'mileage', label: 'Mileage', icon: 'car-outline' },
     ],
   },
   {
     kind: 'group',
     label: 'Activity',
     tabs: [
-      { id: 'work', label: 'Work' },
-      { id: 'documents', label: 'Documents' },
-      { id: 'signatures', label: 'Signatures' },
-      { id: 'notes', label: 'Notes' },
-      { id: 'communication', label: 'Email' },
-      { id: 'sms', label: 'SMS' },
-      { id: 'meetings', label: 'Meetings' },
-      { id: 'calls', label: 'Calls' },
-      { id: 'reminders', label: 'Reminders' },
+      { id: 'work', label: 'Work', icon: 'checkbox-outline' },
+      { id: 'documents', label: 'Documents', icon: 'document-text-outline' },
+      { id: 'signatures', label: 'Signatures', icon: 'create-outline' },
+      { id: 'notes', label: 'Notes', icon: 'reader-outline' },
+      { id: 'communication', label: 'Email', icon: 'mail-outline' },
+      { id: 'sms', label: 'SMS', icon: 'chatbox-ellipses-outline' },
+      { id: 'meetings', label: 'Meetings', icon: 'videocam-outline' },
+      { id: 'calls', label: 'Calls', icon: 'call-outline' },
+      { id: 'reminders', label: 'Reminders', icon: 'alarm-outline' },
     ],
   },
-  { kind: 'tab', id: 'portal', label: 'Portal' },
+  { kind: 'tab', id: 'portal', label: 'Portal', icon: 'globe-outline' },
 ];
 
 /**
@@ -173,11 +174,11 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
 };
 
 /**
- * Shell del perfil de cliente (patrón "Aether" tipo takeover, con
- * navegación por tabs estilo invoice-preview + settings-page): header con
- * botón de volver, avatar/nombre/chips de tipo y estado, botón "Edit" (abre
- * el mismo `app-client-form-panel` del directorio, precargado con este
- * cliente) y fila de tabs tipo píldora. El contenido de cada tab se resuelve
+ * Shell del perfil de cliente: barra superior con botón de volver y las
+ * acciones (Actions y "Edit", que abre el mismo `app-client-form-panel` del
+ * directorio, precargado con este cliente); columna izquierda con
+ * avatar/nombre/chips de tipo y estado, contacto y menú vertical de
+ * pestañas; contenido a la derecha. El contenido de cada tab se resuelve
  * por *ngSwitch sobre activeTab().
  *
  * `client` viene de GET /customers/{id} (ClientsStore) — no de una seed
@@ -207,7 +208,6 @@ const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> = {
   imports: [
     AvatarComponent,
     StatusPillComponent,
-    ClickOutsideDirective,
     CommonModule,
     RouterModule,
     ClientProfileOverviewComponent,
@@ -259,8 +259,8 @@ export class ClientProfilePageComponent implements OnDestroy {
   private readonly access = inject(AccessStore);
 
   /**
-   * La fila de pestañas, ya filtrada. Un grupo cuyas pestañas se fueron todas desaparece con
-   * ellas: un desplegable vacío es peor que no tener el desplegable.
+   * El menú de pestañas, ya filtrado. Un grupo cuyas pestañas se fueron todas desaparece con
+   * ellas: una sección vacía es peor que no tener la sección.
    */
   readonly navItems = computed<ClientProfileNavEntry[]>(() =>
     PROFILE_NAV.map(entry =>
@@ -287,9 +287,6 @@ export class ClientProfilePageComponent implements OnDestroy {
   );
 
   readonly activeTab = signal<ClientProfileTabId>('overview');
-
-  /** Label del grupo (Finance/Activity) cuyo dropdown está abierto, o null si ninguno. */
-  readonly openGroupLabel = signal<string | null>(null);
 
   /**
    * Signal reactiva sobre paramMap (no un snapshot leído una sola vez): con
@@ -807,16 +804,6 @@ export class ClientProfilePageComponent implements OnDestroy {
       this.hideTaxId();
     }
     this.activeTab.set(id);
-    this.openGroupLabel.set(null);
-  }
-
-  toggleGroup(label: string, event: MouseEvent): void {
-    event.stopPropagation();
-    this.openGroupLabel.set(this.openGroupLabel() === label ? null : label);
-  }
-
-  isGroupActive(group: Extract<ClientProfileNavEntry, { kind: 'group' }>): boolean {
-    return group.tabs.some(tab => tab.id === this.activeTab());
   }
 
   openEditPanel(): void {
