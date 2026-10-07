@@ -1,6 +1,7 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
   EventEmitter,
   Input,
   OnChanges,
@@ -15,7 +16,7 @@ import { CommonModule } from '@angular/common';
 import { ClientProfile } from '../../models/client-profile.model';
 import { CustomerAssignee, CustomerLanguage, PreferredChannel } from '../../data-access/clients.model';
 import { ApiTaskPriority, ApiTaskStatus } from '../../data-access/client-work.model';
-import { ClientOverviewStore } from '../../data-access/client-overview.store';
+import { ClientOverviewStore, OverviewSection } from '../../data-access/client-overview.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsStore } from '../../data-access/clients.store';
 import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
@@ -25,9 +26,72 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { formatPhoneForDisplay } from '@shared/utils/phone.util';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
+import { formatMoney } from '@shared/utils/format.util';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { ClientProfileTabId } from '../../data-access/client-tab-access';
+import {
+  SummaryInvoiceStatus,
+  SummaryMeeting,
+  SummarySignatureStatus,
+  SummarySmsStatus,
+} from '../../data-access/client-summary.service';
+import { portalStatusChipClass, portalStatusLabel } from '../../data-access/client-portal.model';
 
 /** Pestañas del perfil a las que el Overview puede saltar desde sus "See all". */
-export type OverviewTabLink = 'work' | 'documents' | 'communication' | 'info';
+export type OverviewTabLink = Exclude<ClientProfileTabId, 'overview'>;
+
+const INVOICE_CHIPS: Record<SummaryInvoiceStatus, string> = {
+  Draft: 'bg-gray-100 text-gray-500',
+  Issued: 'bg-indigo-50 text-indigo-600',
+  Sent: 'bg-indigo-50 text-indigo-600',
+  PartiallyPaid: 'bg-amber-50 text-amber-600',
+  Paid: 'bg-emerald-50 text-emerald-600',
+  Voided: 'bg-gray-100 text-gray-400',
+};
+
+const INVOICE_LABELS: Record<SummaryInvoiceStatus, string> = {
+  Draft: 'Draft',
+  Issued: 'Issued',
+  Sent: 'Sent',
+  PartiallyPaid: 'Partial',
+  Paid: 'Paid',
+  Voided: 'Voided',
+};
+
+const SIGNATURE_CHIPS: Record<SummarySignatureStatus, string> = {
+  Draft: 'bg-gray-100 text-gray-500',
+  Ready: 'bg-indigo-50 text-indigo-600',
+  Scheduled: 'bg-indigo-50 text-indigo-600',
+  InProgress: 'bg-amber-50 text-amber-600',
+  Completed: 'bg-emerald-50 text-emerald-600',
+  Rejected: 'bg-red-50 text-red-600',
+  Canceled: 'bg-gray-100 text-gray-400',
+  Expired: 'bg-red-50 text-red-500',
+};
+
+const SIGNATURE_LABELS: Record<SummarySignatureStatus, string> = {
+  Draft: 'Draft',
+  Ready: 'Ready',
+  Scheduled: 'Scheduled',
+  InProgress: 'Awaiting',
+  Completed: 'Signed',
+  Rejected: 'Rejected',
+  Canceled: 'Canceled',
+  Expired: 'Expired',
+};
+
+const SMS_CHIPS: Record<SummarySmsStatus, string> = {
+  Pending: 'text-gray-400',
+  Accepted: 'text-indigo-500',
+  Delivered: 'text-emerald-500',
+  Failed: 'text-red-500',
+  Undeliverable: 'text-red-500',
+  Suppressed: 'text-gray-400',
+};
+
+/** Reloj del Overview: refresca cuentas regresivas ("in 2h") sin recargar datos. */
+const CLOCK_TICK_MS = 30_000;
 
 /** Fondos de las tarjetas de Activity, rotando como en una agenda (mismos tonos de marca/Tailwind). */
 const ACTIVITY_TINTS = [
@@ -90,7 +154,7 @@ const PRIORITY_CHIPS: Record<ApiTaskPriority, string> = {
  */
 @Component({
   selector: 'app-client-profile-overview',
-  imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent, AvatarComponent],
+  imports: [CommonModule, CountUpDirective, ClientAssignDialogComponent, AvatarComponent, TimeAgoPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-overview.component.html',
   styleUrl: './client-profile-overview.component.css',
@@ -139,8 +203,146 @@ export class ClientProfileOverviewComponent implements OnChanges {
   /** Tarjeta abierta (id de tarea o hilo), o null. */
   readonly expandedId = signal<string | null>(null);
 
+  private readonly clientSignal = signal<ClientProfile | null>(null);
+
+  /** Hora actual para cuentas regresivas (se mueve sola cada 30 s). */
+  readonly now = signal(Date.now());
+
+  // ---------- Finanzas / familia (derivados del cliente o del store) ----------
+
+  /** Ancho (%) de la barra de cobrado; arranca en 0 para animarse al entrar. */
+  readonly collectedBarPercent = computed(() => (this.gaugeReady() ? this.summary.invoiceSummary().collectedPercent : 0));
+
+  /** Ancho (%) de cada tramo de la barra de firmas (completadas / en curso / con problema). */
+  readonly signatureBars = computed(() => {
+    const s = this.summary.signatureSummary();
+    const total = s.completed + s.pending + s.attention + s.draft;
+    const pct = (n: number) => (this.gaugeReady() && total > 0 ? (n / total) * 100 : 0);
+    return { completed: pct(s.completed), pending: pct(s.pending), attention: pct(s.attention), draft: pct(s.draft) };
+  });
+
+  /** Cónyuge + dependientes. Lee `clientSignal` (el @Input clásico no es reactivo para un computed). */
+  readonly familyMembers = computed(() => {
+    const client = this.clientSignal();
+    const members: { name: string; relation: string; age: number | null; contact: string }[] = [];
+    if (client?.spouse) {
+      members.push({
+        name: client.spouse.name,
+        relation: 'Spouse',
+        age: ageFrom(client.spouse.dateOfBirth),
+        contact: client.spouse.email || client.spouse.phone || '',
+      });
+    }
+    for (const dependent of client?.dependents ?? []) {
+      members.push({ name: dependent.name, relation: dependent.relationship, age: ageFrom(dependent.dateOfBirth), contact: '' });
+    }
+    return members;
+  });
+
   constructor() {
     afterNextRender(() => this.gaugeReady.set(true));
+    const timer = setInterval(() => this.now.set(Date.now()), CLOCK_TICK_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  isAvailable(section: OverviewSection): boolean {
+    return this.summary.available().has(section);
+  }
+
+  money(cents: number, currency: string): string {
+    return formatMoney(cents, currency, { fromCents: true });
+  }
+
+  invoiceChip(status: SummaryInvoiceStatus): string {
+    return INVOICE_CHIPS[status] ?? INVOICE_CHIPS.Draft;
+  }
+
+  invoiceLabel(status: SummaryInvoiceStatus): string {
+    return INVOICE_LABELS[status] ?? status;
+  }
+
+  signatureChip(status: SummarySignatureStatus): string {
+    return SIGNATURE_CHIPS[status] ?? SIGNATURE_CHIPS.Draft;
+  }
+
+  signatureLabel(status: SummarySignatureStatus): string {
+    return SIGNATURE_LABELS[status] ?? status;
+  }
+
+  smsStatusClass(status: SummarySmsStatus): string {
+    return SMS_CHIPS[status] ?? 'text-gray-400';
+  }
+
+  /** "Live now", "in 25m", "in 3h", "Tomorrow 9:00 AM", "Oct 12, 9:00 AM". */
+  meetingWhen(meeting: SummaryMeeting): string {
+    if (meeting.status === 'Live') {
+      return 'Live now';
+    }
+    if (!meeting.scheduledForUtc) {
+      return 'Not scheduled';
+    }
+    const at = parseUtcDate(meeting.scheduledForUtc);
+    const diffMin = Math.round((at.getTime() - this.now()) / 60_000);
+    if (diffMin <= 0) {
+      return 'Starting now';
+    }
+    if (diffMin < 60) {
+      return `in ${diffMin}m`;
+    }
+    if (diffMin < 12 * 60) {
+      return `in ${Math.round(diffMin / 60)}h`;
+    }
+    const time = at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const tomorrow = new Date(this.now());
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (at.toDateString() === tomorrow.toDateString()) {
+      return `Tomorrow ${time}`;
+    }
+    return `${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`;
+  }
+
+  /** Día y mes del meeting para el "calendario" de la tarjeta. */
+  meetingDay(meeting: SummaryMeeting): { day: string; month: string } {
+    const iso = meeting.scheduledForUtc ?? meeting.startedAtUtc;
+    if (!iso) {
+      return { day: '—', month: '' };
+    }
+    const at = parseUtcDate(iso);
+    return { day: String(at.getDate()), month: at.toLocaleDateString('en-US', { month: 'short' }) };
+  }
+
+  /** 125 → "2m 5s". */
+  duration(seconds: number | null | undefined): string {
+    if (!seconds) {
+      return '—';
+    }
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  portalLabel(): string {
+    const portal = this.summary.portal();
+    return portal ? portalStatusLabel(portal.status) : 'Unknown';
+  }
+
+  portalChip(): string {
+    const portal = this.summary.portal();
+    return portal ? portalStatusChipClass(portal.status) : 'border-gray-200 bg-gray-50 text-gray-500';
+  }
+
+  primaryAddress(): string {
+    const address = this.client.addresses.find(a => a.isPrimary) ?? this.client.addresses[0];
+    if (!address) {
+      return '';
+    }
+    return [address.line1, address.city, [address.region, address.postalCode].filter(Boolean).join(' ')]
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  clientAge(): number | null {
+    return ageFrom(this.client.individual?.dateOfBirth ?? '');
   }
 
   setActivityTab(tab: 'tasks' | 'emails'): void {
@@ -185,8 +387,9 @@ export class ClientProfileOverviewComponent implements OnChanges {
     }
     this.confirmingReveal.set(false);
     this.expandedId.set(null);
+    this.clientSignal.set(this.client ?? null);
     if (this.client?.id) {
-      this.summary.load(this.client.id);
+      this.summary.load(this.client.id, this.client.email);
       this._assignees.set(this.client.assignees ?? []);
       this.staff.ensureLoaded();
     }
@@ -303,4 +506,22 @@ export class ClientProfileOverviewComponent implements OnChanges {
   returningLabel(): string {
     return this.client.fiscalProfile?.isReturningCustomer ? 'Yes' : 'No';
   }
+}
+
+/** Edad a partir de YYYY-MM-DD; null si no hay fecha válida. */
+function ageFrom(dateOfBirth: string): number | null {
+  if (!dateOfBirth) {
+    return null;
+  }
+  const dob = new Date(`${dateOfBirth.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(dob.getTime())) {
+    return null;
+  }
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const beforeBirthday = now.getMonth() < dob.getMonth() || (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate());
+  if (beforeBirthday) {
+    age -= 1;
+  }
+  return age >= 0 ? age : null;
 }
