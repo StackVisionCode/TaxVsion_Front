@@ -141,6 +141,8 @@ export class ActiveMeetingService {
    * del componente, no de la sesión.
    */
   readonly roomViewAttached = signal(false);
+  /** El panel de chat de la sala está abierto: el mensaje entrante suena distinto (`chat-message`). */
+  readonly chatPanelOpen = signal(false);
   /** Participante fijado (spotlight) en la sala; el mini-player lo usa si nadie está hablando. */
   readonly pinnedUserId = signal<string | null>(null);
   /** Participantes efectivamente dentro (no en espera ni salidos) — para la grilla. */
@@ -239,7 +241,8 @@ export class ActiveMeetingService {
           return list; // dedupe (el propio broadcast del remitente)
         }
         if (dto.senderId !== this.myUserId() && dto.kind !== 'System') {
-          this.sounds.play('notification');
+          // Con el chat abierto, un sonido de "mensaje recibido"; cerrado, el aviso general.
+          this.sounds.play(this.chatPanelOpen() ? 'chat-message' : 'notification');
         }
         return [...list, this.toChatView(dto)];
       });

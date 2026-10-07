@@ -16,6 +16,7 @@ import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
+import { MeetingSoundsService } from '@core/communication/meeting-sounds.service';
 import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import { avatarColorFor } from '@shared/utils/avatar.util';
@@ -74,6 +75,7 @@ export class ChatStore {
   private readonly attachments = inject(ChatAttachmentsService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly toast = inject(ToastService);
+  private readonly sounds = inject(MeetingSoundsService);
 
   private readonly _conversations = signal<ChatConversation[]>([]);
   private readonly _loading = signal(false);
@@ -84,6 +86,11 @@ export class ChatStore {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly activeConversationId = this._activeConversationId.asReadonly();
+  /**
+   * La página /chat está montada (la pone la propia página). El store es root y conserva la
+   * conversación activa al salir de /chat, así que "activa" sola no significa "la estoy viendo".
+   */
+  readonly pageAttached = signal(false);
   readonly connected = this.socket.connected;
   /** No-leídos totales de todas las conversaciones — para el badge del sidebar. */
   readonly totalUnread = computed(() => this._conversations().reduce((sum, c) => sum + c.unread, 0));
@@ -911,6 +918,10 @@ export class ChatStore {
       // abierta → solo entregado (2 grises). Estar conectado nunca equivale a haber leído.
       if (isActive) {
         void this.socket.markRead(dto.conversationId, dto.id);
+        // Mensaje en la conversación que tengo abierta en /chat: sonido de "mensaje recibido".
+        if (this.pageAttached()) {
+          this.sounds.play('chat-message');
+        }
       } else {
         void this.socket.markDelivered(dto.conversationId, dto.id);
       }

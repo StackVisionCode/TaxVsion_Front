@@ -1,4 +1,9 @@
-<div class="relative bg-white rounded-[28px] p-6 flex flex-col min-h-[32rem]" aria-live="polite">
+<!-- Fuera de la sala (uniéndose, espera, passcode, fin) es una tarjeta blanca; dentro, un escenario
+     oscuro del alto de la pantalla para que los participantes tengan todo el espacio. -->
+<div class="relative flex flex-col rounded-[28px]" aria-live="polite"
+  [ngClass]="phase() === 'joined'
+    ? 'h-[calc(100dvh-3rem)] min-h-[30rem] bg-brand-black p-3 text-white sm:p-4'
+    : 'min-h-[32rem] bg-white p-6'">
   <!-- Joining -->
   <div *ngIf="phase() === 'joining'" class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
     <ion-icon name="reload-outline" class="animate-spin text-3xl text-brand-bold motion-reduce:animate-none"></ion-icon>
@@ -81,14 +86,15 @@
 
   <!-- Joined: video mesh -->
   <ng-container *ngIf="phase() === 'joined'">
-    <!-- Header -->
-    <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+    <!-- Header. lg:pr deja libre el hueco del navbar (lupa/campana/perfil): los controles del host se
+         corren a la izquierda, también cuando la lupa se abre. -->
+    <div class="flex flex-wrap items-center gap-3 border-b border-white/10 px-1 pb-3 lg:pr-[var(--shell-notch-width)]">
       <div class="min-w-0 flex-1">
-        <h2 class="truncate text-base font-bold text-gray-900">{{ title() || 'Meeting' }}</h2>
-        <p class="flex items-center gap-1.5 text-xs text-gray-500">
+        <h2 class="truncate text-base font-bold text-white">{{ title() || 'Meeting' }}</h2>
+        <p class="flex items-center gap-1.5 text-xs text-gray-400">
           <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
           Live · {{ participants().length }} {{ participants().length === 1 ? 'participant' : 'participants' }}
-          <span *ngIf="isLocked()" class="ml-1 inline-flex items-center gap-1 text-gray-400">
+          <span *ngIf="isLocked()" class="ml-1 inline-flex items-center gap-1 text-gray-300">
             <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> Locked
           </span>
           <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white tabular-nums">
@@ -100,25 +106,25 @@
       <!-- Host controls -->
       <div *ngIf="isHost()" class="flex items-center gap-2">
         <button type="button" (click)="muteAll()"
-          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          class="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:bg-white/10 transition-colors">
           <ion-icon name="mic-off-outline" class="text-sm"></ion-icon> Mute all
         </button>
         <button type="button" (click)="toggleLock()" [attr.aria-pressed]="isLocked()"
           [attr.aria-label]="isLocked() ? 'Unlock meeting' : 'Lock meeting'"
           class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-          [ngClass]="isLocked() ? 'border-brand-bold/30 bg-indigo-50 text-brand-bold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+          [ngClass]="isLocked() ? 'border-white/25 bg-white/15 text-white' : 'border-white/15 text-gray-200 hover:bg-white/10'">
           <ion-icon [name]="isLocked() ? 'lock-closed-outline' : 'lock-open-outline'" class="text-sm"></ion-icon>
           {{ isLocked() ? 'Locked' : 'Lock' }}
         </button>
         <button *ngIf="canEndForAll()" type="button" (click)="endConfirmOpen.set(true)"
-          class="flex items-center gap-1.5 rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+          class="flex items-center gap-1.5 rounded-full border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/15 transition-colors">
           <ion-icon name="power-outline" class="text-sm"></ion-icon> End for all
         </button>
       </div>
     </div>
 
     <!-- Waiting room (host): admitir / denegar -->
-    <div *ngIf="isHost() && waitingParticipants().length" class="mt-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
+    <div *ngIf="isHost() && waitingParticipants().length" class="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-gray-900">
       <p class="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
         <ion-icon name="hourglass-outline" class="text-sm"></ion-icon>
         Waiting to join ({{ waitingParticipants().length }})
@@ -139,8 +145,14 @@
       </div>
     </div>
 
-    <!-- Área de video: escenario+filmstrip si alguien comparte pantalla; galería de cámaras si no. -->
-    <div class="flex-1 overflow-y-auto py-4">
+    <!-- Fila: escenario de video + chat. El chat es una columna que EMPUJA el escenario (se achica);
+         en móvil, sin espacio para dos columnas, se superpone. -->
+    <div class="mt-3 flex min-h-0 flex-1 gap-3">
+    <!-- Escenario: video arriba, controles flotando abajo dentro del mismo cuadro. -->
+    <div class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-gray-900/60">
+    <!-- Área de video: escenario+filmstrip si alguien comparte pantalla; galería de cámaras si no.
+         pb-24 deja libre la franja de los controles flotantes. -->
+    <div class="flex-1 overflow-y-auto p-3 pb-24">
       <!-- ===== MODO ESCENARIO (alguien comparte pantalla) ===== -->
       <ng-container *ngIf="isSharing(); else gallery">
         <!-- Escenario: la pantalla seleccionada, en grande -->
@@ -157,7 +169,7 @@
         <div *ngIf="screenShares().length > 1" class="mt-3 flex flex-wrap gap-2">
           <button *ngFor="let s of screenShares()" type="button" (click)="selectShare(s.userId)"
             class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-            [ngClass]="activeShare()?.userId === s.userId ? 'border-brand-bold bg-indigo-50 text-brand-bold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+            [ngClass]="activeShare()?.userId === s.userId ? 'border-white/30 bg-white/15 text-white' : 'border-white/15 text-gray-300 hover:bg-white/10'">
             <ion-icon name="desktop-outline" class="text-sm"></ion-icon>
             {{ s.isMine ? 'Your screen' : s.displayName }}
           </button>
@@ -190,7 +202,7 @@
 
       <!-- ===== MODO GALERÍA (nadie comparte) — columnas por conteo ===== -->
       <ng-template #gallery>
-        <div class="grid gap-3" [ngClass]="galleryColsClass()">
+        <div class="mx-auto grid w-full max-w-[calc((100dvh-15rem)*16/9)] gap-3" [ngClass]="galleryColsClass()">
           <!-- Mi tile -->
           <div class="relative aspect-video overflow-hidden rounded-2xl bg-gray-900">
             <video [srcObject]="localStream()" autoplay playsinline muted
@@ -251,63 +263,69 @@
           </div>
         </div>
 
-        <p *ngIf="remoteParticipants().length === 0" class="py-8 text-center text-sm text-gray-400">
-          You're the first one here. Waiting for others to join…
-        </p>
       </ng-template>
     </div>
 
-    <!-- Controles -->
-    <div class="flex items-center justify-center gap-3 border-t border-gray-100 pt-4">
+    <!-- Solo en la sala: aviso flotante arriba, sin ocupar una franja propia -->
+    <p *ngIf="!isSharing() && remoteParticipants().length === 0"
+      class="pointer-events-none absolute left-1/2 top-5 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-4 py-1.5 text-xs font-medium text-gray-200 backdrop-blur-sm">
+      You're the first one here. Waiting for others to join…
+    </p>
+
+    <!-- Controles: pastilla flotante dentro del escenario (no ocupan una franja aparte) -->
+    <div class="absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
+    <div class="flex max-w-full items-center gap-2 overflow-x-auto rounded-full bg-black/60 p-2 shadow-lg backdrop-blur-md">
       <button type="button" (click)="toggleAudio()"
         [attr.aria-pressed]="!audioEnabled()" [attr.aria-label]="audioEnabled() ? 'Mute microphone' : 'Unmute microphone'"
-        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
-        [ngClass]="audioEnabled() ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-red-500 text-white hover:bg-red-600'">
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors"
+        [ngClass]="audioEnabled() ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-red-500 text-white hover:bg-red-600'">
         <ion-icon [name]="audioEnabled() ? 'mic-outline' : 'mic-off-outline'" class="text-xl"></ion-icon>
       </button>
       <button type="button" (click)="toggleVideo()"
         [attr.aria-pressed]="!videoEnabled()" [attr.aria-label]="videoEnabled() ? 'Turn camera off' : 'Turn camera on'"
-        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
-        [ngClass]="videoEnabled() ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-red-500 text-white hover:bg-red-600'">
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors"
+        [ngClass]="videoEnabled() ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-red-500 text-white hover:bg-red-600'">
         <ion-icon [name]="videoEnabled() ? 'videocam-outline' : 'videocam-off-outline'" class="text-xl"></ion-icon>
       </button>
       <button *ngIf="canScreenShare" type="button" (click)="toggleScreenShare()"
         [attr.aria-pressed]="screenSharing()" [attr.aria-label]="screenSharing() ? 'Stop sharing screen' : 'Share screen'"
-        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors"
-        [ngClass]="screenSharing() ? 'bg-brand-bold text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors"
+        [ngClass]="screenSharing() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
         <ion-icon [name]="screenSharing() ? 'stop-circle-outline' : 'desktop-outline'" class="text-xl"></ion-icon>
       </button>
       <button type="button" (click)="toggleHand()"
         [attr.aria-pressed]="handRaised()" [attr.aria-label]="handRaised() ? 'Lower hand' : 'Raise hand'"
-        class="flex h-12 w-12 items-center justify-center rounded-full text-lg transition-colors"
-        [ngClass]="handRaised() ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg transition-colors"
+        [ngClass]="handRaised() ? 'bg-amber-400 text-amber-950' : 'bg-white/10 text-white hover:bg-white/20'">
         ✋
       </button>
       <button *ngIf="showRecordButton() || (isRecording() && isRecordingRequester())" type="button" (click)="toggleRecording()"
         [disabled]="isRecordingBusy()" [attr.aria-label]="isRecording() ? 'Stop recording' : 'Record meeting'"
-        class="flex h-12 w-12 items-center justify-center rounded-full transition-colors disabled:opacity-50"
-        [ngClass]="isRecording() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
+        [ngClass]="isRecording() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white/10 text-white hover:bg-white/20'">
         <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-xl"></ion-icon>
       </button>
       <button type="button" (click)="toggleChat()" [attr.aria-pressed]="chatOpen()" aria-label="Toggle meeting chat"
-        class="relative flex h-12 w-12 items-center justify-center rounded-full transition-colors"
-        [ngClass]="chatOpen() ? 'bg-brand-bold text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
+        class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors"
+        [ngClass]="chatOpen() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
         <ion-icon name="chatbubble-ellipses-outline" class="text-xl"></ion-icon>
         <span *ngIf="chatUnread() > 0"
-          class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] ring-2 ring-black/60 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
           {{ chatUnread() }}
         </span>
       </button>
       <button type="button" (click)="leave()" aria-label="Leave meeting"
-        class="flex h-12 items-center gap-2 rounded-full bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
+        class="flex h-11 shrink-0 items-center gap-2 rounded-full bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">
         <ion-icon name="call-outline" class="rotate-[135deg] text-lg"></ion-icon>
         Leave
       </button>
     </div>
+    </div>
+    </div>
 
-    <!-- Chat del meeting (drawer) -->
-    <div *ngIf="chatOpen()"
-      class="absolute inset-y-0 right-0 z-20 flex w-full flex-col rounded-r-[28px] border-l border-gray-100 bg-white shadow-2xl sm:w-80">
+    <!-- Chat del meeting: columna junto al escenario (sm+); en móvil cubre la sala. -->
+    <aside *ngIf="chatOpen()" aria-label="Meeting chat"
+      class="absolute inset-0 z-20 flex flex-col overflow-hidden rounded-[28px] bg-white text-gray-900 sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:rounded-2xl lg:w-[22rem]">
       <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <h3 class="text-sm font-bold text-gray-900">Meeting chat</h3>
         <button type="button" (click)="toggleChat()" aria-label="Close chat"
@@ -341,6 +359,7 @@
           <ion-icon name="send-outline" class="text-base"></ion-icon>
         </button>
       </form>
+    </aside>
     </div>
 
     <!-- Modal de consentimiento de grabación (lo ve quien NO pidió grabar) -->

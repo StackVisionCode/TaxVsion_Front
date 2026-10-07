@@ -131,6 +131,9 @@ export class ChatPageComponent {
   readonly canCreateGroups = this.store.canCreateGroups;
 
   constructor() {
+    // El store suena al recibir un mensaje solo mientras esta página está a la vista.
+    this.store.pageAttached.set(true);
+    this.destroyRef.onDestroy(() => this.store.pageAttached.set(false));
     // Deep-link opcional `?conversation=<id>` (p. ej. desde un ticket de Support): abre esa.
     const preferId = this.route.snapshot.queryParamMap.get('conversation');
     this.store.load(preferId ?? undefined);
