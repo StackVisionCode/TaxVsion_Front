@@ -1,0 +1,178 @@
+/* ============================================
+   Transición login → dashboard
+   Regla R8: solo se animan opacity y transform. El desenfoque es ESTÁTICO (capas de
+   backdrop-filter con máscara); lo único que se mueve es la pista de iconos.
+   ============================================ */
+
+/* Entrada/salida del overlay: solo opacity. El nodo se retira con @if cuando `active()`
+   cae, así el `forwards` de la salida nunca deja nada aplicado. */
+.login-transition {
+  animation: login-transition-in 260ms ease-out both;
+}
+
+@keyframes login-transition-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.login-transition.is-leaving {
+  animation: login-transition-out 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes login-transition-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- Cinta sin costura ----------
+   La pista son DOS copias de la lista; desplazar -50 % es exactamente una copia, así el
+   bucle vuelve al mismo pixel. `contain: paint` acota el trabajo de las capas de blur. */
+.conveyor {
+  contain: paint;
+}
+
+.conveyor-track {
+  width: max-content;
+  animation: conveyor-run 7s linear infinite;
+  will-change: transform;
+}
+
+@keyframes conveyor-run {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ---------- Blur progresivo ----------
+   Cuatro capas de backdrop-filter apiladas: cada una desenfoca más y su máscara la deja
+   actuar más cerca del borde. El ~30 % central queda nítido; hacia los lados el blur crece
+   por escalones (2 → 5 → 10 → 18 px). Nunca se anima el filtro: solo la pista de abajo. */
+.blur-layer {
+  pointer-events: none;
+}
+
+.blur-layer-1 {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(to right, #000 0 20%, transparent 36%, transparent 64%, #000 80% 100%);
+  mask-image: linear-gradient(to right, #000 0 20%, transparent 36%, transparent 64%, #000 80% 100%);
+}
+
+.blur-layer-2 {
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(to right, #000 0 14%, transparent 28%, transparent 72%, #000 86% 100%);
+  mask-image: linear-gradient(to right, #000 0 14%, transparent 28%, transparent 72%, #000 86% 100%);
+}
+
+.blur-layer-3 {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to right, #000 0 8%, transparent 20%, transparent 80%, #000 92% 100%);
+  mask-image: linear-gradient(to right, #000 0 8%, transparent 20%, transparent 80%, #000 92% 100%);
+}
+
+.blur-layer-4 {
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(to right, #000 0 3%, transparent 12%, transparent 88%, #000 97% 100%);
+  mask-image: linear-gradient(to right, #000 0 3%, transparent 12%, transparent 88%, #000 97% 100%);
+}
+
+/* Velo del color de fondo en los extremos (misma variable que Tailwind: tematizable). */
+.edge-veil {
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgb(var(--color-indigo-50-rgb, 245 247 250)) 0%,
+    rgb(var(--color-indigo-50-rgb, 245 247 250) / 0) 14%,
+    rgb(var(--color-indigo-50-rgb, 245 247 250) / 0) 86%,
+    rgb(var(--color-indigo-50-rgb, 245 247 250)) 100%
+  );
+}
+
+/* Enfoque inicial: una capa que desenfoca TODA la cinta y se desvanece (solo opacity).
+   Termina en visibility:hidden para que el navegador deje de calcular ese backdrop. */
+.focus-in {
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  animation: focus-in 700ms cubic-bezier(0.2, 0, 0, 1) 120ms both;
+}
+
+@keyframes focus-in {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Marca: pulso sutil de opacidad. */
+.brand-tile {
+  animation: brand-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes brand-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Texto de estado con entrada suave (termina en `transform: none`, ver R8). */
+.caption {
+  animation: caption-up 400ms ease 150ms both;
+}
+
+@keyframes caption-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Sin backdrop-filter: queda el velo de bordes (degradación limpia, sin blur). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .blur-layer,
+  .focus-in {
+    display: none;
+  }
+}
+
+/* Accesibilidad: con menos movimiento la cinta queda quieta, sin blur ni fades. */
+@media (prefers-reduced-motion: reduce) {
+  .login-transition,
+  .login-transition.is-leaving,
+  .brand-tile,
+  .caption,
+  .conveyor-track {
+    animation: none;
+  }
+
+  .blur-layer,
+  .focus-in {
+    display: none;
+  }
+}

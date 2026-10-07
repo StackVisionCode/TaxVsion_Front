@@ -20,6 +20,7 @@ import {
 import { environment } from '@env/environment';
 import { AuthService, LoginOutcome } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
+import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { landingUrl } from '@core/config/landing';
@@ -33,14 +34,15 @@ import {
   PlanPickerModalComponent,
 } from '../../ui/plan-picker-modal/plan-picker-modal.component';
 
-type LoginPhase = 'idle' | 'verifying' | 'sinking' | 'loading' | 'fading';
+type LoginPhase = 'idle' | 'verifying' | 'sinking';
 
 /**
  * Login conectado al backend TaxPro Office vía AuthService. Al enviar: se llama a
  * POST /auth/login; si hay tokens se reproduce la coreografía de salida (la tarjeta
- * se hunde, aparece el loader y se navega al dashboard/returnUrl); si el backend
- * pide MFA se enruta a /login/verify o /login/setup-mfa. En modo mock
- * (`environment.authMock`) el login es sintético y entra directo.
+ * se hunde, arranca la escena de transición global —`LoginTransitionService`, montada
+ * en la raíz— y se navega al dashboard/returnUrl); si el backend pide MFA se enruta a
+ * /login/verify o /login/setup-mfa. En modo mock (`environment.authMock`) el login es
+ * sintético y entra directo.
  */
 @Component({
   selector: 'app-login-page',
@@ -60,18 +62,17 @@ export class LoginPageComponent {
   private readonly api = inject(ApiConfigService);
   private readonly branding = inject(TenantBrandingService);
   private readonly prefetch = inject(RoutePrefetchService);
+  private readonly transition = inject(LoginTransitionService);
 
   /**
-   * Duraciones de la coreografía de salida. Antes eran 500 + 1400 + 400 = 2300 ms FIJOS
-   * que no esperaban ningún dato: el loader era puro relleno. Ahora el loader dura lo que
-   * dure el trabajo REAL (perfil + código del dashboard), acotado por arriba y por abajo.
+   * Duraciones de la coreografía de salida. La espera previa a navegar dura lo que dure el
+   * trabajo REAL (perfil + código del dashboard), con techo. El piso visible y el fade final
+   * ya no viven acá: los gobierna `LoginTransitionService`, que además sigue cubriendo la
+   * pantalla hasta que el shell pintó.
    */
   private static readonly SINK_MS = 180;
-  /** Piso: por debajo de esto el loader parpadearía en vez de leerse. */
-  private static readonly MIN_LOADER_MS = 320;
-  /** Techo: un backend lento no debe dejar al usuario mirando el loader. */
+  /** Techo: un backend lento no debe retrasar la navegación más que esto. */
   private static readonly MAX_LOADER_MS = 2000;
-  private static readonly FADE_MS = 160;
 
   /**
    * Estamos en el subdominio de una oficina (manfer.taxproffice.com) y no en el apex/app.
@@ -125,10 +126,7 @@ export class LoginPageComponent {
   readonly phase = signal<LoginPhase>('idle');
   readonly isLoggingIn = computed(() => this.phase() !== 'idle');
   /** La tarjeta queda hundida desde 'sinking' en adelante. */
-  readonly isSunk = computed(() => this.phase() !== 'idle' && this.phase() !== 'verifying');
-  readonly showLoader = computed(() => this.phase() === 'loading' || this.phase() === 'fading');
-
-  readonly loaderDots = Array.from({ length: 8 });
+  readonly isSunk = computed(() => this.phase() === 'sinking');
 
   /** Catálogo de planes: se elige antes de arrancar el alta. */
   readonly isPlanPickerOpen = signal(false);
@@ -267,35 +265,32 @@ export class LoginPageComponent {
 
   /**
    * Coreografía de salida gobernada por el trabajo real, no por el reloj: la tarjeta se
-   * hunde, el loader acompaña a `ready` (perfil + chunk del dashboard) y se navega.
+   * hunde, arranca la escena global y se navega cuando `ready` (perfil + chunk del dashboard)
+   * resuelve.
    *
-   * `MIN_LOADER_MS` evita el parpadeo cuando todo resuelve en 80 ms; `MAX_LOADER_MS` evita
-   * quedarse mirando el loader si /auth/me no responde — el shell tolera `currentUser()`
-   * nulo (`app-shell.component.ts` lo lee con `?.`), que es además lo que pasaba antes,
-   * cuando `me()` era fire-and-forget y nadie esperaba su resultado.
+   * `MAX_LOADER_MS` evita retrasar la navegación si /auth/me no responde — el shell tolera
+   * `currentUser()` nulo (`app-shell.component.ts` lo lee con `?.`). La escena es global
+   * (root) y sobrevive al cambio de ruta: ella decide cuándo desvanecerse (tras el primer
+   * pintado del destino), así que acá ya no hay fases "loading"/"fading".
    */
   private async playExitSequence(ready: Promise<unknown>): Promise<void> {
-    const reduced = prefersReducedMotion();
-
     this.phase.set('sinking');
-    if (!reduced) {
+    if (!prefersReducedMotion()) {
       await this.delay(LoginPageComponent.SINK_MS);
     }
-    this.phase.set('loading');
-
-    const startedAt = performance.now();
+    this.transition.start();
     await Promise.race([ready, this.delay(LoginPageComponent.MAX_LOADER_MS)]);
 
-    const elapsed = performance.now() - startedAt;
-    if (elapsed < LoginPageComponent.MIN_LOADER_MS) {
-      await this.delay(LoginPageComponent.MIN_LOADER_MS - elapsed);
+    // Si la navegación no termina (guard rechazado, /auth/me/access colgado), la escena se
+    // retira sola a MAX_VISIBLE_MS: devolver la tarjeta para no dejar la pantalla en blanco.
+    const navigated = await Promise.race([
+      this.router.navigateByUrl(this.returnUrl()),
+      this.delay(LoginTransitionService.MAX_VISIBLE_MS).then(() => false),
+    ]).catch(() => false);
+    if (!navigated) {
+      this.transition.cancel();
+      this.phase.set('idle');
     }
-
-    this.phase.set('fading');
-    if (!reduced) {
-      await this.delay(LoginPageComponent.FADE_MS);
-    }
-    await this.router.navigateByUrl(this.returnUrl());
   }
 
   private returnUrl(): string {
