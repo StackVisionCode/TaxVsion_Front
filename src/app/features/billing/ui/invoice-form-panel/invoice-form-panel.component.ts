@@ -1,18 +1,24 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  ElementRef,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   Output,
   SimpleChanges,
   computed,
+  effect,
+  inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
-import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import {
@@ -21,8 +27,10 @@ import {
 } from '../catalog-item-picker/catalog-item-picker.component';
 import {
   BillingCatalogItem,
+  InvoiceBranding,
   InvoiceDetail,
   InvoiceLineDraft,
+  IssuerProfile,
   NewCatalogItemInput,
   draftTotals,
   emptyLine,
@@ -57,11 +65,16 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
  * que lo que se ve en pantalla sea exactamente lo que se guarda.
  *
  * No hay campo de descuento a propósito: `CreateInvoiceDraftRequest` no lo tiene y el handler fuerza
- * `DiscountTotal = Money.Zero`, así que un descuento en la UI sería una mentira.
+ * `DiscountTotal = Money.Zero`, así que un descuento en la UI sería una mentira. Tampoco hay fecha de
+ * vencimiento ni número editable: el alta no los recibe (el número lo asigna el backend al emitir).
+ *
+ * Se abre como vista a pantalla completa (no modal): formulario a la izquierda y, a la derecha, una
+ * vista previa en vivo de la factura con el emisor y logo de Company settings ("Hide preview" la
+ * oculta). El overlay se porta al <body> para que ningún ancestro con transform lo encierre.
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent],
+  imports: [CommonModule, FormsModule, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })
@@ -87,6 +100,10 @@ export class InvoiceFormPanelComponent implements OnChanges {
    * se oculta; en edición manda el cliente de la factura.
    */
   @Input() lockedCustomer: CustomerSummary | null = null;
+  /** Emisor (Company settings) para el "Billed by" de la vista previa. */
+  @Input() issuer: IssuerProfile | null = null;
+  /** Logo y pie de la factura (Company settings) para la vista previa. */
+  @Input() branding: InvoiceBranding | null = null;
 
   @Output() closed = new EventEmitter<void>();
   @Output() catalogSearchChanged = new EventEmitter<string>();
@@ -115,9 +132,76 @@ export class InvoiceFormPanelComponent implements OnChanges {
   /** Índice de la línea que se está rellenando desde el catálogo (null = picker cerrado). */
   readonly catalogTargetIndex = signal<number | null>(null);
 
+  // ---------- Vista a pantalla completa ----------
+
+  /** Espejo de `isOpen` como signal (el effect del portal lo necesita reactivo). */
+  readonly open = signal(false);
+  readonly showPreview = signal(true);
+  private readonly overlay = viewChild<ElementRef<HTMLElement>>('overlay');
+  private portaled: HTMLElement | null = null;
+  /** Fecha de hoy para "Date issued" de la vista previa (la real la pone el backend al emitir). */
+  readonly today = new Date();
+
+  constructor() {
+    // Al aparecer el overlay se porta al <body> y se bloquea el scroll del fondo; al cerrarse, se suelta.
+    effect(() => {
+      const el = this.overlay()?.nativeElement;
+      if (this.open() && el && el !== this.portaled) {
+        this.portaled = portalToBody(el);
+        setBodyScrollLock(true);
+      } else if (!this.open() && this.portaled) {
+        this.portaled = null;
+        setBodyScrollLock(false);
+      }
+    });
+    // Destruido con el overlay abierto: Angular solo quita el host, el nodo portado hay que quitarlo.
+    inject(DestroyRef).onDestroy(() => {
+      if (this.portaled) {
+        this.portaled.remove();
+        this.portaled = null;
+        setBodyScrollLock(false);
+      }
+    });
+  }
+
+  /**
+   * Escape cierra la vista, salvo que el foco esté en un campo (el typeahead/inputs usan Escape) o haya
+   * otro diálogo encima (picker del catálogo: sigue en el DOM durante su animación de salida).
+   */
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscape(event: Event): void {
+    if (!this.open() || this.saving || this.catalogTargetIndex() !== null || event.defaultPrevented) {
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"]')) {
+      return;
+    }
+    if (document.querySelectorAll('[aria-modal="true"]').length > 1) {
+      return;
+    }
+    this.close();
+  }
+
+  /** "Billed by": nombre + email + dirección del emisor, o null si Company settings está vacío. */
+  issuerLines(): { name: string; email: string; address: string } | null {
+    const issuer = this.issuer;
+    if (!issuer?.name.trim()) {
+      return null;
+    }
+    const address = [issuer.line1, issuer.city, [issuer.state, issuer.zip].filter(Boolean).join(' ')]
+      .filter(part => part && part.trim())
+      .join(', ');
+    return { name: issuer.name, email: issuer.email, address };
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen']) {
+      this.open.set(this.isOpen);
+    }
     // Cada apertura empieza en limpio: no hay edición, así que no hay nada que precargar.
     if (changes['isOpen'] && this.isOpen) {
+      this.showPreview.set(true);
       this.reset();
     } else if (changes['lockedCustomer'] && this.isOpen && !this.isEditing && this.lockedCustomer) {
       // El perfil resolvió el cliente (directorio) con el formulario ya abierto: refrescar el fijo.
@@ -255,6 +339,11 @@ export class InvoiceFormPanelComponent implements OnChanges {
   // ---------- Totales ----------
 
   readonly totals = computed(() => draftTotals(this.lines()));
+
+  /** Precio unitario de la línea en centavos (el borrador lo guarda en unidades de la moneda). */
+  unitCents(line: InvoiceLineDraft): number {
+    return Math.round((line.unitAmount || 0) * 100);
+  }
 
   lineTotal(line: InvoiceLineDraft): number {
     return lineTotals(line).totalCents;

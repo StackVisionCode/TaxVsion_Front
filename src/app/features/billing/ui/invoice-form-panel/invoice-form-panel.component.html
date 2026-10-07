@@ -1,179 +1,360 @@
-<app-modal [isOpen]="isOpen" [heading]="isEditing ? 'Edit invoice' : 'New invoice'"
-  [subheading]="isEditing ? 'Editing recalculates totals; an issued invoice also reconciles stock and the payment link' : 'Check the details before saving'"
-  size="2xl" (closed)="close()">
-  <div class="mt-5">
-    <!-- Sin emisor guardado el PDF sale sin los datos de la firma -->
-    <div *ngIf="!hasIssuerProfile"
-      class="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-      <ion-icon name="business-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
-      <p class="text-xs leading-relaxed text-amber-800">
-        Your company details are not set yet, so the invoice PDF will go out without them. You can fill them in the
-        <span class="font-semibold">Company</span> tab.
-      </p>
-    </div>
+<!--
+  Vista a pantalla completa (se porta al <body>): formulario a la izquierda + vista previa en vivo
+  de la factura a la derecha. Se pinta solo mientras está abierta.
+-->
+@if (isOpen) {
+  <div #overlay role="dialog" aria-modal="true" [attr.aria-label]="isEditing ? 'Edit invoice' : 'New invoice'"
+    class="invoice-view fixed inset-0 z-[66] overflow-y-auto bg-brand-white">
+    <div class="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8">
+      <!-- ========== Cabecera: título + acciones ========== -->
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex min-w-0 items-start gap-3">
+          <button type="button" (click)="close()" [disabled]="saving" aria-label="Back to invoices"
+            class="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50">
+            <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
+          </button>
+          <div class="min-w-0">
+            <h1 class="text-2xl font-bold text-gray-900 sm:text-[28px]">{{ isEditing ? 'Edit Invoice' : 'New Invoice' }}</h1>
+            <p class="mt-1 text-sm text-gray-500">
+              {{ isEditing ? 'Editing recalculates totals; an issued invoice also reconciles stock and the payment link.' : 'Create the invoice and issue it to your client.' }}
+            </p>
+          </div>
+        </div>
 
-    <!-- Cliente -->
-    <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" (click)="showPreview.set(!showPreview())"
+            class="hidden items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 lg:flex">
+            <ion-icon [name]="showPreview() ? 'eye-off-outline' : 'eye-outline'" class="text-base"></ion-icon>
+            {{ showPreview() ? 'Hide Preview' : 'Show Preview' }}
+          </button>
 
-    <!-- Cliente fijo (perfil del cliente): solo lectura -->
-    <div *ngIf="customerLocked; else customerPicker"
-      class="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
-      <app-avatar [name]="customer()?.displayName ?? ''" [seed]="customer()?.id ?? null" size="sm"></app-avatar>
-      <div class="min-w-0">
-        <p class="truncate text-sm font-semibold text-gray-900">{{ customer()?.displayName }}</p>
-        <p *ngIf="customer()?.primaryEmail" class="truncate text-xs text-gray-500">{{ customer()?.primaryEmail }}</p>
+          @if (isEditing) {
+            <button type="button" (click)="submit(false)" [disabled]="!canSubmit()"
+              class="flex items-center gap-2 rounded-xl bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold">
+              <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base" [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+              {{ saving ? 'Saving…' : 'Save changes' }}
+            </button>
+          } @else {
+            <button type="button" (click)="submit(false)" [disabled]="!canSubmit()"
+              class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
+              <ion-icon name="save-outline" class="text-base"></ion-icon>
+              Save as Draft
+            </button>
+            <button type="button" (click)="submit(true)" [disabled]="!canSubmit()"
+              class="flex items-center gap-2 rounded-xl bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold">
+              <ion-icon [name]="saving ? 'sync-outline' : 'send-outline'" class="text-base" [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+              {{ saving ? 'Saving…' : 'Save and Issue' }}
+            </button>
+          }
+        </div>
       </div>
-    </div>
-    <ng-template #customerPicker>
-      <app-customer-picker class="mt-2" variant="field" [selected]="customer()" [disabled]="saving"
-        (selectedChange)="customer.set($event)"></app-customer-picker>
-    </ng-template>
 
-    <!-- (Client Tax ID y el selector de moneda se quitaron del formulario: la moneda es la default del
-         tenant en Company settings; el Tax ID no se captura por factura.) -->
+      <!-- Sin emisor guardado el PDF sale sin los datos de la firma -->
+      @if (!hasIssuerProfile) {
+        <div class="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <ion-icon name="business-outline" class="mt-0.5 shrink-0 text-base text-amber-600"></ion-icon>
+          <p class="text-xs leading-relaxed text-amber-800">
+            Your company details are not set yet, so the invoice PDF will go out without them. You can fill them in
+            <span class="font-semibold">Company settings</span>.
+          </p>
+        </div>
+      }
 
-    <!-- Líneas -->
-    <div class="mt-6 flex items-center justify-between">
-      <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Items</label>
-      <button type="button" (click)="addLine()" [disabled]="saving"
-        class="flex items-center gap-1.5 text-sm font-medium text-brand-bold hover:text-brand-ink disabled:opacity-50 transition-colors">
-        <ion-icon name="add-outline" class="text-base"></ion-icon>
-        Add item
-      </button>
-    </div>
+      <div class="mt-6 grid items-start gap-6" [ngClass]="showPreview() ? 'lg:grid-cols-2' : 'mx-auto max-w-4xl'">
+        <!-- ==================== Formulario ==================== -->
+        <div class="rounded-[24px] border border-gray-100 bg-white p-5 shadow-sm sm:p-8">
+          <!-- Invoice details -->
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-gray-900">Invoice Details</h2>
+              <p class="mt-1 text-sm text-gray-500">Who you're billing and in which currency.</p>
+            </div>
+          </div>
 
-    <div class="mt-2 overflow-x-auto">
-      <table class="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
-        <thead>
-          <tr>
-            <th class="rounded-l-2xl bg-brand-white px-3 py-2.5 text-left text-xs font-semibold text-gray-900">
-              Description
-            </th>
-            <th class="w-20 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Qty</th>
-            <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Price</th>
-            <th class="w-20 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Tax %</th>
-            <th class="w-28 bg-brand-white px-3 py-2.5 text-right text-xs font-semibold text-gray-900">Total</th>
-            <th class="w-10 rounded-r-2xl bg-brand-white px-2 py-2.5"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let line of lines(); let i = index; trackBy: trackByIndex">
-            <td class="px-3 py-2 align-top">
-              <div class="flex items-center gap-1.5">
-                <input type="text" [name]="'lineDescription' + i" placeholder="Description" [disabled]="saving"
-                  [ngModel]="line.description" (ngModelChange)="updateLineText(i, $event)"
-                  class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-                <button type="button" (click)="openCatalog(i)" [disabled]="saving" title="Pick from catalog"
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors">
-                  <ion-icon name="cube-outline" class="text-base"></ion-icon>
-                </button>
+          <div class="mt-5">
+            <label class="text-sm font-semibold text-gray-800">Client</label>
+            <!-- Cliente fijo (perfil del cliente): solo lectura -->
+            @if (customerLocked) {
+              <div class="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <app-avatar [name]="customer()?.displayName ?? ''" [seed]="customer()?.id ?? null" size="sm"></app-avatar>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold text-gray-900">{{ customer()?.displayName }}</p>
+                  @if (customer()?.primaryEmail) {
+                    <p class="truncate text-xs text-gray-500">{{ customer()?.primaryEmail }}</p>
+                  }
+                </div>
+                <ion-icon name="lock-closed-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
               </div>
-              <p *ngIf="line.catalogItemId" class="mt-1 pl-3 text-[11px] text-gray-400">Linked to a catalog item</p>
-            </td>
-            <td class="px-3 py-2 align-top">
-              <!-- Producto / línea manual: cantidad editable -->
-              <input *ngIf="isCountable(line)" type="number" min="1" step="1" [name]="'lineQuantity' + i"
-                [disabled]="saving" [ngModel]="line.quantity" (ngModelChange)="updateLine(i, { quantity: $event })"
-                [class.border-amber-300]="stockShortfall(line) !== null"
-                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
-              <!-- Aviso: la cantidad supera el stock disponible (no bloquea; el bloqueo es al emitir) -->
-              <p *ngIf="stockShortfall(line) !== null"
-                class="mt-1 text-right text-[11px] font-medium text-amber-600"
-                title="Blocked only when you issue the invoice">
-                Only {{ stockShortfall(line) }} in stock
-              </p>
-              <!-- Servicio: incontable, sin unidades — la cantidad queda fija en 1 -->
-              <div *ngIf="!isCountable(line)"
-                class="flex h-10 items-center justify-end rounded-full border border-dashed border-gray-200 bg-gray-50 px-3 text-right text-sm text-gray-400"
-                title="A service has no units — it is billed once">
-                —
+            } @else {
+              <app-customer-picker class="mt-2 block" variant="field" [selected]="customer()" [disabled]="saving"
+                (selectedChange)="customer.set($event)"></app-customer-picker>
+            }
+          </div>
+
+          <div class="mt-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="text-sm font-semibold text-gray-800">Invoice Number</label>
+              <div class="mt-2 flex h-11 items-center rounded-xl bg-gray-100 px-4 text-sm"
+                [ngClass]="editing?.invoiceNumber ? 'font-medium text-gray-700' : 'text-gray-400'">
+                {{ editing?.invoiceNumber || 'Assigned on issue' }}
               </div>
-            </td>
-            <td class="px-3 py-2 align-top">
-              <input type="number" min="0" step="0.01" [name]="'lineUnitAmount' + i" [disabled]="saving"
-                [ngModel]="line.unitAmount" (ngModelChange)="updateLine(i, { unitAmount: $event })"
-                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
-            </td>
-            <td class="px-3 py-2 align-top">
-              <!-- Tax % por línea: se precarga del ítem del catálogo y es editable (item 6 / pedido del usuario). -->
-              <input type="number" min="0" max="100" step="0.01" [name]="'lineTax' + i" [disabled]="saving"
-                [ngModel]="line.taxPercent" (ngModelChange)="updateLine(i, { taxPercent: $event })"
-                class="h-10 w-full rounded-full border border-gray-200 bg-white px-3 text-right text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
-            </td>
-            <td class="px-3 py-2 text-right align-middle">
-              <span class="text-sm font-semibold text-gray-900">{{ money(lineTotal(line)) }}</span>
-            </td>
-            <td class="px-2 py-2 text-right align-middle">
-              <button type="button" (click)="removeLine(i)" [disabled]="saving || lines().length === 1"
-                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors"
-                aria-label="Remove item">
-                <ion-icon name="trash-outline" class="text-base"></ion-icon>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+            <div>
+              <label class="text-sm font-semibold text-gray-800">Currency</label>
+              <div class="mt-2 flex h-11 items-center gap-2 rounded-xl bg-gray-100 px-4 text-sm font-medium text-gray-700"
+                title="The currency comes from Company settings">
+                <ion-icon name="cash-outline" class="text-base text-gray-400"></ion-icon>
+                {{ currency() }}
+                <span class="ml-auto text-xs font-normal text-gray-400">From Company settings</span>
+              </div>
+            </div>
+          </div>
 
-    <!-- Totales: misma aritmética que el backend -->
-    <div class="mt-4 flex justify-end">
-      <dl class="w-full max-w-xs text-sm sm:w-64">
-        <div class="flex items-center justify-between">
-          <dt class="text-gray-500">Subtotal</dt>
-          <dd class="font-medium text-gray-900">{{ money(totals().subtotalCents) }}</dd>
-        </div>
-        <div class="mt-2 flex items-center justify-between">
-          <dt class="text-gray-500">Tax</dt>
-          <dd class="font-medium text-gray-900">{{ money(totals().taxCents) }}</dd>
-        </div>
-        <div class="mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
-          <dt class="font-medium text-gray-700">Total</dt>
-          <dd class="text-base font-bold text-gray-900">{{ money(totals().totalCents) }}</dd>
-        </div>
-      </dl>
-    </div>
+          <div class="my-7 h-px bg-gray-100"></div>
 
-    <!-- Notas -->
-    <div class="mt-5">
-      <label for="invoiceNotes" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-        Notes <span class="font-normal normal-case tracking-normal text-gray-400">(printed on the PDF)</span>
-      </label>
-      <textarea id="invoiceNotes" name="invoiceNotes" rows="3" [disabled]="saving" [ngModel]="notes()"
-        (ngModelChange)="notes.set($event)" placeholder="Payment terms, thank-you note…"
-        class="mt-2 w-full resize-none rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors"></textarea>
-    </div>
+          <!-- Product details -->
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold text-gray-900">Product Details</h2>
+              <p class="mt-1 text-sm text-gray-500">Add products or services from your catalog, or type them.</p>
+            </div>
+            <button type="button" (click)="addLine()" [disabled]="saving"
+              class="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
+              <ion-icon name="add-outline" class="text-base"></ion-icon>
+              Add item
+            </button>
+          </div>
 
-    <!-- Pie -->
-    <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
-      <button type="button" (click)="close()" [disabled]="saving"
-        class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
-        Cancel
-      </button>
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Edición: un solo botón de guardar cambios -->
-        <button *ngIf="isEditing" type="button" (click)="submit(false)" [disabled]="!canSubmit()"
-          class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-          <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
-            [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
-          {{ saving ? 'Saving…' : 'Save changes' }}
-        </button>
-        <!-- Alta: guardar borrador o guardar y emitir -->
-        <button *ngIf="!isEditing" type="button" (click)="submit(false)" [disabled]="!canSubmit()"
-          class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
-          Save as draft
-        </button>
-        <button *ngIf="!isEditing" type="button" (click)="submit(true)" [disabled]="!canSubmit()"
-          class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-          <ion-icon [name]="saving ? 'sync-outline' : 'send-outline'" class="text-base"
-            [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
-          {{ saving ? 'Saving…' : 'Save and issue' }}
-        </button>
+          <div class="mt-4 overflow-x-auto rounded-2xl border border-gray-100">
+            <table class="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                  <th class="px-3 py-3">Item</th>
+                  <th class="w-20 px-2 py-3">QTY</th>
+                  <th class="w-28 px-2 py-3">Cost</th>
+                  <th class="w-20 px-2 py-3">Tax %</th>
+                  <th class="w-28 px-2 py-3">Total</th>
+                  <th class="w-10 px-2 py-3"><span class="sr-only">Remove</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let line of lines(); let i = index; trackBy: trackByIndex" class="border-t border-gray-100 first:border-t-0">
+                  <td class="px-3 py-2.5 align-top">
+                    <div class="flex items-center gap-1.5">
+                      <input type="text" [name]="'lineDescription' + i" placeholder="Item name" [disabled]="saving"
+                        [ngModel]="line.description" (ngModelChange)="updateLineText(i, $event)"
+                        class="h-10 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-800 placeholder-gray-400 transition-colors focus:border-brand-bold focus:outline-none" />
+                      <button type="button" (click)="openCatalog(i)" [disabled]="saving" title="Pick from catalog"
+                        aria-label="Pick from catalog"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 hover:text-brand-bold disabled:opacity-50">
+                        <ion-icon name="cube-outline" class="text-base"></ion-icon>
+                      </button>
+                    </div>
+                    @if (line.catalogItemId) {
+                      <p class="mt-1 flex items-center gap-1 pl-1 text-[11px] text-gray-400">
+                        <ion-icon name="link-outline"></ion-icon> Linked to a catalog item
+                      </p>
+                    }
+                  </td>
+                  <td class="px-2 py-2.5 align-top">
+                    <!-- Producto / línea manual: cantidad editable -->
+                    @if (isCountable(line)) {
+                      <input type="number" min="1" step="1" [name]="'lineQuantity' + i"
+                        [disabled]="saving" [ngModel]="line.quantity" (ngModelChange)="updateLine(i, { quantity: $event })"
+                        [class.border-amber-300]="stockShortfall(line) !== null"
+                        class="h-10 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-center text-sm text-gray-800 transition-colors focus:border-brand-bold focus:outline-none" />
+                      <!-- Aviso: la cantidad supera el stock disponible (no bloquea; el bloqueo es al emitir) -->
+                      @if (stockShortfall(line) !== null) {
+                        <p class="mt-1 text-center text-[11px] font-medium text-amber-600" title="Blocked only when you issue the invoice">
+                          Only {{ stockShortfall(line) }} left
+                        </p>
+                      }
+                    } @else {
+                      <!-- Servicio: incontable, sin unidades — la cantidad queda fija en 1 -->
+                      <div class="flex h-10 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400"
+                        title="A service has no units — it is billed once">—</div>
+                    }
+                  </td>
+                  <td class="px-2 py-2.5 align-top">
+                    <input type="number" min="0" step="0.01" [name]="'lineUnitAmount' + i" [disabled]="saving"
+                      [ngModel]="line.unitAmount" (ngModelChange)="updateLine(i, { unitAmount: $event })"
+                      class="h-10 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-sm text-gray-800 transition-colors focus:border-brand-bold focus:outline-none" />
+                  </td>
+                  <td class="px-2 py-2.5 align-top">
+                    <!-- Tax % por línea: se precarga del ítem del catálogo y es editable. -->
+                    <input type="number" min="0" max="100" step="0.01" [name]="'lineTax' + i" [disabled]="saving"
+                      [ngModel]="line.taxPercent" (ngModelChange)="updateLine(i, { taxPercent: $event })"
+                      class="h-10 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-sm text-gray-800 transition-colors focus:border-brand-bold focus:outline-none" />
+                  </td>
+                  <td class="px-2 py-2.5 align-top">
+                    <div class="flex h-10 items-center rounded-xl bg-gray-100 px-2.5 text-sm font-medium text-gray-500">
+                      {{ money(lineTotal(line)) }}
+                    </div>
+                  </td>
+                  <td class="px-2 py-2.5 align-top">
+                    <button type="button" (click)="removeLine(i)" [disabled]="saving || lines().length === 1"
+                      class="flex h-10 w-8 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                      aria-label="Remove item">
+                      <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Totales: misma aritmética que el backend -->
+          <div class="mt-4 flex justify-end">
+            <dl class="w-full max-w-xs text-sm sm:w-72">
+              <div class="flex items-center justify-between py-1">
+                <dt class="text-gray-500">Subtotal</dt>
+                <dd class="font-medium text-gray-900">{{ money(totals().subtotalCents) }}</dd>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <dt class="text-gray-500">Tax</dt>
+                <dd class="font-medium text-gray-900">{{ money(totals().taxCents) }}</dd>
+              </div>
+              <div class="mt-1 flex items-center justify-between border-t border-gray-100 pt-2">
+                <dt class="font-semibold text-gray-800">Total</dt>
+                <dd class="text-base font-bold text-gray-900">{{ money(totals().totalCents) }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Notas -->
+          <div class="mt-6">
+            <label for="invoiceNotes" class="text-sm font-semibold text-gray-800">
+              Notes <span class="font-normal text-gray-400">(printed on the PDF)</span>
+            </label>
+            <textarea id="invoiceNotes" name="invoiceNotes" rows="3" [disabled]="saving" [ngModel]="notes()"
+              (ngModelChange)="notes.set($event)" placeholder="Payment terms, thank-you note…"
+              class="mt-2 w-full resize-none rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-800 placeholder-gray-400 transition-colors focus:border-brand-bold focus:outline-none"></textarea>
+          </div>
+        </div>
+
+        <!-- ==================== Vista previa en vivo ==================== -->
+        @if (showPreview()) {
+          <div class="invoice-paper relative hidden overflow-hidden rounded-[24px] border border-gray-100 bg-white p-8 shadow-sm lg:sticky lg:top-6 lg:block">
+            <!-- Esquina doblada del "papel" -->
+            <span class="absolute right-0 top-0 h-10 w-10 bg-gradient-to-bl from-gray-200 via-gray-100 to-white"
+              style="clip-path: polygon(0 0, 100% 100%, 0 100%)" aria-hidden="true"></span>
+
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <h2 class="text-3xl font-semibold text-gray-900">Invoice</h2>
+                <div class="mt-4 flex items-center gap-10 text-sm">
+                  <span class="text-gray-500">Invoice Number</span>
+                  <span class="font-semibold" [ngClass]="editing?.invoiceNumber ? 'text-gray-900' : 'text-gray-400'">
+                    {{ editing?.invoiceNumber || 'Assigned on issue' }}
+                  </span>
+                </div>
+              </div>
+              @if (branding?.logoDataUri) {
+                <img [src]="branding!.logoDataUri" alt="" class="mt-6 h-12 max-w-[120px] shrink-0 object-contain" />
+              } @else {
+                <span class="mt-6 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-bold text-sm font-bold uppercase text-white">
+                  {{ (issuerLines()?.name || 'TV').slice(0, 2) }}
+                </span>
+              }
+            </div>
+
+            <div class="mt-7 grid grid-cols-2 gap-6 text-sm">
+              <div class="min-w-0">
+                <p class="text-gray-500">Billed by:</p>
+                @if (issuerLines(); as by) {
+                  <p class="mt-1.5 font-semibold text-gray-900">{{ by.name }}</p>
+                  @if (by.email) {
+                    <p class="mt-0.5 truncate text-gray-400">{{ by.email }}</p>
+                  }
+                  @if (by.address) {
+                    <p class="mt-0.5 text-gray-400">{{ by.address }}</p>
+                  }
+                } @else {
+                  <p class="mt-1.5 text-gray-400">Set your company in Company settings</p>
+                }
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500">Billed to:</p>
+                @if (customer(); as to) {
+                  <p class="mt-1.5 font-semibold text-gray-900">{{ to.displayName }}</p>
+                  @if (to.primaryEmail) {
+                    <p class="mt-0.5 truncate text-gray-400">{{ to.primaryEmail }}</p>
+                  }
+                } @else {
+                  <p class="mt-1.5 text-gray-400">Choose a client</p>
+                }
+              </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-2 gap-6 text-sm">
+              <div>
+                <p class="text-gray-500">Date Issued:</p>
+                <p class="mt-1.5 font-semibold text-gray-900">{{ today | date: 'MMM d, y' }}</p>
+              </div>
+              <div>
+                <p class="text-gray-500">Currency:</p>
+                <p class="mt-1.5 font-semibold text-gray-900">{{ currency() }}</p>
+              </div>
+            </div>
+
+            <!-- Ítems -->
+            <table class="mt-8 w-full text-sm">
+              <thead>
+                <tr class="text-left text-gray-500">
+                  <th class="pb-3 font-normal">Item</th>
+                  <th class="w-14 pb-3 font-normal">QTY</th>
+                  <th class="w-24 pb-3 font-normal">Cost</th>
+                  <th class="w-24 pb-3 text-right font-normal">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of lines(); track $index) {
+                  @if (line.description.trim() || line.unitAmount > 0) {
+                    <tr class="border-t border-gray-100">
+                      <td class="py-4 pr-2 font-medium text-gray-800">{{ line.description || 'Untitled item' }}</td>
+                      <td class="py-4 text-gray-600">{{ isCountable(line) ? line.quantity : 1 }}</td>
+                      <td class="py-4 text-gray-600">{{ money(unitCents(line)) }}</td>
+                      <td class="py-4 text-right text-gray-800">{{ money(lineTotal(line)) }}</td>
+                    </tr>
+                  }
+                }
+                @if (totals().totalCents === 0) {
+                  <tr class="border-t border-gray-100">
+                    <td colspan="4" class="py-6 text-center text-gray-400">Items you add show up here.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <!-- Totales -->
+            <div class="mt-2 flex justify-end border-t border-gray-100 pt-4">
+              <dl class="w-64 text-sm">
+                <div class="flex justify-between py-1">
+                  <dt class="text-gray-500">Subtotal</dt>
+                  <dd class="text-gray-700">{{ money(totals().subtotalCents) }}</dd>
+                </div>
+                <div class="flex justify-between py-1">
+                  <dt class="text-gray-500">Tax</dt>
+                  <dd class="text-gray-700">{{ money(totals().taxCents) }}</dd>
+                </div>
+                <div class="flex justify-between py-1.5">
+                  <dt class="font-bold uppercase text-gray-900">Total</dt>
+                  <dd class="font-bold text-gray-900">{{ money(totals().totalCents) }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            @if (notes().trim() || branding?.footerText) {
+              <p class="mt-10 whitespace-pre-line text-sm leading-relaxed text-gray-500">{{ notes().trim() || branding?.footerText }}</p>
+            }
+          </div>
+        }
       </div>
     </div>
   </div>
-</app-modal>
+}
 
-<!-- Picker del catálogo, apilado sobre el formulario -->
+<!-- Picker del catálogo, apilado sobre la vista (mismo z; va después en el <body>) -->
 <app-catalog-item-picker [isOpen]="catalogTargetIndex() !== null" [items]="catalogResults"
   [searching]="catalogSearching" [creating]="catalogCreating" (searchChanged)="catalogSearchChanged.emit($event)"
   (itemPicked)="applyCatalogItem($event)" (createRequested)="onCatalogQuickCreate($event)"

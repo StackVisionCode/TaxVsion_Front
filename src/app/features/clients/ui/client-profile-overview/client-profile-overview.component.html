@@ -2,6 +2,18 @@
   Tres columnas independientes (cada una apila sus tarjetas, sin huecos entre filas). En md la
   tercera columna baja a ocupar el ancho completo y reparte sus tarjetas en 2.
 -->
+@if (!summary.loaded()) {
+  <!-- Primera carga de este cliente: esqueleto con la misma forma de 3 columnas (sin saltos). -->
+  <div class="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-3" aria-busy="true" aria-label="Loading overview">
+    @for (column of skeletonColumns; track $index) {
+      <div class="flex flex-col gap-5" [ngClass]="$index === 2 ? 'md:col-span-2 2xl:col-span-1' : ''">
+        @for (height of column; track $index) {
+          <app-skeleton variant="card" [minHeight]="height" [rows]="4" />
+        }
+      </div>
+    }
+  </div>
+} @else {
 <div class="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-3">
   <!-- ==================== Columna 1 ==================== -->
   <div class="flex flex-col gap-5">
@@ -163,68 +175,76 @@
 
     <!-- ========== Notes ========== -->
     @if (isAvailable('notes')) {
-      <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-        style="animation-delay: 160ms">
-        <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'reader-outline', title: 'Notes', count: summary.notesTotal(), tab: 'notes' }"></ng-container>
+      @defer (on viewport; prefetch on idle) {
+        <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+          style="animation-delay: 160ms">
+          <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'reader-outline', title: 'Notes', count: summary.notesTotal(), tab: 'notes' }"></ng-container>
 
-        @if (summary.recentNotes().length > 0) {
-          <div class="flex flex-col divide-y divide-gray-100">
-            @for (note of summary.recentNotes(); track note.id; let i = $index) {
-              <button type="button" (click)="openTab.emit('notes')" [style.animation-delay.ms]="200 + i * 60"
-                class="ov-item flex items-start gap-3 py-2.5 text-left first:pt-0 last:pb-0">
-                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                  [ngClass]="note.isPinned ? 'bg-brand-bold text-white' : 'bg-indigo-50 text-gray-500'">
-                  <ion-icon [name]="note.isPinned ? 'bookmark-outline' : 'reader-outline'" class="text-sm"></ion-icon>
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="line-clamp-2 text-xs leading-relaxed text-gray-600">{{ note.contentPreview || 'Empty note' }}</span>
-                  <span class="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
-                    {{ note.updatedAtUtc | timeAgo }}
-                    @if (note.visibility === 'ClientVisible') {
-                      <span class="flex items-center gap-0.5 font-semibold text-amber-600">
-                        <ion-icon name="eye-outline"></ion-icon> Client visible
-                      </span>
-                    }
-                    @if (note.attachments.length > 0) {
-                      <span class="flex items-center gap-0.5"><ion-icon name="attach-outline"></ion-icon>{{ note.attachments.length }}</span>
-                    }
+          @if (summary.recentNotes().length > 0) {
+            <div class="flex flex-col divide-y divide-gray-100">
+              @for (note of summary.recentNotes(); track note.id; let i = $index) {
+                <button type="button" (click)="openTab.emit('notes')" [style.animation-delay.ms]="200 + i * 60"
+                  class="ov-item flex items-start gap-3 py-2.5 text-left first:pt-0 last:pb-0">
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                    [ngClass]="note.isPinned ? 'bg-brand-bold text-white' : 'bg-indigo-50 text-gray-500'">
+                    <ion-icon [name]="note.isPinned ? 'bookmark-outline' : 'reader-outline'" class="text-sm"></ion-icon>
                   </span>
-                </span>
-              </button>
-            }
-          </div>
-        } @else if (summary.loaded()) {
-          <ng-container *ngTemplateOutlet="emptyState; context: { icon: 'reader-outline', title: 'No notes yet', desc: 'Notes your team writes about this client show up here.' }"></ng-container>
-        }
-      </section>
+                  <span class="min-w-0 flex-1">
+                    <span class="line-clamp-2 text-xs leading-relaxed text-gray-600">{{ note.contentPreview || 'Empty note' }}</span>
+                    <span class="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
+                      {{ note.updatedAtUtc | timeAgo }}
+                      @if (note.visibility === 'ClientVisible') {
+                        <span class="flex items-center gap-0.5 font-semibold text-amber-600">
+                          <ion-icon name="eye-outline"></ion-icon> Client visible
+                        </span>
+                      }
+                      @if (note.attachments.length > 0) {
+                        <span class="flex items-center gap-0.5"><ion-icon name="attach-outline"></ion-icon>{{ note.attachments.length }}</span>
+                      }
+                    </span>
+                  </span>
+                </button>
+              }
+            </div>
+          } @else if (summary.loaded()) {
+            <ng-container *ngTemplateOutlet="emptyState; context: { icon: 'reader-outline', title: 'No notes yet', desc: 'Notes your team writes about this client show up here.' }"></ng-container>
+          }
+        </section>
+      } @placeholder {
+        <app-skeleton variant="card" minHeight="16rem" [rows]="4" />
+      }
     }
 
     <!-- ========== SMS ========== -->
     @if (isAvailable('sms')) {
-      <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-        style="animation-delay: 240ms">
-        <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'chatbox-ellipses-outline', title: 'SMS', count: summary.smsTotal(), tab: 'sms' }"></ng-container>
+      @defer (on viewport; prefetch on idle) {
+        <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+          style="animation-delay: 240ms">
+          <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'chatbox-ellipses-outline', title: 'SMS', count: summary.smsTotal(), tab: 'sms' }"></ng-container>
 
-        @if (summary.recentSms().length > 0) {
-          <!-- Burbujas salientes, como en el hilo de SMS -->
-          <div class="flex flex-col items-end gap-2">
-            @for (message of summary.recentSms(); track message.id; let i = $index) {
-              <button type="button" (click)="openTab.emit('sms')" [style.animation-delay.ms]="280 + i * 60"
-                class="ov-item max-w-[90%] text-right">
-                <span class="block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2 text-left text-[13px] text-white">
-                  <span class="line-clamp-2">{{ message.body }}</span>
-                </span>
-                <span class="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
-                  {{ message.createdAtUtc | timeAgo }} ·
-                  <span [ngClass]="smsStatusClass(message.status)">{{ message.status }}</span>
-                </span>
-              </button>
-            }
-          </div>
-        } @else if (summary.loaded()) {
-          <ng-container *ngTemplateOutlet="emptyState; context: { icon: 'chatbox-ellipses-outline', title: 'No text messages yet' }"></ng-container>
-        }
-      </section>
+          @if (summary.recentSms().length > 0) {
+            <!-- Burbujas salientes, como en el hilo de SMS -->
+            <div class="flex flex-col items-end gap-2">
+              @for (message of summary.recentSms(); track message.id; let i = $index) {
+                <button type="button" (click)="openTab.emit('sms')" [style.animation-delay.ms]="280 + i * 60"
+                  class="ov-item max-w-[90%] text-right">
+                  <span class="block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2 text-left text-[13px] text-white">
+                    <span class="line-clamp-2">{{ message.body }}</span>
+                  </span>
+                  <span class="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
+                    {{ message.createdAtUtc | timeAgo }} ·
+                    <span [ngClass]="smsStatusClass(message.status)">{{ message.status }}</span>
+                  </span>
+                </button>
+              }
+            </div>
+          } @else if (summary.loaded()) {
+            <ng-container *ngTemplateOutlet="emptyState; context: { icon: 'chatbox-ellipses-outline', title: 'No text messages yet' }"></ng-container>
+          }
+        </section>
+      } @placeholder {
+        <app-skeleton variant="card" minHeight="14rem" [rows]="4" />
+      }
     }
   </div>
 
@@ -407,114 +427,122 @@
 
     <!-- ========== Signatures ========== -->
     @if (isAvailable('signatures')) {
-      @let sig = summary.signatureSummary();
-      <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-        style="animation-delay: 200ms">
-        <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'create-outline', title: 'Signatures', count: sig.total, tab: 'signatures' }"></ng-container>
+      @defer (on viewport; prefetch on idle) {
+        @let sig = summary.signatureSummary();
+        <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+          style="animation-delay: 200ms">
+          <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'create-outline', title: 'Signatures', count: sig.total, tab: 'signatures' }"></ng-container>
 
-        <!-- Barra segmentada por estado (tramos separados; anima su ancho al entrar) -->
-        <div class="flex h-2 gap-[3px] overflow-hidden rounded-full"
-          [ngClass]="sig.total === 0 ? 'bg-gray-100' : ''">
-          @if (signatureBars().completed > 0) {
-            <div class="h-full rounded-full bg-emerald-500 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().completed"></div>
-          }
-          @if (signatureBars().pending > 0) {
-            <div class="h-full rounded-full bg-brand-light transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().pending"></div>
-          }
-          @if (signatureBars().attention > 0) {
-            <div class="h-full rounded-full bg-red-500 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().attention"></div>
-          }
-          @if (signatureBars().draft > 0) {
-            <div class="h-full rounded-full bg-gray-300 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().draft"></div>
-          }
-        </div>
-        <div class="grid grid-cols-3 gap-2">
-          <div class="rounded-2xl bg-emerald-50 p-3">
-            <p class="text-xl font-bold text-emerald-600" [appCountUp]="sig.completed">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Signed</p>
-          </div>
-          <div class="rounded-2xl bg-brand-surface p-3">
-            <p class="text-xl font-bold text-brand-bold" [appCountUp]="sig.pending">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Awaiting</p>
-          </div>
-          <div class="rounded-2xl bg-red-50 p-3">
-            <p class="text-xl font-bold text-red-600" [appCountUp]="sig.attention">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Needs action</p>
-          </div>
-        </div>
-
-        @if (sig.recent.length > 0) {
-          <div class="flex flex-col">
-            @for (request of sig.recent; track request.id; let i = $index) {
-              @let tone = signatureTone(request.status);
-              <button type="button" (click)="openTab.emit('signatures')" [style.animation-delay.ms]="240 + i * 60"
-                class="ov-item flex items-center gap-3 py-2.5 text-left">
-                <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-brand-surface text-brand-bold">
-                  <ion-icon name="create-outline" class="text-base"></ion-icon>
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-[13px] font-semibold text-gray-900">{{ request.title }}</span>
-                  <span class="block text-[11px] text-gray-400">
-                    {{ (request.completedAtUtc ?? request.sentAtUtc ?? request.createdAtUtc) | timeAgo }}
-                    · {{ request.signerCount }} signer{{ request.signerCount === 1 ? '' : 's' }}
-                  </span>
-                </span>
-                <span class="flex shrink-0 items-center gap-1 text-[11px] font-semibold" [ngClass]="tone.text">
-                  <ion-icon [name]="tone.icon" class="text-sm"></ion-icon>{{ signatureLabel(request.status) }}
-                </span>
-              </button>
+          <!-- Barra segmentada por estado (tramos separados; anima su ancho al entrar) -->
+          <div class="flex h-2 gap-[3px] overflow-hidden rounded-full"
+            [ngClass]="sig.total === 0 ? 'bg-gray-100' : ''">
+            @if (signatureBars().completed > 0) {
+              <div class="h-full rounded-full bg-emerald-500 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().completed"></div>
+            }
+            @if (signatureBars().pending > 0) {
+              <div class="h-full rounded-full bg-brand-light transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().pending"></div>
+            }
+            @if (signatureBars().attention > 0) {
+              <div class="h-full rounded-full bg-red-500 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().attention"></div>
+            }
+            @if (signatureBars().draft > 0) {
+              <div class="h-full rounded-full bg-gray-300 transition-[width] duration-700 ease-out" [style.width.%]="signatureBars().draft"></div>
             }
           </div>
-        } @else if (summary.loaded()) {
-          <p class="text-center text-xs text-gray-400">No signature requests yet.</p>
-        }
-      </section>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="rounded-2xl bg-emerald-50 p-3">
+              <p class="text-xl font-bold text-emerald-600" [appCountUp]="sig.completed">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Signed</p>
+            </div>
+            <div class="rounded-2xl bg-brand-surface p-3">
+              <p class="text-xl font-bold text-brand-bold" [appCountUp]="sig.pending">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Awaiting</p>
+            </div>
+            <div class="rounded-2xl bg-red-50 p-3">
+              <p class="text-xl font-bold text-red-600" [appCountUp]="sig.attention">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Needs action</p>
+            </div>
+          </div>
+
+          @if (sig.recent.length > 0) {
+            <div class="flex flex-col">
+              @for (request of sig.recent; track request.id; let i = $index) {
+                @let tone = signatureTone(request.status);
+                <button type="button" (click)="openTab.emit('signatures')" [style.animation-delay.ms]="240 + i * 60"
+                  class="ov-item flex items-center gap-3 py-2.5 text-left">
+                  <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-brand-surface text-brand-bold">
+                    <ion-icon name="create-outline" class="text-base"></ion-icon>
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] font-semibold text-gray-900">{{ request.title }}</span>
+                    <span class="block text-[11px] text-gray-400">
+                      {{ (request.completedAtUtc ?? request.sentAtUtc ?? request.createdAtUtc) | timeAgo }}
+                      · {{ request.signerCount }} signer{{ request.signerCount === 1 ? '' : 's' }}
+                    </span>
+                  </span>
+                  <span class="flex shrink-0 items-center gap-1 text-[11px] font-semibold" [ngClass]="tone.text">
+                    <ion-icon [name]="tone.icon" class="text-sm"></ion-icon>{{ signatureLabel(request.status) }}
+                  </span>
+                </button>
+              }
+            </div>
+          } @else if (summary.loaded()) {
+            <p class="text-center text-xs text-gray-400">No signature requests yet.</p>
+          }
+        </section>
+      } @placeholder {
+        <app-skeleton variant="card" minHeight="18rem" [rows]="4" />
+      }
     }
 
     <!-- ========== Calls ========== -->
     @if (isAvailable('calls')) {
-      @let callData = summary.calls();
-      <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-        style="animation-delay: 280ms">
-        <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'call-outline', title: 'Calls', tab: 'calls' }"></ng-container>
+      @defer (on viewport; prefetch on idle) {
+        @let callData = summary.calls();
+        <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+          style="animation-delay: 280ms">
+          <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'call-outline', title: 'Calls', tab: 'calls' }"></ng-container>
 
-        <div class="grid grid-cols-3 gap-2">
-          <div class="rounded-2xl bg-indigo-50 p-3">
-            <p class="text-xl font-bold text-gray-900" [appCountUp]="callData?.stats?.total ?? 0">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Total</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="rounded-2xl bg-indigo-50 p-3">
+              <p class="text-xl font-bold text-gray-900" [appCountUp]="callData?.stats?.total ?? 0">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Total</p>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 p-3">
+              <p class="text-xl font-bold text-emerald-600" [appCountUp]="callData?.stats?.completed ?? 0">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Completed</p>
+            </div>
+            <div class="rounded-2xl bg-red-50 p-3">
+              <p class="text-xl font-bold text-red-600" [appCountUp]="callData?.stats?.missed ?? 0">0</p>
+              <p class="mt-1 text-[11px] font-medium text-gray-500">Missed</p>
+            </div>
           </div>
-          <div class="rounded-2xl bg-emerald-50 p-3">
-            <p class="text-xl font-bold text-emerald-600" [appCountUp]="callData?.stats?.completed ?? 0">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Completed</p>
-          </div>
-          <div class="rounded-2xl bg-red-50 p-3">
-            <p class="text-xl font-bold text-red-600" [appCountUp]="callData?.stats?.missed ?? 0">0</p>
-            <p class="mt-1 text-[11px] font-medium text-gray-500">Missed</p>
-          </div>
-        </div>
 
-        @if (callData?.items?.length) {
-          @let last = callData!.items[0];
-          <button type="button" (click)="openTab.emit('calls')"
-            class="flex items-center gap-3 rounded-2xl border border-gray-200 p-3 text-left transition-colors hover:bg-gray-50">
-            <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]"
-              [ngClass]="last.direction === 'incoming' ? 'bg-emerald-50 text-emerald-600' : 'bg-brand-surface text-brand-bold'">
-              <ion-icon [name]="last.direction === 'incoming' ? 'arrow-down-outline' : 'arrow-up-outline'" class="text-base"></ion-icon>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-semibold text-gray-900">
-                {{ last.direction === 'incoming' ? 'Incoming' : 'Outgoing' }} call · {{ duration(last.durationSeconds) }}
+          @if (callData?.items?.length) {
+            @let last = callData!.items[0];
+            <button type="button" (click)="openTab.emit('calls')"
+              class="flex items-center gap-3 rounded-2xl border border-gray-200 p-3 text-left transition-colors hover:bg-gray-50">
+              <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]"
+                [ngClass]="last.direction === 'incoming' ? 'bg-emerald-50 text-emerald-600' : 'bg-brand-surface text-brand-bold'">
+                <ion-icon [name]="last.direction === 'incoming' ? 'arrow-down-outline' : 'arrow-up-outline'" class="text-base"></ion-icon>
               </span>
-              <span class="block text-[11px] text-gray-400">
-                {{ last.ringingAtUtc | timeAgo }} · Avg. {{ duration(callData?.stats?.avgDurationSeconds) }}
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-semibold text-gray-900">
+                  {{ last.direction === 'incoming' ? 'Incoming' : 'Outgoing' }} call · {{ duration(last.durationSeconds) }}
+                </span>
+                <span class="block text-[11px] text-gray-400">
+                  {{ last.ringingAtUtc | timeAgo }} · Avg. {{ duration(callData?.stats?.avgDurationSeconds) }}
+                </span>
               </span>
-            </span>
-            <ion-icon name="chevron-forward-outline" class="shrink-0 text-sm text-gray-300"></ion-icon>
-          </button>
-        } @else if (callData && !callData.hasPortalAccount) {
-          <p class="text-center text-xs text-gray-400">Calls need a client portal account.</p>
-        }
-      </section>
+              <ion-icon name="chevron-forward-outline" class="shrink-0 text-sm text-gray-300"></ion-icon>
+            </button>
+          } @else if (callData && !callData.hasPortalAccount) {
+            <p class="text-center text-xs text-gray-400">Calls need a client portal account.</p>
+          }
+        </section>
+      } @placeholder {
+        <app-skeleton variant="card" minHeight="14rem" [rows]="4" />
+      }
     }
   </div>
 
@@ -694,139 +722,148 @@
     </section>
 
     <!-- ========== Household: datos personales + cónyuge y dependientes ========== -->
-    <section class="ov-card flex flex-col gap-3.5 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-      style="animation-delay: 240ms">
-      <ng-container *ngTemplateOutlet="cardHeader; context: {
-        icon: client.type === 'company' ? 'business-outline' : 'people-outline',
-        title: client.type === 'company' ? 'Business' : 'Household',
-        tab: client.type === 'company' ? 'info' : 'family'
-      }"></ng-container>
+    @defer (on viewport; prefetch on idle) {
+      <section class="ov-card flex flex-col gap-3.5 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+        style="animation-delay: 240ms">
+        <ng-container *ngTemplateOutlet="cardHeader; context: {
+          icon: client.type === 'company' ? 'business-outline' : 'people-outline',
+          title: client.type === 'company' ? 'Business' : 'Household',
+          tab: client.type === 'company' ? 'info' : 'family'
+        }"></ng-container>
 
-      <div class="grid grid-cols-2 gap-2.5">
-        @if (client.type === 'company') {
-          <div class="rounded-2xl bg-brand-surface p-3">
-            <p class="text-[11px] text-gray-500">Structure</p>
-            <p class="mt-1.5 truncate text-sm font-semibold text-gray-900">{{ client.company?.businessStructure || 'Not set' }}</p>
-          </div>
-          <div class="rounded-2xl border border-gray-200 p-3">
-            <p class="text-[11px] text-gray-500">Activity</p>
-            <p class="mt-1.5 truncate text-sm font-semibold"
-              [ngClass]="client.company?.principalBusinessActivity ? 'text-gray-900' : 'text-gray-400'">
-              {{ client.company?.principalBusinessActivity || 'Not set' }}
-            </p>
-          </div>
-        } @else {
-          <div class="rounded-2xl bg-brand-surface p-3">
-            <p class="text-[11px] text-gray-500">Age</p>
-            <p class="mt-1 text-xl font-bold text-gray-900">{{ clientAge() ?? '—' }}</p>
-          </div>
-          <div class="rounded-2xl border border-gray-200 p-3">
-            <p class="text-[11px] text-gray-500">Occupation</p>
-            <p class="mt-1.5 truncate text-sm font-medium"
-              [ngClass]="client.individual?.occupation ? 'text-gray-900' : 'text-gray-400'">
-              {{ client.individual?.occupation || 'Not set' }}
-            </p>
-          </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          @if (client.type === 'company') {
+            <div class="rounded-2xl bg-brand-surface p-3">
+              <p class="text-[11px] text-gray-500">Structure</p>
+              <p class="mt-1.5 truncate text-sm font-semibold text-gray-900">{{ client.company?.businessStructure || 'Not set' }}</p>
+            </div>
+            <div class="rounded-2xl border border-gray-200 p-3">
+              <p class="text-[11px] text-gray-500">Activity</p>
+              <p class="mt-1.5 truncate text-sm font-semibold"
+                [ngClass]="client.company?.principalBusinessActivity ? 'text-gray-900' : 'text-gray-400'">
+                {{ client.company?.principalBusinessActivity || 'Not set' }}
+              </p>
+            </div>
+          } @else {
+            <div class="rounded-2xl bg-brand-surface p-3">
+              <p class="text-[11px] text-gray-500">Age</p>
+              <p class="mt-1 text-xl font-bold text-gray-900">{{ clientAge() ?? '—' }}</p>
+            </div>
+            <div class="rounded-2xl border border-gray-200 p-3">
+              <p class="text-[11px] text-gray-500">Occupation</p>
+              <p class="mt-1.5 truncate text-sm font-medium"
+                [ngClass]="client.individual?.occupation ? 'text-gray-900' : 'text-gray-400'">
+                {{ client.individual?.occupation || 'Not set' }}
+              </p>
+            </div>
+          }
+        </div>
+
+        @if (primaryAddress()) {
+          <p class="flex items-start gap-2 px-1 text-xs text-gray-600">
+            <ion-icon name="location-outline" class="mt-0.5 shrink-0 text-sm text-gray-400"></ion-icon>
+            <span class="line-clamp-2">{{ primaryAddress() }}</span>
+          </p>
         }
-      </div>
 
-      @if (primaryAddress()) {
-        <p class="flex items-start gap-2 px-1 text-xs text-gray-600">
-          <ion-icon name="location-outline" class="mt-0.5 shrink-0 text-sm text-gray-400"></ion-icon>
-          <span class="line-clamp-2">{{ primaryAddress() }}</span>
-        </p>
-      }
-
-      @if (client.type !== 'company') {
-        @if (familyMembers().length > 0) {
-          <div class="flex flex-col">
-            @for (member of familyMembers(); track member.name + $index; let i = $index) {
-              <div class="ov-item flex items-center gap-3 rounded-xl px-1 py-1.5 transition-colors hover:bg-gray-50"
-                [style.animation-delay.ms]="280 + i * 60">
-                <app-avatar [name]="member.name" [seed]="member.name" sizeClass="h-8 w-8 text-xs" />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-[13px] font-medium text-gray-800">{{ member.name }}</span>
-                  <span class="block truncate text-[11px] text-gray-400">{{ member.contact || member.relation }}</span>
-                </span>
-                <span class="shrink-0 text-[11px] font-semibold"
-                  [ngClass]="member.relation === 'Spouse' ? 'text-pink-600' : 'text-brand-bold'">
-                  {{ member.relation }}{{ member.age !== null ? ' · ' + member.age : '' }}
-                </span>
-              </div>
-            }
-          </div>
-        } @else {
-          <div class="flex items-center gap-3 rounded-2xl border border-dashed border-brand-border p-3">
-            <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-              <ion-icon name="heart-outline" class="text-base"></ion-icon>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block text-[13px] font-semibold text-gray-900">No spouse or dependents</span>
-              <span class="block text-[11px] text-gray-500">Dependents can change the filing status.</span>
-            </span>
-            <button type="button" (click)="openTab.emit('family')"
-              class="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-brand-bold transition-colors hover:bg-gray-50">
-              <ion-icon name="add-outline"></ion-icon> Add
-            </button>
-          </div>
+        @if (client.type !== 'company') {
+          @if (familyMembers().length > 0) {
+            <div class="flex flex-col">
+              @for (member of familyMembers(); track member.name + $index; let i = $index) {
+                <div class="ov-item flex items-center gap-3 rounded-xl px-1 py-1.5 transition-colors hover:bg-gray-50"
+                  [style.animation-delay.ms]="280 + i * 60">
+                  <app-avatar [name]="member.name" [seed]="member.name" sizeClass="h-8 w-8 text-xs" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] font-medium text-gray-800">{{ member.name }}</span>
+                    <span class="block truncate text-[11px] text-gray-400">{{ member.contact || member.relation }}</span>
+                  </span>
+                  <span class="shrink-0 text-[11px] font-semibold"
+                    [ngClass]="member.relation === 'Spouse' ? 'text-pink-600' : 'text-brand-bold'">
+                    {{ member.relation }}{{ member.age !== null ? ' · ' + member.age : '' }}
+                  </span>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="flex items-center gap-3 rounded-2xl border border-dashed border-brand-border p-3">
+              <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
+                <ion-icon name="heart-outline" class="text-base"></ion-icon>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-[13px] font-semibold text-gray-900">No spouse or dependents</span>
+                <span class="block text-[11px] text-gray-500">Dependents can change the filing status.</span>
+              </span>
+              <button type="button" (click)="openTab.emit('family')"
+                class="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-brand-bold transition-colors hover:bg-gray-50">
+                <ion-icon name="add-outline"></ion-icon> Add
+              </button>
+            </div>
+          }
         }
-      }
-    </section>
+      </section>
+    } @placeholder {
+      <app-skeleton variant="card" minHeight="16rem" [rows]="4" />
+    }
 
     <!-- ========== Portal + solicitudes de documentos ========== -->
     @if (isAvailable('portal') || isAvailable('requests')) {
-      <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
-        style="animation-delay: 320ms">
-        <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'globe-outline', title: 'Client portal', tab: 'portal' }"></ng-container>
+      @defer (on viewport; prefetch on idle) {
+        <section class="ov-card flex flex-col gap-4 rounded-[24px] bg-white p-5 shadow-[0_6px_24px_rgba(30,70,107,0.06)] transition-shadow duration-300 hover:shadow-md"
+          style="animation-delay: 320ms">
+          <ng-container *ngTemplateOutlet="cardHeader; context: { icon: 'globe-outline', title: 'Client portal', tab: 'portal' }"></ng-container>
 
-        @if (summary.portal(); as portal) {
-          <div class="flex items-center gap-3 rounded-2xl bg-brand-surface p-3">
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-semibold text-gray-900">{{ portal.email || client.email || '—' }}</span>
-              <span class="block text-[11px] text-gray-500">
-                @if (portal.status === 'pending' && portal.expiresAtUtc) {
-                  Invite expires {{ portal.expiresAtUtc | timeAgo }}
-                } @else if (portal.invitedAtUtc) {
-                  Invited {{ portal.invitedAtUtc | timeAgo }}
-                } @else {
-                  Not invited yet
-                }
-              </span>
-            </span>
-            <span class="shrink-0 text-xs font-semibold text-brand-bold">{{ portalLabel() }}</span>
-          </div>
-        }
-
-        @if (isAvailable('requests')) {
-          <div>
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="font-semibold uppercase tracking-wide text-gray-400">Document requests</span>
-              <span class="text-gray-500">
-                {{ summary.openRequests().length }} open
-                @if (summary.requestsToReview() > 0) {
-                  · <span class="font-semibold text-amber-600">{{ summary.requestsToReview() }} to review</span>
-                }
-              </span>
-            </div>
-            @for (request of summary.openRequests().slice(0, 3); track request.id; let i = $index) {
-              <button type="button" (click)="openTab.emit('work')" [style.animation-delay.ms]="360 + i * 60"
-                class="ov-item mt-2 flex w-full items-center gap-2.5 text-left">
-                <ion-icon [name]="request.status === 'Submitted' ? 'document-attach-outline' : 'time-outline'" class="shrink-0 text-sm"
-                  [ngClass]="request.status === 'Submitted' ? 'text-amber-600' : 'text-gray-400'"></ion-icon>
-                <span class="min-w-0 flex-1 truncate text-[13px] text-gray-800">{{ request.title }}</span>
-                <span class="text-[11px] text-gray-400">
-                  {{ request.status === 'Submitted' ? request.documentCount + ' file' + (request.documentCount === 1 ? '' : 's') : 'Waiting' }}
+          @if (summary.portal(); as portal) {
+            <div class="flex items-center gap-3 rounded-2xl bg-brand-surface p-3">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-semibold text-gray-900">{{ portal.email || client.email || '—' }}</span>
+                <span class="block text-[11px] text-gray-500">
+                  @if (portal.status === 'pending' && portal.expiresAtUtc) {
+                    Invite expires {{ portal.expiresAtUtc | timeAgo }}
+                  } @else if (portal.invitedAtUtc) {
+                    Invited {{ portal.invitedAtUtc | timeAgo }}
+                  } @else {
+                    Not invited yet
+                  }
                 </span>
-              </button>
-            } @empty {
-              <p class="mt-2 text-xs text-gray-400">No open document requests.</p>
-            }
-          </div>
-        }
-      </section>
+              </span>
+              <span class="shrink-0 text-xs font-semibold text-brand-bold">{{ portalLabel() }}</span>
+            </div>
+          }
+
+          @if (isAvailable('requests')) {
+            <div>
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="font-semibold uppercase tracking-wide text-gray-400">Document requests</span>
+                <span class="text-gray-500">
+                  {{ summary.openRequests().length }} open
+                  @if (summary.requestsToReview() > 0) {
+                    · <span class="font-semibold text-amber-600">{{ summary.requestsToReview() }} to review</span>
+                  }
+                </span>
+              </div>
+              @for (request of summary.openRequests().slice(0, 3); track request.id; let i = $index) {
+                <button type="button" (click)="openTab.emit('work')" [style.animation-delay.ms]="360 + i * 60"
+                  class="ov-item mt-2 flex w-full items-center gap-2.5 text-left">
+                  <ion-icon [name]="request.status === 'Submitted' ? 'document-attach-outline' : 'time-outline'" class="shrink-0 text-sm"
+                    [ngClass]="request.status === 'Submitted' ? 'text-amber-600' : 'text-gray-400'"></ion-icon>
+                  <span class="min-w-0 flex-1 truncate text-[13px] text-gray-800">{{ request.title }}</span>
+                  <span class="text-[11px] text-gray-400">
+                    {{ request.status === 'Submitted' ? request.documentCount + ' file' + (request.documentCount === 1 ? '' : 's') : 'Waiting' }}
+                  </span>
+                </button>
+              } @empty {
+                <p class="mt-2 text-xs text-gray-400">No open document requests.</p>
+              }
+            </div>
+          }
+        </section>
+      } @placeholder {
+        <app-skeleton variant="card" minHeight="14rem" [rows]="4" />
+      }
     }
   </div>
 </div>
+}
 
 <!-- Cabecera común: icono en círculo + título + contador opcional + "See all" a la pestaña. -->
 <ng-template #cardHeader let-icon="icon" let-title="title" let-count="count" let-tab="tab">
@@ -858,16 +895,22 @@
   </div>
 </ng-template>
 
-<!-- Visor global para los documentos recientes (se porta al <body> al abrirse). -->
-<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
-  (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>
+<!-- Visor global para los documentos recientes (se porta al <body> al abrirse). Diferido: su código
+     (y pdf.js detrás) solo baja la primera vez que se abre un documento; luego queda montado. -->
+@defer (when viewerOpen(); prefetch on idle) {
+  <app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+    (indexChange)="viewerIndex.set($event)" (closed)="viewerOpen.set(false)"></app-file-viewer>
+}
 
-<!-- Fuera de la grilla: el diálogo es un overlay y no debe ocupar una celda. -->
+<!-- Fuera de la grilla: el diálogo es un overlay y no debe ocupar una celda. Diferido hasta que
+     se abre por primera vez (gestiona su visibilidad con [isOpen], así que luego queda montado). -->
 @if (canViewAssignees()) {
-  <app-client-assign-dialog
-    mode="single"
-    [isOpen]="assignOpen()"
-    [client]="{ id: client.id, displayName: client.displayName }"
-    (closed)="onAssignClosed($event)"
-  ></app-client-assign-dialog>
+  @defer (when assignOpen(); prefetch on idle) {
+    <app-client-assign-dialog
+      mode="single"
+      [isOpen]="assignOpen()"
+      [client]="{ id: client.id, displayName: client.displayName }"
+      (closed)="onAssignClosed($event)"
+    ></app-client-assign-dialog>
+  }
 }
