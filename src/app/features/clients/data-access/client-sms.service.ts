@@ -4,8 +4,12 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ClientSmsSendRequest, ClientSmsSendResponse } from './client-sms.model';
 
-/** Marca de origen para la auditoría del backend (distinta de la del módulo SMS). */
-const SOURCE_CONTEXT = 'crm-client-profile';
+/**
+ * Marca de origen: la MISMA del módulo SMS. El listado `GET /sms/messages` solo muestra los SMS
+ * manuales del preparador (`crm-sms`); con otra marca, lo enviado desde el perfil no aparecía ni en
+ * /sms ni en la pestaña SMS del cliente.
+ */
+const SOURCE_CONTEXT = 'crm-sms';
 
 /**
  * Envío directo de UN SMS a un cliente desde su perfil: `POST /sms/messages` (permiso `sms.send`,

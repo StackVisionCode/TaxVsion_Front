@@ -4,20 +4,20 @@
     <div class="bg-white rounded-[28px] p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 class="text-xl font-bold text-gray-900">Signature Requests</h2>
-          <p class="mt-1 text-sm text-gray-500">Track documents sent out for client signature</p>
+          <h2 class="text-xl font-bold text-gray-900">{{ embedded() ? 'Signatures' : 'Signature Requests' }}</h2>
+          <p class="mt-1 text-sm text-gray-500">{{ embedded() ? 'Signature requests for ' + embeddedName() : 'Track documents sent out for client signature' }}</p>
 
           <!-- Firma por defecto guardada (persistida en CloudStorage) -->
           <div *ngIf="store.defaultSignatureProfile() as sig"
             class="mt-3 inline-flex items-center gap-3 rounded-2xl border border-gray-100 bg-brand-white px-3 py-2">
             <ion-icon name="ribbon-outline" class="text-base text-brand-bold"></ion-icon>
             <span class="text-xs font-medium text-gray-600">Default signature: {{ sig.label }}</span>
-            <button *ngIf="can.canManagePreparerProfiles()" type="button" (click)="openProfilesManager()"
+            <button *ngIf="can.canManagePreparerProfiles() && !embedded()" type="button" (click)="openProfilesManager()"
               class="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">Manage</button>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button *ngIf="can.canManagePreparerProfiles()" type="button" (click)="openProfilesManager()"
+          <button *ngIf="can.canManagePreparerProfiles() && !embedded()" type="button" (click)="openProfilesManager()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="create-outline" class="text-base"></ion-icon>
             My signature
@@ -27,17 +27,17 @@
             <ion-icon name="documents-outline" class="text-base"></ion-icon>
             From template
           </button>
-          <a *ngIf="can.canEditTemplates()" routerLink="/signature/templates"
+          <a *ngIf="can.canEditTemplates() && !embedded()" routerLink="/signature/templates"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="settings-outline" class="text-base"></ion-icon>
             Manage templates
           </a>
-          <button *ngIf="can.canCreate()" type="button" (click)="openCategoryManager()"
+          <button *ngIf="can.canCreate() && !embedded()" type="button" (click)="openCategoryManager()"
             class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
             <ion-icon name="pricetags-outline" class="text-base"></ion-icon>
             Categories
           </button>
-          <button *ngIf="can.canCreate()" type="button" (click)="openCreatePanel()"
+          <button *ngIf="can.canCreate()" type="button" (click)="openNewRequest()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
             New Signature Request
@@ -48,14 +48,14 @@
       <!-- Filter bar (filtro de estado server-side) -->
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <app-filter-chips [options]="statusFilters" [value]="store.statusFilter()" (valueChange)="setFilter($event)" />
-        <app-search-input class="ml-auto" placeholder="Search documents or clients" widthClass="w-56" [value]="search()"
+        <app-search-input class="ml-auto" [placeholder]="embedded() ? 'Search documents or signers' : 'Search documents or clients'" widthClass="w-56" [value]="search()"
           (valueChange)="onSearchChange($event)" />
       </div>
 
       <!-- Estados de carga / error del listado + tabla con paginación server-side -->
       <app-state-block class="mt-5 block" [loading]="store.loading()" [error]="store.error()"
         loadingText="Loading signature requests…" (retry)="retryLoad()">
-        <app-signature-table [requests]="visibleRequests()" (previewRequested)="openPreview($event)"
+        <app-signature-table [requests]="visibleRequests()" [showClient]="!embedded()" (previewRequested)="openPreview($event)"
           (sendRequested)="sendRequest($event)"
           (resendRequested)="resendReminder($event)" (cancelRequested)="openCancelModal($event)"
           (extendRequested)="openExtendModal($event)" (pinRequested)="openPinModal($event)" (preparerRequested)="openPreparerModal($event)"
@@ -74,7 +74,7 @@
     <app-signature-request-panel *ngIf="isPanelOpen(); else previewOnly" [continueRequestId]="continueRequestId()"
       (closed)="closePanel()" (sent)="handleSent()" (saved)="handleDraftSaved()"></app-signature-request-panel>
     <ng-template #previewOnly>
-      <app-signature-preview [request]="previewRequest()" [sending]="sendingRequest()" (back)="closePreview()"
+      <app-signature-preview [request]="previewRequest()" [showClient]="!embedded()" [sending]="sendingRequest()" (back)="closePreview()"
         (send)="sendRequest($event)"
         (cancelSchedule)="cancelScheduledSend($event)"
         (downloadOriginal)="downloadOriginal($event)"

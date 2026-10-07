@@ -21,8 +21,9 @@
   </div>
 </div>
 
-<!-- 3) Sin buzón usable (o en modo gestión): flujo de conexión + gestión de buzones -->
-<div *ngIf="!store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager())"
+<!-- 3) Sin buzón usable (o en modo gestión): flujo de conexión + gestión de buzones.
+     Embebido en el perfil nunca se muestra (evita redirecciones OAuth desde el perfil). -->
+<div *ngIf="!embedded() && !store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager())"
   class="flex-1 min-h-0 pt-3 pb-1 flex items-start justify-center overflow-y-auto">
   <div class="w-full max-w-xl rounded-[28px] bg-white p-8">
 
@@ -220,9 +221,23 @@
   </div>
 </div>
 
-<!-- 4) Bandeja real: 3 paneles (rail | listado | lectura/compose) -->
-<div *ngIf="!store.bootLoading() && !store.bootError() && store.hasMailbox() && !showMailboxManager()"
+<!-- 4) Bandeja real: 3 paneles (rail | listado | lectura/compose).
+     Embebido se muestra aun sin buzón: hilos del cliente en solo lectura. -->
+<div *ngIf="!store.bootLoading() && !store.bootError() && (store.hasMailbox() || embedded()) && !showMailboxManager()"
   class="flex-1 min-h-0 pt-3 pb-1 flex flex-col gap-3">
+
+  <!-- Embebido sin buzón: aviso compacto; la conexión se hace en la página de Mail -->
+  <div *ngIf="embedded() && !store.hasMailbox()"
+    class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+    <p class="flex items-center gap-2 text-sm text-gray-700">
+      <ion-icon name="mail-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
+      No mailbox connected — you can read this client's conversations, but not send or reply.
+    </p>
+    <a routerLink="/email"
+      class="shrink-0 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink transition-colors">
+      Connect a mailbox
+    </a>
+  </div>
 
   <!-- Resultado del callback OAuth al volver de conectar/reautorizar un buzón -->
   <div *ngIf="connectResult() as result"
@@ -267,10 +282,15 @@
     <div class="bg-white rounded-[28px] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto">
       <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
       <p class="mt-1 truncate text-sm text-gray-500 px-1">{{ store.activeAccount()?.emailAddress || 'Your inbox' }}</p>
-      <button type="button" (click)="toggleMailboxManager()"
+      <button *ngIf="!embedded()" type="button" (click)="toggleMailboxManager()"
         class="mt-1 inline-flex items-center gap-1 px-1 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">
         <ion-icon name="settings-outline" class="text-sm"></ion-icon> Manage mailboxes
       </button>
+      <!-- Embebido: la gestión de buzones vive en /email -->
+      <a *ngIf="embedded()" routerLink="/email"
+        class="mt-1 inline-flex items-center gap-1 px-1 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">
+        <ion-icon name="settings-outline" class="text-sm"></ion-icon> Manage mailboxes
+      </a>
 
       <div class="mt-4">
         <app-mail-folder-list [folders]="folders()" [activeFolderId]="store.activeFolderId()"
@@ -281,7 +301,7 @@
 
       <!-- Selector de cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un cliente.
            Picker compartido (búsqueda server-side, recientes del directorio y teclado ↑/↓/Enter/Esc). -->
-      <div class="mt-5">
+      <div *ngIf="!embedded()" class="mt-5">
         <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
         <app-customer-picker class="mt-2" [selected]="store.selectedCustomer()"
           placeholder="Search clients by name or email…" (selectedChange)="onCustomerChange($event)"></app-customer-picker>

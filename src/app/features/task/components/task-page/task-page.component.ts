@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
@@ -20,6 +20,7 @@ import { SearchInputComponent } from '@shared/ui/search-input/search-input.compo
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AccessStore } from '@core/access/access.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
 
@@ -29,6 +30,11 @@ type PriorityFilter = 'All' | ApiTaskPriority;
  * client-side + panel de creación/edición. Las transiciones de columna (drag o
  * puntos de la tarjeta) disparan los endpoints reales de transición con update
  * optimista; el guardado del panel lo orquesta TaskStore (create/update multi-paso).
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`): lo monta `ClientTaskWorkspaceComponent` en el perfil
+ * del cliente, con su propia instancia de TaskStore fijada a ese cliente. Oculta el filtro de
+ * cliente, las acciones a nivel tenant (Labels, Series) y el cliente de las tarjetas; "New Task" y
+ * "Templates → Apply" llegan con el cliente preseleccionado y bloqueado.
  */
 @Component({
   selector: 'app-task-page',
@@ -52,7 +58,7 @@ type PriorityFilter = 'All' | ApiTaskPriority;
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-page.component.html',
 })
-export class TaskPageComponent {
+export class TaskPageComponent implements OnInit {
   /**
    * B6 — la cabecera ya se gateaba con `*appHasPermission`; el tablero y el cajón no. Arrastrar
    * una tarjeta es una escritura, aunque no lo parezca.
@@ -63,17 +69,26 @@ export class TaskPageComponent {
   readonly store = inject(TaskStore);
   private readonly toast = inject(ToastService);
 
+  /** Cliente del perfil cuando la página va embebida (null en /task). */
+  readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
+
   readonly priorityFilters: FilterChipOption<PriorityFilter>[] = (
     ['All', 'Low', 'Normal', 'High', 'Urgent'] as PriorityFilter[]
   ).map(option => ({ id: option, label: option }));
   readonly activeFilter = signal<PriorityFilter>('All');
 
   /** Board (flujo) · List (volumen) · Calendar (por vencimiento). Persistido en localStorage. */
-  readonly viewMode = signal<'board' | 'list' | 'calendar'>(this.readViewMode());
+  readonly viewMode = signal<'board' | 'list' | 'calendar'>('board');
+
+  /** Clave propia en modo embebido para no pisar la vista elegida en /task. */
+  private viewModeKey(): string {
+    return this.embedded() ? 'task_view_mode_client' : 'task_view_mode';
+  }
 
   private readViewMode(): 'board' | 'list' | 'calendar' {
     try {
-      const v = localStorage.getItem('task_view_mode');
+      const v = localStorage.getItem(this.viewModeKey());
       return v === 'list' || v === 'calendar' ? v : 'board';
     } catch {
       return 'board';
@@ -83,7 +98,7 @@ export class TaskPageComponent {
   setViewMode(mode: 'board' | 'list' | 'calendar'): void {
     this.viewMode.set(mode);
     try {
-      localStorage.setItem('task_view_mode', mode);
+      localStorage.setItem(this.viewModeKey(), mode);
     } catch {
       /* sin persistencia: vive en memoria */
     }
@@ -102,6 +117,23 @@ export class TaskPageComponent {
   readonly isLabelsOpen = signal(false);
 
   constructor() {
+    // Embebido: si el perfil cambia de cliente sin destruir el workspace, recarga con el nuevo.
+    let lastCustomerId: string | null | undefined;
+    effect(() => {
+      const id = this.store.lockedCustomerId();
+      if (lastCustomerId !== undefined && id !== lastCustomerId) {
+        untracked(() => this.store.reloadLockedCustomer());
+      }
+      lastCustomerId = id;
+    });
+  }
+
+  /**
+   * En ngOnInit (no en el constructor): los inputs del wrapper embebido ya publicaron el cliente,
+   * así el store y la clave de vista lo ven desde la primera carga.
+   */
+  ngOnInit(): void {
+    this.viewMode.set(this.readViewMode());
     this.store.init();
   }
 

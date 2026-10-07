@@ -2,6 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } f
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import {
   ScheduleMeetingDeepLink,
   customerInviteeDraft,
@@ -35,6 +36,11 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
  * expone `term`), no hay "cliente" ni duración planificada en el contrato, y las
  * grabaciones del mock se reemplazan por el transcript real (descarga presignada de
  * CloudStorage) cuando el meeting tiene `transcriptFileId`.
+ *
+ * Modo embebido (`injectEmbeddedCustomer()`): lo monta `ClientMeetingsWorkspaceComponent` en el
+ * perfil del cliente. El store filtra por ese cliente, no se leen query params y "Schedule meeting"
+ * abre el panel con el cliente ya invitado. La sala en vivo se renderiza igual que en /meetings
+ * (la sala marca `roomViewAttached` y el mini-player global se oculta mientras está montada).
  */
 @Component({
   selector: 'app-meetings-page',
@@ -60,6 +66,14 @@ export class MeetingsPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly directory = inject(CustomerDirectoryStore);
+
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
+  /** Subtítulo de la cabecera (embebido: el cliente). */
+  readonly subtitle = computed(() => {
+    const customer = this.embeddedCustomer();
+    return customer ? `Meetings with ${customer.name}` : 'Your schedule at a glance';
+  });
 
   /** Invitados precargados del panel de agendar (deep link desde el perfil del cliente). */
   readonly initialInvitees = signal<MeetingInviteeDraft[]>([]);
@@ -94,7 +108,10 @@ export class MeetingsPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
-    this.consumeScheduleDeepLink();
+    // Embebido: la URL es la del perfil, no hay deep link que consumir.
+    if (!this.embedded()) {
+      this.consumeScheduleDeepLink();
+    }
   }
 
   /**
@@ -165,6 +182,16 @@ export class MeetingsPageComponent implements OnInit {
   // ---------- Panel de agendar / gestionar ----------
 
   openSchedulePanel(): void {
+    const customer = this.embeddedCustomer();
+    if (customer) {
+      // Embebido: mismo flujo del deep link, con el cliente del perfil ya invitado.
+      const link: ScheduleMeetingDeepLink = { customerId: customer.id, customerName: customer.name };
+      this.directory.byId([customer.id]).subscribe({
+        next: found => this.openScheduleFor(link, found.get(customer.id) ?? null),
+        error: () => this.openScheduleFor(link, null),
+      });
+      return;
+    }
     this.initialInvitees.set([]);
     this.managingMeeting.set(null);
     this.panelError.set(null);

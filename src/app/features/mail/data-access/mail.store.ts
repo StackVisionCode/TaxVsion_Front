@@ -1,4 +1,5 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
@@ -21,6 +22,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { MailService } from './mail.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { EmbeddedCustomer, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { MailSocketService } from './mail-socket.service';
 import {
   AttachFileToDraftRequest,
@@ -129,6 +131,9 @@ const EMPTY_COMPOSE: ComposeState = {
  * El inbox del backend es POR CUSTOMER (no existe bandeja global del tenant), así que el
  * estado pivota sobre el cliente seleccionado: sus hilos (activos/archivados) y sus drafts.
  * Los componentes ui/ siguen dumb: solo mail-page consume este store.
+ *
+ * Modo embebido (perfil del cliente): `ClientMailWorkspaceComponent` provee una instancia PROPIA
+ * de este store; el cliente queda fijado por `injectEmbeddedCustomer()` y no se carga el directorio.
  */
 @Injectable({ providedIn: 'root' })
 export class MailStore {
@@ -138,6 +143,11 @@ export class MailStore {
   private readonly auth = inject(AuthService);
   private readonly mailSocket = inject(MailSocketService);
   private readonly caps = inject(ConnectorsCapabilities);
+  /** Root: nunca se destruye. Instancia del wrapper embebido: corta las suscripciones al destruirse. */
+  private readonly destroyRef = inject(DestroyRef);
+  /** Cliente fijado por el perfil (`null` en /email). */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
+  readonly embedded = computed(() => this.embeddedCustomer() !== null);
 
   // ---------- Capacidades de conexión (Office vs Personal) ----------
 
@@ -395,6 +405,7 @@ export class MailStore {
   private wireRecipientSearch(): void {
     this._recipientSearch$
       .pipe(
+        takeUntilDestroyed(this.destroyRef),
         debounceTime(250),
         distinctUntilChanged(),
         switchMap(term => {
@@ -418,6 +429,9 @@ export class MailStore {
 
   /** Fija el cliente activo (elegido en el picker, que ya lo sube a recientes) y carga sus hilos. */
   pickCustomer(customer: CustomerSummary): void {
+    if (this.embedded()) {
+      return;
+    }
     this._selectedCustomer.set(customer);
     this.selectCustomer(customer.id);
   }
@@ -434,7 +448,8 @@ export class MailStore {
    * sus mensajes. Para otros clientes no hace nada: sus hilos se cargan frescos al seleccionarlos.
    */
   private subscribeIncomingMailRealtime(): void {
-    this.mailSocket.incomingEmail$.subscribe(evt => {
+    this.mailSocket.incomingEmail$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(evt => {
+      // Embebido: el cliente seleccionado ES el fijado, así que esto ya ignora a los demás.
       if (evt.customerId !== this._selectedCustomerId()) {
         return;
       }
@@ -446,6 +461,11 @@ export class MailStore {
   }
 
   refreshBoot(): void {
+    const embedded = this.embeddedCustomer();
+    if (embedded) {
+      this.refreshBootEmbedded(embedded);
+      return;
+    }
     this._bootLoading.set(true);
     this._bootError.set(null);
     forkJoin({
@@ -479,6 +499,59 @@ export class MailStore {
         this._bootLoading.set(false);
       },
     });
+  }
+
+  /**
+   * Boot embebido: fija el cliente ANTES de cargar (sin la búsqueda de 200 clientes ni el auto-select)
+   * y resuelve su CustomerSummary por id (email para precargar "To"). Hilos/drafts se listan aunque no
+   * haya buzón: el backend los filtra por cliente y la UI los muestra en solo lectura.
+   */
+  private refreshBootEmbedded(embedded: EmbeddedCustomer): void {
+    this._selectedCustomerId.set(embedded.id);
+    if (this._selectedCustomer()?.id !== embedded.id) {
+      this._selectedCustomer.set(this.fallbackSummary(embedded));
+    }
+    this._bootLoading.set(true);
+    this._bootError.set(null);
+    forkJoin({
+      accounts: this.service.listAccounts(),
+      customer: this.directory.byId([embedded.id]).pipe(
+        map(found => found.get(embedded.id) ?? null),
+        catchError(() => of<CustomerSummary | null>(null)),
+      ),
+    }).subscribe({
+      next: ({ accounts, customer }) => {
+        this._accounts.set(accounts);
+        if (customer) {
+          this._selectedCustomer.set(customer);
+        }
+        this._customers.set([this._selectedCustomer() ?? this.fallbackSummary(embedded)]);
+        this._bootLoading.set(false);
+        const usable = accounts.filter(isUsableAccount);
+        if (!this._activeAccountId() || !usable.some(account => account.id === this._activeAccountId())) {
+          this._activeAccountId.set(usable[0]?.id ?? null);
+        }
+        this.loadThreads(true);
+        this.loadDrafts(true);
+      },
+      error: err => {
+        this._bootError.set(toApiError(err).message);
+        this._bootLoading.set(false);
+      },
+    });
+  }
+
+  /** Resumen mínimo con lo que trae el perfil, mientras el directorio no responde. */
+  private fallbackSummary(embedded: EmbeddedCustomer): CustomerSummary {
+    return {
+      id: embedded.id,
+      kind: 'Individual',
+      status: 'Active',
+      displayName: embedded.name,
+      primaryEmail: '',
+      primaryPhone: null,
+      createdAtUtc: '',
+    };
   }
 
   /** Refresca solo las cuentas (ej. al volver del consentimiento OAuth). */
@@ -600,7 +673,8 @@ export class MailStore {
   // ---------- Selección ----------
 
   selectCustomer(customerId: string): void {
-    if (customerId === this._selectedCustomerId()) {
+    // Embebido: el cliente está fijado por el perfil, no se cambia.
+    if (customerId === this._selectedCustomerId() || this.embedded()) {
       return;
     }
     this._selectedCustomerId.set(customerId);

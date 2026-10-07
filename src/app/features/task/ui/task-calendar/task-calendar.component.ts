@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { TaskService } from '../../data-access/task.service';
 import { ApiTaskPriority, TaskCalendarEntry } from '../../data-access/task.model';
 import { priorityChipClass } from '@core/tasks/task-format';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 
 interface CalendarDay {
   date: Date;
@@ -28,6 +29,9 @@ interface CalendarDay {
  * read-only). Al hacer click en una tarea emite la entrada; la página abre el drawer.
  *
  * ⚠️ Fechas: el backend da UTC + TimeZoneId; aquí se agrupa por el día del `dueAtUtc` (slice ISO).
+ *
+ * Embebido en el perfil de un cliente (`injectEmbeddedCustomer()`): GET /tasks/calendar no acepta
+ * `customerId`, así que las entradas se filtran client-side por `entry.customerId`.
  */
 @Component({
   selector: 'app-task-calendar',
@@ -39,6 +43,7 @@ interface CalendarDay {
 })
 export class TaskCalendarComponent implements OnInit {
   private readonly service = inject(TaskService);
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
 
   @Output() taskOpened = new EventEmitter<TaskCalendarEntry>();
 
@@ -115,7 +120,8 @@ export class TaskCalendarComponent implements OnInit {
     this.loading.set(true);
     this.service.calendar(from.toISOString(), to.toISOString()).subscribe({
       next: entries => {
-        this.entries.set(entries);
+        const customerId = this.embeddedCustomer()?.id ?? null;
+        this.entries.set(customerId ? entries.filter(entry => entry.customerId === customerId) : entries);
         this.loading.set(false);
       },
       error: () => {

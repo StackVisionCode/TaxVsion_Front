@@ -14,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import {
   CatalogItemPickerComponent,
   CatalogQuickCreate,
@@ -60,7 +61,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, CatalogItemPickerComponent, CustomerPickerComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })
@@ -81,6 +82,11 @@ export class InvoiceFormPanelComponent implements OnChanges {
   @Input() editing: InvoiceDetail | null = null;
   /** Stock disponible por catalogItemId (number = disponible rastreado; null = sin límite). Solo aviso. */
   @Input() stockByItem: Record<string, number | null> = {};
+  /**
+   * Cliente fijo (módulo embebido en el perfil del cliente). En alta se preselecciona y el picker
+   * se oculta; en edición manda el cliente de la factura.
+   */
+  @Input() lockedCustomer: CustomerSummary | null = null;
 
   @Output() closed = new EventEmitter<void>();
   @Output() catalogSearchChanged = new EventEmitter<string>();
@@ -93,6 +99,11 @@ export class InvoiceFormPanelComponent implements OnChanges {
   /** True cuando el formulario edita una factura existente (cambia título/botones y camino de guardado). */
   get isEditing(): boolean {
     return this.editing !== null;
+  }
+
+  /** Alta con cliente fijo: se muestra el cliente en solo lectura en vez del picker. */
+  get customerLocked(): boolean {
+    return this.lockedCustomer !== null && !this.isEditing;
   }
 
   readonly customer = signal<CustomerSummary | null>(null);
@@ -108,6 +119,9 @@ export class InvoiceFormPanelComponent implements OnChanges {
     // Cada apertura empieza en limpio: no hay edición, así que no hay nada que precargar.
     if (changes['isOpen'] && this.isOpen) {
       this.reset();
+    } else if (changes['lockedCustomer'] && this.isOpen && !this.isEditing && this.lockedCustomer) {
+      // El perfil resolvió el cliente (directorio) con el formulario ya abierto: refrescar el fijo.
+      this.customer.set(this.lockedCustomer);
     }
   }
 
@@ -320,7 +334,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
       return;
     }
 
-    this.customer.set(null);
+    this.customer.set(this.lockedCustomer);
     this.customerTaxId.set('');
     this.currency.set(this.defaultCurrency || 'USD');
     this.notes.set('');

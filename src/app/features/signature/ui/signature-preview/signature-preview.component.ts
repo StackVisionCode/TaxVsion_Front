@@ -40,6 +40,8 @@ export class SignaturePreviewComponent {
 
   /** true mientras el envío (Ready → InProgress) está en vuelo. */
   @Input() sending = false;
+  /** false = oculta el bloque Client (módulo embebido en el perfil de un solo cliente). */
+  @Input() showClient = true;
   @Output() back = new EventEmitter<void>();
   @Output() send = new EventEmitter<SignatureRequest>();
   /** F3 — cancelar la programacion de envio (Scheduled → Draft). */

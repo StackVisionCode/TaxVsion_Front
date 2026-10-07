@@ -62,6 +62,8 @@ export class TaskTemplatesModalComponent implements OnChanges {
   private readonly cloud = inject(CloudStorageUploadService);
 
   @Input() isOpen = false;
+  /** Cliente fijado por el perfil (modo embebido): "Apply" llega preseleccionado y sin picker. */
+  @Input() lockedClient: CustomerSummary | null = null;
   @Output() closed = new EventEmitter<void>();
   /** Se aplicó una plantilla (se crearon tareas) → el tablero refresca. */
   @Output() applied = new EventEmitter<void>();
@@ -425,7 +427,7 @@ export class TaskTemplatesModalComponent implements OnChanges {
 
   private resetApply(): void {
     this.selected.set(null);
-    this.selectedClient.set(null);
+    this.selectedClient.set(this.lockedClient);
     this.taxYear.set(new Date().getFullYear());
     this.anchorDate.set(this.todayIso());
     this.allowDuplicate.set(false);

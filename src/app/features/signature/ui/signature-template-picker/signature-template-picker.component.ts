@@ -7,6 +7,8 @@ import { toApiError } from '@core/models/api-error.model';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import {
   SignatureRequestDetail,
@@ -54,6 +56,9 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
 })
 export class SignatureTemplatePickerComponent {
   private readonly store = inject(SignatureStore);
+  private readonly directory = inject(CustomerDirectoryStore);
+  /** Embebido en el perfil de un cliente: el primer rol se prellena con ese cliente (editable). */
+  private readonly embeddedCustomer = injectEmbeddedCustomer();
 
   @Input() set isOpen(value: boolean) {
     this.open.set(value);
@@ -235,11 +240,32 @@ export class SignatureTemplatePickerComponent {
             })),
         );
         this.loadingDetail.set(false);
+        this.prefillEmbeddedCustomer(detail.id);
       },
       error: err => {
         this.error.set(toApiError(err).message);
         this.loadingDetail.set(false);
       },
+    });
+  }
+
+  /** Prellena el slot 1 con el cliente embebido (si sigue abierta la misma plantilla y el slot está vacío). */
+  private prefillEmbeddedCustomer(templateId: string): void {
+    const customer = this.embeddedCustomer();
+    const first = this.slots()[0];
+    if (!customer || !first) {
+      return;
+    }
+    this.directory.byId([customer.id]).subscribe({
+      next: found => {
+        const summary = found.get(customer.id);
+        const slot = this.slots().find(s => s.slotOrder === first.slotOrder);
+        if (summary && this.selected()?.id === templateId && slot && !slot.email && !slot.fullName) {
+          this.pickClient(first.slotOrder, summary);
+        }
+      },
+      // Best-effort: si falla, el usuario elige al cliente en el buscador como siempre.
+      error: () => undefined,
     });
   }
 

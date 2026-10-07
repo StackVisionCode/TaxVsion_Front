@@ -180,7 +180,9 @@ export class SmsStore {
   // ---------- Mensajes ----------
 
   /** Inicializa el listado desde el estado de la URL (idempotente) y dispara la primera carga. */
-  initList(query: { status?: SmsStatusFilter; term?: string; page?: number; size?: number }): void {
+  initList(query: { customerId?: string | null; status?: SmsStatusFilter; term?: string; page?: number; size?: number }): void {
+    // customerId: modo embebido en el perfil (listado fijo a ese cliente).
+    if (query.customerId !== undefined) this._customerId.set(query.customerId);
     if (query.status !== undefined) this._status.set(query.status);
     if (query.term !== undefined) this._term.set(query.term);
     if (query.size !== undefined) this._size.set(query.size);

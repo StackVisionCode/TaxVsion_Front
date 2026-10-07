@@ -44,6 +44,7 @@ interface AssigneeOption {
  *  - Estado "Waiting on Client": exige el detalle de lo pedido (`expectedItems`) y un cliente.
  *  - En edición aparecen además "Cancel task…" (razón obligatoria) y "Delete".
  * El componente solo emite un TaskFormValue: las llamadas las orquesta TaskStore.
+ * Embebido en el perfil (`TaskStore.lockedClient()`): el cliente llega preseleccionado y bloqueado.
  */
 @Component({
   selector: 'app-task-create-panel',
@@ -64,6 +65,9 @@ export class TaskCreatePanelComponent implements OnChanges {
   @Output() taskCancelled = new EventEmitter<{ task: TaskItem; reason: string }>();
 
   private readonly store = inject(TaskStore);
+
+  /** Cliente fijado por el perfil (modo embebido): preselecciona y oculta el picker. */
+  readonly lockedClient = this.store.lockedClient;
 
   readonly priorities = PRIORITIES;
   readonly statuses = TASK_COLUMNS;
@@ -144,6 +148,9 @@ export class TaskCreatePanelComponent implements OnChanges {
   }
 
   selectClient(client: CustomerSummary | null): void {
+    if (this.lockedClient()) {
+      return;
+    }
     this.selectedClient.set(client);
   }
 
@@ -262,7 +269,8 @@ export class TaskCreatePanelComponent implements OnChanges {
       this.priority.set('Normal');
       this.status.set('not-started');
       this.expectedItems.set('');
-      this.selectedClient.set(null);
+      // Embebido: la tarea nueva nace del cliente del perfil.
+      this.selectedClient.set(this.lockedClient());
       this.assignee.set(null);
     }
     this.assigneeSearch.set('');

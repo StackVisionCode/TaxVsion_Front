@@ -6,7 +6,7 @@
     <thead>
       <tr>
         <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Document name</th>
-        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Client</th>
+        <th *ngIf="showClient" class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Client</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Signers</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Sent date</th>
@@ -21,7 +21,7 @@
           [class.border-b]="!last" [class.border-gray-100]="!last">
           {{ request.documentName }}
         </td>
-        <td class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
+        <td *ngIf="showClient" class="px-4 py-3.5 text-gray-500 transition-colors group-hover:bg-gray-50" [class.border-b]="!last"
           [class.border-gray-100]="!last">
           {{ request.client }}
         </td>

@@ -120,6 +120,9 @@ export class SignatureService {
     if (params.editableOnly) {
       query = query.set('editableOnly', true);
     }
+    if (params.customerId) {
+      query = query.set('customerId', params.customerId);
+    }
     return this.http.get<SignatureRequestListResult>(`${this.base}/requests`, { params: query });
   }
 
