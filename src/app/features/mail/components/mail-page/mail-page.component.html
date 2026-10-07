@@ -358,7 +358,7 @@
     </div>
 
     <!-- Reading pane / compose editor -->
-    <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col">
+    <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)]">
       <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
         [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
         [customerName]="selectedCustomerName()" [recipientSuggestions]="store.recipientResults()"
