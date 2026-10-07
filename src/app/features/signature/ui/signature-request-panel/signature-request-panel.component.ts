@@ -1,6 +1,8 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
@@ -9,10 +11,12 @@ import {
   Output,
   SimpleChanges,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
 } from '@angular/core';
+import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { CommonModule } from '@angular/common';
@@ -103,6 +107,14 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Cuando viene un id, el wizard se abre para CONTINUAR ese borrador (rehidratado), no para crear uno. */
   @Input() continueRequestId: string | null = null;
 
+  /**
+   * Embebido en el perfil del cliente: el paso 3 (editor del PDF) pasa a pantalla completa, porque
+   * dentro de la pestaña el documento queda apretado entre la cabecera del perfil y el shell.
+   */
+  @Input() set fullscreenEditor(value: boolean) {
+    this.fullscreenEnabled.set(value);
+  }
+
   @Output() closed = new EventEmitter<void>();
   /** El backend ya mandó los emails (POST send → 202): el padre solo refresca y cierra. */
   @Output() sent = new EventEmitter<void>();
@@ -123,6 +135,61 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly clientLocked = computed(() => this.embeddedCustomer() !== null);
 
   readonly currentStep = signal<WizardStep>(1);
+
+  // ---------- Pantalla completa del editor (solo embebido) ----------
+
+  private readonly fullscreenEnabled = signal(false);
+  /** El usuario la cerró con "Exit full screen"; se re-arma al volver a entrar al paso 3. */
+  readonly fullscreenDismissed = signal(false);
+  readonly canFullscreen = computed(() => this.fullscreenEnabled() && this.currentStep() === 3);
+  readonly fullscreen = computed(() => this.canFullscreen() && !this.fullscreenDismissed());
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  /** Marca el lugar original del host mientras está portado al <body>. */
+  private fullscreenAnchor: Comment | null = null;
+
+  constructor() {
+    // Portar el host entero (wizard + diálogos hermanos) al <body>: ningún ancestro con transform
+    // del perfil puede encerrar el `fixed`, y al salir vuelve exactamente a su sitio.
+    effect(() => (this.fullscreen() ? this.enterFullscreen() : this.exitFullscreen()));
+    // Al salir del paso 3 se olvida el "Exit full screen": la próxima vez vuelve a abrirse grande.
+    effect(() => {
+      if (this.currentStep() !== 3) {
+        this.fullscreenDismissed.set(false);
+      }
+    });
+    inject(DestroyRef).onDestroy(() => {
+      if (this.fullscreenAnchor) {
+        setBodyScrollLock(false);
+        this.fullscreenAnchor.remove();
+        this.fullscreenAnchor = null;
+      }
+    });
+  }
+
+  toggleFullscreen(): void {
+    this.fullscreenDismissed.update(dismissed => !dismissed);
+  }
+
+  private enterFullscreen(): void {
+    if (this.fullscreenAnchor || typeof document === 'undefined' || !this.host.parentNode) {
+      return;
+    }
+    this.fullscreenAnchor = document.createComment('signature-editor-fullscreen');
+    this.host.parentNode.insertBefore(this.fullscreenAnchor, this.host);
+    portalToBody(this.host);
+    setBodyScrollLock(true);
+  }
+
+  private exitFullscreen(): void {
+    const anchor = this.fullscreenAnchor;
+    if (!anchor) {
+      return;
+    }
+    anchor.parentNode?.insertBefore(this.host, anchor);
+    anchor.remove();
+    this.fullscreenAnchor = null;
+    setBodyScrollLock(false);
+  }
   /** Rehidratando un borrador (fetch del detalle + bytes del PDF). */
   readonly hydrating = signal(false);
   readonly hydrateError = signal('');

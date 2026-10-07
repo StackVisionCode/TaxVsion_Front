@@ -2,6 +2,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, forkJoin, map, of } from 'rxjs';
 import { AccessStore } from '@core/access/access.store';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
+import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CallsService } from '@core/communication/calls.service';
 import { CustomerCallsResponse } from '@core/communication/call.model';
 import { ClientWorkService } from './client-work.service';
@@ -30,6 +32,8 @@ const PRIORITY_RANK: Record<ApiTaskPriority, number> = { Urgent: 0, High: 1, Nor
 const NEEDS_ATTENTION_MAX = 5;
 const RECENT_ACTIVITY_MAX = 4;
 const RECENT_ROWS = 3;
+/** Documentos recientes en la tarjeta del Overview. */
+const RECENT_DOCUMENTS_MAX = 4;
 
 /** Firmas en curso (enviadas o por enviar) vs. las que necesitan atención. */
 const SIGNATURE_PENDING = new Set(['Ready', 'Scheduled', 'InProgress']);
@@ -100,7 +104,7 @@ export class ClientOverviewStore {
   private clientId = '';
 
   private readonly _openTasks = signal<WorkTaskItem[]>([]);
-  private readonly _docsCount = signal(0);
+  private readonly _docs = signal<FileResponse[]>([]);
   private readonly _threads = signal<ClientEmailThreadRow[]>([]);
   private readonly _invoices = signal<SummaryInvoice[]>([]);
   private readonly _signatures = signal<SummarySignatureRequest[]>([]);
@@ -126,7 +130,25 @@ export class ClientOverviewStore {
   readonly openTaskCount = computed(() => this._openTasks().length);
   /** Tareas abiertas ya vencidas (para el medidor de carga del Overview). */
   readonly overdueCount = computed(() => this._openTasks().filter(task => task.overdue).length);
-  readonly docsCount = this._docsCount.asReadonly();
+  /** Abiertas, no vencidas, que vencen en los próximos 7 días (tramo "Due this week" del Workload). */
+  readonly dueThisWeekCount = computed(() => {
+    const today = new Date();
+    const limit = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+    const limitIso = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, '0')}-${String(limit.getDate()).padStart(2, '0')}`;
+    return this._openTasks().filter(task => !task.overdue && !!task.dueDate && task.dueDate <= limitIso).length;
+  });
+  readonly docsCount = computed(() => this._docs().length);
+  /** Últimos archivos subidos del cliente (más nuevo primero; sin los borrados). */
+  readonly recentDocuments = computed<FileResponse[]>(() =>
+    this._docs()
+      .filter(file => file.status !== 'SoftDeleted')
+      .sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc))
+      .slice(0, RECENT_DOCUMENTS_MAX),
+  );
+  /** Los mismos, como ítems del visor global (la URL presignada se pide al mostrar cada uno). */
+  readonly recentDocumentViewerItems = computed<FileViewerItem[]>(() =>
+    this.recentDocuments().map(file => this.cloud.viewerItem(file)),
+  );
   readonly threadCount = computed(() => this._threads().length);
 
   /** Tareas abiertas priorizadas: vencidas primero, luego por prioridad, luego por vencimiento más cercano. */
@@ -260,7 +282,7 @@ export class ClientOverviewStore {
         .filter(task => OPEN_STATUSES.includes(task.status))
         .map(task => toWorkTaskItem(task, NO_NAMES));
       this._openTasks.set(open);
-      this._docsCount.set(result.docs?.length ?? 0);
+      this._docs.set([...(result.docs ?? [])]);
       this._threads.set(
         (result.threads?.items ?? []).map(toClientEmailThreadRow).sort((a, b) => b.lastMessageTime - a.lastMessageTime),
       );
@@ -284,7 +306,7 @@ export class ClientOverviewStore {
 
   private clear(): void {
     this._openTasks.set([]);
-    this._docsCount.set(0);
+    this._docs.set([]);
     this._threads.set([]);
     this._invoices.set([]);
     this._signatures.set([]);

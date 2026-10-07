@@ -191,9 +191,7 @@
         que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
       -->
       @if (activeTab() === 'overview') {
-        <app-client-profile-overview [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
-          [canReveal]="canReveal()" (revealTaxId)="handleRevealTaxId($event)"
-          (hideTaxId)="hideTaxId()" (openTab)="selectTab($event)"></app-client-profile-overview>
+        <app-client-profile-overview [client]="c" (openTab)="selectTab($event)"></app-client-profile-overview>
       }
 
       @if (activeTab() === 'info') {
