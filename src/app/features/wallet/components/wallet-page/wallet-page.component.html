@@ -1,4 +1,4 @@
-<section class="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
+<section class="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6 lg:pt-[var(--shell-notch-height)]">
   <!-- Header -->
   <header class="flex flex-wrap items-start justify-between gap-3">
     <div>
@@ -65,7 +65,7 @@
         </button>
       </div>
       <app-state-block
-        [loading]="store.loading()"
+        [loading]="store.txLoading()"
         [error]="store.txError()"
         [empty]="store.transactions().length === 0"
         emptyTitle="No transactions yet"
@@ -101,6 +101,14 @@
           </table>
         </div>
       </app-state-block>
+      @if (!store.txLoading() && !store.txError()) {
+        <app-pagination
+          [currentPage]="store.txPage()"
+          [totalItems]="store.txTotal()"
+          [pageSize]="store.txPageSize()"
+          (pageChange)="store.loadTransactions($event)"
+        />
+      }
     </div>
   </div>
 </section>

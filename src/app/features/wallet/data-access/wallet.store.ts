@@ -15,7 +15,7 @@ import {
   WalletView,
 } from './wallet.model';
 
-const TX_PAGE_SIZE = 25;
+const TX_PAGE_SIZE = 10;
 
 /**
  * Store del monedero (`TaxVision.Wallet`). Singleton (`providedIn: 'root'`) para que el apartado Wallet y
@@ -37,6 +37,15 @@ export class WalletStore {
   private readonly _ratesError = signal<string | null>(null);
   private readonly _actionError = signal<string | null>(null);
   private initialized = false;
+  private txRequestId = 0;
+  private readonly _txLoading = signal(false);
+  private readonly _txPage = signal(1);
+  private readonly _txTotal = signal(0);
+  private readonly _txPageSize = signal(TX_PAGE_SIZE);
+  readonly txLoading = this._txLoading.asReadonly();
+  readonly txPage = this._txPage.asReadonly();
+  readonly txTotal = this._txTotal.asReadonly();
+  readonly txPageSize = this._txPageSize.asReadonly();
 
   readonly wallet = this._wallet.asReadonly();
   readonly transactions = this._transactions.asReadonly();
@@ -90,11 +99,30 @@ export class WalletStore {
     });
   }
 
-  loadTransactions(): void {
+  loadTransactions(page = this._txPage()): void {
+    if (!Number.isInteger(page) || page < 1) return;
+    const requestId = ++this.txRequestId;
+    this._txLoading.set(true);
     this._txError.set(null);
-    this.service.listTransactions(1, TX_PAGE_SIZE).subscribe({
-      next: p => this._transactions.set(p.items),
-      error: e => this._txError.set(toApiError(e).message),
+    this.service.listTransactions(page, TX_PAGE_SIZE).subscribe({
+      next: p => {
+        if (requestId !== this.txRequestId) return;
+        const lastPage = Math.max(1, p.totalPages);
+        if (page > lastPage) {
+          this.loadTransactions(lastPage);
+          return;
+        }
+        this._transactions.set(p.items);
+        this._txPage.set(p.page);
+        this._txTotal.set(p.totalCount);
+        this._txPageSize.set(p.size);
+        this._txLoading.set(false);
+      },
+      error: e => {
+        if (requestId !== this.txRequestId) return;
+        this._txError.set(toApiError(e).message);
+        this._txLoading.set(false);
+      },
     });
   }
 

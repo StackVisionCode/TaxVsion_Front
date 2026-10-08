@@ -842,3 +842,14 @@
     </div>
   }
 </app-modal>
+
+
+<app-confirm-dialog
+  [isOpen]="confirmation() !== null"
+  [heading]="confirmation()?.heading ?? ''"
+  [message]="confirmation()?.message ?? ''"
+  [confirmLabel]="confirmation()?.confirmLabel ?? 'Confirm'"
+  [tone]="confirmation()?.tone ?? 'danger'"
+  (confirmed)="confirmAction()"
+  (cancelled)="confirmation.set(null)"
+/>

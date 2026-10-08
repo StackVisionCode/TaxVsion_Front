@@ -1,3 +1,4 @@
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -65,6 +66,7 @@ const CHANNEL_META: ChannelMeta[] = [
     CommonModule,
     FormsModule,
     ModalComponent,
+    ConfirmDialogComponent,
     RichEditorComponent,
     ChannelPreviewComponent,
     StatusPillComponent,
@@ -76,6 +78,21 @@ const CHANNEL_META: ChannelMeta[] = [
   templateUrl: './campaigns-page.component.html',
 })
 export class CampaignsPageComponent implements OnInit, OnDestroy {
+  readonly confirmation = signal<{
+    heading: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'danger' | 'primary';
+    action: () => void;
+  } | null>(null);
+
+  confirmAction(): void {
+    const pending = this.confirmation();
+    if (!pending) return;
+    this.confirmation.set(null);
+    pending.action();
+  }
+
   readonly store = inject(CampaignsStore);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -294,10 +311,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   deleteList(l: { id: string; name: string }): void {
-    if (!confirm(`Delete list “${l.name}”? Its memberships are removed (contacts stay).`)) return;
-    this.store.deleteContactList(l.id).subscribe({
-      next: () => this.toast.success('List deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the list.'),
+    this.confirmation.set({
+      heading: 'Delete list',
+      message: `Delete list “${l.name}”? Its memberships are removed (contacts stay).`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteContactList(l.id).subscribe({
+          next: () => this.toast.success('List deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the list.'),
+        });
+      },
     });
   }
 
@@ -367,10 +391,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   removeContact(c: ContactResponse): void {
-    if (!confirm(`Delete contact “${c.name ?? c.email ?? c.phoneE164}”?`)) return;
-    this.store.deleteContact(c.id).subscribe({
-      next: () => this.toast.success('Contact deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the contact.'),
+    this.confirmation.set({
+      heading: 'Delete contact',
+      message: `Delete contact “${c.name ?? c.email ?? c.phoneE164}”?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteContact(c.id).subscribe({
+          next: () => this.toast.success('Contact deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the contact.'),
+        });
+      },
     });
   }
 
@@ -493,18 +524,32 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   archiveCampaign(c: CampaignResponse): void {
-    if (!confirm(`Archive “${c.name}”? It can no longer be edited or sent.`)) return;
-    this.store.archiveCampaign(c.id).subscribe({
-      next: () => this.toast.success('Campaign archived.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not archive.'),
+    this.confirmation.set({
+      heading: 'Archive campaign',
+      message: `Archive “${c.name}”? It can no longer be edited or sent.`,
+      confirmLabel: 'Archive',
+      tone: 'danger',
+      action: () => {
+        this.store.archiveCampaign(c.id).subscribe({
+          next: () => this.toast.success('Campaign archived.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not archive.'),
+        });
+      },
     });
   }
   deleteCampaign(c: CampaignResponse): void {
-    if (!confirm(`Delete “${c.name}” permanently? Its run history stays but the campaign is gone.`)) return;
-    if (this.selected()?.id === c.id) this.selected.set(null);
-    this.store.deleteCampaign(c.id).subscribe({
-      next: () => this.toast.success('Campaign deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete.'),
+    this.confirmation.set({
+      heading: 'Delete campaign',
+      message: `Delete “${c.name}” permanently? Its run history stays but the campaign is gone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        if (this.selected()?.id === c.id) this.selected.set(null);
+        this.store.deleteCampaign(c.id).subscribe({
+          next: () => this.toast.success('Campaign deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete.'),
+        });
+      },
     });
   }
   /** Destino legible SEGÚN el canal: Email→email, SMS/WhatsApp→teléfono. Cae al contactRef si falta. */
@@ -659,6 +704,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   submitSend(): void {
+    if (this.busy() || this.confirmation()) return;
     const c = this.selected();
     if (!c) return;
     const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
@@ -672,28 +718,35 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       return;
     }
     // Guard anti re-envío accidental: cada Send dispara un envío real a toda la audiencia.
-    if (!confirm(`Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`))
-      return;
-    this.busy.set(true);
-    this.sendDeficitMessage.set(null);
-    this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers }).subscribe({
-      next: run => {
-        this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
-        this.showSend.set(false);
-        this.busy.set(false);
-        this.tab.set('runs');
-        this.startPolling(c.id);
-      },
-      error: err => {
-        this.busy.set(false);
-        const e = toApiError(err);
-        // Red de seguridad del PEP: saldo insuficiente → se muestra el faltante + CTA Recargar (modal abierto).
-        if (e.code === 'CampaignRun.InsufficientFunds') {
-          this.sendDeficitMessage.set(e.message);
-          this.wallet.refresh();
-        } else {
-          this.toast.error(this.store.actionError() ?? 'Could not start the run.');
-        }
+    const includeCustomers = this.sendForm.includeCustomers;
+    this.confirmation.set({
+      heading: 'Send campaign',
+      message: `Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`,
+      confirmLabel: 'Send now',
+      tone: 'primary',
+      action: () => {
+        this.busy.set(true);
+        this.sendDeficitMessage.set(null);
+        this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers }).subscribe({
+          next: run => {
+            this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
+            this.showSend.set(false);
+            this.busy.set(false);
+            this.tab.set('runs');
+            this.startPolling(c.id);
+          },
+          error: err => {
+            this.busy.set(false);
+            const e = toApiError(err);
+            // Red de seguridad del PEP: saldo insuficiente → se muestra el faltante + CTA Recargar (modal abierto).
+            if (e.code === 'CampaignRun.InsufficientFunds') {
+              this.sendDeficitMessage.set(e.message);
+              this.wallet.refresh();
+            } else {
+              this.toast.error(this.store.actionError() ?? 'Could not start the run.');
+            }
+          },
+        });
       },
     });
   }
@@ -1011,10 +1064,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   removeTemplate(t: CampaignTemplateResponse): void {
-    if (!confirm(`Delete template “${t.name}”?`)) return;
-    this.store.deleteCampaignTemplate(t.id).subscribe({
-      next: () => this.toast.success('Template deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the template.'),
+    this.confirmation.set({
+      heading: 'Delete template',
+      message: `Delete template “${t.name}”?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteCampaignTemplate(t.id).subscribe({
+          next: () => this.toast.success('Template deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the template.'),
+        });
+      },
     });
   }
   /** Wizard: carga una plantilla de campaña en el contenido (pasa a modo por-canal). */

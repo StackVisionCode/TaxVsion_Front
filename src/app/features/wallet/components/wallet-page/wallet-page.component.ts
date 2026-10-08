@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
@@ -7,6 +8,7 @@ import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.componen
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { HasPermissionDirective } from '@shared/directives/has-permission.directive';
+import { AccessStore } from '@core/access/access.store';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { formatMoney } from '@shared/utils/format.util';
 import { WalletStore } from '../../data-access/wallet.store';
@@ -34,12 +36,13 @@ const TOPUP_INTENT_KEY = 'walletTopUpIntentId';
   selector: 'app-wallet-page',
   imports: [
     DatePipe,
+    PaginationComponent,
+    HasPermissionDirective,
     FormsModule,
     StatCardsComponent,
     StatusPillComponent,
     StateBlockComponent,
     ModalComponent,
-    HasPermissionDirective,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './wallet-page.component.html',
@@ -48,6 +51,8 @@ export class WalletPageComponent implements OnInit {
   protected readonly store = inject(WalletStore);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
+  private readonly access = inject(AccessStore);
+  protected readonly canTopUp = computed(() => this.access.can('wallet.manage'));
 
   protected readonly presets = TOPUP_PRESETS;
   protected readonly showTopUp = signal(false);
@@ -93,6 +98,7 @@ export class WalletPageComponent implements OnInit {
   }
 
   protected openTopUp(): void {
+    if (!this.canTopUp()) return;
     this.topUpDollars.set(25);
     this.provider.set('Stripe');
     this.showTopUp.set(true);
@@ -147,6 +153,7 @@ export class WalletPageComponent implements OnInit {
    * estado al volver. Nunca se cobra acá ni se captura una tarjeta: el pago ocurre en Stripe/PayPal.
    */
   protected continueToCheckout(): void {
+    if (!this.canTopUp() || this.busy()) return;
     const dollars = Number(this.topUpDollars());
     if (!dollars || dollars <= 0) {
       this.toast.error('Enter an amount greater than zero.');
