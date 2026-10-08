@@ -6,7 +6,7 @@
   </a>
 
   <!-- Fila superior: donut de uso + tarjetas de categorías -->
-  <div class="grid gap-6 lg:grid-cols-12">
+  <div class="grid gap-6 lg:grid-cols-12 lg:pr-[var(--shell-notch-width)]">
     <div class="lg:col-span-5">
       <!-- Skeleton mientras carga GET /storage/usage -->
       <div *ngIf="store.usageLoading()" class="h-full min-h-[20rem] animate-pulse rounded-[28px] bg-white p-6">

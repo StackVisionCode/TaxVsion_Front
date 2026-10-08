@@ -59,14 +59,11 @@
   </div>
 </div>
 
-<div class="min-h-full pt-3 pb-1 flex flex-col gap-6" *ngIf="client() as c">
+<div class="min-h-full pt-3 pb-1 lg:pt-0 flex flex-col gap-6" *ngIf="client() as c">
   <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
     <!-- Columna izquierda fija (sticky, misma altura que el sidebar principal): volver + perfil y menú.
-         En desktop sube al hueco libre junto al navbar (-75px = navbar 63px + pt-3 12px) para quedar
-         alineada con el sidebar desde arriba; z-[60] la pone sobre el <header> transparente (z-50) para
-         que "Back to clients" reciba los clics. La tarjeta scrollea por dentro, así nunca se sale de la
-         pantalla. -->
-    <div class="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:z-[60] lg:-mt-[75px] lg:h-[calc(100vh-2rem)] lg:w-72">
+         La tarjeta scrollea por dentro, así nunca se sale de la pantalla. -->
+    <div class="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72">
       <a routerLink="/clients"
         class="flex w-fit shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-white hover:text-gray-900 transition-colors">
         <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
@@ -135,8 +132,44 @@
 
     <!-- Contenido de la pestaña activa (las acciones van arriba, a la derecha) -->
     <div class="flex min-w-0 flex-1 flex-col gap-6">
-      @if (hasActions() || canManage()) {
-        <div class="flex justify-end">
+      @if (hasActions() || canManage() || assigneeAvatars().length > 0) {
+        <!-- lg:pr deja libre el hueco del navbar (lupa/campana/perfil) que flota arriba a la derecha -->
+        <div class="flex flex-wrap items-center justify-between gap-3 lg:min-h-[63px] lg:pr-[var(--shell-notch-width)]">
+          <!-- Staff asignado: fotos apiladas que se abren al pasar el mouse; clic → Overview (Assigned staff) -->
+          @if (assigneeAvatars().length > 0) {
+            <button type="button" (click)="selectTab('overview')"
+              [attr.aria-label]="'Assigned staff: ' + assigneeNames()"
+              class="group flex items-center rounded-full py-1 pl-1 pr-2">
+              @for (person of visibleAssigneeAvatars(); track person.userId; let i = $index) {
+                <span class="assignee-avatar group/avatar relative rounded-full hover:!z-[60] ring-[3px] ring-white transition-[margin,transform] duration-300 ease-out group-hover:-translate-y-0.5"
+                  [ngClass]="i === 0 ? '' : '-ml-3 group-hover:ml-1'" [style.z-index]="10 - i"
+                  [style.animation-delay.ms]="i * 70">
+                  <!-- Nombre de esa persona al pasar el mouse por su foto -->
+                  <span role="tooltip"
+                    class="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 translate-y-1 scale-95 whitespace-nowrap rounded-lg bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition duration-200 ease-out group-hover/avatar:translate-y-0 group-hover/avatar:scale-100 group-hover/avatar:opacity-100">
+                    {{ person.name ?? 'Unknown user' }}
+                    @if (person.isPrimary) {
+                      <span class="text-white/60">· Primary</span>
+                    }
+                    <span class="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900"></span>
+                  </span>
+                  <app-avatar [name]="person.name" [seed]="person.userId" sizeClass="h-11 w-11 text-sm" />
+                  @if (person.isPrimary) {
+                    <span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-bold ring-2 ring-white">
+                      <ion-icon name="star-outline" class="text-[9px] text-white"></ion-icon>
+                    </span>
+                  }
+                </span>
+              }
+              @if (extraAssigneeCount() > 0) {
+                <span class="-ml-3 flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 ring-[3px] ring-white transition-[margin] duration-300 group-hover:ml-1">
+                  +{{ extraAssigneeCount() }}
+                </span>
+              }
+            </button>
+          } @else {
+            <span></span>
+          }
           <div class="flex flex-wrap items-center gap-2">
             <!-- Acciones sobre otros módulos: cada una solo si el usuario puede entrar al módulo y hacerla -->
             @if (hasActions()) {
@@ -176,42 +209,70 @@
             </button>
           </div>
         </div>
+      } @else {
+        <!-- Sin acciones ni asignados: igual se reserva la altura del hueco del navbar en lg+ -->
+        <div class="hidden lg:block lg:h-[63px]"></div>
       }
       <!--
         Contenido de la pestaña activa.
 
-        Overview e Info (Details y Family) van sin diferir: son las dos que más se abren y las que reciben el
-        objeto completo, así que entrar a un cliente no debe esperar por ningún chunk. Las
-        otras 11 se cargan la primera vez que se abren — antes las 15 pestañas viajaban en el
-        chunk del perfil aunque solo miraras Overview.
+        TODAS las pestañas se difieren (también Overview, Details y Family): cada una baja su chunk
+        la primera vez que se abre, con `prefetch on idle` para que casi siempre ya esté en caché, y
+        un esqueleto del mismo alto mientras tanto. Antes las 15 pestañas viajaban en el chunk del
+        perfil aunque solo miraras Overview.
 
         El `@if` de dentro de cada `@defer` es OBLIGATORIO y no es redundante: un
         `@defer (when …)` NO vuelve al placeholder cuando la condición pasa a false, así que
         sin él la pestaña quedaría montada para siempre. Con él se conserva el destruir/recrear
         que hacía el `ngSwitch`, del que dependen los stores para refrescar al volver.
       -->
-      @if (activeTab() === 'overview') {
-        <app-client-profile-overview [client]="c" (openTab)="selectTab($event)"></app-client-profile-overview>
+      @defer (when activeTab() === 'overview'; prefetch on idle) {
+        @if (activeTab() === 'overview') {
+          <app-client-profile-overview [client]="c" (openTab)="selectTab($event)"></app-client-profile-overview>
+        }
+      } @placeholder {
+        @if (activeTab() === 'overview') {
+          <div class="grid items-start gap-5 md:grid-cols-2 2xl:grid-cols-3" aria-hidden="true">
+            <app-skeleton variant="card" minHeight="22rem" [rows]="5" />
+            <app-skeleton variant="card" minHeight="22rem" [rows]="5" />
+            <app-skeleton variant="card" minHeight="22rem" [rows]="5" class="hidden 2xl:block" />
+          </div>
+        }
       }
 
-      @if (activeTab() === 'info') {
-        <div class="flex flex-col gap-6">
-          <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
-            [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
-            (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
-            (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
-          <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
-            [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
-            (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"
-            (editFiscal)="openFiscalForm()" (editSection)="openSectionEdit($event)"></app-client-profile-info>
-        </div>
+      @defer (when activeTab() === 'info'; prefetch on idle) {
+        @if (activeTab() === 'info') {
+          <div class="flex flex-col gap-6">
+            <app-client-profile-contact-details [addresses]="c.addresses" [contactPoints]="c.contactPoints"
+              [saving]="savingContactDetails()" (saveAddress)="handleSaveAddress($event)"
+              (deleteAddress)="handleDeleteAddress($event)" (saveContact)="handleSaveContact($event)"
+              (deleteContact)="handleDeleteContact($event)"></app-client-profile-contact-details>
+            <app-client-profile-info [client]="c" [revealedTaxId]="revealedTaxId()" [revealingTaxId]="revealingTaxId()"
+              [canEditFiscal]="canEditFiscal()" [canManage]="canManage()" [canReveal]="canReveal()"
+              (revealTaxId)="handleRevealTaxId($event)" (hideTaxId)="hideTaxId()"
+              (editFiscal)="openFiscalForm()" (editSection)="openSectionEdit($event)"></app-client-profile-info>
+          </div>
+        }
+      } @placeholder {
+        @if (activeTab() === 'info') {
+          <div class="flex flex-col gap-6" aria-hidden="true">
+            <app-skeleton variant="card" minHeight="14rem" [rows]="4" />
+            <app-skeleton variant="card" minHeight="20rem" [rows]="6" />
+          </div>
+        }
       }
 
       <!-- Info ▸ Family: hogar fiscal (cónyuge + dependientes) -->
-      @if (activeTab() === 'family') {
-        <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()" [canManage]="canManage()"
-          (saveRelation)="handleSaveRelation($event)"
-          (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
+      @defer (when activeTab() === 'family'; prefetch on idle) {
+        @if (activeTab() === 'family') {
+          <app-client-profile-family [client]="c" [saving]="savingRelation()" [saveError]="relationError()" [canManage]="canManage()"
+            (saveRelation)="handleSaveRelation($event)"
+            (deleteRelation)="handleDeleteRelation($event)"></app-client-profile-family>
+        }
+      } @placeholder {
+        @if (activeTab() === 'family') {
+          <app-skeleton variant="card" minHeight="20rem" [rows]="5" />
+        }
       }
 
       @defer (when activeTab() === 'work'; prefetch on idle) {

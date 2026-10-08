@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { LoginTransitionService } from './login-transition.service';
 
 /**
  * Sesión única — dispositivo NUEVO. Cuando el login (directo, MFA o handoff central) detecta una
@@ -12,6 +13,7 @@ import { AuthService } from './auth.service';
 export class SessionTakeoverService {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly transition = inject(LoginTransitionService);
 
   /** Vale pendiente (o null si no hay interstitial abierto). Lo consume el modal root-level. */
   readonly ticket = signal<string | null>(null);
@@ -43,7 +45,10 @@ export class SessionTakeoverService {
     this.auth.takeover(ticket).subscribe({
       next: outcome => {
         this.busy.set(false);
-        this.ticket.set(null);
+        this.ticket.set(null); // cierra el modal (z-100) antes de que aparezca la escena
+        if (outcome.kind !== 'mfa-setup-required') {
+          this.transition.start();
+        }
         void this.router.navigate([outcome.kind === 'mfa-setup-required' ? '/login/setup-mfa' : '/dashboard']);
       },
       error: () => {

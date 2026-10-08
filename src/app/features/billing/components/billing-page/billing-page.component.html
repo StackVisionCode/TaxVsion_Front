@@ -7,7 +7,7 @@
     <app-invoice-metrics [metrics]="store.metrics()" [loading]="store.invoicesLoading()"></app-invoice-metrics>
 
     <div class="rounded-[28px] bg-white p-6">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Invoices</h2>
           <p *ngIf="embedded() as client; else globalSubtitle" class="mt-1 text-sm text-gray-500">
@@ -125,13 +125,14 @@
     (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
 </div>
 
-<!-- Modales -->
+<!-- Modales (New/Edit invoice es una vista a pantalla completa portada al <body>) -->
 <app-invoice-form-panel [isOpen]="formOpen()" [editing]="store.editingDetail()"
   [defaultCurrency]="store.issuer().defaultCurrency"
   [catalogResults]="store.catalogResults()"
   [catalogSearching]="store.catalogSearching()" [catalogCreating]="store.catalogCreating()"
   [createCatalogItem]="createCatalogItemFn" [saving]="store.creating()"
   [hasIssuerProfile]="store.hasIssuerProfile()" [lockedCustomer]="lockedCustomer()" [stockByItem]="store.stockByItem()"
+  [issuer]="store.issuer()" [branding]="store.branding()"
   (catalogSearchChanged)="store.searchCatalog($event)" (stockLookupRequested)="store.lookupStock($event)"
   (submitted)="onFormSubmit($event)" (closed)="closeForm()"></app-invoice-form-panel>
 
