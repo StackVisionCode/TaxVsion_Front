@@ -102,7 +102,7 @@ describe('palette-drag.util — funciones puras', () => {
     ]) {
       const rect = dropRectOnPage(point, size, page);
       const viaClick = clampToPage<PlacedField>(
-        { id: 'f', type: 'signature', page: 1, signerId: 's', x: point.x - 100, y: point.y - 30, width: 200, height: 60 },
+        { id: 'f', documentLocalId: 'doc-1', type: 'signature', page: 1, signerId: 's', x: point.x - 100, y: point.y - 30, width: 200, height: 60 },
         page,
       );
       expect(rect).toEqual({ x: viaClick.x, y: viaClick.y, width: viaClick.width, height: viaClick.height });

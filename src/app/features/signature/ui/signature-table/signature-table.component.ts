@@ -45,6 +45,17 @@ export type SignatureStatus =
   | 'canceled'
   | 'expired';
 
+export interface SignatureRequestDocumentItem {
+  id: string;
+  order: number;
+  title: string;
+  originalFileId: string;
+  hashPre: string | null;
+  sealedFileId: string | null;
+  hashPost: string | null;
+  sealedAtUtc: string | null;
+}
+
 export interface SignatureRequest {
   id: string;
   documentName: string;
@@ -60,6 +71,7 @@ export interface SignatureRequest {
   notes: string;
   /** Categoría legal (SignatureCategory del backend). */
   category?: string;
+  documents: SignatureRequestDocumentItem[];
   /** fileId del PDF original en CloudStorage. */
   originalFileId?: string;
   /** fileId del PDF sellado (solo cuando completed). */

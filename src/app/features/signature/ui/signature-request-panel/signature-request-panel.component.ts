@@ -71,6 +71,7 @@ import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog
 import { isSigningPinInvalid } from '../../utils/request-rules.util';
 import { signersMissingSignature } from '../../utils/editor-fields.util';
 import { PDF_RENDER_FRIENDLY_ERROR } from '../../utils/pdf-render.util';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -98,6 +99,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     SignatureWizardReviewStepComponent,
     SignaturePdfEditorComponent,
     ConfirmDialogComponent,
+    SegmentedComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-request-panel.component.html',
@@ -204,6 +206,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly selectedClient = signal<WizardClient | null>(null);
   /** Últimos clientes elegidos (recientes del directorio compartido), para el acceso rápido del paso 1. */
   readonly recentClients = computed(() => this.directory.recent());
+  readonly selectedDocuments = signal<WizardDocument[]>([]);
   readonly selectedDocument = signal<WizardDocument | null>(null);
   /**
    * Documento que renderiza el editor. Va aparte de `selectedDocument` para que re-elegir el PDF en
@@ -272,15 +275,21 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly paperLines = [92, 76, 84, 60, 88];
 
   readonly steps: WizardStep[] = [1, 2, 3, 4];
-  readonly stepTitles = ['Client', 'Document', 'Fields', 'Review'];
+  readonly stepTitles = ['Client', 'Documents', 'Fields', 'Review'];
   readonly stepSubtitles = [
     'Choose who this request is for',
-    'Upload the PDF to sign',
-    'Place the signature fields',
+    'Add the PDFs included in this request',
+    'Place fields on each document',
     'Review everything and send',
   ];
   readonly stepTitle = computed(() => this.stepTitles[this.currentStep() - 1]);
   readonly stepSubtitle = computed(() => this.stepSubtitles[this.currentStep() - 1]);
+  readonly documentTabs = computed<SegmentedOption<string>[]>(() =>
+    this.selectedDocuments().map((document, index) => ({
+      id: document.id,
+      label: `${index + 1}. ${document.name.replace(/\.pdf$/i, '')}`,
+    })),
+  );
 
   readonly canProceed = computed(() => {
     switch (this.currentStep()) {
@@ -288,7 +297,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         return this.selectedClient() !== null;
       case 2:
         // El documento debe haber pasado el preflight Y estar ya en CloudStorage.
-        return !!this.selectedDocument()?.fileId;
+        return this.selectedDocuments().length > 0 && this.selectedDocuments().every(document => !!document.fileId);
       case 3:
         // Cada firmante con al menos una Firma/Iniciales (los del preparador no cuentan), documento
         // renderizado y sin teléfonos/datos 8879 pendientes: lo mismo que lista "Before you continue".
@@ -322,11 +331,12 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   });
 
   readonly canSend = computed(() => {
-    const doc = this.selectedDocument();
+    const documents = this.selectedDocuments();
     const titleLength = this.title().trim().length;
     return (
       this.selectedClient() !== null &&
-      !!doc?.fileId &&
+      documents.length > 0 &&
+      documents.every(document => !!document.fileId) &&
       titleLength >= 3 &&
       titleLength <= 300 &&
       this.normalizedFieldsSnapshot().length > 0 &&
@@ -343,7 +353,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     const titleLength = this.title().trim().length;
     return (
       this.selectedClient() !== null &&
-      !!this.selectedDocument()?.fileId &&
+      this.selectedDocuments().length > 0 &&
+      this.selectedDocuments().every(document => !!document.fileId) &&
       titleLength >= 3 &&
       titleLength <= 300 &&
       // Nunca con el render fallido o a medias: exportaría un set vacío y el diff borraría campos del servidor.
@@ -437,6 +448,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     const editor = this.editor!;
     const toSeedField = (f: NormalizedPlacedField): EditorSeedField => ({
       localId: f.localId,
+      documentLocalId: f.documentLocalId,
       type: f.type,
       page: f.page,
       nx: f.x,
@@ -529,17 +541,28 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.store.resetAutosaveStatus();
 
       // Bytes del PDF original para que el editor renderice el documento real (no el de muestra).
-      const url = await firstValueFrom(this.store.getDownloadUrl(detail.originalFileId));
-      const blob = await this.fetchPdfBlob(url);
-      this.setDocument({
-        id: detail.originalFileId,
-        name: `${detail.title}.pdf`,
-        kind: 'pdf',
-        size: '',
-        date: '',
-        blob,
-        fileId: detail.originalFileId,
-      });
+      const orderedDocuments = [...detail.documents].sort((a, b) => a.order - b.order);
+      if (orderedDocuments.length === 0) {
+        throw new Error('The draft has no documents.');
+      }
+      const documents = await Promise.all(
+        orderedDocuments.map(async document => {
+          const url = await firstValueFrom(this.store.getDownloadUrl(document.originalFileId));
+          const blob = await this.fetchPdfBlob(url);
+          return {
+            id: document.id,
+            name: document.title,
+            kind: 'pdf' as const,
+            size: '',
+            date: '',
+            blob,
+            fileId: document.originalFileId,
+          };
+        }),
+      );
+      this.selectedDocuments.set(documents);
+      this.selectedDocument.set(documents[0]);
+      this.editorDocument.set(documents[0]);
 
       this.currentStep.set(3);
     } catch (err) {
@@ -568,25 +591,49 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Fija el documento elegido y el que renderiza el editor (restaurar/rehidratar/confirmar reemplazo). */
   private setDocument(doc: WizardDocument | null, keepFields = false): void {
     this.keepFieldsOnDocumentChange.set(keepFields);
+    this.selectedDocuments.set(doc ? [doc] : []);
     this.selectedDocument.set(doc);
     this.editorDocument.set(doc);
   }
 
   onDocumentSelected(doc: WizardDocument): void {
-    const current = this.editorDocument();
-    // El mismo archivo otra vez (p. ej. re-elegido desde la biblioteca): no se re-renderiza ni se tocan campos.
-    if (current && current.id === doc.id) {
-      this.selectedDocument.set(current);
+    if (this.selectedDocuments().some(document => document.id === doc.id)) {
+      this.activateDocument(doc.id);
       return;
     }
-    const placed = this.editor?.fields().length ?? 0;
-    // Re-elegir el PDF con campos ya colocados: se confirma antes (y se ofrece conservarlos).
-    if (current && current.id !== doc.id && placed > 0) {
-      this.keepFieldsChoice.set(this.canKeepFieldsFor(doc));
-      this.pendingDocument.set(doc);
+    if (this.selectedDocuments().length >= 20) {
+      this.toast.error('A signature request can include up to 20 documents.');
       return;
     }
-    this.acceptDocument(doc, false);
+    this.selectedDocuments.update(documents => [...documents, doc]);
+    this.selectedDocument.set(doc);
+    this.editorDocument.set(doc);
+    if (!this.title().trim()) {
+      this.title.set(doc.name.replace(/\.pdf$/i, ''));
+    }
+  }
+
+  activateDocument(documentId: string): void {
+    const document = this.selectedDocuments().find(item => item.id === documentId);
+    if (!document) {
+      return;
+    }
+    this.selectedDocument.set(document);
+    this.editorDocument.set(document);
+  }
+
+  removeDocument(documentId: string): void {
+    this.editor?.removeDocumentFields(documentId);
+    const remaining = this.selectedDocuments().filter(document => document.id !== documentId);
+    this.selectedDocuments.set(remaining);
+    if (this.selectedDocument()?.id === documentId) {
+      this.selectedDocument.set(remaining[0] ?? null);
+      this.editorDocument.set(remaining[0] ?? null);
+    }
+  }
+
+  reorderDocuments(documents: WizardDocument[]): void {
+    this.selectedDocuments.set(documents);
   }
 
   private acceptDocument(doc: WizardDocument, keepFields: boolean): void {
@@ -597,10 +644,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   }
 
   onDocumentCleared(): void {
-    this.selectedDocument.set(null);
-    // Con campos colocados el editor conserva el documento actual hasta que se confirme el nuevo.
-    if ((this.editor?.fields().length ?? 0) === 0) {
-      this.editorDocument.set(null);
+    const activeId = this.selectedDocument()?.id;
+    if (activeId) {
+      this.removeDocument(activeId);
     }
   }
 
@@ -988,8 +1034,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Snapshot del editor + metadata del wizard en el shape que el endpoint `PUT /requests/{id}/draft` espera. */
   private buildAutosaveBody(editor: SignaturePdfEditorComponent): UpsertDraftBody | null {
     const client = this.selectedClient();
-    const doc = this.selectedDocument();
-    if (!client || !doc?.fileId) {
+    const documents = this.selectedDocuments();
+    if (!client || documents.length === 0 || documents.some(document => !document.fileId)) {
       return null;
     }
     const rules = editor.getRules();
@@ -1020,6 +1066,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       fields.push({
         id: null,
         signerIndex: idx,
+        documentLocalId: f.documentLocalId,
         kind: fieldTypeToKind(f.type),
         page: f.page,
         x: f.x,
@@ -1041,6 +1088,13 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       sendCertificateToSigners: rules.sendCertificate && rules.certificate,
       autoRemindersEnabled: rules.autoReminder,
       reminderIntervalHours: rules.reminderIntervalHours,
+      documents: documents.map(document => ({
+        localId: document.id,
+        id: this.sendState.documentIdByLocal[document.id] ?? null,
+        originalFileId: document.fileId!,
+        title: document.name,
+        note: null,
+      })),
       signers,
       fields,
       // F7 — flags de entrega + expiración.
@@ -1058,8 +1112,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   private buildDraft(): WizardRequestDraft | null {
     const client = this.selectedClient();
-    const doc = this.selectedDocument();
-    if (!client || !doc?.fileId) {
+    const documents = this.selectedDocuments();
+    if (!client || documents.length === 0 || documents.some(document => !document.fileId)) {
       return null;
     }
     const rules = this.rulesSnapshot();
@@ -1067,7 +1121,13 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       title: this.title().trim(),
       description: this.notes().trim() || null,
       category: this.category(),
-      originalFileId: doc.fileId,
+      documents: documents.map(document => ({
+        localId: document.id,
+        backendId: this.sendState.documentIdByLocal[document.id] ?? null,
+        originalFileId: document.fileId!,
+        title: document.name,
+        note: null,
+      })),
       tokenExpirationHours: this.tokenExpirationHours(),
       requiresSequentialSigning: rules?.sequential ?? true,
       requiresConsent: true,
@@ -1093,6 +1153,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       })),
       fields: this.normalizedFieldsSnapshot().map(field => ({
         localId: field.localId,
+        documentLocalId: field.documentLocalId,
         signerLocalId: field.signerLocalId,
         kind: fieldTypeToKind(field.type),
         page: field.page,
@@ -1105,6 +1166,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       })),
       preparerFields: this.preparerFieldsSnapshot().map(field => ({
         localId: field.localId,
+        documentLocalId: field.documentLocalId,
         signerLocalId: field.signerLocalId,
         kind: fieldTypeToKind(field.type),
         page: field.page,

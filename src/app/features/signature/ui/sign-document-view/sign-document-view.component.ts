@@ -60,6 +60,8 @@ export function groupFieldsByPage(fields: readonly PublicSignerFieldView[]): Sig
 export class SignDocumentViewComponent implements OnChanges {
   private readonly host = inject(ElementRef<HTMLElement>);
 
+  /** Documento activo. Evita que un caller pueda mezclar campos de dos PDFs. */
+  @Input() documentId = '';
   @Input() fields: PublicSignerFieldView[] = [];
   /** Texto escrito por el firmante, indexado por `fieldId`. */
   @Input() values: Record<string, string> = {};
@@ -79,16 +81,19 @@ export class SignDocumentViewComponent implements OnChanges {
   // `values`), lo que recreaba el array `pages` en cada tecla y Angular destruía los <input>, que
   // perdían el foco. Ahora `values` sólo refleja el ngModel y los inputs se mantienen vivos.
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['fields']) {
+    if (!changes['fields'] && !changes['documentId']) {
       return;
     }
-    this.pages = groupFieldsByPage(this.fields);
-    this.textFieldCount = this.fields.filter(f => f.kind === 'Text').length;
+    const activeFields = this.documentId
+      ? this.fields.filter(field => field.documentId === this.documentId)
+      : this.fields;
+    this.pages = groupFieldsByPage(activeFields);
+    this.textFieldCount = activeFields.filter(f => f.kind === 'Text').length;
   }
 
   /** Requeridos de texto aún vacíos (lo que falta para poder firmar). */
   get pendingRequired(): number {
-    return this.fields.filter(f => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim()).length;
+    return this.activeFields().filter(f => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim()).length;
   }
 
   trackField(_: number, field: PublicSignerFieldView): string {
@@ -101,7 +106,7 @@ export class SignDocumentViewComponent implements OnChanges {
 
   /** Lleva el foco al siguiente campo de texto requerido sin completar. */
   focusNextPending(): void {
-    const next = this.fields
+    const next = this.activeFields()
       .filter(f => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim())
       .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x)[0];
     if (!next) {
@@ -112,6 +117,10 @@ export class SignDocumentViewComponent implements OnChanges {
     );
     input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     input?.focus({ preventScroll: true });
+  }
+
+  private activeFields(): PublicSignerFieldView[] {
+    return this.documentId ? this.fields.filter(field => field.documentId === this.documentId) : this.fields;
   }
 
   kindIcon(field: PublicSignerFieldView): string {

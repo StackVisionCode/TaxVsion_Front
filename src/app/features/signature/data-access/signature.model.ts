@@ -25,7 +25,7 @@ export type ApiSignatureRequestStatus =
   | 'Canceled'
   | 'Expired';
 
-export type ApiSignerStatus = 'Pending' | 'Signed' | 'Rejected' | 'Expired';
+export type ApiSignerStatus = 'Pending' | 'InProgress' | 'Signed' | 'Rejected' | 'Expired';
 
 export type SignatureFieldKind = 'Signature' | 'Initials' | 'Date' | 'Text' | 'Checkbox';
 
@@ -119,6 +119,7 @@ export const TOKEN_EXPIRATION_DEFAULT_HOURS = 168;
 export interface SignatureFieldResponse {
   id: string;
   signerId: string;
+  documentId: string;
   kind: SignatureFieldKind;
   /** 1-based. */
   page: number;
@@ -149,6 +150,7 @@ export interface SignerResponse {
 /** Campo del preparador (canal paralelo Form 8879). Sin signerId: no pertenece a un firmante. */
 export interface PreparerFieldResponse {
   id: string;
+  documentId: string;
   kind: SignatureFieldKind;
   page: number;
   x: number;
@@ -156,6 +158,18 @@ export interface PreparerFieldResponse {
   width: number;
   height: number;
   label: string | null;
+}
+
+export interface SignatureRequestDocument {
+  id: string;
+  order: number;
+  title: string;
+  originalFileId: string;
+  hashPre: string | null;
+  sealedFileId: string | null;
+  hashPost: string | null;
+  sealedAtUtc: string | null;
+  note: string | null;
 }
 
 /** GET /signature/requests/{id} y respuesta de POST /signature/requests. */
@@ -167,10 +181,7 @@ export interface SignatureRequestDetail {
   description: string | null;
   category: SignatureCategory;
   status: ApiSignatureRequestStatus;
-  originalFileId: string;
-  documentHashPre: string | null;
-  sealedFileId: string | null;
-  documentHashPost: string | null;
+  documents: SignatureRequestDocument[];
   certificateFileId: string | null;
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
@@ -245,12 +256,21 @@ export interface UpsertDraftBody {
   sendCertificateToSigners: boolean | null;
   autoRemindersEnabled: boolean | null;
   reminderIntervalHours: number | null;
+  documents: UpsertDraftDocument[];
   signers: UpsertDraftSigner[];
   fields: UpsertDraftField[];
   // F7 — null = no tocar.
   sendPartialCopyOnEachSignature: boolean | null;
   partialCopyAudience: PartialCopyAudienceBody | null;
   expirationEnabled: boolean | null;
+}
+
+export interface UpsertDraftDocument {
+  localId: string;
+  id: string | null;
+  originalFileId: string;
+  title: string;
+  note: string | null;
 }
 
 export interface PartialCopyAudienceBody {
@@ -270,6 +290,7 @@ export interface UpsertDraftSigner {
 export interface UpsertDraftField {
   id: string | null;
   signerIndex: number;
+  documentLocalId: string;
   kind: SignatureFieldKind;
   page: number;
   x: number;
@@ -354,6 +375,7 @@ export interface TemplateSlotResponse {
 
 export interface TemplateFieldResponse {
   id: string;
+  templateDocumentId: string;
   slotOrder: number;
   kind: SignatureFieldKind;
   page: number;
@@ -368,6 +390,7 @@ export interface TemplateFieldResponse {
 /** Campo del preparador predefinido en la plantilla (sin slot). "from template" lo hereda. */
 export interface TemplatePreparerFieldResponse {
   id: string;
+  templateDocumentId: string;
   kind: SignatureFieldKind;
   page: number;
   x: number;
@@ -375,6 +398,13 @@ export interface TemplatePreparerFieldResponse {
   width: number;
   height: number;
   label: string | null;
+}
+
+export interface TemplateDocumentResponse {
+  id: string;
+  order: number;
+  fileId: string;
+  title: string;
 }
 
 /** GET /signature/templates/{id} — el molde completo, con sus slots y campos. */
@@ -402,6 +432,7 @@ export interface SignatureTemplateDetail {
   requiresPractitionerPin: boolean;
   /** P7: documento base de la plantilla; si está, "from template" lo pre-selecciona. */
   baseDocumentFileId: string | null;
+  baseDocuments: TemplateDocumentResponse[];
   createdAtUtc: string;
   updatedAtUtc: string;
   publishedAtUtc: string | null;
@@ -427,6 +458,7 @@ export interface SlotBinding {
 export interface InstantiateTemplateBody {
   /** P7: opcional. Si se omite y la plantilla tiene documento base, el backend usa ese. */
   originalFileId?: string | null;
+  documents?: TemplateDocumentOverride[] | null;
   slotBindings: SlotBinding[];
   descriptionOverride: string | null;
 }
@@ -499,6 +531,7 @@ export interface TemplateSlotCreatedResponse {
 
 /** POST /signature/templates/{id}/fields. Coordenadas normalizadas [0..1], origen arriba-izquierda. */
 export interface PlaceTemplateFieldBody {
+  templateDocumentId: string;
   slotOrder: number;
   kind: SignatureFieldKind;
   page: number;
@@ -513,6 +546,7 @@ export interface PlaceTemplateFieldBody {
 /** Respuesta 201 de POST fields. */
 export interface TemplateFieldCreatedResponse {
   id: string;
+  templateDocumentId: string;
   slotOrder: number;
 }
 
@@ -544,7 +578,7 @@ export interface CreateSignatureRequestBody {
   title: string;
   description?: string | null;
   category: SignatureCategory;
-  originalFileId: string;
+  documents: CreateSignatureRequestDocumentBody[];
   tokenExpirationHours: number;
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
@@ -559,6 +593,20 @@ export interface CreateSignatureRequestBody {
   sendPartialCopyOnEachSignature?: boolean | null;
   partialCopyAudience?: PartialCopyAudienceBody | null;
   expirationEnabled?: boolean | null;
+}
+
+export interface TemplateDocumentCreatedResponse extends TemplateDocumentResponse {}
+
+export interface TemplateDocumentOverride {
+  templateDocumentId: string;
+  originalFileId?: string | null;
+  title?: string | null;
+}
+
+export interface CreateSignatureRequestDocumentBody {
+  originalFileId: string;
+  title: string;
+  note?: string | null;
 }
 
 /**
@@ -632,6 +680,7 @@ export interface AddSignerBody {
 /** Coordenadas normalizadas [0..1], origen arriba-izquierda; page 1-based (FieldPosition del dominio). */
 export interface PlaceFieldBody {
   signerId: string;
+  documentId: string;
   kind: SignatureFieldKind;
   page: number;
   x: number;
@@ -682,6 +731,8 @@ export function apiSignerStatusToUi(status: ApiSignerStatus): SignerStatus {
   switch (status) {
     case 'Pending':
       return 'pending';
+    case 'InProgress':
+      return 'pending';
     case 'Signed':
       return 'signed';
     case 'Rejected':
@@ -709,6 +760,7 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
 /** Detalle del backend -> fila/preview de la tabla existente. El "client" se deriva del primer firmante (orden 1). */
 export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?: string | null): SignatureRequest {
   const ordered = [...detail.signers].sort((a, b) => a.order - b.order);
+  const firstDocument = [...detail.documents].sort((a, b) => a.order - b.order)[0];
   return {
     id: detail.id,
     documentName: detail.title,
@@ -721,8 +773,18 @@ export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?
     completedDate: detail.completedAtUtc,
     notes: detail.description ?? '',
     category: detail.category,
-    originalFileId: detail.originalFileId,
-    sealedFileId: detail.sealedFileId,
+    documents: detail.documents.map(document => ({
+      id: document.id,
+      order: document.order,
+      title: document.title,
+      originalFileId: document.originalFileId,
+      hashPre: document.hashPre,
+      sealedFileId: document.sealedFileId,
+      hashPost: document.hashPost,
+      sealedAtUtc: document.sealedAtUtc,
+    })),
+    originalFileId: firstDocument?.originalFileId,
+    sealedFileId: firstDocument?.sealedFileId ?? null,
     certificateFileId: detail.certificateFileId,
     requiresPractitionerPin: detail.requiresPractitionerPin,
     practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,

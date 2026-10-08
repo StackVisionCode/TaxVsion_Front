@@ -329,8 +329,14 @@
                   Here is what the office prepared for you and where your signature will go.
                 </p>
 
+                <div *ngIf="activeDocument()"
+                  class="mt-4 flex items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                  <ion-icon name="documents-outline" class="shrink-0 text-base text-sky-600"></ion-icon>
+                  <span class="min-w-0 truncate font-semibold">{{ documentProgress() }}</span>
+                </div>
+
                 <div class="mt-4 flex items-center justify-between rounded-t-2xl bg-brand-bold px-3 py-2 text-xs text-white">
-                  <span class="truncate">{{ ctx.title }}</span>
+                  <span class="truncate">{{ activeDocument()?.title }}</span>
                   <span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5">{{ categoryLabel() }}</span>
                 </div>
                 <div class="rounded-b-2xl border border-t-0 border-gray-100 p-3">
@@ -349,7 +355,8 @@
                   <div class="mt-2">
                     <!-- F5 — el documento se pinta de FONDO (pageImages) y los canvas del preparador
                          (fields) encima en su posición exacta. Reemplaza al botón+modal anterior. -->
-                    <app-sign-document-view [fields]="fields()" [values]="fieldValues()"
+                    <app-sign-document-view [documentId]="activeDocument()?.documentId ?? ''"
+                      [fields]="fields()" [values]="fieldValues()"
                       [pageImages]="pageImages()"></app-sign-document-view>
                   </div>
                 </div>
@@ -379,8 +386,14 @@
               <div [hidden]="stepId() !== 'sign'" class="step-content">
                 <h1 class="text-xl font-bold text-gray-900">Your signature</h1>
                 <p class="mt-1.5 text-sm text-gray-500">
-                  Draw your signature, type your name, or upload an image. This is the signature stamped on your document.
+                  Complete each document, then submit your signature once at the end.
                 </p>
+
+                <div *ngIf="activeDocument()"
+                  class="mt-4 flex items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                  <ion-icon name="documents-outline" class="shrink-0 text-base text-sky-600"></ion-icon>
+                  <span class="min-w-0 truncate font-semibold">{{ documentProgress() }}</span>
+                </div>
 
                 <!-- Qué se está firmando -->
                 <div class="mt-4 rounded-2xl border border-gray-100 bg-brand-white p-3">
@@ -389,7 +402,7 @@
                       <ion-icon name="document-text-outline" class="text-base"></ion-icon>
                     </span>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-semibold text-gray-900">{{ ctx.title }}</p>
+                      <p class="truncate text-sm font-semibold text-gray-900">{{ activeDocument()?.title }}</p>
                       <p class="text-[11px] text-gray-400">{{ categoryLabel() }} · Due {{ expiresLabel() }}</p>
                     </div>
                   </div>
@@ -424,7 +437,8 @@
                   <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                     {{ textFields().length > 0 ? 'Fill in and review your document' : 'Where your signature will go' }}
                   </p>
-                  <app-sign-document-view [fields]="fields()" [values]="fieldValues()" [editable]="true"
+                  <app-sign-document-view [documentId]="activeDocument()?.documentId ?? ''"
+                    [fields]="fields()" [values]="fieldValues()" [editable]="true"
                     [pageImages]="pageImages()"
                     (valueChange)="setFieldValue($event.fieldId, $event.value)"></app-sign-document-view>
                 </div>

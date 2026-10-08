@@ -21,7 +21,7 @@ describe('SignDocumentViewComponent — signer never sees the preparer signature
 
   it('renders the signer field but no preparer signature marker', () => {
     const el = mount([
-      { id: 'f1', kind: 'Signature', page: 1, x: 0.1, y: 0.5, width: 0.2, height: 0.05, label: null, isRequired: true },
+      { id: 'f1', documentId: 'doc-1', kind: 'Signature', page: 1, x: 0.1, y: 0.5, width: 0.2, height: 0.05, label: null, isRequired: true },
     ]);
 
     // El componente montó y renderizó contenido de la hoja del firmante.

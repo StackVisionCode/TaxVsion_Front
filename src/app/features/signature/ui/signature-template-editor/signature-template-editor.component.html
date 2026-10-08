@@ -307,6 +307,17 @@
     <div class="relative min-h-0 min-w-0 flex-1 gap-4 lg:flex"
       [class.flex]="mobileTab() === 'document'" [class.hidden]="mobileTab() !== 'document'">
       <main class="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-gray-100">
+        <div class="border-b border-gray-100 px-3 py-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <app-segmented *ngIf="documentTabs().length > 0" class="min-w-0 flex-1"
+              [options]="documentTabs()" [value]="activeDocumentId() ?? ''"
+              (valueChange)="switchDocument($event)"></app-segmented>
+            <span class="text-[11px] text-gray-400">{{ documents().length }} / 20 documents</span>
+          </div>
+          <p *ngIf="documents().length === 0" class="text-xs text-gray-500">
+            Add the first PDF to start placing fields.
+          </p>
+        </div>
         <!-- Toolbar: campos del rol activo + preparador -->
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-3 py-2">
           <!-- Sin roles: guía explícita en vez de botones deshabilitados sin explicación -->
@@ -396,10 +407,10 @@
               [class.pointer-events-none]="savingBaseDoc() || rendering()" [class.opacity-50]="savingBaseDoc() || rendering()">
               <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc() || rendering()" />
               <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
-              {{ savingBaseDoc() ? 'Saving document…' : (hasPdfSurface() ? 'Replace document' : 'Upload document') }}
+              {{ savingBaseDoc() ? 'Saving document…' : 'Add document' }}
             </label>
-            <button *ngIf="isDraft() && hasPdfSurface()" type="button" (click)="clearSample()" [disabled]="savingBaseDoc() || rendering()"
-              class="tap rounded-full px-2 text-[11px] font-medium text-gray-400 hover:text-gray-700 transition-colors">Clear</button>
+            <button *ngIf="isDraft() && activeDocument()" type="button" (click)="clearSample()" [disabled]="savingBaseDoc() || rendering()"
+              class="tap rounded-full px-2 text-[11px] font-medium text-red-500 hover:text-red-700 transition-colors">Remove document</button>
             <button *ngIf="isDraft()" type="button" (click)="saveLayout()" [disabled]="!layoutDirty() || busy() || rendering()"
               class="tap rounded-full bg-brand-bold px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
               Save layout
@@ -415,9 +426,9 @@
             <ion-icon name="close-outline" class="text-xs"></ion-icon>
           </button>
         </p>
-        <p *ngIf="detail()?.baseDocumentFileId && !savingBaseDoc() && !renderError()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
+        <p *ngIf="activeDocument() && !savingBaseDoc() && !renderError()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
           <ion-icon name="checkmark-circle-outline" class="text-xs"></ion-icon>
-          Saved as this template's document — "from template" will reuse it.
+          {{ activeDocument()!.title }} is saved in this template and will be reused by default.
         </p>
         <div *ngIf="renderError()" class="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] text-red-600" role="alert">
           <ion-icon name="alert-circle-outline" class="shrink-0"></ion-icon>

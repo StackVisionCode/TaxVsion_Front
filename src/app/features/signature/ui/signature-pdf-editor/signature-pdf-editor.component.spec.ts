@@ -179,6 +179,7 @@ describe('SignaturePdfEditorComponent', () => {
       fields: [
         {
           localId: 'field-3',
+          documentLocalId: 'doc-1',
           type: 'signature',
           page: 1,
           nx: 0.1,
@@ -189,6 +190,7 @@ describe('SignaturePdfEditorComponent', () => {
         },
         {
           localId: 'prep-5',
+          documentLocalId: 'doc-1',
           type: 'signature',
           page: 1,
           nx: 0.5,
@@ -253,6 +255,7 @@ describe('SignaturePdfEditorComponent', () => {
       fields: [
         {
           localId: 'seed-f1',
+          documentLocalId: 'doc-1',
           type: 'signature',
           page: 1,
           nx: 0.1,
@@ -292,6 +295,7 @@ describe('SignaturePdfEditorComponent', () => {
       ...list,
       {
         id: 'prep-1',
+        documentLocalId: 'doc-1',
         type: 'signature',
         page: 1,
         x: 10,
@@ -528,6 +532,7 @@ describe('SignaturePdfEditorComponent', () => {
         }
         out.push({
           localId: field.id,
+          documentLocalId: field.documentLocalId,
           signerLocalId: field.signerId,
           type: field.type,
           page: field.page,
@@ -544,6 +549,7 @@ describe('SignaturePdfEditorComponent', () => {
     const FIXED: PlacedField[] = [
       {
         id: 'field-0',
+        documentLocalId: 'doc-1',
         type: 'signature',
         page: 1,
         x: 120,
@@ -554,6 +560,7 @@ describe('SignaturePdfEditorComponent', () => {
       },
       {
         id: 'field-1',
+        documentLocalId: 'doc-1',
         type: 'text',
         page: 2,
         x: 700,
@@ -565,6 +572,7 @@ describe('SignaturePdfEditorComponent', () => {
       },
       {
         id: 'field-2',
+        documentLocalId: 'doc-1',
         type: 'date',
         page: 3,
         x: 0,
@@ -575,6 +583,7 @@ describe('SignaturePdfEditorComponent', () => {
       },
       {
         id: 'prep-3',
+        documentLocalId: 'doc-1',
         type: 'signature',
         page: 1,
         x: 300,
@@ -595,6 +604,7 @@ describe('SignaturePdfEditorComponent', () => {
         width: f.width * zoom,
         height: f.height * zoom,
       }));
+      c.document = blankDoc();
       c.pages.set(pages);
       c.fields.set(fields);
       expect(c.buildNormalizedFields()).toEqual(legacyNormalize(fields, pages));
@@ -610,6 +620,7 @@ describe('SignaturePdfEditorComponent', () => {
       expect(golden).toEqual([
         {
           localId: 'field-0',
+          documentLocalId: 'doc-1',
           signerLocalId: 'client:1',
           type: 'signature',
           page: 1,
@@ -621,6 +632,7 @@ describe('SignaturePdfEditorComponent', () => {
         },
         {
           localId: 'field-1',
+          documentLocalId: 'doc-1',
           signerLocalId: 'client:1',
           type: 'text',
           page: 2,
@@ -632,6 +644,7 @@ describe('SignaturePdfEditorComponent', () => {
         },
         {
           localId: 'field-2',
+          documentLocalId: 'doc-1',
           signerLocalId: 'client:1',
           type: 'date',
           page: 3,
@@ -645,6 +658,7 @@ describe('SignaturePdfEditorComponent', () => {
       expect(c.buildPreparerFields()).toEqual([
         {
           localId: 'prep-3',
+          documentLocalId: 'doc-1',
           signerLocalId: PREPARER_PARTY_ID,
           type: 'signature',
           page: 1,

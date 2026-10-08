@@ -142,7 +142,7 @@ class FriendlyError extends Error {}
 interface LayoutSnapshot {
   fields: TemplateFieldLocal[];
   slots: TemplateSlotResponse[];
-  pages: RenderedPage[];
+  pagesByDocument: Map<string, RenderedPage[]>;
 }
 
 /**
@@ -289,6 +289,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ---------- Campos (layout local) ----------
   readonly pages = signal<RenderedPage[]>([]);
   readonly fields = signal<TemplateFieldLocal[]>([]);
+  readonly activeDocumentId = signal<string | null>(null);
   /** true cuando el layout local difiere de lo persistido (habilita "Save layout"). */
   readonly layoutDirty = signal(false);
   readonly pdfError = signal('');
@@ -311,6 +312,8 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   private pdfSource: Uint8Array | null = null;
   /** fileId del doc base del que salen `pdfSource` (null = muestra local o nada). */
   private sourceFileId: string | null = null;
+  private readonly pdfSourcesByDocument = new Map<string, Uint8Array>();
+  private readonly pagesByDocument = new Map<string, RenderedPage[]>();
   /** Descarta renders viejos (zoom/doc) si llega uno más nuevo. */
   private renderSeq = 0;
   private destroyed = false;
@@ -318,6 +321,13 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ---------- Derivados ----------
 
   readonly slots = computed(() => [...(this.detail()?.slots ?? [])].sort((a, b) => a.order - b.order));
+  readonly documents = computed(() => [...(this.detail()?.baseDocuments ?? [])].sort((a, b) => a.order - b.order));
+  readonly activeDocument = computed(() =>
+    this.documents().find(document => document.id === this.activeDocumentId()) ?? null,
+  );
+  readonly documentTabs = computed<SegmentedOption<string>[]>(() =>
+    this.documents().map(document => ({ id: document.id, label: document.title })),
+  );
   readonly isDraft = computed(() => this.detail()?.status === 'Draft');
   readonly isPublished = computed(() => this.detail()?.status === 'Published');
   /** Se puede tocar el layout: Draft, sin render en curso ni fallido y sin acción en vuelo. */
@@ -329,6 +339,9 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   /** Motivos que bloquean "Publish", en el orden en que hay que resolverlos. */
   readonly publishBlockers = computed<string[]>(() => {
     const out: string[] = [];
+    if (this.documents().length === 0) {
+      out.push('Add at least one document.');
+    }
     if (this.slots().length === 0) {
       out.push('Add at least one signer role.');
     }
@@ -381,6 +394,9 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
       // Plantilla nueva: la superficie anterior no sirve.
       this.pdfSource = null;
       this.sourceFileId = null;
+      this.pdfSourcesByDocument.clear();
+      this.pagesByDocument.clear();
+      this.activeDocumentId.set(null);
       this.pages.set([]);
       this.fields.set([]);
       this.layoutDirty.set(false);
@@ -468,70 +484,73 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
    */
   private async rebuildSurface(detail: SignatureTemplateDetail, preserved: LayoutSnapshot | null): Promise<void> {
     const seq = ++this.renderSeq;
-    const baseId = detail.baseDocumentFileId;
-    let needsRender = this.pages().length === 0;
+    const documents = [...detail.baseDocuments].sort((a, b) => a.order - b.order);
+    const documentIds = new Set(documents.map(document => document.id));
+    const nextSources = new Map<string, Uint8Array>();
+    const nextPages = new Map<string, RenderedPage[]>();
+    let failedDocument = false;
 
-    if (baseId && baseId !== this.sourceFileId) {
-      this.rendering.set(true);
-      this.renderError.set('');
+    this.rendering.set(true);
+    this.renderError.set('');
+    for (const document of documents) {
+      const serverPageCount = Math.max(
+        1,
+        ...detail.fields.filter(field => field.templateDocumentId === document.id).map(field => field.page),
+        ...detail.preparerFields.filter(field => field.templateDocumentId === document.id).map(field => field.page),
+        ...(preserved?.fields
+          .filter(field => field.templateDocumentId === document.id)
+          .map(field => field.page) ?? []),
+      );
       try {
-        this.pdfSource = await this.fetchBaseDocument(baseId);
-        this.sourceFileId = baseId;
+        const bytes = await this.fetchBaseDocument(document.fileId);
+        nextSources.set(document.id, bytes);
+        nextPages.set(document.id, await renderPdfPages({ data: bytes.slice() }, BASE_SCALE * this.zoom()));
       } catch {
-        if (seq !== this.renderSeq) {
-          return;
-        }
-        this.pdfSource = null;
-        this.sourceFileId = null;
-        this.renderError.set(BASE_DOC_ERROR);
+        failedDocument = true;
+        nextPages.set(document.id, blankPages(serverPageCount, BASE_SCALE * this.zoom()));
       }
-      needsRender = true;
-    } else if (!baseId && this.sourceFileId) {
-      // El doc base se quitó en el server: la superficie vuelve a páginas en blanco.
-      this.pdfSource = null;
-      this.sourceFileId = null;
-      needsRender = true;
-    }
-    if (seq !== this.renderSeq) {
-      return;
-    }
-
-    const serverPageCount = Math.max(
-      1,
-      ...detail.fields.map(f => f.page),
-      ...detail.preparerFields.map(f => f.page),
-      ...(preserved?.fields.map(f => f.page) ?? []),
-    );
-    if (!this.pdfSource && this.pages().length < serverPageCount) {
-      needsRender = true;
-    }
-
-    let pages = this.pages();
-    if (needsRender) {
-      this.rendering.set(true);
-      try {
-        pages = await this.buildPages(this.zoom(), serverPageCount);
-      } catch {
-        // PDF que no se pudo dibujar: superficie en blanco + error amable con "Retry".
-        pages = blankPages(serverPageCount, BASE_SCALE * this.zoom());
-        this.renderError.set(this.renderError() || BASE_DOC_ERROR);
-      }
-      if (seq !== this.renderSeq) {
+      if (seq !== this.renderSeq || this.destroyed) {
         return;
       }
     }
     this.rendering.set(false);
+    this.pdfSourcesByDocument.clear();
+    this.pagesByDocument.clear();
+    nextSources.forEach((value, key) => this.pdfSourcesByDocument.set(key, value));
+    nextPages.forEach((value, key) => this.pagesByDocument.set(key, value));
+
+    const activeId = documentIds.has(this.activeDocumentId() ?? '')
+      ? this.activeDocumentId()
+      : (documents[0]?.id ?? null);
+    this.activeDocumentId.set(activeId);
+    const active = documents.find(document => document.id === activeId) ?? null;
+    const pages = activeId ? (this.pagesByDocument.get(activeId) ?? []) : [];
+    this.pdfSource = activeId ? (this.pdfSourcesByDocument.get(activeId) ?? null) : null;
+    this.sourceFileId = active?.fileId ?? null;
+    this.pages.set(pages);
+    this.renderError.set(failedDocument ? BASE_DOC_ERROR : '');
 
     if (preserved) {
-      const kept = preserveLocalLayout(preserved.fields, preserved.slots, detail.slots);
-      const { fields, moved } = remapFieldsToPages(kept, preserved.pages, pages);
-      this.pages.set(pages);
+      const kept = preserveLocalLayout(
+        preserved.fields.filter(field => documentIds.has(field.templateDocumentId)),
+        preserved.slots,
+        detail.slots,
+      );
+      const fields: TemplateFieldLocal[] = [];
+      let moved = 0;
+      for (const document of documents) {
+        const local = kept.filter(field => field.templateDocumentId === document.id);
+        const previousPages = preserved.pagesByDocument.get(document.id) ?? nextPages.get(document.id) ?? [];
+        const currentPages = nextPages.get(document.id) ?? [];
+        const remapped = remapFieldsToPages(local, previousPages, currentPages);
+        fields.push(...remapped.fields);
+        moved += remapped.moved;
+      }
       this.fields.set(fields);
       this.layoutDirty.set(true);
       this.warnMoved(moved);
     } else {
-      this.pages.set(pages);
-      this.fields.set(serverFieldsToLocal(detail, pages));
+      this.fields.set(serverFieldsToLocal(detail, this.pagesByDocument));
       this.layoutDirty.set(false);
     }
     if (this.selectedId() && !this.fields().some(f => f.localId === this.selectedId())) {
@@ -539,6 +558,23 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     }
     this.seq = Math.max(this.seq, maxLocalSeq(this.fields()) + 1);
     this.currentPage.set(Math.min(this.currentPage(), pages.length || 1));
+  }
+
+  switchDocument(documentId: string): void {
+    if (documentId === this.activeDocumentId() || !this.pagesByDocument.has(documentId)) {
+      return;
+    }
+    const currentId = this.activeDocumentId();
+    if (currentId) {
+      this.pagesByDocument.set(currentId, this.pages());
+    }
+    const document = this.documents().find(item => item.id === documentId);
+    this.activeDocumentId.set(documentId);
+    this.pdfSource = this.pdfSourcesByDocument.get(documentId) ?? null;
+    this.sourceFileId = document?.fileId ?? null;
+    this.pages.set(this.pagesByDocument.get(documentId) ?? []);
+    this.currentPage.set(1);
+    this.selectedId.set(null);
   }
 
   /** Descarga los bytes del documento base (URL firmada de CloudStorage). */
@@ -792,59 +828,29 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
       return;
     }
     const id = this.templateId;
+    if (!id) {
+      return;
+    }
     this.savingBaseDoc.set(true);
     try {
-      // 1) Validación en el backend ANTES de previsualizar: un PDF rechazado no toca la superficie.
-      let validationRecordId: string | null = null;
-      if (id) {
-        const validation = await firstValueFrom(this.service.validateDocument(file));
-        if (!validation.isAcceptable) {
-          this.pdfError.set(validation.issues[0]?.message ?? 'That PDF cannot be used as a base document.');
-          return;
-        }
-        validationRecordId = validation.validationRecordId;
+      const validation = await firstValueFrom(this.service.validateDocument(file));
+      if (!validation.isAcceptable) {
+        this.pdfError.set(validation.issues[0]?.message ?? 'That PDF cannot be used as a template document.');
+        return;
       }
-
-      // 2) Vista previa local (sin el texto técnico de pdf.js si falla).
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const seq = ++this.renderSeq;
-      this.rendering.set(true);
-      let next: RenderedPage[];
-      try {
-        next = await renderPdfPages({ data: bytes.slice() }, BASE_SCALE * this.zoom());
-      } catch {
-        this.pdfError.set(RENDER_ERROR);
-        return;
-      } finally {
-        this.rendering.set(false);
-      }
-      if (seq !== this.renderSeq) {
-        return;
-      }
-      const { fields, moved } = remapFieldsToPages(this.fields(), this.pages(), next);
-      this.pdfSource = bytes;
-      this.sourceFileId = null;
-      this.renderError.set('');
-      this.pages.set(next);
-      this.fields.set(fields);
-      if (moved > 0) {
-        this.layoutDirty.set(true);
-      }
-      this.warnMoved(moved);
-
-      // 3) P7: sube el PDF a CloudStorage y lo guarda como documento base de la plantilla, para que
-      //    "from template" lo pre-seleccione sin re-subir.
-      if (!id || validationRecordId === null) {
-        return;
-      }
+      await renderPdfPages({ data: bytes.slice() }, BASE_SCALE * this.zoom());
+      const validationRecordId = validation.validationRecordId;
       const fileId = await firstValueFrom(this.service.uploadOriginalDocument(file, validationRecordId));
-      await firstValueFrom(this.service.setTemplateBaseDocument(id, fileId));
-      // Refleja el nuevo doc base sin recargar (los bytes ya están en memoria).
-      this.sourceFileId = fileId;
-      this.detail.update(d => (d ? { ...d, baseDocumentFileId: fileId } : d));
+      const created = await firstValueFrom(
+        this.service.addTemplateDocument(id, { fileId, title: file.name.replace(/\.pdf$/i, '') }),
+      );
+      const preserved = this.layoutDirty() ? this.snapshot() : null;
+      this.activeDocumentId.set(created.id);
+      await this.applyDetail(await firstValueFrom(this.service.getTemplate(id)), preserved);
       this.changed.emit();
     } catch (err) {
-      this.pdfError.set(toApiError(err).message);
+      this.pdfError.set(err instanceof Error && err.message ? err.message : toApiError(err).message || RENDER_ERROR);
     } finally {
       this.savingBaseDoc.set(false);
     }
@@ -854,25 +860,19 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     if (!this.isDraft() || this.rendering()) {
       return;
     }
-    const pages = blankPages(Math.max(1, ...this.fields().map(f => f.page)), BASE_SCALE * this.zoom());
-    const { fields, moved } = remapFieldsToPages(this.fields(), this.pages(), pages);
-    this.renderSeq++;
-    this.pdfSource = null;
-    this.sourceFileId = null;
-    this.renderError.set('');
-    this.pages.set(pages);
-    this.fields.set(fields);
-    this.warnMoved(moved);
-
-    // P7: si había documento base, se quita también en el backend.
     const id = this.templateId;
-    if (!id || !this.detail()?.baseDocumentFileId) {
+    const documentId = this.activeDocumentId();
+    if (!id || !documentId) {
       return;
     }
     this.savingBaseDoc.set(true);
     try {
-      await firstValueFrom(this.service.setTemplateBaseDocument(id, null));
-      this.detail.update(d => (d ? { ...d, baseDocumentFileId: null } : d));
+      await firstValueFrom(this.service.removeTemplateDocument(id, documentId));
+      const preserved = this.layoutDirty()
+        ? { ...this.snapshot(), fields: this.fields().filter(field => field.templateDocumentId !== documentId) }
+        : null;
+      this.activeDocumentId.set(null);
+      await this.applyDetail(await firstValueFrom(this.service.getTemplate(id)), preserved);
       this.changed.emit();
     } catch (err) {
       this.pdfError.set(toApiError(err).message);
@@ -960,8 +960,16 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     if (seq !== this.renderSeq || this.destroyed) {
       return;
     }
-    this.fields.set(remapFieldsToPages(this.fields(), prev, next).fields);
+    const documentId = this.activeDocumentId();
+    this.fields.update(fields => {
+      const active = fields.filter(field => field.templateDocumentId === documentId);
+      const inactive = fields.filter(field => field.templateDocumentId !== documentId);
+      return [...inactive, ...remapFieldsToPages(active, prev, next).fields];
+    });
     this.pages.set(next);
+    if (documentId) {
+      this.pagesByDocument.set(documentId, next);
+    }
     this.zoom.set(zoom);
     this.rendering.set(false);
   }
@@ -994,7 +1002,8 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ------------------------------------------------------------------
 
   fieldsForPage(page: number): TemplateFieldLocal[] {
-    return this.fields().filter(f => f.page === page);
+    const documentId = this.activeDocumentId();
+    return this.fields().filter(f => f.templateDocumentId === documentId && f.page === page);
   }
 
   trackField(_index: number, field: TemplateFieldLocal): string {
@@ -1038,7 +1047,18 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           width: w,
           height: h,
         };
-    const field: TemplateFieldLocal = { localId: this.nextId(), slotOrder, type, page: page.page, ...rect };
+    const templateDocumentId = this.activeDocumentId();
+    if (!templateDocumentId) {
+      return null;
+    }
+    const field: TemplateFieldLocal = {
+      localId: this.nextId(),
+      templateDocumentId,
+      slotOrder,
+      type,
+      page: page.page,
+      ...rect,
+    };
     this.fields.update(list => [...list, field]);
     this.selectedId.set(field.localId);
     this.layoutDirty.set(true);
@@ -1470,8 +1490,18 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     if (!id || !detail || this.busy() || this.rendering() || !this.isDraft()) {
       return;
     }
-    const signer = buildNormalizedSignerFields(this.fields(), this.pages());
-    const preparer = buildNormalizedPreparerFields(this.fields(), this.pages());
+    const signer = this.documents().flatMap(document =>
+      buildNormalizedSignerFields(
+        this.fields().filter(field => field.templateDocumentId === document.id),
+        this.pagesByDocument.get(document.id) ?? [],
+      ).map(field => ({ ...field, templateDocumentId: document.id })),
+    );
+    const preparer = this.documents().flatMap(document =>
+      buildNormalizedPreparerFields(
+        this.fields().filter(field => field.templateDocumentId === document.id),
+        this.pagesByDocument.get(document.id) ?? [],
+      ).map(field => ({ ...field, templateDocumentId: document.id })),
+    );
     // Lo que hay en el server mientras avanza el reemplazo: si algo falla a mitad, el detalle
     // queda reflejando el estado real para que el reintento borre lo correcto.
     const serverSigner: TemplateFieldResponse[] = [...detail.fields];
@@ -1491,6 +1521,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
         for (const field of signer) {
           const created = await firstValueFrom(
             this.service.placeTemplateField(id, {
+              templateDocumentId: field.templateDocumentId,
               slotOrder: field.slotOrder,
               kind: fieldTypeToKind(field.type),
               page: field.page,
@@ -1504,6 +1535,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           );
           serverSigner.push({
             id: created.id,
+            templateDocumentId: created.templateDocumentId,
             slotOrder: field.slotOrder,
             kind: fieldTypeToKind(field.type),
             page: field.page,
@@ -1518,6 +1550,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
         for (const field of preparer) {
           const created = await firstValueFrom(
             this.service.placeTemplatePreparerField(id, {
+              templateDocumentId: field.templateDocumentId,
               kind: fieldTypeToKind(field.type),
               page: field.page,
               x: field.x,
@@ -1529,6 +1562,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
           );
           serverPreparer.push({
             id: created.id,
+            templateDocumentId: created.templateDocumentId,
             kind: fieldTypeToKind(field.type),
             page: field.page,
             x: field.x,
@@ -1632,7 +1666,12 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
   // ------------------------------------------------------------------
 
   private snapshot(): LayoutSnapshot {
-    return { fields: this.fields(), slots: this.slots(), pages: this.pages() };
+    const pagesByDocument = new Map(this.pagesByDocument);
+    const activeId = this.activeDocumentId();
+    if (activeId) {
+      pagesByDocument.set(activeId, this.pages());
+    }
+    return { fields: this.fields(), slots: this.slots(), pagesByDocument };
   }
 
   /**
@@ -1668,12 +1707,19 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
  * Campos del server (normalizados) → px de la superficie actual. Misma conversión que antes
  * (valor × tamaño de página); si la página no existe se usa la primera.
  */
-function serverFieldsToLocal(detail: SignatureTemplateDetail, pages: readonly RenderedPage[]): TemplateFieldLocal[] {
-  const pageFor = (n: number): RenderedPage => pages.find(p => p.page === n) ?? pages[0];
+function serverFieldsToLocal(
+  detail: SignatureTemplateDetail,
+  pagesByDocument: ReadonlyMap<string, readonly RenderedPage[]>,
+): TemplateFieldLocal[] {
+  const pageFor = (documentId: string, n: number): RenderedPage => {
+    const pages = pagesByDocument.get(documentId) ?? [];
+    return pages.find(page => page.page === n) ?? pages[0]!;
+  };
   const signer = detail.fields.map((f): TemplateFieldLocal => {
-    const page = pageFor(f.page);
+    const page = pageFor(f.templateDocumentId, f.page);
     return {
       localId: `srv-${f.id}`,
+      templateDocumentId: f.templateDocumentId,
       slotOrder: f.slotOrder,
       type: kindToType(f.kind),
       page: page.page,
@@ -1683,9 +1729,10 @@ function serverFieldsToLocal(detail: SignatureTemplateDetail, pages: readonly Re
   });
   // Campos del preparador: mismo array con slotOrder sentinela PREPARER_SLOT.
   const preparer = detail.preparerFields.map((f): TemplateFieldLocal => {
-    const page = pageFor(f.page);
+    const page = pageFor(f.templateDocumentId, f.page);
     return {
       localId: `srv-prep-${f.id}`,
+      templateDocumentId: f.templateDocumentId,
       slotOrder: PREPARER_SLOT,
       type: kindToType(f.kind),
       page: page.page,

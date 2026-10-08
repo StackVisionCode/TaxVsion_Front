@@ -780,6 +780,10 @@ export class SignaturePageComponent implements OnInit {
     this.openDownload(request.certificateFileId ?? null, 'Certificate', request.documentName, 'certificate');
   }
 
+  downloadDocumentFile(event: { fileId: string; title: string; kind: SignatureDownloadKind }): void {
+    this.openDownload(event.fileId, 'Document', event.title, event.kind);
+  }
+
   /**
    * Baja el archivo con un nombre profesional derivado del título
    * (`2026_Individual_Tax_Return_Signed.pdf`) en vez del nombre interno del storage.
@@ -805,24 +809,38 @@ export class SignaturePageComponent implements OnInit {
    * navegables con ←/→), empezando por el pedido. El nombre de cada ítem es el profesional y no se
    * escucha `(download)`: el visor guarda los bytes que ya bajó con ese nombre.
    */
-  viewDocument(event: { request: SignatureRequest; kind: SignatureDownloadKind }): void {
+  viewDocument(event: { request: SignatureRequest; kind: SignatureDownloadKind; documentId?: string }): void {
     const { request } = event;
-    const docs: { kind: SignatureDownloadKind; fileId: string | null | undefined }[] = [
-      { kind: 'original', fileId: request.originalFileId },
-      { kind: 'signed', fileId: request.status === 'completed' ? request.sealedFileId : null },
-      { kind: 'certificate', fileId: request.status === 'completed' ? request.certificateFileId : null },
+    const documents = [...request.documents]
+      .sort((left, right) => left.order - right.order)
+      .flatMap(document => [
+        { documentId: document.id, title: document.title, kind: 'original' as const, fileId: document.originalFileId },
+        { documentId: document.id, title: document.title, kind: 'signed' as const, fileId: document.sealedFileId },
+      ]);
+    const docs = [
+      ...documents,
+      {
+        documentId: undefined,
+        title: request.documentName,
+        kind: 'certificate' as const,
+        fileId: request.status === 'completed' ? request.certificateFileId : null,
+      },
     ];
-    const available = docs.filter((doc): doc is { kind: SignatureDownloadKind; fileId: string } => !!doc.fileId);
-    const start = available.findIndex(doc => doc.kind === event.kind);
+    const available = docs.filter(
+      (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
+    );
+    const start = available.findIndex(
+      doc => doc.kind === event.kind && (event.documentId === undefined || doc.documentId === event.documentId),
+    );
     if (start < 0) {
       return;
     }
     this.viewerFiles.set(
       available.map(doc => ({
-        name: buildSignatureDownloadFilename(request.documentName, doc.kind),
+        name: buildSignatureDownloadFilename(doc.title, doc.kind),
         contentType: 'application/pdf',
         resolveUrl: () => this.store.getDownloadUrl(doc.fileId),
-        ref: doc.kind,
+        ref: `${doc.documentId ?? 'certificate'}:${doc.kind}`,
       })),
     );
     this.viewerIndex.set(start);
