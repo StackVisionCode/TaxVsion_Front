@@ -2,6 +2,7 @@
 <header class="relative z-40">
   <div class="flex h-[63px] items-center gap-4">
     <!-- Mobile menu button -->
+     
     <button (click)="toggleMobileMenu()"
       class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200 md:hidden">
       <ion-icon name="menu-outline" class="text-xl"></ion-icon>
@@ -109,8 +110,6 @@
         </div>
       }
 
-    <!-- Right section -->
-    <nav class="flex items-center gap-3 ml-auto">
       <!-- Wallet balance pill (00_Plan §10): siempre visible; click → apartado Wallet. -->
       @if (canUse('wallet')) {
         <a
@@ -291,6 +290,7 @@
       </div>
     </nav>
   </div>
+
 </header>
 
 <!-- Mobile menu drawer -->
