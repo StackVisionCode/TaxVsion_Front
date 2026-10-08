@@ -789,12 +789,22 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
         },
       });
   }
+  readonly pendingScheduleId = signal<string | null>(null);
+
   scheduleAction(scheduleId: string, action: 'pause' | 'resume' | 'cancel'): void {
     const c = this.selected();
-    if (!c) return;
+    if (!c || this.pendingScheduleId()) return;
+    this.pendingScheduleId.set(scheduleId);
+    const messages = { pause: 'Schedule paused.', resume: 'Schedule resumed.', cancel: 'Schedule cancelled.' };
     this.store.setScheduleState(c.id, scheduleId, action).subscribe({
-      next: () => this.toast.success(`Schedule ${action}d.`),
-      error: () => this.toast.error(this.store.actionError() ?? 'Action failed.'),
+      next: () => {
+        this.pendingScheduleId.set(null);
+        this.toast.success(messages[action]);
+      },
+      error: () => {
+        this.pendingScheduleId.set(null);
+        this.toast.error(this.store.actionError() ?? 'Could not update the schedule.');
+      },
     });
   }
 

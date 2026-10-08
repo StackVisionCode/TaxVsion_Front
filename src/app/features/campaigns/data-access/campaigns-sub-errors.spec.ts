@@ -71,4 +71,38 @@ describe('CampaignsStore · sub-listas', () => {
 
     expect(store.subErrors().senders).toBeNull();
   });
+  it('applies the confirmed pause even when refreshing the list fails', () => {
+    const { store, http } = setup();
+    const schedule = { id: 'schedule-1', campaignId: 'campaign-1', status: 'Active' };
+    store.loadSchedules('campaign-1');
+    http.expectOne(req => req.url.endsWith('/campaign-1/schedules')).flush({ items: [schedule] });
+
+    store.setScheduleState('campaign-1', 'schedule-1', 'pause').subscribe();
+    const pause = http.expectOne('https://api.test/campaigns/schedules/schedule-1/pause');
+    expect(pause.request.method).toBe('POST');
+    pause.flush({ ...schedule, status: 'Paused' });
+    expect(store.schedules()[0].status).toBe('Paused');
+
+    http.expectOne(req => req.url.endsWith('/campaign-1/schedules')).flush(
+      'Unavailable', { status: 503, statusText: 'Unavailable' },
+    );
+    expect(store.schedules()[0].status).toBe('Paused');
+    http.verify();
+  });
+
+  it('does not show a schedule as paused when the server rejects the action', () => {
+    const { store, http } = setup();
+    store.loadSchedules('campaign-1');
+    http.expectOne(req => req.url.endsWith('/campaign-1/schedules')).flush({
+      items: [{ id: 'schedule-1', campaignId: 'campaign-1', status: 'Active' }],
+    });
+    store.setScheduleState('campaign-1', 'schedule-1', 'pause').subscribe({ error: () => {} });
+    http.expectOne('https://api.test/campaigns/schedules/schedule-1/pause').flush(
+      { message: 'Not allowed' }, { status: 403, statusText: 'Forbidden' },
+    );
+    expect(store.schedules()[0].status).toBe('Active');
+    expect(store.actionError()).toBeTruthy();
+    http.verify();
+  });
+
 });

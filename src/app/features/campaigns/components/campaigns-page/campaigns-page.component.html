@@ -293,15 +293,15 @@
                   <td class="py-3 px-3"><app-status-pill [dot]="false" [toneClass]="pill(s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700')">{{ s.status }}</app-status-pill></td>
                   <td class="py-3 px-3 text-gray-400">{{ local(s.nextFireAtUtc || s.lastFiredAtUtc) | date:'MMM d, HH:mm' }}</td>
                   <td class="py-3 px-3 text-right">
-                    @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'pause')">Pause</button> }
-                    @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" (click)="scheduleAction(s.id,'resume')">Resume</button> }
+                    @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'pause')">{{ pendingScheduleId() === s.id ? 'Pausing?' : 'Pause' }}</button> }
+                    @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'resume')">{{ pendingScheduleId() === s.id ? 'Resuming?' : 'Resume' }}</button> }
                   </td>
                 </tr>
               } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No schedules yet.</td></tr> }
             </tbody>
           </table>
         </div>
-        <p class="text-xs text-gray-400">Durable, lease-based scheduler. Missed slots coalesce; an overlapping run is skipped until the previous one completes. Each fire creates a fresh run.</p>
+        <p class="text-xs text-gray-400">Pausing stops future scheduled runs; a run already in progress may finish. Each run reserves funds from your wallet before sending and settles the charge when it finishes.</p>
       }
     }
   </div>

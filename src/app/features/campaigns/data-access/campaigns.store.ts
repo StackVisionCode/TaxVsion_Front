@@ -229,7 +229,12 @@ export class CampaignsStore {
     return this.act(this.service.schedule(id, req), () => this.loadSchedules(id));
   }
   setScheduleState(campaignId: string, scheduleId: string, action: ScheduleAction): Observable<CampaignScheduleResponse> {
-    return this.act(this.service.setScheduleState(scheduleId, action), () => this.loadSchedules(campaignId));
+    return this.act(
+      this.service.setScheduleState(scheduleId, action).pipe(
+        tap(updated => this._schedules.update(items => items.map(item => item.id === updated.id ? updated : item))),
+      ),
+      () => this.loadSchedules(campaignId),
+    );
   }
   createContact(req: CreateContactRequest): Observable<ContactResponse> {
     return this.act(this.service.createContact(req), () => this.loadContacts());
