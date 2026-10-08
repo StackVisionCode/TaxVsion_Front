@@ -7,6 +7,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
+import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 
@@ -33,6 +34,7 @@ type TermsKind = 'TermsOfService' | 'PrivacyPolicy';
 export class TermsPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly tokenService = inject(TokenService);
+  private readonly transition = inject(LoginTransitionService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
@@ -155,7 +157,10 @@ export class TermsPageComponent implements OnInit {
       .acceptTerms()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => void this.router.navigate(['/dashboard']),
+        next: () => {
+          this.transition.start();
+          void this.router.navigate(['/dashboard']);
+        },
         error: () => {
           this.submitting.set(false);
           this.formError.set("We couldn't save your acceptance. Please try again.");

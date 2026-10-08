@@ -35,7 +35,7 @@ export type PublicSignatureRequestStatus =
   | 'Canceled'
   | 'Expired';
 
-export type PublicSignerStatus = 'Pending' | 'Signed' | 'Rejected' | 'Expired';
+export type PublicSignerStatus = 'Pending' | 'InProgress' | 'Signed' | 'Rejected' | 'Expired';
 
 export type PublicSignatureFieldKind = 'Signature' | 'Initials' | 'Date' | 'Text' | 'Checkbox';
 
@@ -84,6 +84,7 @@ export type SignatureAuditEventKind =
  */
 export interface PublicSignerFieldView {
   id: string;
+  documentId: string;
   kind: PublicSignatureFieldKind;
   page: number;
   x: number;
@@ -92,6 +93,15 @@ export interface PublicSignerFieldView {
   height: number;
   label: string | null;
   isRequired: boolean;
+}
+
+export interface PublicSignerDocumentView {
+  documentId: string;
+  title: string;
+  order: number;
+  hasFieldsToSign: boolean;
+  firstViewedAtUtc: string | null;
+  signedAtUtc: string | null;
 }
 
 /**
@@ -109,7 +119,6 @@ export interface PublicSignerView {
   category: PublicSignatureCategory;
   requestStatus: PublicSignatureRequestStatus;
   signerStatus: PublicSignerStatus;
-  originalFileId: string;
   /** Si es true, el firmante DEBE aceptar el consent antes de poder firmar. */
   requiresConsent: boolean;
   hasAcceptedConsent: boolean;
@@ -117,7 +126,7 @@ export interface PublicSignerView {
   /** En solicitudes secuenciales: false ⇒ todavía no es su turno (el backend rechazaría la firma). */
   isSignerNextInSequence: boolean;
   order: number;
-  expiresAtUtc: string;
+  expiresAtUtc: string | null;
   signerFullName: string;
   signerEmail: string;
   /** Si es true, el firmante DEBE verificar el PIN del preparador antes de firmar. */
@@ -133,6 +142,7 @@ export interface PublicSignerView {
   requiredVerificationMethod: SignerVerificationMethod | null;
   /** true si el firmante ya completó `requiredVerificationMethod`. */
   isVerificationCompleted: boolean;
+  documents: PublicSignerDocumentView[];
   fields: PublicSignerFieldView[];
   /** Subdominio de la oficina para redirigir al final; vacío ⇒ UI cae a su URL base. */
   tenantSubDomain: string;
@@ -155,6 +165,8 @@ export interface SubmitSignatureBody {
   signatureImageFileId: string | null;
   /** Valores de los campos de texto que el firmante rellenó (P4). */
   fieldValues?: SubmitFieldValue[];
+  /** Documentos completados en esta sesión parcial. Omitido = todos los pendientes. */
+  documentIds?: string[];
 }
 
 /** Respuesta de `POST /signature/public/{token}/signature-image`. */

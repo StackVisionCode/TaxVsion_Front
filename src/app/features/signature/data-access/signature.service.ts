@@ -15,6 +15,7 @@ import {
   SignatureFieldResponse,
   AuditTrailResponse,
   SignatureRequestDetail,
+  SignatureRequestDocument,
   SignatureRequestListResult,
   SignatureTemplateDetail,
   SignatureTemplateStatus,
@@ -25,6 +26,7 @@ import {
   InstantiateTemplateBody,
   PlaceTemplateFieldBody,
   TemplateFieldCreatedResponse,
+  TemplateDocumentCreatedResponse,
   TemplateListResult,
   TemplateSlotCreatedResponse,
   SignatureCategoriesResult,
@@ -128,6 +130,23 @@ export class SignatureService {
 
   getById(id: string): Observable<SignatureRequestDetail> {
     return this.http.get<SignatureRequestDetail>(`${this.base}/requests/${id}`);
+  }
+
+  addRequestDocument(
+    requestId: string,
+    body: { originalFileId: string; title: string; note?: string | null },
+  ): Observable<SignatureRequestDocument> {
+    return this.http.post<SignatureRequestDocument>(`${this.base}/requests/${requestId}/documents`, body);
+  }
+
+  removeRequestDocument(requestId: string, documentId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/requests/${requestId}/documents/${documentId}`);
+  }
+
+  reorderRequestDocuments(requestId: string, orderedDocumentIds: string[]): Observable<void> {
+    return this.http.put<void>(`${this.base}/requests/${requestId}/documents/order`, {
+      orderedDocumentIds,
+    });
   }
 
   /** F7 — timeline del audit chain para el preparador (signature.document.audit.read). */
@@ -284,7 +303,7 @@ export class SignatureService {
   /** POST /signature/requests/{id}/preparer-fields — coloca un campo del preparador. */
   placePreparerField(
     requestId: string,
-    body: { kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
+    body: { documentId: string; kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
   ): Observable<PreparerFieldResponse> {
     return this.http.post<PreparerFieldResponse>(`${this.base}/requests/${requestId}/preparer-fields`, body);
   }
@@ -419,6 +438,21 @@ export class SignatureService {
     return this.http.put<void>(`${this.base}/templates/${templateId}/base-document`, { baseDocumentFileId });
   }
 
+  addTemplateDocument(
+    templateId: string,
+    body: { fileId: string; title: string },
+  ): Observable<TemplateDocumentCreatedResponse> {
+    return this.http.post<TemplateDocumentCreatedResponse>(`${this.base}/templates/${templateId}/documents`, body);
+  }
+
+  removeTemplateDocument(templateId: string, documentId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/templates/${templateId}/documents/${documentId}`);
+  }
+
+  reorderTemplateDocuments(templateId: string, documentIds: string[]): Observable<void> {
+    return this.http.put<void>(`${this.base}/templates/${templateId}/documents/order`, { documentIds });
+  }
+
   /** POST /signature/templates/{id}/slots → 201 con el `order` asignado. */
   addTemplateSlot(templateId: string, body: AddTemplateSlotBody): Observable<TemplateSlotCreatedResponse> {
     return this.http.post<TemplateSlotCreatedResponse>(`${this.base}/templates/${templateId}/slots`, body);
@@ -452,9 +486,9 @@ export class SignatureService {
   /** POST /signature/templates/{id}/preparer-fields — predefine el campo de firma del preparador (14.5 F7). */
   placeTemplatePreparerField(
     templateId: string,
-    body: { kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
-  ): Observable<{ id: string }> {
-    return this.http.post<{ id: string }>(`${this.base}/templates/${templateId}/preparer-fields`, body);
+    body: { templateDocumentId: string; kind: SignatureFieldKind; page: number; x: number; y: number; width: number; height: number; label: string | null },
+  ): Observable<{ id: string; templateDocumentId: string }> {
+    return this.http.post<{ id: string; templateDocumentId: string }>(`${this.base}/templates/${templateId}/preparer-fields`, body);
   }
 
   removeTemplatePreparerField(templateId: string, fieldId: string): Observable<void> {

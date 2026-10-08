@@ -2,6 +2,7 @@ import {
   AfterViewInit,
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
   ElementRef,
   EventEmitter,
   Injector,
@@ -63,6 +64,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   private readonly chatStore = signal<ChatStore | null>(null);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly access = inject(AccessStore);
   private readonly destroy$ = new Subject<void>();
@@ -189,14 +191,20 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     // vez, sin la ventana en la que el pill quedaba fuera de sitio.
     afterNextRender(
       () => {
-        void import('@features/chat/data-access/chat.store').then(m =>
-          this.chatStore.set(this.injector.get(m.ChatStore)),
-        );
+        void import('@features/chat/data-access/chat.store').then(m => {
+          if (!this.destroyRef.destroyed) {
+            this.chatStore.set(this.injector.get(m.ChatStore));
+          }
+        });
         this.measureWidth();
         this.syncIndicator();
         this.observeListSize();
         // La fuente web cambia el ancho del texto cuando termina de cargar.
-        void document.fonts?.ready.then(() => this.measureWidth());
+        void document.fonts?.ready.then(() => {
+          if (!this.destroyRef.destroyed) {
+            this.measureWidth();
+          }
+        });
       },
       { injector: this.injector },
     );

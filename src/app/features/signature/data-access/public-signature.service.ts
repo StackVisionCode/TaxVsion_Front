@@ -89,10 +89,10 @@ export class PublicSignatureService {
    * valida el token y exige verificación completa (403). Devolvemos Uint8Array para que el llamador
    * pueda rendearlo con pdf.js (`renderPdfPages`) y pintar el documento de fondo bajo los campos.
    */
-  getDocumentBytes(token: string): Observable<Uint8Array> {
+  getDocumentBytes(token: string, documentId: string): Observable<Uint8Array> {
     return defer(() =>
       this.http
-        .get(this.url(token, '/document'), { responseType: 'arraybuffer' })
+        .get(this.url(token, `/documents/${encodeURIComponent(documentId)}`), { responseType: 'arraybuffer' })
         .pipe(map(buffer => new Uint8Array(buffer))),
     );
   }

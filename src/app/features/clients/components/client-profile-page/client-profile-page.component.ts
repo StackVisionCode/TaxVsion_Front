@@ -60,6 +60,7 @@ import {
   SaveFiscalPayload,
 } from '../../ui/client-fiscal-form/client-fiscal-form.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
+import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, finalize, map, of, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -223,12 +224,51 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-page.component.html',
+  // Entrada de las fotos del staff asignado (una tras otra, con un pequeño rebote).
+  styles: `
+    @keyframes assignee-pop {
+      from { opacity: 0; transform: scale(0.6); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .assignee-avatar { animation: assignee-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+    @media (prefers-reduced-motion: reduce) { .assignee-avatar { animation: none; } }
+  `,
 })
 export class ClientProfilePageComponent implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly store = inject(ClientsStore);
   private readonly toast = inject(ToastService);
   private readonly caps = inject(ClientPermissions);
+  private readonly staff = inject(StaffDirectoryStore);
+
+  /** Máximo de fotos apiladas en la cabecera; el resto va como "+N". */
+  private static readonly MAX_ASSIGNEE_AVATARS = 4;
+
+  /**
+   * Staff asignado para la pila de avatares de la cabecera (primario primero). Solo admin/view_all
+   * lo ve: el backend no manda `assignees` a los demás. Los nombres se resuelven con el directorio.
+   */
+  readonly assigneeAvatars = computed(() => {
+    if (!this.caps.canViewAssignees()) {
+      return [];
+    }
+    const byId = new Map(this.staff.members().map(m => [m.userId, m]));
+    return [...(this.client()?.assignees ?? [])]
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+      .map(a => ({ userId: a.userId, isPrimary: a.isPrimary, name: byId.get(a.userId)?.name ?? null }));
+  });
+  readonly visibleAssigneeAvatars = computed(() =>
+    this.assigneeAvatars().slice(0, ClientProfilePageComponent.MAX_ASSIGNEE_AVATARS),
+  );
+  readonly extraAssigneeCount = computed(() =>
+    Math.max(0, this.assigneeAvatars().length - ClientProfilePageComponent.MAX_ASSIGNEE_AVATARS),
+  );
+  /** "Ana López (primary), Luis Pérez" para el tooltip de la pila. */
+  readonly assigneeNames = computed(() =>
+    this.assigneeAvatars()
+      .map(a => `${a.name ?? 'Unknown user'}${a.isPrimary ? ' (primary)' : ''}`)
+      .join(', '),
+  );
   private readonly router = inject(Router);
   private readonly clientsService = inject(ClientsService);
   private readonly smsService = inject(ClientSmsService);
@@ -368,6 +408,9 @@ export class ClientProfilePageComponent implements OnDestroy {
   readonly savingContactDetails = signal(false);
 
   constructor() {
+    if (this.caps.canViewAssignees()) {
+      this.staff.ensureLoaded();
+    }
     effect(() => {
       const id = this.paramMap().get('id');
       if (id) {

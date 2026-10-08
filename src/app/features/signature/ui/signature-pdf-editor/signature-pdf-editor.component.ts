@@ -176,6 +176,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 export interface NormalizedPlacedField {
   localId: string;
+  documentLocalId: string;
   signerLocalId: string;
   type: FieldType;
   /** 1-based. */
@@ -264,6 +265,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Bytes del PDF cacheados (subido o sample) para re-render por zoom/retry sin re-fetch. */
   private docBytes: Uint8Array | null = null;
+  private loadedDocumentId: string | null = null;
+  private readonly pageMetricsByDocument = new Map<string, RenderedPage[]>();
   /** Páginas del último render correcto (para conservar campos al cambiar de documento). */
   private lastRenderedPages: RenderedPage[] = [];
   private renderAbort: AbortController | null = null;
@@ -452,7 +455,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       .subscribe(url => this.preparerSignatureUrl.set(url));
     // Conteo hacia el panel: fuera de ngOnChanges (antes se emitía en medio del ciclo de cambios).
     effect(() => {
-      const count = this.fields().length;
+      const count = this.fields().length + (this.pendingSeedFields()?.length ?? 0);
       untracked(() => this.fieldCountChange.emit(count));
     });
     this.destroyRef.onDestroy(() => {
@@ -564,7 +567,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     buildReadinessChecklist({
       hasDocument: this.hasDocument(),
       renderFailed: !!this.loadError(),
-      rendering: this.loading() || this.rerendering() || this.pendingSeedFields() !== null,
+      rendering: this.loading() || this.rerendering() || this.hasPendingSeedFieldsForActiveDocument(),
       signers: this.signers(),
       fields: this.fields(),
       signersMissingPhone: this.signersMissingPhone(),
@@ -579,7 +582,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
    * borraría los campos del servidor.
    */
   readonly safeToExport = computed(
-    () => !this.loadError() && !this.loading() && !this.rerendering() && this.pendingSeedFields() === null,
+    () => !this.loadError() && !this.loading() && !this.rerendering() && !this.hasPendingSeedFieldsForActiveDocument(),
   );
   /** Motivo legible cuando no es seguro exportar (para el botón "Save as draft"). */
   readonly exportBlockedReason = computed(() => {
@@ -703,17 +706,25 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   /** Coloca los campos sembrados una vez conocidas las dimensiones px de cada página. */
   private applyPendingSeedFields(): void {
     const pending = this.pendingSeedFields();
-    if (!pending) {
+    const activeDocumentId = this.document?.id;
+    if (!pending || !activeDocumentId) {
       return;
     }
     const placed: PlacedField[] = [];
+    const remaining: EditorSeedField[] = [];
     for (const field of pending) {
+      if (field.documentLocalId !== activeDocumentId) {
+        remaining.push(field);
+        continue;
+      }
       const page = this.pages().find(p => p.page === field.page);
       if (!page) {
+        remaining.push(field);
         continue;
       }
       placed.push({
         id: field.localId,
+        documentLocalId: field.documentLocalId,
         type: field.type,
         page: field.page,
         ...denormalizeFieldRect({ x: field.nx, y: field.ny, width: field.nw, height: field.nh }, page),
@@ -721,8 +732,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         label: field.label,
       });
     }
-    this.pendingSeedFields.set(null);
-    this.fields.set(placed);
+    this.pendingSeedFields.set(remaining.length > 0 ? remaining : null);
+    this.fields.update(existing => [...existing.filter(field => field.documentLocalId !== activeDocumentId), ...placed]);
+  }
+
+  private hasPendingSeedFieldsForActiveDocument(): boolean {
+    const activeDocumentId = this.document?.id;
+    return !!activeDocumentId && !!this.pendingSeedFields()?.some(field => field.documentLocalId === activeDocumentId);
   }
 
   private markDirty(): void {
@@ -973,7 +989,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   // ---------- campos ----------
 
   fieldsForPage(page: number): PlacedField[] {
-    return this.fields().filter(f => f.page === page);
+    const activeDocumentId = this.document?.id;
+    return this.fields().filter(f => f.documentLocalId === activeDocumentId && f.page === page);
   }
 
   /** Icono/círculo pastel del tipo de documento (toolbar). */
@@ -1079,7 +1096,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     }
     const x = point ? point.x - size.w / 2 : (page.width - size.w) / 2;
     const y = point ? point.y - size.h / 2 : 120 * this.zoom() + (count % 6) * 16;
-    const field = clampToPage<PlacedField>({ id, type, page: page.page, x, y, width: size.w, height: size.h, signerId }, page);
+    const documentLocalId = this.document?.id;
+    if (!documentLocalId) {
+      return;
+    }
+    const field = clampToPage<PlacedField>({ id, documentLocalId, type, page: page.page, x, y, width: size.w, height: size.h, signerId }, page);
     this.fields.update(list => [...list, field]);
     this.placingType.set(null);
     this.selectedFieldId.set(field.id);
@@ -1588,7 +1609,27 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   // ---------- API pública para el wizard ----------
 
   getFields(): PlacedField[] {
-    return this.fields();
+    const pending = (this.pendingSeedFields() ?? []).map(field => ({
+      id: field.localId,
+      documentLocalId: field.documentLocalId,
+      type: field.type,
+      page: field.page,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      signerId: field.signerLocalId,
+      label: field.label,
+    }));
+    return [...this.fields(), ...pending];
+  }
+
+  removeDocumentFields(documentLocalId: string): void {
+    this.fields.update(fields => fields.filter(field => field.documentLocalId !== documentLocalId));
+    const pending = this.pendingSeedFields()?.filter(field => field.documentLocalId !== documentLocalId) ?? [];
+    this.pendingSeedFields.set(pending.length > 0 ? pending : null);
+    this.pageMetricsByDocument.delete(documentLocalId);
+    this.markDirty();
   }
 
   getSigners(): EditorSigner[] {
@@ -1606,17 +1647,39 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       if (this.isPreparerField(field)) {
         continue; // los del preparador se exportan aparte (buildPreparerFields)
       }
-      const rect = normalizeFieldRect(field, this.pages().find(p => p.page === field.page));
+      const pages =
+        field.documentLocalId === this.document?.id
+          ? this.pages()
+          : this.pageMetricsByDocument.get(field.documentLocalId) ?? [];
+      const rect = normalizeFieldRect(field, pages.find(p => p.page === field.page));
       if (!rect) {
         continue;
       }
       out.push({
         localId: field.id,
+        documentLocalId: field.documentLocalId,
         signerLocalId: field.signerId,
         type: field.type,
         page: field.page,
         ...rect,
         label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+      });
+    }
+    for (const field of this.pendingSeedFields() ?? []) {
+      if (field.signerLocalId === PREPARER_PARTY_ID) {
+        continue;
+      }
+      out.push({
+        localId: field.localId,
+        documentLocalId: field.documentLocalId,
+        signerLocalId: field.signerLocalId,
+        type: field.type,
+        page: field.page,
+        x: field.nx,
+        y: field.ny,
+        width: field.nw,
+        height: field.nh,
+        label: field.label,
       });
     }
     return out;
@@ -1629,11 +1692,32 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       if (!this.isPreparerField(field)) {
         continue;
       }
-      const rect = normalizeFieldRect(field, this.pages().find(p => p.page === field.page));
+      const pages =
+        field.documentLocalId === this.document?.id
+          ? this.pages()
+          : this.pageMetricsByDocument.get(field.documentLocalId) ?? [];
+      const rect = normalizeFieldRect(field, pages.find(p => p.page === field.page));
       if (!rect) {
         continue;
       }
-      out.push({ localId: field.id, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, ...rect });
+      out.push({ localId: field.id, documentLocalId: field.documentLocalId, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, ...rect });
+    }
+    for (const field of this.pendingSeedFields() ?? []) {
+      if (field.signerLocalId !== PREPARER_PARTY_ID) {
+        continue;
+      }
+      out.push({
+        localId: field.localId,
+        documentLocalId: field.documentLocalId,
+        signerLocalId: PREPARER_PARTY_ID,
+        type: field.type,
+        page: field.page,
+        x: field.nx,
+        y: field.ny,
+        width: field.nw,
+        height: field.nh,
+        label: field.label,
+      });
     }
     return out;
   }
@@ -1763,6 +1847,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   private async loadDocument(): Promise<void> {
     const token = ++this.loadToken;
+    const nextDocumentId = this.document?.id ?? null;
+    const previousDocumentId = this.loadedDocumentId;
+    if (previousDocumentId && this.lastRenderedPages.length > 0) {
+      this.pageMetricsByDocument.set(previousDocumentId, this.lastRenderedPages);
+    }
     this.renderAbort?.abort();
     const abort = new AbortController();
     this.renderAbort = abort;
@@ -1774,15 +1863,21 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.placingType.set(null);
 
     // Conservar campos solo si el panel lo confirmó, hay campos y no estamos sembrando un borrador.
-    const keep = this.keepFieldsOnDocumentChange && this.fields().length > 0 && this.pendingSeedFields() === null;
+    const isSwitchingDocuments =
+      previousDocumentId !== null && nextDocumentId !== null && previousDocumentId !== nextDocumentId;
+    const keep =
+      (isSwitchingDocuments || this.keepFieldsOnDocumentChange) &&
+      this.fields().length > 0 &&
+      !this.hasPendingSeedFieldsForActiveDocument();
     const previousPages = this.lastRenderedPages;
-    if (!keep) {
-      this.fields.set([]);
+    if (!keep && nextDocumentId) {
+      this.fields.update(fields => fields.filter(field => field.documentLocalId !== nextDocumentId));
     }
     this.docBytes = null;
 
     const doc = this.document;
     if (!doc) {
+      this.loadedDocumentId = null;
       this.pages.set([]);
       this.loading.set(false);
       this.loadError.set('');
@@ -1817,8 +1912,10 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       this.docBytes = bytes;
       this.zoom.set(pages[0].scale / BASE_SCALE);
       if (keep) {
-        const { kept, dropped } = remapFieldsToPages(this.fields(), previousPages, pages);
-        this.fields.set(kept);
+        const activeFields = this.fields().filter(field => field.documentLocalId === doc.id);
+        const inactiveFields = this.fields().filter(field => field.documentLocalId !== doc.id);
+        const { kept, dropped } = remapFieldsToPages(activeFields, previousPages, pages);
+        this.fields.set([...inactiveFields, ...kept]);
         if (dropped.length > 0) {
           this.notice.set(
             `${dropped.length} ${dropped.length === 1 ? 'field was' : 'fields were'} on pages the new document doesn't have and ${dropped.length === 1 ? 'was' : 'were'} removed.`,
@@ -1827,6 +1924,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       }
       this.pages.set(pages);
       this.lastRenderedPages = pages;
+      this.loadedDocumentId = doc.id;
+      this.pageMetricsByDocument.set(doc.id, pages);
       this.currentPage.set(1);
       this.autoFitPending = true;
       // Continuar un borrador: ahora que hay dimensiones de página, colocamos los campos sembrados.

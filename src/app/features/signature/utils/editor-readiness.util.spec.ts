@@ -30,6 +30,7 @@ function input(partial: Partial<ReadinessInput>): ReadinessInput {
 
 const sig = (signerId: string): PlacedField => ({
   id: 'f',
+  documentLocalId: 'doc-1',
   type: 'signature',
   page: 1,
   x: 0,

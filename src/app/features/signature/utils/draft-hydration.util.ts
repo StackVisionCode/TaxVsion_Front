@@ -101,6 +101,7 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
       const localId = `seed-${field.id}`;
       seedFields.push({
         localId,
+        documentLocalId: field.documentId,
         type: kindToFieldType(field.kind),
         page: field.page,
         nx: field.x,
@@ -122,6 +123,7 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
     const localId = `seed-prep-${field.id}`;
     seedFields.push({
       localId,
+      documentLocalId: field.documentId,
       type: kindToFieldType(field.kind),
       page: field.page,
       nx: field.x,
@@ -158,6 +160,7 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
     seed: { signers: editorSigners, fields: seedFields, rules, preparerSignatureFileId: detail.preparerSignatureFileId },
     sendState: {
       requestId: detail.id,
+      documentIdByLocal: Object.fromEntries(detail.documents.map(document => [document.id, document.id])),
       signerIdByLocal,
       postedFieldLocalIds,
       pinSet: detail.requiresPractitionerPin,

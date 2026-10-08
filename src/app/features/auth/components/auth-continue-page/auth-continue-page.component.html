@@ -3,6 +3,8 @@
   <div class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-brand-light/30 rounded-full blur-3xl"></div>
 
   <div class="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl shadow-brand-light/40 px-8 py-12 text-center">
+    <!-- Camino feliz: tapada por <app-login-transition /> (raíz). Se conserva como respaldo por si
+         la escena se retira por su tope de seguridad antes de que el shell pinte. -->
     @if (!failed()) {
       <span class="mx-auto flex h-14 w-14 items-center justify-center">
         <span class="w-8 h-8 border-[3px] border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></span>

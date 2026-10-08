@@ -2,7 +2,7 @@
   <ng-container *ngIf="!isPanelOpen() && !previewRequest(); else takeoverView">
     <!-- Signature requests card -->
     <div class="bg-white rounded-[28px] p-6">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
         <div>
           <h2 class="text-xl font-bold text-gray-900">{{ embedded() ? 'Signatures' : 'Signature Requests' }}</h2>
           <p class="mt-1 text-sm text-gray-500">{{ embedded() ? 'Signature requests for ' + embeddedName() : 'Track documents sent out for client signature' }}</p>
@@ -80,6 +80,7 @@
         (cancelSchedule)="cancelScheduledSend($event)"
         (downloadOriginal)="downloadOriginal($event)"
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
+        (downloadFile)="downloadDocumentFile($event)"
         (viewDocument)="viewDocument($event)"
         (resendSigner)="resendToSigner($event)"></app-signature-preview>
     </ng-template>

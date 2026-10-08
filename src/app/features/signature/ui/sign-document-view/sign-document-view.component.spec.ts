@@ -4,6 +4,7 @@ import { PublicSignerFieldView } from '../../data-access/public-signature.model'
 
 function field(partial: Partial<PublicSignerFieldView> & Pick<PublicSignerFieldView, 'id'>): PublicSignerFieldView {
   return {
+    documentId: 'doc-1',
     kind: 'Text',
     page: 1,
     x: 0.1,
@@ -72,5 +73,19 @@ describe('SignDocumentViewComponent', () => {
       { t1: 'ok' },
     );
     expect(fixture.componentInstance.pendingRequired).toBe(1);
+  });
+
+  it('renderiza solo los campos del documento activo', () => {
+    const fixture = TestBed.createComponent(SignDocumentViewComponent);
+    fixture.componentRef.setInput('documentId', 'doc-2');
+    fixture.componentRef.setInput('fields', [
+      field({ id: 'd1', documentId: 'doc-1', label: 'First document' }),
+      field({ id: 'd2', documentId: 'doc-2', label: 'Second document' }),
+    ]);
+    fixture.componentRef.setInput('editable', true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-field-id="d1"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-field-id="d2"]')).not.toBeNull();
   });
 });

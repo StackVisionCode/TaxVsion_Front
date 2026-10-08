@@ -22,8 +22,15 @@ function detail(partial: Partial<SignatureTemplateDetail> = {}): SignatureTempla
     sendCertificateToSigners: false,
     autoRemindersEnabled: true,
     reminderIntervalHours: 48,
+    sendPartialCopyOnEachSignature: false,
+    partialCopyAudienceKind: 'All',
+    partialCopyAudienceSlotOrders: [],
+    expirationEnabled: true,
     requiresPractitionerPin: false,
     baseDocumentFileId: null,
+    baseDocuments: [
+      { id: 'doc-1', fileId: 'file-1', title: 'Form 8879', order: 1 },
+    ],
     createdAtUtc: '2026-01-01T00:00:00Z',
     updatedAtUtc: '2026-01-01T00:00:00Z',
     publishedAtUtc: null,
@@ -34,6 +41,7 @@ function detail(partial: Partial<SignatureTemplateDetail> = {}): SignatureTempla
     fields: [
       {
         id: 'srv-a',
+        templateDocumentId: 'doc-1',
         slotOrder: 1,
         kind: 'Signature',
         page: 1,
@@ -73,8 +81,11 @@ describe('SignatureTemplateEditorComponent', () => {
       removeTemplateSlot: vi.fn(() => of(undefined)),
       removeTemplateField: vi.fn(() => of(undefined)),
       removeTemplatePreparerField: vi.fn(() => of(undefined)),
-      placeTemplateField: vi.fn(() => of({ id: 'new', slotOrder: 1 })),
-      placeTemplatePreparerField: vi.fn(() => of({ id: 'new-p' })),
+      addTemplateDocument: vi.fn(() => of({ id: 'doc-new', fileId: 'file-new', title: 'Document', order: 2 })),
+      removeTemplateDocument: vi.fn(() => of(undefined)),
+      reorderTemplateDocuments: vi.fn(() => of(undefined)),
+      placeTemplateField: vi.fn(() => of({ id: 'new', templateDocumentId: 'doc-1', slotOrder: 1 })),
+      placeTemplatePreparerField: vi.fn(() => of({ id: 'new-p', templateDocumentId: 'doc-1' })),
       publishTemplate: vi.fn(() => of(undefined)),
     };
     TestBed.configureTestingModule({
@@ -88,6 +99,8 @@ describe('SignatureTemplateEditorComponent', () => {
     c.templateId = 't1';
     c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
     await settle();
+    // Estas pruebas ejercitan el layout, no CloudStorage/pdf.js: el fallback ya creó páginas blancas.
+    c.renderError.set('');
     return c;
   }
 
@@ -107,12 +120,13 @@ describe('SignatureTemplateEditorComponent', () => {
     c.templateId = 't1';
     c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
     await settle();
+    c.renderError.set('');
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
 
     // Pestañas (visibles < lg) y el acordeón con "Signer roles" abierto por defecto.
     const tabs = Array.from(el.querySelectorAll<HTMLButtonElement>('[role="tab"]')).map(b => b.textContent?.trim());
-    expect(tabs).toEqual(['Document', 'Settings']);
+    expect(tabs).toEqual(expect.arrayContaining(['Document', 'Settings', 'Form 8879']));
     expect(el.querySelector('aside')?.classList.contains('hidden')).toBe(true);
     (el.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]).click();
     fixture.detectChanges();
@@ -182,6 +196,10 @@ describe('SignatureTemplateEditorComponent', () => {
       sendCertificateToSigners: true,
       autoRemindersEnabled: true,
       reminderIntervalHours: 48,
+      sendPartialCopyOnEachSignature: false,
+      partialCopyAudienceKind: 'All',
+      partialCopyAudienceSlotOrders: [],
+      expirationEnabled: true,
     });
   });
 
@@ -201,6 +219,7 @@ describe('SignatureTemplateEditorComponent', () => {
     c.templateId = 't1';
     c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
     await settle();
+    c.renderError.set('');
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const q = (id: string) => el.querySelector<HTMLElement>(`[data-testid="${id}"]`);
@@ -379,6 +398,7 @@ describe('SignatureTemplateEditorComponent', () => {
       c.templateId = 't1';
       c.ngOnChanges({ templateId: new SimpleChange(null, 't1', true) });
       await settle();
+      c.renderError.set('');
       fixture.detectChanges();
       stubPageRects();
       const el = fixture.nativeElement as HTMLElement;

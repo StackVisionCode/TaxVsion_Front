@@ -88,3 +88,55 @@
     opacity: 0.4;
   }
 }
+
+/* ---------- Hueco (notch) del navbar ----------
+   En desktop el navbar (lupa, campana, perfil) flota arriba a la derecha y el contenido sube hasta el
+   borde superior. El contenedor del navbar se pinta con el MISMO degradado del fondo de la página
+   (fijado al viewport con background-attachment: fixed, así empalma sin costura) y con esquina inferior
+   izquierda redondeada: sobre una tarjeta se ve como un recorte. Las dos "esquinas invertidas"
+   (::before a su izquierda, ::after debajo) curvan el borde de la tarjeta hacia el hueco.
+   Solo en lg+: debajo el navbar vuelve a su fila normal.
+   Las páginas reservan el hueco con dos variables:
+   - --shell-notch-width: padding derecho de la fila de encabezado (título + botones) para que sus
+     acciones queden a la izquierda del hueco (`lg:pr-[var(--shell-notch-width)]`).
+   - --shell-notch-height: padding superior de una tarjeta alta pegada arriba a la derecha (lector de
+     mail, hilo del chat) para que su contenido empiece debajo del hueco (`lg:pt-[var(--shell-notch-height)]`). */
+:host {
+  --shell-notch-width: 11rem;
+  --shell-notch-height: 4.75rem;
+  --shell-notch-radius: 24px;
+}
+
+@media (min-width: 1024px) {
+  .shell-notch {
+    padding: 0 0 0.75rem 0.75rem;
+    border-bottom-left-radius: var(--shell-notch-radius);
+    background-image: linear-gradient(to bottom right, #f1f6fb, #fafafa, #f1f6fb);
+    background-attachment: fixed;
+  }
+
+  .shell-notch::before,
+  .shell-notch::after {
+    content: '';
+    position: absolute;
+    width: var(--shell-notch-radius);
+    height: var(--shell-notch-radius);
+    background-image: inherit;
+    background-attachment: fixed;
+    pointer-events: none;
+    -webkit-mask: radial-gradient(circle at 0 100%, transparent calc(var(--shell-notch-radius) - 0.5px), #000 var(--shell-notch-radius));
+    mask: radial-gradient(circle at 0 100%, transparent calc(var(--shell-notch-radius) - 0.5px), #000 var(--shell-notch-radius));
+  }
+
+  /* Esquina invertida a la izquierda del hueco, pegada al borde superior. */
+  .shell-notch::before {
+    top: 0;
+    right: 100%;
+  }
+
+  /* Esquina invertida debajo del hueco, pegada al borde derecho. */
+  .shell-notch::after {
+    top: 100%;
+    right: 0;
+  }
+}

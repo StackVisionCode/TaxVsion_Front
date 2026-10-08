@@ -50,7 +50,7 @@ describe('SignatureRequestPanelComponent', () => {
       isActive: true,
       createdAt: '',
     });
-    c.selectedDocument.set(doc);
+    c.onDocumentSelected(doc);
     c.title.set('  Engagement 2026 ');
     c.notes.set('');
     c.signersSnapshot.set([
@@ -67,6 +67,7 @@ describe('SignatureRequestPanelComponent', () => {
     c.normalizedFieldsSnapshot.set([
       {
         localId: 'field-0',
+        documentLocalId: 'file-1',
         signerLocalId: 'client:1',
         type: 'signature',
         page: 1,
@@ -77,6 +78,7 @@ describe('SignatureRequestPanelComponent', () => {
       },
       {
         localId: 'field-1',
+        documentLocalId: 'file-1',
         signerLocalId: 'client:1',
         type: 'text',
         page: 2,
@@ -90,6 +92,7 @@ describe('SignatureRequestPanelComponent', () => {
     c.preparerFieldsSnapshot.set([
       {
         localId: 'prep-3',
+        documentLocalId: 'file-1',
         signerLocalId: PREPARER_PARTY_ID,
         type: 'signature',
         page: 1,
@@ -112,13 +115,25 @@ describe('SignatureRequestPanelComponent', () => {
       title: 'Engagement 2026',
       description: null,
       category: 'Fiscal',
-      originalFileId: 'file-1',
+      documents: [
+        {
+          localId: 'file-1',
+          backendId: null,
+          originalFileId: 'file-1',
+          title: 'Engagement.pdf',
+          note: null,
+        },
+      ],
       tokenExpirationHours: TOKEN_EXPIRATION_DEFAULT_HOURS,
       requiresSequentialSigning: true,
       requiresConsent: true,
       generateCertificate: true,
-      sendSealedDocumentToSigners: true,
+      sendSealedDocumentToSigners: false,
       sendCertificateToSigners: true,
+      sendPartialCopyOnEachSignature: false,
+      partialCopyAudienceKind: 'All',
+      partialCopyAudienceSignerIds: [],
+      expirationEnabled: true,
       autoRemindersEnabled: true,
       reminderIntervalHours: 48,
       signingPin: '1234',
@@ -135,6 +150,7 @@ describe('SignatureRequestPanelComponent', () => {
       fields: [
         {
           localId: 'field-0',
+          documentLocalId: 'file-1',
           signerLocalId: 'client:1',
           kind: 'Signature',
           page: 1,
@@ -147,6 +163,7 @@ describe('SignatureRequestPanelComponent', () => {
         },
         {
           localId: 'field-1',
+          documentLocalId: 'file-1',
           signerLocalId: 'client:1',
           kind: 'Text',
           page: 2,
@@ -161,6 +178,7 @@ describe('SignatureRequestPanelComponent', () => {
       preparerFields: [
         {
           localId: 'prep-3',
+          documentLocalId: 'file-1',
           signerLocalId: PREPARER_PARTY_ID,
           kind: 'Signature',
           page: 1,
@@ -188,7 +206,7 @@ describe('SignatureRequestPanelComponent', () => {
       isActive: true,
       createdAt: '',
     });
-    c.selectedDocument.set(doc);
+    c.onDocumentSelected(doc);
     c.rulesSnapshot.set({ ...defaultRules(), certificate: false });
     const draft = (c as unknown as { buildDraft(): Record<string, unknown> }).buildDraft();
     expect(draft['generateCertificate']).toBe(true);
@@ -208,7 +226,7 @@ describe('SignatureRequestPanelComponent', () => {
       isActive: true,
       createdAt: '',
     });
-    c.selectedDocument.set(doc);
+    c.onDocumentSelected(doc);
     c.onRulesChange({
       ...defaultRules(),
       sequential: false,
@@ -257,6 +275,7 @@ describe('SignatureRequestPanelComponent', () => {
     c.fieldsSnapshot.set([
       {
         id: 'field-0',
+        documentLocalId: 'file-1',
         type: 'signature',
         page: 1,
         x: 0,
@@ -267,6 +286,7 @@ describe('SignatureRequestPanelComponent', () => {
       },
       {
         id: 'prep-1',
+        documentLocalId: 'file-1',
         type: 'signature',
         page: 1,
         x: 0,
@@ -279,6 +299,7 @@ describe('SignatureRequestPanelComponent', () => {
     c.normalizedFieldsSnapshot.set([
       {
         localId: 'field-0',
+        documentLocalId: 'file-1',
         signerLocalId: 'client:1',
         type: 'signature',
         page: 1,

@@ -145,24 +145,8 @@
     </div>
   </div>
 
-  <!-- Loader circular de bolitas: aparece cuando la tarjeta ya se hundió -->
-  @if (showLoader()) {
-    <div class="loader-overlay absolute inset-0 z-20 flex flex-col items-center justify-center"
-      [class.loader-fade-out]="phase() === 'fading'">
-      <div class="relative h-24 w-24">
-        <!-- 8 bolitas orbitando -->
-        @for (dot of loaderDots; track $index) {
-          <span class="loader-dot absolute left-1/2 top-1/2 h-3 w-3 -ml-1.5 -mt-1.5 rounded-full"></span>
-        }
-
-        <!-- Marca en el centro con pulso sutil -->
-        <span
-          class="loader-center absolute inset-0 flex items-center justify-center text-indigo-600 text-3xl font-bold select-none">*</span>
-      </div>
-
-      <p class="loader-caption mt-6 text-sm text-gray-500">Preparing your dashboard...</p>
-    </div>
-  }
+  <!-- La escena de carga post-login ya no vive acá: es <app-login-transition /> en la raíz
+       (sobrevive al cambio de ruta). Esta página solo hunde la tarjeta. -->
 </div>
 
 <!-- Catálogo de planes: elegir antes de arrancar el alta (los precios vienen de GET /plans) -->

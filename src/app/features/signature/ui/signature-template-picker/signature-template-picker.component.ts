@@ -34,6 +34,15 @@ interface SlotDraft {
 /** Origen del documento: el documento base de la plantilla (P7), subir uno nuevo, o reusar un PDF de la oficina. */
 type DocSource = 'template' | 'upload' | 'library';
 
+interface TemplateDocumentDraft {
+  templateDocumentId: string;
+  title: string;
+  source: DocSource;
+  file: File | null;
+  libraryFile: FileResponse | null;
+  error: string;
+}
+
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -81,7 +90,7 @@ export class SignatureTemplatePickerComponent {
   readonly phaseLabel = computed(() => {
     switch (this.phase()) {
       case 'creating':
-        return this.docSource() === 'library' ? 'Creating the request…' : 'Uploading and preparing the document…';
+        return 'Uploading and preparing the documents…';
       case 'preparing':
         return 'Waiting for the document to clear its security scan…';
       case 'sending':
@@ -100,35 +109,26 @@ export class SignatureTemplatePickerComponent {
   readonly loadingDetail = signal(false);
   readonly slots = signal<SlotDraft[]>([]);
   readonly description = signal('');
-  readonly file = signal<File | null>(null);
-  readonly fileError = signal('');
+  readonly documents = signal<TemplateDocumentDraft[]>([]);
   readonly busy = signal(false);
   readonly error = signal('');
 
-  /** Documento: subir uno nuevo o reusar un PDF ya existente en la oficina. */
-  readonly docSource = signal<DocSource>('upload');
-  readonly libraryFile = signal<FileResponse | null>(null);
-
-
-  /** true si la plantilla elegida trae un documento base (P7). */
-  readonly hasTemplateDocument = computed(() => !!this.selected()?.baseDocumentFileId);
-
-  /** true si hay documento válido: el de la plantilla, uno subido, o uno de librería. */
-  readonly hasDocument = computed(() => {
-    switch (this.docSource()) {
-      case 'template':
-        return this.hasTemplateDocument();
-      case 'upload':
-        return !!this.file();
-      case 'library':
-        return !!this.libraryFile();
-    }
-  });
+  readonly hasDocuments = computed(
+    () =>
+      this.documents().length > 0 &&
+      this.documents().every(document =>
+        document.source === 'template'
+          ? true
+          : document.source === 'upload'
+            ? !!document.file
+            : !!document.libraryFile,
+      ),
+  );
 
   /** Hace falta el PDF y un firmante completo por cada rol; teléfono si el rol exige SMS/WhatsApp. */
   readonly canCreate = computed(
     () =>
-      this.hasDocument() &&
+      this.hasDocuments() &&
       this.slots().length > 0 &&
       this.slots().every(
         slot =>
@@ -159,28 +159,38 @@ export class SignatureTemplatePickerComponent {
     this.selected.set(null);
     this.slots.set([]);
     this.description.set('');
-    this.file.set(null);
-    this.fileError.set('');
+    this.documents.set([]);
     this.error.set('');
-    this.docSource.set('upload');
-    this.libraryFile.set(null);
   }
 
   // ---------- Documento: subir vs librería ----------
 
-  setDocSource(source: DocSource): void {
-    this.docSource.set(source);
-    this.fileError.set('');
-    if (source !== 'upload') {
-      this.file.set(null);
-    }
-    if (source !== 'library') {
-      this.libraryFile.set(null);
-    }
+  setDocSource(documentId: string, source: DocSource): void {
+    this.documents.update(documents =>
+      documents.map(document =>
+        document.templateDocumentId === documentId
+          ? {
+              ...document,
+              source,
+              file: source === 'upload' ? document.file : null,
+              libraryFile: source === 'library' ? document.libraryFile : null,
+              error: '',
+            }
+          : document,
+      ),
+    );
   }
 
-  onLibraryPicked(file: FileResponse): void {
-    this.libraryFile.set(file);
+  onLibraryPicked(documentId: string, file: FileResponse): void {
+    this.documents.update(documents =>
+      documents.map(document =>
+        document.templateDocumentId === documentId ? { ...document, libraryFile: file, error: '' } : document,
+      ),
+    );
+  }
+
+  documentDraft(documentId: string): TemplateDocumentDraft | null {
+    return this.documents().find(document => document.templateDocumentId === documentId) ?? null;
   }
 
   // ---------- Buscador de cliente por slot ----------
@@ -223,8 +233,18 @@ export class SignatureTemplatePickerComponent {
     this.store.getTemplate(template.id).subscribe({
       next: detail => {
         this.selected.set(detail);
-        // P7: si la plantilla trae documento base, se pre-selecciona; si no, se pide subir/elegir.
-        this.docSource.set(detail.baseDocumentFileId ? 'template' : 'upload');
+        this.documents.set(
+          [...detail.baseDocuments]
+            .sort((a, b) => a.order - b.order)
+            .map(document => ({
+              templateDocumentId: document.id,
+              title: document.title,
+              source: 'template' as const,
+              file: null,
+              libraryFile: null,
+              error: '',
+            })),
+        );
         this.slots.set(
           [...detail.slots]
             .sort((a, b) => a.order - b.order)
@@ -280,25 +300,34 @@ export class SignatureTemplatePickerComponent {
   }
 
   /** Mismo límite que el wizard: PDF y ≤25 MB (el preflight del backend lo repite). */
-  onFileSelected(event: Event): void {
+  onFileSelected(documentId: string, event: Event): void {
     const input = event.target as HTMLInputElement;
     const picked = input.files?.[0] ?? null;
-    this.fileError.set('');
+    input.value = '';
     if (!picked) {
-      this.file.set(null);
       return;
     }
     if (picked.type !== 'application/pdf') {
-      this.fileError.set('Only PDF files can be sent for signature.');
-      this.file.set(null);
+      this.setDocumentError(documentId, 'Only PDF files can be sent for signature.');
       return;
     }
     if (picked.size > MAX_PDF_BYTES) {
-      this.fileError.set('That PDF is over the 25 MB limit.');
-      this.file.set(null);
+      this.setDocumentError(documentId, 'That PDF is over the 25 MB limit.');
       return;
     }
-    this.file.set(picked);
+    this.documents.update(documents =>
+      documents.map(document =>
+        document.templateDocumentId === documentId ? { ...document, file: picked, error: '' } : document,
+      ),
+    );
+  }
+
+  private setDocumentError(documentId: string, error: string): void {
+    this.documents.update(documents =>
+      documents.map(document =>
+        document.templateDocumentId === documentId ? { ...document, file: null, error } : document,
+      ),
+    );
   }
 
   async create(): Promise<void> {
@@ -319,17 +348,24 @@ export class SignatureTemplatePickerComponent {
     // Una sola acción: crear + esperar a que el documento esté listo + enviar a los firmantes.
     // Librería reusa el fileId (rápido); upload valida+sube. El botón queda deshabilitado y el
     // modal no se puede cerrar mientras procesa (close() chequea busy).
-    const library = this.libraryFile();
-    const source: { file: File } | { fileId: string } | { templateDoc: true } =
-      this.docSource() === 'template'
-        ? { templateDoc: true }
-        : this.docSource() === 'library' && library
-          ? { fileId: library.id }
-          : { file: this.file()! };
+    const documentSources = this.documents().map(document => ({
+      templateDocumentId: document.templateDocumentId,
+      title: document.title,
+      source:
+        document.source === 'template'
+          ? ({ templateDoc: true } as const)
+          : document.source === 'library'
+            ? { fileId: document.libraryFile!.id }
+            : { file: document.file! },
+    }));
 
     try {
-      const result = await this.store.instantiateTemplateAndSend(template.id, source, bindings, note, p =>
-        this.phase.set(p),
+      const result = await this.store.instantiateMultiDocumentTemplateAndSend(
+        template.id,
+        documentSources,
+        bindings,
+        note,
+        p => this.phase.set(p),
       );
       this.busy.set(false);
       this.phase.set('idle');

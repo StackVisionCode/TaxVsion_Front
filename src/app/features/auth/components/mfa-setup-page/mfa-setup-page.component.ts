@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { MfaService } from '@core/auth/mfa.service';
+import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { SetupTotpResponse } from '@core/auth/mfa.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 
@@ -29,6 +30,7 @@ export class MfaSetupPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly mfa = inject(MfaService);
+  private readonly transition = inject(LoginTransitionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly setup = signal<SetupTotpResponse | null>(null);
@@ -95,6 +97,7 @@ export class MfaSetupPageComponent implements OnInit {
 
   onFinish(): void {
     this.auth.completeMfaEnrollment();
+    this.transition.start();
     void this.router.navigateByUrl('/dashboard');
   }
 

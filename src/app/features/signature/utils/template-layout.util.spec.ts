@@ -90,7 +90,7 @@ function oldBuildNormalizedPreparerFields(fields: TemplateFieldLocal[], pages: O
 }
 
 function field(partial: Partial<TemplateFieldLocal> & Pick<TemplateFieldLocal, 'localId'>): TemplateFieldLocal {
-  return { slotOrder: 1, type: 'signature', page: 1, x: 100, y: 200, width: 240, height: 72, ...partial };
+  return { templateDocumentId: 'doc-1', slotOrder: 1, type: 'signature', page: 1, x: 100, y: 200, width: 240, height: 72, ...partial };
 }
 
 const PAGES = [

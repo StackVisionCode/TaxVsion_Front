@@ -23,13 +23,13 @@ describe('SignatureService — preparer field endpoints', () => {
 
   it('placePreparerField hace POST con la caja normalizada', () => {
     service
-      .placePreparerField('r1', { kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null })
+      .placePreparerField('r1', { documentId: 'doc-1', kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null })
       .subscribe();
 
     const req = httpMock.expectOne(`${requestsUrl}/r1/preparer-fields`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null });
-    req.flush({ id: 'pf1', kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null });
+    expect(req.request.body).toEqual({ documentId: 'doc-1', kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null });
+    req.flush({ id: 'pf1', documentId: 'doc-1', kind: 'Signature', page: 1, x: 0.1, y: 0.8, width: 0.2, height: 0.05, label: null });
   });
 
   it('removePreparerField hace DELETE al id', () => {
