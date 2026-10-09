@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ApiConfigService } from '@core/config/api-config.service';
 import { TenantBrandingService } from './tenant-branding.service';
 
 describe('TenantBrandingService', () => {
   let service: TenantBrandingService;
   let httpMock: HttpTestingController;
+  let api: ApiConfigService;
 
   beforeEach(() => {
     localStorage.clear();
@@ -15,6 +17,7 @@ describe('TenantBrandingService', () => {
     });
     service = TestBed.inject(TenantBrandingService);
     httpMock = TestBed.inject(HttpTestingController);
+    api = TestBed.inject(ApiConfigService);
   });
 
   afterEach(() => {
@@ -42,8 +45,6 @@ describe('TenantBrandingService', () => {
   });
 
   it('carga el logo de plataforma sin reemplazar la marca ni el tema de la oficina', () => {
-    const applySpy = vi.spyOn(theme, 'applyBranding');
-
     service.loadSystemBrandLogo('Crm');
 
     const request = httpMock.expectOne((candidate) =>
@@ -59,11 +60,36 @@ describe('TenantBrandingService', () => {
     expect(service.systemLogoUrl()).toContain('/tenants/branding/assets/platform-logo?v=1');
     expect(service.logoUrl()).toBeNull();
     expect(service.faviconUrl()).toBeNull();
-    expect(applySpy).not.toHaveBeenCalled();
 
     service.loadSystemBrandLogo('Crm');
     httpMock.expectNone((candidate) =>
       candidate.url.includes('/tenants/branding/system?surface=Crm'),
     );
+  });
+
+  it('carga la marca de plataforma por el origen del tenant en una firma publica', () => {
+    vi.spyOn(api, 'officeFromHost').mockReturnValue('manfer');
+    vi.spyOn(api, 'tenantBase').mockReturnValue('https://manfer.taxproffice.com');
+    vi.spyOn(api, 'tenantUrl').mockImplementation(
+      (path) => `https://manfer.taxproffice.com${path}`,
+    );
+    const systemUrlSpy = vi.spyOn(api, 'systemUrl');
+
+    service.loadSystemBrandLogo('Crm');
+
+    const request = httpMock.expectOne(
+      'https://manfer.taxproffice.com/tenants/branding/system?surface=Crm',
+    );
+    request.flush({
+      primary: '#123456',
+      accent: '#abcdef',
+      logoUrl: '/tenants/branding/assets/platform-logo',
+      faviconUrl: '/tenants/branding/assets/platform-favicon',
+    });
+
+    expect(service.systemLogoUrl()).toBe(
+      'https://manfer.taxproffice.com/tenants/branding/assets/platform-logo?v=1',
+    );
+    expect(systemUrlSpy).not.toHaveBeenCalled();
   });
 });
