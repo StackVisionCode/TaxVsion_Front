@@ -21,7 +21,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
-import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDragHandle,
+  CdkDropList,
+  moveItemInArray,
+} from '@angular/cdk/drag-drop';
 import {
   EditorSeed,
   EditorSeedField,
@@ -35,7 +41,11 @@ import {
   WizardDocKind,
   WizardDocument,
 } from '../signature-request-panel/signature-wizard.model';
-import { SetPreparerBody, SignerLanguage, channelRequiresPhone } from '../../data-access/signature.model';
+import {
+  SetPreparerBody,
+  SignerLanguage,
+  channelRequiresPhone,
+} from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import {
   CHANNEL_META,
@@ -49,7 +59,10 @@ import {
 } from '../signature-request-panel/signature-wizard.presenter';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
-import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import {
+  DropdownMenuComponent,
+  MenuItemDirective,
+} from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import {
   PDF_RENDER_FRIENDLY_ERROR,
@@ -260,8 +273,12 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   readonly zoomError = signal('');
   readonly rerendering = computed(() => this.pendingZoom() !== null);
   readonly zoomPercent = computed(() => Math.round((this.pendingZoom() ?? this.zoom()) * 100));
-  readonly canZoomIn = computed(() => this.hasRenderedPages() && (this.pendingZoom() ?? this.zoom()) < ZOOM_MAX);
-  readonly canZoomOut = computed(() => this.hasRenderedPages() && (this.pendingZoom() ?? this.zoom()) > ZOOM_MIN);
+  readonly canZoomIn = computed(
+    () => this.hasRenderedPages() && (this.pendingZoom() ?? this.zoom()) < ZOOM_MAX,
+  );
+  readonly canZoomOut = computed(
+    () => this.hasRenderedPages() && (this.pendingZoom() ?? this.zoom()) > ZOOM_MIN,
+  );
 
   /** Bytes del PDF cacheados (subido o sample) para re-render por zoom/retry sin re-fetch. */
   private docBytes: Uint8Array | null = null;
@@ -277,7 +294,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Campo seleccionado (inspector + atajos de teclado). */
   readonly selectedFieldId = signal<string | null>(null);
-  readonly selectedField = computed(() => this.fields().find(f => f.id === this.selectedFieldId()) ?? null);
+  readonly selectedField = computed(
+    () => this.fields().find((f) => f.id === this.selectedFieldId()) ?? null,
+  );
   /** Tipo armado para "clic en la página para colocar" (null = modo normal). */
   readonly placingType = signal<PlacingKind | null>(null);
   /** Página visible (toolbar "Page X / N" y botón "colocar en la página visible"). */
@@ -324,14 +343,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     const profiles = this.store.signatureProfiles();
     const selected = this.selectedSignatureId();
     if (selected) {
-      const found = profiles.find(p => p.id === selected && !p.isArchived);
+      const found = profiles.find((p) => p.id === selected && !p.isArchived);
       if (found) {
         return found;
       }
     }
     const seededFileId = this.seededPreparerFileId();
     if (seededFileId) {
-      const seeded = profiles.find(p => p.fileId === seededFileId && !p.isArchived);
+      const seeded = profiles.find((p) => p.fileId === seededFileId && !p.isArchived);
       if (seeded) {
         return seeded;
       }
@@ -340,11 +359,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   });
   readonly hasPreparerSignature = computed(() => this.previewedSignature() !== null);
   /** true cuando hay al menos un campo del preparador colocado sobre el PDF. */
-  readonly hasPlacedPreparerField = computed(() => this.fields().some(f => this.isPreparerField(f)));
+  readonly hasPlacedPreparerField = computed(() =>
+    this.fields().some((f) => this.isPreparerField(f)),
+  );
   /** Bloque "Preparer signature" plegable (plegado por defecto: no le come espacio a los firmantes). */
   readonly preparerOpen = signal(false);
   togglePreparerPanel(): void {
-    this.preparerOpen.update(v => !v);
+    this.preparerOpen.update((v) => !v);
   }
 
   onSelectSignature(id: string): void {
@@ -418,12 +439,12 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     // Typeahead server-side del buscador de clientes del "Add signer" (mismo patrón que el picker del paso 1).
     toObservable(this.signerClientSearch)
       .pipe(
-        map(term => term.trim()),
+        map((term) => term.trim()),
         debounceTime(250),
         distinctUntilChanged(),
         takeUntilDestroyed(),
       )
-      .subscribe(term => {
+      .subscribe((term) => {
         if (this.isAddSignerOpen()) {
           this.store.queryCustomers(term);
         }
@@ -447,12 +468,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     // anterior si el usuario cambia de firma antes de que llegue (antes podía pintar la vieja).
     toObservable(this.previewedSignature)
       .pipe(
-        map(profile => profile?.fileId ?? null),
+        map((profile) => profile?.fileId ?? null),
         distinctUntilChanged(),
-        switchMap(fileId => (fileId ? this.store.getDownloadUrl(fileId).pipe(catchError(() => of(null))) : of(null))),
+        switchMap((fileId) =>
+          fileId ? this.store.getDownloadUrl(fileId).pipe(catchError(() => of(null))) : of(null),
+        ),
         takeUntilDestroyed(),
       )
-      .subscribe(url => this.preparerSignatureUrl.set(url));
+      .subscribe((url) => this.preparerSignatureUrl.set(url));
     // Conteo hacia el panel: fuera de ngOnChanges (antes se emitía en medio del ciclo de cambios).
     effect(() => {
       const count = this.fields().length + (this.pendingSeedFields()?.length ?? 0);
@@ -506,8 +529,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
   /** Resultados: los clientes del directorio compartido, ocultando los que ya son firmantes (por email). */
   readonly signerClientResults = computed(() => {
-    const taken = new Set(this.signers().map(s => s.email.trim().toLowerCase()));
-    return this.store.customers().filter(c => !taken.has(c.email.trim().toLowerCase()));
+    const taken = new Set(this.signers().map((s) => s.email.trim().toLowerCase()));
+    return this.store.customers().filter((c) => !taken.has(c.email.trim().toLowerCase()));
   });
 
   /** Elegir un cliente del buscador: autollena nombre/email/teléfono (editables) y cierra la lista. */
@@ -530,7 +553,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   /** Firmante real activo (nunca el preparador): a quién van los campos que se colocan. */
   readonly activeSigner = computed(() => {
     const id = this.activeSignerId();
-    return this.signers().find(s => s.id === id) ?? null;
+    return this.signers().find((s) => s.id === id) ?? null;
   });
   readonly activeSignerName = computed(() => this.activeSigner()?.name ?? '—');
 
@@ -557,9 +580,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   private readonly pendingSeedFields = signal<EditorSeedField[] | null>(null);
 
   /** Firmantes con canal SMS/WhatsApp pero sin teléfono — bloquean avanzar (no se les puede entregar el OTP). */
-  readonly signersMissingPhone = computed(() => this.signers().filter(s => this.signerNeedsPhone(s)));
+  readonly signersMissingPhone = computed(() =>
+    this.signers().filter((s) => this.signerNeedsPhone(s)),
+  );
   /** Firmantes sin campo de Firma/Iniciales (los del preparador no cuentan). */
-  readonly signersMissingSignature = computed(() => signersMissingSignature(this.signers(), this.fields()));
+  readonly signersMissingSignature = computed(() =>
+    signersMissingSignature(this.signers(), this.fields()),
+  );
   readonly signerFieldTotal = computed(() => signerFieldCount(this.fields()));
 
   /** Lista "Before you continue": todo lo que bloquea Next/Send, con su motivo. */
@@ -567,7 +594,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     buildReadinessChecklist({
       hasDocument: this.hasDocument(),
       renderFailed: !!this.loadError(),
-      rendering: this.loading() || this.rerendering() || this.hasPendingSeedFieldsForActiveDocument(),
+      rendering:
+        this.loading() || this.rerendering() || this.hasPendingSeedFieldsForActiveDocument(),
       signers: this.signers(),
       fields: this.fields(),
       signersMissingPhone: this.signersMissingPhone(),
@@ -575,14 +603,20 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     }),
   );
   /** "Next" del paso Fields: sin pendientes y con al menos un firmante. */
-  readonly canContinue = computed(() => this.readinessItems().length === 0 && this.signers().length > 0);
+  readonly canContinue = computed(
+    () => this.readinessItems().length === 0 && this.signers().length > 0,
+  );
   /**
    * Es seguro exportar los campos (guardar borrador / snapshot): no hay render fallido ni en curso ni
    * campos sembrados sin colocar. Si no, el set exportado saldría vacío y el diff del borrador
    * borraría los campos del servidor.
    */
   readonly safeToExport = computed(
-    () => !this.loadError() && !this.loading() && !this.rerendering() && !this.hasPendingSeedFieldsForActiveDocument(),
+    () =>
+      !this.loadError() &&
+      !this.loading() &&
+      !this.rerendering() &&
+      !this.hasPendingSeedFieldsForActiveDocument(),
   );
   /** Motivo legible cuando no es seguro exportar (para el botón "Save as draft"). */
   readonly exportBlockedReason = computed(() => {
@@ -624,7 +658,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (kind === 'preparer') {
       return 'your signature';
     }
-    const signer = this.signers().find(s => s.id === this.targetSignerId());
+    const signer = this.signers().find((s) => s.id === this.targetSignerId());
     return `a ${FIELD_TYPE_LABEL[kind]} field for ${signer?.name ?? 'the signer'}`;
   });
 
@@ -674,7 +708,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   private maybeAutoFit(): void {
     const surface = this.surfaceRef?.nativeElement;
     const first = this.pages()[0];
-    if (!this.autoFitPending || !surface || surface.clientWidth === 0 || !first || this.interactionLocked()) {
+    if (
+      !this.autoFitPending ||
+      !surface ||
+      surface.clientWidth === 0 ||
+      !first ||
+      this.interactionLocked()
+    ) {
       return;
     }
     this.autoFitPending = false;
@@ -691,10 +731,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     }
     this.signers.set(seed.signers);
     this.rules.set(seed.rules);
-    this.activeSignerId.set(seed.signers.find(s => s.id !== PREPARER_PARTY_ID)?.id ?? null);
+    this.activeSignerId.set(seed.signers.find((s) => s.id !== PREPARER_PARTY_ID)?.id ?? null);
     this.pendingSeedFields.set(seed.fields);
     // Los ids restaurados ya traen sufijo (signer-N/field-N/prep-N): la secuencia sigue por encima.
-    this.seq = Math.max(this.seq, nextSeqAfter([...seed.signers.map(s => s.id), ...seed.fields.map(f => f.localId)]));
+    this.seq = Math.max(
+      this.seq,
+      nextSeqAfter([...seed.signers.map((s) => s.id), ...seed.fields.map((f) => f.localId)]),
+    );
     this.seededPreparerFileId.set(seed.preparerSignatureFileId ?? null);
     // Identidad 8879 sembrada (recuperación local); el detalle del backend no la devuelve.
     this.preparerPtin.set(seed.preparerInfo?.ptinOrEfin ?? '');
@@ -710,6 +753,15 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (!pending || !activeDocumentId) {
       return;
     }
+    // F8-fix: solo tocar el signal cuando ESTE documento tiene seeds pendientes. Antes se
+    // sobrescribían (vaciaban) los campos del doc activo cuando quedaban pendientes de OTROS docs,
+    // porque el filtro siempre dispara el .update() aunque placed esté vacío.
+    const hasPendingForActive = pending.some(
+      (field) => field.documentLocalId === activeDocumentId,
+    );
+    if (!hasPendingForActive) {
+      return;
+    }
     const placed: PlacedField[] = [];
     const remaining: EditorSeedField[] = [];
     for (const field of pending) {
@@ -717,7 +769,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         remaining.push(field);
         continue;
       }
-      const page = this.pages().find(p => p.page === field.page);
+      const page = this.pages().find((p) => p.page === field.page);
       if (!page) {
         remaining.push(field);
         continue;
@@ -727,18 +779,27 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         documentLocalId: field.documentLocalId,
         type: field.type,
         page: field.page,
-        ...denormalizeFieldRect({ x: field.nx, y: field.ny, width: field.nw, height: field.nh }, page),
+        ...denormalizeFieldRect(
+          { x: field.nx, y: field.ny, width: field.nw, height: field.nh },
+          page,
+        ),
         signerId: field.signerLocalId,
         label: field.label,
       });
     }
     this.pendingSeedFields.set(remaining.length > 0 ? remaining : null);
-    this.fields.update(existing => [...existing.filter(field => field.documentLocalId !== activeDocumentId), ...placed]);
+    this.fields.update((existing) => [
+      ...existing.filter((field) => field.documentLocalId !== activeDocumentId),
+      ...placed,
+    ]);
   }
 
   private hasPendingSeedFieldsForActiveDocument(): boolean {
     const activeDocumentId = this.document?.id;
-    return !!activeDocumentId && !!this.pendingSeedFields()?.some(field => field.documentLocalId === activeDocumentId);
+    return (
+      !!activeDocumentId &&
+      !!this.pendingSeedFields()?.some((field) => field.documentLocalId === activeDocumentId)
+    );
   }
 
   private markDirty(): void {
@@ -829,11 +890,19 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       return;
     }
     const id = this.nextId('signer');
-    this.signers.update(list => {
+    this.signers.update((list) => {
       const color = SIGNER_PALETTE[list.length % SIGNER_PALETTE.length].bg;
       return [
         ...list,
-        { id, name, email, color, channel: this.draftChannel(), phone, language: this.draftLanguage() },
+        {
+          id,
+          name,
+          email,
+          color,
+          channel: this.draftChannel(),
+          phone,
+          language: this.draftLanguage(),
+        },
       ];
     });
     this.activeSignerId.set(id);
@@ -846,7 +915,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (event.previousIndex === event.currentIndex) {
       return;
     }
-    this.signers.update(list => {
+    this.signers.update((list) => {
       const next = [...list];
       moveItemInArray(next, event.previousIndex, event.currentIndex);
       return next;
@@ -857,7 +926,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   /** Alternativa accesible/táctil al arrastre: subir/bajar un firmante en el orden. */
   moveSigner(id: string, delta: -1 | 1): void {
     const list = this.signers();
-    const from = list.findIndex(s => s.id === id);
+    const from = list.findIndex((s) => s.id === id);
     const to = from + delta;
     if (from < 0 || to < 0 || to >= list.length) {
       return;
@@ -882,8 +951,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Fija el canal de UN firmante (incluido el cliente). Es lo que decide su invitación + OTP. */
   setSignerChannel(signerId: string, channel: VerificationChannel): void {
-    this.signers.update(list => list.map(s => (s.id === signerId ? { ...s, channel } : s)));
-    if (channelRequiresPhone(channel) && !this.signers().find(s => s.id === signerId)?.phone.trim()) {
+    this.signers.update((list) => list.map((s) => (s.id === signerId ? { ...s, channel } : s)));
+    if (
+      channelRequiresPhone(channel) &&
+      !this.signers()
+        .find((s) => s.id === signerId)
+        ?.phone.trim()
+    ) {
       this.editingPhoneFor.set(signerId);
     }
     this.markDirty();
@@ -891,7 +965,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Edita el teléfono de UN firmante (necesario para SMS/WhatsApp). */
   setSignerPhone(signerId: string, phone: string): void {
-    this.signers.update(list => list.map(s => (s.id === signerId ? { ...s, phone } : s)));
+    this.signers.update((list) => list.map((s) => (s.id === signerId ? { ...s, phone } : s)));
     this.markDirty();
   }
 
@@ -923,7 +997,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Toggle Sequential/Any order dentro del editor (antes vivía solo en Review). */
   setSigningOrder(sequential: boolean): void {
-    this.rules.update(r => withSequential(r, sequential));
+    this.rules.update((r) => withSequential(r, sequential));
     this.markDirty();
   }
 
@@ -931,8 +1005,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (id.startsWith('client:')) {
       return; // el cliente es firmante obligatorio
     }
-    this.signers.update(list => list.filter(s => s.id !== id));
-    this.fields.update(list => list.filter(f => f.signerId !== id));
+    this.signers.update((list) => list.filter((s) => s.id !== id));
+    this.fields.update((list) => list.filter((f) => f.signerId !== id));
     if (this.activeSignerId() === id) {
       this.activeSignerId.set(this.signers()[0]?.id ?? null);
     }
@@ -950,11 +1024,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   private syncClientSigner(): void {
     const client = this.client;
     const list = this.signers();
-    const current = list.find(s => this.isClientSigner(s)) ?? null;
+    const current = list.find((s) => this.isClientSigner(s)) ?? null;
     if (!client) {
       if (current) {
-        this.signers.set(list.filter(s => s !== current));
-        this.fields.update(fields => fields.filter(f => f.signerId !== current.id));
+        this.signers.set(list.filter((s) => s !== current));
+        this.fields.update((fields) => fields.filter((f) => f.signerId !== current.id));
       }
       return;
     }
@@ -972,8 +1046,10 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       language: 'En',
     };
     if (current) {
-      this.signers.set(list.map(s => (s === current ? clientSigner : s)));
-      this.fields.update(fields => reassignSignerFields(fields, current.id, nextId, () => this.nextId('field')));
+      this.signers.set(list.map((s) => (s === current ? clientSigner : s)));
+      this.fields.update((fields) =>
+        reassignSignerFields(fields, current.id, nextId, () => this.nextId('field')),
+      );
       if (this.activeSignerId() === current.id) {
         this.activeSignerId.set(nextId);
       }
@@ -981,7 +1057,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     } else {
       this.signers.set([clientSigner, ...list]);
     }
-    if (!this.activeSignerId() || !this.signers().some(s => s.id === this.activeSignerId())) {
+    if (!this.activeSignerId() || !this.signers().some((s) => s.id === this.activeSignerId())) {
       this.activeSignerId.set(this.signers()[0]?.id ?? null);
     }
   }
@@ -990,7 +1066,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   fieldsForPage(page: number): PlacedField[] {
     const activeDocumentId = this.document?.id;
-    return this.fields().filter(f => f.documentLocalId === activeDocumentId && f.page === page);
+    return this.fields().filter((f) => f.documentLocalId === activeDocumentId && f.page === page);
   }
 
   /** Icono/círculo pastel del tipo de documento (toolbar). */
@@ -1011,14 +1087,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   /** Firmante real destino de un campo nuevo: el activo, o el primero si el activo no es válido. */
   private targetSignerId(): string | null {
     const active = this.activeSignerId();
-    if (active && active !== PREPARER_PARTY_ID && this.signers().some(s => s.id === active)) {
+    if (active && active !== PREPARER_PARTY_ID && this.signers().some((s) => s.id === active)) {
       return active;
     }
     return this.signers()[0]?.id ?? null;
   }
 
   private pageBox(page: number): RenderedPage | undefined {
-    return this.pages().find(p => p.page === page);
+    return this.pages().find((p) => p.page === page);
   }
 
   /** Arma "clic en la página" para un tipo (volver a pulsar el mismo lo desarma). */
@@ -1029,7 +1105,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (kind === 'preparer' && !this.hasPreparerSignature()) {
       return;
     }
-    this.placingType.update(current => (current === kind ? null : kind));
+    this.placingType.update((current) => (current === kind ? null : kind));
     this.selectedFieldId.set(null);
     // En pantallas angostas se cierra el panel para dejar ver la página.
     this.narrowPanel.set(null);
@@ -1068,7 +1144,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.placeAt(kind, page.page, { x: event.clientX - rect.left, y: event.clientY - rect.top });
   }
 
-  private placeAt(kind: PlacingKind, pageNumber: number, point: { x: number; y: number } | null): void {
+  private placeAt(
+    kind: PlacingKind,
+    pageNumber: number,
+    point: { x: number; y: number } | null,
+  ): void {
     const page = this.pageBox(pageNumber);
     if (!page || !this.canPlace()) {
       return;
@@ -1100,14 +1180,19 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (!documentLocalId) {
       return;
     }
-    const field = clampToPage<PlacedField>({ id, documentLocalId, type, page: page.page, x, y, width: size.w, height: size.h, signerId }, page);
-    this.fields.update(list => [...list, field]);
+    const field = clampToPage<PlacedField>(
+      { id, documentLocalId, type, page: page.page, x, y, width: size.w, height: size.h, signerId },
+      page,
+    );
+    this.fields.update((list) => [...list, field]);
     this.placingType.set(null);
     this.selectedFieldId.set(field.id);
     if (kind === 'preparer') {
       this.autofillPreparerName();
     }
-    this.liveMessage.set(`${kind === 'preparer' ? 'Your signature' : FIELD_TYPE_LABEL[type] + ' field'} placed on page ${page.page}`);
+    this.liveMessage.set(
+      `${kind === 'preparer' ? 'Your signature' : FIELD_TYPE_LABEL[type] + ' field'} placed on page ${page.page}`,
+    );
     this.markDirty();
   }
 
@@ -1133,7 +1218,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (!this.canPlace()) {
       return false;
     }
-    return kind === 'preparer' ? this.hasPreparerSignature() : this.signers().length > 0 && this.targetSignerId() !== null;
+    return kind === 'preparer'
+      ? this.hasPreparerSignature()
+      : this.signers().length > 0 && this.targetSignerId() !== null;
   }
 
   /** pointerdown en un botón de la paleta: el clic sigue igual; mover (ratón) o mantener (táctil) arrastra. */
@@ -1144,13 +1231,15 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.stopPaletteDrag?.();
     const button = event.currentTarget as HTMLElement | null;
     const rect = button?.getBoundingClientRect();
-    this.paletteOrigin = rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null;
+    this.paletteOrigin = rect
+      ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      : null;
     this.stopPaletteDrag = startPaletteDrag(event, {
       getScrollContainer: () => this.surfaceRef?.nativeElement ?? null,
-      onArming: armed => this.paletteArming.set(armed ? kind : null),
-      onStart: point => this.beginPaletteDrag(kind, point),
-      onFrame: point => this.onPaletteFrame(point),
-      onDrop: point => this.dropFromPalette(point),
+      onArming: (armed) => this.paletteArming.set(armed ? kind : null),
+      onStart: (point) => this.beginPaletteDrag(kind, point),
+      onFrame: (point) => this.onPaletteFrame(point),
+      onDrop: (point) => this.dropFromPalette(point),
       onCancel: () => this.cancelPaletteDrag(),
     });
   }
@@ -1174,7 +1263,15 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     resetGhost(ghost);
     setGhostPosition(ghost, point.clientX - size.w / 2, point.clientY - size.h / 2);
     const signerId = kind === 'preparer' ? PREPARER_PARTY_ID : (this.targetSignerId() ?? '');
-    this.paletteGhost.set({ kind, type, signerId, width: size.w, height: size.h, overPage: false, phase: 'drag' });
+    this.paletteGhost.set({
+      kind,
+      type,
+      signerId,
+      width: size.w,
+      height: size.h,
+      overPage: false,
+      phase: 'drag',
+    });
   }
 
   private onPaletteFrame(point: { clientX: number; clientY: number }): void {
@@ -1182,10 +1279,17 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (!ghost || ghost.phase !== 'drag') {
       return;
     }
-    setGhostPosition(this.ghostRef?.nativeElement, point.clientX - ghost.width / 2, point.clientY - ghost.height / 2);
+    setGhostPosition(
+      this.ghostRef?.nativeElement,
+      point.clientX - ghost.width / 2,
+      point.clientY - ghost.height / 2,
+    );
     const hit = hitTestPages(point, measurePages(this.surfaceRef?.nativeElement));
     const page = hit ? this.pageBox(hit.page) : undefined;
-    const next = hit && page ? { page: hit.page, ...dropRectOnPage(hit, { w: ghost.width, h: ghost.height }, page) } : null;
+    const next =
+      hit && page
+        ? { page: hit.page, ...dropRectOnPage(hit, { w: ghost.width, h: ghost.height }, page) }
+        : null;
     const prev = this.dropPreview();
     // Solo se tocan los signals si algo cambió (con el puntero quieto no hay detección de cambios).
     if (
@@ -1219,7 +1323,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.placeAt(ghost.kind, hit.page, { x: hit.x, y: hit.y });
     this.narrowPanel.set(null);
     const field = this.selectedField();
-    const pageRect = pageRects.find(r => r.page === hit.page);
+    const pageRect = pageRects.find((r) => r.page === hit.page);
     if (!field || !pageRect || prefersReducedMotion()) {
       this.clearGhost();
       return;
@@ -1326,7 +1430,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (this.interactionLocked()) {
       return;
     }
-    this.fields.update(list => list.filter(f => f.id !== id));
+    this.fields.update((list) => list.filter((f) => f.id !== id));
     if (this.selectedFieldId() === id) {
       this.selectedFieldId.set(null);
     }
@@ -1335,7 +1439,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Fija la etiqueta/instrucción de un campo de texto (P4); la ve el firmante como placeholder. */
   setFieldLabel(id: string, label: string): void {
-    this.fields.update(list => list.map(f => (f.id === id ? { ...f, label } : f)));
+    this.fields.update((list) => list.map((f) => (f.id === id ? { ...f, label } : f)));
     this.markDirty();
   }
 
@@ -1344,7 +1448,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       return;
     }
     this.selectedFieldId.set(id);
-    const field = this.fields().find(f => f.id === id);
+    const field = this.fields().find((f) => f.id === id);
     if (field && !this.isPreparerField(field)) {
       this.activeSignerId.set(field.signerId);
     }
@@ -1356,12 +1460,19 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Inspector: pasa el campo a otro firmante (id nuevo, ver reassignSignerFields). */
   reassignField(id: string, signerId: string): void {
-    const field = this.fields().find(f => f.id === id);
-    if (!field || this.isPreparerField(field) || field.signerId === signerId || this.interactionLocked()) {
+    const field = this.fields().find((f) => f.id === id);
+    if (
+      !field ||
+      this.isPreparerField(field) ||
+      field.signerId === signerId ||
+      this.interactionLocked()
+    ) {
       return;
     }
     const newId = this.nextId('field');
-    this.fields.update(list => list.map(f => (f.id === id ? { ...f, id: newId, signerId } : f)));
+    this.fields.update((list) =>
+      list.map((f) => (f.id === id ? { ...f, id: newId, signerId } : f)),
+    );
     this.selectedFieldId.set(newId);
     this.activeSignerId.set(signerId);
     this.markDirty();
@@ -1369,26 +1480,30 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Duplica el campo en la misma página (desplazado). */
   duplicateField(id: string): void {
-    const field = this.fields().find(f => f.id === id);
+    const field = this.fields().find((f) => f.id === id);
     const page = field ? this.pageBox(field.page) : undefined;
     if (!field || !page || this.interactionLocked()) {
       return;
     }
-    const copy = duplicateFieldRect(field, page, this.nextId(this.isPreparerField(field) ? 'prep' : 'field'));
-    this.fields.update(list => [...list, copy]);
+    const copy = duplicateFieldRect(
+      field,
+      page,
+      this.nextId(this.isPreparerField(field) ? 'prep' : 'field'),
+    );
+    this.fields.update((list) => [...list, copy]);
     this.selectedFieldId.set(copy.id);
     this.markDirty();
   }
 
   /** Copia el campo a todas las demás páginas (campos normales, misma posición relativa). */
   duplicateFieldToAllPages(id: string): void {
-    const field = this.fields().find(f => f.id === id);
+    const field = this.fields().find((f) => f.id === id);
     if (!field || this.interactionLocked() || this.pages().length < 2) {
       return;
     }
     const prefix = this.isPreparerField(field) ? 'prep' : 'field';
     const copies = copyFieldToAllPages(field, this.pages(), () => this.nextId(prefix));
-    this.fields.update(list => [...list, ...copies]);
+    this.fields.update((list) => [...list, ...copies]);
     this.markDirty();
   }
 
@@ -1421,7 +1536,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         event.preventDefault();
         const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
         const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
-        this.fields.update(list => list.map(f => (f.id === field.id ? nudgeField(f, dx, dy, page) : f)));
+        this.fields.update((list) =>
+          list.map((f) => (f.id === field.id ? nudgeField(f, dx, dy, page) : f)),
+        );
         this.markDirty();
         return;
       }
@@ -1442,17 +1559,19 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   signerNameOf(signerId: string): string {
-    return this.signers().find(s => s.id === signerId)?.name ?? '—';
+    return this.signers().find((s) => s.id === signerId)?.name ?? '—';
   }
 
   private paletteFor(signerId: string): (typeof SIGNER_PALETTE)[number] {
     const list = this.signers();
-    const index = list.findIndex(s => s.id === signerId);
+    const index = list.findIndex((s) => s.id === signerId);
     const color = list[index]?.color;
     // Firmantes sembrados traen color de AVATAR_PALETTE: se cae a la posición para que cada uno tenga el suyo.
     return (
-      SIGNER_PALETTE.find(p => p.bg === color) ??
-      (index >= 0 ? SIGNER_PALETTE[index % SIGNER_PALETTE.length] : SIGNER_PALETTE[SIGNER_PALETTE.length - 1])
+      SIGNER_PALETTE.find((p) => p.bg === color) ??
+      (index >= 0
+        ? SIGNER_PALETTE[index % SIGNER_PALETTE.length]
+        : SIGNER_PALETTE[SIGNER_PALETTE.length - 1])
     );
   }
 
@@ -1480,10 +1599,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     const offsetX = event.clientX - rect.left - field.x;
     const offsetY = event.clientY - rect.top - field.y;
     this.beginDrag(event, pageEl, ({ x, y }) => {
-      this.fields.update(list =>
-        list.map(f =>
+      this.fields.update((list) =>
+        list.map((f) =>
           f.id === field.id
-            ? { ...f, x: clamp(x - offsetX, 0, page.width - f.width), y: clamp(y - offsetY, 0, page.height - f.height) }
+            ? {
+                ...f,
+                x: clamp(x - offsetX, 0, page.width - f.width),
+                y: clamp(y - offsetY, 0, page.height - f.height),
+              }
             : f,
         ),
       );
@@ -1497,7 +1620,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       return;
     }
     this.selectField(field.id);
-    const pageEl = (event.currentTarget as HTMLElement).closest('[data-page]') as HTMLElement | null;
+    const pageEl = (event.currentTarget as HTMLElement).closest(
+      '[data-page]',
+    ) as HTMLElement | null;
     const page = this.pageBox(field.page);
     if (!pageEl || !page) {
       return;
@@ -1507,8 +1632,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     const startH = field.height;
     this.beginDrag(event, pageEl, ({ dx, dy }) => {
       const width = clamp(startW + dx, Math.min(min.w, page.width - field.x), page.width - field.x);
-      const height = clamp(startH + dy, Math.min(min.h, page.height - field.y), page.height - field.y);
-      this.fields.update(list => list.map(f => (f.id === field.id ? { ...f, width, height } : f)));
+      const height = clamp(
+        startH + dy,
+        Math.min(min.h, page.height - field.y),
+        page.height - field.y,
+      );
+      this.fields.update((list) =>
+        list.map((f) => (f.id === field.id ? { ...f, width, height } : f)),
+      );
     });
   }
 
@@ -1522,7 +1653,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     let moved = false;
     this.stopDrag = startPointerDrag(event, {
       getPageRect: () => pageEl.getBoundingClientRect(),
-      onMove: point => {
+      onMove: (point) => {
         moved = true;
         onMove(point);
       },
@@ -1595,7 +1726,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   toggleNarrowPanel(panel: NarrowPanel): void {
-    this.narrowPanel.update(current => (current === panel ? null : panel));
+    this.narrowPanel.update((current) => (current === panel ? null : panel));
   }
 
   closeNarrowPanel(): void {
@@ -1609,7 +1740,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   // ---------- API pública para el wizard ----------
 
   getFields(): PlacedField[] {
-    const pending = (this.pendingSeedFields() ?? []).map(field => ({
+    const pending = (this.pendingSeedFields() ?? []).map((field) => ({
       id: field.localId,
       documentLocalId: field.documentLocalId,
       type: field.type,
@@ -1625,8 +1756,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   removeDocumentFields(documentLocalId: string): void {
-    this.fields.update(fields => fields.filter(field => field.documentLocalId !== documentLocalId));
-    const pending = this.pendingSeedFields()?.filter(field => field.documentLocalId !== documentLocalId) ?? [];
+    this.fields.update((fields) =>
+      fields.filter((field) => field.documentLocalId !== documentLocalId),
+    );
+    const pending =
+      this.pendingSeedFields()?.filter((field) => field.documentLocalId !== documentLocalId) ?? [];
     this.pendingSeedFields.set(pending.length > 0 ? pending : null);
     this.pageMetricsByDocument.delete(documentLocalId);
     this.markDirty();
@@ -1650,8 +1784,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       const pages =
         field.documentLocalId === this.document?.id
           ? this.pages()
-          : this.pageMetricsByDocument.get(field.documentLocalId) ?? [];
-      const rect = normalizeFieldRect(field, pages.find(p => p.page === field.page));
+          : (this.pageMetricsByDocument.get(field.documentLocalId) ?? []);
+      const rect = normalizeFieldRect(
+        field,
+        pages.find((p) => p.page === field.page),
+      );
       if (!rect) {
         continue;
       }
@@ -1695,12 +1832,22 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       const pages =
         field.documentLocalId === this.document?.id
           ? this.pages()
-          : this.pageMetricsByDocument.get(field.documentLocalId) ?? [];
-      const rect = normalizeFieldRect(field, pages.find(p => p.page === field.page));
+          : (this.pageMetricsByDocument.get(field.documentLocalId) ?? []);
+      const rect = normalizeFieldRect(
+        field,
+        pages.find((p) => p.page === field.page),
+      );
       if (!rect) {
         continue;
       }
-      out.push({ localId: field.id, documentLocalId: field.documentLocalId, signerLocalId: PREPARER_PARTY_ID, type: field.type, page: field.page, ...rect });
+      out.push({
+        localId: field.id,
+        documentLocalId: field.documentLocalId,
+        signerLocalId: PREPARER_PARTY_ID,
+        type: field.type,
+        page: field.page,
+        ...rect,
+      });
     }
     for (const field of this.pendingSeedFields() ?? []) {
       if (field.signerLocalId !== PREPARER_PARTY_ID) {
@@ -1784,7 +1931,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     const surface = this.surfaceRef?.nativeElement;
     const width = surface?.clientWidth ?? 0;
     // Oculto (paso 2) mide 0: se estima con la ventana menos márgenes.
-    return width > 0 ? width - 32 : Math.max(240, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 64);
+    return width > 0
+      ? width - 32
+      : Math.max(240, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 64);
   }
 
   private fitZoomFor(pointsWidth: number): number {
@@ -1821,7 +1970,16 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         return;
       }
       const previousPages = this.pages();
-      this.fields.update(list => rescaleFieldsBetweenPages(list, previousPages, pages));
+      // F8-fix: solo reescalar los campos del doc activo. Los otros docs tienen px cacheados en su
+      // propia dimensión (pageMetricsByDocument) y se reescalan al volver a ellos; tocarlos aquí los
+      // dejaba desalineados cuando el usuario cambiaba de tab.
+      const activeDocumentId = this.document?.id ?? null;
+      this.fields.update((list) => {
+        if (!activeDocumentId) return list;
+        const active = list.filter((field) => field.documentLocalId === activeDocumentId);
+        const inactive = list.filter((field) => field.documentLocalId !== activeDocumentId);
+        return [...inactive, ...rescaleFieldsBetweenPages(active, previousPages, pages)];
+      });
       this.pages.set(pages);
       this.lastRenderedPages = pages;
       this.zoom.set(next);
@@ -1862,17 +2020,23 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.selectedFieldId.set(null);
     this.placingType.set(null);
 
-    // Conservar campos solo si el panel lo confirmó, hay campos y no estamos sembrando un borrador.
+    // Cambiar de pestaña NO es reemplazar un PDF: cada documento conserva sus cajas y sus propias
+    // métricas. Antes se reescalaban las cajas del documento entrante usando `previousPages` (las
+    // páginas del documento saliente), por eso se movían o desaparecían al recorrer las pestañas.
     const isSwitchingDocuments =
-      previousDocumentId !== null && nextDocumentId !== null && previousDocumentId !== nextDocumentId;
-    const keep =
-      (isSwitchingDocuments || this.keepFieldsOnDocumentChange) &&
-      this.fields().length > 0 &&
-      !this.hasPendingSeedFieldsForActiveDocument();
+      previousDocumentId !== null &&
+      nextDocumentId !== null &&
+      previousDocumentId !== nextDocumentId;
     const previousPages = this.lastRenderedPages;
-    if (!keep && nextDocumentId) {
-      this.fields.update(fields => fields.filter(field => field.documentLocalId !== nextDocumentId));
-    }
+    const incomingPages = nextDocumentId
+      ? (this.pageMetricsByDocument.get(nextDocumentId) ?? [])
+      : [];
+    const transferReplacementFields =
+      isSwitchingDocuments &&
+      this.keepFieldsOnDocumentChange &&
+      previousDocumentId !== null &&
+      this.fields().some((field) => field.documentLocalId === previousDocumentId) &&
+      !this.hasPendingSeedFieldsForActiveDocument();
     this.docBytes = null;
 
     const doc = this.document;
@@ -1911,16 +2075,31 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       }
       this.docBytes = bytes;
       this.zoom.set(pages[0].scale / BASE_SCALE);
-      if (keep) {
-        const activeFields = this.fields().filter(field => field.documentLocalId === doc.id);
-        const inactiveFields = this.fields().filter(field => field.documentLocalId !== doc.id);
-        const { kept, dropped } = remapFieldsToPages(activeFields, previousPages, pages);
-        this.fields.set([...inactiveFields, ...kept]);
+      if (transferReplacementFields && previousDocumentId) {
+        const replacementFields = this.fields().filter(
+          (field) => field.documentLocalId === previousDocumentId,
+        );
+        const untouchedFields = this.fields().filter(
+          (field) =>
+            field.documentLocalId !== previousDocumentId && field.documentLocalId !== doc.id,
+        );
+        const { kept, dropped } = remapFieldsToPages(replacementFields, previousPages, pages);
+        this.fields.set([
+          ...untouchedFields,
+          ...kept.map((field) => ({ ...field, documentLocalId: doc.id })),
+        ]);
         if (dropped.length > 0) {
           this.notice.set(
             `${dropped.length} ${dropped.length === 1 ? 'field was' : 'fields were'} on pages the new document doesn't have and ${dropped.length === 1 ? 'was' : 'were'} removed.`,
           );
         }
+      } else if (isSwitchingDocuments && incomingPages.length > 0) {
+        const activeFields = this.fields().filter((field) => field.documentLocalId === doc.id);
+        const inactiveFields = this.fields().filter((field) => field.documentLocalId !== doc.id);
+        this.fields.set([
+          ...inactiveFields,
+          ...rescaleFieldsBetweenPages(activeFields, incomingPages, pages),
+        ]);
       }
       this.pages.set(pages);
       this.lastRenderedPages = pages;

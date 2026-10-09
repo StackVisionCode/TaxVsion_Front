@@ -128,6 +128,7 @@ describe('SignatureRequestPanelComponent', () => {
       requiresSequentialSigning: true,
       requiresConsent: true,
       generateCertificate: true,
+      certificateGenerationMode: 'SingleForRequest',
       sendSealedDocumentToSigners: false,
       sendCertificateToSigners: true,
       sendPartialCopyOnEachSignature: false,
@@ -393,5 +394,67 @@ describe('SignatureRequestPanelComponent', () => {
       c.cancelDocumentSwap();
       expect(c.selectedDocument()).toBe(doc);
     });
+  });
+});
+
+describe('multi-document field coverage', () => {
+  it('blocks Review until every document has a signature or initials field', () => {
+    TestBed.configureTestingModule({
+      imports: [SignatureRequestPanelComponent],
+      providers: [
+        { provide: SignatureStore, useValue: { customers: signal([]), queryCustomers: vi.fn() } },
+        { provide: CustomerDirectoryStore, useValue: { recent: signal([]), addRecent: vi.fn() } },
+        { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    TestBed.overrideComponent(SignatureRequestPanelComponent, { set: { template: '' } });
+    const c = TestBed.createComponent(SignatureRequestPanelComponent).componentInstance;
+    const first: WizardDocument = {
+      id: 'file-1',
+      name: 'Federal.pdf',
+      kind: 'pdf',
+      size: '',
+      date: '',
+      blob: null,
+      fileId: 'file-1',
+    };
+    const second = { ...first, id: 'file-2', fileId: 'file-2', name: 'State.pdf' };
+    c.selectedDocuments.set([first, second]);
+    c.currentStep.set(3);
+    c.signersSnapshot.set([
+      {
+        id: 'client:1',
+        name: 'Ana',
+        email: 'a@x.com',
+        color: '',
+        channel: 'email',
+        phone: '',
+        language: 'En',
+      },
+    ]);
+    c.fieldsSnapshot.set([
+      {
+        id: 'field-1',
+        documentLocalId: 'file-1',
+        type: 'signature',
+        page: 1,
+        x: 10,
+        y: 10,
+        width: 100,
+        height: 40,
+        signerId: 'client:1',
+      },
+    ]);
+
+    expect(c.documentsMissingSigningField().map((document) => document.name)).toEqual([
+      'State.pdf',
+    ]);
+    expect(c.stepHint()).toContain('State.pdf');
+
+    c.fieldsSnapshot.update((fields) => [
+      ...fields,
+      { ...fields[0], id: 'field-2', documentLocalId: 'file-2', type: 'initials' },
+    ]);
+    expect(c.documentsMissingSigningField()).toEqual([]);
   });
 });

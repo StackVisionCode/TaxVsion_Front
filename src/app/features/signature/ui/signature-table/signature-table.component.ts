@@ -1,10 +1,25 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal, inject } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  EventEmitter,
+  Input,
+  Output,
+  signal,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PlacedField, RequestRules, VerificationChannel } from '../signature-request-panel/signature-wizard.model';
+import {
+  PlacedField,
+  RequestRules,
+  VerificationChannel,
+} from '../signature-request-panel/signature-wizard.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { SIGNATURE_STATUS_PILL, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
-import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import {
+  DropdownMenuComponent,
+  MenuItemDirective,
+} from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
@@ -52,6 +67,7 @@ export interface SignatureRequestDocumentItem {
   originalFileId: string;
   hashPre: string | null;
   sealedFileId: string | null;
+  certificateFileId?: string | null;
   hashPost: string | null;
   sealedAtUtc: string | null;
 }
@@ -114,13 +130,13 @@ export function deriveSignatureStatus(signers: Signer[]): SignatureStatus {
   if (signers.length === 0) {
     return 'pending';
   }
-  if (signers.some(signer => signer.status === 'rejected')) {
+  if (signers.some((signer) => signer.status === 'rejected')) {
     return 'rejected';
   }
-  if (signers.every(signer => signer.status === 'signed')) {
+  if (signers.every((signer) => signer.status === 'signed')) {
     return 'completed';
   }
-  if (signers.some(signer => signer.status === 'signed')) {
+  if (signers.some((signer) => signer.status === 'signed')) {
     return 'in-progress';
   }
   return 'pending';
@@ -128,7 +144,9 @@ export function deriveSignatureStatus(signers: Signer[]): SignatureStatus {
 
 /** Estados desde los que el staff todavía puede cancelar/extender (no terminales). */
 export function isActionableStatus(status: SignatureStatus): boolean {
-  return status === 'draft' || status === 'ready' || status === 'pending' || status === 'in-progress';
+  return (
+    status === 'draft' || status === 'ready' || status === 'pending' || status === 'in-progress'
+  );
 }
 
 /**
@@ -141,7 +159,14 @@ export function isActionableStatus(status: SignatureStatus): boolean {
  */
 @Component({
   selector: 'app-signature-table',
-  imports: [CommonModule, AvatarComponent, DropdownMenuComponent, MenuItemDirective, StatusPillComponent, StateBlockComponent],
+  imports: [
+    CommonModule,
+    AvatarComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
+    StatusPillComponent,
+    StateBlockComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-table.component.html',
 })
@@ -238,7 +263,7 @@ export class SignatureTableComponent {
   canResend(request: SignatureRequest): boolean {
     return (
       request.status === 'in-progress' &&
-      request.signers.some(s => s.status === 'pending') &&
+      request.signers.some((s) => s.status === 'pending') &&
       this.can.canResend()
     );
   }
@@ -248,7 +273,16 @@ export class SignatureTableComponent {
   }
 
   hasCertificate(request: SignatureRequest): boolean {
-    return request.status === 'completed' && !!request.certificateFileId;
+    if (request.status !== 'completed') return false;
+    // F8 — en "1 cert por documento" el cert vive por doc; aceptamos global o cualquier per-doc.
+    const perDoc = request.documents?.some(doc => !!doc.certificateFileId) ?? false;
+    return !!request.certificateFileId || perDoc;
+  }
+
+  /** Label del menú: plural si hay más de un certificado (per-doc), singular si no. */
+  certificateMenuLabel(request: SignatureRequest): string {
+    const perDocCount = request.documents?.filter(doc => !!doc.certificateFileId).length ?? 0;
+    return perDocCount > 1 ? 'Download certificates' : 'Download certificate';
   }
 
   /** Menú abierto: la tabla reserva hueco inferior para que el panel no quede recortado. */

@@ -1,6 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, catchError, debounceTime, distinctUntilChanged, firstValueFrom, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  firstValueFrom,
+  forkJoin,
+  map,
+  of,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { Subject } from 'rxjs';
@@ -96,6 +107,7 @@ export interface WizardRequestDraft {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  certificateGenerationMode: 'SingleForRequest' | 'PerDocument';
   /** P2: entregar el documento firmado / el certificado a los firmantes (gateado por permiso en backend). */
   sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
@@ -189,17 +201,21 @@ export function computeDraftEditPlan(
   original: DraftEditOriginal,
 ): DraftEditPlan {
   const currentBackendIds = draft.signers
-    .map(signer => state.signerIdByLocal[signer.localId])
+    .map((signer) => state.signerIdByLocal[signer.localId])
     .filter((id): id is string => !!id);
-  const currentFieldLocalIds = new Set(draft.fields.map(field => field.localId));
+  const currentFieldLocalIds = new Set(draft.fields.map((field) => field.localId));
 
   return {
-    removeSignerBackendIds: original.signerBackendIds.filter(id => !currentBackendIds.includes(id)),
+    removeSignerBackendIds: original.signerBackendIds.filter(
+      (id) => !currentBackendIds.includes(id),
+    ),
     removeFields: original.fields
       .filter(
-        field => currentBackendIds.includes(field.signerBackendId) && !currentFieldLocalIds.has(field.editorLocalId),
+        (field) =>
+          currentBackendIds.includes(field.signerBackendId) &&
+          !currentFieldLocalIds.has(field.editorLocalId),
       )
-      .map(field => ({ signerBackendId: field.signerBackendId, fieldId: field.fieldId })),
+      .map((field) => ({ signerBackendId: field.signerBackendId, fieldId: field.fieldId })),
   };
 }
 
@@ -226,13 +242,11 @@ export class SignatureStore {
     // de varios firmantes) SOLO si ya se cargó alguna vez — si el usuario nunca abrió firmas, no
     // hay nada que refrescar y al abrirla se carga igual.
     this.realtime.connect();
-    this.realtime.requestChanged$
-      .pipe(debounceTime(400), takeUntilDestroyed())
-      .subscribe(() => {
-        if (this.refreshToken > 0) {
-          this.refresh();
-        }
-      });
+    this.realtime.requestChanged$.pipe(debounceTime(400), takeUntilDestroyed()).subscribe(() => {
+      if (this.refreshToken > 0) {
+        this.refresh();
+      }
+    });
 
     // F2.5: autoguardado — el editor empuja el estado completo. Pipeline:
     //  - debounce 5s (antes 2.5s): colapsa ráfagas de resize/drag en una sola llamada.
@@ -248,10 +262,10 @@ export class SignatureStore {
         distinctUntilChanged(
           (a, b) => a.id === b.id && JSON.stringify(a.body) === JSON.stringify(b.body),
         ),
-        switchMap(req =>
+        switchMap((req) =>
           this.service.upsertDraft(req.id, req.body).pipe(
-            map(resp => ({ ok: true as const, resp })),
-            catchError(err => {
+            map((resp) => ({ ok: true as const, resp })),
+            catchError((err) => {
               const apiError = toApiError(err);
               const isRateLimited = apiError.code === 'Http.429';
               this._autosaveStatus.set(
@@ -266,7 +280,7 @@ export class SignatureStore {
         ),
         takeUntilDestroyed(),
       )
-      .subscribe(result => {
+      .subscribe((result) => {
         if (result.ok) {
           this._autosaveStatus.set('saved');
           this._lastSavedAtUtc.set(result.resp.updatedAtUtc);
@@ -278,7 +292,9 @@ export class SignatureStore {
   // Snapshot completo del editor que el panel envía en cada cambio. SignerIndex ata cada campo al
   // firmante por su posición en la lista — soporta firmantes recién creados sin Id de backend.
   private readonly autosave$ = new Subject<{ id: string; body: UpsertDraftBody }>();
-  private readonly _autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle');
+  private readonly _autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>(
+    'idle',
+  );
   private readonly _lastSavedAtUtc = signal<string | null>(null);
   readonly autosaveStatus = this._autosaveStatus.asReadonly();
   readonly lastSavedAtUtc = this._lastSavedAtUtc.asReadonly();
@@ -363,11 +379,11 @@ export class SignatureStore {
         customerId: this.embedded()?.id,
       })
       .pipe(
-        switchMap(result =>
+        switchMap((result) =>
           result.items.length === 0
             ? of({ result, details: [] as SignatureRequestDetail[] })
-            : forkJoin(result.items.map(item => this.service.getById(item.id))).pipe(
-                map(details => ({ result, details })),
+            : forkJoin(result.items.map((item) => this.service.getById(item.id))).pipe(
+                map((details) => ({ result, details })),
               ),
         ),
       )
@@ -377,11 +393,11 @@ export class SignatureStore {
             return;
           }
           const uid = this.auth.currentUser()?.id ?? null;
-          this._requests.set(details.map(d => detailToUiRequest(d, uid)));
+          this._requests.set(details.map((d) => detailToUiRequest(d, uid)));
           this._totalCount.set(result.totalCount);
           this._loading.set(false);
         },
-        error: err => {
+        error: (err) => {
           if (token !== this.refreshToken) {
             return;
           }
@@ -410,7 +426,9 @@ export class SignatureStore {
   }
 
   extendExpiration(requestId: string, additionalHours: number): Observable<void> {
-    return this.service.extendExpiration(requestId, additionalHours).pipe(tap(() => this.refreshAfterAction()));
+    return this.service
+      .extendExpiration(requestId, additionalHours)
+      .pipe(tap(() => this.refreshAfterAction()));
   }
 
   /**
@@ -419,7 +437,9 @@ export class SignatureStore {
    * `requiresPractitionerPin` / `practitionerPinSetAtUtc` y la UI los muestra.
    */
   setPractitionerPin(requestId: string, pin: string): Observable<void> {
-    return this.service.setPractitionerPin(requestId, pin).pipe(tap(() => this.refreshAfterAction()));
+    return this.service
+      .setPractitionerPin(requestId, pin)
+      .pipe(tap(() => this.refreshAfterAction()));
   }
 
   clearPractitionerPin(requestId: string): Observable<void> {
@@ -443,14 +463,16 @@ export class SignatureStore {
   }
 
   private patchPreparer(requestId: string, patch: Partial<PreparerSessionState>): void {
-    this._preparers.update(all => {
+    this._preparers.update((all) => {
       const current = all[requestId] ?? { info: null, signed: false };
       return { ...all, [requestId]: { ...current, ...patch } };
     });
   }
 
   setPreparer(requestId: string, body: SetPreparerBody): Observable<void> {
-    return this.service.setPreparer(requestId, body).pipe(tap(() => this.patchPreparer(requestId, { info: body })));
+    return this.service
+      .setPreparer(requestId, body)
+      .pipe(tap(() => this.patchPreparer(requestId, { info: body })));
   }
 
   clearPreparer(requestId: string): Observable<void> {
@@ -460,7 +482,9 @@ export class SignatureStore {
   }
 
   signAsPreparer(requestId: string): Observable<void> {
-    return this.service.signAsPreparer(requestId).pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
+    return this.service
+      .signAsPreparer(requestId)
+      .pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
   }
 
   // ---------- Plantillas ----------
@@ -478,11 +502,11 @@ export class SignatureStore {
     this.templatesLoading.set(true);
     this.templatesError.set(null);
     this.service.listTemplates('Published').subscribe({
-      next: result => {
+      next: (result) => {
         this.templates.set(result.items ?? []);
         this.templatesLoading.set(false);
       },
-      error: err => {
+      error: (err) => {
         this.templatesError.set(toApiError(err).message);
         this.templatesLoading.set(false);
       },
@@ -508,15 +532,19 @@ export class SignatureStore {
     descriptionOverride: string | null,
   ): Observable<SignatureRequestDetail> {
     return this.service.validateDocument(file).pipe(
-      switchMap(validation => {
+      switchMap((validation) => {
         if (!validation.isAcceptable) {
           // `issues` son objetos {code, message}, no strings (la guía dice string[]).
           throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
         }
         return this.service.uploadOriginalDocument(file, validation.validationRecordId);
       }),
-      switchMap(originalFileId =>
-        this.service.instantiateTemplate(templateId, { originalFileId, slotBindings, descriptionOverride }),
+      switchMap((originalFileId) =>
+        this.service.instantiateTemplate(templateId, {
+          originalFileId,
+          slotBindings,
+          descriptionOverride,
+        }),
       ),
       tap(() => this.refreshAfterAction()),
     );
@@ -549,7 +577,9 @@ export class SignatureStore {
 
   /** F3 — Programa el envio futuro (Draft → Scheduled). La fecha va en UTC. */
   scheduleSendRequest(requestId: string, scheduledSendAtUtc: string): Observable<void> {
-    return this.service.scheduleSend(requestId, scheduledSendAtUtc).pipe(tap(() => this.refreshAfterAction()));
+    return this.service
+      .scheduleSend(requestId, scheduledSendAtUtc)
+      .pipe(tap(() => this.refreshAfterAction()));
   }
 
   /** F3 — Cancela la programacion (Scheduled → Draft). */
@@ -560,7 +590,7 @@ export class SignatureStore {
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
   getRequestUi(requestId: string): Observable<SignatureRequest> {
     const uid = this.auth.currentUser()?.id ?? null;
-    return this.service.getById(requestId).pipe(map(d => detailToUiRequest(d, uid)));
+    return this.service.getById(requestId).pipe(map((d) => detailToUiRequest(d, uid)));
   }
 
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
@@ -573,7 +603,7 @@ export class SignatureStore {
   private categoriesLoaded = false;
   readonly categories = this._categories.asReadonly();
   /** Las utilizables en el picker: sistema + custom no archivadas. */
-  readonly activeCategories = computed(() => this._categories().filter(c => !c.isArchived));
+  readonly activeCategories = computed(() => this._categories().filter((c) => !c.isArchived));
 
   loadCategories(force = false): void {
     if (this.categoriesLoaded && !force) {
@@ -581,7 +611,7 @@ export class SignatureStore {
     }
     // includeArchived=true: una sola carga sirve al picker (activeCategories filtra) y a la gestión (F4).
     this.service.listCategories(true).subscribe({
-      next: result => {
+      next: (result) => {
         this._categories.set(result.categories);
         this.categoriesLoaded = true;
       },
@@ -602,10 +632,12 @@ export class SignatureStore {
   readonly signatureProfiles = this._signatureProfiles.asReadonly();
   /** La firma por defecto del usuario/oficina utilizable (la primera default no archivada). */
   readonly defaultSignatureProfile = computed(
-    () => this._signatureProfiles().find(p => p.isDefault && !p.isArchived) ?? null,
+    () => this._signatureProfiles().find((p) => p.isDefault && !p.isArchived) ?? null,
   );
   /** Firmas seleccionables para estampar (no archivadas): propias + oficina. */
-  readonly activeSignatureProfiles = computed(() => this._signatureProfiles().filter(p => !p.isArchived));
+  readonly activeSignatureProfiles = computed(() =>
+    this._signatureProfiles().filter((p) => !p.isArchived),
+  );
 
   /** El backend dice si el actor puede gestionar/usar su firma personal (empleado con toggle OFF → false). */
   private readonly _canManageOwnSignature = signal(true);
@@ -617,7 +649,7 @@ export class SignatureStore {
     }
     // includeArchived=true: una carga sirve al manager (que muestra archivadas) y al picker (filtra).
     this.service.listSignatureProfiles(true).subscribe({
-      next: result => {
+      next: (result) => {
         this._signatureProfiles.set(result.profiles);
         this._canManageOwnSignature.set(result.canManageOwnSignature ?? true);
         this.signatureProfilesLoaded = true;
@@ -633,27 +665,39 @@ export class SignatureStore {
     scope: SignatureProfileScope;
     imageBase64: string;
   }): Observable<SignatureProfile> {
-    return this.service.createSignatureProfile(body).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .createSignatureProfile(body)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   renameSignatureProfile(id: string, label: string): Observable<void> {
-    return this.service.renameSignatureProfile(id, label).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .renameSignatureProfile(id, label)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   setDefaultSignatureProfile(id: string): Observable<void> {
-    return this.service.setDefaultSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .setDefaultSignatureProfile(id)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   archiveSignatureProfile(id: string): Observable<void> {
-    return this.service.archiveSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .archiveSignatureProfile(id)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   unarchiveSignatureProfile(id: string): Observable<void> {
-    return this.service.unarchiveSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .unarchiveSignatureProfile(id)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   deleteSignatureProfile(id: string): Observable<void> {
-    return this.service.deleteSignatureProfile(id).pipe(tap(() => this.loadSignatureProfiles(true)));
+    return this.service
+      .deleteSignatureProfile(id)
+      .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
   // ---------- Gobernanza de firma (solo admin) ----------
@@ -662,7 +706,7 @@ export class SignatureStore {
 
   loadSignatureSettings(): void {
     this.service.getSignatureSettings().subscribe({
-      next: settings => this._signatureSettings.set(settings),
+      next: (settings) => this._signatureSettings.set(settings),
       error: () => {
         // 403 si no es admin, o sin sesión: la sección de gobernanza no se muestra.
       },
@@ -733,7 +777,12 @@ export class SignatureStore {
       this.refreshAfterAction();
     } else if ('fileId' in source) {
       detail = await firstValueFrom(
-        this.instantiateTemplateWithFileId(templateId, source.fileId, slotBindings, descriptionOverride),
+        this.instantiateTemplateWithFileId(
+          templateId,
+          source.fileId,
+          slotBindings,
+          descriptionOverride,
+        ),
       );
     } else {
       detail = await firstValueFrom(
@@ -767,7 +816,11 @@ export class SignatureStore {
     onPhase?: (phase: 'creating' | 'preparing' | 'sending') => void,
   ): Promise<{ detail: SignatureRequestDetail; sent: boolean }> {
     onPhase?.('creating');
-    const documents: Array<{ templateDocumentId: string; originalFileId: string; title?: string | null }> = [];
+    const documents: Array<{
+      templateDocumentId: string;
+      originalFileId: string;
+      title?: string | null;
+    }> = [];
     for (const document of documentSources) {
       if ('templateDoc' in document.source) {
         continue;
@@ -776,7 +829,9 @@ export class SignatureStore {
       if ('fileId' in document.source) {
         originalFileId = document.source.fileId;
       } else {
-        const validation = await firstValueFrom(this.service.validateDocument(document.source.file));
+        const validation = await firstValueFrom(
+          this.service.validateDocument(document.source.file),
+        );
         if (!validation.isAcceptable) {
           throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
         }
@@ -828,13 +883,13 @@ export class SignatureStore {
 
   /** Reenvía la invitación a todos los firmantes aún pendientes de la solicitud. */
   resendAllPending(request: SignatureRequest): Observable<void> {
-    const pending = request.signers.filter(s => s.status === 'pending' && s.id);
+    const pending = request.signers.filter((s) => s.status === 'pending' && s.id);
     if (pending.length === 0) {
       return of(undefined);
     }
-    return forkJoin(pending.map(s => this.service.resendSignerInvitation(request.id, s.id!))).pipe(
-      map(() => undefined),
-    );
+    return forkJoin(
+      pending.map((s) => this.service.resendSignerInvitation(request.id, s.id!)),
+    ).pipe(map(() => undefined));
   }
 
   /** URL presignada de descarga (sealed / certificate / original) vía CloudStorage. */
@@ -873,7 +928,7 @@ export class SignatureStore {
     this._customersLoading.set(true);
     this._customersError.set(null);
     this.directory.search({ term, status: 'NotArchived', size: 200 }).subscribe({
-      next: result => {
+      next: (result) => {
         if (seq !== this.customersReqSeq) {
           return; // llegó tarde: una búsqueda posterior ya manda
         }
@@ -881,7 +936,7 @@ export class SignatureStore {
         this.customersLoaded = true;
         this._customersLoading.set(false);
       },
-      error: err => {
+      error: (err) => {
         if (seq !== this.customersReqSeq) {
           return;
         }
@@ -986,13 +1041,16 @@ export class SignatureStore {
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
           reminderIntervalHours: draft.reminderIntervalHours,
+          certificateGenerationMode: draft.certificateGenerationMode,
         }),
       );
 
       // Bajas de lo que el usuario quitó (los campos de un firmante borrado caen en cascada).
       const plan = computeDraftEditPlan(draft, state, original);
       for (const field of plan.removeFields) {
-        await firstValueFrom(this.service.removeField(requestId, field.signerBackendId, field.fieldId));
+        await firstValueFrom(
+          this.service.removeField(requestId, field.signerBackendId, field.fieldId),
+        );
       }
       for (const signerId of plan.removeSignerBackendIds) {
         await firstValueFrom(this.service.removeSigner(requestId, signerId));
@@ -1000,7 +1058,7 @@ export class SignatureStore {
 
       // Documentos: elimina los quitados, crea los nuevos y conserva un mapeo local -> backend
       // para que cada campo se publique contra el documento correcto.
-      const currentDocumentLocalIds = new Set(draft.documents.map(document => document.localId));
+      const currentDocumentLocalIds = new Set(draft.documents.map((document) => document.localId));
       // Altas primero: al reemplazar el único documento nunca dejamos el agregado temporalmente vacío.
       for (const document of draft.documents) {
         if (state.documentIdByLocal[document.localId]) {
@@ -1022,14 +1080,14 @@ export class SignatureStore {
         }
       }
       const orderedDocumentIds = draft.documents
-        .map(document => state.documentIdByLocal[document.localId])
+        .map((document) => state.documentIdByLocal[document.localId])
         .filter((id): id is string => !!id);
       if (orderedDocumentIds.length > 0) {
         await firstValueFrom(this.service.reorderRequestDocuments(requestId, orderedDocumentIds));
       }
 
       // Campos del preparador que ya no están en la edición → borrar.
-      const currentPreparerLocalIds = new Set(draft.preparerFields.map(f => f.localId));
+      const currentPreparerLocalIds = new Set(draft.preparerFields.map((f) => f.localId));
       for (const field of original.preparerFields) {
         if (!currentPreparerLocalIds.has(field.editorLocalId)) {
           await firstValueFrom(this.service.removePreparerField(requestId, field.fieldId));
@@ -1041,7 +1099,7 @@ export class SignatureStore {
 
       // Reordena al orden final (idempotente).
       const orderedIds = draft.signers
-        .map(signer => state.signerIdByLocal[signer.localId])
+        .map((signer) => state.signerIdByLocal[signer.localId])
         .filter((id): id is string => !!id);
       if (orderedIds.length > 0) {
         await firstValueFrom(this.service.reorderSigners(requestId, orderedIds));
@@ -1077,7 +1135,7 @@ export class SignatureStore {
           title: draft.title,
           description: draft.description,
           category: draft.category,
-          documents: draft.documents.map(document => ({
+          documents: draft.documents.map((document) => ({
             originalFileId: document.originalFileId,
             title: document.title,
             note: document.note,
@@ -1086,6 +1144,7 @@ export class SignatureStore {
           requiresSequentialSigning: draft.requiresSequentialSigning,
           requiresConsent: draft.requiresConsent,
           generateCertificate: draft.generateCertificate,
+          certificateGenerationMode: draft.certificateGenerationMode,
           sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
           sendCertificateToSigners: draft.sendCertificateToSigners,
           autoRemindersEnabled: draft.autoRemindersEnabled,
@@ -1097,7 +1156,9 @@ export class SignatureStore {
           // mandamos All como placeholder seguro — el PUT update siguiente la convierte a Specific
           // si corresponde. Si el user solo Save-as-draft y nunca hace el PUT, All es el default
           // razonable.
-          partialCopyAudience: draft.sendPartialCopyOnEachSignature ? { kind: 'All', signerIds: [] } : null,
+          partialCopyAudience: draft.sendPartialCopyOnEachSignature
+            ? { kind: 'All', signerIds: [] }
+            : null,
           expirationEnabled: draft.expirationEnabled,
         }),
       );
@@ -1163,7 +1224,7 @@ export class SignatureStore {
       !state.audienceApplied
     ) {
       const resolvedIds = draft.partialCopyAudienceSignerIds
-        .map(local => state.signerIdByLocal[local])
+        .map((local) => state.signerIdByLocal[local])
         .filter((id): id is string => !!id);
       if (resolvedIds.length > 0) {
         await firstValueFrom(
@@ -1199,7 +1260,9 @@ export class SignatureStore {
     // campos del preparador; idempotente por `preparerSignatureSet` / `postedPreparerFieldLocalIds`.
     if (draft.preparerFields.length > 0) {
       if (!state.preparerSignatureSet) {
-        await firstValueFrom(this.service.setPreparerSignature(requestId, draft.preparerSignatureFileId));
+        await firstValueFrom(
+          this.service.setPreparerSignature(requestId, draft.preparerSignatureFileId),
+        );
         state.preparerSignatureSet = true;
       }
       for (const field of draft.preparerFields) {
@@ -1237,10 +1300,13 @@ export class SignatureStore {
   private async waitUntilReady(requestId: string): Promise<void> {
     for (let attempt = 0; attempt < READY_POLL_MAX_ATTEMPTS; attempt++) {
       const detail = await firstValueFrom(this.service.getById(requestId));
-      if (detail.documents.length > 0 && detail.documents.every(document => document.hashPre !== null)) {
+      if (
+        detail.documents.length > 0 &&
+        detail.documents.every((document) => document.hashPre !== null)
+      ) {
         return; // Hash adjunto → send puede proceder
       }
-      await new Promise(resolve => setTimeout(resolve, READY_POLL_INTERVAL_MS));
+      await new Promise((resolve) => setTimeout(resolve, READY_POLL_INTERVAL_MS));
     }
     throw new SendNotReadyError(
       'The document is still being scanned by storage. The request was saved as a draft — retry sending in a few seconds.',

@@ -1,4 +1,14 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -7,7 +17,11 @@ import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { EmbeddedCustomerContext, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
 import { Observable } from 'rxjs';
-import { SignatureRequest, SignatureTableComponent, Signer } from '../../ui/signature-table/signature-table.component';
+import {
+  SignatureRequest,
+  SignatureTableComponent,
+  Signer,
+} from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
 import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-manager/signature-profiles-manager.component';
@@ -18,12 +32,18 @@ import { PaginationComponent } from '@shared/ui/pagination/pagination.component'
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
-import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import {
+  FilterChipOption,
+  FilterChipsComponent,
+} from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { toApiError } from '@core/models/api-error.model';
-import { SignatureDownloadKind, buildSignatureDownloadFilename } from '../../utils/download-filename.util';
+import {
+  SignatureDownloadKind,
+  buildSignatureDownloadFilename,
+} from '../../utils/download-filename.util';
 import { saveUrlAs } from '../../utils/save-file.util';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
@@ -124,7 +144,7 @@ export class SignaturePageComponent implements OnInit {
   /** Cliente del deep link esperando a que el wizard termine de montarse. */
   private readonly pendingCustomer = signal<CustomerSummary | null>(null);
 
-  readonly statusFilters: FilterChipOption<SignatureStatusFilter>[] = STATUS_FILTERS.map(id => ({
+  readonly statusFilters: FilterChipOption<SignatureStatusFilter>[] = STATUS_FILTERS.map((id) => ({
     id,
     label: STATUS_FILTER_LABEL[id],
   }));
@@ -238,7 +258,7 @@ export class SignaturePageComponent implements OnInit {
       return;
     }
     this.directory.byId([customer.id]).subscribe({
-      next: found => {
+      next: (found) => {
         const summary = found.get(customer.id);
         if (summary && this.isPanelOpen() && !this.continueRequestId()) {
           this.pendingCustomer.set(summary);
@@ -274,7 +294,7 @@ export class SignaturePageComponent implements OnInit {
     }
     this.openCreatePanel();
     this.directory.byId([link.customerId]).subscribe({
-      next: found => {
+      next: (found) => {
         const customer = found.get(link.customerId);
         if (customer && this.isPanelOpen() && !this.continueRequestId()) {
           this.pendingCustomer.set(customer);
@@ -282,7 +302,8 @@ export class SignaturePageComponent implements OnInit {
           this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`);
         }
       },
-      error: () => this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`),
+      error: () =>
+        this.toast.info(`Pick ${link.customerName ?? 'the client'} to start the request`),
     });
   }
 
@@ -296,10 +317,12 @@ export class SignaturePageComponent implements OnInit {
     return this.store
       .requests()
       .filter(
-        request =>
+        (request) =>
           request.documentName.toLowerCase().includes(query) ||
           (!embedded && request.client.toLowerCase().includes(query)) ||
-          request.signers.some(s => s.name.toLowerCase().includes(query) || s.email.toLowerCase().includes(query)),
+          request.signers.some(
+            (s) => s.name.toLowerCase().includes(query) || s.email.toLowerCase().includes(query),
+          ),
       );
   });
 
@@ -429,7 +452,7 @@ export class SignaturePageComponent implements OnInit {
           this.editTarget.set(null);
           this.toast.success(`Draft "${this.editTitle().trim()}" updated`);
         },
-        error: err => {
+        error: (err) => {
           this.actionBusy.set(false);
           this.actionError.set(toApiError(err).message);
         },
@@ -476,7 +499,7 @@ export class SignaturePageComponent implements OnInit {
         }
         this.toast.success(`Draft "${target.documentName}" deleted`);
       },
-      error: err => {
+      error: (err) => {
         this.actionBusy.set(false);
         // El backend explica por qué no se puede borrar (p. ej. ya enviada/completada).
         this.actionError.set(toApiError(err).message);
@@ -486,6 +509,20 @@ export class SignaturePageComponent implements OnInit {
 
   openPreview(request: SignatureRequest): void {
     this.previewRequest.set(request);
+    // La fila de la tabla es un resumen y no incluye toda la evidencia de entrega (por ejemplo,
+    // PartialCopyRequestedAtUtc/SentAtUtc). El takeover necesita el detalle real para restaurar el
+    // badge "Copy sent" y no debe inferirlo desde el status general de la solicitud.
+    this.store.getRequestUi(request.id).subscribe({
+      next: (detail) => {
+        if (this.previewRequest()?.id === request.id) {
+          this.previewRequest.set(detail);
+        }
+      },
+      error: () => {
+        // El resumen sigue siendo útil si el refresh puntual falla; las acciones del backend
+        // continúan siendo la autoridad y un reintento ocurrirá al volver a abrir el detalle.
+      },
+    });
   }
 
   closePreview(): void {
@@ -504,7 +541,7 @@ export class SignaturePageComponent implements OnInit {
     this.store.sendRequest(request.id).subscribe({
       next: () => {
         this.store.getRequestUi(request.id).subscribe({
-          next: updated => {
+          next: (updated) => {
             if (this.previewRequest()?.id === request.id) {
               this.previewRequest.set(updated);
             }
@@ -517,7 +554,7 @@ export class SignaturePageComponent implements OnInit {
           },
         });
       },
-      error: err => {
+      error: (err) => {
         this.sendingRequest.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -529,16 +566,17 @@ export class SignaturePageComponent implements OnInit {
     this.store.cancelScheduleRequest(request.id).subscribe({
       next: () => {
         this.store.getRequestUi(request.id).subscribe({
-          next: updated => {
+          next: (updated) => {
             if (this.previewRequest()?.id === request.id) {
               this.previewRequest.set(updated);
             }
             this.toast.success('Schedule canceled — the request is back to draft');
           },
-          error: () => this.toast.info('Schedule canceled — reopen the request to see the latest status'),
+          error: () =>
+            this.toast.info('Schedule canceled — reopen the request to see the latest status'),
         });
       },
-      error: err => this.toast.error(toApiError(err).message),
+      error: (err) => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -548,7 +586,7 @@ export class SignaturePageComponent implements OnInit {
   resendReminder(request: SignatureRequest): void {
     this.store.resendAllPending(request).subscribe({
       next: () => this.toast.success(`Reminder resent for "${request.documentName}"`),
-      error: err => this.toast.error(toApiError(err).message),
+      error: (err) => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -558,7 +596,7 @@ export class SignaturePageComponent implements OnInit {
     }
     this.store.resendSigner(event.request.id, event.signer.id).subscribe({
       next: () => this.toast.success(`Invitation resent to ${event.signer.name}`),
-      error: err => this.toast.error(toApiError(err).message),
+      error: (err) => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -593,7 +631,7 @@ export class SignaturePageComponent implements OnInit {
         }
         this.toast.success(`Signature request "${target.documentName}" canceled`);
       },
-      error: err => {
+      error: (err) => {
         this.actionBusy.set(false);
         this.actionError.set(toApiError(err).message);
       },
@@ -620,7 +658,11 @@ export class SignaturePageComponent implements OnInit {
     if (!target || this.actionBusy() || !this.isPinValid()) {
       return;
     }
-    this.runPinAction(this.store.setPractitionerPin(target.id, this.pinValue().trim()), target, 'PIN set for');
+    this.runPinAction(
+      this.store.setPractitionerPin(target.id, this.pinValue().trim()),
+      target,
+      'PIN set for',
+    );
   }
 
   /** Quita el PIN: la solicitud deja de exigir verificación por PIN al firmar. */
@@ -641,7 +683,7 @@ export class SignaturePageComponent implements OnInit {
         this.pinTarget.set(null);
         this.toast.success(`${verb} "${target.documentName}"`);
       },
-      error: err => {
+      error: (err) => {
         this.actionBusy.set(false);
         this.actionError.set(toApiError(err).message);
       },
@@ -710,7 +752,11 @@ export class SignaturePageComponent implements OnInit {
     this.runPreparerAction(this.store.signAsPreparer(target.id), target, 'Signed as preparer on');
   }
 
-  private runPreparerAction(action: Observable<void>, target: SignatureRequest, verb: string): void {
+  private runPreparerAction(
+    action: Observable<void>,
+    target: SignatureRequest,
+    verb: string,
+  ): void {
     this.actionBusy.set(true);
     this.actionError.set('');
     action.subscribe({
@@ -719,7 +765,7 @@ export class SignaturePageComponent implements OnInit {
         this.preparerTarget.set(null);
         this.toast.success(`${verb} "${target.documentName}"`);
       },
-      error: err => {
+      error: (err) => {
         this.actionBusy.set(false);
         this.actionError.set(toApiError(err).message);
       },
@@ -747,8 +793,14 @@ export class SignaturePageComponent implements OnInit {
     if (!target || this.actionBusy()) {
       return;
     }
-    if (!Number.isFinite(hours) || hours < TOKEN_EXPIRATION_MIN_HOURS || hours > TOKEN_EXPIRATION_MAX_HOURS) {
-      this.actionError.set(`Hours must be between ${TOKEN_EXPIRATION_MIN_HOURS} and ${TOKEN_EXPIRATION_MAX_HOURS}.`);
+    if (
+      !Number.isFinite(hours) ||
+      hours < TOKEN_EXPIRATION_MIN_HOURS ||
+      hours > TOKEN_EXPIRATION_MAX_HOURS
+    ) {
+      this.actionError.set(
+        `Hours must be between ${TOKEN_EXPIRATION_MIN_HOURS} and ${TOKEN_EXPIRATION_MAX_HOURS}.`,
+      );
       return;
     }
     this.actionBusy.set(true);
@@ -759,7 +811,7 @@ export class SignaturePageComponent implements OnInit {
         this.extendTarget.set(null);
         this.toast.success(`Expiration extended by ${hours}h for "${target.documentName}"`);
       },
-      error: err => {
+      error: (err) => {
         this.actionBusy.set(false);
         this.actionError.set(toApiError(err).message);
       },
@@ -769,18 +821,51 @@ export class SignaturePageComponent implements OnInit {
   // ---------- Descargas (CloudStorage download-url) ----------
 
   downloadOriginal(request: SignatureRequest): void {
-    this.openDownload(request.originalFileId ?? null, 'Original document', request.documentName, 'original');
+    this.openDownload(
+      request.originalFileId ?? null,
+      'Original document',
+      request.documentName,
+      'original',
+    );
   }
 
   downloadSealed(request: SignatureRequest): void {
-    this.openDownload(request.sealedFileId ?? null, 'Signed document', request.documentName, 'signed');
+    this.openDownload(
+      request.sealedFileId ?? null,
+      'Signed document',
+      request.documentName,
+      'signed',
+    );
   }
 
   downloadCertificate(request: SignatureRequest): void {
-    this.openDownload(request.certificateFileId ?? null, 'Certificate', request.documentName, 'certificate');
+    // F8 — modo "1 cert por documento": bajar cada certificado con su propio título. Modo "single":
+    // sigue siendo un único archivo con el nombre de la request.
+    // Chrome bloquea descargas simultáneas desde el mismo gesto: serializamos con un pequeño gap
+    // para que el navegador no las agrupe y descarte las siguientes.
+    const perDoc = request.documents.filter(doc => !!doc.certificateFileId);
+    if (perDoc.length > 0) {
+      perDoc.forEach((doc, index) => {
+        setTimeout(
+          () => this.openDownload(doc.certificateFileId!, 'Certificate', doc.title, 'certificate'),
+          index * 350,
+        );
+      });
+      return;
+    }
+    this.openDownload(
+      request.certificateFileId ?? null,
+      'Certificate',
+      request.documentName,
+      'certificate',
+    );
   }
 
-  downloadDocumentFile(event: { fileId: string; title: string; kind: SignatureDownloadKind }): void {
+  downloadDocumentFile(event: {
+    fileId: string;
+    title: string;
+    kind: SignatureDownloadKind;
+  }): void {
     this.openDownload(event.fileId, 'Document', event.title, event.kind);
   }
 
@@ -788,13 +873,18 @@ export class SignaturePageComponent implements OnInit {
    * Baja el archivo con un nombre profesional derivado del título
    * (`2026_Individual_Tax_Return_Signed.pdf`) en vez del nombre interno del storage.
    */
-  private openDownload(fileId: string | null, label: string, title: string, kind: SignatureDownloadKind): void {
+  private openDownload(
+    fileId: string | null,
+    label: string,
+    title: string,
+    kind: SignatureDownloadKind,
+  ): void {
     if (!fileId) {
       return;
     }
     this.store.getDownloadUrl(fileId).subscribe({
-      next: url => void saveUrlAs(url, buildSignatureDownloadFilename(title, kind)),
-      error: err => this.toast.error(`${label}: ${toApiError(err).message}`),
+      next: (url) => void saveUrlAs(url, buildSignatureDownloadFilename(title, kind)),
+      error: (err) => this.toast.error(`${label}: ${toApiError(err).message}`),
     });
   }
 
@@ -809,13 +899,34 @@ export class SignaturePageComponent implements OnInit {
    * navegables con ←/→), empezando por el pedido. El nombre de cada ítem es el profesional y no se
    * escucha `(download)`: el visor guarda los bytes que ya bajó con ese nombre.
    */
-  viewDocument(event: { request: SignatureRequest; kind: SignatureDownloadKind; documentId?: string }): void {
+  viewDocument(event: {
+    request: SignatureRequest;
+    kind: SignatureDownloadKind;
+    documentId?: string;
+  }): void {
     const { request } = event;
     const documents = [...request.documents]
       .sort((left, right) => left.order - right.order)
-      .flatMap(document => [
-        { documentId: document.id, title: document.title, kind: 'original' as const, fileId: document.originalFileId },
-        { documentId: document.id, title: document.title, kind: 'signed' as const, fileId: document.sealedFileId },
+      .flatMap((document) => [
+        {
+          documentId: document.id,
+          title: document.title,
+          kind: 'original' as const,
+          fileId: document.originalFileId,
+        },
+        {
+          documentId: document.id,
+          title: document.title,
+          kind: 'signed' as const,
+          fileId: document.sealedFileId,
+        },
+        // F8 — en "1 cert por documento" el certificado vive por doc.
+        {
+          documentId: document.id,
+          title: document.title,
+          kind: 'certificate' as const,
+          fileId: request.status === 'completed' ? (document.certificateFileId ?? null) : null,
+        },
       ]);
     const docs = [
       ...documents,
@@ -826,17 +937,23 @@ export class SignaturePageComponent implements OnInit {
         fileId: request.status === 'completed' ? request.certificateFileId : null,
       },
     ];
-    const available = docs.filter(
-      (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
-    );
+    const nonNull = docs.filter((doc): doc is typeof doc & { fileId: string } => !!doc.fileId);
+    // Si el botón del header es "Certificates" (sin documentId concreto), mostrar SOLO certificados
+    // para que las flechas naveguen cert → cert, no entre originales/firmados también.
+    const available =
+      event.kind === 'certificate' && event.documentId === undefined
+        ? nonNull.filter((doc) => doc.kind === 'certificate')
+        : nonNull;
     const start = available.findIndex(
-      doc => doc.kind === event.kind && (event.documentId === undefined || doc.documentId === event.documentId),
+      (doc) =>
+        doc.kind === event.kind &&
+        (event.documentId === undefined || doc.documentId === event.documentId),
     );
     if (start < 0) {
       return;
     }
     this.viewerFiles.set(
-      available.map(doc => ({
+      available.map((doc) => ({
         name: buildSignatureDownloadFilename(doc.title, doc.kind),
         contentType: 'application/pdf',
         resolveUrl: () => this.store.getDownloadUrl(doc.fileId),

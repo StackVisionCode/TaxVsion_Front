@@ -96,7 +96,7 @@
             <button *ngIf="hasCertificate(request)" appMenuItem type="button"
               (click)="downloadCertificateRequested.emit(request)">
               <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
-              Download certificate
+              {{ certificateMenuLabel(request) }}
             </button>
             <button *ngIf="canCancel(request)" appMenuItem [danger]="true" type="button" (click)="cancelRequested.emit(request)">
               <ion-icon name="close-circle-outline" class="text-base"></ion-icon>
