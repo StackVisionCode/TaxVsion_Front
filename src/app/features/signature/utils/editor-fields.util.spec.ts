@@ -7,6 +7,7 @@ import {
   DUPLICATE_OFFSET,
   clampToPage,
   copyFieldToAllPages,
+  documentsMissingSigningField,
   duplicateFieldRect,
   nudgeField,
   reassignSignerFields,
@@ -62,6 +63,29 @@ describe('rescaleFields (zoom)', () => {
     expect(rescaleFields(list, 1)).toBe(list);
     expect(rescaleFields(list, Number.NaN)).toBe(list);
     expect(rescaleFields(list, 0)).toBe(list);
+  });
+});
+
+describe('documentsMissingSigningField', () => {
+  const documents = [{ id: 'doc-1' }, { id: 'doc-2' }];
+
+  it('requires a real signature or initials field on every document', () => {
+    const fields = [
+      field({ id: 'a', documentLocalId: 'doc-1' }),
+      field({ id: 'b', documentLocalId: 'doc-2', type: 'date' }),
+      field({ id: 'p', documentLocalId: 'doc-2', signerId: PREPARER_PARTY_ID }),
+    ];
+
+    expect(documentsMissingSigningField(documents, fields)).toEqual([{ id: 'doc-2' }]);
+  });
+
+  it('accepts initials as a signing field', () => {
+    const fields = [
+      field({ id: 'a', documentLocalId: 'doc-1' }),
+      field({ id: 'b', documentLocalId: 'doc-2', type: 'initials' }),
+    ];
+
+    expect(documentsMissingSigningField(documents, fields)).toEqual([]);
   });
 });
 

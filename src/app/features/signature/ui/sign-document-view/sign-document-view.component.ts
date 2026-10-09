@@ -26,6 +26,11 @@ export interface FieldValueChange {
   value: string;
 }
 
+export interface FieldSelection {
+  fieldId: string;
+  page: number;
+}
+
 /** Agrupa los campos del firmante por página (1-based), en orden de página y de lectura. */
 export function groupFieldsByPage(fields: readonly PublicSignerFieldView[]): SignDocumentPage[] {
   const byPage = new Map<number, PublicSignerFieldView[]>();
@@ -45,10 +50,9 @@ export function groupFieldsByPage(fields: readonly PublicSignerFieldView[]): Sig
  * Los campos `Text` son inputs donde el firmante escribe directamente sobre la página;
  * firma, iniciales y fecha se marcan como recuadros.
  *
- * El contrato público NO sirve el PDF al firmante anónimo (solo `originalFileId`, y
- * CloudStorage exige JWT), así que por defecto la hoja es un lienzo en blanco con
- * proporción Letter. Cuando el backend exponga el documento, basta con pasar
- * `pageImages` (p. ej. renderizado con `renderPdfPages`) y cada hoja lo usa de fondo.
+ * El PDF público llega validado por token y se renderiza debajo de los campos. Si una
+ * imagen no está disponible, se muestra un estado explícito; nunca una hoja vacía que
+ * pueda confundirse con el documento original.
  */
 @Component({
   selector: 'app-sign-document-view',
@@ -69,8 +73,12 @@ export class SignDocumentViewComponent implements OnChanges {
   @Input() editable = false;
   /** Imagen (data URL) de cada página, indexada por número de página. null = hoja en blanco. */
   @Input() pageImages: Record<number, string> | null = null;
+  @Input() pageAspectRatios: Record<number, number> | null = null;
+  @Input() zoomPercent = 100;
+  @Input() selectedFieldId: string | null = null;
 
   @Output() valueChange = new EventEmitter<FieldValueChange>();
+  @Output() fieldSelect = new EventEmitter<FieldSelection>();
 
   readonly maxLength = FIELD_VALUE_MAX_LENGTH;
 
@@ -81,19 +89,32 @@ export class SignDocumentViewComponent implements OnChanges {
   // `values`), lo que recreaba el array `pages` en cada tecla y Angular destruía los <input>, que
   // perdían el foco. Ahora `values` sólo refleja el ngModel y los inputs se mantienen vivos.
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['fields'] && !changes['documentId']) {
+    if (!changes['fields'] && !changes['documentId'] && !changes['pageImages']) {
       return;
     }
     const activeFields = this.documentId
-      ? this.fields.filter(field => field.documentId === this.documentId)
+      ? this.fields.filter((field) => field.documentId === this.documentId)
       : this.fields;
-    this.pages = groupFieldsByPage(activeFields);
-    this.textFieldCount = activeFields.filter(f => f.kind === 'Text').length;
+    const fieldsByPage = new Map(
+      groupFieldsByPage(activeFields).map((page) => [page.page, page.fields]),
+    );
+    const pageNumbers = new Set<number>([
+      ...fieldsByPage.keys(),
+      ...Object.keys(this.pageImages ?? {})
+        .map(Number)
+        .filter(Number.isFinite),
+    ]);
+    this.pages = [...pageNumbers]
+      .sort((left, right) => left - right)
+      .map((page) => ({ page, fields: fieldsByPage.get(page) ?? [] }));
+    this.textFieldCount = activeFields.filter((f) => f.kind === 'Text').length;
   }
 
   /** Requeridos de texto aún vacíos (lo que falta para poder firmar). */
   get pendingRequired(): number {
-    return this.activeFields().filter(f => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim()).length;
+    return this.activeFields().filter(
+      (f) => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim(),
+    ).length;
   }
 
   trackField(_: number, field: PublicSignerFieldView): string {
@@ -104,10 +125,22 @@ export class SignDocumentViewComponent implements OnChanges {
     this.valueChange.emit({ fieldId: field.id, value });
   }
 
+  selectField(field: PublicSignerFieldView): void {
+    this.fieldSelect.emit({ fieldId: field.id, page: field.page });
+  }
+
+  scrollToField(fieldId: string): void {
+    const element = this.host.nativeElement.querySelector(
+      `[data-field-id="${fieldId}"]`,
+    ) as HTMLElement | null;
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    element?.focus({ preventScroll: true });
+  }
+
   /** Lleva el foco al siguiente campo de texto requerido sin completar. */
   focusNextPending(): void {
     const next = this.activeFields()
-      .filter(f => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim())
+      .filter((f) => f.kind === 'Text' && f.isRequired && !this.values[f.id]?.trim())
       .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x)[0];
     if (!next) {
       return;
@@ -120,7 +153,9 @@ export class SignDocumentViewComponent implements OnChanges {
   }
 
   private activeFields(): PublicSignerFieldView[] {
-    return this.documentId ? this.fields.filter(field => field.documentId === this.documentId) : this.fields;
+    return this.documentId
+      ? this.fields.filter((field) => field.documentId === this.documentId)
+      : this.fields;
   }
 
   kindIcon(field: PublicSignerFieldView): string {
@@ -156,6 +191,19 @@ export class SignDocumentViewComponent implements OnChanges {
   /** Posición del campo en % de la hoja (el navegador escala solo con el ancho). */
   boxStyle(field: PublicSignerFieldView): Record<string, string> {
     const pct = (value: number): string => `${Math.min(Math.max(value, 0), 1) * 100}%`;
-    return { left: pct(field.x), top: pct(field.y), width: pct(field.width), height: pct(field.height) };
+    return {
+      left: pct(field.x),
+      top: pct(field.y),
+      width: pct(field.width),
+      height: pct(field.height),
+    };
+  }
+
+  pageStyle(page: number): Record<string, string> {
+    const ratio = this.pageAspectRatios?.[page];
+    return {
+      width: `${this.zoomPercent}%`,
+      '--page-aspect-ratio': ratio && ratio > 0 ? `${ratio}` : '8.5 / 11',
+    };
   }
 }

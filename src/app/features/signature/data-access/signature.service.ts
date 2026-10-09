@@ -41,6 +41,7 @@ import {
   UpsertDraftBody,
   UpsertDraftResponse,
   ValidateDocumentResponse,
+  ReplaceDocumentFileResponse,
 } from './signature.model';
 
 /**
@@ -134,13 +135,29 @@ export class SignatureService {
 
   addRequestDocument(
     requestId: string,
-    body: { originalFileId: string; title: string; note?: string | null },
+    body: { originalFileId: string; title: string; note?: string | null; pageCount?: number | null },
   ): Observable<SignatureRequestDocument> {
     return this.http.post<SignatureRequestDocument>(`${this.base}/requests/${requestId}/documents`, body);
   }
 
   removeRequestDocument(requestId: string, documentId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/requests/${requestId}/documents/${documentId}`);
+  }
+
+  /**
+   * F9 — Reemplaza el PDF original de un documento del borrador. Si el nuevo PDF tiene distinto
+   * número de páginas que el anterior, el backend invalida los campos de ese documento y devuelve
+   * `fieldsInvalidated` para que la UI avise al preparador.
+   */
+  replaceRequestDocumentFile(
+    requestId: string,
+    documentId: string,
+    body: { newFileId: string; newPageCount?: number | null },
+  ): Observable<ReplaceDocumentFileResponse> {
+    return this.http.put<ReplaceDocumentFileResponse>(
+      `${this.base}/requests/${requestId}/documents/${documentId}/original`,
+      body,
+    );
   }
 
   reorderRequestDocuments(requestId: string, orderedDocumentIds: string[]): Observable<void> {

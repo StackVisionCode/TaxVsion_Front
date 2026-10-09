@@ -1,0 +1,1393 @@
+app-sign-page {
+  --p: rgb(var(--color-indigo-600-rgb));
+  --pl: rgb(var(--color-indigo-50-rgb));
+  --line: #e2e8f0;
+  --muted: #64748b;
+  display: block;
+  min-height: 100dvh;
+  color: #0f172a;
+}
+.signing-page {
+  min-height: 100dvh;
+  background: #f7f9fc;
+}
+.signing-page button,
+.signing-page input,
+.signing-page textarea {
+  font: inherit;
+}
+.signing-page .signing-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 72px;
+  border-bottom: 1px solid var(--line);
+  background: #fffffff5;
+  backdrop-filter: blur(12px);
+}
+.signing-page .brand-lockup,
+.signing-page .header-context,
+.signing-page .header-actions,
+.signing-page .secure-label,
+.signing-page .small-secure {
+  display: flex;
+  align-items: center;
+}
+.signing-page .brand-lockup {
+  height: 100%;
+  min-width: 0;
+  gap: 14px;
+  padding: 12px 22px;
+  border-right: 1px solid var(--line);
+}
+.signing-page .platform-brand,
+.signing-page .office-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+.signing-page .platform-brand {
+  flex: 1 1 auto;
+}
+.signing-page .platform-brand app-platform-brand-logo {
+  display: block;
+  width: 172px;
+  max-width: 100%;
+}
+.signing-page .brand-divider {
+  width: 1px;
+  height: 34px;
+  flex: 0 0 auto;
+  background: #d6e0eb;
+}
+.signing-page .office-brand {
+  flex: 0 1 132px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.signing-page .office-brand app-brand-logo {
+  display: block;
+  width: 92px;
+  max-width: 100%;
+}
+.signing-page .office-brand > span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.signing-page .header-context {
+  min-width: 0;
+  gap: 10px;
+  padding: 0 28px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.signing-page .header-context strong,
+.signing-page .journey-copy strong,
+.signing-page .journey-copy small,
+.signing-page .document-indicator > span,
+.signing-page .viewer-toolbar span,
+.signing-page .field-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.signing-page .header-actions {
+  gap: 10px;
+  padding-right: 24px;
+}
+.signing-page .secure-label,
+.signing-page .small-secure {
+  gap: 6px;
+  color: #059669;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.signing-page .icon-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #475569;
+}
+.signing-page .icon-button:hover {
+  background: #f1f5f9;
+}
+.signing-page .signer-avatar,
+.signing-page .journey-number,
+.signing-page .document-summary-icon,
+.signing-page .success-icon,
+.signing-page .state-icon {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.signing-page .signer-avatar {
+  width: 38px;
+  height: 38px;
+  background: var(--pl);
+  color: var(--p);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.signing-page .signing-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: calc(100dvh - 72px);
+}
+.signing-page .signing-shell--single {
+  display: block;
+}
+.signing-page .journey-sidebar {
+  position: sticky;
+  top: 72px;
+  display: flex;
+  align-self: start;
+  flex-direction: column;
+  height: calc(100dvh - 72px);
+  padding: 32px 18px 22px;
+  border-right: 1px solid var(--line);
+  background: #fff;
+}
+.signing-page .journey-kicker,
+.signing-page .eyebrow,
+.signing-page .fields-heading {
+  margin: 0;
+  color: #475569;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.signing-page .journey-kicker {
+  padding: 0 10px 12px;
+}
+.signing-page .journey-nav,
+.signing-page .field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.signing-page .journey-step {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 9px;
+  min-height: 56px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+.signing-page .journey-step.is-active {
+  background: var(--pl);
+}
+.signing-page .journey-number {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+.signing-page .is-active .journey-number {
+  border-color: var(--p);
+  background: var(--p);
+  color: #fff;
+}
+.signing-page .is-complete .journey-number {
+  border-color: #d1fae5;
+  background: #ecfdf5;
+  color: #059669;
+}
+.signing-page .journey-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.signing-page .journey-copy strong {
+  font-size: 0.76rem;
+}
+.signing-page .journey-copy small,
+.signing-page .journey-summary span,
+.signing-page .journey-help {
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+.signing-page .journey-summary {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 18px 10px;
+  border-block: 1px solid var(--line);
+}
+.signing-page .journey-summary div {
+  display: flex;
+  flex-direction: column;
+}
+.signing-page .journey-help {
+  margin-top: auto;
+  line-height: 1.6;
+}
+.signing-page .journey-help p,
+.signing-page .journey-help button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.signing-page .journey-help p {
+  color: #059669;
+}
+.signing-page .journey-help button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #475569;
+}
+.signing-page .signing-main {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: calc(100dvh - 72px);
+  flex-direction: column;
+  padding: 40px clamp(24px, 5vw, 72px) 0;
+}
+.signing-page .signing-shell--single .signing-main {
+  max-width: 920px;
+  margin: auto;
+}
+.signing-page .signing-main--document {
+  padding-inline: clamp(20px, 3vw, 42px);
+}
+.signing-page .stage-heading {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto 28px;
+}
+.signing-page .breadcrumb {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  margin-bottom: 22px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.signing-page .stage-heading .eyebrow {
+  margin-bottom: 9px;
+  color: var(--p);
+}
+.signing-page .stage-heading h1,
+.signing-page .completion-layout h1,
+.signing-page .state-panel h1 {
+  margin: 0;
+  font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+  line-height: 1.15;
+}
+.signing-page .stage-subtitle,
+.signing-page .welcome-primary > p,
+.signing-page .section-subtitle,
+.signing-page .viewer-side > p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+.signing-page .stage-subtitle {
+  max-width: 680px;
+  margin: 12px 0 0;
+}
+.signing-page .status-badge,
+.signing-page .signed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: var(--pl);
+  color: var(--p);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+.signing-page .status-badge {
+  align-self: end;
+}
+.signing-page .welcome-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.75fr;
+  gap: clamp(34px, 6vw, 80px);
+  max-width: 1040px;
+  margin: auto;
+}
+.signing-page .welcome-primary,
+.signing-page .form-panel {
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.signing-page .welcome-primary h2,
+.signing-page .form-panel h2,
+.signing-page .viewer-side h2,
+.signing-page .completion-summary h2,
+.signing-page .help-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.signing-page .document-summary {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 13px;
+  margin-top: 22px;
+  padding: 17px 0;
+  border-block: 1px solid var(--line);
+}
+.signing-page .document-summary-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--pl);
+  color: var(--p);
+}
+.signing-page .document-summary-row + .document-summary-row {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line);
+}
+.signing-page .document-summary-row strong,
+.signing-page .document-summary-row span {
+  display: block;
+}
+.signing-page .document-summary-row strong {
+  font-size: 0.8rem;
+}
+.signing-page .document-summary-row span {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.signing-page .detail-list {
+  margin: 14px 0 22px;
+}
+.signing-page .detail-list > div,
+.signing-page .receipt-card dl > div {
+  display: grid;
+  grid-template-columns: 0.7fr 1.3fr;
+  gap: 18px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.7rem;
+}
+.signing-page .detail-list dt,
+.signing-page .receipt-card dt {
+  color: var(--muted);
+}
+.signing-page .detail-list dd,
+.signing-page .receipt-card dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.signing-page .primary-button,
+.signing-page .back-button,
+.signing-page .danger-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 0 18px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.signing-page .primary-button {
+  width: 100%;
+  border: 1px solid var(--p);
+  background: var(--p);
+  color: #fff;
+}
+.signing-page .primary-button:disabled,
+.signing-page .back-button:disabled {
+  opacity: 0.45;
+}
+.signing-page .compact-button {
+  width: auto;
+  min-width: 200px;
+}
+.signing-page .back-button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+}
+.signing-page .full-button {
+  width: 100%;
+}
+.signing-page .danger-button {
+  border: 0;
+  background: #dc2626;
+  color: #fff;
+}
+.signing-page .action-note {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+.signing-page .document-preview {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+.signing-page .preview-header,
+.signing-page .preview-dots,
+.signing-page .resend-row,
+.signing-page .progress-heading,
+.signing-page .receipt-header {
+  display: flex;
+  justify-content: space-between;
+}
+.signing-page .preview-header {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+.signing-page .preview-sheet {
+  min-height: 360px;
+  padding: 28px 24px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 12px 28px #0f172a14;
+}
+.signing-page .preview-rule {
+  display: block;
+  height: 2px;
+  margin: 16px 0 28px;
+  background: var(--p);
+}
+.signing-page .preview-sheet small {
+  color: #94a3b8;
+}
+.signing-page .preview-sheet h3 {
+  margin: 11px 0 22px;
+}
+.signing-page .preview-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.signing-page .preview-lines span {
+  height: 5px;
+  background: #f1f5f9;
+}
+.signing-page .preview-field {
+  display: flex;
+  gap: 6px;
+  margin-top: 42px;
+  padding: 12px;
+  border: 1px dashed var(--p);
+  background: var(--pl);
+  color: var(--p);
+  font-size: 0.64rem;
+}
+.signing-page .preview-dots {
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+.signing-page .preview-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.signing-page .preview-dots .active {
+  background: var(--p);
+}
+.signing-page .trust-band {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  width: 100%;
+  max-width: 1040px;
+  margin: 36px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.signing-page .trust-band > div {
+  display: flex;
+  gap: 9px;
+}
+.signing-page .trust-band ion-icon {
+  color: #059669;
+}
+.signing-page .trust-band strong,
+.signing-page .trust-band small {
+  display: block;
+}
+.signing-page .trust-band strong {
+  font-size: 0.68rem;
+}
+.signing-page .trust-band small {
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+.signing-page .form-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 46px;
+  max-width: 930px;
+  margin: auto;
+}
+.signing-page .form-grid > .trust-band {
+  grid-column: 1/-1;
+}
+.signing-page .consent-section {
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+}
+.signing-page .consent-section summary {
+  display: grid;
+  grid-template-columns: 21px 1fr 17px;
+  gap: 9px;
+  align-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.signing-page .consent-section p,
+.signing-page .info-panel p {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.75;
+}
+.signing-page .consent-choice {
+  display: flex;
+  width: 100%;
+  gap: 11px;
+  margin-top: 22px;
+  padding: 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  text-align: left;
+}
+.signing-page .consent-choice.is-selected,
+.signing-page .method-card {
+  border-color: var(--p);
+  background: var(--pl);
+}
+.signing-page .choice-box {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+}
+.signing-page .is-selected .choice-box {
+  background: var(--p);
+  color: #fff;
+}
+.signing-page .form-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin-top: 24px;
+}
+.signing-page .info-panel {
+  padding: 24px 0 0 28px;
+  border-left: 1px solid var(--line);
+}
+.signing-page .info-panel > ion-icon {
+  color: var(--p);
+  font-size: 1.8rem;
+}
+.signing-page .info-panel span {
+  display: flex;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+.signing-page .input-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.signing-page .secure-input {
+  position: relative;
+}
+.signing-page .secure-input input,
+.signing-page .otp-input {
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  text-align: center;
+  outline: none;
+}
+.signing-page .secure-input input {
+  padding: 0 50px 0 14px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+.signing-page .secure-input button {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 50px;
+  border: 0;
+  background: none;
+}
+.signing-page .input-hint {
+  color: var(--muted);
+  font-size: 0.63rem;
+  text-align: center;
+}
+.signing-page .method-card {
+  display: grid;
+  grid-template-columns: 36px 1fr 16px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  border: 1px solid;
+  border-radius: 6px;
+}
+.signing-page .method-card > ion-icon {
+  color: var(--p);
+  font-size: 1.2rem;
+}
+.signing-page .method-card strong,
+.signing-page .method-card span {
+  display: block;
+}
+.signing-page .method-card div span {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.signing-page .radio-dot {
+  width: 13px;
+  height: 13px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: var(--p);
+  box-shadow: 0 0 0 1px var(--p);
+}
+.signing-page .sent-notice,
+.signing-page .inline-alert,
+.signing-page .completed-notice,
+.signing-page .delivery-note,
+.signing-page .global-error {
+  display: flex;
+  gap: 8px;
+  padding: 12px 13px;
+  border-radius: 6px;
+  font-size: 0.69rem;
+  line-height: 1.55;
+}
+.signing-page .sent-notice,
+.signing-page .completed-notice {
+  margin-bottom: 20px;
+  background: #ecfdf5;
+  color: #059669;
+}
+.signing-page .inline-alert {
+  margin-top: 12px;
+  background: #f8fafc;
+  color: #475569;
+}
+.signing-page .inline-alert--danger,
+.signing-page .global-error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.signing-page .otp-input {
+  padding: 0 14px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+.signing-page .resend-row {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.signing-page .resend-row button,
+.signing-page .decline-link,
+.signing-page .receipt-header button {
+  border: 0;
+  background: none;
+  color: var(--p);
+}
+.signing-page .document-indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 1120px;
+  margin: 0 auto 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.72rem;
+}
+.signing-page .document-dots {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.signing-page .document-dots button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.signing-page .document-dots button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.signing-page .document-dots .is-current {
+  background: var(--p);
+}
+.signing-page .document-dots .is-ready {
+  background: #10b981;
+}
+.signing-page .viewer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  align-items: start;
+  gap: 24px;
+  width: 100%;
+  max-width: 1180px;
+  margin: auto;
+}
+.signing-page .document-viewer {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #eef2f7;
+  box-shadow: 0 8px 28px #0f172a0b;
+}
+.signing-page .viewer-toolbar {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 650;
+}
+.signing-page .viewer-toolbar > span,
+.signing-page .zoom-tools {
+  display: flex;
+  align-items: center;
+}
+.signing-page .viewer-toolbar > span {
+  min-width: 0;
+  gap: 7px;
+  color: #334155;
+}
+.signing-page .zoom-tools {
+  flex: none;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+.signing-page .zoom-tools .icon-button {
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+}
+.signing-page .zoom-tools .reload-preview-button {
+  margin-right: 7px;
+  box-shadow: 6px 0 0 -5px var(--line);
+  color: #2563eb;
+}
+.signing-page .zoom-tools .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.signing-page .viewer-scroll {
+  height: min(760px, calc(100dvh - 205px));
+  overflow: auto;
+  padding: 22px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+}
+.signing-page .viewer-side {
+  position: sticky;
+  top: 92px;
+  min-width: 0;
+  max-height: calc(100dvh - 112px);
+  overflow-y: auto;
+  padding: 3px 5px 24px 1px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.signing-page .viewer-side h2 {
+  font-size: 1.04rem;
+  line-height: 1.35;
+}
+.signing-page .viewer-side > p {
+  margin: 8px 0 18px;
+  line-height: 1.65;
+}
+.signing-page .field-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 8px;
+  border-radius: 5px;
+  border: 0;
+  width: 100%;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.signing-page .field-row:hover,
+.signing-page .field-row.is-selected {
+  background: var(--pl);
+}
+.signing-page .field-row > ion-icon {
+  color: var(--p);
+}
+.signing-page .field-row.is-ready > ion-icon {
+  color: #059669;
+}
+.signing-page .field-row div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.signing-page .field-row strong {
+  color: #1e293b;
+  font-size: 0.68rem;
+}
+.signing-page .field-row span,
+.signing-page .field-row small {
+  font-size: 0.6rem;
+}
+.signing-page .viewer-side > .primary-button {
+  margin-top: 20px;
+}
+.signing-page .decline-link {
+  display: block;
+  margin: 12px auto;
+  color: #dc2626;
+  text-decoration: underline;
+}
+.signing-page .progress-heading {
+  margin: 20px 0 8px;
+  color: #475569;
+  font-size: 0.65rem;
+}
+.signing-page .signing-panel progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #059669;
+}
+.signing-page .signature-context {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 8px;
+  margin: 18px 0 16px;
+  padding: 14px 0;
+  border-block: 1px solid var(--line);
+}
+.signing-page .signature-context strong,
+.signing-page .signature-context span {
+  display: block;
+}
+.signing-page .signature-context strong {
+  margin-bottom: 3px;
+  color: #1e293b;
+  font-size: 0.71rem;
+}
+.signing-page .signature-context span {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+.signing-page .document-load-error {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 0.68rem;
+}
+.signing-page .document-load-error div,
+.signing-page .document-load-error strong,
+.signing-page .document-load-error span {
+  display: block;
+}
+.signing-page .document-load-error span {
+  margin-top: 2px;
+  color: #64748b;
+}
+.signing-page .document-load-error button {
+  border: 0;
+  background: transparent;
+  color: var(--p);
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+.signing-page app-sign-document-view > div {
+  gap: 22px;
+}
+.signing-page app-signature-pad {
+  display: block;
+}
+.signing-page app-signature-pad .signature-method-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  padding: 3px;
+  border: 0;
+  border-radius: 6px;
+  background: #eef2f7;
+}
+.signing-page app-signature-pad .signature-method-tabs button {
+  justify-content: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 5px 4px;
+  border-radius: 5px;
+  font-size: 0.68rem;
+}
+.signing-page app-signature-pad .signature-method-tabs button.bg-brand-bold {
+  background: #fff;
+  color: var(--p);
+  box-shadow: 0 2px 8px #0f172a12;
+}
+.signing-page app-signature-pad .signature-style-controls,
+.signing-page app-signature-pad .signature-font-options {
+  display: none;
+}
+.signing-page app-signature-pad .signature-name-input {
+  height: 44px;
+  border-radius: 6px;
+}
+.signing-page app-signature-pad .signature-preview {
+  height: 116px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  background: #fff;
+}
+.signing-page app-signature-pad .signature-draw > div:not(.pad-fullscreen) > div:last-child,
+.signing-page app-signature-pad .signature-upload > div {
+  border-radius: 6px;
+}
+.signing-page app-signature-pad .signature-capture > .mt-3:last-child {
+  margin-top: 14px;
+}
+.signing-page .completion-layout {
+  max-width: 800px;
+  margin: auto;
+}
+.signing-page .success-icon,
+.signing-page .state-icon {
+  width: 60px;
+  height: 60px;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 1.7rem;
+}
+.signing-page .completion-summary {
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.signing-page .delivery-note {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #475569;
+}
+.signing-page .delivery-note--info {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+.signing-page .completion-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 22px;
+}
+.signing-page .completion-actions p,
+.signing-page .receipt-card > p {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.signing-page .receipt-wrap {
+  margin-top: 24px;
+}
+.signing-page .receipt-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+.signing-page .receipt-header {
+  color: #475569;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.signing-page .audit-ok {
+  color: #059669;
+}
+.signing-page .audit-failed {
+  color: #dc2626;
+}
+.signing-page .hash-value {
+  font-family: monospace;
+}
+.signing-page .state-panel {
+  display: flex;
+  max-width: 600px;
+  min-height: 55vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin: auto;
+  text-align: center;
+}
+.signing-page .state-panel > p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.signing-page .reference-code,
+.signing-page .state-panel blockquote {
+  padding: 11px 14px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #475569;
+}
+.signing-page .state-icon {
+  background: #f1f5f9;
+  color: var(--muted);
+}
+.signing-page .state-icon--warning {
+  background: #fff7ed;
+  color: #ea580c;
+}
+.signing-page .state-icon--danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.signing-page .state-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--pl);
+  border-top-color: var(--p);
+  border-radius: 50%;
+  animation: spin 0.76s linear infinite;
+}
+.signing-page .state-spinner--small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+.signing-page .processing-overlay {
+  position: fixed;
+  inset: 72px 0 0 240px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  background: #fffffff0;
+}
+.signing-page .global-error {
+  position: sticky;
+  bottom: 14px;
+  z-index: 10;
+  max-width: 680px;
+  margin: 18px auto;
+}
+.signing-page .signing-footer {
+  display: flex;
+  justify-content: space-between;
+  margin: auto -42px 0;
+  padding: 18px 42px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+.signing-page .help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+  background: #0f172a59;
+}
+.signing-page .help-panel {
+  width: min(410px, 100%);
+  height: 100%;
+  overflow: auto;
+  padding: 32px;
+  background: #fff;
+}
+.signing-page .help-header {
+  display: flex;
+  justify-content: space-between;
+}
+.signing-page .reject-form textarea {
+  width: 100%;
+  padding: 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+.signing-page .reject-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+}
+.signing-page .stage-enter {
+  animation: stage-in 0.25s ease-out;
+}
+@keyframes stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 900px) {
+  .signing-page .signing-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .signing-page .header-context {
+    display: none;
+  }
+  .signing-page .signing-shell {
+    display: block;
+  }
+  .signing-page .journey-sidebar {
+    top: 72px;
+    z-index: 20;
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: 9px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .signing-page .journey-kicker,
+  .signing-page .journey-summary,
+  .signing-page .journey-help {
+    display: none;
+  }
+  .signing-page .journey-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  }
+  .signing-page .journey-step {
+    display: flex;
+    min-height: 48px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 2px;
+  }
+  .signing-page .journey-number {
+    width: 25px;
+    height: 25px;
+  }
+  .signing-page .journey-copy strong {
+    font-size: 0.56rem;
+  }
+  .signing-page .journey-copy small {
+    display: none;
+  }
+  .signing-page .viewer-grid {
+    grid-template-columns: 1fr;
+  }
+  .signing-page .viewer-side {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .signing-page .processing-overlay {
+    top: 140px;
+    left: 0;
+  }
+}
+@media (max-width: 700px) {
+  .signing-page .signing-header {
+    min-height: 64px;
+  }
+  .signing-page .brand-lockup {
+    gap: 9px;
+    padding: 10px 15px;
+    border: 0;
+  }
+  .signing-page .platform-brand {
+    flex: 0 1 auto;
+  }
+  .signing-page .brand-divider {
+    height: 28px;
+  }
+  .signing-page .office-brand {
+    flex-basis: 90px;
+  }
+  .signing-page .office-brand > span {
+    font-size: 0.52rem;
+  }
+  .signing-page .header-actions {
+    padding-right: 12px;
+  }
+  .signing-page .secure-label {
+    width: 32px;
+    overflow: hidden;
+    font-size: 0;
+  }
+  .signing-page .journey-sidebar {
+    top: 64px;
+    padding-inline: 9px;
+  }
+  .signing-page .signing-main,
+  .signing-page .signing-main--document {
+    min-height: calc(100dvh - 132px);
+    padding: 24px 16px 0;
+  }
+  .signing-page .stage-heading {
+    gap: 9px;
+  }
+  .signing-page .stage-heading h1,
+  .signing-page .completion-layout h1,
+  .signing-page .state-panel h1 {
+    font-size: 1.6rem;
+  }
+  .signing-page .status-badge {
+    width: 32px;
+    height: 32px;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+    font-size: 0;
+  }
+  .signing-page .welcome-grid,
+  .signing-page .form-grid {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+  .signing-page .document-preview {
+    display: none;
+  }
+  .signing-page .info-panel {
+    padding: 21px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .signing-page .form-grid > .trust-band {
+    grid-column: auto;
+  }
+  .signing-page .trust-band {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .signing-page .viewer-scroll {
+    height: 62dvh;
+    padding: 9px;
+  }
+  .signing-page .completion-actions,
+  .signing-page .completion-actions .compact-button {
+    width: 100%;
+  }
+  .signing-page .signing-footer {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+  .signing-page .signing-footer span:last-child {
+    display: none;
+  }
+  .signing-page .processing-overlay {
+    top: 132px;
+  }
+}
+@media (max-width: 430px) {
+  .signing-page .platform-brand app-platform-brand-logo {
+    width: 112px;
+  }
+  .signing-page .office-brand {
+    flex-basis: 64px;
+    max-width: 64px;
+  }
+  .signing-page .office-brand app-brand-logo {
+    width: 64px;
+  }
+  .signing-page .header-actions .icon-button {
+    display: none;
+  }
+  .signing-page .journey-nav {
+    display: flex;
+    overflow-x: auto;
+  }
+  .signing-page .journey-step {
+    min-width: 58px;
+  }
+  .signing-page .form-actions {
+    grid-template-columns: 1fr;
+  }
+  .signing-page .form-actions .back-button {
+    order: 2;
+  }
+  .signing-page .viewer-toolbar > span:last-child {
+    display: none;
+  }
+  .signing-page .help-panel {
+    padding: 24px 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signing-page *,
+  .signing-page *::before,
+  .signing-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

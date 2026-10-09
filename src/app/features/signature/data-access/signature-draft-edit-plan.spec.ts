@@ -1,17 +1,32 @@
-import { computeDraftEditPlan, DraftEditOriginal, WizardRequestDraft, WizardSendState } from './signature.store';
+import {
+  computeDraftEditPlan,
+  DraftEditOriginal,
+  WizardRequestDraft,
+  WizardSendState,
+} from './signature.store';
 
-function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signerLocalId: string }[]): WizardRequestDraft {
+function draft(
+  signerLocalIds: string[],
+  fieldLocalIds: { localId: string; signerLocalId: string }[],
+): WizardRequestDraft {
   return {
     title: 'x',
     description: null,
     category: 'Fiscal',
     documents: [
-      { localId: 'doc-local', backendId: 'doc-server', originalFileId: 'f', title: 'Document', note: null },
+      {
+        localId: 'doc-local',
+        backendId: 'doc-server',
+        originalFileId: 'f',
+        title: 'Document',
+        note: null,
+      },
     ],
     tokenExpirationHours: 72,
     requiresSequentialSigning: true,
     requiresConsent: true,
     generateCertificate: false,
+    certificateGenerationMode: 'SingleForRequest',
     sendSealedDocumentToSigners: true,
     sendCertificateToSigners: false,
     autoRemindersEnabled: true,
@@ -21,14 +36,14 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
     partialCopyAudienceKind: 'All',
     partialCopyAudienceSignerIds: [],
     expirationEnabled: true,
-    signers: signerLocalIds.map(localId => ({
+    signers: signerLocalIds.map((localId) => ({
       localId,
       fullName: 'n',
       email: 'e@e.com',
       language: 'En',
       phone: null,
     })),
-    fields: fieldLocalIds.map(f => ({
+    fields: fieldLocalIds.map((f) => ({
       localId: f.localId,
       documentLocalId: 'doc-local',
       signerLocalId: f.signerLocalId,
@@ -71,10 +86,13 @@ describe('computeDraftEditPlan', () => {
 
   it('sin cambios no borra nada', () => {
     const plan = computeDraftEditPlan(
-      draft(['client:c', 'seed-s2'], [
-        { localId: 'client:c', signerLocalId: 'client:c' },
-        { localId: 'seed-x', signerLocalId: 'seed-s2' },
-      ]),
+      draft(
+        ['client:c', 'seed-s2'],
+        [
+          { localId: 'client:c', signerLocalId: 'client:c' },
+          { localId: 'seed-x', signerLocalId: 'seed-s2' },
+        ],
+      ),
       state,
       original,
     );
