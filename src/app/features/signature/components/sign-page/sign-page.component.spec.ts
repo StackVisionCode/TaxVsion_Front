@@ -1,6 +1,8 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { PublicSignerView } from '../../data-access/public-signature.model';
 import { PublicSignatureService } from '../../data-access/public-signature.service';
 import { SignPageComponent } from './sign-page.component';
@@ -85,6 +87,38 @@ function signerView(): PublicSignerView {
 }
 
 describe('SignPageComponent multi-document navigation', () => {
+  it('keeps the help dialog inside the styled signing surface', async () => {
+    const api = {
+      getContext: vi.fn(() => of(signerView())),
+      getDocumentBytes: vi.fn(() => of(new Uint8Array())),
+    };
+    const branding = {
+      logoUrl: signal<string | null>(null),
+      systemLogoUrl: signal<string | null>(null),
+      applyForSurface: vi.fn(),
+      loadSystemBrandLogo: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [SignPageComponent],
+      providers: [
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'token' } } } },
+        { provide: PublicSignatureService, useValue: api },
+        { provide: TenantBrandingService, useValue: branding },
+      ],
+    });
+    const fixture = TestBed.createComponent(SignPageComponent);
+    fixture.componentInstance.helpOpen.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement.querySelector('.signing-page') as HTMLElement | null;
+    const overlay = root?.querySelector(':scope > .help-overlay');
+    expect(root).not.toBeNull();
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
   it('avanza localmente entre documentos y reserva el submit para el último', () => {
     const api = {
       getDocumentBytes: vi.fn(() => of(new Uint8Array())),

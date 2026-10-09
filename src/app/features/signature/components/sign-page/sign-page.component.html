@@ -972,51 +972,50 @@
       </footer>
     </main>
   </div>
-</div>
-
-<div *ngIf="helpOpen()" class="help-overlay" (click)="helpOpen.set(false)">
-  <section
-    class="help-panel"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Signing help"
-    (click)="$event.stopPropagation()"
-  >
-    <div class="help-header">
-      <h2>A little help along the way</h2>
-      <button
-        type="button"
-        class="icon-button"
-        aria-label="Close help"
-        (click)="helpOpen.set(false)"
-      >
-        <ion-icon name="close-outline"></ion-icon>
+  <div *ngIf="helpOpen()" class="help-overlay" (click)="helpOpen.set(false)">
+    <section
+      class="help-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Signing help"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="help-header">
+        <h2>A little help along the way</h2>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Close help"
+          (click)="helpOpen.set(false)"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      </div>
+      <h3>Verifying your identity</h3>
+      <p>
+        Use the PIN or security code requested by the office. These checks must succeed before the
+        original documents can open.
+      </p>
+      <h3>Reviewing your documents</h3>
+      <p>
+        Move through every document and review the highlighted fields. Required text fields must be
+        completed before submission.
+      </p>
+      <h3>Adding your signature</h3>
+      <p>
+        Draw, type or upload one signature. TaxProffice applies that evidence to the signature and
+        initials fields assigned to you.
+      </p>
+      <h3>After signing</h3>
+      <p>
+        The link closes after submission. The office delivers the sealed PDF and signature
+        certificate by email according to the request settings.
+      </p>
+      <button type="button" class="primary-button" (click)="helpOpen.set(false)">
+        Back to my document<ion-icon name="arrow-forward-outline"></ion-icon>
       </button>
-    </div>
-    <h3>Verifying your identity</h3>
-    <p>
-      Use the PIN or security code requested by the office. These checks must succeed before the
-      original documents can open.
-    </p>
-    <h3>Reviewing your documents</h3>
-    <p>
-      Move through every document and review the highlighted fields. Required text fields must be
-      completed before submission.
-    </p>
-    <h3>Adding your signature</h3>
-    <p>
-      Draw, type or upload one signature. TaxProffice applies that evidence to the signature and
-      initials fields assigned to you.
-    </p>
-    <h3>After signing</h3>
-    <p>
-      The link closes after submission. The office delivers the sealed PDF and signature certificate
-      by email according to the request settings.
-    </p>
-    <button type="button" class="primary-button" (click)="helpOpen.set(false)">
-      Back to my document<ion-icon name="arrow-forward-outline"></ion-icon>
-    </button>
-  </section>
+    </section>
+  </div>
 </div>
 
 <ng-template #trustBand>
