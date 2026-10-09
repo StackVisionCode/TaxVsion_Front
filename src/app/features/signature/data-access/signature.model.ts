@@ -334,6 +334,20 @@ export interface ValidateDocumentResponse {
   validationRecordId: string;
 }
 
+/**
+ * F9 — Respuesta del PUT /signature/requests/{id}/documents/{documentId}/original. Si
+ * `fieldsInvalidated > 0`, el nuevo PDF tenía distinto número de páginas y el backend borró los
+ * campos de ese documento; la UI tiene que avisarlo al preparador antes de dejarlo seguir.
+ */
+export interface ReplaceDocumentFileResponse {
+  documentId: string;
+  oldFileId: string;
+  newFileId: string;
+  oldPageCount: number | null;
+  newPageCount: number | null;
+  fieldsInvalidated: number;
+}
+
 /** GET /signature/analytics/summary. */
 export interface SignatureAnalyticsSummary {
   tenantId: string;

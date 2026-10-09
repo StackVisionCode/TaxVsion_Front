@@ -41,6 +41,7 @@ import {
   UpdateSignatureRequestBody,
   UpsertDraftBody,
   ValidateDocumentResponse,
+  ReplaceDocumentFileResponse,
   customerToWizardClient,
   detailToUiRequest,
 } from './signature.model';
@@ -596,6 +597,22 @@ export class SignatureStore {
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */
   getDetail(requestId: string): Observable<SignatureRequestDetail> {
     return this.service.getById(requestId);
+  }
+
+  /**
+   * F9 — Reemplaza el PDF original de un documento del borrador. El backend decide si invalidar los
+   * campos (page count distinto) y devuelve cuántos cayeron para que la UI pueda avisar.
+   */
+  replaceRequestDocumentFile(
+    requestId: string,
+    documentId: string,
+    newFileId: string,
+    newPageCount: number | null,
+  ): Observable<ReplaceDocumentFileResponse> {
+    return this.service.replaceRequestDocumentFile(requestId, documentId, {
+      newFileId,
+      newPageCount,
+    });
   }
 
   // ---------- Categorías del tenant (14.5) ----------

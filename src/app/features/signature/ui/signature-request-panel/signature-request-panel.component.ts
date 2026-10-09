@@ -78,6 +78,7 @@ import {
 } from '../../utils/editor-fields.util';
 import { PDF_RENDER_FRIENDLY_ERROR } from '../../utils/pdf-render.util';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { SignatureReplaceDocumentDialogComponent } from '../signature-replace-document-dialog/signature-replace-document-dialog.component';
 
 type WizardStep = 1 | 2 | 3 | 4;
 
@@ -106,6 +107,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     SignaturePdfEditorComponent,
     ConfirmDialogComponent,
     SegmentedComponent,
+    SignatureReplaceDocumentDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-request-panel.component.html',
@@ -683,6 +685,124 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     if (this.selectedDocument()?.id === documentId) {
       this.selectedDocument.set(remaining[0] ?? null);
       this.editorDocument.set(remaining[0] ?? null);
+    }
+  }
+
+  /**
+   * F9 — El usuario reemplazó el PDF de un doc existente. Si la request ya está persistida en el
+   * backend, el PUT devuelve cuántos campos cayeron por cambio de páginas; si estamos en un wizard
+   * nuevo (sin requestId), el swap es puramente local. En ambos casos el id local se preserva para
+   * que los campos del editor sigan apuntando al mismo documentLocalId.
+   */
+  // F9 — Modal de reemplazo (dropzone + office library). Abierto desde el botón ↔ de la lista del
+  // Step 2 o desde el "Replace PDF" del Step 3. El modal se encarga del preflight/upload; el panel
+  // solo recibe el candidato y aplica el swap local o el PUT backend.
+  readonly replaceOpen = signal(false);
+  readonly replaceTargetId = signal<string | null>(null);
+  readonly replaceSubmitting = signal(false);
+
+  readonly replaceCurrentDocument = computed(() => {
+    const id = this.replaceTargetId();
+    if (!id) return null;
+    return this.selectedDocuments().find((doc) => doc.id === id) ?? null;
+  });
+
+  readonly replaceExcludedFileIds = computed(() => {
+    const current = this.replaceCurrentDocument();
+    return this.selectedDocuments()
+      .filter((doc) => doc.id !== current?.id)
+      .map((doc) => doc.fileId ?? '')
+      .filter((id) => !!id);
+  });
+
+  openReplaceDialog(documentId: string): void {
+    if (this.replaceSubmitting()) return;
+    this.replaceTargetId.set(documentId);
+    this.replaceOpen.set(true);
+  }
+
+  closeReplaceDialog(): void {
+    if (this.replaceSubmitting()) return;
+    this.replaceOpen.set(false);
+    this.replaceTargetId.set(null);
+  }
+
+  async onReplaceConfirmed(newDocument: WizardDocument): Promise<void> {
+    const targetId = this.replaceTargetId();
+    if (!targetId) return;
+    this.replaceSubmitting.set(true);
+    try {
+      await this.replaceDocument({ documentLocalId: targetId, newDocument });
+      this.replaceOpen.set(false);
+      this.replaceTargetId.set(null);
+    } finally {
+      this.replaceSubmitting.set(false);
+    }
+  }
+
+  async replaceDocument(event: {
+    documentLocalId: string;
+    newDocument: WizardDocument;
+  }): Promise<void> {
+    const current = this.selectedDocuments().find((doc) => doc.id === event.documentLocalId);
+    if (!current) {
+      return;
+    }
+    const requestId = this.sendState.requestId ?? null;
+    const backendDocId = requestId ? (this.sendState.documentIdByLocal[event.documentLocalId] ?? null) : null;
+
+    const applyLocalSwap = (invalidatedFields: boolean): void => {
+      if (invalidatedFields) {
+        this.editor?.removeDocumentFields(event.documentLocalId);
+      }
+      const next: WizardDocument = {
+        ...event.newDocument,
+        id: event.documentLocalId, // preserva el documentLocalId que ya tenía
+      };
+      this.selectedDocuments.update((docs) =>
+        docs.map((doc) => (doc.id === event.documentLocalId ? next : doc)),
+      );
+      if (this.selectedDocument()?.id === event.documentLocalId) {
+        this.selectedDocument.set(next);
+        this.editorDocument.set(next);
+      }
+      // El sendState usa el fileId como clave para el diff del autosave; actualizarlo acá evitaría
+      // que el próximo commit vuelva a reemplazar en el backend. Como el autosave ya reconcilia por
+      // documentId del backend, no hace falta mapear nada más.
+    };
+
+    // Request todavía local: no hay backend que avisar. El modal ya mostró el aviso de page count
+    // (si cambió), así que acá solo aplicamos el swap y, si hace falta, limpiamos los campos.
+    if (!requestId || !backendDocId) {
+      const willInvalidate =
+        current.pageCount != null &&
+        event.newDocument.pageCount != null &&
+        current.pageCount !== event.newDocument.pageCount;
+      applyLocalSwap(willInvalidate);
+      this.toast.success(`"${event.newDocument.name}" replaced the previous PDF.`);
+      return;
+    }
+
+    // Request persistida: el backend decide y nos devuelve el conteo.
+    try {
+      const result = await firstValueFrom(
+        this.store.replaceRequestDocumentFile(
+          requestId,
+          backendDocId,
+          event.newDocument.fileId!,
+          event.newDocument.pageCount ?? null,
+        ),
+      );
+      applyLocalSwap(result.fieldsInvalidated > 0);
+      if (result.fieldsInvalidated > 0) {
+        this.toast.success(
+          `"${event.newDocument.name}" replaced the previous PDF. ${result.fieldsInvalidated} field(s) were discarded; you'll need to place them again.`,
+        );
+      } else {
+        this.toast.success(`"${event.newDocument.name}" replaced the previous PDF.`);
+      }
+    } catch (err) {
+      this.toast.error(`Replace failed: ${toApiError(err).message}`);
     }
   }
 
