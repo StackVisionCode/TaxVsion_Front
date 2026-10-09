@@ -141,11 +141,17 @@ export class TenantBrandingService {
     }
 
     this.systemBrandRequestStarted = true;
-    const base = this.api.systemBase();
+    // En una superficie servida desde el subdominio de una oficina, pedimos la marca de plataforma
+    // por ese mismo origen. El gateway expone el endpoint system allí y así evitamos convertir una
+    // lectura pública en una dependencia CORS contra api.*. En app.* (login central) se conserva el
+    // host de sistema, que es justamente el origen de esa pantalla.
+    const useTenantOrigin = this.api.officeFromHost() !== null;
+    const base = useTenantOrigin ? this.api.tenantBase() : this.api.systemBase();
+    const url = useTenantOrigin
+      ? this.api.tenantUrl(`/tenants/branding/system?surface=${surface}`)
+      : this.api.systemUrl(`/tenants/branding/system?surface=${surface}`);
     this.http
-      .get<PublicBrandingResponse>(
-        this.api.systemUrl(`/tenants/branding/system?surface=${surface}`),
-      )
+      .get<PublicBrandingResponse>(url)
       .pipe(
         tap((branding) => this.setSystemLogo(branding, base)),
         catchError(() => {

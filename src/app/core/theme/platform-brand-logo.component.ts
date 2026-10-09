@@ -16,33 +16,20 @@ import { TenantBrandingService } from './tenant-branding.service';
       (error)="failed.set(true)"
     />
     <ng-template #fallback>
-      <span class="platform-logo-fallback" [class]="fallbackClass()">
-        <img src="/favicon.svg" alt="" aria-hidden="true" />
-        <strong>TaxProffice</strong>
-      </span>
+      <strong class="platform-logo-fallback" [class]="fallbackClass()">TAXPROFFICE</strong>
     </ng-template>
   `,
   styles: `
     .platform-logo-fallback {
-      display: inline-flex;
+      display: inline-block;
       min-width: 0;
-      align-items: center;
-      gap: 0.55rem;
       color: #082f49;
-    }
-
-    .platform-logo-fallback img {
-      width: 2rem;
-      height: 2rem;
-      flex: 0 0 auto;
-    }
-
-    .platform-logo-fallback strong {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 1.08rem;
+      font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
       line-height: 1;
       letter-spacing: 0;
     }
