@@ -1,42 +1,52 @@
-<section class="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6 lg:pt-[var(--shell-notch-height)]">
-  <!-- Header -->
-  <header class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900">Wallet</h1>
-      <p class="mt-1 text-sm text-gray-500">Prepaid balance for sending campaigns and messages.</p>
-    </div>
-    <button
-      *appHasPermission="'wallet.manage'"
-      type="button"
-      (click)="openTopUp()"
-      class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
-    >
-      <ion-icon name="add-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
-      Top up
-    </button>
-  </header>
+<section class="min-h-full pt-3 pb-1 flex flex-col gap-6">
+  <!-- Hero (mismo patrón que el del dashboard): encabezado + tiles de saldo dentro de UNA tarjeta
+       blanca. Los tiles tintados necesitan el blanco detrás: sobre el canvas crema no se distinguen. -->
+  <div class="rounded-[28px] bg-white p-6 sm:p-8 ring-1 ring-brand-line shadow-card">
+    <header class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
+      <div class="flex items-center gap-4">
+        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-bold text-white">
+          <ion-icon name="wallet-outline" class="text-2xl" aria-hidden="true"></ion-icon>
+        </span>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Wallet</h1>
+          <p class="mt-1 text-sm text-gray-500">Prepaid balance for sending campaigns and messages.</p>
+        </div>
+      </div>
+      <button
+        *appHasPermission="'wallet.manage'"
+        type="button"
+        (click)="openTopUp()"
+        class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+      >
+        <ion-icon name="add-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
+        Top up
+      </button>
+    </header>
 
-  <!-- Low balance banner -->
-  @if (store.lowBalance() && !store.loading() && !store.error()) {
-    <div class="flex items-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
-      <ion-icon name="alert-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
-      Low balance. Top up to keep your campaigns sending.
-    </div>
-  }
+    <!-- Aviso de saldo bajo: arena (advertencia de la paleta), no el `orange-*` heredado, que es azul -->
+    @if (store.lowBalance() && !store.loading() && !store.error()) {
+      <div class="mt-5 flex items-center gap-2 rounded-2xl border border-sand-500/40 bg-sand-100 px-4 py-3 text-sm text-sand-700">
+        <ion-icon name="alert-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
+        Low balance. Top up to keep your campaigns sending.
+      </div>
+    }
 
-  <!-- Balance cards -->
-  @if (store.error() && !store.loading()) {
-    <app-state-block [error]="store.error()" (retry)="store.loadWallet()" />
-  } @else {
-    <app-stat-cards [items]="stats()" [loading]="store.loading()" />
-  }
+    <!-- Balance tiles -->
+    <div class="mt-6">
+      @if (store.error() && !store.loading()) {
+        <app-state-block [error]="store.error()" (retry)="store.loadWallet()" />
+      } @else {
+        <app-stat-cards [items]="stats()" [loading]="store.loading()" />
+      }
+    </div>
+  </div>
 
   <!-- Rates + Transactions -->
   <div class="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
     <!-- Rates -->
-    <div class="rounded-[24px] border border-gray-100 p-5">
-      <h2 class="text-sm font-semibold text-gray-900">Rates per message</h2>
-      <p class="mt-1 text-xs text-gray-400">What each channel costs to send.</p>
+    <div class="rounded-[28px] bg-white p-6 ring-1 ring-brand-line shadow-card">
+      <h2 class="text-xl font-bold text-gray-900">Rates per message</h2>
+      <p class="mt-1 text-sm text-gray-500">What each channel costs to send.</p>
       <app-state-block
         [error]="store.ratesError()"
         [empty]="store.displayRates().length === 0"
@@ -47,7 +57,7 @@
       >
         <ul class="mt-4 flex flex-col gap-2">
           @for (r of store.displayRates(); track r.channel) {
-            <li class="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
+            <li class="flex items-center justify-between rounded-2xl bg-gray-50 px-4 py-2.5 text-sm">
               <span class="font-medium text-gray-700">{{ r.channel }}</span>
               <span class="font-semibold text-gray-900">{{ rateLabel(r) }}</span>
             </li>
@@ -57,10 +67,15 @@
     </div>
 
     <!-- Transactions -->
-    <div class="rounded-[24px] border border-gray-100 p-5">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-gray-900">Recent activity</h2>
-        <button type="button" (click)="store.loadTransactions()" class="text-xs font-medium text-brand-bold hover:underline">
+    <div class="rounded-[28px] bg-white p-6 ring-1 ring-brand-line shadow-card">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Recent activity</h2>
+          <p class="mt-1 text-sm text-gray-500">Top-ups, reservations and charges.</p>
+        </div>
+        <button type="button" (click)="store.loadTransactions()"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50">
+          <ion-icon name="refresh-outline" class="text-sm" aria-hidden="true"></ion-icon>
           Refresh
         </button>
       </div>
@@ -85,7 +100,7 @@
             </thead>
             <tbody>
               @for (e of store.transactions(); track e.id) {
-                <tr class="border-t border-gray-50">
+                <tr class="border-t border-gray-100">
                   <td class="py-2.5">
                     <app-status-pill [tone]="movementPresentation(e.movement).tone" size="xs">
                       {{ movementPresentation(e.movement).label }}

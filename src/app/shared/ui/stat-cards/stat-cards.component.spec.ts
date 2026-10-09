@@ -29,6 +29,13 @@ describe('StatCardsComponent', () => {
     expect(cards[3].textContent).toContain('across all');
   });
 
+  it('tono navy pinta el tile sólido con texto blanco', () => {
+    const { cards } = create([{ label: 'Available', value: '$10.00', tone: 'navy', hint: 'Ready' }]);
+    expect(cards[0].classList.contains('bg-brand-bold')).toBe(true);
+    expect(cards[0].querySelector('.text-3xl')!.classList.contains('text-white')).toBe(true);
+    expect(cards[0].querySelector('.text-xs')!.classList.contains('text-white/75')).toBe(true);
+  });
+
   it('loading muestra "—"', () => {
     const { cards } = create([{ label: 'Total', value: 5 }], true);
     expect(cards[0].querySelector('.text-3xl')!.textContent?.trim()).toBe('—');
