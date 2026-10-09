@@ -17,12 +17,15 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
+import { WalletStore } from '@features/wallet/data-access/wallet.store';
+import { formatMicros } from '@features/wallet/data-access/wallet.model';
 import { SmsStore, SMS_PAGE_SIZES } from '../../data-access/sms.store';
 import { SmsCapabilities } from '../../data-access/sms-permissions';
 import {
   SMS_BODY_MAX_LENGTH,
   SmsApiStatus,
   SmsContact,
+  SmsConversationSummary,
   SmsMessageDetail,
   SmsMessageSummary,
   SmsOptOutSummary,
@@ -92,6 +95,9 @@ export class SmsPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly toastService = inject(ToastService);
   private readonly directory = inject(CustomerDirectoryStore);
+  // Cobro visible (F6): el envío individual se cobra al monedero ($0.25/SMS). Comparte el WalletStore
+  // singleton con el pill del header y el apartado Wallet — un envío o recarga refresca los tres.
+  private readonly wallet = inject(WalletStore);
 
   private readonly embeddedCustomer = injectEmbeddedCustomer();
   readonly embedded = computed(() => this.embeddedCustomer() !== null);
@@ -124,10 +130,26 @@ export class SmsPageComponent implements OnInit {
   readonly composeBody = signal('');
   readonly composeError = signal<string | null>(null);
 
+  // Cobro visible (F6): costo del envío (destinatarios × tarifa SMS) vs saldo + red de seguridad ante
+  // el 402 `sms.insufficientFunds`. El costo es un TOPE: los opted-out los suprime y NO los cobra el
+  // backend, así que el cargo real puede ser menor ("up to").
+  readonly walletAvailableLabel = computed(() => formatMicros(this.wallet.availableMicros(), this.wallet.currency()));
+  readonly smsRateMicros = computed(() => this.wallet.displayRates().find(r => r.channel === 'Sms')?.unitPriceMicros ?? 0);
+  readonly estimatedCostMicros = computed(() => this.composeRecipients().length * this.smsRateMicros());
+  readonly estimatedDeficitMicros = computed(() => Math.max(0, this.estimatedCostMicros() - this.wallet.availableMicros()));
+  readonly estimatedSufficient = computed(() => this.estimatedDeficitMicros() === 0);
+  readonly sendDeficitMessage = signal<string | null>(null);
+  readonly fmtMicros = (micros: number): string => formatMicros(micros, this.wallet.currency());
+  readonly rateLabel = (micros: number): string => formatMicros(micros, this.wallet.currency(), 4);
+
   // Detail slide-over
   readonly detailOpen = signal(false);
   readonly detail = signal<SmsMessageDetail | null>(null);
   readonly detailLoading = signal(false);
+
+  // Thread drawer (conversación de un cliente) — solo en modo tenant-wide (no embebido).
+  readonly threadOpen = signal(false);
+  readonly threadConv = signal<SmsConversationSummary | null>(null);
 
 
   /** Destinatarios deliverables (excluye opted-out) para el contador del botón Send. */
@@ -148,6 +170,14 @@ export class SmsPageComponent implements OnInit {
       : 'Something went wrong loading messages.';
   });
 
+  /** Ídem para la vista de conversaciones (tenant-wide). */
+  readonly convErrorText = computed<string | null>(() => {
+    if (!this.store.convError()) return null;
+    return this.store.convErrorKind() === 'network'
+      ? 'Can’t reach the server right now.'
+      : 'Something went wrong loading conversations.';
+  });
+
   readonly segments = computed<Segments>(() => this.computeSegments(this.composeBody()));
 
   /**
@@ -161,17 +191,17 @@ export class SmsPageComponent implements OnInit {
   ngOnInit(): void {
     const customer = this.embeddedCustomer();
     if (customer) {
-      // Embebido: sin query params; el listado queda fijo al cliente del perfil.
+      // Embebido (perfil del cliente): el listado plano queda fijo a ese cliente — ya ES su hilo.
       this.store.initList({ customerId: customer.id });
       return;
     }
+    // Tenant-wide: la pestaña Messages muestra CONVERSACIONES (una fila por cliente); el hilo completo
+    // se abre en un drawer. Solo se persisten en la URL el término y la página.
     const q = this.route.snapshot.queryParamMap;
-    const status = (q.get('status') as SmsStatusFilter) ?? 'All';
     const term = q.get('term') ?? '';
     const page = Number(q.get('page')) || 1;
-    const size = Number(q.get('size')) || undefined;
     this.searchText.set(term);
-    this.store.initList({ status, term, page, size });
+    this.store.initConversations({ term, page });
   }
 
   // ---------- Tabs ----------
@@ -188,15 +218,18 @@ export class SmsPageComponent implements OnInit {
     this.syncUrl();
   }
 
-  /** Llega ya debounceado por `app-search-input`. */
+  /** Llega ya debounceado por `app-search-input`. Embebido filtra el historial del cliente; tenant-wide
+   *  filtra las conversaciones (por nombre/teléfono/texto). */
   onSearch(value: string): void {
     this.searchText.set(value);
-    this.store.setTerm(value);
+    if (this.embedded()) this.store.setTerm(value);
+    else this.store.setConvTerm(value);
     this.syncUrl();
   }
 
   onPage(page: number): void {
-    this.store.goToPage(page);
+    if (this.embedded()) this.store.goToPage(page);
+    else this.store.goToConvPage(page);
     this.syncUrl();
   }
 
@@ -210,14 +243,33 @@ export class SmsPageComponent implements OnInit {
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
-        status: this.store.status() === 'All' ? null : this.store.status(),
-        term: this.store.term() || null,
-        page: this.store.page() > 1 ? this.store.page() : null,
-        size: this.store.size(),
+        term: this.store.convTerm() || null,
+        page: this.store.convPage() > 1 ? this.store.convPage() : null,
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+  }
+
+  // ---------- Conversación (hilo) ----------
+
+  /** Abre el hilo de un cliente desde la lista de conversaciones. */
+  openThread(c: SmsConversationSummary): void {
+    this.threadConv.set(c);
+    this.threadOpen.set(true);
+    this.store.openThread(c.customerId);
+  }
+
+  closeThread(): void {
+    this.threadOpen.set(false);
+    this.store.closeThread();
+  }
+
+  /** "Send SMS" desde el hilo abierto: abre el compose ya apuntando a ese cliente. */
+  composeToThreadClient(): void {
+    const c = this.threadConv();
+    if (!c) return;
+    this.openComposeForCustomer(c.customerId);
   }
 
   // ---------- Opt-outs ----------
@@ -240,16 +292,34 @@ export class SmsPageComponent implements OnInit {
   // ---------- Compose ----------
 
   openCompose(): void {
+    this.resetCompose();
+    const customer = this.embeddedCustomer();
+    if (customer) this.preselectCustomer(customer.id);
+  }
+
+  /** Abre el compose ya apuntando a un cliente (desde el hilo de conversación). */
+  openComposeForCustomer(customerId: string): void {
+    this.resetCompose();
+    this.preselectCustomer(customerId);
+  }
+
+  private resetCompose(): void {
     this.composeError.set(null);
+    this.sendDeficitMessage.set(null);
     this.composeRecipients.set([]);
     this.composeBody.set('');
     this.composeOpen.set(true);
-    const customer = this.embeddedCustomer();
-    if (customer) this.preselectEmbedded(customer.id);
+    this.wallet.init(); // saldo + tarifas para el hint de costo (carga idempotente)
   }
 
-  /** Embebido: el único destinatario es el cliente del perfil (se resuelve su teléfono vía directorio). */
-  private preselectEmbedded(customerId: string): void {
+  /** CTA "Top up and retry" del banner de saldo insuficiente: lleva al apartado Wallet. */
+  goToWalletTopUp(): void {
+    this.closeCompose();
+    this.router.navigate(['/wallet']);
+  }
+
+  /** Preselecciona un cliente como único destinatario (se resuelve su teléfono vía el directorio). */
+  private preselectCustomer(customerId: string): void {
     const cached = this.embeddedContact();
     if (cached?.id === customerId) {
       this.composeRecipients.set(cached.phoneE164 ? [cached] : []);
@@ -295,6 +365,7 @@ export class SmsPageComponent implements OnInit {
     const recipients = this.composeRecipients();
     if (!body || recipients.length === 0 || this.store.sending()) return;
     this.composeError.set(null);
+    this.sendDeficitMessage.set(null);
     this.store
       .send(
         recipients.map(r => ({ customerId: r.id, to: r.phoneE164 as string, name: r.name })),
@@ -303,12 +374,25 @@ export class SmsPageComponent implements OnInit {
       .subscribe({
         next: summary => {
           this.closeCompose();
+          this.wallet.refresh(); // el cobro ya se liquidó → refresca el saldo visible de inmediato
+          this.store.reloadConversations(); // refresca la vista agrupada tras enviar
           const parts = [`${summary.sent} sent`];
           if (summary.failed > 0) parts.push(`${summary.failed} failed`);
           if (summary.suppressed > 0) parts.push(`${summary.suppressed} opted out`);
           this.toastService.success(parts.join(' · '));
         },
-        error: err => this.composeError.set(toApiError(err).message),
+        error: err => {
+          const e = toApiError(err);
+          // Cobro F6: saldo insuficiente (402) → banner con faltante + "Top up and retry" (modal abierto).
+          if (e.code === 'sms.insufficientFunds') {
+            this.sendDeficitMessage.set(
+              'Not enough wallet balance to send these messages. Top up and try again.',
+            );
+            this.wallet.refresh();
+          } else {
+            this.composeError.set(e.message);
+          }
+        },
       });
   }
 

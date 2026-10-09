@@ -109,6 +109,20 @@ export interface SmsMessageSummary {
   createdAtUtc: string;
 }
 
+/** Fila de la vista de CONVERSACIONES (`GET /sms/conversations`): un cliente agrupa todos sus SMS. Trae
+ *  el último mensaje como preview y el total del hilo. El hilo completo se pide con `?customerId=`. */
+export interface SmsConversationSummary {
+  customerId: string;
+  to: string;
+  recipientName: string | null;
+  lastMessageId: string;
+  lastBody: string;
+  lastStatus: SmsApiStatus;
+  lastFailureCode: string | null;
+  lastSentAtUtc: string;
+  messageCount: number;
+}
+
 /** Media (MMS) — solo metadatos. */
 export interface SmsMediaResponse {
   url: string;

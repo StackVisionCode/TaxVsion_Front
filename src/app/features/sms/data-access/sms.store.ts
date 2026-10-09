@@ -4,9 +4,11 @@ import { Observable, Subject, catchError, map, of, switchMap, tap } from 'rxjs';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
 import { SmsService } from './sms.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import {
   SendSmsBatchResponse,
   SetSmsConsentRequest,
+  SmsConversationSummary,
   SmsMessageSummary,
   SmsOptOutFilter,
   SmsOptOutSummary,
@@ -47,6 +49,8 @@ export interface SmsSendRecipient {
 export class SmsStore {
   private readonly service = inject(SmsService);
   private readonly directory = inject(CustomerDirectoryStore);
+  private readonly realtime = inject(CommunicationRealtimeService);
+  private realtimeTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ---------- Listado de mensajes ----------
   private readonly _customerId = signal<string | null>(null);
@@ -77,6 +81,36 @@ export class SmsStore {
   readonly listError = this._listError.asReadonly();
   readonly listErrorKind = this._listErrorKind.asReadonly();
 
+  // ---------- Conversaciones (agrupado por cliente) ----------
+  private readonly _convTerm = signal('');
+  private readonly _convPage = signal(1);
+  private readonly _convSize = signal<number>(DEFAULT_SIZE);
+  private readonly _convItems = signal<SmsConversationSummary[]>([]);
+  private readonly _convTotalCount = signal(0);
+  private readonly _convTotalPages = signal(1);
+  private readonly _convLoading = signal(false);
+  private readonly _convError = signal<string | null>(null);
+  private readonly _convErrorKind = signal<'network' | 'error'>('error');
+
+  readonly convTerm = this._convTerm.asReadonly();
+  readonly convPage = this._convPage.asReadonly();
+  readonly convSize = this._convSize.asReadonly();
+  readonly convItems = this._convItems.asReadonly();
+  readonly convTotalCount = this._convTotalCount.asReadonly();
+  readonly convTotalPages = this._convTotalPages.asReadonly();
+  readonly convLoading = this._convLoading.asReadonly();
+  readonly convError = this._convError.asReadonly();
+  readonly convErrorKind = this._convErrorKind.asReadonly();
+
+  // ---------- Hilo de un cliente (drawer de conversación) ----------
+  private readonly _threadCustomerId = signal<string | null>(null);
+  private readonly _threadItems = signal<SmsMessageSummary[]>([]);
+  private readonly _threadLoading = signal(false);
+  readonly threadCustomerId = this._threadCustomerId.asReadonly();
+  readonly threadItems = this._threadItems.asReadonly();
+  readonly threadLoading = this._threadLoading.asReadonly();
+  private threadRequestId = 0;
+
   // ---------- Opt-outs ----------
   private readonly _optStatus = signal<SmsOptOutFilter>('All');
   private readonly _optTerm = signal('');
@@ -101,8 +135,10 @@ export class SmsStore {
   readonly sending = this._sending.asReadonly();
 
   private readonly load$ = new Subject<void>();
+  private readonly loadConv$ = new Subject<void>();
   private readonly loadOpt$ = new Subject<void>();
   private started = false;
+  private convStarted = false;
   private optStarted = false;
 
   constructor() {
@@ -143,6 +179,41 @@ export class SmsStore {
         this._listLoading.set(false);
       });
 
+    this.loadConv$
+      .pipe(
+        tap(() => {
+          this._convLoading.set(true);
+          this._convError.set(null);
+        }),
+        switchMap(() =>
+          this.service
+            .listConversations({
+              term: this._convTerm().trim() || undefined,
+              page: this._convPage(),
+              size: this._convSize(),
+            })
+            .pipe(
+              catchError(err => {
+                const apiError = toApiError(err);
+                this._convErrorKind.set(apiError.code === NETWORK_ERROR_CODE ? 'network' : 'error');
+                this._convError.set(apiError.message);
+                this._convLoading.set(false);
+                return of(null);
+              }),
+            ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (!result) return;
+        this._convItems.set(result.items);
+        this.resolveNames(result.items);
+        this._convTotalCount.set(result.totalCount);
+        this._convTotalPages.set(result.totalPages);
+        this._convPage.set(result.page);
+        this._convLoading.set(false);
+      });
+
     this.loadOpt$
       .pipe(
         tap(() => {
@@ -175,6 +246,22 @@ export class SmsStore {
         this._optPage.set(result.page);
         this._optLoading.set(false);
       });
+
+    // Tiempo real (igual que campañas/wallet): Communication relaya `sms.message.updated` cuando cambia el
+    // estado de un mensaje (Accepted/Delivered/Failed/Suppressed vía webhook o reconciliación). Se recarga
+    // el listado con debounce para no refrescar a mano. `reloadList()` es no-op si la lista aún no arrancó.
+    this.realtime.on<unknown>('sms.message.updated').subscribe(() => this.scheduleRealtimeReload());
+  }
+
+  /** Coalesce de ráfagas (varios DLR llegan juntos) en una sola recarga ~800ms del historial, las
+   *  conversaciones y el hilo abierto (lo que esté activo). */
+  private scheduleRealtimeReload(): void {
+    if (this.realtimeTimer) clearTimeout(this.realtimeTimer);
+    this.realtimeTimer = setTimeout(() => {
+      this.reloadList();
+      this.reloadConversations();
+      this.loadThread();
+    }, 800);
   }
 
   // ---------- Mensajes ----------
@@ -215,7 +302,7 @@ export class SmsStore {
   }
 
   /** Resuelve los nombres de los customerIds del listado vía el directorio (cacheado); merge en el mapa. */
-  private resolveNames(items: SmsMessageSummary[]): void {
+  private resolveNames(items: readonly { customerId: string }[]): void {
     const ids = [...new Set(items.map(item => item.customerId).filter(Boolean))];
     if (ids.length === 0) {
       return;
@@ -239,6 +326,64 @@ export class SmsStore {
 
   getMessage(id: string) {
     return this.service.getMessage(id);
+  }
+
+  // ---------- Conversaciones ----------
+
+  /** Inicializa la vista de conversaciones (idempotente) y dispara la primera carga. */
+  initConversations(query: { term?: string; page?: number; size?: number } = {}): void {
+    if (query.term !== undefined) this._convTerm.set(query.term);
+    if (query.size !== undefined) this._convSize.set(query.size);
+    if (query.page !== undefined) this._convPage.set(query.page);
+    this.convStarted = true;
+    this.loadConv$.next();
+  }
+
+  setConvTerm(term: string): void {
+    this._convTerm.set(term);
+    this._convPage.set(1);
+    this.loadConv$.next();
+  }
+
+  goToConvPage(page: number): void {
+    this._convPage.set(page);
+    this.loadConv$.next();
+  }
+
+  reloadConversations(): void {
+    if (this.convStarted) this.loadConv$.next();
+  }
+
+  // ---------- Hilo de un cliente ----------
+
+  /** Abre el hilo de un cliente: carga sus mensajes (más recientes primero, hasta 100) y los mantiene
+   *  vivos — un evento realtime o un envío lo re-sincroniza mientras el drawer esté abierto. */
+  openThread(customerId: string): void {
+    this._threadCustomerId.set(customerId);
+    this._threadItems.set([]);
+    this.loadThread();
+  }
+
+  closeThread(): void {
+    this._threadCustomerId.set(null);
+    this._threadItems.set([]);
+  }
+
+  private loadThread(): void {
+    const customerId = this._threadCustomerId();
+    if (!customerId) return;
+    const requestId = ++this.threadRequestId;
+    this._threadLoading.set(true);
+    this.service.listMessages({ customerId, size: 100 }).subscribe({
+      next: p => {
+        if (requestId !== this.threadRequestId || this._threadCustomerId() !== customerId) return;
+        this._threadItems.set(p.items);
+        this._threadLoading.set(false);
+      },
+      error: () => {
+        if (requestId === this.threadRequestId) this._threadLoading.set(false);
+      },
+    });
   }
 
   // ---------- Opt-outs ----------
