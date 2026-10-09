@@ -65,6 +65,14 @@ export class TenantBrandingService {
   /** URL absoluta del logo del tenant, o null si no tiene (los consumidores caen a su placeholder). */
   readonly logoUrl = this._logoUrl.asReadonly();
 
+  private readonly _systemLogoUrl = signal<string | null>(null);
+  /**
+   * Logo de la plataforma, separado de la marca de la oficina activa. Las superficies publicas
+   * co-branded necesitan mostrar ambas identidades sin reemplazar el tema ni el logo del tenant.
+   */
+  readonly systemLogoUrl = this._systemLogoUrl.asReadonly();
+  private systemBrandRequestStarted = false;
+
   private readonly _faviconUrl = signal<string | null>(null);
   /**
    * URL absoluta del favicon del tenant. Además de aplicarse al `<head>`, se
@@ -113,8 +121,36 @@ export class TenantBrandingService {
     this.http
       .get<PublicBrandingResponse>(url)
       .pipe(
-        tap((branding) => this.apply(branding, this.api.systemBase())),
+        tap((branding) => {
+          this.setSystemLogo(branding, this.api.systemBase());
+          this.apply(branding, this.api.systemBase());
+        }),
         catchError(() => of(null)),
+      )
+      .subscribe();
+  }
+
+  /**
+   * Carga solo el logo de plataforma para una superficie co-branded. No aplica colores ni favicon:
+   * la oficina conserva su identidad visual y TaxProffice se mantiene como marca anfitriona.
+   */
+  loadSystemBrandLogo(surface: 'Crm' | 'Portal' = 'Crm'): void {
+    if (this.systemBrandRequestStarted) {
+      return;
+    }
+
+    this.systemBrandRequestStarted = true;
+    const base = this.api.systemBase();
+    this.http
+      .get<PublicBrandingResponse>(
+        this.api.systemUrl(`/tenants/branding/system?surface=${surface}`),
+      )
+      .pipe(
+        tap((branding) => this.setSystemLogo(branding, base)),
+        catchError(() => {
+          this.systemBrandRequestStarted = false;
+          return of(null);
+        }),
       )
       .subscribe();
   }
@@ -135,7 +171,10 @@ export class TenantBrandingService {
         // listos, un fallo transitorio dejaba el logo/iniciales colgados hasta recargar. Un par de
         // reintentos con espera cubre esa ventana sin castigar el caso feliz (fallback total abajo).
         // Un rate limit no se reintenta: solo gastaría más cupo.
-        retry({ count: 2, delay: err => (isThrottled(err) ? throwError(() => err) : timer(1200)) }),
+        retry({
+          count: 2,
+          delay: (err) => (isThrottled(err) ? throwError(() => err) : timer(1200)),
+        }),
         tap((brand) => this.applyBrand(brand)),
         catchError(() => of(null)),
       )
@@ -181,6 +220,10 @@ export class TenantBrandingService {
       this._faviconUrl.set(faviconUrl);
       this.setFavicon(faviconUrl);
     }
+  }
+
+  private setSystemLogo(branding: PublicBrandingResponse, base: string): void {
+    this._systemLogoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);
   }
 
   /**

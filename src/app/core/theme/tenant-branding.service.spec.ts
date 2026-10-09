@@ -46,4 +46,30 @@ describe('TenantBrandingService', () => {
 
     httpMock.expectNone(() => true);
   });
+
+  it('carga el logo de plataforma sin reemplazar la marca ni el tema de la oficina', () => {
+    const applySpy = vi.spyOn(theme, 'applyBranding');
+
+    service.loadSystemBrandLogo('Crm');
+
+    const request = httpMock.expectOne((candidate) =>
+      candidate.url.includes('/tenants/branding/system?surface=Crm'),
+    );
+    request.flush({
+      primary: '#123456',
+      accent: '#abcdef',
+      logoUrl: '/tenants/branding/assets/platform-logo',
+      faviconUrl: '/tenants/branding/assets/platform-favicon',
+    });
+
+    expect(service.systemLogoUrl()).toContain('/tenants/branding/assets/platform-logo?v=1');
+    expect(service.logoUrl()).toBeNull();
+    expect(service.faviconUrl()).toBeNull();
+    expect(applySpy).not.toHaveBeenCalled();
+
+    service.loadSystemBrandLogo('Crm');
+    httpMock.expectNone((candidate) =>
+      candidate.url.includes('/tenants/branding/system?surface=Crm'),
+    );
+  });
 });

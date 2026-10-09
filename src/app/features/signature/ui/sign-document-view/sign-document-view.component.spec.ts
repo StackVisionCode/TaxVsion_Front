@@ -1,8 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { FieldValueChange, SignDocumentViewComponent, groupFieldsByPage } from './sign-document-view.component';
+import {
+  FieldValueChange,
+  SignDocumentViewComponent,
+  groupFieldsByPage,
+} from './sign-document-view.component';
 import { PublicSignerFieldView } from '../../data-access/public-signature.model';
 
-function field(partial: Partial<PublicSignerFieldView> & Pick<PublicSignerFieldView, 'id'>): PublicSignerFieldView {
+function field(
+  partial: Partial<PublicSignerFieldView> & Pick<PublicSignerFieldView, 'id'>,
+): PublicSignerFieldView {
   return {
     documentId: 'doc-1',
     kind: 'Text',
@@ -24,13 +30,17 @@ describe('groupFieldsByPage', () => {
       field({ id: 'b', page: 1, y: 0.8 }),
       field({ id: 'a', page: 1, y: 0.2 }),
     ]);
-    expect(pages.map(p => p.page)).toEqual([1, 2]);
-    expect(pages[0].fields.map(f => f.id)).toEqual(['a', 'b']);
+    expect(pages.map((p) => p.page)).toEqual([1, 2]);
+    expect(pages[0].fields.map((f) => f.id)).toEqual(['a', 'b']);
   });
 });
 
 describe('SignDocumentViewComponent', () => {
-  function setup(fields: PublicSignerFieldView[], editable: boolean, values: Record<string, string> = {}) {
+  function setup(
+    fields: PublicSignerFieldView[],
+    editable: boolean,
+    values: Record<string, string> = {},
+  ) {
     const fixture = TestBed.createComponent(SignDocumentViewComponent);
     fixture.componentRef.setInput('fields', fields);
     fixture.componentRef.setInput('editable', editable);
@@ -50,9 +60,11 @@ describe('SignDocumentViewComponent', () => {
   it('los campos de texto son inputs editables al firmar y emiten el valor', () => {
     const fixture = setup([field({ id: 't1', label: 'Account number' })], true);
     const emitted: FieldValueChange[] = [];
-    fixture.componentInstance.valueChange.subscribe(change => emitted.push(change));
+    fixture.componentInstance.valueChange.subscribe((change) => emitted.push(change));
 
-    const input = fixture.nativeElement.querySelector('input[data-field-id="t1"]') as HTMLInputElement;
+    const input = fixture.nativeElement.querySelector(
+      'input[data-field-id="t1"]',
+    ) as HTMLInputElement;
     expect(input.placeholder).toBe('Account number');
     input.value = '12345';
     input.dispatchEvent(new Event('input'));
@@ -87,5 +99,34 @@ describe('SignDocumentViewComponent', () => {
 
     expect(fixture.nativeElement.querySelector('[data-field-id="d1"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-field-id="d2"]')).not.toBeNull();
+  });
+
+  it('renderiza todas las paginas del PDF aunque una pagina no tenga campos', () => {
+    const fixture = TestBed.createComponent(SignDocumentViewComponent);
+    fixture.componentRef.setInput('fields', [field({ id: 'page-two', page: 2 })]);
+    fixture.componentRef.setInput('pageImages', {
+      1: 'data:image/png;base64,page-one',
+      2: 'data:image/png;base64,page-two',
+    });
+    fixture.detectChanges();
+
+    const pages = fixture.nativeElement.querySelectorAll('.page-wrap');
+    const images = fixture.nativeElement.querySelectorAll('.page-image');
+    expect(pages).toHaveLength(2);
+    expect(pages[0].getAttribute('data-page')).toBe('1');
+    expect(images).toHaveLength(2);
+  });
+
+  it('uses the rendered page ratio and selected zoom', () => {
+    const fixture = TestBed.createComponent(SignDocumentViewComponent);
+    fixture.componentRef.setInput('fields', [field({ id: 't1' })]);
+    fixture.componentRef.setInput('pageImages', { 1: 'data:image/png;base64,page-one' });
+    fixture.componentRef.setInput('pageAspectRatios', { 1: 0.75 });
+    fixture.componentRef.setInput('zoomPercent', 125);
+    fixture.detectChanges();
+
+    const sheet = fixture.nativeElement.querySelector('.sheet') as HTMLElement;
+    expect(sheet.style.width).toBe('125%');
+    expect(sheet.style.getPropertyValue('--page-aspect-ratio')).toBe('0.75');
   });
 });
