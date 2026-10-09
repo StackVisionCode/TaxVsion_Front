@@ -13,8 +13,8 @@ import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-p
 /** Filas que muestra el widget. */
 const MAX_ROWS = 5;
 
-/** Pasteles que rotan en el círculo del icono (paleta azul de marca). */
-const ICON_BACKGROUNDS = ['bg-indigo-50', 'bg-indigo-100', 'bg-gray-200'];
+/** Pasteles que rotan en el círculo del icono (sky, arena, salvia: paleta armónica del dashboard). */
+const ICON_BACKGROUNDS = ['bg-orange-100', 'bg-sand-100', 'bg-sage-100'];
 
 /**
  * Widget "Signed Documents".

@@ -1,13 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TenantBrandingService } from './tenant-branding.service';
-import { ThemeService } from './theme.service';
 
 describe('TenantBrandingService', () => {
   let service: TenantBrandingService;
-  let theme: ThemeService;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
@@ -16,7 +14,6 @@ describe('TenantBrandingService', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(TenantBrandingService);
-    theme = TestBed.inject(ThemeService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 
@@ -26,18 +23,15 @@ describe('TenantBrandingService', () => {
   });
 
   /**
-   * Regresión del bleed entre sesiones: al cerrar sesión hay que soltar el logo/favicon y los colores
-   * del tenant saliente (cacheados en señales y en localStorage), o el siguiente usuario de esta
-   * pestaña los hereda hasta recargar a mano.
+   * Regresión del bleed entre sesiones: al cerrar sesión hay que soltar el logo/favicon del tenant
+   * saliente (cacheados en señales), o el siguiente usuario de esta pestaña los hereda hasta
+   * recargar a mano.
    */
-  it('reset() limpia logo/favicon y vuelve el tema a los defaults', () => {
-    const resetSpy = vi.spyOn(theme, 'resetToDefaults');
-
+  it('reset() limpia logo/favicon', () => {
     service.reset();
 
     expect(service.logoUrl()).toBeNull();
     expect(service.faviconUrl()).toBeNull();
-    expect(resetSpy).toHaveBeenCalled();
   });
 
   /** Sin tenantId no hay a quién pedirle la marca: no debe salir ninguna petición. */

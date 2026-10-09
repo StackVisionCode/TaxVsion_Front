@@ -116,13 +116,13 @@
   <div class="bg-white rounded-[28px] p-6">
     <h3 class="text-xl font-bold text-gray-900">Brand identity</h3>
     <p class="mt-1 text-sm text-gray-500">
-      Configure the logo, favicon and colors for each surface. The
+      Configure the logo and favicon for each surface. The
       <span class="font-medium text-gray-700">Staff CRM</span> is what your team sees; the
       <span class="font-medium text-gray-700">Client portal</span> is what your clients see.
     </p>
     <div class="mt-4 inline-flex rounded-full border border-gray-200 bg-gray-50 p-1">
       <button *ngFor="let s of surfaces" type="button" (click)="selectSurface(s.value)"
-        [disabled]="store.colorsLoading()"
+        [disabled]="store.brandLoading()"
         [class.bg-brand-bold]="store.surface() === s.value"
         [class.text-white]="store.surface() === s.value"
         [class.text-gray-600]="store.surface() !== s.value"
@@ -130,13 +130,18 @@
         {{ s.label }}
       </button>
     </div>
+
+    <p *ngIf="store.brandError()" class="mt-4 flex items-center gap-1.5 text-sm text-red-500">
+      <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
+      {{ store.brandError() }}
+    </p>
   </div>
 
   <!-- Company logo -->
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex items-center gap-2">
       <h3 class="text-xl font-bold text-gray-900">Company logo</h3>
-      <ion-icon *ngIf="store.colorsLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
+      <ion-icon *ngIf="store.brandLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
     </div>
     <p class="mt-1 text-sm text-gray-500">Shown on invoices and the client portal · PNG, JPEG or SVG · max {{ assetMaxSizeKb }} KB</p>
 
@@ -184,7 +189,7 @@
   <div class="bg-white rounded-[28px] p-6">
     <div class="flex items-center gap-2">
       <h3 class="text-xl font-bold text-gray-900">Favicon</h3>
-      <ion-icon *ngIf="store.colorsLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
+      <ion-icon *ngIf="store.brandLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
     </div>
     <p class="mt-1 text-sm text-gray-500">Browser tab icon · PNG or SVG (square, small) · max {{ assetMaxSizeKb }} KB</p>
 
@@ -224,57 +229,6 @@
           {{ assetFileError() || store.assetError() }}
         </p>
       </div>
-    </div>
-  </div>
-
-  <!-- Brand colors -->
-  <div class="bg-white rounded-[28px] p-6">
-    <div class="flex flex-wrap items-center gap-2">
-      <h3 class="text-xl font-bold text-gray-900">Brand colors</h3>
-      <ion-icon *ngIf="store.colorsLoading()" name="sync-outline" class="animate-spin text-base text-gray-400"></ion-icon>
-      <span *ngIf="store.colors() as colors"
-        class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-        [ngClass]="colors.isCustomized ? 'border-indigo-200 text-indigo-600' : 'border-gray-200 text-gray-500'">
-        {{ colors.isCustomized ? 'Custom palette' : 'Default palette' }}
-      </span>
-    </div>
-    <p class="mt-1 text-sm text-gray-500">
-      Primary and accent color of the {{ store.surface() === 'Crm' ? 'Staff CRM' : 'Client portal' }}
-      <span *ngIf="store.surface() === 'Crm'">· applied instantly across the app</span>
-    </p>
-
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
-        <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Primary</span>
-        <span class="font-mono text-xs uppercase text-gray-500">{{ primaryColor() }}</span>
-        <input type="color" [ngModel]="primaryColor()" (ngModelChange)="onPrimaryChange($event)"
-          [disabled]="store.colorsLoading()" aria-label="Primary color"
-          class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center gap-3 px-4 focus-within:border-gray-300 transition-colors">
-        <span class="text-sm text-gray-400 whitespace-nowrap flex-1">Accent</span>
-        <span class="font-mono text-xs uppercase text-gray-500">{{ accentColor() }}</span>
-        <input type="color" [ngModel]="accentColor()" (ngModelChange)="onAccentChange($event)"
-          [disabled]="store.colorsLoading()" aria-label="Accent color"
-          class="h-7 w-10 shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-transparent" />
-      </div>
-    </div>
-
-    <p *ngIf="store.colorsError()" class="mt-4 flex items-center gap-1.5 text-sm text-red-500">
-      <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
-      {{ store.colorsError() }}
-    </p>
-
-    <div class="mt-5 flex flex-wrap items-center justify-end gap-3">
-      <button *ngIf="can.canManageBranding()" type="button" (click)="resetColors()" [disabled]="!canSaveColors"
-        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
-        Reset to default
-      </button>
-      <button *ngIf="can.canManageBranding()" type="button" (click)="saveColors()" [disabled]="!canSaveColors"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
-        {{ store.colorsSaving() ? 'Saving…' : 'Save colors' }}
-      </button>
     </div>
   </div>
 </div>

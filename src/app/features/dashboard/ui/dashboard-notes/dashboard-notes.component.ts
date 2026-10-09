@@ -12,8 +12,16 @@ import { formatRelativeTime } from '@shared/utils/format.util';
 /** Cuántas notas se traen y se listan en el widget. */
 const PAGE_SIZE = 8;
 
-/** Colores de punto que rotan por índice (paleta azul de marca + acentos). */
-const DOT_COLORS = ['rgb(var(--color-indigo-600-rgb, 30 70 107))', '#FB923C', '#10B981', 'rgb(var(--color-orange-500-rgb, 103 186 244))'];
+/**
+ * Colores de punto que rotan por índice: navy, arena, salvia y sky. Arena/salvia son
+ * sand-500/sage-500 de tailwind.config.js (se pasan a [style] como valor CSS, no como clase).
+ */
+const DOT_COLORS = [
+  'rgb(var(--color-indigo-600-rgb, 30 70 107))',
+  '#c9a46a',
+  '#6f9a82',
+  'rgb(var(--color-orange-500-rgb, 103 186 244))',
+];
 
 /**
  * Widget "Notes".

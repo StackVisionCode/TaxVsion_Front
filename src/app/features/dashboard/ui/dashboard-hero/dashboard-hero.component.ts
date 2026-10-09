@@ -14,6 +14,8 @@ interface HeroStat {
   /** Explicación de por qué no hay cifra. null cuando el dato es real. */
   note: string | null;
   bg: string;
+  /** Tile focal sólido (navy): invierte el texto a blanco y la flecha a arena. */
+  dark: boolean;
   /** Página real a la que lleva la flecha. */
   link: string;
   linkLabel: string;
@@ -70,7 +72,8 @@ export class DashboardHeroComponent implements OnInit {
       subtitle: 'Past their due date',
       value: this.overdueValue(),
       note: this.noteFor(this.tasks.loading(), this.tasks.error()),
-      bg: 'bg-indigo-50',
+      bg: 'bg-orange-100',
+      dark: false,
       link: '/task',
       linkLabel: 'Go to tasks',
       needs: TASKS,
@@ -80,7 +83,8 @@ export class DashboardHeroComponent implements OnInit {
       subtitle: 'Issued and still unpaid',
       value: this.outstandingValue(),
       note: this.noteFor(this.invoices.loading(), this.invoices.error()),
-      bg: 'bg-indigo-100',
+      bg: 'bg-sand-100',
+      dark: false,
       link: '/billing',
       linkLabel: 'Go to billing',
       needs: INVOICING,
@@ -90,7 +94,8 @@ export class DashboardHeroComponent implements OnInit {
       subtitle: 'Collected so far',
       value: this.revenueValue(),
       note: this.noteFor(this.invoices.loading(), this.invoices.error()),
-      bg: 'bg-gray-200',
+      bg: 'bg-brand-bold',
+      dark: true,
       link: '/billing',
       linkLabel: 'Go to billing',
       needs: INVOICING,

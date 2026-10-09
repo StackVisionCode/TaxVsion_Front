@@ -33,8 +33,9 @@ function grayVar(shade: number): [number, number, number] {
 const WHITE: [number, number, number] = [255, 255, 255];
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
 
-// Azul de marca, rojo, verde, ámbar, violeta, y un gris de baja saturación (caso borde).
-const PRIMARIES = ['#1e466b', '#e11d48', '#059669', '#d97706', '#7c3aed', '#334155'];
+// Piedra cálido (el tinte real de la app), azul de marca, rojo, verde, ámbar, violeta, y un gris de
+// baja saturación (caso borde).
+const PRIMARIES = ['#a8916b', '#1e466b', '#e11d48', '#059669', '#d97706', '#7c3aed', '#334155'];
 
 describe('ThemeService.applyNeutrals — contraste preservado', () => {
   let service: ThemeService;

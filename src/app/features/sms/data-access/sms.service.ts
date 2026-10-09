@@ -7,6 +7,7 @@ import {
   SendSmsBatchResponse,
   SendSmsMessagesRequest,
   SetSmsConsentRequest,
+  SmsConversationSummary,
   SmsMessageDetail,
   SmsMessageSummary,
   SmsOptOutFilter,
@@ -22,6 +23,13 @@ export interface SmsMessageQuery {
   term?: string | null;
   from?: string | null;
   to?: string | null;
+  page?: number;
+  size?: number;
+}
+
+/** Filtros de la vista de conversaciones (agrupada por cliente). */
+export interface SmsConversationQuery {
+  term?: string | null;
   page?: number;
   size?: number;
 }
@@ -59,6 +67,15 @@ export class SmsService {
   }
 
 
+
+  /** GET /sms/conversations — una fila por cliente (último mensaje + total del hilo), paginado (`sms.read`). */
+  listConversations(query: SmsConversationQuery): Observable<PagedResult<SmsConversationSummary>> {
+    let params = new HttpParams();
+    if (query.term) params = params.set('term', query.term);
+    if (query.page) params = params.set('page', query.page);
+    if (query.size) params = params.set('size', query.size);
+    return this.http.get<PagedResult<SmsConversationSummary>>(this.api.tenantUrl('/sms/conversations'), { params });
+  }
 
   /** GET /sms/messages — historial paginado + filtros (requiere `sms.read`). */
   listMessages(query: SmsMessageQuery): Observable<PagedResult<SmsMessageSummary>> {

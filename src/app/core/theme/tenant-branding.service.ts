@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { catchError, of, retry, tap, throwError, timer } from 'rxjs';
 import { isThrottled } from '@core/errors/throttling';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { ThemeService } from './theme.service';
 
 /**
  * Cache-buster de una sola vez para las URLs de assets. Una versión anterior del endpoint marcaba el
@@ -47,9 +46,12 @@ interface BrandResponse {
 }
 
 /**
- * Aplica la identidad visual del tenant (TenantBrands) al arrancar: tema (primary/accent),
- * favicon y logo. Usa el endpoint ANÓNIMO `/tenants/branding/public/{slug}` — funciona pre-login y
- * post-login, y solo expone assets ya escaneados.
+ * Aplica la identidad visual del tenant (TenantBrands) al arrancar: favicon y logo. Usa el endpoint
+ * ANÓNIMO `/tenants/branding/public/{slug}` — funciona pre-login y post-login, y solo expone assets
+ * ya escaneados.
+ *
+ * Los colores (primary/accent) del tenant YA NO se aplican al tema: la app usa el azul fijo del
+ * brandbook (ver ThemeService) para todos los tenants, así que esta clase ignora esos campos.
  *
  * REGLA DE ORO: todo aditivo con fallback total. Si la API no responde o el slug no está resuelto,
  * NO se toca nada y queda el look compilado por defecto (idéntico a hoy). Nunca deja la app sin
@@ -59,7 +61,6 @@ interface BrandResponse {
 export class TenantBrandingService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
-  private readonly theme = inject(ThemeService);
 
   private readonly _logoUrl = signal<string | null>(null);
   /** URL absoluta del logo del tenant, o null si no tiene (los consumidores caen a su placeholder). */
@@ -182,22 +183,16 @@ export class TenantBrandingService {
   }
 
   /**
-   * Limpia la marca del tenant al cerrar sesión. Sin esto, el logo/favicon y los colores cacheados
-   * del usuario saliente sobreviven en este navegador (los stores providedIn:'root' no se reinician
-   * entre logins de la misma pestaña) y sangran en la sesión siguiente hasta recargar a mano. Vuelve
-   * al look del sistema por defecto; la próxima sesión re-aplica su propia marca.
+   * Limpia la marca del tenant al cerrar sesión. Sin esto, el logo/favicon cacheados del usuario
+   * saliente sobreviven en este navegador (los stores providedIn:'root' no se reinician entre logins
+   * de la misma pestaña) y sangran en la sesión siguiente hasta recargar a mano.
    */
   reset(): void {
     this._logoUrl.set(null);
     this._faviconUrl.set(null);
-    this.theme.resetToDefaults();
   }
 
   private applyBrand(brand: BrandResponse): void {
-    const primary = brand.colors.find((c) => c.token === 'Primary')?.value;
-    const accent = brand.colors.find((c) => c.token === 'Accent')?.value;
-    this.theme.applyBranding({ primary, accent });
-
     const base = this.api.tenantBase();
     const logo = brand.assets.find((a) => a.key === 'Logo' && a.status === 'Confirmed');
     const favicon = brand.assets.find((a) => a.key === 'Favicon' && a.status === 'Confirmed');
@@ -210,8 +205,6 @@ export class TenantBrandingService {
   }
 
   private apply(branding: PublicBrandingResponse, base: string): void {
-    this.theme.applyBranding({ primary: branding.primary, accent: branding.accent });
-
     // Las URLs de assets vienen RELATIVAS; se absolutizan contra la base del mismo origen que sirvió
     // el branding: tenantBase() para la marca de oficina, systemBase() para la del sistema (app.*).
     this._logoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);

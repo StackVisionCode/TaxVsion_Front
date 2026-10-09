@@ -23,12 +23,13 @@
   background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
 }
 
+/* Hex de tokens de tailwind.config.js (el CSS de componente no lee tokens): sand-500. */
 .revenue-bar--medium {
-  background-color: #9d8de8;
+  background-color: #c9a46a;
 }
 
 /* Mes sin cobros: se pinta un tope apagado en lugar de una barra con altura,
-   para que un mes en cero no parezca un mes con ingresos pequeños. */
+   para que un mes en cero no parezca un mes con ingresos pequeños. brand.canvas-deep. */
 .revenue-bar--empty {
-  background-color: rgb(var(--color-indigo-50-rgb, 245 247 250));
+  background-color: #ede5d6;
 }

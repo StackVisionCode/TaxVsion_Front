@@ -2,13 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
-import {
-  BrandResponse,
-  BrandSurface,
-  CompanyProfile,
-  UpdateBrandColorsRequest,
-  UploadAssetResponse,
-} from './company-settings.model';
+import { BrandResponse, BrandSurface, CompanyProfile, UploadAssetResponse } from './company-settings.model';
 
 /**
  * Cliente HTTP fino del módulo Company Settings. Dos backends distintos detrás del Gateway:
@@ -55,19 +49,9 @@ export class CompanySettingsService {
     return `${this.base}/tenants/${tenantId}/brands/${surface}`;
   }
 
-  /** Marca efectiva de la superficie: colores + assets (logo/favicon) resueltos. Siempre 200. */
+  /** Marca efectiva de la superficie: assets (logo/favicon) resueltos. Siempre 200. */
   getBrand(tenantId: string, surface: BrandSurface): Observable<BrandResponse> {
     return this.http.get<BrandResponse>(this.brandBase(tenantId, surface));
-  }
-
-  /** PUT → 204. `{ primary, accent }` en #RRGGBB; un token en null = volver al default. */
-  saveColors(tenantId: string, surface: BrandSurface, req: UpdateBrandColorsRequest): Observable<void> {
-    return this.http.put<void>(`${this.brandBase(tenantId, surface)}/colors`, req);
-  }
-
-  /** DELETE → 204. Vuelve los colores de la superficie al default del sistema. */
-  resetColors(tenantId: string, surface: BrandSurface): Observable<void> {
-    return this.http.delete<void>(`${this.brandBase(tenantId, surface)}/colors`);
   }
 
   /**
