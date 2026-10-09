@@ -5,7 +5,9 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
     title: 'x',
     description: null,
     category: 'Fiscal',
-    originalFileId: 'f',
+    documents: [
+      { localId: 'doc-local', backendId: 'doc-server', originalFileId: 'f', title: 'Document', note: null },
+    ],
     tokenExpirationHours: 72,
     requiresSequentialSigning: true,
     requiresConsent: true,
@@ -15,6 +17,10 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
     autoRemindersEnabled: true,
     reminderIntervalHours: 48,
     signingPin: null,
+    sendPartialCopyOnEachSignature: false,
+    partialCopyAudienceKind: 'All',
+    partialCopyAudienceSignerIds: [],
+    expirationEnabled: true,
     signers: signerLocalIds.map(localId => ({
       localId,
       fullName: 'n',
@@ -24,6 +30,7 @@ function draft(signerLocalIds: string[], fieldLocalIds: { localId: string; signe
     })),
     fields: fieldLocalIds.map(f => ({
       localId: f.localId,
+      documentLocalId: 'doc-local',
       signerLocalId: f.signerLocalId,
       kind: 'Signature',
       page: 1,
@@ -51,12 +58,14 @@ describe('computeDraftEditPlan', () => {
   };
   const state: WizardSendState = {
     requestId: 'req',
+    documentIdByLocal: { 'doc-local': 'doc-server' },
     signerIdByLocal: { 'client:c': 'S1', 'seed-s2': 'S2' },
     postedFieldLocalIds: ['client:c', 'seed-x'],
     pinSet: false,
     postedPreparerFieldLocalIds: [],
     preparerSignatureSet: false,
     preparerInfoSet: false,
+    audienceApplied: false,
     sent: false,
   };
 

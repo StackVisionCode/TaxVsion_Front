@@ -14,6 +14,8 @@ export const PREPARER_PARTY_ID = 'preparer';
  *  normaliza a [0..1] en el momento del envío, no antes. */
 export interface PlacedField {
   id: string;
+  /** Id local del documento al que pertenece el campo. */
+  documentLocalId: string;
   type: FieldType;
   /** Página 1-based. */
   page: number;
@@ -82,6 +84,7 @@ export interface EditorSigner {
 /** Campo sembrado al rehidratar un borrador: coordenadas NORMALIZADas [0..1] (el editor las pasa a px al render). */
 export interface EditorSeedField {
   localId: string;
+  documentLocalId: string;
   type: FieldType;
   /** Página 1-based. */
   page: number;

@@ -87,14 +87,21 @@
 
     <!-- Step 2: document -->
     <div *ngIf="currentStep() === 2" class="step-content">
-      <app-signature-wizard-document-step [selectedId]="selectedDocument()?.id ?? null"
+      <app-signature-wizard-document-step [documents]="selectedDocuments()"
+        [activeDocumentId]="selectedDocument()?.id ?? null"
         [clientId]="selectedClient()?.id ?? null"
         (documentSelected)="onDocumentSelected($event)"
-        (documentCleared)="onDocumentCleared()"></app-signature-wizard-document-step>
+        (documentRemoved)="removeDocument($event)"
+        (documentsReordered)="reorderDocuments($event)"
+        (activeDocumentChanged)="activateDocument($event)"></app-signature-wizard-document-step>
     </div>
 
     <!-- Step 3: PDF editor (montado siempre para preservar los campos; oculto en los demás pasos) -->
     <div [hidden]="currentStep() !== 3" class="step-content">
+      <div *ngIf="documentTabs().length > 1" class="mb-3 overflow-x-auto pb-1">
+        <app-segmented [options]="documentTabs()" [value]="selectedDocument()?.id ?? ''"
+          (valueChange)="activateDocument($event)"></app-segmented>
+      </div>
       <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="editorDocument()"
         [keepFieldsOnDocumentChange]="keepFieldsOnDocumentChange()" [seed]="editorSeed()"
         (fieldCountChange)="fieldCount.set($event)"
@@ -104,6 +111,7 @@
     <!-- Step 4: review & send -->
     <div *ngIf="currentStep() === 4" class="step-content">
       <app-signature-wizard-review-step [client]="selectedClient()" [document]="selectedDocument()"
+        [documents]="selectedDocuments()"
         [signers]="signersSnapshot()" [fields]="fieldsSnapshot()" [rules]="rulesSnapshot()"
         [canDeliverDocs]="canDeliverDocs()" (rulesChange)="onRulesChange($event)" (goToSigner)="goToSigner($event)"
         [title]="title()" (titleChange)="title.set($event); markMetaDirty()"

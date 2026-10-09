@@ -11,6 +11,7 @@ import { DropzoneComponent, DropzoneRejection } from '@shared/ui/dropzone/dropzo
 import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
 import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -30,17 +31,28 @@ type DocSource = 'upload' | 'library';
  */
 @Component({
   selector: 'app-signature-wizard-document-step',
-  imports: [CommonModule, FormsModule, SignatureDocumentLibraryComponent, DropzoneComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SignatureDocumentLibraryComponent,
+    DropzoneComponent,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-document-step.component.html',
   styleUrl: './signature-wizard-document-step.component.css',
 })
 export class SignatureWizardDocumentStepComponent {
-  @Input() selectedId: string | null = null;
+  @Input() documents: WizardDocument[] = [];
+  @Input() activeDocumentId: string | null = null;
   /** Cliente elegido en el paso 1: acota la librería a sus PDF (opcional). */
   @Input() clientId: string | null = null;
   @Output() documentSelected = new EventEmitter<WizardDocument>();
-  @Output() documentCleared = new EventEmitter<void>();
+  @Output() documentRemoved = new EventEmitter<string>();
+  @Output() documentsReordered = new EventEmitter<WizardDocument[]>();
+  @Output() activeDocumentChanged = new EventEmitter<string>();
 
   private readonly store = inject(SignatureStore);
 
@@ -73,6 +85,10 @@ export class SignatureWizardDocumentStepComponent {
 
   trackDocument(_index: number, doc: WizardDocument): string {
     return doc.id;
+  }
+
+  isAdded(documentId: string): boolean {
+    return this.documents.some(document => document.id === documentId);
   }
 
   icon(kind: WizardDocKind): string {
@@ -111,7 +127,23 @@ export class SignatureWizardDocumentStepComponent {
     this.issues.set([]);
     this.uploadError.set('');
     this.phase.set('idle');
-    this.documentCleared.emit();
+  }
+
+  removeDocument(documentId: string): void {
+    this.documentRemoved.emit(documentId);
+  }
+
+  activateDocument(documentId: string): void {
+    this.activeDocumentChanged.emit(documentId);
+  }
+
+  drop(event: CdkDragDrop<WizardDocument[]>): void {
+    if (event.previousIndex === event.currentIndex) {
+      return;
+    }
+    const reordered = [...this.documents];
+    moveItemInArray(reordered, event.previousIndex, event.currentIndex);
+    this.documentsReordered.emit(reordered);
   }
 
   setDocSource(source: DocSource): void {
@@ -137,7 +169,6 @@ export class SignatureWizardDocumentStepComponent {
     this.issues.set([]);
     this.validation.set(null);
     this.uploaded.set(null);
-    this.documentCleared.emit();
     this.phase.set('uploading');
     try {
       const url = await firstValueFrom(this.store.getDownloadUrl(file.id));
@@ -195,7 +226,6 @@ export class SignatureWizardDocumentStepComponent {
     this.issues.set([]);
     this.validation.set(null);
     this.uploaded.set(null);
-    this.documentCleared.emit();
     this.phase.set('validating');
 
     this.store.validateDocument(file).subscribe({

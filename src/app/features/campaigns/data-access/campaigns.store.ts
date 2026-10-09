@@ -5,6 +5,7 @@ import { CampaignsService } from './campaigns.service';
 import {
   ApiCampaignStatus,
   ApiChannel,
+  AudiencePreviewResponse,
   CampaignResponse,
   CampaignRunResponse,
   CampaignScheduleResponse,
@@ -220,11 +221,20 @@ export class CampaignsStore {
   sendToAudience(id: string, req: SendToAudienceRequest): Observable<CampaignRunResponse> {
     return this.act(this.service.sendToAudience(id, req), () => this.loadRuns(id));
   }
+  /** Estimado de audiencia (sin efectos) — el componente lo cotiza en el Wallet. */
+  previewAudience(id: string, req: SendToAudienceRequest): Observable<AudiencePreviewResponse> {
+    return this.service.previewAudience(id, req);
+  }
   schedule(id: string, req: ScheduleCampaignRequest): Observable<CampaignScheduleResponse> {
     return this.act(this.service.schedule(id, req), () => this.loadSchedules(id));
   }
   setScheduleState(campaignId: string, scheduleId: string, action: ScheduleAction): Observable<CampaignScheduleResponse> {
-    return this.act(this.service.setScheduleState(scheduleId, action), () => this.loadSchedules(campaignId));
+    return this.act(
+      this.service.setScheduleState(scheduleId, action).pipe(
+        tap(updated => this._schedules.update(items => items.map(item => item.id === updated.id ? updated : item))),
+      ),
+      () => this.loadSchedules(campaignId),
+    );
   }
   createContact(req: CreateContactRequest): Observable<ContactResponse> {
     return this.act(this.service.createContact(req), () => this.loadContacts());

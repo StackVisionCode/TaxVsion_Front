@@ -66,6 +66,7 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
 export class SignatureWizardReviewStepComponent {
   @Input() client: WizardClient | null = null;
   @Input() document: WizardDocument | null = null;
+  @Input() documents: WizardDocument[] = [];
   @Input() signers: EditorSigner[] = [];
   @Input() fields: PlacedField[] = [];
   @Input() rules: RequestRules | null = null;
@@ -203,6 +204,18 @@ export class SignatureWizardReviewStepComponent {
     }
     return FIELD_TYPE_ORDER.filter(type => counts.has(type))
       .map(type => `${counts.get(type)} ${FIELD_TYPE_LABEL[type]}`)
+      .join(' · ');
+  }
+
+  fieldSummaryByDocument(signerId: string): string {
+    return this.documents
+      .map(document => {
+        const count = this.fields.filter(
+          field => field.signerId === signerId && field.documentLocalId === document.id,
+        ).length;
+        return count > 0 ? `${document.name.replace(/\.pdf$/i, '')} (${count})` : null;
+      })
+      .filter((value): value is string => value !== null)
       .join(' · ');
   }
 

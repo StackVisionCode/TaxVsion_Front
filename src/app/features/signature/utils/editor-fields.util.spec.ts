@@ -21,6 +21,7 @@ import { normalizeFieldRect } from './field-normalize.util';
 
 function field(partial: Partial<PlacedField> & Pick<PlacedField, 'id'>): PlacedField {
   return {
+    documentLocalId: 'doc-1',
     type: 'signature',
     page: 1,
     x: 100,

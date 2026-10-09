@@ -5,6 +5,7 @@ function field(id: string, signerId: string, over: Partial<SignerResponse['field
   return {
     id,
     signerId,
+    documentId: 'doc-1',
     kind: 'Signature' as const,
     page: 1,
     x: 0.1,
@@ -26,22 +27,35 @@ function detail(): SignatureRequestDetail {
     description: 'notes',
     category: 'ConsentToDisclose',
     status: 'Draft',
-    originalFileId: 'file-1',
-    documentHashPre: null,
-    sealedFileId: null,
+    documents: [
+      {
+        id: 'doc-1',
+        order: 1,
+        title: 'Consent 2026',
+        originalFileId: 'file-1',
+        hashPre: null,
+        sealedFileId: null,
+        hashPost: null,
+        sealedAtUtc: null,
+        note: null,
+      },
+    ],
     scheduledSendAtUtc: null,
-    documentHashPost: null,
     certificateFileId: null,
     requiresSequentialSigning: true,
     requiresConsent: true,
     generateCertificate: false,
     sendSealedDocumentToSigners: false,
     sendCertificateToSigners: false,
+    sendPartialCopyOnEachSignature: false,
+    partialCopyAudienceKind: 'All',
+    partialCopyAudienceSignerIds: [],
     autoRemindersEnabled: false,
     reminderIntervalHours: 72,
     requiresPractitionerPin: true,
     practitionerPinSetAtUtc: null,
     tokenExpirationHours: 72,
+    expirationEnabled: true,
     expiresAtUtc: '2026-10-01T12:00:00Z',
     revocationEpoch: 0,
     createdAtUtc: '2026-09-01T00:00:00Z',
@@ -63,6 +77,10 @@ function detail(): SignatureRequestDetail {
         order: 1,
         status: 'Pending',
         signedAtUtc: null,
+        partialCopyRequestedAtUtc: null,
+        partialCopySentAtUtc: null,
+        partialCopyFileId: null,
+        partialCopyFailureReason: null,
         fields: [field('field-a', 'signer-client')],
       },
       {
@@ -73,6 +91,10 @@ function detail(): SignatureRequestDetail {
         order: 2,
         status: 'Pending',
         signedAtUtc: null,
+        partialCopyRequestedAtUtc: null,
+        partialCopySentAtUtc: null,
+        partialCopyFileId: null,
+        partialCopyFailureReason: null,
         fields: [field('field-b', 'signer-extra', { kind: 'Date' })],
       },
     ],
@@ -110,12 +132,14 @@ describe('buildDraftHydration', () => {
     expect(h.seed.fields).toHaveLength(2);
     const clientField = h.seed.fields.find(f => f.localId === 'seed-field-a')!;
     expect(clientField.signerLocalId).toBe('client:cust-1');
+    expect(clientField.documentLocalId).toBe('doc-1');
     expect(clientField.type).toBe('signature');
     expect(clientField.nx).toBe(0.1);
     expect(h.seed.fields.find(f => f.localId === 'seed-field-b')!.type).toBe('date');
 
     // sendState pre-poblado: no re-crea nada.
     expect(h.sendState.requestId).toBe('req-1');
+    expect(h.sendState.documentIdByLocal).toEqual({ 'doc-1': 'doc-1' });
     expect(h.sendState.signerIdByLocal).toEqual({
       'client:cust-1': 'signer-client',
       'seed-signer-extra': 'signer-extra',

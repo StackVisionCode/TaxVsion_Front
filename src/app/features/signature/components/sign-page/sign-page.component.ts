@@ -24,6 +24,7 @@ import { PublicSignatureService } from '../../data-access/public-signature.servi
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import {
   AuditChainVerificationResponse,
+  PublicSignerDocumentView,
   PublicSignerFieldView,
   PublicSignerView,
   SIGNATURE_CATEGORY_LABEL,
@@ -169,26 +170,50 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly pageImages = signal<Record<number, string> | null>(null);
   readonly loadingDocument = signal(false);
   readonly documentError = signal<string | null>(null);
+  readonly activeDocumentIndex = signal(0);
+  private readonly pageImagesByDocument = new Map<string, Record<number, string>>();
+  private documentLoadSequence = 0;
 
   private async loadDocument(): Promise<void> {
-    if (this.pageImages() || this.loadingDocument()) {
+    const document = this.activeDocument();
+    const sequence = ++this.documentLoadSequence;
+    if (!document) {
+      this.pageImages.set(null);
+      this.loadingDocument.set(false);
+      return;
+    }
+    const cached = this.pageImagesByDocument.get(document.documentId);
+    if (cached) {
+      this.pageImages.set(cached);
+      this.documentError.set(null);
+      this.loadingDocument.set(false);
       return;
     }
     this.loadingDocument.set(true);
     this.documentError.set(null);
+    this.pageImages.set(null);
     try {
-      const bytes = await firstValueFrom(this.api.getDocumentBytes(this.token));
+      const bytes = await firstValueFrom(this.api.getDocumentBytes(this.token, document.documentId));
       const pages = await renderPdfPages({ data: bytes });
       const map: Record<number, string> = {};
       for (const p of pages) {
         if (p.src) map[p.page] = p.src;
       }
+      if (sequence !== this.documentLoadSequence || this.activeDocument()?.documentId !== document.documentId) {
+        return;
+      }
+      this.pageImagesByDocument.set(document.documentId, map);
       this.pageImages.set(map);
     } catch (err) {
+      if (sequence !== this.documentLoadSequence) {
+        return;
+      }
       // Silencioso: el fallback a hojas en blanco con los canvas sigue siendo utilizable.
       this.documentError.set(toApiError(err).message);
     } finally {
-      this.loadingDocument.set(false);
+      if (sequence === this.documentLoadSequence) {
+        this.loadingDocument.set(false);
+      }
     }
   }
 
@@ -277,7 +302,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
       case 'review':
         return 'Go to sign';
       case 'sign':
-        return 'Sign document';
+        return this.isLastDocument() ? 'Finish & submit' : 'Next document';
       default:
         return '';
     }
@@ -292,7 +317,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
       case 'verify-otp':
         return this.otpIssued() && this.isOtpComplete();
       case 'sign':
-        return this.signReady();
+        return this.isLastDocument() ? this.signReady() : this.currentRequiredTextComplete();
       case 'done':
         return false;
       default:
@@ -471,9 +496,31 @@ export class SignPageComponent implements OnInit, OnDestroy {
   });
 
   /** Campos ordenados por página: es todo lo que el firmante puede saber del documento. */
-  readonly fields = computed<PublicSignerFieldView[]>(() =>
-    [...(this.context()?.fields ?? [])].sort((a, b) => a.page - b.page),
+  readonly signingDocuments = computed(() =>
+    [...(this.context()?.documents ?? [])]
+      .filter(document => document.hasFieldsToSign && document.signedAtUtc === null)
+      .sort((left, right) => left.order - right.order),
   );
+
+  readonly activeDocument = computed<PublicSignerDocumentView | null>(
+    () => this.signingDocuments()[this.activeDocumentIndex()] ?? null,
+  );
+  readonly isLastDocument = computed(
+    () => this.signingDocuments().length > 0 && this.activeDocumentIndex() === this.signingDocuments().length - 1,
+  );
+  readonly documentProgress = computed(() => {
+    const document = this.activeDocument();
+    return document
+      ? `Document ${this.activeDocumentIndex() + 1} of ${this.signingDocuments().length} — ${document.title}`
+      : '';
+  });
+
+  readonly fields = computed<PublicSignerFieldView[]>(() => {
+    const documentId = this.activeDocument()?.documentId;
+    return [...(this.context()?.fields ?? [])]
+      .filter(field => field.documentId === documentId)
+      .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+  });
 
   readonly requiredFieldCount = computed(() => this.fields().filter(f => f.isRequired).length);
 
@@ -486,6 +533,11 @@ export class SignPageComponent implements OnInit, OnDestroy {
   /** Campos de texto rellenables por el firmante (P4), ordenados por página. */
   readonly textFields = computed<PublicSignerFieldView[]>(() => this.fields().filter(f => f.kind === 'Text'));
 
+  readonly allTextFields = computed<PublicSignerFieldView[]>(() => {
+    const documentIds = new Set(this.signingDocuments().map(document => document.documentId));
+    return (this.context()?.fields ?? []).filter(field => documentIds.has(field.documentId) && field.kind === 'Text');
+  });
+
   /**
    * Al firmar solo interesan las páginas donde hay algo que escribir (en el teléfono, las
    * demás solo alargarían el scroll hasta el pad). La revisión muestra todas.
@@ -496,8 +548,12 @@ export class SignPageComponent implements OnInit, OnDestroy {
   });
 
   /** true si todos los campos de texto REQUERIDOS tienen valor (gate de la firma). */
-  readonly requiredTextComplete = computed(() =>
+  readonly currentRequiredTextComplete = computed(() =>
     this.textFields().every(f => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0),
+  );
+
+  readonly requiredTextComplete = computed(() =>
+    this.allTextFields().every(f => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0),
   );
 
   // ---------- Acuse derivado de la cadena de audit ----------
@@ -607,7 +663,13 @@ export class SignPageComponent implements OnInit, OnDestroy {
    */
   private applyContext(ctx: PublicSignerView): void {
     const previous = this.stepId();
+    const previousDocumentId = this.activeDocument()?.documentId;
     this.context.set(ctx);
+    const documents = this.signingDocuments();
+    const documentIndex = previousDocumentId
+      ? documents.findIndex(document => document.documentId === previousDocumentId)
+      : 0;
+    this.activeDocumentIndex.set(documentIndex >= 0 ? documentIndex : 0);
     if (ctx.hasAcceptedConsent) {
       this.consentChecked.set(true);
     }
@@ -643,7 +705,11 @@ export class SignPageComponent implements OnInit, OnDestroy {
         void this.submitOtp();
         return;
       case 'sign':
-        void this.submitSignature();
+        if (this.isLastDocument()) {
+          void this.submitSignature();
+        } else {
+          this.moveDocument(1);
+        }
         return;
       default:
         this.goToStep(this.stepIndex() + 1);
@@ -654,7 +720,24 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (this.busy() || this.isFirstStep()) {
       return;
     }
+    if (this.stepId() === 'sign' && this.activeDocumentIndex() > 0) {
+      this.moveDocument(-1);
+      return;
+    }
     this.goToStep(this.stepIndex() - 1);
+  }
+
+  private moveDocument(delta: -1 | 1): void {
+    const next = Math.min(
+      Math.max(this.activeDocumentIndex() + delta, 0),
+      Math.max(this.signingDocuments().length - 1, 0),
+    );
+    if (next === this.activeDocumentIndex()) {
+      return;
+    }
+    this.activeDocumentIndex.set(next);
+    this.actionError.set(null);
+    void this.loadDocument();
   }
 
   private goToStep(index: number): void {
@@ -663,6 +746,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.actionError.set(null);
     const nextId = steps[clamped].id;
     this.stepId.set(nextId);
+    if (nextId === 'sign') {
+      this.activeDocumentIndex.set(0);
+    }
     // F5: en cuanto el firmante llega a review/sign ya pasó por consent + PIN + OTP si tocaban,
     // así que el endpoint /document ya no responderá 403. Se dispara una sola vez (loadDocument
     // es idempotente: si `pageImages` ya está, retorna).
@@ -777,13 +863,23 @@ export class SignPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const fieldValues = this.textFields().map(f => ({ fieldId: f.id, value: this.fieldValues()[f.id]?.trim() || null }));
+    const documentIds = this.signingDocuments().map(document => document.documentId);
+    const fieldValues = this.allTextFields().map(f => ({
+      fieldId: f.id,
+      value: this.fieldValues()[f.id]?.trim() || null,
+    }));
 
     const ok = await this.run('Applying your signature…', async () => {
       const image = await dataUrlToTrimmedPngBlob(dataUrl);
       const { fileId } = await firstValueFrom(this.api.attachSignatureImage(this.token, image));
       await firstValueFrom(
-        this.api.sign(this.token, { method, typedName, signatureImageFileId: fileId, fieldValues }),
+        this.api.sign(this.token, {
+          method,
+          typedName,
+          signatureImageFileId: fileId,
+          fieldValues,
+          documentIds,
+        }),
       );
     });
     if (!ok) {

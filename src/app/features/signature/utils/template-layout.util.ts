@@ -20,6 +20,7 @@ export const MIN_FIELD_H = 28;
 /** Campo colocado sobre la superficie de layout (px de pantalla a la escala actual). */
 export interface TemplateFieldLocal {
   localId: string;
+  templateDocumentId: string;
   slotOrder: number;
   type: FieldType;
   /** 1-based. */

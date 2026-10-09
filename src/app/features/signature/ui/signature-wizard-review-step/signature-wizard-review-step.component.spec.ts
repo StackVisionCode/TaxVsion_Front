@@ -29,6 +29,7 @@ describe('SignatureWizardReviewStepComponent (reglas movidas desde el editor)', 
     c.fields = [
       {
         id: 'p',
+        documentLocalId: 'doc-1',
         type: 'signature',
         page: 1,
         x: 0,
@@ -64,7 +65,7 @@ describe('SignatureWizardReviewStepComponent (reglas movidas desde el editor)', 
     expect(setup(false).fixture.nativeElement.textContent).not.toContain('Send signed document');
     TestBed.resetTestingModule();
     const { fixture } = setup(true);
-    expect(fixture.nativeElement.textContent).toContain('Send signed document');
+    expect(fixture.nativeElement.textContent).toContain('Email the final sealed document when everyone signs');
     expect(fixture.nativeElement.textContent).toContain('Signing PIN');
   });
 

@@ -1,6 +1,13 @@
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
+import { toApiError } from '@core/models/api-error.model';
+import { WalletStore } from '@features/wallet/data-access/wallet.store';
+import { EstimateView, formatMicros } from '@features/wallet/data-access/wallet.model';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RichEditorComponent } from '../../ui/rich-editor/rich-editor.component';
@@ -59,6 +66,7 @@ const CHANNEL_META: ChannelMeta[] = [
     CommonModule,
     FormsModule,
     ModalComponent,
+    ConfirmDialogComponent,
     RichEditorComponent,
     ChannelPreviewComponent,
     StatusPillComponent,
@@ -70,8 +78,45 @@ const CHANNEL_META: ChannelMeta[] = [
   templateUrl: './campaigns-page.component.html',
 })
 export class CampaignsPageComponent implements OnInit, OnDestroy {
+  readonly confirmation = signal<{
+    heading: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'danger' | 'primary';
+    action: () => void;
+  } | null>(null);
+
+  confirmAction(): void {
+    const pending = this.confirmation();
+    if (!pending) return;
+    this.confirmation.set(null);
+    pending.action();
+  }
+
   readonly store = inject(CampaignsStore);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+  private readonly realtime = inject(CommunicationRealtimeService);
+  private runUpdatesSub?: Subscription;
+  private runsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Cobro visible (00_Plan §10): saldo del monedero + tarifas en el modal de envío, y red de seguridad
+  // ante el 402 InsufficientFunds del gate. Comparte el WalletStore singleton con el header/apartado.
+  private readonly wallet = inject(WalletStore);
+  readonly walletAvailableLabel = computed(() =>
+    formatMicros(this.wallet.availableMicros(), this.wallet.currency()),
+  );
+  readonly walletRates = this.wallet.displayRates;
+  readonly rateLabel = (micros: number): string => formatMicros(micros, this.wallet.currency(), 4);
+  readonly fmtMicros = (micros: number): string => formatMicros(micros, this.wallet.currency());
+  /** Mensaje del déficit cuando el envío se rechaza por saldo insuficiente (null = sin rechazo). */
+  readonly sendDeficitMessage = signal<string | null>(null);
+  /** Estimado de costo del envío (preview-audience → cotización Wallet). null = aún sin audiencia. */
+  readonly sendEstimate = signal<EstimateView | null>(null);
+  readonly sendEstimateRecipients = signal<number>(0);
+  readonly estimating = signal(false);
+  private estimateTimer: ReturnType<typeof setTimeout> | null = null;
+  private estimateSeq = 0;
 
   // view helpers (usados en el template)
   readonly channelClass = channelClass;
@@ -152,21 +197,62 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.store.init();
+    // Tiempo real: Communication relaya el avance del run por socket (`campaign.run.updated`). Al llegar
+    // uno de la campaña abierta, refresca runs/detalle/saldo (debounced) — sin refrescar a mano ni esperar
+    // al polling. El polling queda como red de seguridad si el socket está caído.
+    this.realtime.connect(); // idempotente; el shell ya es dueño del ciclo de vida del socket
+    this.runUpdatesSub = this.realtime
+      .on<{ campaignId: string; runId: string }>('campaign.run.updated')
+      .subscribe(e => {
+        const sel = this.selected();
+        if (sel && e.campaignId === sel.id) this.scheduleRunsRefresh(sel.id);
+      });
   }
   ngOnDestroy(): void {
     this.stopPolling();
+    this.runUpdatesSub?.unsubscribe();
+    if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
   }
 
-  /** Auto-refresh de runs mientras haya alguno Dispatching (efecto "live" sin socket). */
+  /** Coalesce de ráfagas (muchos dispatch.result seguidos) en un solo refresco ~800ms. */
+  private scheduleRunsRefresh(campaignId: string): void {
+    if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
+    this.runsRefreshTimer = setTimeout(() => {
+      this.store.loadRuns(campaignId);
+      this.syncOpenRun();
+      this.wallet.refresh();
+    }, 800);
+  }
+
+  /**
+   * Auto-refresh de runs mientras haya alguno Dispatching (efecto "live" sin socket): refresca la lista,
+   * el detalle del run abierto, y el saldo del monedero cuando todo cierra (el cargo es async). Corre
+   * hasta ~10 min (150 ticks) o hasta que no quede ninguno despachando — así no hay que refrescar a mano.
+   * Nota: el tiempo real por socket iría por Communication (fuera de alcance sin aprobar).
+   */
   private startPolling(campaignId: string): void {
     this.stopPolling();
     let ticks = 0;
     this.pollTimer = setInterval(() => {
       ticks++;
       this.store.loadRuns(campaignId);
+      this.syncOpenRun();
       const anyDispatching = this.store.runs().some(r => r.status === 'Dispatching');
-      if (!anyDispatching || ticks >= 15) this.stopPolling();
+      if (!anyDispatching) {
+        this.wallet.refresh(); // el cobro se liquidó al cerrar el run → actualiza el saldo visible
+        this.stopPolling();
+      } else if (ticks >= 150) {
+        this.stopPolling();
+      }
     }, 4000);
+  }
+
+  /** Mantiene el modal de detalle del run sincronizado con la última carga (estado por destinatario en vivo). */
+  private syncOpenRun(): void {
+    const open = this.selectedRun();
+    if (!open) return;
+    const updated = this.store.runs().find(r => r.id === open.id);
+    if (updated) this.selectedRun.set(updated);
   }
   private stopPolling(): void {
     if (this.pollTimer) {
@@ -225,10 +311,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   deleteList(l: { id: string; name: string }): void {
-    if (!confirm(`Delete list “${l.name}”? Its memberships are removed (contacts stay).`)) return;
-    this.store.deleteContactList(l.id).subscribe({
-      next: () => this.toast.success('List deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the list.'),
+    this.confirmation.set({
+      heading: 'Delete list',
+      message: `Delete list “${l.name}”? Its memberships are removed (contacts stay).`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteContactList(l.id).subscribe({
+          next: () => this.toast.success('List deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the list.'),
+        });
+      },
     });
   }
 
@@ -298,10 +391,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   removeContact(c: ContactResponse): void {
-    if (!confirm(`Delete contact “${c.name ?? c.email ?? c.phoneE164}”?`)) return;
-    this.store.deleteContact(c.id).subscribe({
-      next: () => this.toast.success('Contact deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the contact.'),
+    this.confirmation.set({
+      heading: 'Delete contact',
+      message: `Delete contact “${c.name ?? c.email ?? c.phoneE164}”?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteContact(c.id).subscribe({
+          next: () => this.toast.success('Contact deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the contact.'),
+        });
+      },
     });
   }
 
@@ -424,18 +524,32 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   archiveCampaign(c: CampaignResponse): void {
-    if (!confirm(`Archive “${c.name}”? It can no longer be edited or sent.`)) return;
-    this.store.archiveCampaign(c.id).subscribe({
-      next: () => this.toast.success('Campaign archived.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not archive.'),
+    this.confirmation.set({
+      heading: 'Archive campaign',
+      message: `Archive “${c.name}”? It can no longer be edited or sent.`,
+      confirmLabel: 'Archive',
+      tone: 'danger',
+      action: () => {
+        this.store.archiveCampaign(c.id).subscribe({
+          next: () => this.toast.success('Campaign archived.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not archive.'),
+        });
+      },
     });
   }
   deleteCampaign(c: CampaignResponse): void {
-    if (!confirm(`Delete “${c.name}” permanently? Its run history stays but the campaign is gone.`)) return;
-    if (this.selected()?.id === c.id) this.selected.set(null);
-    this.store.deleteCampaign(c.id).subscribe({
-      next: () => this.toast.success('Campaign deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete.'),
+    this.confirmation.set({
+      heading: 'Delete campaign',
+      message: `Delete “${c.name}” permanently? Its run history stays but the campaign is gone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        if (this.selected()?.id === c.id) this.selected.set(null);
+        this.store.deleteCampaign(c.id).subscribe({
+          next: () => this.toast.success('Campaign deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete.'),
+        });
+      },
     });
   }
   /** Destino legible SEGÚN el canal: Email→email, SMS/WhatsApp→teléfono. Cae al contactRef si falta. */
@@ -518,12 +632,79 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   openSend(c: CampaignResponse): void {
     this.selected.set(c);
     this.sendForm = this.blankSend();
+    this.sendDeficitMessage.set(null);
+    this.sendEstimate.set(null);
+    this.sendEstimateRecipients.set(0);
+    this.estimating.set(false);
+    this.wallet.init(); // saldo + tarifas para el hint de costo (carga idempotente)
     this.showSend.set(true);
   }
   toggleList(id: string): void {
     this.sendForm.listIds[id] = !this.sendForm.listIds[id];
+    this.scheduleEstimate();
+  }
+
+  /** CTA "Recargar y reintentar" del banner de saldo insuficiente: lleva al apartado Wallet. */
+  goToWalletTopUp(): void {
+    this.showSend.set(false);
+    this.router.navigate(['/wallet']);
+  }
+
+  /** Reúne la audiencia seleccionada (listas + manual + clientes) — compartido por envío y estimado. */
+  private buildAudience() {
+    const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
+    const manual = this.sendForm.manual
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
+    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers };
+  }
+
+  private hasAudience(a: { contactListIds: string[]; manual: unknown[]; includeCustomers: boolean }): boolean {
+    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers;
+  }
+
+  /** Recalcula el estimado con un pequeño debounce (se dispara al tocar listas/clientes/manual). */
+  scheduleEstimate(): void {
+    if (this.estimateTimer) clearTimeout(this.estimateTimer);
+    this.estimateTimer = setTimeout(() => this.estimateNow(), 450);
+  }
+
+  /** preview-audience (conteo real por canal) → cotización en el Wallet (solo Email+SMS se cobran). */
+  private estimateNow(): void {
+    const c = this.selected();
+    if (!c) return;
+    const audience = this.buildAudience();
+    if (!this.hasAudience(audience)) {
+      this.sendEstimate.set(null);
+      this.sendEstimateRecipients.set(0);
+      this.estimating.set(false);
+      return;
+    }
+    const seq = ++this.estimateSeq;
+    this.estimating.set(true);
+    this.store.previewAudience(c.id, audience).subscribe({
+      next: preview => {
+        this.sendEstimateRecipients.set(preview.recipientCount);
+        this.wallet.estimate({ email: preview.email, sms: preview.sms }).subscribe({
+          next: est => {
+            if (seq !== this.estimateSeq) return; // respuesta vieja: la ignora
+            this.sendEstimate.set(est);
+            this.estimating.set(false);
+          },
+          error: () => {
+            if (seq === this.estimateSeq) this.estimating.set(false);
+          },
+        });
+      },
+      error: () => {
+        if (seq === this.estimateSeq) this.estimating.set(false);
+      },
+    });
   }
   submitSend(): void {
+    if (this.busy() || this.confirmation()) return;
     const c = this.selected();
     if (!c) return;
     const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
@@ -537,20 +718,35 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       return;
     }
     // Guard anti re-envío accidental: cada Send dispara un envío real a toda la audiencia.
-    if (!confirm(`Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`))
-      return;
-    this.busy.set(true);
-    this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers }).subscribe({
-      next: run => {
-        this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
-        this.showSend.set(false);
-        this.busy.set(false);
-        this.tab.set('runs');
-        this.startPolling(c.id);
-      },
-      error: () => {
-        this.toast.error(this.store.actionError() ?? 'Could not start the run.');
-        this.busy.set(false);
+    const includeCustomers = this.sendForm.includeCustomers;
+    this.confirmation.set({
+      heading: 'Send campaign',
+      message: `Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`,
+      confirmLabel: 'Send now',
+      tone: 'primary',
+      action: () => {
+        this.busy.set(true);
+        this.sendDeficitMessage.set(null);
+        this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers }).subscribe({
+          next: run => {
+            this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
+            this.showSend.set(false);
+            this.busy.set(false);
+            this.tab.set('runs');
+            this.startPolling(c.id);
+          },
+          error: err => {
+            this.busy.set(false);
+            const e = toApiError(err);
+            // Red de seguridad del PEP: saldo insuficiente → se muestra el faltante + CTA Recargar (modal abierto).
+            if (e.code === 'CampaignRun.InsufficientFunds') {
+              this.sendDeficitMessage.set(e.message);
+              this.wallet.refresh();
+            } else {
+              this.toast.error(this.store.actionError() ?? 'Could not start the run.');
+            }
+          },
+        });
       },
     });
   }
@@ -593,12 +789,22 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
         },
       });
   }
+  readonly pendingScheduleId = signal<string | null>(null);
+
   scheduleAction(scheduleId: string, action: 'pause' | 'resume' | 'cancel'): void {
     const c = this.selected();
-    if (!c) return;
+    if (!c || this.pendingScheduleId()) return;
+    this.pendingScheduleId.set(scheduleId);
+    const messages = { pause: 'Schedule paused.', resume: 'Schedule resumed.', cancel: 'Schedule cancelled.' };
     this.store.setScheduleState(c.id, scheduleId, action).subscribe({
-      next: () => this.toast.success(`Schedule ${action}d.`),
-      error: () => this.toast.error(this.store.actionError() ?? 'Action failed.'),
+      next: () => {
+        this.pendingScheduleId.set(null);
+        this.toast.success(messages[action]);
+      },
+      error: () => {
+        this.pendingScheduleId.set(null);
+        this.toast.error(this.store.actionError() ?? 'Could not update the schedule.');
+      },
     });
   }
 
@@ -868,10 +1074,17 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     });
   }
   removeTemplate(t: CampaignTemplateResponse): void {
-    if (!confirm(`Delete template “${t.name}”?`)) return;
-    this.store.deleteCampaignTemplate(t.id).subscribe({
-      next: () => this.toast.success('Template deleted.'),
-      error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the template.'),
+    this.confirmation.set({
+      heading: 'Delete template',
+      message: `Delete template “${t.name}”?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+      action: () => {
+        this.store.deleteCampaignTemplate(t.id).subscribe({
+          next: () => this.toast.success('Template deleted.'),
+          error: () => this.toast.error(this.store.actionError() ?? 'Could not delete the template.'),
+        });
+      },
     });
   }
   /** Wizard: carga una plantilla de campaña en el contenido (pasa a modo por-canal). */

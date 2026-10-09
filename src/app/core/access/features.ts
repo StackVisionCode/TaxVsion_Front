@@ -106,6 +106,8 @@ export const FEATURES: readonly FeatureDefinition[] = [
 
   // ---- Dinero ----
   { id: 'billing', label: 'Billing', route: 'billing', module: null, anyOf: ['invoicing.view'] },
+  // El monedero se cobra por consumo (como SMS): transversal, no depende del módulo del plan.
+  { id: 'wallet', label: 'Wallet', route: 'wallet', module: null, anyOf: ['wallet.view'] },
 
   // ---- Administración de la oficina ----
   { id: 'users', label: 'Users', route: 'company/users', module: null, anyOf: ['users.view'] },

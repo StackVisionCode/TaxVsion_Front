@@ -68,7 +68,7 @@ describe('ClientProfilePageComponent · pestañas', () => {
     // del objeto que ya está en la mano, no de otro servicio.
     const component = await create({ permissions: [], modules: [] });
 
-    expect(tabs(component)).toEqual(['overview', 'info', 'family', 'invoices', 'bank', 'mileage', 'portal']);
+    expect(tabs(component)).toEqual(['overview', 'info', 'family', 'bank', 'mileage', 'portal']);
   });
 
   it('sin el módulo de comunicación no está la pestaña Calls', async () => {

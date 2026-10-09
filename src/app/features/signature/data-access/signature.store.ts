@@ -44,6 +44,12 @@ const READY_POLL_INTERVAL_MS = 2000;
 // 'Drafts' = borradores editables (Draft+Ready) vía editableOnly; el resto mapea 1:1 al status del backend.
 export type SignatureStatusFilter = 'All' | 'Drafts' | ApiSignatureRequestStatus;
 
+export interface TemplateDocumentInstantiationSource {
+  templateDocumentId: string;
+  source: { templateDoc: true } | { fileId: string } | { file: File };
+  title?: string | null;
+}
+
 // ---------- Draft del wizard (lo que el panel arma al enviar) ----------
 
 export interface WizardSignerDraft {
@@ -62,6 +68,7 @@ export interface WizardSignerDraft {
 /** Campo ya en coordenadas normalizadas [0..1], origen arriba-izquierda (convención FieldPosition del backend). */
 export interface WizardFieldDraft {
   localId: string;
+  documentLocalId: string;
   signerLocalId: string;
   kind: SignatureFieldKind;
   page: number;
@@ -78,7 +85,13 @@ export interface WizardRequestDraft {
   title: string;
   description: string | null;
   category: SignatureCategory;
-  originalFileId: string;
+  documents: Array<{
+    localId: string;
+    backendId: string | null;
+    originalFileId: string;
+    title: string;
+    note: string | null;
+  }>;
   tokenExpirationHours: number;
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
@@ -118,6 +131,7 @@ export interface WizardRequestDraft {
  */
 export interface WizardSendState {
   requestId: string | null;
+  documentIdByLocal: Record<string, string>;
   signerIdByLocal: Record<string, string>;
   postedFieldLocalIds: string[];
   /** Ya se fijó el practitioner PIN (si el draft lo pedía) — evita re-fijarlo en un reintento. */
@@ -136,6 +150,7 @@ export interface WizardSendState {
 export function emptySendState(): WizardSendState {
   return {
     requestId: null,
+    documentIdByLocal: {},
     signerIdByLocal: {},
     postedFieldLocalIds: [],
     pinSet: false,
@@ -744,6 +759,63 @@ export class SignatureStore {
     }
   }
 
+  async instantiateMultiDocumentTemplateAndSend(
+    templateId: string,
+    documentSources: TemplateDocumentInstantiationSource[],
+    slotBindings: SlotBinding[],
+    descriptionOverride: string | null,
+    onPhase?: (phase: 'creating' | 'preparing' | 'sending') => void,
+  ): Promise<{ detail: SignatureRequestDetail; sent: boolean }> {
+    onPhase?.('creating');
+    const documents: Array<{ templateDocumentId: string; originalFileId: string; title?: string | null }> = [];
+    for (const document of documentSources) {
+      if ('templateDoc' in document.source) {
+        continue;
+      }
+      let originalFileId: string;
+      if ('fileId' in document.source) {
+        originalFileId = document.source.fileId;
+      } else {
+        const validation = await firstValueFrom(this.service.validateDocument(document.source.file));
+        if (!validation.isAcceptable) {
+          throw new Error(validation.issues[0]?.message ?? 'That PDF cannot be used for signing.');
+        }
+        originalFileId = await firstValueFrom(
+          this.service.uploadOriginalDocument(document.source.file, validation.validationRecordId),
+        );
+      }
+      documents.push({
+        templateDocumentId: document.templateDocumentId,
+        originalFileId,
+        title: document.title ?? null,
+      });
+    }
+
+    const detail = await firstValueFrom(
+      this.service.instantiateTemplate(templateId, {
+        documents,
+        slotBindings,
+        descriptionOverride,
+      }),
+    );
+    this.refreshAfterAction();
+
+    try {
+      onPhase?.('preparing');
+      await this.waitUntilReady(detail.id);
+      onPhase?.('sending');
+      await firstValueFrom(this.service.send(detail.id));
+      this.refreshAfterAction();
+      return { detail, sent: true };
+    } catch (err) {
+      this.refreshAfterAction();
+      if (err instanceof SendNotReadyError) {
+        return { detail, sent: false };
+      }
+      throw new Error(toApiError(err).message);
+    }
+  }
+
   /** Reset a la primera página + refresh: para mostrar la solicitud recién creada (orden CreatedAt DESC). */
   reloadTop(): void {
     this._page.set(1);
@@ -926,6 +998,36 @@ export class SignatureStore {
         await firstValueFrom(this.service.removeSigner(requestId, signerId));
       }
 
+      // Documentos: elimina los quitados, crea los nuevos y conserva un mapeo local -> backend
+      // para que cada campo se publique contra el documento correcto.
+      const currentDocumentLocalIds = new Set(draft.documents.map(document => document.localId));
+      // Altas primero: al reemplazar el único documento nunca dejamos el agregado temporalmente vacío.
+      for (const document of draft.documents) {
+        if (state.documentIdByLocal[document.localId]) {
+          continue;
+        }
+        const created = await firstValueFrom(
+          this.service.addRequestDocument(requestId, {
+            originalFileId: document.originalFileId,
+            title: document.title,
+            note: document.note,
+          }),
+        );
+        state.documentIdByLocal[document.localId] = created.id;
+      }
+      for (const [localId, backendId] of Object.entries(state.documentIdByLocal)) {
+        if (!currentDocumentLocalIds.has(localId)) {
+          await firstValueFrom(this.service.removeRequestDocument(requestId, backendId));
+          delete state.documentIdByLocal[localId];
+        }
+      }
+      const orderedDocumentIds = draft.documents
+        .map(document => state.documentIdByLocal[document.localId])
+        .filter((id): id is string => !!id);
+      if (orderedDocumentIds.length > 0) {
+        await firstValueFrom(this.service.reorderRequestDocuments(requestId, orderedDocumentIds));
+      }
+
       // Campos del preparador que ya no están en la edición → borrar.
       const currentPreparerLocalIds = new Set(draft.preparerFields.map(f => f.localId));
       for (const field of original.preparerFields) {
@@ -975,7 +1077,11 @@ export class SignatureStore {
           title: draft.title,
           description: draft.description,
           category: draft.category,
-          originalFileId: draft.originalFileId,
+          documents: draft.documents.map(document => ({
+            originalFileId: document.originalFileId,
+            title: document.title,
+            note: document.note,
+          })),
           tokenExpirationHours: draft.tokenExpirationHours,
           requiresSequentialSigning: draft.requiresSequentialSigning,
           requiresConsent: draft.requiresConsent,
@@ -996,6 +1102,12 @@ export class SignatureStore {
         }),
       );
       state.requestId = created.id;
+      created.documents.forEach((document, index) => {
+        const localId = draft.documents[index]?.localId;
+        if (localId) {
+          state.documentIdByLocal[localId] = document.id;
+        }
+      });
     }
     const requestId = state.requestId;
 
@@ -1022,12 +1134,14 @@ export class SignatureStore {
         continue;
       }
       const signerId = state.signerIdByLocal[field.signerLocalId];
-      if (!signerId) {
+      const documentId = state.documentIdByLocal[field.documentLocalId];
+      if (!signerId || !documentId) {
         continue; // firmante eliminado entre reintentos: campo huérfano, se omite
       }
       await firstValueFrom(
         this.service.placeField(requestId, {
           signerId,
+          documentId,
           kind: field.kind,
           page: field.page,
           x: field.x,
@@ -1092,8 +1206,13 @@ export class SignatureStore {
         if (state.postedPreparerFieldLocalIds.includes(field.localId)) {
           continue;
         }
+        const documentId = state.documentIdByLocal[field.documentLocalId];
+        if (!documentId) {
+          continue;
+        }
         await firstValueFrom(
           this.service.placePreparerField(requestId, {
+            documentId,
             kind: field.kind,
             page: field.page,
             x: field.x,
@@ -1118,7 +1237,7 @@ export class SignatureStore {
   private async waitUntilReady(requestId: string): Promise<void> {
     for (let attempt = 0; attempt < READY_POLL_MAX_ATTEMPTS; attempt++) {
       const detail = await firstValueFrom(this.service.getById(requestId));
-      if (detail.documentHashPre !== null) {
+      if (detail.documents.length > 0 && detail.documents.every(document => document.hashPre !== null)) {
         return; // Hash adjunto → send puede proceder
       }
       await new Promise(resolve => setTimeout(resolve, READY_POLL_INTERVAL_MS));

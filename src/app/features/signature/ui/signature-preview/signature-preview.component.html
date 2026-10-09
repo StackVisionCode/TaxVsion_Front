@@ -20,22 +20,6 @@
         <ion-icon [name]="sending ? 'hourglass-outline' : 'paper-plane-outline'" class="text-base"></ion-icon>
         {{ sending ? 'Sending…' : 'Send to signers' }}
       </button>
-      <!-- Ver = visor global (sin salir de la pantalla); Download = archivo con nombre profesional -->
-      <button *ngIf="hasOriginal(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'original' })"
-        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
-        <ion-icon name="document-text-outline" class="text-base"></ion-icon>
-        Original document
-      </button>
-      <button *ngIf="hasSealed(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'signed' })"
-        class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
-        <ion-icon name="eye-outline" class="text-base"></ion-icon>
-        View signed document
-      </button>
-      <button *ngIf="hasSealed(req)" type="button" (click)="downloadSealed.emit(req)"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        <ion-icon name="download-outline" class="text-base"></ion-icon>
-        Download signed document
-      </button>
       <button *ngIf="hasCertificate(req)" type="button" (click)="viewDocument.emit({ request: req, kind: 'certificate' })"
         class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
         <ion-icon name="ribbon-outline" class="text-base"></ion-icon>
@@ -43,6 +27,51 @@
       </button>
     </div>
   </div>
+
+  <section class="mt-6" aria-labelledby="request-documents-heading">
+    <div class="flex items-center justify-between gap-3">
+      <p id="request-documents-heading" class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Documents
+      </p>
+      <span class="text-xs text-gray-400">{{ req.documents.length }} total</span>
+    </div>
+    <div class="mt-2 divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-white">
+      <article *ngFor="let document of orderedDocuments(req); let index = index"
+        class="flex flex-wrap items-center gap-3 px-4 py-3">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-brand-bold">
+          <ion-icon name="document-text-outline" class="text-lg"></ion-icon>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-semibold text-gray-900">{{ index + 1 }}. {{ document.title }}</p>
+          <p class="mt-0.5 flex items-center gap-1 text-xs"
+            [ngClass]="document.hashPost ? 'text-emerald-600' : document.hashPre ? 'text-blue-600' : 'text-amber-600'">
+            <ion-icon [name]="document.hashPre ? 'shield-checkmark-outline' : 'time-outline'"></ion-icon>
+            {{ documentHashLabel(document) }}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button"
+            (click)="viewDocument.emit({ request: req, kind: 'original', documentId: document.id })"
+            class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            <ion-icon name="eye-outline"></ion-icon>
+            Original
+          </button>
+          <button *ngIf="document.sealedFileId" type="button"
+            (click)="viewDocument.emit({ request: req, kind: 'signed', documentId: document.id })"
+            class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            <ion-icon name="ribbon-outline"></ion-icon>
+            Signed
+          </button>
+          <button *ngIf="document.sealedFileId as sealedFileId" type="button"
+            (click)="downloadFile.emit({ fileId: sealedFileId, title: document.title, kind: 'signed' })"
+            aria-label="Download signed document"
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-bold text-white hover:bg-brand-ink">
+            <ion-icon name="download-outline"></ion-icon>
+          </button>
+        </div>
+      </article>
+    </div>
+  </section>
 
   <!-- F3 — Banner cuando la solicitud está programada para enviarse en el futuro -->
   <div *ngIf="req.status === 'scheduled'"

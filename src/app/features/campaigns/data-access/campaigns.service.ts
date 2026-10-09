@@ -5,6 +5,7 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import {
   ApiCampaignStatus,
   ApiChannel,
+  AudiencePreviewResponse,
   CampaignResponse,
   CampaignRunResponse,
   CampaignScheduleResponse,
@@ -116,6 +117,11 @@ export class CampaignsService {
 
   sendToAudience(id: string, req: SendToAudienceRequest): Observable<CampaignRunResponse> {
     return this.http.post<CampaignRunResponse>(this.url(`/campaigns/${id}/send-to-audience`), req);
+  }
+
+  /** Resuelve la audiencia (opt-out/dedupe) SIN enviar, para el estimado de costo. */
+  previewAudience(id: string, req: SendToAudienceRequest): Observable<AudiencePreviewResponse> {
+    return this.http.post<AudiencePreviewResponse>(this.url(`/campaigns/${id}/preview-audience`), req);
   }
 
   listRuns(id: string, page?: number, size?: number): Observable<PagedResult<CampaignRunResponse>> {

@@ -2,6 +2,7 @@
 <header class="relative z-40">
   <div class="flex h-[63px] items-center gap-4">
     <!-- Mobile menu button -->
+     
     <button (click)="toggleMobileMenu()"
       class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200 md:hidden">
       <ion-icon name="menu-outline" class="text-xl"></ion-icon>
@@ -107,6 +108,23 @@
             </div>
           }
         </div>
+      }
+
+      <!-- Wallet balance pill (00_Plan §10): siempre visible; click → apartado Wallet. -->
+      @if (canUse('wallet')) {
+        <a
+          routerLink="/wallet"
+          class="hidden h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-semibold transition-colors sm:flex"
+          [class]="
+            walletLowBalance()
+              ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'
+              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+          "
+          [attr.title]="'Wallet · ' + walletAvailableLabel() + ' available'"
+        >
+          <ion-icon name="wallet-outline" class="text-base" aria-hidden="true"></ion-icon>
+          {{ walletAvailableLabel() }}
+        </a>
       }
 
       <!-- Notifications button -->
@@ -272,6 +290,7 @@
       </div>
     </nav>
   </div>
+
 </header>
 
 <!-- Mobile menu drawer -->

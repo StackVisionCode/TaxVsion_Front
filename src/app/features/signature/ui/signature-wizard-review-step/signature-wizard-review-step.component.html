@@ -16,15 +16,18 @@
     </div>
   </div>
 
-  <!-- Documento -->
+  <!-- Documentos -->
   <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
-    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Document</p>
-    <div *ngIf="document as d" class="mt-3 flex items-center gap-3">
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Documents</p>
+      <span class="text-xs font-medium text-gray-500">{{ documents.length }}</span>
+    </div>
+    <div *ngFor="let d of documents; let index = index" class="mt-3 flex items-center gap-3">
       <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" [ngClass]="circle(d.kind)">
         <ion-icon [name]="icon(d.kind)" class="text-xl text-gray-700"></ion-icon>
       </span>
       <div class="min-w-0">
-        <p class="truncate text-sm font-semibold text-gray-900">{{ d.name }}</p>
+        <p class="truncate text-sm font-semibold text-gray-900">{{ index + 1 }}. {{ d.name }}</p>
         <p class="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
           <span class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase"
             [ngClass]="chip(d.kind)">{{ d.kind }}</span>
@@ -50,7 +53,7 @@
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-medium text-gray-900">{{ signer.name }}</p>
           <p class="truncate text-xs" [ngClass]="fieldCountFor(signer.id) > 0 ? 'text-gray-500' : 'text-orange-500'">
-            {{ fieldCountFor(signer.id) > 0 ? fieldSummaryFor(signer.id) : 'No fields assigned' }}
+            {{ fieldCountFor(signer.id) > 0 ? fieldSummaryByDocument(signer.id) : 'No fields assigned' }}
           </p>
         </div>
         <span class="hidden shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-flex">

@@ -55,9 +55,9 @@ describe('insertionIssue', () => {
     expect(insertionIssue(steps, [link('l', 'a', 'b')], 'b', 'send-email')).toBeNull();
   });
 
-  it('lista varios campos que faltan en lenguaje corriente', () => {
+  it('nombra el campo requerido cuando el paso anterior no lo produce', () => {
     const issue = insertionIssue([step('a', 'manual-trigger')], [], 'a', 'update-record');
-    expect(issue?.reason).toMatch(/^Needs .+ and .+, and nothing before it sends that$/);
+    expect(issue?.reason).toBe('Needs Record id, and nothing before it sends that');
   });
 
   it('lo que no consume nada encaja detrás de cualquier cosa', () => {

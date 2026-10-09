@@ -1,10 +1,12 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, effect, inject, signal, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { AuthService } from '@core/auth/auth.service';
+import { WalletStore } from '@features/wallet/data-access/wallet.store';
+import { formatMicros } from '@features/wallet/data-access/wallet.model';
 import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { AppNotification, NotificationType } from '@features/notifications/ui/notification-list/notification-list.component';
 import {
@@ -65,6 +67,20 @@ export class NavbarComponent {
   });
   private readonly access = inject(AccessStore);
   readonly handoff = inject(AccountHandoffStore);
+
+  // Pill de saldo del monedero (siempre visible en el header, 00_Plan §10). Comparte el WalletStore
+  // singleton con el apartado /wallet. Se carga perezosamente solo si el tenant puede ver el monedero
+  // (evita un 403 de GET /wallet en tenants sin el permiso); la carga es idempotente.
+  private readonly wallet = inject(WalletStore);
+  private readonly _walletInit = effect(() => {
+    if (this.access.canUseId('wallet')) {
+      this.wallet.init();
+    }
+  });
+  readonly walletAvailableLabel = computed(() =>
+    formatMicros(this.wallet.availableMicros(), this.wallet.currency()),
+  );
+  readonly walletLowBalance = computed(() => this.wallet.lowBalance());
 
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
 

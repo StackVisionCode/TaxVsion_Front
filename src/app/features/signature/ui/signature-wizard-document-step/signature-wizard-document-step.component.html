@@ -1,6 +1,44 @@
 <div class="grid gap-5 lg:grid-cols-[1fr_280px]">
   <!-- Columna izquierda: fuente del documento + estado del preflight/subida -->
   <div>
+    <div *ngIf="documents.length > 0" class="mb-5">
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-gray-900">Request documents</h3>
+          <p class="mt-0.5 text-xs text-gray-500">Drag to set the signing order. Up to 20 PDFs.</p>
+        </div>
+        <span class="text-xs font-medium text-gray-500">{{ documents.length }} / 20</span>
+      </div>
+
+      <div cdkDropList [cdkDropListData]="documents" (cdkDropListDropped)="drop($event)"
+        class="doc-list space-y-2">
+        <article *ngFor="let doc of documents; let index = index; trackBy: trackDocument" cdkDrag
+          class="doc-row flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5"
+          [ngClass]="doc.id === activeDocumentId ? 'border-brand-bold ring-1 ring-brand-bold/10' : 'border-gray-200'">
+          <button type="button" cdkDragHandle aria-label="Drag to reorder document"
+            class="flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+            <ion-icon name="reorder-three-outline" class="text-lg"></ion-icon>
+          </button>
+          <button type="button" (click)="activateDocument(doc.id)" class="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" [ngClass]="circle(doc.kind)">
+              <ion-icon [name]="icon(doc.kind)" class="text-base text-gray-700"></ion-icon>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-gray-900">{{ index + 1 }}. {{ doc.name }}</span>
+              <span class="mt-0.5 flex items-center gap-1 text-xs text-emerald-600">
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+                Ready for fields
+              </span>
+            </span>
+          </button>
+          <button type="button" (click)="removeDocument(doc.id)" aria-label="Remove document"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600">
+            <ion-icon name="trash-outline"></ion-icon>
+          </button>
+        </article>
+      </div>
+    </div>
+
     <!-- Toggle: subir uno nuevo o reusar un PDF de la oficina -->
     <div class="mb-3 inline-flex rounded-full border border-gray-200 p-0.5">
       <button type="button" (click)="setDocSource('upload')" [disabled]="isBusy()"
@@ -19,7 +57,7 @@
 
     <!-- Modo subir: dropzone -->
     <app-dropzone *ngIf="docSource() === 'upload'" accept=".pdf,application/pdf" [multiple]="false"
-      [maxBytes]="maxUploadBytes" [disabled]="isBusy()" label="Click to upload or drag and drop"
+      [maxBytes]="maxUploadBytes" [disabled]="isBusy() || documents.length >= 20" label="Click to add a PDF or drag and drop"
       hint="PDF only, up to 25MB · validated before sending"
       (files)="onFiles($event)" (rejected)="onRejected($event)"></app-dropzone>
 
@@ -68,7 +106,7 @@
     <!-- Documento aceptado y subido -->
     <div *ngIf="uploaded() as doc"
       class="doc-row mt-3 flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors"
-      [ngClass]="doc.id === selectedId ? 'border-brand-bold bg-gray-50' : 'border-gray-100'">
+      [ngClass]="doc.id === activeDocumentId ? 'border-brand-bold bg-gray-50' : 'border-gray-100'">
       <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" [ngClass]="circle(doc.kind)">
         <ion-icon [name]="icon(doc.kind)" class="text-base text-gray-700"></ion-icon>
       </span>
@@ -83,7 +121,7 @@
         class="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors">
         Remove
       </button>
-      <ion-icon *ngIf="doc.id === selectedId" name="checkmark-circle" class="shrink-0 text-lg text-gray-900"></ion-icon>
+      <ion-icon *ngIf="isAdded(doc.id)" name="checkmark-circle" class="shrink-0 text-lg text-emerald-600"></ion-icon>
     </div>
   </div>
 

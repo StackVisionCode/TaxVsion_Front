@@ -256,6 +256,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/campaigns/campaigns.routes').then(m => m.CAMPAIGNS_ROUTES),
       },
       {
+        // Monedero prepago (TaxVision.Wallet): saldo, recarga e historial del cobro de comunicaciones.
+        path: 'wallet',
+        data: { preloadPriority: 'low', feature: 'wallet' },
+        canMatch: [accessCanMatch],
+        loadChildren: () => import('./features/wallet/wallet.routes').then(m => m.WALLET_ROUTES),
+      },
+      {
         // Arrastra pdf.js: es el chunk más grande de la app (~430 kB sin comprimir). Se
         // precarga a demanda desde el hover del sidebar.
         path: 'signature',

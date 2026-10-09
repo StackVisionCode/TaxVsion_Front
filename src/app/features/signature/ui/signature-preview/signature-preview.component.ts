@@ -1,6 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SignatureRequest, Signer, SignerStatus } from '../signature-table/signature-table.component';
+import {
+  SignatureRequest,
+  SignatureRequestDocumentItem,
+  Signer,
+  SignerStatus,
+} from '../signature-table/signature-table.component';
 import { SignatureStore } from '../../data-access/signature.store';
 import { SIGNATURE_STATUS_PILL, SignatureStatusPill, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -50,7 +55,16 @@ export class SignaturePreviewComponent {
   @Output() downloadSealed = new EventEmitter<SignatureRequest>();
   @Output() downloadCertificate = new EventEmitter<SignatureRequest>();
   /** Ver un documento de la solicitud en el visor global (lo monta la página). */
-  @Output() viewDocument = new EventEmitter<{ request: SignatureRequest; kind: SignatureDownloadKind }>();
+  @Output() viewDocument = new EventEmitter<{
+    request: SignatureRequest;
+    kind: SignatureDownloadKind;
+    documentId?: string;
+  }>();
+  @Output() downloadFile = new EventEmitter<{
+    fileId: string;
+    title: string;
+    kind: SignatureDownloadKind;
+  }>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
 
   /**
@@ -178,6 +192,20 @@ export class SignaturePreviewComponent {
 
   hasCertificate(request: SignatureRequest): boolean {
     return request.status === 'completed' && !!request.certificateFileId;
+  }
+
+  orderedDocuments(request: SignatureRequest): SignatureRequestDocumentItem[] {
+    return [...request.documents].sort((left, right) => left.order - right.order);
+  }
+
+  documentHashLabel(document: SignatureRequestDocumentItem): string {
+    if (document.hashPost) {
+      return 'Sealed and verified';
+    }
+    if (document.hashPre) {
+      return 'Original verified';
+    }
+    return 'Verification pending';
   }
 
   canResendSigner(request: SignatureRequest, signer: Signer): boolean {
