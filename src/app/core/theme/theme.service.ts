@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable } from '@angular/core';
 
 /** Shades que sobreescribimos en tailwind.config.js (colors.indigo y colors.orange). */
 const SHADE_STEPS = [50, 100, 200, 300, 400, 500, 600, 700] as const;
@@ -41,7 +41,7 @@ const MAX_SATURATION_DROP = 0.35;
 /**
  * Rampa base de los neutros (los mismos fallbacks del `gray` en tailwind.config.js: default de
  * Tailwind 50-800 + Jet Black en 900). applyNeutrals conserva la LUMINOSIDAD de cada shade y solo
- * gira su hue hacia el primary a baja saturación → tinte sutil de marca con el contraste preservado.
+ * gira su hue (hoy WARM_NEUTRAL_HEX) a baja saturación → tinte sutil con el contraste preservado.
  */
 const NEUTRAL_BASE: Record<number, string> = {
   50: '#f9fafb',
@@ -59,107 +59,56 @@ const NEUTRAL_BASE: Record<number, string> = {
 /** Saturación del tinte de neutros (%). Sutil a propósito: un tinte fuerte se ve sucio y arriesga contraste. */
 const NEUTRAL_TINT_SATURATION = 8;
 
+/**
+ * Referencia del tinte de los neutros: un piedra/arena (hue ≈ 37°). Solo se usa su HUE. Los grises
+ * van cálidos para armonizar con el canvas crema (`brand.canvas`); el azul queda como acento.
+ */
+const WARM_NEUTRAL_HEX = '#a8916b';
+
 interface ColorChannel {
   cssPrefix: 'indigo' | 'orange';
-  storageKey: string;
   defaultHex: string;
   /** Shade que queda igual al hex elegido, sin ajuste de luminosidad. */
   anchorShade: ShadeStep;
 }
 
-// indigo-600 y orange-500 son los shades que más se repiten hoy en la app para cada color — el
-// "color base" que el usuario ve reflejado tal cual al elegir uno nuevo.
+// indigo-600 y orange-500 son los shades que más se repiten hoy en la app para cada color.
 const PRIMARY: ColorChannel = {
   cssPrefix: 'indigo',
-  storageKey: 'tvf.theme.primaryColor',
   /** Bold Blue del brandbook. Los fallbacks de tailwind.config.js son esta misma rampa. */
   defaultHex: '#1e466b',
   anchorShade: 600,
 };
 const SECONDARY: ColorChannel = {
   cssPrefix: 'orange',
-  storageKey: 'tvf.theme.secondaryColor',
   /** Light Blue del brandbook. */
   defaultHex: '#67baf4',
   anchorShade: 500,
 };
 
-export interface ThemePreset {
-  label: string;
-  hex: string;
-}
-
-/** Paleta curada compartida por los swatches de primary/secondary en Settings > Overview. */
-export const THEME_PRESETS: ThemePreset[] = [
-  // Los dos primeros son los colores del brandbook (defaults de PRIMARY/SECONDARY).
-  { label: 'Bold Blue', hex: '#1e466b' },
-  { label: 'Light Blue', hex: '#67baf4' },
-  { label: 'Indigo', hex: '#4f46e5' },
-  { label: 'Violet', hex: '#7c3aed' },
-  { label: 'Blue', hex: '#2563eb' },
-  { label: 'Teal', hex: '#0d9488' },
-  { label: 'Emerald', hex: '#059669' },
-  { label: 'Amber', hex: '#d97706' },
-  { label: 'Orange', hex: '#f97316' },
-  { label: 'Rose', hex: '#e11d48' },
-  { label: 'Pink', hex: '#db2777' },
-];
-
 /**
- * Aplica los dos colores de marca (hoy hardcodeados como `indigo-*`/`orange-*`
- * en toda la app) vía variables CSS en :root — ver el override de
- * `colors.indigo`/`colors.orange` en tailwind.config.js. Generar la rampa de
- * shades a partir de un solo hex por color evita tener que tocar los ~340
- * usos de `bg-indigo-600`/`text-orange-500`/etc. repartidos en ~90 archivos.
+ * Aplica los dos colores de marca FIJOS del brandbook (Bold Blue / Light Blue, hoy hardcodeados como
+ * `indigo-*`/`orange-*` en toda la app) vía variables CSS en :root — ver el override de
+ * `colors.indigo`/`colors.orange` en tailwind.config.js. Generar la rampa de shades a partir de un
+ * solo hex por color evita tener que tocar los ~340 usos de `bg-indigo-600`/`text-orange-500`/etc.
+ * repartidos en ~90 archivos.
+ *
+ * Ya NO hay personalización por tenant ni por usuario: los fallbacks de tailwind.config.js son
+ * exactamente estos mismos hex, así que esta clase solo reproduce ese mismo look de forma explícita,
+ * más el tinte cálido de los neutros vía `applyNeutrals`.
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
-  private readonly _primaryColor = signal(PRIMARY.defaultHex);
-  private readonly _secondaryColor = signal(SECONDARY.defaultHex);
-
-  readonly primaryColor = this._primaryColor.asReadonly();
-  readonly secondaryColor = this._secondaryColor.asReadonly();
-  readonly presets = THEME_PRESETS;
-
   constructor() {
-    this.setPrimaryColor(read(PRIMARY.storageKey) ?? PRIMARY.defaultHex, { persist: false });
-    this.setSecondaryColor(read(SECONDARY.storageKey) ?? SECONDARY.defaultHex, { persist: false });
-  }
-
-  setPrimaryColor(hex: string, options: { persist?: boolean } = {}): void {
-    this.applyChannel(PRIMARY, hex, this._primaryColor, options);
-  }
-
-  setSecondaryColor(hex: string, options: { persist?: boolean } = {}): void {
-    this.applyChannel(SECONDARY, hex, this._secondaryColor, options);
-  }
-
-  resetToDefaults(): void {
-    this.setPrimaryColor(PRIMARY.defaultHex);
-    this.setSecondaryColor(SECONDARY.defaultHex);
+    this.applyChannel(PRIMARY, PRIMARY.defaultHex);
+    this.applyChannel(SECONDARY, SECONDARY.defaultHex);
+    this.applyNeutrals(WARM_NEUTRAL_HEX);
   }
 
   /**
-   * Aplica la marca resuelta del tenant (TenantBrands): primary → canal indigo,
-   * accent → canal orange. Persiste en localStorage como CACHE DE ARRANQUE para
-   * evitar el flash de color equivocado en la próxima carga (la fuente de verdad es
-   * la API; localStorage solo adelanta el pintado). Un hex inválido se ignora en
-   * `applyChannel`, así que un branding incompleto nunca deja la app sin color.
-   */
-  applyBranding(colors: { primary?: string | null; accent?: string | null }): void {
-    if (colors.primary) {
-      this.setPrimaryColor(colors.primary);
-    }
-    if (colors.accent) {
-      this.setSecondaryColor(colors.accent);
-    }
-  }
-
-  /**
-   * Tiñe los neutros (gray-*) con el HUE del primary conservando la LUMINOSIDAD de cada shade de
+   * Tiñe los neutros (gray-*) con el HUE del hex dado conservando la LUMINOSIDAD de cada shade de
    * hoy — solo gira el matiz a baja saturación. Al no mover la luminosidad, el contraste texto/fondo
-   * se preserva por construcción (ver el test de contraste). Un hex inválido se ignora. Se dispara
-   * solo desde el canal primary (los neutros siguen al primary, no al accent).
+   * se preserva por construcción (ver el test de contraste). Un hex inválido se ignora.
    */
   applyNeutrals(primaryHex: string): void {
     const normalized = normalizeHex(primaryHex);
@@ -176,12 +125,7 @@ export class ThemeService {
     });
   }
 
-  private applyChannel(
-    channel: ColorChannel,
-    hex: string,
-    target: ReturnType<typeof signal<string>>,
-    options: { persist?: boolean },
-  ): void {
+  private applyChannel(channel: ColorChannel, hex: string): void {
     const normalized = normalizeHex(hex);
     if (!normalized) {
       return;
@@ -193,14 +137,6 @@ export class ThemeService {
       // Triplete RGB sin comas: es el formato que espera rgb(var(...) / <alpha-value>) en tailwind.config.js.
       applyCssVar(`--color-${channel.cssPrefix}-${shade}-rgb`, hexToRgbTriplet(shadeHex));
     });
-    // Los neutros siguen al primary: al cambiarlo, se re-tiñe la escala de grises.
-    if (channel === PRIMARY) {
-      this.applyNeutrals(normalized);
-    }
-    target.set(normalized);
-    if (options.persist !== false) {
-      write(channel.storageKey, normalized);
-    }
   }
 }
 
@@ -300,20 +236,4 @@ function hexToRgbTriplet(hex: string): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `${r} ${g} ${b}`;
-}
-
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function write(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Sin persistencia disponible: el color elegido vive solo en memoria de esta sesión.
-  }
 }

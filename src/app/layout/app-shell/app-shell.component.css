@@ -111,7 +111,8 @@
   .shell-notch {
     padding: 0 0 0.75rem 0.75rem;
     border-bottom-left-radius: var(--shell-notch-radius);
-    background-image: linear-gradient(to bottom right, #f1f6fb, #fafafa, #f1f6fb);
+    /* Mismo degradado que el fondo de app-shell.component.html (brand.canvas → canvas-deep). */
+    background-image: linear-gradient(to bottom right, #f4efe6, #f4efe6, #ede5d6);
     background-attachment: fixed;
   }
 

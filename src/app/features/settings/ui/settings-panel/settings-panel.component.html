@@ -25,8 +25,7 @@
         change how the module behaves.
       </ng-container>
       <ng-template #mixedNotice>
-        <ng-container *ngIf="moduleId === 'overview'">Color choices apply instantly and are remembered in this browser. </ng-container>The
-        fields marked below aren't available yet — nothing you set there is stored.
+        The fields marked below aren't available yet — nothing you set there is stored.
       </ng-template>
     </p>
     <p *ngIf="note()" class="mt-1.5 text-sm leading-relaxed text-gray-500">{{ note() }}</p>
@@ -56,30 +55,6 @@
         <p *ngIf="field.kind === 'pending' && showPendingBadge()" class="mt-1 text-xs font-medium text-gray-400">
           Not available yet
         </p>
-      </div>
-
-      <!-- Color picker: swatches curados + selector custom. Es el único control real de esta
-           pantalla — ThemeService lo aplica al instante y lo recuerda en este navegador. -->
-      <div *ngIf="field.kind === 'color'" class="flex items-center gap-3">
-        <div class="flex items-center gap-1.5">
-          <button *ngFor="let preset of colorPresets" type="button" (click)="updateColor(field.key, preset.hex)"
-            [attr.aria-label]="preset.label" [attr.aria-pressed]="preset.hex === colorFor(field.key)"
-            class="h-7 w-7 shrink-0 rounded-full ring-offset-2 transition-shadow"
-            [class.ring-2]="preset.hex === colorFor(field.key)"
-            [class.ring-gray-900]="preset.hex === colorFor(field.key)"
-            [style.background-color]="preset.hex"></button>
-        </div>
-
-        <span class="h-6 w-px bg-gray-100"></span>
-
-        <label
-          class="relative flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white pl-1.5 pr-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
-          <span class="h-6 w-6 shrink-0 rounded-full border border-gray-100"
-            [style.background-color]="colorFor(field.key)"></span>
-          <span class="text-xs font-medium uppercase text-gray-600">{{ colorFor(field.key) }}</span>
-          <input type="color" [ngModel]="colorFor(field.key)" (ngModelChange)="updateColor(field.key, $event)"
-            [name]="field.key" class="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-        </label>
       </div>
 
       <!-- Campos sin respaldo: el hueco queda a la vista pero vacío y bloqueado. -->

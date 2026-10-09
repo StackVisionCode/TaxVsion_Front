@@ -3,17 +3,9 @@ import { Observable, Subscription, catchError, filter, finalize, map, of, switch
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
 import { TokenService } from '@core/auth/token.service';
-import { ThemeService } from '@core/theme/theme.service';
 import { environment } from '@env/environment';
 import { CompanySettingsService } from './company-settings.service';
-import {
-  BrandAssetView,
-  BrandColors,
-  BrandResponse,
-  BrandSurface,
-  CompanyProfile,
-  UpdateBrandColorsRequest,
-} from './company-settings.model';
+import { BrandAssetView, BrandResponse, BrandSurface, CompanyProfile } from './company-settings.model';
 
 /** Reintentos del poll post-upload de un asset (el PUT es 202: escaneo antivirus asíncrono). */
 const ASSET_POLL_DELAY_MS = 2000;
@@ -24,16 +16,16 @@ type AssetKey = 'logo' | 'favicon';
 
 /**
  * Store del módulo Company Settings: perfil legal (Billing) + marca del tenant (TenantBrands,
- * superficie CRM: colores primary/accent + logo + favicon). La marca se lee de un solo GET
- * (`/tenants/{id}/brands/Crm`) y se deriva a colores/logo/favicon. Al cargar o guardar colores se
- * aplica el tema en vivo (ThemeService) para que el admin VEA el cambio al instante.
+ * superficie CRM: logo + favicon). La marca se lee de un solo GET (`/tenants/{id}/brands/Crm`).
+ *
+ * Los colores (primary/accent) del tenant ya NO se editan ni se aplican al tema desde aquí: la app
+ * usa el azul fijo del brandbook para todos los tenants (ver ThemeService).
  */
 @Injectable({ providedIn: 'root' })
 export class CompanySettingsStore {
   private readonly service = inject(CompanySettingsService);
   private readonly auth = inject(AuthService);
   private readonly tokens = inject(TokenService);
-  private readonly theme = inject(ThemeService);
 
   // --- Perfil legal ---
   private readonly _profile = signal<CompanyProfile | null>(null);
@@ -48,22 +40,17 @@ export class CompanySettingsStore {
 
   /**
    * Superficie de marca que se está editando (CRM o Portal del cliente). Cada una tiene su propio
-   * logo/favicon/colores. Por defecto CRM (la superficie de esta app). El tema en vivo solo se aplica
-   * al editar CRM: recolorear el CRM mientras se edita la marca del Portal sería confuso.
+   * logo/favicon. Por defecto CRM (la superficie de esta app).
    */
   private readonly _surface = signal<BrandSurface>('Crm');
   readonly surface = this._surface.asReadonly();
 
-  // --- Marca: colores ---
-  private readonly _colors = signal<BrandColors | null>(null);
-  private readonly _colorsLoading = signal(false);
-  private readonly _colorsSaving = signal(false);
-  private readonly _colorsError = signal<string | null>(null);
+  // --- Marca: estado del GET único (logo + favicon) ---
+  private readonly _brandLoading = signal(false);
+  private readonly _brandError = signal<string | null>(null);
 
-  readonly colors = this._colors.asReadonly();
-  readonly colorsLoading = this._colorsLoading.asReadonly();
-  readonly colorsSaving = this._colorsSaving.asReadonly();
-  readonly colorsError = this._colorsError.asReadonly();
+  readonly brandLoading = this._brandLoading.asReadonly();
+  readonly brandError = this._brandError.asReadonly();
 
   // --- Marca: assets (logo + favicon) ---
   private readonly _logo = signal<BrandAssetView | null>(null);
@@ -115,10 +102,9 @@ export class CompanySettingsStore {
     }
     this.cancelAssetPoll();
     this._surface.set(surface);
-    this._colors.set(null);
     this._logo.set(null);
     this._favicon.set(null);
-    this._colorsError.set(null);
+    this._brandError.set(null);
     this._assetError.set(null);
     this.loadBrand();
   }
@@ -151,59 +137,24 @@ export class CompanySettingsStore {
     );
   }
 
-  /** Un solo GET de la marca → colores + logo + favicon, y aplica el tema efectivo. */
+  /** Un solo GET de la marca → logo + favicon (los colores ya no se leen ni se aplican al tema). */
   loadBrand(): void {
     const tenantId = this.tenantId();
     if (!tenantId) {
       return;
     }
-    this._colorsLoading.set(true);
-    this._colorsError.set(null);
+    this._brandLoading.set(true);
+    this._brandError.set(null);
     this.service.getBrand(tenantId, this._surface()).subscribe({
       next: brand => {
         this.applyBrand(brand);
-        this._colorsLoading.set(false);
+        this._brandLoading.set(false);
       },
       error: err => {
-        this._colorsError.set(toApiError(err).message);
-        this._colorsLoading.set(false);
+        this._brandError.set(toApiError(err).message);
+        this._brandLoading.set(false);
       },
     });
-  }
-
-  saveColors(req: UpdateBrandColorsRequest): Observable<void> {
-    const tenantId = this.tenantId();
-    if (!tenantId) {
-      return this.failNoTenant(this._colorsError);
-    }
-    this._colorsSaving.set(true);
-    this._colorsError.set(null);
-    return this.service.saveColors(tenantId, this._surface(), req).pipe(
-      // El PUT es 204: se refresca desde el GET para la paleta efectiva + isCustomized + tema.
-      tap(() => this.loadBrand()),
-      catchError(err => {
-        this._colorsError.set(toApiError(err).message);
-        throw err;
-      }),
-      finalize(() => this._colorsSaving.set(false)),
-    );
-  }
-
-  resetColors(): Observable<void> {
-    const tenantId = this.tenantId();
-    if (!tenantId) {
-      return this.failNoTenant(this._colorsError);
-    }
-    this._colorsSaving.set(true);
-    this._colorsError.set(null);
-    return this.service.resetColors(tenantId, this._surface()).pipe(
-      tap(() => this.loadBrand()),
-      catchError(err => {
-        this._colorsError.set(toApiError(err).message);
-        throw err;
-      }),
-      finalize(() => this._colorsSaving.set(false)),
-    );
   }
 
   /** Sube logo o favicon; 202 → deja el asset en "processing" y sondea hasta que se confirme. */
@@ -249,21 +200,6 @@ export class CompanySettingsStore {
   }
 
   private applyBrand(brand: BrandResponse): void {
-    const primary = brand.colors.find(c => c.token === 'Primary');
-    const accent = brand.colors.find(c => c.token === 'Accent');
-    const colors: BrandColors = {
-      primaryColor: primary?.value ?? '#1e466b',
-      accentColor: accent?.value ?? '#67baf4',
-      isCustomized: Boolean(primary?.isCustomized || accent?.isCustomized),
-    };
-    this._colors.set(colors);
-    // Tema en vivo SOLO para la superficie CRM (esta app): aplicar la paleta del Portal recolorearía
-    // el CRM mientras editas la marca de otra superficie. En Portal, los pickers muestran el color pero
-    // no se toca el tema de esta app.
-    if (this._surface() === 'Crm') {
-      this.theme.applyBranding({ primary: colors.primaryColor, accent: colors.accentColor });
-    }
-
     this._logo.set(this.toAssetView(brand, 'Logo'));
     this._favicon.set(this.toAssetView(brand, 'Favicon'));
   }
