@@ -1,7 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ThemeService } from '@core/theme/theme.service';
 import {
   ASSET_ALLOWED_CONTENT_TYPES,
   ASSET_MAX_SIZE_BYTES,
@@ -14,8 +13,8 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 
 /**
  * Página del módulo Company Settings: identidad legal de la firma (Billing) + marca del tenant
- * (TenantBrands, superficie CRM): colores primary/accent, logo y favicon. Los pickers de color
- * aplican el tema EN VIVO (ThemeService) mientras se arrastran, y se persisten al guardar.
+ * (TenantBrands, superficie CRM): logo y favicon. Los colores (primary/accent) ya no se editan aquí:
+ * la app usa el azul fijo del brandbook para todos los tenants.
  */
 @Component({
   selector: 'app-company-settings-page',
@@ -31,7 +30,6 @@ export class CompanySettingsPageComponent {
   protected readonly can = inject(AdminCapabilities);
 
   readonly store = inject(CompanySettingsStore);
-  private readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
 
   readonly assetMaxSizeKb = Math.round(ASSET_MAX_SIZE_BYTES / 1024);
@@ -39,7 +37,7 @@ export class CompanySettingsPageComponent {
   /** Superficies configurables (CRM / Portal del cliente) para el selector. */
   readonly surfaces = BRAND_SURFACES;
 
-  /** Cambia la superficie de marca a editar (recarga su logo/favicon/colores). */
+  /** Cambia la superficie de marca a editar (recarga su logo/favicon). */
   selectSurface(surface: BrandSurface): void {
     this.store.setSurface(surface);
   }
@@ -55,10 +53,6 @@ export class CompanySettingsPageComponent {
   readonly state = signal('');
   readonly zip = signal('');
   readonly country = signal('US');
-
-  // --- Formulario de colores (2 tokens tematizables) ---
-  readonly primaryColor = signal('#1e466b');
-  readonly accentColor = signal('#67baf4');
 
   /** Error de validación local del archivo (tipo/tamaño), previo a tocar el backend. */
   readonly assetFileError = signal<string | null>(null);
@@ -82,16 +76,6 @@ export class CompanySettingsPageComponent {
       this.state.set(p.state ?? '');
       this.zip.set(p.zip ?? '');
       this.country.set(p.country ?? 'US');
-    });
-
-    // Paleta efectiva del backend (custom o default) → pickers.
-    effect(() => {
-      const c = this.store.colors();
-      if (!c) {
-        return;
-      }
-      this.primaryColor.set(c.primaryColor);
-      this.accentColor.set(c.accentColor);
     });
   }
 
@@ -126,57 +110,6 @@ export class CompanySettingsPageComponent {
           /* el mensaje ya quedó en store.profileError */
         },
       });
-  }
-
-  // --- Colores ---
-
-  /**
-   * Preview en vivo mientras se arrastra el picker (aún no persiste). Solo se aplica al tema de esta
-   * app cuando se edita la superficie CRM; editando el Portal, el picker muestra el color pero no
-   * recolorea el CRM (esa marca es de otra superficie).
-   */
-  onPrimaryChange(hex: string): void {
-    this.primaryColor.set(hex);
-    if (this.store.surface() === 'Crm') {
-      this.theme.setPrimaryColor(hex, { persist: false });
-    }
-  }
-
-  onAccentChange(hex: string): void {
-    this.accentColor.set(hex);
-    if (this.store.surface() === 'Crm') {
-      this.theme.setSecondaryColor(hex, { persist: false });
-    }
-  }
-
-  get canSaveColors(): boolean {
-    return !this.store.colorsSaving() && !this.store.colorsLoading() && this.store.colors() !== null;
-  }
-
-  saveColors(): void {
-    if (!this.canSaveColors) {
-      return;
-    }
-    this.store
-      .saveColors({ primary: this.primaryColor(), accent: this.accentColor() })
-      .subscribe({
-        next: () => this.showToast('Brand colors saved'),
-        error: () => {
-          /* el mensaje ya quedó en store.colorsError */
-        },
-      });
-  }
-
-  resetColors(): void {
-    if (!this.canSaveColors) {
-      return;
-    }
-    this.store.resetColors().subscribe({
-      next: () => this.showToast('Brand colors reset to default'),
-      error: () => {
-        /* el mensaje ya quedó en store.colorsError */
-      },
-    });
   }
 
   // --- Assets (logo + favicon, mismo flujo) ---

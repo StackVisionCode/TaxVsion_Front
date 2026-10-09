@@ -64,20 +64,6 @@ export interface BrandResponse {
   assets: BrandAssetDto[];
 }
 
-/** Vista de la paleta para la UI (solo los 2 colores tematizables). */
-export interface BrandColors {
-  primaryColor: string;
-  accentColor: string;
-  /** true = el tenant personalizó al menos uno (primary o accent). */
-  isCustomized: boolean;
-}
-
-/** Body de PUT /tenants/{tenantId}/brands/Crm/colors. null = volver al default para ese token. */
-export interface UpdateBrandColorsRequest {
-  primary: string | null;
-  accent: string | null;
-}
-
 /** Vista de un asset (logo/favicon) para la UI: URL pública construida desde el fileId (solo si Confirmed). */
 export interface BrandAssetView {
   fileId: string;

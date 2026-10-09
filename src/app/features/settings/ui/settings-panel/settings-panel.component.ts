@@ -1,21 +1,9 @@
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ThemeService } from '@core/theme/theme.service';
 import { PublicSharingSettingComponent } from '../public-sharing-setting/public-sharing-setting.component';
-
-/**
- * Un campo con persistencia real. Hoy el único caso son los colores del tema,
- * que ThemeService aplica al instante y recuerda en este navegador.
- */
-interface ColorField {
-  kind: 'color';
-  key: 'primaryColor' | 'secondaryColor';
-  label: string;
-  description: string;
-}
 
 /**
  * Campo SIN respaldo: no existe endpoint donde guardarlo, así que se dibuja
@@ -31,7 +19,7 @@ interface PendingField {
   control: 'toggle' | 'select' | 'text';
 }
 
-type SettingField = ColorField | PendingField;
+type SettingField = PendingField;
 
 /** Enlace a una pantalla que SÍ persiste esos datos contra el backend. */
 interface PanelLink {
@@ -57,12 +45,12 @@ interface PanelConfig {
  * el módulo Settings nunca tuvo `data-access/`, ningún campo llegaba a un
  * endpoint y el botón "Save changes" solo encendía un chip "Saved" durante 2s.
  *
- * De todo lo que había, lo único con persistencia real son los colores del tema
- * (ThemeService → variables CSS + localStorage). Los datos de identidad de la
- * firma (nombre, EIN, dirección, logo, paleta del tenant) sí tienen backend,
- * pero viven en /company/settings (Billing `/billing/issuer-profile` y
- * `/tenants/{id}/...`), así que aquí se enlaza esa pantalla en vez de duplicar
- * un formulario que no guardaría nada.
+ * Ningún campo de este panel persiste nada: los datos de identidad de la firma
+ * (nombre, EIN, dirección, logo) sí tienen backend, pero viven en
+ * /company/settings (Billing `/billing/issuer-profile` y `/tenants/{id}/...`),
+ * así que aquí se enlaza esa pantalla en vez de duplicar un formulario que no
+ * guardaría nada. Los colores de marca son fijos (azul del brandbook) y ya no
+ * se editan desde ningún lado.
  */
 const PANELS: Record<string, PanelConfig> = {
   overview: {
@@ -70,13 +58,10 @@ const PANELS: Record<string, PanelConfig> = {
       icon: 'business-outline',
       label: 'Open company settings',
       description:
-        'Firm name, EIN, address, contact details, logo and office brand colors are stored with your company profile.',
+        'Firm name, EIN, address, contact details, logo and favicon are stored with your company profile.',
       routerLink: '/company/settings',
     },
     fields: [
-      // Los colores de marca se configuran a nivel de tenant en /company/settings (permiso
-      // branding.manage), no por navegador. El picker localStorage viejo se retiró para no tener
-      // dos fuentes de verdad en conflicto — ver TenantBrands.
       { kind: 'pending', key: 'timezone', control: 'select', label: 'Default timezone', description: 'Will set the timezone used for due dates and reminders' },
       { kind: 'pending', key: 'compactSidebar', control: 'toggle', label: 'Compact sidebar by default', description: 'Will start every session with the sidebar collapsed' },
     ],
@@ -132,8 +117,7 @@ const PANELS: Record<string, PanelConfig> = {
  *
  * Se eliminaron el botón "Save changes" y el chip "Saved": no escribían en
  * ningún sitio y hacían creer al usuario que su configuración quedaba guardada.
- * Los colores no lo necesitan (se aplican al instante) y el resto de campos no
- * tiene dónde guardarse todavía.
+ * Ningún campo de este panel tiene dónde guardarse todavía.
  */
 @Component({
   selector: 'app-settings-panel',
@@ -142,15 +126,12 @@ const PANELS: Record<string, PanelConfig> = {
   templateUrl: './settings-panel.component.html',
 })
 export class SettingsPanelComponent implements OnChanges {
-  private readonly theme = inject(ThemeService);
-
   @Input() moduleId = 'overview';
   @Input() moduleTitle = 'Overview';
 
   readonly fields = signal<SettingField[]>(PANELS['overview'].fields);
   readonly link = signal<PanelLink | null>(PANELS['overview'].link ?? null);
   readonly note = signal<string | null>(PANELS['overview'].note ?? null);
-  readonly colorPresets = this.theme.presets;
 
   /** true si en este módulo no hay un solo campo que llegue al backend. */
   readonly allPending = computed(() => this.fields().every(field => field.kind === 'pending'));
@@ -170,18 +151,5 @@ export class SettingsPanelComponent implements OnChanges {
     this.fields.set(panel.fields);
     this.link.set(panel.link ?? null);
     this.note.set(panel.note ?? null);
-  }
-
-  /** El color se aplica al instante: no hay nada que "guardar" después. */
-  updateColor(key: ColorField['key'], hex: string): void {
-    if (key === 'secondaryColor') {
-      this.theme.setSecondaryColor(hex);
-    } else {
-      this.theme.setPrimaryColor(hex);
-    }
-  }
-
-  colorFor(key: ColorField['key']): string {
-    return key === 'secondaryColor' ? this.theme.secondaryColor() : this.theme.primaryColor();
   }
 }

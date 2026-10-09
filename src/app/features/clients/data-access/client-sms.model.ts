@@ -128,7 +128,7 @@ export function clientSmsOutcome(response: ClientSmsSendResponse | null | undefi
   }
 }
 
-/** Errores HTTP del envío (permiso, límite de envío, red…) → texto claro. */
+/** Errores HTTP del envío (permiso, límite de envío, saldo, red…) → texto claro. */
 export function clientSmsErrorMessage(err: unknown): string {
   const status = err instanceof HttpErrorResponse ? err.status : -1;
   if (status === 403) {
@@ -138,6 +138,13 @@ export function clientSmsErrorMessage(err: unknown): string {
     return 'Too many messages in a short time. Wait a moment and try again.';
   }
   const apiError = toApiError(err);
+  // Cobro F6: cada SMS se cobra al monedero del tenant. 402 = saldo insuficiente, 503 = PEP no disponible.
+  if (apiError.code === 'sms.insufficientFunds') {
+    return 'Not enough wallet balance to send this message. Top up your wallet and try again.';
+  }
+  if (apiError.code === 'sms.walletUnavailable') {
+    return "Couldn't authorize the charge right now. Please try again in a few seconds.";
+  }
   if (apiError.code.startsWith('sms.') || apiError.code === 'providerRejected') {
     return failureText(apiError.code);
   }

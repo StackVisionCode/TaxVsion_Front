@@ -89,12 +89,12 @@ export class DashboardInvoicesChartComponent implements OnInit, AfterViewInit {
         // Explícito: el titular es de 6 meses, esta cifra es de siempre.
         label: 'All-time collected',
         value: formatCents(this.store.collectedAllTimeCents(), currency),
-        dot: 'bg-emerald-600',
+        dot: 'bg-brand-bold',
       },
       {
         label: 'Outstanding',
         value: formatCents(this.store.outstandingCents(), currency),
-        dot: 'bg-orange-500',
+        dot: 'bg-sand-500',
       },
       {
         label: 'Drafts',

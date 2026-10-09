@@ -87,22 +87,22 @@ export class DashboardRecentActivityComponent implements OnInit {
     }
   }
 
-  /** Círculo sólido/pastel por tipo (misma paleta que el centro de notificaciones). */
+  /** Círculo sólido/pastel por tipo, con la paleta armónica del dashboard (navy, sky, sage, sand). */
   iconBgFor(type: NotificationType): string {
     switch (type) {
       case 'customer_created':
       case 'customer_updated':
       case 'customer_assigned':
-        return 'bg-indigo-100 text-gray-700';
+        return 'bg-orange-100 text-brand-ink';
       case 'payment_received':
       case 'invoice_generated':
-        return 'bg-emerald-500 text-white';
+        return 'bg-sage-600 text-white';
       case 'document_signed':
       case 'document_uploaded':
         return 'bg-brand-bold text-white';
       case 'session_expiring':
       case 'subscription_expiring':
-        return 'bg-orange-500 text-white';
+        return 'bg-sand-600 text-white';
       case 'payment_failed':
       case 'system_alert':
         return 'bg-red-500 text-white';

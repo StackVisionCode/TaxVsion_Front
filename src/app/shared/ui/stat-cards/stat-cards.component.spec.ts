@@ -20,9 +20,9 @@ describe('StatCardsComponent', () => {
       { label: 'Cats', value: 3, tone: 'white', hint: 'across all' },
     ]);
     expect(cards.length).toBe(4);
-    expect(cards[0].classList.contains('bg-indigo-50')).toBe(true);
-    expect(cards[1].classList.contains('bg-indigo-100')).toBe(true);
-    expect(cards[2].classList.contains('bg-gray-200')).toBe(true);
+    expect(cards[0].classList.contains('bg-orange-100')).toBe(true);
+    expect(cards[1].classList.contains('bg-sand-100')).toBe(true);
+    expect(cards[2].classList.contains('bg-sage-100')).toBe(true);
     expect(cards[3].classList.contains('bg-white')).toBe(true);
     expect(cards[1].textContent).toContain('$4.00');
     expect(cards[2].querySelector('.text-3xl')!.textContent?.trim()).toBe('0');

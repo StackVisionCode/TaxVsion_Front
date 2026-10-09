@@ -9,8 +9,7 @@ import { SettingsPanelComponent } from '../../ui/settings-panel/settings-panel.c
  * original con una vista maestro-detalle en una sola página.
  *
  * El módulo no tiene `data-access/` porque hoy no persiste nada contra el
- * backend: lo único con efecto real son los colores del tema (ThemeService,
- * en Overview). Los módulos cuyos datos SÍ tienen backend navegan a su propia
+ * backend. Los módulos cuyos datos SÍ tienen backend navegan a su propia
  * pantalla (Company → /company/settings, Storage, Templates); el resto se
  * muestra deshabilitado — ver el detalle en settings-panel.component.ts.
  */

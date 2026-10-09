@@ -22,90 +22,72 @@
 
     <!-- ============ MESSAGES ============ -->
     @if (activeTab() === 'messages') {
-      <!-- filters -->
-      <div class="flex flex-wrap items-center gap-2" [class.mt-5]="!embedded()">
-        <app-filter-chips size="sm" [options]="statusFilters" [value]="store.status()" (valueChange)="setStatus($event)"></app-filter-chips>
-        <app-search-input class="ml-auto" widthClass="w-40 sm:w-56" placeholder="Search client, phone or text…"
-          ariaLabel="Search messages by client, phone or text" [debounceMs]="searchDebounceMs" [value]="searchText()"
-          (valueChange)="onSearch($event)"></app-search-input>
-      </div>
-
-      <!-- states -->
-      <app-state-block [loading]="store.listLoading() && store.items().length === 0" [error]="listErrorText()"
-        [empty]="store.items().length === 0" variant="inline" loadingText="Loading messages…" retryLabel="Try again"
-        icon="chatbubble-ellipses-outline" emptyTitle="No messages yet." (retry)="store.reloadList()">
-        <!-- desktop table -->
-        <div class="mt-4 hidden overflow-x-auto md:block">
-          <table class="w-full border-collapse">
-            <thead>
-              <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                @if (!embedded()) { <th scope="col" class="px-3 py-2.5">Client</th> }
-                <th scope="col" class="px-3 py-2.5">Phone</th>
-                <th scope="col" class="px-3 py-2.5">Message</th>
-                <th scope="col" class="px-3 py-2.5">Status</th>
-                <th scope="col" class="px-3 py-2.5">Sent</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (m of store.items(); track m.id) {
-                <tr (click)="openDetail(m)" class="cursor-pointer border-b border-gray-50 text-sm transition hover:bg-gray-50">
-                  @if (!embedded()) {
-                    <td class="px-3 py-3">
-                      <div class="flex items-center gap-2.5">
-                        <app-avatar [name]="clientName(m.recipientName, m.customerId, m.to)" [seed]="m.customerId" size="sm"></app-avatar>
-                        <span class="font-medium text-gray-700">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
-                      </div>
-                    </td>
-                  }
-                  <td class="px-3 py-3 tabular-nums text-gray-500">{{ m.to }}</td>
-                  <td class="px-3 py-3">
-                    <div class="flex items-center gap-2">
-                      <span class="block max-w-[320px] truncate text-gray-600">{{ m.body }}</span>
-                      @if (m.hasMedia) {
-                        <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">MMS</span>
-                      }
-                    </div>
-                  </td>
-                  <td class="px-3 py-3">
-                    <app-status-pill [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
-                  </td>
-                  <td class="px-3 py-3 text-gray-400">{{ m.createdAtUtc | date: 'short' }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
+      @if (embedded()) {
+        <!-- ---- Embebido (perfil): historial plano del cliente = su hilo ---- -->
+        <div class="flex flex-wrap items-center gap-2">
+          <app-filter-chips size="sm" [options]="statusFilters" [value]="store.status()" (valueChange)="setStatus($event)"></app-filter-chips>
+          <app-search-input class="ml-auto" widthClass="w-40 sm:w-56" placeholder="Search phone or text…"
+            ariaLabel="Search messages by phone or text" [debounceMs]="searchDebounceMs" [value]="searchText()"
+            (valueChange)="onSearch($event)"></app-search-input>
         </div>
 
-        <!-- mobile cards -->
-        <div class="mt-4 space-y-3 md:hidden">
-          @for (m of store.items(); track m.id) {
-            <button type="button" (click)="openDetail(m)" class="block w-full rounded-2xl border border-gray-100 p-4 text-left transition active:bg-gray-50">
-              <div class="flex items-center justify-between gap-3">
-                @if (embedded()) {
+        <app-state-block [loading]="store.listLoading() && store.items().length === 0" [error]="listErrorText()"
+          [empty]="store.items().length === 0" variant="inline" loadingText="Loading messages…" retryLabel="Try again"
+          icon="chatbubble-ellipses-outline" emptyTitle="No messages yet." (retry)="store.reloadList()">
+          <div class="mt-4 space-y-3">
+            @for (m of store.items(); track m.id) {
+              <button type="button" (click)="openDetail(m)" class="block w-full rounded-2xl border border-gray-100 p-4 text-left transition hover:bg-gray-50">
+                <div class="flex items-center justify-between gap-3">
                   <span class="truncate text-sm tabular-nums text-gray-500">{{ m.to }}</span>
-                } @else {
-                  <div class="flex min-w-0 items-center gap-2.5">
-                    <app-avatar [name]="clientName(m.recipientName, m.customerId, m.to)" [seed]="m.customerId" sizeClass="h-9 w-9 text-xs"></app-avatar>
-                    <span class="truncate font-semibold text-gray-800">{{ clientName(m.recipientName, m.customerId, m.to) }}</span>
-                  </div>
-                }
-                <app-status-pill class="shrink-0" [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
-              </div>
-              <p class="mt-2 line-clamp-2 text-sm text-gray-600">{{ m.body }}</p>
-              <div class="mt-1 text-xs text-gray-400">{{ m.createdAtUtc | date: 'short' }}</div>
-            </button>
-          }
+                  <app-status-pill class="shrink-0" [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
+                </div>
+                <p class="mt-2 line-clamp-2 text-sm text-gray-600">{{ m.body }}</p>
+                <div class="mt-1 text-xs text-gray-400">{{ m.createdAtUtc | date: 'short' }}</div>
+              </button>
+            }
+          </div>
+          <div class="mt-4">
+            <app-pagination [currentPage]="store.page()" [totalItems]="store.totalCount()" [pageSize]="store.size()" (pageChange)="onPage($event)" />
+          </div>
+        </app-state-block>
+      } @else {
+        <!-- ---- Tenant-wide: CONVERSACIONES (una fila por cliente → abre el hilo) ---- -->
+        <div class="mt-5 flex flex-wrap items-center gap-2">
+          <p class="text-sm text-gray-500">One row per client — open to see the full thread.</p>
+          <app-search-input class="ml-auto" widthClass="w-40 sm:w-56" placeholder="Search client, phone or text…"
+            ariaLabel="Search conversations by client, phone or text" [debounceMs]="searchDebounceMs" [value]="searchText()"
+            (valueChange)="onSearch($event)"></app-search-input>
         </div>
 
-        <!-- pagination -->
-        <div class="mt-4">
-          <app-pagination
-            [currentPage]="store.page()"
-            [totalItems]="store.totalCount()"
-            [pageSize]="store.size()"
-            (pageChange)="onPage($event)" />
-        </div>
-      </app-state-block>
+        <app-state-block [loading]="store.convLoading() && store.convItems().length === 0" [error]="convErrorText()"
+          [empty]="store.convItems().length === 0" variant="inline" loadingText="Loading conversations…" retryLabel="Try again"
+          icon="chatbubble-ellipses-outline" emptyTitle="No conversations yet." (retry)="store.reloadConversations()">
+          <div class="mt-4 space-y-2">
+            @for (c of store.convItems(); track c.customerId) {
+              <button type="button" (click)="openThread(c)"
+                class="flex w-full items-center gap-3 rounded-2xl border border-gray-100 p-3.5 text-left transition hover:bg-gray-50">
+                <app-avatar [name]="clientName(c.recipientName, c.customerId, c.to)" [seed]="c.customerId" size="sm"></app-avatar>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="truncate font-semibold text-gray-800">{{ clientName(c.recipientName, c.customerId, c.to) }}</span>
+                    @if (c.messageCount > 1) {
+                      <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{{ c.messageCount }}</span>
+                    }
+                    <span class="ml-auto shrink-0 text-xs text-gray-400">{{ c.lastSentAtUtc | date: 'short' }}</span>
+                  </div>
+                  <div class="mt-0.5 flex items-center gap-2">
+                    <span class="truncate text-sm text-gray-500">{{ c.lastBody }}</span>
+                    <app-status-pill class="ml-auto shrink-0" [toneClass]="pill(statusChip(c.lastStatus).chip)" [dotClass]="statusChip(c.lastStatus).dot">{{ statusChip(c.lastStatus).label }}</app-status-pill>
+                  </div>
+                </div>
+              </button>
+            }
+          </div>
+          <div class="mt-4">
+            <app-pagination [currentPage]="store.convPage()" [totalItems]="store.convTotalCount()" [pageSize]="store.convSize()" (pageChange)="onPage($event)" />
+          </div>
+        </app-state-block>
+      }
     }
 
     <!-- ============ OPT-OUTS ============ -->
@@ -215,6 +197,33 @@
       <span>Clients who replied <b>STOP</b> are skipped automatically and never charged.</span>
     </div>
 
+    <!-- Cobro visible (F6): saldo + tarifa SMS + costo tope del envío elegido. -->
+    @if (smsRateMicros() > 0) {
+      <div class="flex flex-col gap-1 rounded-xl border px-3.5 py-2.5 text-xs"
+        [class]="composeRecipients().length > 0 && !estimatedSufficient() ? 'border-orange-200 bg-orange-50' : 'border-gray-100'">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span class="font-semibold text-gray-700">Wallet: {{ walletAvailableLabel() }} available</span>
+          <span class="text-gray-400">SMS {{ rateLabel(smsRateMicros()) }} each</span>
+        </div>
+        @if (composeRecipients().length > 0) {
+          <div class="font-semibold" [class]="estimatedSufficient() ? 'text-emerald-600' : 'text-orange-700'">
+            {{ composeRecipients().length }} recipient{{ composeRecipients().length === 1 ? '' : 's' }} · up to {{ fmtMicros(estimatedCostMicros()) }}
+            @if (!estimatedSufficient()) { · short {{ fmtMicros(estimatedDeficitMicros()) }} }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Red de seguridad: saldo insuficiente (402) → faltante + Top up and retry. -->
+    @if (sendDeficitMessage(); as deficit) {
+      <div class="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3.5 py-3 text-sm text-orange-700">
+        <span>{{ deficit }}</span>
+        <button type="button" (click)="goToWalletTopUp()" class="self-start rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink">
+          Top up and retry
+        </button>
+      </div>
+    }
+
     @if (composeError()) { <p class="text-sm text-rose-600">{{ composeError() }}</p> }
   </div>
 
@@ -253,4 +262,46 @@
       @if (d.media.length > 0) { <div class="flex justify-between border-b border-gray-50 py-1.5"><dt class="text-gray-500">Attachment</dt><dd class="text-gray-700">{{ d.media.length }} file(s)</dd></div> }
     </dl>
   }
+</app-drawer>
+
+<!-- ============ THREAD DRAWER (conversación de un cliente) ============ -->
+<app-drawer [isOpen]="threadOpen()" width="md" bodyClass="px-6 py-5"
+  [heading]="threadConv() ? clientName(threadConv()!.recipientName, threadConv()!.customerId, threadConv()!.to) : 'Conversation'"
+  [subheading]="threadConv()?.to ?? ''" (closed)="closeThread()">
+  @if (store.threadLoading() && store.threadItems().length === 0) {
+    <div class="py-10 text-center text-sm text-gray-400">Loading…</div>
+  } @else {
+    <!-- Mensajes del cliente, del más reciente al más antiguo (como el historial). Cada burbuja lleva
+         su estado y, si falló, el motivo en lenguaje simple. -->
+    <div class="space-y-3">
+      @for (m of store.threadItems(); track m.id) {
+        <div class="ml-auto max-w-[85%]">
+          <div class="rounded-2xl rounded-br bg-indigo-50 px-4 py-2.5 text-sm text-gray-800">
+            {{ m.body }}
+            @if (m.hasMedia) {
+              <span class="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">MMS</span>
+            }
+          </div>
+          <div class="mt-1 flex items-center justify-end gap-2">
+            <app-status-pill [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
+            <span class="text-[11px] text-gray-400">{{ m.createdAtUtc | date: 'short' }}</span>
+          </div>
+          @if (m.status === 'Failed' || m.status === 'Undeliverable' || m.status === 'Suppressed') {
+            <p class="mt-0.5 text-right text-[11px] text-gray-400">{{ reasonText(m.status) }}</p>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <div drawerFooter class="flex items-center justify-end gap-3">
+    <button type="button" (click)="closeThread()" class="px-3 py-2 text-sm font-semibold text-gray-500">Close</button>
+    @if (caps.canSend()) {
+      <button type="button" (click)="composeToThreadClient()"
+        class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-ink">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        Send SMS
+      </button>
+    }
+  </div>
 </app-drawer>
