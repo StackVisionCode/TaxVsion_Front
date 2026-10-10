@@ -19,6 +19,7 @@ import {
   CampaignTemplateRequest,
   CampaignTemplateResponse,
   ImportContactsRequest,
+  AddCustomersToListResponse,
   ImportContactsResponse,
   ScheduleAction,
   ScheduleCampaignRequest,
@@ -300,6 +301,9 @@ export class CampaignsStore {
   }
   importContacts(listId: string, req: ImportContactsRequest): Observable<ImportContactsResponse> {
     return this.act(this.service.importContacts(listId, req), () => this.loadLists());
+  }
+  addCustomersToList(listId: string, customerIds: string[]): Observable<AddCustomersToListResponse> {
+    return this.act(this.service.addCustomersToList(listId, customerIds), () => this.loadLists());
   }
   createSender(req: CreateSenderProfileRequest): Observable<SenderProfileResponse> {
     return this.act(this.service.createSender(req), () => this.loadSenders());

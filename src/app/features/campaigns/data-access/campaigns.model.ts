@@ -159,9 +159,20 @@ export interface SendToAudienceRequest {
   contactListIds?: string[];
   manual?: ManualAudienceEntry[];
   includeCustomers?: boolean;
+  /** Clientes seleccionados (fuente "Clients" acotada). No vacío ⇒ solo esos; vacío + includeCustomers ⇒ todos. */
+  customerIds?: string[];
 }
 
 /** Conteo de audiencia resuelta (opt-out/dedupe) para el estimado de costo — `POST /campaigns/{id}/preview-audience`. */
+/** Resultado de agregar clientes seleccionados a una lista (contactos FromCustomer). */
+export interface AddCustomersToListResponse {
+  contactsCreated: number;
+  contactsReused: number;
+  membersAdded: number;
+  notFound: number;
+  invalid: number;
+}
+
 export interface AudiencePreviewResponse {
   recipientCount: number;
   email: number;

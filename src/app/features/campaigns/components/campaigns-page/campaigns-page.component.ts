@@ -8,6 +8,8 @@ import { CommunicationRealtimeService } from '@core/realtime/communication-realt
 import { toApiError } from '@core/models/api-error.model';
 import { WalletStore } from '@features/wallet/data-access/wallet.store';
 import { EstimateView, formatMicros } from '@features/wallet/data-access/wallet.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RichEditorComponent } from '../../ui/rich-editor/rich-editor.component';
@@ -141,8 +143,24 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     { label: 'Phone', token: '{{phone}}' },
   ];
 
+  // Audiencia desde Clientes (Customer directory, GET /customers): ver la lista y seleccionar a quién enviar.
+  private readonly customers = inject(CustomerDirectoryStore);
+  // Vista "Clients" de la pestaña Audience (solo ver/buscar tus clientes).
+  readonly audClients = signal<CustomerSummary[]>([]);
+  readonly audClientsLoading = signal(false);
+  readonly audClientsTerm = signal('');
+  // Selección de clientes en la vista Clients para "agregar a una lista".
+  readonly audClientSel = signal<Record<string, boolean>>({});
+  readonly addToListId = signal<string>('');
+  readonly addingToList = signal(false);
+  // Selector de clientes dentro del modal de envío (buscar + marcar) → sendForm.clientIds.
+  readonly sendClientResults = signal<CustomerSummary[]>([]);
+  readonly sendClientLoading = signal(false);
+  readonly sendClientTerm = signal('');
+  private sendClientSeq = 0;
+
   readonly tab = signal<Tab>('campaigns');
-  readonly audienceTab = signal<'lists' | 'contacts'>('lists');
+  readonly audienceTab = signal<'lists' | 'contacts' | 'clients'>('lists');
   readonly selected = signal<CampaignResponse | null>(null);
   readonly selectedRun = signal<CampaignRunResponse | null>(null);
 
@@ -153,9 +171,10 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     { id: 'Scheduled', label: 'Scheduled' },
     { id: 'Archived', label: 'Archived' },
   ];
-  readonly audienceTabs: SegmentedOption<'lists' | 'contacts'>[] = [
+  readonly audienceTabs: SegmentedOption<'lists' | 'contacts' | 'clients'>[] = [
     { id: 'lists', label: 'Lists' },
     { id: 'contacts', label: 'Contacts' },
+    { id: 'clients', label: 'Clients' },
   ];
 
   // ---------- modals ----------
@@ -627,7 +646,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   // ---------- send to audience ----------
   private blankSend() {
-    return { listIds: {} as Record<string, boolean>, includeCustomers: false, manual: '' };
+    return {
+      listIds: {} as Record<string, boolean>,
+      clientIds: {} as Record<string, boolean>,
+      includeCustomers: false,
+      manual: '',
+    };
   }
   openSend(c: CampaignResponse): void {
     this.selected.set(c);
@@ -637,6 +661,9 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     this.sendEstimateRecipients.set(0);
     this.estimating.set(false);
     this.wallet.init(); // saldo + tarifas para el hint de costo (carga idempotente)
+    this.sendClientTerm.set('');
+    this.sendClientResults.set([]);
+    this.searchSendClients(''); // primera página de clientes para marcar
     this.showSend.set(true);
   }
   toggleList(id: string): void {
@@ -653,17 +680,115 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   /** Reúne la audiencia seleccionada (listas + manual + clientes) — compartido por envío y estimado. */
   private buildAudience() {
     const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
+    // "Todos los clientes" tiene prioridad: si está marcado, la selección específica se ignora.
+    const customerIds = this.sendForm.includeCustomers
+      ? []
+      : Object.keys(this.sendForm.clientIds).filter(id => this.sendForm.clientIds[id]);
     const manual = this.sendForm.manual
       .split(/[\n,;]+/)
       .map(s => s.trim())
       .filter(Boolean)
       .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
-    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers };
+    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers, customerIds };
   }
 
-  private hasAudience(a: { contactListIds: string[]; manual: unknown[]; includeCustomers: boolean }): boolean {
-    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers;
+  private hasAudience(a: {
+    contactListIds: string[];
+    manual: unknown[];
+    includeCustomers: boolean;
+    customerIds: string[];
+  }): boolean {
+    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers || a.customerIds.length > 0;
   }
+
+  // ---------- Clientes como audiencia ----------
+
+  /** Cambia de sub-pestaña de Audience; al entrar a "clients" carga la lista (idempotente). */
+  setAudienceTab(t: 'lists' | 'contacts' | 'clients'): void {
+    this.audienceTab.set(t);
+    if (t === 'clients' && this.audClients().length === 0) this.loadAudienceClients('');
+  }
+
+  toggleAudClient(id: string): void {
+    this.audClientSel.update(s => ({ ...s, [id]: !s[id] }));
+  }
+
+  isAudClientSelected(id: string): boolean {
+    return !!this.audClientSel()[id];
+  }
+
+  readonly audClientSelCount = computed(() => Object.values(this.audClientSel()).filter(Boolean).length);
+
+  /** Agrega los clientes marcados a la lista elegida (contactos FromCustomer). */
+  addSelectedClientsToList(): void {
+    const listId = this.addToListId();
+    const ids = Object.keys(this.audClientSel()).filter(id => this.audClientSel()[id]);
+    if (!listId) {
+      this.toast.error('Pick a list first.');
+      return;
+    }
+    if (ids.length === 0) {
+      this.toast.error('Select at least one client.');
+      return;
+    }
+    this.addingToList.set(true);
+    this.store.addCustomersToList(listId, ids).subscribe({
+      next: r => {
+        this.addingToList.set(false);
+        this.audClientSel.set({});
+        const parts = [`${r.membersAdded} added to list`];
+        if (r.contactsCreated > 0) parts.push(`${r.contactsCreated} new contact(s)`);
+        if (r.notFound > 0) parts.push(`${r.notFound} not found`);
+        this.toast.success(parts.join(' · '));
+      },
+      error: err => {
+        this.addingToList.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Lista/busca clientes para la vista de la pestaña Audience (solo ver). */
+  loadAudienceClients(term: string): void {
+    this.audClientsTerm.set(term);
+    this.audClientsLoading.set(true);
+    this.customers.search({ term: term || undefined, status: 'Active', page: 1, size: 50 }).subscribe({
+      next: p => {
+        this.audClients.set(p.items);
+        this.audClientsLoading.set(false);
+      },
+      error: () => this.audClientsLoading.set(false),
+    });
+  }
+
+  /** Busca clientes dentro del modal de envío (para marcarlos). */
+  searchSendClients(term: string): void {
+    this.sendClientTerm.set(term);
+    const seq = ++this.sendClientSeq;
+    this.sendClientLoading.set(true);
+    this.customers.search({ term: term || undefined, status: 'Active', page: 1, size: 50 }).subscribe({
+      next: p => {
+        if (seq !== this.sendClientSeq) return;
+        this.sendClientResults.set(p.items);
+        this.sendClientLoading.set(false);
+      },
+      error: () => {
+        if (seq === this.sendClientSeq) this.sendClientLoading.set(false);
+      },
+    });
+  }
+
+  toggleSendClient(id: string): void {
+    this.sendForm.clientIds[id] = !this.sendForm.clientIds[id];
+    this.scheduleEstimate();
+  }
+
+  isSendClientSelected(id: string): boolean {
+    return !!this.sendForm.clientIds[id];
+  }
+
+  readonly selectedSendClientCount = () =>
+    Object.keys(this.sendForm.clientIds).filter(id => this.sendForm.clientIds[id]).length;
 
   /** Recalcula el estimado con un pequeño debounce (se dispara al tocar listas/clientes/manual). */
   scheduleEstimate(): void {
@@ -707,18 +832,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     if (this.busy() || this.confirmation()) return;
     const c = this.selected();
     if (!c) return;
-    const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
-    const manual = this.sendForm.manual
-      .split(/[\n,;]+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
-    if (contactListIds.length === 0 && manual.length === 0 && !this.sendForm.includeCustomers) {
+    const audience = this.buildAudience();
+    if (!this.hasAudience(audience)) {
       this.toast.error('Pick at least one audience source.');
       return;
     }
     // Guard anti re-envío accidental: cada Send dispara un envío real a toda la audiencia.
-    const includeCustomers = this.sendForm.includeCustomers;
     this.confirmation.set({
       heading: 'Send campaign',
       message: `Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`,
@@ -727,7 +846,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       action: () => {
         this.busy.set(true);
         this.sendDeficitMessage.set(null);
-        this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers }).subscribe({
+        this.store.sendToAudience(c.id, audience).subscribe({
           next: run => {
             this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
             this.showSend.set(false);
