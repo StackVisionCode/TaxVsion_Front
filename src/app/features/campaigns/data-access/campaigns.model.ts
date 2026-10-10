@@ -257,6 +257,9 @@ export interface CreateSenderProfileRequest {
 
 // ---------- Schedules ----------
 
+/** Frecuencia de una campaña recurrente (coincide con RecurrenceFrequency del backend). */
+export type RecurrenceFrequency = 'Hourly' | 'Daily' | 'Weekly' | 'Monthly' | 'Custom';
+
 export interface CampaignScheduleResponse {
   id: string;
   tenantId: string;
@@ -271,6 +274,14 @@ export interface CampaignScheduleResponse {
   activeRunId: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
+  /** Recurrencia: frecuencia nombrada o Custom (null en OneTime o schedules legacy). */
+  frequency: RecurrenceFrequency | null;
+  /** Fin por fecha (lo que ocurra primero con maxOccurrences). */
+  endsAtUtc: string | null;
+  /** Fin por cantidad de disparos. */
+  maxOccurrences: number | null;
+  /** Disparos ya realizados. */
+  occurrenceCount: number;
 }
 export interface ScheduleCampaignRequest {
   recurring: boolean;
@@ -278,6 +289,13 @@ export interface ScheduleCampaignRequest {
   intervalMinutes?: number | null;
   contactListIds?: string[];
   includeCustomers?: boolean;
+  /** Clientes seleccionados (snapshot al agendar). No vacío ⇒ solo esos en cada disparo. */
+  customerIds?: string[];
+  /** Recurrencia: "Hourly"|"Daily"|"Weekly"|"Monthly"|"Custom" (Custom usa intervalMinutes). */
+  frequency?: RecurrenceFrequency;
+  /** Fin opcional (lo que ocurra primero): fecha UTC ISO o número de disparos. */
+  endsAtUtc?: string | null;
+  maxOccurrences?: number | null;
 }
 export type ScheduleAction = 'pause' | 'resume' | 'cancel';
 

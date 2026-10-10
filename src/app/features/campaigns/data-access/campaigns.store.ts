@@ -177,24 +177,82 @@ export class CampaignsStore {
       error: this.failed('senders'),
     });
   }
-  loadRuns(campaignId: string): void {
+  // Paginación de runs (mismo patrón que schedules). `loadRuns` fija la página; `refreshRuns` la conserva
+  // (para el polling/live, que no debe saltar la página que mira el usuario).
+  static readonly RUNS_PAGE_SIZE = 8;
+  private readonly _runsPage = signal(1);
+  private readonly _runsTotal = signal(0);
+  private _runsCampaignId: string | null = null;
+  readonly runsPage = this._runsPage.asReadonly();
+  readonly runsTotal = this._runsTotal.asReadonly();
+  readonly runsPageSize = CampaignsStore.RUNS_PAGE_SIZE;
+
+  loadRuns(campaignId: string, page = 1): void {
+    this._runsCampaignId = campaignId;
+    this._runsPage.set(page);
+    // Solo limpiamos al cambiar de página/campaña; el refresco en vivo (misma página) no parpadea la lista.
     this._runs.set([]);
-    this.service.listRuns(campaignId, 1, 50).subscribe({
+    this.service.listRuns(campaignId, page, CampaignsStore.RUNS_PAGE_SIZE).subscribe({
       next: p => {
         this._runs.set(p.items);
+        this._runsTotal.set(p.totalCount);
+        if (p.items.length === 0 && page > 1) {
+          this.loadRuns(campaignId, page - 1);
+          return;
+        }
         this.loaded('runs');
       },
       error: this.failed('runs'),
     });
   }
-  loadSchedules(campaignId: string): void {
-    this.service.listSchedules(campaignId, 1, 50).subscribe({
+
+  /** Recarga la página de runs actual sin resetear a la 1 ni vaciar la lista (polling/live refresh). */
+  refreshRuns(): void {
+    const campaignId = this._runsCampaignId;
+    if (!campaignId) return;
+    const page = this._runsPage();
+    this.service.listRuns(campaignId, page, CampaignsStore.RUNS_PAGE_SIZE).subscribe({
+      next: p => {
+        this._runs.set(p.items);
+        this._runsTotal.set(p.totalCount);
+        this.loaded('runs');
+      },
+      error: this.failed('runs'),
+    });
+  }
+
+  goToRunsPage(page: number): void {
+    if (this._runsCampaignId) this.loadRuns(this._runsCampaignId, page);
+  }
+  // Paginación de schedules (el backend ya devuelve PagedResult; antes el front pedía 50 y descartaba el total).
+  static readonly SCHEDULES_PAGE_SIZE = 5;
+  private readonly _schedulesPage = signal(1);
+  private readonly _schedulesTotal = signal(0);
+  private _schedulesCampaignId: string | null = null;
+  readonly schedulesPage = this._schedulesPage.asReadonly();
+  readonly schedulesTotal = this._schedulesTotal.asReadonly();
+  readonly schedulesPageSize = CampaignsStore.SCHEDULES_PAGE_SIZE;
+
+  loadSchedules(campaignId: string, page = 1): void {
+    this._schedulesCampaignId = campaignId;
+    this._schedulesPage.set(page);
+    this.service.listSchedules(campaignId, page, CampaignsStore.SCHEDULES_PAGE_SIZE).subscribe({
       next: p => {
         this._schedules.set(p.items);
+        this._schedulesTotal.set(p.totalCount);
+        // Si la última fila de la última página se fue (p.ej. tras cancelar), retrocede una página.
+        if (p.items.length === 0 && page > 1) {
+          this.loadSchedules(campaignId, page - 1);
+          return;
+        }
         this.loaded('schedules');
       },
       error: this.failed('schedules'),
     });
+  }
+
+  goToSchedulesPage(page: number): void {
+    if (this._schedulesCampaignId) this.loadSchedules(this._schedulesCampaignId, page);
   }
 
   // ---------- actions (return Observable so the page can toast/close) ----------
@@ -234,7 +292,7 @@ export class CampaignsStore {
       this.service.setScheduleState(scheduleId, action).pipe(
         tap(updated => this._schedules.update(items => items.map(item => item.id === updated.id ? updated : item))),
       ),
-      () => this.loadSchedules(campaignId),
+      () => this.loadSchedules(campaignId, this._schedulesPage()),
     );
   }
   createContact(req: CreateContactRequest): Observable<ContactResponse> {

@@ -21,9 +21,11 @@ import {
   ApiChannel,
   CampaignResponse,
   CampaignRunResponse,
+  CampaignScheduleResponse,
   CampaignTemplateResponse,
   CHANNELS,
   ContactResponse,
+  RecurrenceFrequency,
   RunRecipient,
   campaignStatusClass,
   channelClass,
@@ -36,6 +38,7 @@ import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 
 type Tab = 'campaigns' | 'runs' | 'audience' | 'schedules' | 'templates';
 const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor real hoy
@@ -76,6 +79,7 @@ const CHANNEL_META: ChannelMeta[] = [
     FilterChipsComponent,
     SegmentedComponent,
     SearchInputComponent,
+    PaginationComponent,
   ],
   templateUrl: './campaigns-page.component.html',
 })
@@ -237,7 +241,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   private scheduleRunsRefresh(campaignId: string): void {
     if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
     this.runsRefreshTimer = setTimeout(() => {
-      this.store.loadRuns(campaignId);
+      this.store.refreshRuns();
       this.syncOpenRun();
       this.wallet.refresh();
     }, 800);
@@ -254,7 +258,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     let ticks = 0;
     this.pollTimer = setInterval(() => {
       ticks++;
-      this.store.loadRuns(campaignId);
+      this.store.refreshRuns();
       this.syncOpenRun();
       const anyDispatching = this.store.runs().some(r => r.status === 'Dispatching');
       if (!anyDispatching) {
@@ -798,9 +802,19 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   /** preview-audience (conteo real por canal) → cotización en el Wallet (solo Email+SMS se cobran). */
   private estimateNow(): void {
+    this.runEstimate(this.buildAudience());
+  }
+
+  /** Cotiza una audiencia (listas+manual+clientes) vía preview-audience → Wallet. Compartido por el modal
+   *  de envío y el de agendar (solo uno abierto a la vez; comparten las señales sendEstimate*). */
+  private runEstimate(audience: {
+    contactListIds: string[];
+    manual: { email?: string; phoneE164?: string }[];
+    includeCustomers: boolean;
+    customerIds: string[];
+  }): void {
     const c = this.selected();
     if (!c) return;
-    const audience = this.buildAudience();
     if (!this.hasAudience(audience)) {
       this.sendEstimate.set(null);
       this.sendEstimateRecipients.set(0);
@@ -871,29 +885,159 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   }
 
   // ---------- schedule ----------
+
+  /** Etiqueta de cadencia para la lista de schedules: "Weekly", "every 30 min", o la fecha one-time. */
+  schedCadence(s: CampaignScheduleResponse): string {
+    if (s.kind !== 'Recurring') return '';
+    if (s.frequency && s.frequency !== 'Custom') return s.frequency;
+    return s.intervalMinutes ? `every ${s.intervalMinutes} min` : 'recurring';
+  }
+
+  /** Etiqueta del fin de un schedule recurrente: "until Mar 1", "N of M fires", o "" si no tiene fin. */
+  schedEndLabel(s: CampaignScheduleResponse): string {
+    if (s.kind !== 'Recurring') return '';
+    if (s.maxOccurrences != null) return `${s.occurrenceCount}/${s.maxOccurrences} fires`;
+    if (s.endsAtUtc) return `until ${new Date(s.endsAtUtc).toLocaleDateString()}`;
+    return '';
+  }
+
   private blankSchedule() {
-    return { recurring: false, runAt: '', intervalMinutes: 1440, listIds: {} as Record<string, boolean>, includeCustomers: false };
+    return {
+      recurring: false,
+      runAt: '',
+      // Recurrencia: frecuencia nombrada (Daily por defecto) o Custom (usa intervalMinutes).
+      frequency: 'Daily' as RecurrenceFrequency,
+      intervalMinutes: 1440,
+      // Fin: 'never' (sin tope), 'date' (hasta una fecha) o 'count' (número de disparos).
+      endsMode: 'never' as 'never' | 'date' | 'count',
+      endsAt: '',
+      maxOccurrences: 10,
+      listIds: {} as Record<string, boolean>,
+      clientIds: {} as Record<string, boolean>,
+      includeCustomers: false,
+    };
   }
   openSchedule(c: CampaignResponse): void {
     this.selected.set(c);
     this.schedForm = this.blankSchedule();
+    this.sendEstimate.set(null);
+    this.sendEstimateRecipients.set(0);
+    this.estimating.set(false);
+    this.wallet.init(); // saldo + tarifas para el estimado por disparo (carga idempotente)
+    this.sendClientTerm.set('');
+    this.sendClientResults.set([]);
+    this.searchSendClients(''); // primera página de clientes para marcar (buscador compartido con el envío)
     this.showSchedule.set(true);
   }
+
+  toggleSchedClient(id: string): void {
+    this.schedForm.clientIds[id] = !this.schedForm.clientIds[id];
+    this.scheduleSchedEstimate();
+  }
+
+  // Estimado de costo del modal Schedule (reusa las señales sendEstimate*; solo un modal abierto a la vez).
+  private schedEstimateTimer: ReturnType<typeof setTimeout> | null = null;
+  scheduleSchedEstimate(): void {
+    if (this.schedEstimateTimer) clearTimeout(this.schedEstimateTimer);
+    this.schedEstimateTimer = setTimeout(() => this.runEstimate(this.buildSchedAudience()), 450);
+  }
+  private buildSchedAudience() {
+    const contactListIds = Object.keys(this.schedForm.listIds).filter(id => this.schedForm.listIds[id]);
+    const customerIds = this.schedForm.includeCustomers
+      ? []
+      : Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]);
+    return { contactListIds, manual: [], includeCustomers: this.schedForm.includeCustomers, customerIds };
+  }
+  isSchedClientSelected(id: string): boolean {
+    return !!this.schedForm.clientIds[id];
+  }
+  readonly selectedSchedClientCount = () =>
+    Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]).length;
+
+  /** Avanza un instante un paso según la frecuencia (Monthly por calendario, igual que el backend). */
+  private advanceByFrequency(d: Date, freq: RecurrenceFrequency, intervalMinutes: number): Date {
+    const n = new Date(d);
+    switch (freq) {
+      case 'Hourly':
+        n.setHours(n.getHours() + 1);
+        break;
+      case 'Daily':
+        n.setDate(n.getDate() + 1);
+        break;
+      case 'Weekly':
+        n.setDate(n.getDate() + 7);
+        break;
+      case 'Monthly':
+        n.setMonth(n.getMonth() + 1);
+        break;
+      default: // Custom
+        n.setMinutes(n.getMinutes() + Math.max(1, intervalMinutes));
+    }
+    return n;
+  }
+
+  /**
+   * Cuántos disparos tendrá el schedule sobre la ventana elegida.
+   * - OneTime o no recurrente → 1.
+   * - Fin por cantidad → ese número.
+   * - Fin por fecha → cuenta los slots desde runAt hasta endsAt (cap defensivo 1000).
+   * - Sin fin → null (indefinido).
+   */
+  plannedScheduleOccurrences(): number | null {
+    const f = this.schedForm;
+    if (!f.recurring) return f.runAt ? 1 : null;
+    if (f.endsMode === 'count') return f.maxOccurrences > 0 ? f.maxOccurrences : null;
+    if (f.endsMode === 'date') {
+      if (!f.runAt || !f.endsAt) return null;
+      const end = new Date(f.endsAt).getTime();
+      let cur = new Date(f.runAt);
+      if (isNaN(cur.getTime()) || isNaN(end) || end <= cur.getTime()) return null;
+      let count = 0;
+      while (cur.getTime() <= end && count < 1000) {
+        count++;
+        cur = this.advanceByFrequency(cur, f.frequency, f.intervalMinutes);
+      }
+      return count;
+    }
+    return null; // 'never'
+  }
+
+  /** Costo total estimado (micros) = costo por disparo × ocurrencias planificadas (null si indefinido). */
+  scheduleTotalEstimateMicros(): number | null {
+    const per = this.sendEstimate();
+    const occ = this.plannedScheduleOccurrences();
+    if (!per || occ == null) return null;
+    return per.costMicros * occ;
+  }
+
   submitSchedule(): void {
     const c = this.selected();
     if (!c || !this.schedForm.runAt) {
       this.toast.error('Pick a first-run date/time.');
       return;
     }
+    if (this.schedForm.recurring && this.schedForm.endsMode === 'date' && !this.schedForm.endsAt) {
+      this.toast.error('Pick an end date, or switch the end mode.');
+      return;
+    }
     const contactListIds = Object.keys(this.schedForm.listIds).filter(id => this.schedForm.listIds[id]);
+    const rec = this.schedForm.recurring;
     this.busy.set(true);
     this.store
       .schedule(c.id, {
-        recurring: this.schedForm.recurring,
+        recurring: rec,
         runAtUtc: new Date(this.schedForm.runAt).toISOString(),
-        intervalMinutes: this.schedForm.recurring ? this.schedForm.intervalMinutes : null,
+        frequency: rec ? this.schedForm.frequency : undefined,
+        intervalMinutes: rec && this.schedForm.frequency === 'Custom' ? this.schedForm.intervalMinutes : null,
+        endsAtUtc:
+          rec && this.schedForm.endsMode === 'date' ? new Date(this.schedForm.endsAt).toISOString() : null,
+        maxOccurrences: rec && this.schedForm.endsMode === 'count' ? this.schedForm.maxOccurrences : null,
         contactListIds,
         includeCustomers: this.schedForm.includeCustomers,
+        // "Todos los clientes" tiene prioridad sobre la selección específica.
+        customerIds: this.schedForm.includeCustomers
+          ? []
+          : Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]),
       })
       .subscribe({
         next: () => {
@@ -909,6 +1053,18 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       });
   }
   readonly pendingScheduleId = signal<string | null>(null);
+
+  /** Cancelar un schedule es definitivo (no se puede reanudar) → pide confirmación primero. */
+  confirmCancelSchedule(scheduleId: string): void {
+    if (this.pendingScheduleId()) return;
+    this.confirmation.set({
+      heading: 'Cancel schedule',
+      message: 'This stops the schedule for good — it will not fire again and cannot be resumed. Continue?',
+      confirmLabel: 'Cancel schedule',
+      tone: 'danger',
+      action: () => this.scheduleAction(scheduleId, 'cancel'),
+    });
+  }
 
   scheduleAction(scheduleId: string, action: 'pause' | 'resume' | 'cancel'): void {
     const c = this.selected();

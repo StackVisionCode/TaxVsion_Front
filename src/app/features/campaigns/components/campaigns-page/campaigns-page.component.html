@@ -181,6 +181,7 @@
               </tbody>
             </table>
           </div>
+          <app-pagination [currentPage]="store.runsPage()" [totalItems]="store.runsTotal()" [pageSize]="store.runsPageSize" (pageChange)="store.goToRunsPage($event)" />
         }
         <p class="text-xs text-gray-400">A run is one immutable execution. It closes over its frozen total; late carrier receipts reconcile a unit (Accepted → Delivered) without reopening the run.</p>
       }
@@ -329,21 +330,26 @@
                 <tr class="border-b border-gray-50 hover:bg-gray-50/70">
                   <td class="py-3 px-3">
                     <app-status-pill [dot]="false" [toneClass]="pill(s.kind==='Recurring' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')">{{ s.kind==='Recurring' ? 'Recurring' : 'One time' }}</app-status-pill>
-                    <span class="ml-2 text-gray-500">{{ s.kind==='Recurring' ? ('every ' + s.intervalMinutes + ' min') : (local(s.nextFireAtUtc) | date:'MMM d, HH:mm') }}</span>
+                    <span class="ml-2 text-gray-500">{{ s.kind==='Recurring' ? schedCadence(s) : (local(s.nextFireAtUtc) | date:'MMM d, HH:mm') }}</span>
+                    @if (schedEndLabel(s); as end) { <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">{{ end }}</span> }
                   </td>
                   <td class="py-3 px-3 text-gray-500">{{ s.contactListIds.length }} list(s){{ s.includeCustomers ? ' · clients' : '' }}</td>
                   <td class="py-3 px-3"><app-status-pill [dot]="false" [toneClass]="pill(s.status==='Active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700')">{{ s.status }}</app-status-pill></td>
                   <td class="py-3 px-3 text-gray-400">{{ local(s.nextFireAtUtc || s.lastFiredAtUtc) | date:'MMM d, HH:mm' }}</td>
                   <td class="py-3 px-3 text-right">
-                    @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'pause')">{{ pendingScheduleId() === s.id ? 'Pausing?' : 'Pause' }}</button> }
-                    @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'resume')">{{ pendingScheduleId() === s.id ? 'Resuming?' : 'Resume' }}</button> }
+                    <div class="inline-flex gap-1.5">
+                      @if (s.status === 'Active') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'pause')">{{ pendingScheduleId() === s.id ? 'Pausing?' : 'Pause' }}</button> }
+                      @else if (s.status === 'Paused') { <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50" [disabled]="pendingScheduleId() !== null" (click)="scheduleAction(s.id,'resume')">{{ pendingScheduleId() === s.id ? 'Resuming?' : 'Resume' }}</button> }
+                      @if (s.status === 'Active' || s.status === 'Paused') { <button class="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50" [disabled]="pendingScheduleId() !== null" (click)="confirmCancelSchedule(s.id)">{{ pendingScheduleId() === s.id ? 'Cancelling?' : 'Cancel' }}</button> }
+                    </div>
                   </td>
                 </tr>
               } @empty { <tr><td colspan="5" class="py-12 text-center text-sm text-gray-400">No schedules yet.</td></tr> }
             </tbody>
           </table>
         </div>
-        <p class="text-xs text-gray-400">Pausing stops future scheduled runs; a run already in progress may finish. Each run reserves funds from your wallet before sending and settles the charge when it finishes.</p>
+        <app-pagination [currentPage]="store.schedulesPage()" [totalItems]="store.schedulesTotal()" [pageSize]="store.schedulesPageSize" (pageChange)="store.goToSchedulesPage($event)" />
+        <p class="text-xs text-gray-400">Pausing stops future scheduled runs; a run already in progress may finish. Cancelling stops it for good. Each run reserves funds from your wallet before sending and settles the charge when it finishes.</p>
       }
     }
   </div>
@@ -699,32 +705,104 @@
       </div>
       @if (schedForm.recurring) {
         <div>
-          <label class="text-xs font-semibold text-gray-600">Every</label>
-          <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [(ngModel)]="schedForm.intervalMinutes">
-            <option [ngValue]="60">1 hour</option><option [ngValue]="1440">1 day</option><option [ngValue]="10080">1 week</option>
+          <label class="text-xs font-semibold text-gray-600">Frequency</label>
+          <select class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="schedForm.frequency" (ngModelChange)="schedForm.frequency=$event; scheduleSchedEstimate()">
+            <option value="Hourly">Hourly</option>
+            <option value="Daily">Daily</option>
+            <option value="Weekly">Weekly</option>
+            <option value="Monthly">Monthly</option>
+            <option value="Custom">Custom interval…</option>
           </select>
         </div>
       }
     </div>
+    @if (schedForm.recurring) {
+      @if (schedForm.frequency === 'Custom') {
+        <div>
+          <label class="text-xs font-semibold text-gray-600">Every (minutes)</label>
+          <input type="number" min="1" class="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="schedForm.intervalMinutes" (ngModelChange)="schedForm.intervalMinutes=$event; scheduleSchedEstimate()" />
+        </div>
+      }
+      <!-- Fin de la recurrencia: lo que ocurra primero (fecha o cantidad), o sin fin. -->
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Ends</label>
+        <div class="mt-1 flex gap-1.5">
+          @for (m of ['never','date','count']; track m) {
+            <button type="button" class="flex-1 rounded-xl border px-3 py-2 text-sm font-semibold capitalize" [class]="schedForm.endsMode===m ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'" (click)="schedForm.endsMode=$any(m); scheduleSchedEstimate()">{{ m==='never' ? 'Never' : m==='date' ? 'On date' : 'After N' }}</button>
+          }
+        </div>
+        @if (schedForm.endsMode === 'date') {
+          <input type="datetime-local" class="mt-2 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="schedForm.endsAt" (ngModelChange)="schedForm.endsAt=$event; scheduleSchedEstimate()" />
+        } @else if (schedForm.endsMode === 'count') {
+          <div class="mt-2 flex items-center gap-2">
+            <input type="number" min="1" class="w-28 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-400" [ngModel]="schedForm.maxOccurrences" (ngModelChange)="schedForm.maxOccurrences=$event; scheduleSchedEstimate()" />
+            <span class="text-sm text-gray-500">fire(s), then stop</span>
+          </div>
+        }
+      </div>
+    }
     <label class="text-xs font-semibold text-gray-600">Audience for each fire</label>
     <div class="flex flex-col gap-2">
       @for (l of nonEmptyLists(); track trackById($index, l)) {
         <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="schedForm.listIds[l.id] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-          <input type="checkbox" [ngModel]="schedForm.listIds[l.id]" (ngModelChange)="schedForm.listIds[l.id]=!schedForm.listIds[l.id]" class="h-4 w-4 accent-blue-600" />
+          <input type="checkbox" [ngModel]="schedForm.listIds[l.id]" (ngModelChange)="schedForm.listIds[l.id]=!schedForm.listIds[l.id]; scheduleSchedEstimate()" class="h-4 w-4 accent-blue-600" />
           <span class="flex-1 text-sm text-gray-800">{{ l.name }}</span><span class="text-xs text-gray-400">{{ l.memberCount }}</span>
         </label>
       }
       <label class="flex items-center gap-3 rounded-xl border px-3.5 py-2 cursor-pointer" [class]="schedForm.includeCustomers ? 'border-blue-500 bg-blue-50' : 'border-gray-200'">
-        <input type="checkbox" [(ngModel)]="schedForm.includeCustomers" class="h-4 w-4 accent-blue-600" />
-        <span class="flex-1 text-sm text-gray-800">All active clients</span>
+        <input type="checkbox" [ngModel]="schedForm.includeCustomers" (ngModelChange)="schedForm.includeCustomers=$event; scheduleSchedEstimate()" class="h-4 w-4 accent-blue-600" />
+        <span class="flex-1 text-sm text-gray-800">All active clients <span class="text-xs text-gray-400">(the whole directory, each fire)</span></span>
       </label>
+
+      <!-- Clientes específicos (snapshot al agendar; se ignora si "All active clients"). -->
+      @if (!schedForm.includeCustomers) {
+        <div class="rounded-xl border border-gray-200 px-3.5 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <b class="text-sm text-gray-800">Pick specific clients</b>
+            @if (selectedSchedClientCount() > 0) {
+              <span class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-600">{{ selectedSchedClientCount() }} selected</span>
+            }
+          </div>
+          <app-search-input class="mt-2 block" widthClass="w-full" placeholder="Search clients by name, email or phone…"
+            ariaLabel="Search clients to schedule" [debounceMs]="300" [value]="sendClientTerm()" (valueChange)="searchSendClients($event)"></app-search-input>
+          <div class="mt-2 max-h-44 overflow-y-auto flex flex-col gap-1">
+            @for (cl of sendClientResults(); track cl.id) {
+              <label class="flex items-center gap-3 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-gray-50" [class.bg-blue-50]="isSchedClientSelected(cl.id)">
+                <input type="checkbox" [ngModel]="isSchedClientSelected(cl.id)" (ngModelChange)="toggleSchedClient(cl.id)" class="h-4 w-4 accent-blue-600" />
+                <span class="min-w-0 flex-1 truncate"><b class="text-sm text-gray-800">{{ cl.displayName }}</b> <span class="text-xs text-gray-400">{{ cl.primaryEmail || cl.primaryPhone || '' }}</span></span>
+              </label>
+            } @empty { <div class="py-3 text-center text-xs text-gray-400">No clients found.</div> }
+          </div>
+        </div>
+      }
     </div>
-    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Recurrence is by interval today (cron/timezone on the roadmap). Missed slots coalesce; overlapping runs are skipped.</div>
+    <div class="rounded-xl bg-gray-50 px-3.5 py-2.5 text-xs text-gray-500">Named frequencies fire by the calendar (Monthly keeps the day of month); Custom fires by interval. Missed slots coalesce; overlapping runs are skipped.</div>
     <!-- Cobro de los agendados: el costo se reserva/cobra en CADA disparo (la audiencia cambia), no al agendar. -->
     <div class="rounded-xl border border-gray-100 px-3.5 py-2.5 text-xs text-gray-500">
       <span class="font-semibold text-gray-700">Wallet: {{ walletAvailableLabel() }} available.</span>
       Each run is charged at send time against your wallet (only Email &amp; SMS — Push is free). If the balance is short when a run fires, that run is skipped until you top up.
     </div>
+    <!-- Estimado por disparo (preview de la audiencia elegida × tarifa). Se cobra en CADA fire. -->
+    @if (estimating()) {
+      <div class="rounded-xl border border-gray-100 px-3.5 py-2.5 text-xs text-gray-400">Estimating cost per run…</div>
+    } @else if (sendEstimate(); as est) {
+      <div class="rounded-xl border px-3.5 py-2.5 text-xs" [class]="est.sufficient ? 'border-gray-100' : 'border-orange-200 bg-orange-50'">
+        <span class="font-semibold" [class]="est.sufficient ? 'text-emerald-600' : 'text-orange-700'">
+          ≈ {{ fmtMicros(est.costMicros) }} per run · {{ sendEstimateRecipients() }} recipient(s)
+        </span>
+        <span class="text-gray-400">(Email &amp; SMS only; recalculated each fire)</span>
+        @if (schedForm.recurring) {
+          <div class="mt-1.5 border-t border-gray-100 pt-1.5 text-gray-600">
+            @if (plannedScheduleOccurrences(); as occ) {
+              <span class="font-semibold text-gray-800">≈ {{ fmtMicros(scheduleTotalEstimateMicros()!) }} total</span>
+              <span class="text-gray-400">over {{ occ }} fire(s){{ schedForm.endsMode === 'count' ? '' : ' in this window' }}</span>
+            } @else {
+              <span class="text-gray-400">No end set — total is open-ended ({{ fmtMicros(est.costMicros) }} each fire).</span>
+            }
+          </div>
+        }
+      </div>
+    }
     <div class="flex justify-end gap-2 pt-1">
       <button class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500" (click)="showSchedule.set(false)">Cancel</button>
       <button class="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" [disabled]="busy()" (click)="submitSchedule()">Schedule</button>
