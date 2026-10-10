@@ -8,20 +8,20 @@ module.exports = {
         // secundario) que ya se usan en toda la app por variables CSS con el
         // patrón rgb(var(...) / <alpha-value>) — el único que deja a Tailwind
         // seguir generando los modificadores de opacidad (ring-indigo-500/30,
-        // bg-orange-600/10, etc.) contra un color dinámico; una variable con
-        // el hex completo (`var(--x, #fff)`) rompe esos modificadores porque
-        // Tailwind no puede extraerle los canales RGB. El fallback (RGB del
-        // hex original de Tailwind, espacio sin comas) hace que sin JS o con
-        // los colores por defecto se vea exactamente igual que hoy.
-        // ThemeService (core/theme/) sobreescribe estas variables en :root
-        // cuando el usuario elige un color en Settings > Overview — ningún
-        // componente necesita tocarse, siguen usando `bg-indigo-600`,
-        // `text-orange-500`, etc. tal cual.
+        // bg-orange-600/10, etc.) contra un color referenciado por variable;
+        // una variable con el hex completo (`var(--x, #fff)`) rompe esos
+        // modificadores porque Tailwind no puede extraerle los canales RGB.
+        //
+        // Ya NO hay personalización por tenant ni por usuario: el azul del
+        // brandbook es FIJO para toda la app. ThemeService (core/theme/)
+        // solo reescribe estas variables en :root con ese mismo azul al
+        // arrancar — ningún componente necesita tocarse, siguen usando
+        // `bg-indigo-600`, `text-orange-500`, etc. tal cual.
         //
         // Los fallbacks son la PALETA DE MARCA (ver `brand` más abajo): la rampa
         // se generó con el mismo algoritmo que usa ThemeService (ancla 600 para
         // primary = Bold Blue #1e466b, ancla 500 para secondary = Light Blue
-        // #67baf4), así que sin JS o con "restablecer" se ve idéntico.
+        // #67baf4), así que sin JS se ve idéntico.
         indigo: {
           50: 'rgb(var(--color-indigo-50-rgb, 245 247 250) / <alpha-value>)',
           100: 'rgb(var(--color-indigo-100-rgb, 214 226 237) / <alpha-value>)',
@@ -44,22 +44,24 @@ module.exports = {
         },
 
         /**
-         * Paleta de marca. Fuente única de los 4 colores del brandbook, para no
+         * Paleta de marca. Fuente única de los colores del brandbook, para no
          * volver a esparcir hex sueltos por las plantillas:
-         *   bold   #1e466b  azul de marca (acciones, encabezados)
-         *   light  #67baf4  acento claro (fondos suaves, estados)
-         *   white  #fafafa  fondo de la aplicación
-         *   black  #0d0d0d  texto principal
+         *   bold    #1e466b  azul de marca (acciones, encabezados, tile focal)
+         *   light   #67baf4  acento claro (fondos suaves, estados)
+         *   canvas  #f4efe6  fondo crema de la aplicación (las tarjetas blancas van encima)
+         *   white   #fafafa  superficie neutra interna de tarjetas
+         *   black   #0d0d0d  texto principal
          * Los tonos intermedios (surface/border) salen de la misma familia para
          * que las tarjetas y separadores no necesiten grises ajenos a la marca.
          */
         /**
-         * Neutros tematizables (palanca, igual que indigo/orange): ThemeService.applyNeutrals()
-         * tiñe estos grises con el HUE del primary del tenant conservando la LUMINOSIDAD de cada
-         * shade → el contraste texto/fondo se preserva por construcción. Fallbacks = el gris de
-         * hoy (default de Tailwind 50-800 + Jet Black #0d0d0d en 900, ~560 usos de texto); sin
-         * ThemeService o sin marca se ve idéntico. Triplete "R G B" para preservar los
-         * modificadores de opacidad (text-gray-500/70, etc.).
+         * Neutros (palanca, igual que indigo/orange): ThemeService.applyNeutrals() tiñe estos
+         * grises con un hue CÁLIDO (piedra) que armoniza con el canvas crema, conservando la
+         * LUMINOSIDAD de cada shade → el contraste texto/fondo se preserva por construcción.
+         * Fallbacks = el gris de hoy (default de Tailwind 50-800 + Jet Black #0d0d0d en 900);
+         * sin ThemeService se ve neutro. Triplete "R G B" para preservar los modificadores de
+         * opacidad (text-gray-500/70, etc.). Sobre el canvas usar gray-600 o más oscuro:
+         * gray-500 sobre #f4efe6 queda en ~4.2:1, por debajo de AA.
          */
         gray: {
           50: 'rgb(var(--color-gray-50-rgb, 249 250 251) / <alpha-value>)',
@@ -78,19 +80,11 @@ module.exports = {
           black: '#0d0d0d',
           white: '#fafafa',
           /**
-           * bold/light/ink son TEMATIZABLES: leen las mismas variables que
-           * ThemeService escribe con el primary/accent del tenant.
+           * bold/light/ink leen las mismas variables que indigo-600/orange-500/indigo-700, que
+           * ThemeService fija al azul del brandbook (sin personalización por tenant/usuario).
            *
-           * Antes eran hex fijos, así que los ~500 usos de `bg-brand-bold`,
-           * `hover:bg-brand-ink` y `brand-light` (casi todos los botones de la
-           * app) seguían azules aunque el tenant tuviera otra marca: solo se
-           * teñía lo que usaba `indigo-*`/`orange-*` directamente, y por eso el
-           * login se veía con el color del tenant y el resto de la app no.
-           *
-           * Los fallbacks son EXACTAMENTE los hex de antes, que además son los
-           * mismos shades de cada rampa (indigo-600 = #1e466b, indigo-700 =
-           * #132c43, orange-500 = #67baf4), así que sin JS o con la marca por
-           * defecto no cambia ni un pixel.
+           * Los fallbacks son EXACTAMENTE esos hex (indigo-600 = #1e466b, indigo-700 = #132c43,
+           * orange-500 = #67baf4), así que sin JS no cambia ni un pixel.
            */
           bold: 'rgb(var(--color-indigo-600-rgb, 30 70 107) / <alpha-value>)',
           light: 'rgb(var(--color-orange-500-rgb, 103 186 244) / <alpha-value>)',
@@ -106,7 +100,39 @@ module.exports = {
           surface: '#f1f6fb',
           'surface-strong': '#e2edf7',
           border: '#d7e3ef',
+          /**
+           * Canvas crema: fondo de la shell. `canvas-deep` es el extremo del gradiente que da
+           * profundidad (arriba-izquierda claro → abajo-derecha más hondo). `line` es el borde
+           * fino cálido de las tarjetas blancas sobre el canvas.
+           */
+          canvas: '#f4efe6',
+          'canvas-deep': '#ede5d6',
+          line: '#e9e2d4',
         },
+
+        /**
+         * Acentos cálidos que armonizan con el navy de marca sobre el canvas crema (tiles de
+         * KPI, series de charts, puntos de notas, iconos de actividad). 100 = tinte de fondo,
+         * 500 = relleno/serie, 600 = círculo con icono blanco (≥3:1), 700 = texto sobre su 100
+         * (≥4.5:1). No usar como colores de estado: verde/rojo semántico siguen siendo
+         * emerald/red.
+         */
+        sand: {
+          100: '#f3e8d4',
+          500: '#c9a46a',
+          600: '#a8823f',
+          700: '#7a5a26',
+        },
+        sage: {
+          100: '#e3ede6',
+          500: '#6f9a82',
+          600: '#55806a',
+          700: '#3f6553',
+        },
+      },
+      boxShadow: {
+        /** Sombra cálida mínima de las tarjetas sobre el canvas crema. */
+        card: '0 1px 2px rgb(60 45 20 / 0.04), 0 8px 24px -12px rgb(60 45 20 / 0.10)',
       },
     },
   },

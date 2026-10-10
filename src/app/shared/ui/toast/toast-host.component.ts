@@ -5,8 +5,8 @@ import { Toast } from './toast.model';
 /**
  * Host global de toasts — se monta UNA sola vez en la raíz (`app.html`). Lee la cola del
  * `ToastService` y la apila abajo-centro con la animación de entrada de la casa.
- * El color y el icono salen del `kind`. Marca dinámica: usa `bg-brand-bold`
- * (primary del tenant) y `gray-*` tematizables, sin hex fijos.
+ * El color y el icono salen del `kind`. Usa `bg-brand-bold` (azul fijo del
+ * brandbook) y `gray-*`, sin hex sueltos.
  */
 @Component({
   selector: 'app-toast-host',

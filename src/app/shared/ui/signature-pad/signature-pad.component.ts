@@ -47,12 +47,48 @@ interface StrokeOption {
 
 /** System-safe cursive/serif stacks only — no external font loading (proyecto sin dependencias CDN). */
 const FONT_OPTIONS: SignatureFontOption[] = [
-  { id: 'flowing', label: 'Flowing', fontFamily: "'Brush Script MT', 'Segoe Script', cursive", fontStyle: 'italic', fontWeight: 'normal' },
-  { id: 'handwritten', label: 'Handwritten', fontFamily: "'Lucida Handwriting', 'Apple Chancery', 'Comic Sans MS', cursive", fontStyle: 'italic', fontWeight: 'normal' },
-  { id: 'classic', label: 'Classic', fontFamily: "'Times New Roman', Times, serif", fontStyle: 'italic', fontWeight: 'normal' },
-  { id: 'elegant', label: 'Elegant', fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 'bold' },
-  { id: 'formal', label: 'Formal', fontFamily: "'Palatino Linotype', Palatino, 'Book Antiqua', serif", fontStyle: 'italic', fontWeight: 'normal' },
-  { id: 'modern', label: 'Modern', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontStyle: 'normal', fontWeight: 'normal' },
+  {
+    id: 'flowing',
+    label: 'Flowing',
+    fontFamily: "'Brush Script MT', 'Segoe Script', cursive",
+    fontStyle: 'italic',
+    fontWeight: 'normal',
+  },
+  {
+    id: 'handwritten',
+    label: 'Handwritten',
+    fontFamily: "'Lucida Handwriting', 'Apple Chancery', 'Comic Sans MS', cursive",
+    fontStyle: 'italic',
+    fontWeight: 'normal',
+  },
+  {
+    id: 'classic',
+    label: 'Classic',
+    fontFamily: "'Times New Roman', Times, serif",
+    fontStyle: 'italic',
+    fontWeight: 'normal',
+  },
+  {
+    id: 'elegant',
+    label: 'Elegant',
+    fontFamily: 'Georgia, serif',
+    fontStyle: 'italic',
+    fontWeight: 'bold',
+  },
+  {
+    id: 'formal',
+    label: 'Formal',
+    fontFamily: "'Palatino Linotype', Palatino, 'Book Antiqua', serif",
+    fontStyle: 'italic',
+    fontWeight: 'normal',
+  },
+  {
+    id: 'modern',
+    label: 'Modern',
+    fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    fontStyle: 'normal',
+    fontWeight: 'normal',
+  },
 ];
 
 const INK_OPTIONS: InkOption[] = [
@@ -114,7 +150,7 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
   readonly inkOptions = INK_OPTIONS;
   readonly strokeOptions = STROKE_OPTIONS;
 
-  readonly method = signal<SignatureMethod>('draw');
+  readonly method = signal<SignatureMethod>('type');
   readonly hasDrawing = signal(false);
   readonly typedText = signal('');
   readonly selectedFontId = signal(FONT_OPTIONS[0].id);
@@ -127,16 +163,21 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
   readonly expanded = signal(false);
   readonly isPortrait = signal(false);
 
-  readonly inkColor = computed(() => INK_OPTIONS.find(o => o.id === this.inkId())?.color ?? INK_OPTIONS[0].color);
-  private readonly strokeWidth = computed(
-    () => STROKE_OPTIONS.find(o => o.id === this.strokeId())?.width ?? STROKE_OPTIONS[1].width,
+  readonly inkColor = computed(
+    () => INK_OPTIONS.find((o) => o.id === this.inkId())?.color ?? INK_OPTIONS[0].color,
   );
-  readonly selectedFont = computed(() => FONT_OPTIONS.find(o => o.id === this.selectedFontId()) ?? FONT_OPTIONS[0]);
+  private readonly strokeWidth = computed(
+    () => STROKE_OPTIONS.find((o) => o.id === this.strokeId())?.width ?? STROKE_OPTIONS[1].width,
+  );
+  readonly selectedFont = computed(
+    () => FONT_OPTIONS.find((o) => o.id === this.selectedFontId()) ?? FONT_OPTIONS[0],
+  );
 
   private ctx: CanvasRenderingContext2D | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private orientationQuery: MediaQueryList | null = null;
-  private readonly onOrientationChange = (event: MediaQueryListEvent): void => this.isPortrait.set(event.matches);
+  private readonly onOrientationChange = (event: MediaQueryListEvent): void =>
+    this.isPortrait.set(event.matches);
 
   /** Trazos en coordenadas del modelo (px CSS del espacio en que se dibujaron). */
   private strokes: PadStroke[] = [];
@@ -162,7 +203,7 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
     // observer queda vivo: inicializa en cuanto hay tamaño real y vuelve a ajustar el
     // buffer cada vez que cambia (rotación, pantalla completa, ancho de la tarjeta).
     const canvas = this.canvasRef.nativeElement;
-    this.resizeObserver = new ResizeObserver(entries => {
+    this.resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0 && (width !== this.cssWidth || height !== this.cssHeight)) {
@@ -289,7 +330,7 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
 
   undo(): void {
     this.strokes.pop();
-    this.hasDrawing.set(this.strokes.some(stroke => stroke.length > 1));
+    this.hasDrawing.set(this.strokes.some((stroke) => stroke.length > 1));
     this.redraw();
   }
 
@@ -315,7 +356,8 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
       // recuadro negro al sellar, y reduce las fotos grandes para no pasar el tope del backend.
       const img = new Image();
       img.onload = () => this.uploadedDataUrl.set(this.flattenToWhite(img, MAX_UPLOAD_SIDE));
-      img.onerror = () => this.uploadError.set('That image could not be read. Please try another file.');
+      img.onerror = () =>
+        this.uploadError.set('That image could not be read. Please try another file.');
       img.src = reader.result as string;
     };
     reader.readAsDataURL(file);
@@ -425,7 +467,14 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
     }
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, out.width, out.height);
-    ctx.setTransform(EXPORT_SCALE, 0, 0, EXPORT_SCALE, (pad - bounds.minX) * EXPORT_SCALE, (pad - bounds.minY) * EXPORT_SCALE);
+    ctx.setTransform(
+      EXPORT_SCALE,
+      0,
+      0,
+      EXPORT_SCALE,
+      (pad - bounds.minX) * EXPORT_SCALE,
+      (pad - bounds.minY) * EXPORT_SCALE,
+    );
     this.applyInk(ctx, this.strokeWidth());
     for (const stroke of this.strokes) {
       ctx.beginPath();
@@ -487,9 +536,10 @@ export class SignaturePadComponent implements AfterViewInit, OnDestroy {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const text = this.typedText().trim();
     const font = this.selectedFont();
-    const fontAt = (size: number): string => `${font.fontStyle} ${font.fontWeight} ${size}px ${font.fontFamily}`;
+    const fontAt = (size: number): string =>
+      `${font.fontStyle} ${font.fontWeight} ${size}px ${font.fontFamily}`;
     const size = fitFontSize(
-      s => {
+      (s) => {
         ctx.font = fontAt(s);
         return ctx.measureText(text).width;
       },

@@ -63,7 +63,8 @@
    corto (termina en `transform: none`, regla R8). */
 .drop-slot {
   border-color: rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.35);
-  background-color: rgb(241 246 251 / 0.7);
+  /* brand.canvas-deep atenuado: el hueco se lee como canvas, no como tarjeta. */
+  background-color: rgb(237 229 214 / 0.7);
   animation: slot-in 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 

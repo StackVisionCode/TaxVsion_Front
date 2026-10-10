@@ -31,6 +31,12 @@
               </span>
             </span>
           </button>
+          <button type="button" (click)="startReplace(doc.id)" aria-label="Replace document"
+            title="Replace with a new PDF"
+            [disabled]="isBusy()"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-blue-50 hover:text-brand-bold disabled:opacity-40">
+            <ion-icon name="swap-horizontal-outline"></ion-icon>
+          </button>
           <button type="button" (click)="removeDocument(doc.id)" aria-label="Remove document"
             class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600">
             <ion-icon name="trash-outline"></ion-icon>

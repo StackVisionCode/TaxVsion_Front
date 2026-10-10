@@ -1,4 +1,8 @@
-import { SignatureCategory, SignatureFieldKind, SignatureRequestDetail } from '../data-access/signature.model';
+import {
+  SignatureCategory,
+  SignatureFieldKind,
+  SignatureRequestDetail,
+} from '../data-access/signature.model';
 import type { WizardSendState } from '../data-access/signature.store';
 import {
   EditorSeed,
@@ -9,7 +13,10 @@ import {
   WizardClient,
 } from '../ui/signature-request-panel/signature-wizard.model';
 import { FieldType } from '../ui/signature-request-panel/signature-wizard.model';
-import { avatarColor, defaultRules } from '../ui/signature-request-panel/signature-wizard.presenter';
+import {
+  avatarColor,
+  defaultRules,
+} from '../ui/signature-request-panel/signature-wizard.presenter';
 
 /** El backend usa Checkbox, que el editor no modela: se degrada a texto. */
 export function kindToFieldType(kind: SignatureFieldKind): FieldType {
@@ -63,7 +70,7 @@ export interface DraftHydration {
  */
 export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydration {
   const signers = [...detail.signers].sort((a, b) => a.order - b.order);
-  const clientSigner = signers.find(s => s.mappedCustomerId !== null) ?? signers[0] ?? null;
+  const clientSigner = signers.find((s) => s.mappedCustomerId !== null) ?? signers[0] ?? null;
   const clientId = clientSigner?.mappedCustomerId ?? `draft:${detail.id}`;
   const clientLocalId = `client:${clientId}`;
 
@@ -112,7 +119,11 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
         label: field.label ?? undefined,
       });
       postedFieldLocalIds.push(localId);
-      originalFields.push({ editorLocalId: localId, fieldId: field.id, signerBackendId: signer.id });
+      originalFields.push({
+        editorLocalId: localId,
+        fieldId: field.id,
+        signerBackendId: signer.id,
+      });
     }
   }
 
@@ -139,12 +150,13 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
 
   // F7 — mapea los IDs del backend (signerId reales) a los localId del editor para pintar las chips.
   const audienceLocalIds = detail.partialCopyAudienceSignerIds
-    .map(serverId => Object.entries(signerIdByLocal).find(([, id]) => id === serverId)?.[0])
+    .map((serverId) => Object.entries(signerIdByLocal).find(([, id]) => id === serverId)?.[0])
     .filter((id): id is string => !!id);
   const rules: RequestRules = {
     ...defaultRules(),
     sequential: detail.requiresSequentialSigning,
     certificate: detail.generateCertificate,
+    certificateGenerationMode: detail.certificateGenerationMode ?? 'SingleForRequest',
     sendSealedDocument: detail.sendSealedDocumentToSigners,
     sendCertificate: detail.sendCertificateToSigners,
     autoReminder: detail.autoRemindersEnabled,
@@ -157,10 +169,17 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
 
   return {
     client,
-    seed: { signers: editorSigners, fields: seedFields, rules, preparerSignatureFileId: detail.preparerSignatureFileId },
+    seed: {
+      signers: editorSigners,
+      fields: seedFields,
+      rules,
+      preparerSignatureFileId: detail.preparerSignatureFileId,
+    },
     sendState: {
       requestId: detail.id,
-      documentIdByLocal: Object.fromEntries(detail.documents.map(document => [document.id, document.id])),
+      documentIdByLocal: Object.fromEntries(
+        detail.documents.map((document) => [document.id, document.id]),
+      ),
       signerIdByLocal,
       postedFieldLocalIds,
       pinSet: detail.requiresPractitionerPin,
@@ -175,7 +194,7 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
       sent: false,
     },
     original: {
-      signerBackendIds: signers.map(s => s.id),
+      signerBackendIds: signers.map((s) => s.id),
       fields: originalFields,
       preparerFields: preparerOriginal,
     },

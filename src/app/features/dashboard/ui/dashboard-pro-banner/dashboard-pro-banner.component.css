@@ -1,5 +1,5 @@
-/* Fondo oscuro con vetas diagonales que evocan la foto abstracta de la
-   referencia, en CSS puro (sin imagen externa). */
+/* Fondo navy de marca (brand.bold → brand.ink) con vetas diagonales y un brillo arena (sand-500)
+   en la esquina, en CSS puro (sin imagen externa). */
 .banner-bg {
   background:
     repeating-linear-gradient(
@@ -7,5 +7,10 @@
       rgba(255, 255, 255, 0.06) 0 18px,
       rgba(255, 255, 255, 0) 18px 42px
     ),
-    linear-gradient(120deg, #4e4a63 0%, #3d3a56 35%, #565273 65%, #2f2c44 100%);
+    radial-gradient(120% 90% at 100% 0%, rgb(201 164 106 / 0.28) 0%, rgb(201 164 106 / 0) 55%),
+    linear-gradient(
+      120deg,
+      rgb(var(--color-indigo-600-rgb, 30 70 107)) 0%,
+      rgb(var(--color-indigo-700-rgb, 19 44 67)) 100%
+    );
 }

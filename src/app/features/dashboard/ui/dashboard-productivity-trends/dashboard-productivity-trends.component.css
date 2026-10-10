@@ -23,17 +23,18 @@
   background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
 }
 
+/* Hex de tokens de tailwind.config.js (el CSS de componente no lee tokens): sand-500. */
 .trend-bar--medium {
-  background-color: #9d8de8;
+  background-color: #c9a46a;
 }
 
-/* Jueves: rayas diagonales púrpura sobre blanco, como en la referencia. */
+/* Rayas diagonales navy sobre blanco, con el borde fino cálido de las tarjetas (brand.line). */
 .trend-bar--striped {
   background-color: #ffffff;
   background-image: repeating-linear-gradient(
     55deg,
-    #8b7be8 0 5px,
+    rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.55) 0 5px,
     transparent 5px 12px
   );
-  border: 1px solid #e5e0fa;
+  border: 1px solid #e9e2d4;
 }

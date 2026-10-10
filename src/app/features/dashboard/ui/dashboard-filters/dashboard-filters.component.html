@@ -5,7 +5,7 @@
   de filtros que se quedó cargando.
 -->
 <div class="flex flex-wrap items-center gap-3 transition-all duration-200"
-  [ngClass]="layout.editMode() ? 'bg-white rounded-[28px] px-5 py-4' : ''">
+  [ngClass]="layout.editMode() ? 'bg-white rounded-[28px] px-5 py-4 ring-1 ring-brand-line shadow-card' : ''">
   <!-- Pista de uso solo mientras se reordena; fuera del modo edición no se afirma nada -->
   <p *ngIf="layout.editMode()" class="flex items-center gap-2 text-sm text-gray-500">
     <ion-icon name="move-outline" class="text-base text-gray-400"></ion-icon>
@@ -16,14 +16,14 @@
   <div class="ml-auto flex items-center gap-2">
     <!-- Reset (solo en edición y con cambios respecto al orden por defecto) -->
     <button *ngIf="layout.editMode() && layout.isDirty()" type="button" (click)="layout.resetLayout()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+      class="rounded-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
       Reset
     </button>
 
     <!-- Edit layout / Done -->
     <button *ngIf="!layout.editMode()" type="button" (click)="layout.toggleEditMode()"
-      class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-      <ion-icon name="create-outline" class="text-base text-gray-500"></ion-icon>
+      class="flex items-center gap-2 rounded-full border border-brand-line bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-card hover:bg-gray-50 transition-colors">
+      <ion-icon name="create-outline" class="text-base text-gray-600"></ion-icon>
       Edit layout
     </button>
     <button *ngIf="layout.editMode()" type="button" (click)="layout.toggleEditMode()"

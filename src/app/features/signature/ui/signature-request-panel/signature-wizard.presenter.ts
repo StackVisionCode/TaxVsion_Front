@@ -20,7 +20,9 @@ export function avatarColor(index: number): string {
 
 /** Badge de tipo de cliente (misma paleta que client-table). */
 export function clientTypeBadge(type: WizardClient['type']): string {
-  return type === 'company' ? 'border-indigo-50 text-orange-600' : 'border-indigo-100 text-indigo-600';
+  return type === 'company'
+    ? 'border-indigo-50 text-orange-600'
+    : 'border-indigo-100 text-indigo-600';
 }
 
 const KIND_BY_EXTENSION: Record<string, WizardDocKind> = {
@@ -88,6 +90,7 @@ export function defaultRules(): RequestRules {
     autoReminder: true,
     reminderIntervalHours: 48, // cada 2 días
     certificate: true,
+    certificateGenerationMode: 'SingleForRequest',
     // F7 — alineado con los defaults del tenant (sealed=false, partialCopy=false, expiration=true).
     sendSealedDocument: false,
     sendCertificate: false,

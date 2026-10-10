@@ -92,8 +92,10 @@ export class PublicSignatureService {
   getDocumentBytes(token: string, documentId: string): Observable<Uint8Array> {
     return defer(() =>
       this.http
-        .get(this.url(token, `/documents/${encodeURIComponent(documentId)}`), { responseType: 'arraybuffer' })
-        .pipe(map(buffer => new Uint8Array(buffer))),
+        .get(this.url(token, `/document/${encodeURIComponent(documentId)}`), {
+          responseType: 'arraybuffer',
+        })
+        .pipe(map((buffer) => new Uint8Array(buffer))),
     );
   }
 
@@ -109,7 +111,9 @@ export class PublicSignatureService {
    * el `error` de la suscripción se quedaría colgada en "cargando".
    */
   verifyAudit(token: string): Observable<AuditChainVerificationResponse> {
-    return defer(() => this.http.get<AuditChainVerificationResponse>(this.url(token, '/verify-audit')));
+    return defer(() =>
+      this.http.get<AuditChainVerificationResponse>(this.url(token, '/verify-audit')),
+    );
   }
 
   // ---------- Mutaciones (todas responden 204 No Content) ----------
@@ -169,7 +173,11 @@ export class PublicSignatureService {
   }
 
   /** POST /signature/public/{token}/verify-challenge — valida la respuesta del OTP activo. */
-  verifyChallenge(token: string, method: SignerVerificationMethod, answer: string): Observable<void> {
+  verifyChallenge(
+    token: string,
+    method: SignerVerificationMethod,
+    answer: string,
+  ): Observable<void> {
     const body: VerifyChallengeBody = { method, answer };
     return this.http.post<void>(this.url(token, '/verify-challenge'), body);
   }

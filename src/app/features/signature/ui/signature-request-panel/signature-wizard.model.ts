@@ -33,6 +33,7 @@ export interface PlacedField {
 // 'none' = sin código OTP (el firmante no recibe código): útil cuando la seguridad la da el
 // Practitioner PIN por sí solo, o el documento no requiere verificación extra.
 export type VerificationChannel = 'email' | 'sms' | 'whatsapp' | 'app' | 'none';
+export type CertificateGenerationMode = 'SingleForRequest' | 'PerDocument';
 
 /** Reglas de la solicitud (panel Rules del editor, tomadas de la propuesta UX). */
 export interface RequestRules {
@@ -48,6 +49,8 @@ export interface RequestRules {
    * solo es false al continuar un borrador viejo creado sin certificado (inmutable tras crear).
    */
   certificate: boolean;
+  /** Un acta para todo el paquete o un acta independiente por documento. */
+  certificateGenerationMode: CertificateGenerationMode;
   /** F7 — entregar el PDF sellado final cuando todos firmen. */
   sendSealedDocument: boolean;
   /** P2: entregar el certificado de finalización a los firmantes al completar. */

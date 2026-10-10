@@ -209,6 +209,23 @@ export function signersMissingSignature(
   return signers.filter((s) => s.id !== PREPARER_PARTY_ID && !covered.has(s.id));
 }
 
+/**
+ * Documentos que todavía no tienen una firma o iniciales de un firmante real. Mantiene en el
+ * frontend la misma invariante que `SignatureRequest.ValidateDocumentsForSend()` aplica al enviar:
+ * una firma del preparador no convierte por sí sola al documento en firmable.
+ */
+export function documentsMissingSigningField<T extends { id: string }>(
+  documents: readonly T[],
+  fields: readonly PlacedField[],
+): T[] {
+  const covered = new Set(
+    fields
+      .filter((field) => field.signerId !== PREPARER_PARTY_ID && isSigningFieldType(field.type))
+      .map((field) => field.documentLocalId),
+  );
+  return documents.filter((document) => !covered.has(document.id));
+}
+
 /** Campos que pertenecen a firmantes reales (excluye los del preparador). */
 export function signerFieldCount(fields: PlacedField[]): number {
   return fields.filter((f) => f.signerId !== PREPARER_PARTY_ID).length;

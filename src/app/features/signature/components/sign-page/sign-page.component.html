@@ -1,653 +1,1114 @@
-<div class="relative flex min-h-screen justify-center overflow-hidden bg-indigo-50 px-4 py-6 sm:py-10">
-  <!-- Ambient background glow (mismo lenguaje que login) -->
-  <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-300/40 blur-3xl"></div>
-  <div class="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-brand-light/30 blur-3xl"></div>
-
-  <div class="sign-shell relative w-full" [ngClass]="wideLayout() ? 'max-w-2xl' : 'max-w-md'">
-    <div class="sign-card relative flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-brand-light/40">
-      <!-- Header: marca + chip seguro -->
-      <div class="border-b border-gray-100 px-4 pb-4 pt-6 sm:px-6">
-        <div class="mb-4 flex items-center justify-center gap-2">
-          <app-brand-logo
-            logoClass="h-8 max-w-[150px] object-contain"
-            fallbackClass="text-indigo-600 text-2xl font-bold leading-none"
-          ></app-brand-logo>
-          <span class="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
-            <ion-icon name="shield-checkmark-outline" class="text-[10px]"></ion-icon>
-            Secure
-          </span>
-        </div>
-
-        <!-- Stepper: los pasos los decide el backend (consent/PIN solo si la solicitud los exige) -->
-        <div *ngIf="context() && !blocked() && !declined()" class="flex items-center">
-          <ng-container *ngFor="let s of steps(); let i = index; let first = first">
-            <span *ngIf="!first" class="h-px min-w-2 flex-1 transition-colors duration-200"
-              [ngClass]="i <= stepIndex() ? 'bg-brand-bold' : 'bg-gray-200'"></span>
-            <span class="flex flex-col items-center gap-1">
-              <span *ngIf="i < stepIndex()"
-                class="step-check flex h-6 w-6 items-center justify-center rounded-full bg-brand-bold text-white">
-                <ion-icon name="checkmark" class="text-xs"></ion-icon>
-              </span>
-              <span *ngIf="i === stepIndex()"
-                class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-brand-bold text-[10px] font-bold text-gray-900">
-                {{ i + 1 }}
-              </span>
-              <span *ngIf="i > stepIndex()"
-                class="flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 text-[10px] font-medium text-gray-400">
-                {{ i + 1 }}
-              </span>
-              <span class="text-[9px] font-medium" [ngClass]="i === stepIndex() ? 'text-gray-900' : 'text-gray-400'">
-                {{ s.caption }}
-              </span>
-            </span>
-          </ng-container>
-        </div>
+<div class="signing-page">
+  <header class="signing-header">
+    <div class="brand-lockup" aria-label="TaxProffice and office branding">
+      <div class="platform-brand" aria-label="TaxProffice platform">
+        <app-platform-brand-logo
+          logoClass="h-10 w-full object-contain object-left"
+        ></app-platform-brand-logo>
       </div>
-
-      <!-- Cuerpo -->
-      <div class="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-        <!-- Cargando el contexto del token -->
-        <div *ngIf="loading()" class="flex flex-col items-center justify-center gap-3 py-16">
-          <span class="h-8 w-8 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600"></span>
-          <p class="text-sm text-gray-500">Opening your document…</p>
-        </div>
-
-        <ng-container *ngIf="!loading() && loadError()">
-          <!-- Enlace inválido / expirado / revocado: no hay reintento útil -->
-          <div *ngIf="deadLink() as dead" class="step-content py-4 text-center">
-            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-50 text-orange-500">
-              <ion-icon name="link-outline" class="text-3xl"></ion-icon>
-            </span>
-            <h1 class="mt-4 text-xl font-bold text-gray-900">{{ dead.title }}</h1>
-            <p class="mt-2 text-sm text-gray-500">{{ dead.detail }}</p>
-            <p class="mt-4 rounded-2xl bg-brand-white px-4 py-3 text-[11px] text-gray-400">
-              Reference code: <span class="font-mono">{{ loadError()?.code }}</span>
-            </p>
-          </div>
-
-          <!-- Error recuperable (red, 5xx): Retry -->
-          <div *ngIf="!deadLink()" class="step-content py-4 text-center">
-            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
-              <ion-icon name="cloud-offline-outline" class="text-3xl"></ion-icon>
-            </span>
-            <h1 class="mt-4 text-xl font-bold text-gray-900">We couldn't load your document</h1>
-            <p class="mt-2 text-sm text-gray-500">{{ loadError()?.message }}</p>
-            <button type="button" (click)="load()"
-              class="mt-5 w-full rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
-              Retry
-            </button>
-          </div>
-        </ng-container>
-
-        <!-- Enlace ya usado en este dispositivo: la página expiró (no se vuelve a cargar el recorrido) -->
-        <div *ngIf="usedLink() as used" class="step-content py-4 text-center">
-          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-            [ngClass]="used.outcome === 'signed' ? 'bg-emerald-50 text-emerald-500' : 'bg-brand-white text-gray-400'">
-            <ion-icon [name]="used.outcome === 'signed' ? 'checkmark-done-outline' : 'lock-closed-outline'" class="text-3xl"></ion-icon>
-          </span>
-          <h1 class="mt-4 text-xl font-bold text-gray-900">This link has expired</h1>
-          <p class="mt-2 text-sm text-gray-500">
-            {{ used.outcome === 'signed'
-              ? 'You already signed this document. Your signature is recorded and the office will email you the sealed copy.'
-              : 'You declined this document, so this link was closed. Contact the office if you need a new invitation.' }}
-          </p>
-          <p *ngIf="usedLinkAtLabel()" class="mt-4 rounded-2xl bg-brand-white px-4 py-3 text-[11px] text-gray-400">
-            {{ used.outcome === 'signed' ? 'Signed' : 'Declined' }} on {{ usedLinkAtLabel() }}
-          </p>
-          <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-            <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
-            You can safely close this window.
-          </p>
-        </div>
-
-        <!-- Rechazo confirmado en esta sesión (el token queda revocado en el backend) -->
-        <div *ngIf="declined()" class="step-content py-4 text-center">
-          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
-            <ion-icon name="close-circle-outline" class="text-3xl"></ion-icon>
-          </span>
-          <h1 class="mt-4 text-xl font-bold text-gray-900">Document declined</h1>
-          <p class="mt-2 text-sm text-gray-500">
-            We let the office know you don't want to sign. No signature was applied and this link is now closed.
-          </p>
-          <p *ngIf="declineReasonEcho()"
-            class="mt-4 rounded-2xl border border-gray-100 bg-brand-white px-4 py-3 text-left text-sm italic text-gray-600">
-            “{{ declineReasonEcho() }}”
-          </p>
-        </div>
-
-        <!-- Enlace válido pero no firmable (ya firmado, expirado, cancelado, no es su turno…) -->
-        <ng-container *ngIf="!loading() && !loadError() && !declined()">
-          <div *ngIf="blocked() as block" class="step-content py-4 text-center">
-            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-              [ngClass]="{
-                'bg-emerald-50 text-emerald-500': block.tone === 'success',
-                'bg-brand-white text-gray-400': block.tone === 'neutral',
-                'bg-orange-50 text-orange-500': block.tone === 'warning',
-                'bg-red-50 text-red-500': block.tone === 'danger'
-              }">
-              <ion-icon [name]="block.icon" class="text-3xl"></ion-icon>
-            </span>
-            <h1 class="mt-4 text-xl font-bold text-gray-900">{{ block.title }}</h1>
-            <p class="mt-2 text-sm text-gray-500">{{ block.detail }}</p>
-
-            <div *ngIf="block.showReceipt" class="mt-5">
-              <ng-container *ngTemplateOutlet="receipt"></ng-container>
-            </div>
-          </div>
-
-          <!-- ------------------------------ WIZARD ------------------------------ -->
-          <ng-container *ngIf="context() as ctx">
-            <ng-container *ngIf="!blocked()">
-              <!-- PASO: Bienvenida -->
-              <div *ngIf="stepId() === 'welcome'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Hi, {{ firstName() }} 👋</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  <span class="font-semibold text-gray-700">Your tax office</span> asked you to sign a document.
-                  It takes less than two minutes.
-                </p>
-
-                <div class="welcome-meta mt-4 space-y-2 rounded-2xl border border-gray-100 p-3">
-                  <div class="meta-row flex items-center gap-3">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-                      <ion-icon name="document-text-outline" class="text-base text-gray-700"></ion-icon>
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block text-[11px] text-gray-400">{{ categoryLabel() }}</span>
-                      <span class="block truncate text-sm font-medium text-gray-900">{{ ctx.title }}</span>
-                    </span>
-                  </div>
-                  <div class="meta-row flex items-center gap-3 border-t border-gray-100 pt-2">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-                      <ion-icon name="time-outline" class="text-base text-gray-700"></ion-icon>
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block text-[11px] text-gray-400">Link expires</span>
-                      <span class="block text-sm font-medium text-gray-900">{{ expiresLabel() }}</span>
-                    </span>
-                  </div>
-                  <div class="meta-row flex items-center gap-3 border-t border-gray-100 pt-2">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-                      <ion-icon name="person-outline" class="text-base text-gray-700"></ion-icon>
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block text-[11px] text-gray-400">Signing as</span>
-                      <span class="block truncate text-sm font-medium text-gray-900">{{ ctx.signerFullName }}</span>
-                      <span class="block truncate text-[11px] text-gray-400">{{ maskedEmail() }}</span>
-                    </span>
-                  </div>
-                </div>
-
-                <div class="mt-3 grid grid-cols-2 gap-2">
-                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
-                    <ion-icon name="lock-closed-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
-                    Encrypted connection
-                  </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
-                    <ion-icon name="finger-print-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
-                    Link expires once you sign
-                  </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
-                    <ion-icon name="timer-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
-                    Tamper-proof audit trail
-                  </span>
-                  <span class="flex items-center gap-1.5 rounded-xl bg-brand-white px-2.5 py-2 text-[11px] text-gray-500">
-                    <ion-icon name="location-outline" class="shrink-0 text-xs text-gray-400"></ion-icon>
-                    IP &amp; device recorded
-                  </span>
-                </div>
-
-                <p *ngIf="ctx.requiresSequentialSigning"
-                  class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
-                  <ion-icon name="people-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
-                  This document is signed in order. You are signer number {{ ctx.order }}.
-                </p>
-              </div>
-
-              <!-- PASO: Consentimiento (solo si requiresConsent) -->
-              <div *ngIf="stepId() === 'consent'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Your permission to sign online</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  The law (ESIGN &amp; UETA) requires your consent to use an electronic signature. Read and accept to continue.
-                </p>
-
-                <div class="mt-4 max-h-44 overflow-y-auto rounded-2xl border border-gray-100 bg-brand-white p-4 text-sm leading-relaxed text-gray-600">
-                  <p class="font-semibold text-gray-900">Electronic signature consent</p>
-                  <p class="mt-2">
-                    I agree to sign this document electronically. I understand my electronic signature is as
-                    legally valid as a handwritten one.
-                  </p>
-                  <p class="mt-2">
-                    I can request a printed copy at no cost, and I can withdraw my consent before signing.
-                    All I need is a modern browser.
-                  </p>
-                  <p class="mt-2 text-[11px] text-gray-400">
-                    The office records the exact wording and version of this consent when you accept it.
-                  </p>
-
-                  <!-- Explicación del sello técnico que se aplica al PDF final (audit §3.1). -->
-                  <p class="mt-3 font-semibold text-gray-900">How your signed document is sealed</p>
-                  <p class="mt-1 text-[12px] leading-relaxed">
-                    This document is electronically sealed using a digital certificate operated and controlled by
-                    TaxProffice. The seal attests to the integrity of the document from the moment the signing process
-                    was completed, and to the traceability of the actions recorded in the certificate of completion.
-                    It is not a qualified certificate issued in the name of any signer.
-                  </p>
-                </div>
-
-                <button type="button" (click)="toggleConsent()"
-                  class="mt-3 flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors"
-                  [ngClass]="consentChecked() ? 'border-brand-bold bg-gray-50' : 'border-gray-200 hover:bg-gray-50'">
-                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors"
-                    [ngClass]="consentChecked() ? 'border-brand-bold bg-brand-bold' : 'border-gray-300 bg-white'">
-                    <ion-icon *ngIf="consentChecked()" name="checkmark" class="text-xs text-white"></ion-icon>
-                  </span>
-                  <span class="text-sm text-gray-700">
-                    <span class="font-semibold">I agree to sign electronically</span> and I have read the terms.
-                  </span>
-                </button>
-              </div>
-
-              <!-- PASO: Verificación por PIN del preparador (solo si requiresPractitionerPin) -->
-              <div *ngIf="stepId() === 'verify'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Let's confirm it's you</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  Enter the PIN your preparer gave you (by phone or in the office) to unlock this document.
-                </p>
-
-                <div class="mt-5">
-                  <label for="pin" class="mb-1 block text-xs font-medium text-gray-600">Practitioner PIN</label>
-                  <div class="relative">
-                    <input id="pin" name="pin" [type]="pinRevealed() ? 'text' : 'password'" inputmode="numeric"
-                      autocomplete="off" maxlength="10"
-                      [ngModel]="pin()" (ngModelChange)="pin.set($event)" [disabled]="isPinLocked()"
-                      placeholder="• • • • •"
-                      class="w-full rounded-2xl border border-gray-200 py-3 pl-4 pr-12 text-center text-xl font-bold tracking-[0.5em] text-gray-900 transition-colors placeholder:tracking-normal placeholder:text-gray-300 focus:border-brand-bold focus:outline-none focus:ring-2 focus:ring-gray-900/10 disabled:bg-gray-50 disabled:text-gray-400" />
-                    <button type="button" (click)="pinRevealed.set(!pinRevealed())" [disabled]="isPinLocked()"
-                      [attr.aria-label]="pinRevealed() ? 'Hide PIN' : 'Show PIN'"
-                      class="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-40">
-                      <ion-icon [name]="pinRevealed() ? 'eye-off-outline' : 'eye-outline'" class="text-lg"></ion-icon>
-                    </button>
-                  </div>
-                  <p class="mt-2 text-center text-[11px] text-gray-400">4 to 10 digits · 5 attempts</p>
-                </div>
-
-                <p *ngIf="isPinLocked()"
-                  class="mt-3 flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[11px] leading-snug text-red-600">
-                  <ion-icon name="lock-closed-outline" class="mt-px shrink-0 text-xs"></ion-icon>
-                  Too many attempts. This link unlocks again at {{ pinLockedUntilLabel() }}.
-                </p>
-
-                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
-                  <ion-icon name="call-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
-                  The PIN never travels by email. If you don't have it, call the office that sent you this document.
-                </p>
-              </div>
-
-              <!-- PASO: Verificación por OTP (solo si requiredVerificationMethod y no completado) -->
-              <div *ngIf="stepId() === 'verify-otp'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Verify it's really you</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  We'll send a 6-digit code to {{ otpDestinationHint() }}. Enter it below to unlock signing.
-                </p>
-
-                <!-- Antes de enviar el primer código -->
-                <div *ngIf="!otpIssued()" class="mt-5">
-                  <button type="button" (click)="sendOtp()" [disabled]="busy()"
-                    class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
-                    <ion-icon name="paper-plane-outline" class="text-base"></ion-icon>
-                    Send my code by {{ otpChannelLabel() }}
-                  </button>
-                </div>
-
-                <!-- Tras enviar: input del código + reenvío con cooldown -->
-                <div *ngIf="otpIssued()" class="mt-5">
-                  <label for="otp" class="mb-1 block text-xs font-medium text-gray-600">6-digit code</label>
-                  <input id="otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
-                    [ngModel]="otpCode()" (ngModelChange)="otpCode.set($event)"
-                    placeholder="• • • • • •"
-                    class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-xl font-bold tracking-[0.4em] text-gray-900 transition-colors placeholder:tracking-normal placeholder:text-gray-300 focus:border-brand-bold focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
-                  <div class="mt-2 flex items-center justify-between text-[11px] text-gray-400">
-                    <span class="truncate">Sent to {{ otpDestinationHint() }}</span>
-                    <button type="button" (click)="sendOtp()" [disabled]="!canResendOtp() || busy()"
-                      class="shrink-0 font-medium text-brand-bold underline underline-offset-2 disabled:text-gray-300 disabled:no-underline">
-                      <span *ngIf="canResendOtp()">Resend code</span>
-                      <span *ngIf="!canResendOtp()">Resend in {{ otpResendIn() }}s</span>
-                    </button>
-                  </div>
-                </div>
-
-                <p class="mt-4 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
-                  <ion-icon name="shield-checkmark-outline" class="mt-px shrink-0 text-xs text-emerald-500"></ion-icon>
-                  This extra step protects your document. The code expires in a few minutes.
-                </p>
-              </div>
-
-              <!-- PASO: Revisar (F5 — ya hay visor del documento original tras la verificación) -->
-              <div *ngIf="stepId() === 'review'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Review before signing</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  Here is what the office prepared for you and where your signature will go.
-                </p>
-
-                <div *ngIf="activeDocument()"
-                  class="mt-4 flex items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                  <ion-icon name="documents-outline" class="shrink-0 text-base text-sky-600"></ion-icon>
-                  <span class="min-w-0 truncate font-semibold">{{ documentProgress() }}</span>
-                </div>
-
-                <div class="mt-4 flex items-center justify-between rounded-t-2xl bg-brand-bold px-3 py-2 text-xs text-white">
-                  <span class="truncate">{{ activeDocument()?.title }}</span>
-                  <span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5">{{ categoryLabel() }}</span>
-                </div>
-                <div class="rounded-b-2xl border border-t-0 border-gray-100 p-3">
-                  <p *ngIf="ctx.description" class="rounded-xl bg-brand-white px-3 py-2 text-xs leading-snug text-gray-600">
-                    {{ ctx.description }}
-                  </p>
-
-                  <p *ngIf="loadingDocument()" class="mt-3 flex items-center gap-2 text-[11px] text-gray-500">
-                    <span class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-bold"></span>
-                    Loading the document…
-                  </p>
-
-                  <p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                    Review the document — your fields are highlighted ({{ fields().length }})
-                  </p>
-                  <div class="mt-2">
-                    <!-- F5 — el documento se pinta de FONDO (pageImages) y los canvas del preparador
-                         (fields) encima en su posición exacta. Reemplaza al botón+modal anterior. -->
-                    <app-sign-document-view [documentId]="activeDocument()?.documentId ?? ''"
-                      [fields]="fields()" [values]="fieldValues()"
-                      [pageImages]="pageImages()"></app-sign-document-view>
-                  </div>
-                </div>
-
-                <p class="mt-3 flex items-start gap-1.5 rounded-xl bg-brand-white px-3 py-2 text-[11px] leading-snug text-gray-500">
-                  <ion-icon name="checkmark-circle-outline" class="mt-px shrink-0 text-xs text-emerald-500"></ion-icon>
-                  <span *ngIf="requiredFieldCount() > 0">
-                    <span class="font-semibold">{{ requiredFieldCount() }}</span> of these fields are required.
-                    Dates fill in automatically when you sign.
-                  </span>
-                  <span *ngIf="requiredFieldCount() === 0">
-                    Dates fill in automatically when you sign.
-                  </span>
-                </p>
-
-                <p class="mt-2 text-center">
-                  <button type="button" (click)="openReject()" class="text-xs font-medium text-red-500 underline underline-offset-2">
-                    I don't want to sign this document
-                  </button>
-                </p>
-              </div>
-
-              <!--
-                PASO: Firmar. Se OCULTA con [hidden] en vez de destruirse: así la firma dibujada
-                sobrevive a un "Back" para revisar el documento.
-              -->
-              <div [hidden]="stepId() !== 'sign'" class="step-content">
-                <h1 class="text-xl font-bold text-gray-900">Your signature</h1>
-                <p class="mt-1.5 text-sm text-gray-500">
-                  Complete each document, then submit your signature once at the end.
-                </p>
-
-                <div *ngIf="activeDocument()"
-                  class="mt-4 flex items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                  <ion-icon name="documents-outline" class="shrink-0 text-base text-sky-600"></ion-icon>
-                  <span class="min-w-0 truncate font-semibold">{{ documentProgress() }}</span>
-                </div>
-
-                <!-- Qué se está firmando -->
-                <div class="mt-4 rounded-2xl border border-gray-100 bg-brand-white p-3">
-                  <div class="flex items-start gap-3">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
-                      <ion-icon name="document-text-outline" class="text-base"></ion-icon>
-                    </span>
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-semibold text-gray-900">{{ activeDocument()?.title }}</p>
-                      <p class="text-[11px] text-gray-400">{{ categoryLabel() }} · Due {{ expiresLabel() }}</p>
-                    </div>
-                  </div>
-                  <ng-container *ngIf="ctx.description">
-                    <p class="mt-2 whitespace-pre-line text-xs leading-snug text-gray-600"
-                      [class.line-clamp-2]="!descriptionExpanded()">{{ ctx.description }}</p>
-                    <button *ngIf="ctx.description.length > 110" type="button" (click)="descriptionExpanded.set(!descriptionExpanded())"
-                      class="mt-0.5 text-[11px] font-medium text-brand-bold underline-offset-2 hover:underline">
-                      {{ descriptionExpanded() ? 'Show less' : 'Show more' }}
-                    </button>
-                  </ng-container>
-                  <div class="mt-2 grid grid-cols-2 gap-2 border-t border-gray-200/70 pt-2 text-[11px]">
-                    <div class="min-w-0">
-                      <span class="block text-gray-400">Name on the document</span>
-                      <span class="block truncate text-sm font-semibold text-gray-900">{{ ctx.signerFullName }}</span>
-                    </div>
-                    <div class="min-w-0">
-                      <span class="block text-gray-400">Your fields</span>
-                      <span class="block text-sm font-semibold text-gray-900">
-                        {{ fields().length }}<span class="text-[11px] font-normal text-gray-500">
-                          on {{ fieldPageCount() }} {{ fieldPageCount() === 1 ? 'page' : 'pages' }}
-                          · {{ requiredFieldCount() }} required</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Documento con los canvases del preparador: siempre visible mientras haya campos
-                     para este firmante (texto, firma, iniciales o fecha), no solo cuando hay inputs
-                     de texto. El firmante necesita ver DÓNDE va cada marca que estampará su firma. -->
-                <div *ngIf="fields().length > 0" class="mt-4">
-                  <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                    {{ textFields().length > 0 ? 'Fill in and review your document' : 'Where your signature will go' }}
-                  </p>
-                  <app-sign-document-view [documentId]="activeDocument()?.documentId ?? ''"
-                    [fields]="fields()" [values]="fieldValues()" [editable]="true"
-                    [pageImages]="pageImages()"
-                    (valueChange)="setFieldValue($event.fieldId, $event.value)"></app-sign-document-view>
-                </div>
-
-                <div class="mt-4">
-                  <app-signature-pad #pad></app-signature-pad>
-                </div>
-
-                <p *ngIf="padTypedMismatch()" class="mt-2 text-[11px] text-red-500">
-                  When you type your signature it must match the name above exactly (capitals don't matter).
-                </p>
-
-                <p class="mt-2 text-right text-[11px] text-gray-400">Date, time, IP and device are recorded</p>
-
-                <p class="mt-3 text-center">
-                  <button type="button" (click)="openReject()" class="text-xs font-medium text-red-500 underline underline-offset-2">
-                    I don't want to sign this document
-                  </button>
-                </p>
-              </div>
-
-              <!-- PASO: Listo -->
-              <div *ngIf="stepId() === 'done'" class="step-content text-center">
-                <span class="done-check mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
-                  <ion-icon name="checkmark" class="text-4xl"></ion-icon>
-                </span>
-                <h1 class="mt-4 text-2xl font-bold text-gray-900">All set, {{ firstName() }}!</h1>
-                <p class="mt-1 text-sm font-medium text-emerald-600">Your signature was recorded successfully.</p>
-                <p class="mt-1 text-xs text-gray-400">This signing link has now expired.</p>
-
-                <!-- Resumen de lo firmado -->
-                <div class="mt-5 rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
-                  <div class="flex items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white">
-                      <ion-icon name="document-text-outline" class="text-lg"></ion-icon>
-                    </span>
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-gray-900">{{ ctx.title }}</p>
-                      <p class="text-[11px] text-gray-400">Signed as {{ ctx.signerFullName }}</p>
-                    </div>
-                    <span class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
-                      <ion-icon name="shield-checkmark" class="text-[11px]"></ion-icon>Signed
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Qué sigue -->
-                <div class="mt-3 flex items-start gap-2 rounded-2xl border border-gray-100 px-4 py-3 text-left text-xs leading-snug text-gray-600">
-                  <ion-icon name="mail-outline" class="mt-0.5 shrink-0 text-base text-brand-bold"></ion-icon>
-                  <span *ngIf="ctx.requestStatus === 'Completed'">
-                    <span class="font-semibold text-gray-800">Everyone has signed.</span>
-                    The office is sealing the final PDF now — we'll email you a copy with a secure download link. No further action is needed.
-                  </span>
-                  <span *ngIf="ctx.requestStatus !== 'Completed'">
-                    <span class="font-semibold text-gray-800">You're done.</span>
-                    We'll email you a copy of the signed document once the remaining signers finish. No further action is needed.
-                  </span>
-                </div>
-
-                <!-- F7 — avisamos al firmante que recibirá su copia inmediata del documento parcial. -->
-                <div *ngIf="ctx.partialCopyWillBeSent && ctx.requestStatus !== 'Completed'"
-                     class="mt-3 flex items-start gap-2 rounded-xl bg-sky-50 px-3 py-2 text-left text-xs leading-snug text-sky-700">
-                  <ion-icon name="mail-outline" class="mt-0.5 shrink-0 text-sm"></ion-icon>
-                  <span>A copy of what you signed is on the way to <strong>{{ ctx.signerEmail }}</strong>.</span>
-                </div>
-
-                <!-- Return a la oficina: botón y cuenta atrás. Si no hay subdominio proyectado,
-                     mantenemos el mensaje original sin forzar una redirección a ciegas. -->
-                <ng-container *ngIf="tenantReturnUrl() as returnUrl; else closeHint">
-                  <div class="mt-5 flex flex-col items-center gap-2">
-                    <button type="button" (click)="exitToTenant()"
-                      class="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink">
-                      <ion-icon name="arrow-forward-outline" class="text-sm"></ion-icon>
-                      Return to the office
-                    </button>
-                    <p *ngIf="doneRedirectSecondsLeft() as secs" class="text-[11px] text-gray-400">
-                      Redirecting in {{ secs }}s…
-                    </p>
-                  </div>
-                </ng-container>
-                <ng-template #closeHint>
-                  <p class="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                    <ion-icon name="lock-closed-outline" class="text-[11px]"></ion-icon>
-                    You can safely close this window.
-                  </p>
-                </ng-template>
-
-                <div class="mt-5">
-                  <ng-container *ngTemplateOutlet="receipt"></ng-container>
-                </div>
-              </div>
-            </ng-container>
-          </ng-container>
-        </ng-container>
-
-        <!-- Error de la última acción (no rompe la pantalla) -->
-        <p *ngIf="actionError()"
-          class="mt-4 flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs leading-snug text-red-600">
-          <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
-          {{ actionError() }}
-        </p>
-      </div>
-
-      <!-- Overlay: acción real en vuelo (no hay simulación de sellado) -->
-      <div *ngIf="busy()" class="proc-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white/95 px-8">
-        <span class="h-10 w-10 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600"></span>
-        <p class="text-sm font-medium text-gray-700">{{ busyLabel() }}</p>
-        <p class="text-[11px] text-gray-400">Don't close this window</p>
-      </div>
-
-      <!-- Footer: navegación -->
-      <div *ngIf="context() && !blocked() && !declined() && !isDone()" class="border-t border-gray-100 px-4 py-4 sm:px-6">
-        <div class="flex items-center gap-2">
-          <button *ngIf="!isFirstStep()" type="button" (click)="back()" [disabled]="busy()"
-            class="rounded-full border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50">
-            Back
-          </button>
-          <button type="button" (click)="next()" [disabled]="!canProceed() || busy()"
-            class="flex-1 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold">
-            {{ nextLabel() }}
-          </button>
-        </div>
-        <p class="mt-3 text-center text-[11px] text-gray-400">
-          Step {{ stepNumber() }} of {{ stepCount() }} · Secure electronic signature
-        </p>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <div class="office-brand" aria-label="Signing office">
+        <span>Office</span>
+        <app-brand-logo
+          logoClass="h-6 w-full object-contain object-left"
+          fallbackClass="text-xl font-bold leading-none text-brand-bold"
+        ></app-brand-logo>
       </div>
     </div>
+
+    <div *ngIf="context() as headerContext" class="header-context" aria-label="Signing context">
+      <span>Electronic signing</span>
+      <ion-icon name="chevron-forward-outline"></ion-icon>
+      <strong>{{ activeDocument()?.title || headerContext.title }}</strong>
+    </div>
+
+    <div class="header-actions">
+      <span class="secure-label">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+        Secure signing
+      </span>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Open signing help"
+        title="Signing help"
+        (click)="helpOpen.set(true)"
+      >
+        <ion-icon name="help-circle-outline"></ion-icon>
+      </button>
+      <span *ngIf="context()" class="signer-avatar" [attr.aria-label]="context()?.signerFullName">
+        {{ signerInitials() }}
+      </span>
+    </div>
+  </header>
+
+  <div
+    class="signing-shell"
+    [class.signing-shell--single]="!context() || !!blocked() || declined() || !!usedLink()"
+  >
+    <aside *ngIf="context() && !blocked() && !declined() && !usedLink()" class="journey-sidebar">
+      <p class="journey-kicker">Your signing journey</p>
+      <nav class="journey-nav" aria-label="Signing steps">
+        <button
+          *ngFor="let step of steps(); let i = index"
+          type="button"
+          class="journey-step"
+          [class.is-active]="i === stepIndex()"
+          [class.is-complete]="i < stepIndex()"
+          [disabled]="i > stepIndex() || isDone()"
+          [attr.aria-current]="i === stepIndex() ? 'step' : null"
+          (click)="goToJourneyStep(i)"
+        >
+          <span class="journey-number">
+            <ion-icon *ngIf="i < stepIndex()" name="checkmark-outline"></ion-icon>
+            <span *ngIf="i >= stepIndex()">{{ i + 1 }}</span>
+          </span>
+          <span class="journey-copy">
+            <strong>{{ step.caption }}</strong>
+            <small>{{ step.detail }}</small>
+          </span>
+        </button>
+      </nav>
+
+      <div class="journey-summary">
+        <ion-icon name="documents-outline"></ion-icon>
+        <div>
+          <strong
+            >{{ signingDocuments().length }}
+            {{ signingDocuments().length === 1 ? 'document' : 'documents' }}</strong
+          >
+          <span>{{ totalFieldCount() }} fields - {{ totalRequiredFieldCount() }} required</span>
+        </div>
+      </div>
+
+      <div class="journey-help">
+        <p>
+          <ion-icon name="shield-checkmark-outline"></ion-icon
+          ><strong>Your privacy comes first</strong>
+        </p>
+        <span>Your information stays private throughout this signing process.</span>
+        <button type="button" (click)="helpOpen.set(true)">
+          <ion-icon name="help-circle-outline"></ion-icon>
+          Need a hand? We are here
+        </button>
+      </div>
+    </aside>
+
+    <main
+      class="signing-main"
+      [class.signing-main--document]="stepId() === 'review' || stepId() === 'sign'"
+    >
+      <div *ngIf="loading()" class="state-panel" aria-live="polite">
+        <span class="state-spinner"></span>
+        <h1>Opening your document</h1>
+        <p>We are preparing your secure signing session.</p>
+      </div>
+
+      <ng-container *ngIf="!loading() && loadError()">
+        <section *ngIf="deadLink() as dead" class="state-panel stage-enter">
+          <span class="state-icon state-icon--warning"
+            ><ion-icon name="link-outline"></ion-icon
+          ></span>
+          <p class="eyebrow">Signing link</p>
+          <h1>{{ dead.title }}</h1>
+          <p>{{ dead.detail }}</p>
+          <span class="reference-code">Reference code: {{ loadError()?.code }}</span>
+        </section>
+
+        <section *ngIf="!deadLink()" class="state-panel stage-enter">
+          <span class="state-icon state-icon--danger"
+            ><ion-icon name="cloud-offline-outline"></ion-icon
+          ></span>
+          <p class="eyebrow">Connection problem</p>
+          <h1>We could not load your document</h1>
+          <p>{{ loadError()?.message }}</p>
+          <button type="button" class="primary-button compact-button" (click)="load()">
+            Try again
+          </button>
+        </section>
+      </ng-container>
+
+      <section *ngIf="usedLink() as used" class="state-panel stage-enter">
+        <span class="state-icon" [class.state-icon--success]="used.outcome === 'signed'">
+          <ion-icon
+            [name]="used.outcome === 'signed' ? 'checkmark-done-outline' : 'lock-closed-outline'"
+          ></ion-icon>
+        </span>
+        <p class="eyebrow">Signing session closed</p>
+        <h1>This link has expired</h1>
+        <p>
+          {{
+            used.outcome === 'signed'
+              ? 'You already signed this document. The office will email you the sealed copy.'
+              : 'You declined this document. Contact the office if you need a new invitation.'
+          }}
+        </p>
+        <span *ngIf="usedLinkAtLabel()" class="reference-code">
+          {{ used.outcome === 'signed' ? 'Signed' : 'Declined' }} on {{ usedLinkAtLabel() }}
+        </span>
+      </section>
+
+      <section *ngIf="declined()" class="state-panel stage-enter">
+        <span class="state-icon state-icon--danger"
+          ><ion-icon name="close-circle-outline"></ion-icon
+        ></span>
+        <p class="eyebrow">Request declined</p>
+        <h1>Document declined</h1>
+        <p>We let the office know that you do not want to sign. This link is now closed.</p>
+        <blockquote *ngIf="declineReasonEcho()">{{ declineReasonEcho() }}</blockquote>
+      </section>
+
+      <ng-container *ngIf="!loading() && !loadError() && !declined()">
+        <section *ngIf="blocked() as block" class="state-panel stage-enter">
+          <span
+            class="state-icon"
+            [ngClass]="{
+              'state-icon--success': block.tone === 'success',
+              'state-icon--warning': block.tone === 'warning',
+              'state-icon--danger': block.tone === 'danger',
+            }"
+            ><ion-icon [name]="block.icon"></ion-icon
+          ></span>
+          <p class="eyebrow">Signing status</p>
+          <h1>{{ block.title }}</h1>
+          <p>{{ block.detail }}</p>
+          <div *ngIf="block.showReceipt" class="receipt-wrap">
+            <ng-container *ngTemplateOutlet="receipt"></ng-container>
+          </div>
+        </section>
+
+        <ng-container *ngIf="context() as ctx">
+          <ng-container *ngIf="!blocked()">
+            <div *ngIf="stepId() !== 'done'" class="stage-heading stage-enter">
+              <div>
+                <div class="breadcrumb" aria-label="Current location">
+                  <span>Documents</span>
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                  <span>{{ activeDocument()?.title || ctx.title }}</span>
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                  <strong>{{ steps()[stepIndex()].caption }}</strong>
+                </div>
+                <p class="eyebrow">
+                  Step {{ stepNumber().toString().padStart(2, '0') }} of
+                  {{ stepCount().toString().padStart(2, '0') }}
+                </p>
+                <h1>{{ stageCopy().title }}</h1>
+                <p class="stage-subtitle">{{ stageCopy().subtitle }}</p>
+              </div>
+              <span class="status-badge">
+                <ion-icon [name]="stageCopy().badgeIcon"></ion-icon>
+                {{ stageCopy().badge }}
+              </span>
+            </div>
+
+            <section *ngIf="stepId() === 'welcome'" class="stage-enter">
+              <div class="welcome-grid">
+                <div class="welcome-primary">
+                  <h2>Welcome, {{ firstName() }}.</h2>
+                  <p>
+                    Your tax office sent you
+                    {{ signingDocuments().length === 1 ? 'a document' : 'documents' }} to review and
+                    sign. Let us make sure everything looks right before you begin.
+                  </p>
+
+                  <div class="document-summary">
+                    <span class="document-summary-icon"
+                      ><ion-icon name="documents-outline"></ion-icon
+                    ></span>
+                    <div>
+                      <div *ngFor="let document of signingDocuments()" class="document-summary-row">
+                        <strong>{{ document.title }}</strong>
+                        <span>{{ categoryLabel() }} - PDF</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <dl class="detail-list">
+                    <div>
+                      <dt>Sent by</dt>
+                      <dd>Your tax office</dd>
+                    </div>
+                    <div>
+                      <dt>Signing as</dt>
+                      <dd>{{ ctx.signerFullName }}</dd>
+                    </div>
+                    <div>
+                      <dt>Required from you</dt>
+                      <dd>
+                        {{ totalFieldCount() }} fields across {{ signingDocuments().length }}
+                        {{ signingDocuments().length === 1 ? 'document' : 'documents' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Link expires</dt>
+                      <dd>{{ expiresLabel() || 'After signing' }}</dd>
+                    </div>
+                  </dl>
+
+                  <button type="button" class="primary-button" (click)="next()">
+                    Continue
+                    <ion-icon name="arrow-forward-outline"></ion-icon>
+                  </button>
+                  <p class="action-note">
+                    <ion-icon name="lock-closed-outline"></ion-icon>Your document is not signed
+                    until you confirm.
+                  </p>
+                </div>
+
+                <div class="document-preview" aria-hidden="true">
+                  <div class="preview-header">
+                    <span>Your document</span><span>{{ signingDocuments().length }} PDF</span>
+                  </div>
+                  <div class="preview-sheet">
+                    <div class="preview-brand">
+                      <app-brand-logo
+                        logoClass="h-6 max-w-[130px] object-contain"
+                        fallbackClass="text-xl font-bold leading-none text-brand-bold"
+                      ></app-brand-logo>
+                    </div>
+                    <span class="preview-rule"></span>
+                    <small>{{ categoryLabel() }}</small>
+                    <h3>{{ activeDocument()?.title || ctx.title }}</h3>
+                    <div class="preview-lines">
+                      <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="preview-field">
+                      <ion-icon name="create-outline"></ion-icon>Signature required
+                    </div>
+                  </div>
+                  <div class="preview-dots">
+                    <span class="active"></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
+              <ng-container *ngTemplateOutlet="trustBand"></ng-container>
+            </section>
+
+            <section *ngIf="stepId() === 'consent'" class="stage-enter form-grid">
+              <div class="form-panel">
+                <details class="consent-section" open>
+                  <summary>
+                    <ion-icon name="create-outline"></ion-icon><span>Your electronic signature</span
+                    ><ion-icon name="chevron-down-outline"></ion-icon>
+                  </summary>
+                  <p>
+                    I agree to sign this document electronically. I understand that my electronic
+                    signature is as legally valid as a handwritten signature.
+                  </p>
+                </details>
+                <details class="consent-section">
+                  <summary>
+                    <ion-icon name="shield-checkmark-outline"></ion-icon
+                    ><span>How your document is protected</span
+                    ><ion-icon name="chevron-down-outline"></ion-icon>
+                  </summary>
+                  <p>
+                    The completed document is sealed against changes using a digital certificate
+                    operated by TaxProffice. The seal supports integrity and traceability; it is not
+                    a qualified certificate issued in a signer's name.
+                  </p>
+                </details>
+                <details class="consent-section">
+                  <summary>
+                    <ion-icon name="finger-print-outline"></ion-icon
+                    ><span>A clear record of your signing</span
+                    ><ion-icon name="chevron-down-outline"></ion-icon>
+                  </summary>
+                  <p>
+                    The office records the consent version, verification results, timestamps, IP
+                    address and device information in the signing audit trail.
+                  </p>
+                </details>
+
+                <button
+                  type="button"
+                  class="consent-choice"
+                  [class.is-selected]="consentChecked()"
+                  (click)="toggleConsent()"
+                >
+                  <span class="choice-box"
+                    ><ion-icon *ngIf="consentChecked()" name="checkmark-outline"></ion-icon
+                  ></span>
+                  <span
+                    >I have read the electronic signing consent and agree to use electronic records
+                    and signatures for this request.</span
+                  >
+                </button>
+
+                <div class="form-actions">
+                  <button type="button" class="back-button" (click)="back()">
+                    <ion-icon name="arrow-back-outline"></ion-icon>Back
+                  </button>
+                  <button
+                    type="button"
+                    class="primary-button"
+                    [disabled]="!canProceed() || busy()"
+                    (click)="next()"
+                  >
+                    Agree and continue<ion-icon name="arrow-forward-outline"></ion-icon>
+                  </button>
+                </div>
+              </div>
+              <aside class="info-panel">
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+                <h3>You are always in control</h3>
+                <p>
+                  Read every page at your own pace. You can go back, ask for help or leave before
+                  your final confirmation.
+                </p>
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>Consent is required before
+                  signing</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>Your exact consent version
+                  is recorded</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>You confirm again before
+                  submitting</span
+                >
+              </aside>
+              <ng-container *ngTemplateOutlet="trustBand"></ng-container>
+            </section>
+
+            <section *ngIf="stepId() === 'verify'" class="stage-enter form-grid">
+              <div class="form-panel">
+                <h2>Enter your practitioner PIN</h2>
+                <p class="section-subtitle">
+                  Use the PIN your preparer gave you by phone or in the office.
+                </p>
+                <label class="input-label" for="pin">Practitioner PIN</label>
+                <div class="secure-input">
+                  <input
+                    id="pin"
+                    name="pin"
+                    [type]="pinRevealed() ? 'text' : 'password'"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="10"
+                    [ngModel]="pin()"
+                    (ngModelChange)="pin.set($event)"
+                    [disabled]="isPinLocked()"
+                    placeholder="0000"
+                  />
+                  <button
+                    type="button"
+                    (click)="pinRevealed.set(!pinRevealed())"
+                    [disabled]="isPinLocked()"
+                    [attr.aria-label]="pinRevealed() ? 'Hide PIN' : 'Show PIN'"
+                  >
+                    <ion-icon [name]="pinRevealed() ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+                  </button>
+                </div>
+                <p class="input-hint">4 to 10 digits - 5 attempts</p>
+                <p *ngIf="isPinLocked()" class="inline-alert inline-alert--danger">
+                  <ion-icon name="lock-closed-outline"></ion-icon>Too many attempts. This link
+                  unlocks again at {{ pinLockedUntilLabel() }}.
+                </p>
+                <div class="form-actions">
+                  <button type="button" class="back-button" (click)="back()">
+                    <ion-icon name="arrow-back-outline"></ion-icon>Back
+                  </button>
+                  <button
+                    type="button"
+                    class="primary-button"
+                    [disabled]="!canProceed() || busy()"
+                    (click)="next()"
+                  >
+                    Verify and continue<ion-icon name="arrow-forward-outline"></ion-icon>
+                  </button>
+                </div>
+              </div>
+              <aside class="info-panel">
+                <ion-icon name="lock-closed-outline"></ion-icon>
+                <h3>An extra layer of confidence</h3>
+                <p>
+                  The PIN is checked by the secure signing service and never appears in the email
+                  invitation.
+                </p>
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>The PIN is not stored in
+                  this browser</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>Failed attempts are
+                  limited</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>The office can issue a new
+                  invitation</span
+                >
+              </aside>
+              <ng-container *ngTemplateOutlet="trustBand"></ng-container>
+            </section>
+
+            <section *ngIf="stepId() === 'verify-otp'" class="stage-enter form-grid">
+              <div class="form-panel">
+                <ng-container *ngIf="!otpIssued(); else otpEntry">
+                  <h2>Send your security code</h2>
+                  <p class="section-subtitle">
+                    We will send a 6-digit code to {{ otpDestinationHint() }}.
+                  </p>
+                  <div class="method-card is-selected">
+                    <ion-icon
+                      [name]="
+                        otpMethod() === 'EmailOtp' ? 'mail-outline' : 'phone-portrait-outline'
+                      "
+                    ></ion-icon>
+                    <div>
+                      <strong>Send code by {{ otpChannelLabel() }}</strong
+                      ><span>{{ otpDestinationHint() }}</span>
+                    </div>
+                    <span class="radio-dot"></span>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="back-button" (click)="back()">
+                      <ion-icon name="arrow-back-outline"></ion-icon>Back
+                    </button>
+                    <button
+                      type="button"
+                      class="primary-button"
+                      [disabled]="busy()"
+                      (click)="sendOtp()"
+                    >
+                      Send verification code<ion-icon name="arrow-forward-outline"></ion-icon>
+                    </button>
+                  </div>
+                </ng-container>
+
+                <ng-template #otpEntry>
+                  <div class="sent-notice">
+                    <ion-icon name="checkmark-circle-outline"></ion-icon
+                    ><span
+                      >Code sent to <strong>{{ otpDestinationHint() }}</strong
+                      ><br />Check your messages for the 6-digit code.</span
+                    >
+                  </div>
+                  <label class="input-label" for="otp">Verification code</label>
+                  <input
+                    id="otp"
+                    name="otp"
+                    class="otp-input"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    maxlength="6"
+                    [ngModel]="otpCode()"
+                    (ngModelChange)="otpCode.set($event)"
+                    placeholder="000000"
+                  />
+                  <div class="resend-row">
+                    <span>{{
+                      canResendOtp()
+                        ? 'Did not receive a code?'
+                        : 'Resend available in ' + otpResendIn() + 's'
+                    }}</span>
+                    <button
+                      type="button"
+                      (click)="sendOtp()"
+                      [disabled]="!canResendOtp() || busy()"
+                    >
+                      Resend code
+                    </button>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="back-button" (click)="back()">
+                      <ion-icon name="arrow-back-outline"></ion-icon>Back
+                    </button>
+                    <button
+                      type="button"
+                      class="primary-button"
+                      [disabled]="!canProceed() || busy()"
+                      (click)="next()"
+                    >
+                      Verify and continue<ion-icon name="arrow-forward-outline"></ion-icon>
+                    </button>
+                  </div>
+                </ng-template>
+              </div>
+              <aside class="info-panel">
+                <ion-icon name="shield-checkmark-outline"></ion-icon>
+                <h3>An extra layer of confidence</h3>
+                <p>
+                  Only the person with access to the verified contact method can continue to the
+                  document.
+                </p>
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>Your contact details stay
+                  masked</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>The code expires after a few
+                  minutes</span
+                >
+                <span
+                  ><ion-icon name="checkmark-circle-outline"></ion-icon>No account password is
+                  needed</span
+                >
+              </aside>
+              <ng-container *ngTemplateOutlet="trustBand"></ng-container>
+            </section>
+
+            <section *ngIf="stepId() === 'review'" class="stage-enter">
+              <div *ngIf="signingDocuments().length > 1" class="document-indicator" role="status">
+                <ion-icon name="document-text-outline"></ion-icon>
+                <span
+                  >Document <strong>{{ activeDocumentIndex() + 1 }}</strong> of
+                  {{ signingDocuments().length }} - {{ activeDocument()?.title }}</span
+                >
+                <div class="document-dots">
+                  <button
+                    *ngFor="let document of signingDocuments(); let i = index"
+                    type="button"
+                    [class.is-current]="i === activeDocumentIndex()"
+                    [class.is-ready]="i <= highestReviewedDocumentIndex()"
+                    [disabled]="i > highestReviewedDocumentIndex()"
+                    [attr.aria-label]="'Open ' + document.title"
+                    (click)="openDocument(i)"
+                  ></button>
+                </div>
+              </div>
+
+              <div class="viewer-grid">
+                <section class="document-viewer" aria-label="Document viewer">
+                  <div class="viewer-toolbar">
+                    <span
+                      ><ion-icon name="document-text-outline"></ion-icon
+                      >{{ activeDocument()?.title }}</span
+                    >
+                    <div class="zoom-tools" aria-label="Document preview controls">
+                      <button
+                        type="button"
+                        class="icon-button reload-preview-button"
+                        title="Reload document preview"
+                        aria-label="Reload document preview"
+                        [disabled]="loadingDocument()"
+                        (click)="retryDocument()"
+                      >
+                        <ion-icon name="refresh-outline"></ion-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-button"
+                        title="Zoom out"
+                        aria-label="Zoom out"
+                        [disabled]="documentZoom() === 75"
+                        (click)="adjustDocumentZoom(-25)"
+                      >
+                        <ion-icon name="remove-outline"></ion-icon>
+                      </button>
+                      <span>{{ documentZoom() }}%</span>
+                      <button
+                        type="button"
+                        class="icon-button"
+                        title="Zoom in"
+                        aria-label="Zoom in"
+                        [disabled]="documentZoom() === 150"
+                        (click)="adjustDocumentZoom(25)"
+                      >
+                        <ion-icon name="add-outline"></ion-icon>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="viewer-scroll">
+                    <p *ngIf="loadingDocument()" class="viewer-loading">
+                      <span class="state-spinner state-spinner--small"></span>Loading the document
+                    </p>
+                    <div *ngIf="documentError()" class="document-load-error" role="alert">
+                      <ion-icon name="cloud-offline-outline"></ion-icon>
+                      <div>
+                        <strong>We could not open the document preview.</strong
+                        ><span>{{ documentError() }}</span>
+                      </div>
+                      <button type="button" (click)="retryDocument()">Try again</button>
+                    </div>
+                    <app-sign-document-view
+                      [documentId]="activeDocument()?.documentId ?? ''"
+                      [fields]="fields()"
+                      [values]="fieldValues()"
+                      [pageImages]="pageImages()"
+                      [pageAspectRatios]="pageAspectRatios()"
+                      [zoomPercent]="documentZoom()"
+                      [selectedFieldId]="selectedFieldId()"
+                      (fieldSelect)="selectField($event.fieldId)"
+                    ></app-sign-document-view>
+                  </div>
+                </section>
+
+                <aside class="viewer-side">
+                  <h2>Your document at a glance</h2>
+                  <p>
+                    {{ categoryLabel()
+                    }}<span *ngIf="activePageCount()"> - {{ activePageCount() }} pages</span> -
+                    {{ fields().length }} fields to complete. Read at your own pace.
+                  </p>
+                  <p class="small-secure">
+                    <ion-icon name="eye-outline"></ion-icon>Review the highlighted areas before
+                    continuing.
+                  </p>
+                  <p class="fields-heading">Your required fields</p>
+                  <div class="field-list">
+                    <button
+                      *ngFor="let field of fields()"
+                      type="button"
+                      class="field-row"
+                      [class.is-selected]="selectedFieldId() === field.id"
+                      (click)="selectField(field.id)"
+                    >
+                      <ion-icon
+                        [name]="
+                          field.kind === 'Date'
+                            ? 'calendar-outline'
+                            : field.kind === 'Text'
+                              ? 'document-text-outline'
+                              : 'create-outline'
+                        "
+                      ></ion-icon>
+                      <div>
+                        <strong>{{ fieldLabel(field) }}</strong
+                        ><span>{{ fieldMeta(field) }}</span>
+                      </div>
+                      <small>{{ field.isRequired ? 'Required' : 'Optional' }}</small>
+                    </button>
+                  </div>
+                  <button type="button" class="primary-button" (click)="next()">
+                    {{ nextLabel() }}<ion-icon name="arrow-forward-outline"></ion-icon>
+                  </button>
+                  <button type="button" class="back-button full-button" (click)="back()">
+                    <ion-icon name="arrow-back-outline"></ion-icon>Back
+                  </button>
+                  <button type="button" class="decline-link" (click)="openReject()">
+                    I do not want to sign this request
+                  </button>
+                  <p class="small-secure">
+                    <ion-icon name="shield-checkmark-outline"></ion-icon>Private and encrypted
+                    signing session
+                  </p>
+                </aside>
+              </div>
+            </section>
+
+            <section [hidden]="stepId() !== 'sign'" class="stage-enter">
+              <div *ngIf="signingDocuments().length > 1" class="document-indicator" role="status">
+                <ion-icon name="document-text-outline"></ion-icon>
+                <span
+                  >Document <strong>{{ activeDocumentIndex() + 1 }}</strong> of
+                  {{ signingDocuments().length }} - {{ activeDocument()?.title }}</span
+                >
+                <div class="document-dots">
+                  <button
+                    *ngFor="let document of signingDocuments(); let i = index"
+                    type="button"
+                    [class.is-current]="i === activeDocumentIndex()"
+                    [class.is-ready]="i < activeDocumentIndex()"
+                    [attr.aria-label]="'Open ' + document.title"
+                    (click)="openDocument(i)"
+                  ></button>
+                </div>
+              </div>
+
+              <div class="viewer-grid">
+                <section class="document-viewer" aria-label="Document signing viewer">
+                  <div class="viewer-toolbar">
+                    <span
+                      ><ion-icon name="document-text-outline"></ion-icon
+                      >{{ activeDocument()?.title }}</span
+                    >
+                    <div class="zoom-tools" aria-label="Document preview controls">
+                      <button
+                        type="button"
+                        class="icon-button reload-preview-button"
+                        title="Reload document preview"
+                        aria-label="Reload document preview"
+                        [disabled]="loadingDocument()"
+                        (click)="retryDocument()"
+                      >
+                        <ion-icon name="refresh-outline"></ion-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-button"
+                        title="Zoom out"
+                        aria-label="Zoom out"
+                        [disabled]="documentZoom() === 75"
+                        (click)="adjustDocumentZoom(-25)"
+                      >
+                        <ion-icon name="remove-outline"></ion-icon>
+                      </button>
+                      <span>{{ documentZoom() }}%</span>
+                      <button
+                        type="button"
+                        class="icon-button"
+                        title="Zoom in"
+                        aria-label="Zoom in"
+                        [disabled]="documentZoom() === 150"
+                        (click)="adjustDocumentZoom(25)"
+                      >
+                        <ion-icon name="add-outline"></ion-icon>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="viewer-scroll">
+                    <p *ngIf="loadingDocument()" class="viewer-loading">
+                      <span class="state-spinner state-spinner--small"></span>Loading the document
+                    </p>
+                    <div *ngIf="documentError()" class="document-load-error" role="alert">
+                      <ion-icon name="cloud-offline-outline"></ion-icon>
+                      <div>
+                        <strong>We could not open the document preview.</strong
+                        ><span>{{ documentError() }}</span>
+                      </div>
+                      <button type="button" (click)="retryDocument()">Try again</button>
+                    </div>
+                    <app-sign-document-view
+                      [documentId]="activeDocument()?.documentId ?? ''"
+                      [fields]="fields()"
+                      [values]="fieldValues()"
+                      [editable]="true"
+                      [pageImages]="pageImages()"
+                      [pageAspectRatios]="pageAspectRatios()"
+                      [zoomPercent]="documentZoom()"
+                      [selectedFieldId]="selectedFieldId()"
+                      (valueChange)="setFieldValue($event.fieldId, $event.value)"
+                      (fieldSelect)="selectField($event.fieldId)"
+                    ></app-sign-document-view>
+                  </div>
+                </section>
+
+                <aside class="viewer-side signing-panel">
+                  <h2>{{ signReady() ? 'Ready for the final step' : captureTitle() }}</h2>
+                  <p>
+                    {{
+                      isLastDocument()
+                        ? 'Your signature is applied to the required marks when you submit.'
+                        : 'Complete this document, then continue to the next one.'
+                    }}
+                  </p>
+
+                  <div class="progress-heading">
+                    <span>Fields ready</span
+                    ><strong>{{ completedActiveFieldCount() }} / {{ fields().length }}</strong>
+                  </div>
+                  <progress
+                    [value]="completedActiveFieldCount()"
+                    [max]="fields().length || 1"
+                  ></progress>
+
+                  <div class="signature-context">
+                    <ion-icon name="create-outline"></ion-icon>
+                    <div>
+                      <strong>{{
+                        captureField() ? fieldLabel(captureField()!) : 'Your signature'
+                      }}</strong>
+                      <span *ngIf="captureField()"
+                        >{{ fieldMeta(captureField()!) }} - Required field</span
+                      >
+                      <span *ngIf="!captureField()">Used across this signing request</span>
+                    </div>
+                  </div>
+
+                  <app-signature-pad #pad></app-signature-pad>
+
+                  <p *ngIf="padTypedMismatch()" class="inline-alert inline-alert--danger">
+                    <ion-icon name="alert-circle-outline"></ion-icon>Type your full name exactly as
+                    it appears on the document.
+                  </p>
+
+                  <p class="fields-heading">Signing progress</p>
+                  <div class="field-list">
+                    <button
+                      type="button"
+                      *ngFor="let field of fields()"
+                      class="field-row"
+                      [class.is-ready]="isFieldReady(field)"
+                      [class.is-selected]="selectedFieldId() === field.id"
+                      (click)="selectField(field.id)"
+                    >
+                      <ion-icon
+                        [name]="isFieldReady(field) ? 'checkmark-circle-outline' : 'create-outline'"
+                      ></ion-icon>
+                      <div>
+                        <strong>{{ fieldLabel(field) }}</strong
+                        ><span>{{ fieldMeta(field) }}</span>
+                      </div>
+                      <small>{{ fieldStatus(field) }}</small>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="primary-button"
+                    [disabled]="!canProceed() || busy()"
+                    (click)="next()"
+                  >
+                    {{ nextLabel()
+                    }}<ion-icon
+                      [name]="isLastDocument() ? 'checkmark-outline' : 'arrow-forward-outline'"
+                    ></ion-icon>
+                  </button>
+                  <button type="button" class="back-button full-button" (click)="back()">
+                    <ion-icon name="arrow-back-outline"></ion-icon>Back
+                  </button>
+                  <button type="button" class="decline-link" (click)="openReject()">
+                    I do not want to sign this request
+                  </button>
+                  <p class="small-secure">
+                    <ion-icon name="shield-checkmark-outline"></ion-icon>Date, time, IP address and
+                    device are recorded
+                  </p>
+                </aside>
+              </div>
+            </section>
+
+            <section *ngIf="stepId() === 'done'" class="completion-layout stage-enter">
+              <span class="success-icon"><ion-icon name="checkmark-outline"></ion-icon></span>
+              <p class="eyebrow eyebrow--success">Signing complete</p>
+              <h1>Signed. Sealed. All set.</h1>
+              <p class="completion-intro">
+                Thanks, {{ firstName() }}. You completed your part of this signing request.
+              </p>
+              <div class="completed-notice">
+                <ion-icon name="checkmark-done-circle-outline"></ion-icon
+                ><span
+                  >All required fields are complete. No further action is needed from you.</span
+                >
+              </div>
+
+              <section class="completion-summary">
+                <h2>Your signing summary</h2>
+                <dl class="detail-list">
+                  <div>
+                    <dt>Request</dt>
+                    <dd>{{ ctx.title }}</dd>
+                  </div>
+                  <div>
+                    <dt>Signed by</dt>
+                    <dd>{{ ctx.signerFullName }}</dd>
+                  </div>
+                  <div>
+                    <dt>Completed on</dt>
+                    <dd>{{ signedAtLabel() || 'Syncing with the audit trail' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>
+                      <span class="signed-badge"
+                        ><ion-icon name="checkmark-outline"></ion-icon>Signed</span
+                      >
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Documents</dt>
+                    <dd>{{ signingDocuments().length || ctx.documents.length }}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <div *ngIf="ctx.requestStatus === 'Completed'" class="delivery-note">
+                <ion-icon name="mail-outline"></ion-icon
+                ><span
+                  ><strong>Everyone has signed.</strong> The office is sealing the final PDF and
+                  will email the secure copy.</span
+                >
+              </div>
+              <div *ngIf="ctx.requestStatus !== 'Completed'" class="delivery-note">
+                <ion-icon name="mail-outline"></ion-icon
+                ><span
+                  ><strong>Your part is complete.</strong> The office will email the final copy
+                  after the remaining signers finish.</span
+                >
+              </div>
+              <div
+                *ngIf="ctx.partialCopyWillBeSent && ctx.requestStatus !== 'Completed'"
+                class="delivery-note delivery-note--info"
+              >
+                <ion-icon name="paper-plane-outline"></ion-icon
+                ><span
+                  >A copy of what you signed is on the way to <strong>{{ ctx.signerEmail }}</strong
+                  >.</span
+                >
+              </div>
+
+              <div class="completion-actions">
+                <button
+                  *ngIf="tenantReturnUrl()"
+                  type="button"
+                  class="primary-button compact-button"
+                  (click)="exitToTenant()"
+                >
+                  Return to the office<ion-icon name="arrow-forward-outline"></ion-icon>
+                </button>
+                <p *ngIf="doneRedirectSecondsLeft() as seconds" role="status">
+                  You will return to the office automatically in {{ seconds }}s.
+                </p>
+                <p *ngIf="!tenantReturnUrl()">
+                  <ion-icon name="lock-closed-outline"></ion-icon>You can safely close this window.
+                </p>
+              </div>
+
+              <div class="receipt-wrap">
+                <ng-container *ngTemplateOutlet="receipt"></ng-container>
+              </div>
+              <ng-container *ngTemplateOutlet="trustBand"></ng-container>
+            </section>
+
+            <p *ngIf="actionError()" class="global-error" role="alert">
+              <ion-icon name="alert-circle-outline"></ion-icon>{{ actionError() }}
+            </p>
+          </ng-container>
+        </ng-container>
+      </ng-container>
+
+      <div *ngIf="busy()" class="processing-overlay" aria-live="assertive">
+        <span class="state-spinner"></span>
+        <strong>{{ busyLabel() }}</strong>
+        <span>Do not close this window</span>
+      </div>
+
+      <footer class="signing-footer">
+        <span><ion-icon name="lock-closed-outline"></ion-icon>Powered by TaxProffice</span>
+        <span>Private by design. Clear at every step.</span>
+      </footer>
+    </main>
+  </div>
+  <div *ngIf="helpOpen()" class="help-overlay" (click)="helpOpen.set(false)">
+    <section
+      class="help-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Signing help"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="help-header">
+        <h2>A little help along the way</h2>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Close help"
+          (click)="helpOpen.set(false)"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      </div>
+      <h3>Verifying your identity</h3>
+      <p>
+        Use the PIN or security code requested by the office. These checks must succeed before the
+        original documents can open.
+      </p>
+      <h3>Reviewing your documents</h3>
+      <p>
+        Move through every document and review the highlighted fields. Required text fields must be
+        completed before submission.
+      </p>
+      <h3>Adding your signature</h3>
+      <p>
+        Draw, type or upload one signature. TaxProffice applies that evidence to the signature and
+        initials fields assigned to you.
+      </p>
+      <h3>After signing</h3>
+      <p>
+        The link closes after submission. The office delivers the sealed PDF and signature
+        certificate by email according to the request settings.
+      </p>
+      <button type="button" class="primary-button" (click)="helpOpen.set(false)">
+        Back to my document<ion-icon name="arrow-forward-outline"></ion-icon>
+      </button>
+    </section>
   </div>
 </div>
 
-<!--
-  Acuse real: sale de GET /signature/public/{token}/verify-audit (cadena append-only
-  con HMAC encadenado). No hay hash inventado ni descargas simuladas — el contexto
-  público NO expone sealedFileId/certificateFileId y CloudStorage exige sesión.
--->
-<ng-template #receipt>
-  <div class="rounded-2xl border border-gray-100 bg-brand-white p-4 text-left">
-    <p class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-      <span class="flex items-center gap-1.5">
-        <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
-        Signature receipt
-      </span>
-      <button type="button" (click)="loadAudit()" [disabled]="auditLoading()"
-        class="rounded-full px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal text-gray-500 transition-colors hover:bg-gray-100 disabled:opacity-50">
-        {{ auditLoading() ? 'Refreshing…' : 'Refresh' }}
-      </button>
-    </p>
+<ng-template #trustBand>
+  <section class="trust-band" aria-label="Session confidence">
+    <div>
+      <ion-icon name="lock-closed-outline"></ion-icon
+      ><span
+        ><strong>Encrypted session</strong
+        ><small>Your documents and information stay private.</small></span
+      >
+    </div>
+    <div>
+      <ion-icon name="finger-print-outline"></ion-icon
+      ><span
+        ><strong>A clear audit trail</strong><small>Each security step is recorded.</small></span
+      >
+    </div>
+    <div>
+      <ion-icon name="desktop-outline"></ion-icon
+      ><span
+        ><strong>IP and device recorded</strong
+        ><small>Session details support signing integrity.</small></span
+      >
+    </div>
+  </section>
+</ng-template>
 
-    <dl class="mt-2 space-y-1.5 text-sm">
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-gray-400">Signer</dt>
-        <dd class="truncate font-medium text-gray-900">{{ context()?.signerFullName }}</dd>
+<ng-template #receipt>
+  <div class="receipt-card">
+    <div class="receipt-header">
+      <span><ion-icon name="ribbon-outline"></ion-icon>Signature receipt</span>
+      <button type="button" (click)="loadAudit()" [disabled]="auditLoading()">
+        {{ auditLoading() ? 'Refreshing' : 'Refresh' }}
+      </button>
+    </div>
+    <dl>
+      <div>
+        <dt>Signer</dt>
+        <dd>{{ context()?.signerFullName }}</dd>
       </div>
-      <div class="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 pt-1.5">
-        <dt class="text-gray-400">Date &amp; time</dt>
-        <dd class="font-medium text-gray-900">
-          <span *ngIf="signedAtLabel()">{{ signedAtLabel() }}</span>
-          <span *ngIf="!signedAtLabel()" class="text-xs font-normal text-gray-400">Syncing with the audit trail…</span>
+      <div>
+        <dt>Date and time</dt>
+        <dd>{{ signedAtLabel() || 'Syncing with the audit trail' }}</dd>
+      </div>
+      <div>
+        <dt>Audit trail</dt>
+        <dd>
+          <span *ngIf="auditIntact() === true" class="audit-ok"
+            >Verified - {{ audit()?.eventCount }} events</span
+          >
+          <span *ngIf="auditIntact() === false" class="audit-failed">Integrity check failed</span>
+          <span *ngIf="auditIntact() === null">{{
+            justSigned() ? 'Kept by the office' : 'Not available right now'
+          }}</span>
         </dd>
       </div>
-      <div class="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 pt-1.5">
-        <dt class="text-gray-400">Audit trail</dt>
-        <dd class="font-medium">
-          <span *ngIf="auditIntact() === true" class="text-emerald-600">Verified · {{ audit()?.eventCount }} events</span>
-          <span *ngIf="auditIntact() === false" class="text-red-600">Integrity check failed</span>
-          <!-- Tras completarse la solicitud el token se revoca y la cadena ya no es legible con este enlace -->
-          <span *ngIf="auditIntact() === null" class="text-xs font-normal text-gray-400">
-            {{ justSigned() ? 'Kept by the office' : 'Not available right now' }}
-          </span>
-        </dd>
-      </div>
-      <div *ngIf="chainHash()" class="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 pt-1.5">
-        <dt class="text-gray-400">Chain hash</dt>
-        <dd class="font-mono text-xs font-medium text-gray-600">{{ chainHash() }}</dd>
+      <div *ngIf="chainHash()">
+        <dt>Chain hash</dt>
+        <dd class="hash-value">{{ chainHash() }}</dd>
       </div>
     </dl>
-
-    <p class="mt-3 flex items-start gap-1.5 border-t border-dashed border-gray-200 pt-3 text-[11px] leading-snug text-gray-500">
-      <ion-icon name="mail-outline" class="mt-px shrink-0 text-xs text-gray-400"></ion-icon>
-      The sealed PDF and the signature certificate are emailed to you by the office — they can't be
-      downloaded from this public link.
+    <p>
+      <ion-icon name="mail-outline"></ion-icon>The sealed PDF and signature certificate are emailed
+      by the office and cannot be downloaded from this public link.
     </p>
   </div>
 </ng-template>
 
-<!-- Modal de rechazo -->
-<app-modal [isOpen]="isRejectOpen()" heading="Don't want to sign?"
-  subheading="Tell us why. The office will receive your answer." size="sm" (closed)="closeReject()">
-  <div class="mt-4">
-    <label class="mb-1 block text-xs font-medium text-gray-600">Reason (optional)</label>
-    <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 transition-colors focus-within:border-gray-300">
-      <textarea rows="3" name="rejectReason" placeholder="e.g. The figures on my return are not correct."
-        [ngModel]="rejectReason()" (ngModelChange)="rejectReason.set($event)"
-        class="w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
-    </div>
-    <p class="mt-2 text-[11px] leading-snug text-gray-400">
-      Declining closes this link for good. You'd need a new invitation to sign later.
-    </p>
+<app-modal
+  [isOpen]="isRejectOpen()"
+  heading="Do not want to sign?"
+  subheading="Tell us why. The office will receive your answer."
+  size="sm"
+  (closed)="closeReject()"
+>
+  <div class="reject-form">
+    <label for="reject-reason">Reason (optional)</label>
+    <textarea
+      id="reject-reason"
+      rows="3"
+      name="rejectReason"
+      placeholder="For example: the information is not correct."
+      [ngModel]="rejectReason()"
+      (ngModelChange)="rejectReason.set($event)"
+    ></textarea>
+    <p>Declining closes this link permanently. You will need a new invitation to sign later.</p>
   </div>
-  <div class="mt-5 flex items-center justify-end gap-2">
-    <button type="button" (click)="closeReject()" [disabled]="busy()"
-      class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50">
+  <div class="reject-actions">
+    <button type="button" class="back-button" (click)="closeReject()" [disabled]="busy()">
       Go back
     </button>
-    <button type="button" (click)="confirmReject()" [disabled]="busy()"
-      class="rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50">
-      Decline document
+    <button type="button" class="danger-button" (click)="confirmReject()" [disabled]="busy()">
+      Decline request
     </button>
   </div>
 </app-modal>
-
-

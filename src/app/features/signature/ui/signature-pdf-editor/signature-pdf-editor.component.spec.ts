@@ -238,6 +238,26 @@ describe('SignaturePdfEditorComponent', () => {
     ]);
   });
 
+  it('switching document tabs preserves fields, ids and positions for each document', async () => {
+    const { c, set } = setup();
+    const first = blankDoc('doc-1');
+    const second = blankDoc('doc-2');
+    set({ client: client('1'), document: first });
+    c.addField('signature');
+    const firstField = { ...c.fields()[0] };
+
+    set({ document: second });
+    await Promise.resolve();
+    c.addField('initials');
+    expect(c.fields().filter((field) => field.documentLocalId === 'doc-2')).toHaveLength(1);
+
+    set({ document: first });
+    await Promise.resolve();
+
+    expect(c.fields().find((field) => field.id === firstField.id)).toEqual(firstField);
+    expect(c.fields().filter((field) => field.documentLocalId === 'doc-2')).toHaveLength(1);
+  });
+
   it('también en modo sembrado: mismo cliente no toca nada; cliente distinto reasigna', () => {
     const { c, set } = setup();
     const seed: EditorSeed = {
@@ -499,7 +519,9 @@ describe('SignaturePdfEditorComponent', () => {
 
       el(fixture, 'inspector-reopen')!.click();
       fixture.detectChanges();
-      expect(el(fixture, 'side-inspector')?.querySelector('[data-testid="field-inspector"]')).not.toBeNull();
+      expect(
+        el(fixture, 'side-inspector')?.querySelector('[data-testid="field-inspector"]'),
+      ).not.toBeNull();
     });
   });
 
@@ -688,7 +710,9 @@ describe('SignaturePdfEditorComponent', () => {
     /** Las páginas reales no tienen layout en jsdom: se les da un rect (apiladas, 16px de hueco). */
     function stubPageRects(): void {
       const original = Element.prototype.getBoundingClientRect;
-      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: Element,
+      ) {
         const page = (this as HTMLElement).dataset?.['page'];
         if (!page) {
           return original.call(this);
@@ -697,12 +721,29 @@ describe('SignaturePdfEditorComponent', () => {
         const w = parseFloat(el.style.width);
         const h = parseFloat(el.style.height);
         const top = PAGE_TOP + (Number(page) - 1) * (h + 16);
-        return { left: PAGE_LEFT, top, width: w, height: h, right: PAGE_LEFT + w, bottom: top + h, x: PAGE_LEFT, y: top, toJSON: () => ({}) } as DOMRect;
+        return {
+          left: PAGE_LEFT,
+          top,
+          width: w,
+          height: h,
+          right: PAGE_LEFT + w,
+          bottom: top + h,
+          x: PAGE_LEFT,
+          y: top,
+          toJSON: () => ({}),
+        } as DOMRect;
       });
     }
 
     function down(button: HTMLElement): PointerEvent {
-      return { button: 0, pointerId: 1, pointerType: 'mouse', clientX: 20, clientY: 20, currentTarget: button } as unknown as PointerEvent;
+      return {
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        clientX: 20,
+        clientY: 20,
+        currentTarget: button,
+      } as unknown as PointerEvent;
     }
 
     function move(x: number, y: number, type = 'pointermove'): void {
@@ -744,7 +785,15 @@ describe('SignaturePdfEditorComponent', () => {
       move(PAGE_LEFT + 300, PAGE_TOP + 200, 'pointerup');
       expect(c.fields()).toHaveLength(1);
       const field = c.fields()[0];
-      expect(field).toMatchObject({ type: 'signature', page: 1, signerId: 'client:1', x: 200, y: 170, width: 200, height: 60 });
+      expect(field).toMatchObject({
+        type: 'signature',
+        page: 1,
+        signerId: 'client:1',
+        x: 200,
+        y: 170,
+        width: 200,
+        height: 60,
+      });
       expect(c.selectedFieldId()).toBe(field.id);
       expect(c.liveMessage()).toBe('Signature field placed on page 1');
       // El click que llega tras soltar no arma "clic para colocar".
@@ -759,7 +808,12 @@ describe('SignaturePdfEditorComponent', () => {
       c.armPlacement('signature');
       const pageEl = fixture.nativeElement.querySelector('[data-page="1"]') as HTMLElement;
       c.onPagePointerDown(
-        { clientX: PAGE_LEFT + 300, clientY: PAGE_TOP + 200, currentTarget: pageEl, preventDefault: () => undefined } as unknown as PointerEvent,
+        {
+          clientX: PAGE_LEFT + 300,
+          clientY: PAGE_TOP + 200,
+          currentTarget: pageEl,
+          preventDefault: () => undefined,
+        } as unknown as PointerEvent,
         c.pages()[0],
       );
       const clicked = c.buildNormalizedFields()[0];

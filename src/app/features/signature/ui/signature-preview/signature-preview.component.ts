@@ -191,7 +191,17 @@ export class SignaturePreviewComponent {
   }
 
   hasCertificate(request: SignatureRequest): boolean {
-    return request.status === 'completed' && !!request.certificateFileId;
+    if (request.status !== 'completed') return false;
+    // F8 — con "1 cert por documento" el cert vive por doc, no en la request. Mostrar el botón si
+    // cualquier origen tiene certificado. Defensivo: documents puede faltar entre la fila-summary
+    // y el detalle completo recién cargado.
+    const perDoc = request.documents?.some(doc => !!doc.certificateFileId) ?? false;
+    return !!request.certificateFileId || perDoc;
+  }
+
+  certificateButtonLabel(request: SignatureRequest): string {
+    const perDocCount = request.documents?.filter(doc => !!doc.certificateFileId).length ?? 0;
+    return perDocCount > 1 ? 'Certificates' : 'Certificate';
   }
 
   orderedDocuments(request: SignatureRequest): SignatureRequestDocumentItem[] {

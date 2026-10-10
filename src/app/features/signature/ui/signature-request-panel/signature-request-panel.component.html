@@ -93,14 +93,25 @@
         (documentSelected)="onDocumentSelected($event)"
         (documentRemoved)="removeDocument($event)"
         (documentsReordered)="reorderDocuments($event)"
+        (replaceRequested)="openReplaceDialog($event)"
         (activeDocumentChanged)="activateDocument($event)"></app-signature-wizard-document-step>
     </div>
 
     <!-- Step 3: PDF editor (montado siempre para preservar los campos; oculto en los demás pasos) -->
     <div [hidden]="currentStep() !== 3" class="step-content">
-      <div *ngIf="documentTabs().length > 1" class="mb-3 overflow-x-auto pb-1">
-        <app-segmented [options]="documentTabs()" [value]="selectedDocument()?.id ?? ''"
-          (valueChange)="activateDocument($event)"></app-segmented>
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="min-w-0 flex-1 overflow-x-auto pb-1">
+          <app-segmented *ngIf="documentTabs().length > 1" [options]="documentTabs()"
+            [value]="selectedDocument()?.id ?? ''"
+            (valueChange)="activateDocument($event)"></app-segmented>
+        </div>
+        <button *ngIf="selectedDocument() as current" type="button"
+          (click)="openReplaceDialog(current.id)" [disabled]="replaceSubmitting()"
+          class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          [title]="'Replace the current PDF (' + current.name + ')'">
+          <ion-icon name="swap-horizontal-outline" class="text-sm"></ion-icon>
+          Replace PDF
+        </button>
       </div>
       <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="editorDocument()"
         [keepFieldsOnDocumentChange]="keepFieldsOnDocumentChange()" [seed]="editorSeed()"
@@ -269,3 +280,12 @@
   <!-- Caption -->
   <p class="send-caption mt-6 text-sm font-medium text-gray-500">{{ sendCaption() }}</p>
 </div>
+
+<!-- F9 — Modal de reemplazo de PDF (step 2 y step 3 lo comparten). -->
+<app-signature-replace-document-dialog [isOpen]="replaceOpen()"
+  [currentDocument]="replaceCurrentDocument()"
+  [clientId]="selectedClient()?.id ?? null"
+  [excludedFileIds]="replaceExcludedFileIds()"
+  [submitting]="replaceSubmitting()"
+  (replace)="onReplaceConfirmed($event)"
+  (cancelled)="closeReplaceDialog()"></app-signature-replace-document-dialog>

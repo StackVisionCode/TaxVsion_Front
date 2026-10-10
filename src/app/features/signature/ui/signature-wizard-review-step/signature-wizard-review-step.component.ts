@@ -58,7 +58,13 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
-  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent, AvatarComponent, SwitchComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SignatureCategoryPickerComponent,
+    AvatarComponent,
+    SwitchComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-review-step.component.html',
   styleUrl: './signature-wizard-review-step.component.css',
@@ -88,23 +94,27 @@ export class SignatureWizardReviewStepComponent {
   readonly deliveryChannels: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'none'];
 
   setSequential(sequential: boolean): void {
-    this.emitRules(r => withSequential(r, sequential));
+    this.emitRules((r) => withSequential(r, sequential));
   }
 
   setDefaultChannel(channel: VerificationChannel): void {
-    this.emitRules(r => withDefaultChannel(r, channel));
+    this.emitRules((r) => withDefaultChannel(r, channel));
   }
 
   toggle(key: ToggleableRule): void {
-    this.emitRules(r => toggleRule(r, key));
+    this.emitRules((r) => toggleRule(r, key));
   }
 
   setReminderIntervalDays(days: number): void {
-    this.emitRules(r => withReminderIntervalDays(r, days));
+    this.emitRules((r) => withReminderIntervalDays(r, days));
   }
 
   setSigningPin(value: string): void {
-    this.emitRules(r => withSigningPin(r, value));
+    this.emitRules((r) => withSigningPin(r, value));
+  }
+
+  setCertificateGenerationMode(mode: RequestRules['certificateGenerationMode']): void {
+    this.emitRules((r) => ({ ...r, certificateGenerationMode: mode }));
   }
 
   /**
@@ -127,11 +137,11 @@ export class SignatureWizardReviewStepComponent {
   // ---------- F7 — audiencia de la copia parcial ----------
 
   setAudienceKind(kind: 'All' | 'Specific'): void {
-    this.emitRules(r => withPartialCopyAudienceKind(r, kind));
+    this.emitRules((r) => withPartialCopyAudienceKind(r, kind));
   }
 
   toggleRecipient(signerId: string): void {
-    this.emitRules(r => togglePartialCopyRecipient(r, signerId));
+    this.emitRules((r) => togglePartialCopyRecipient(r, signerId));
   }
 
   isRecipient(signerId: string): boolean {
@@ -166,7 +176,7 @@ export class SignatureWizardReviewStepComponent {
 
   /** Etiquetas de los canales habilitados, para la tarjeta de reglas. */
   channelLabels(): string {
-    return (this.rules?.channels ?? []).map(ch => CHANNEL_META[ch].label).join(' · ');
+    return (this.rules?.channels ?? []).map((ch) => CHANNEL_META[ch].label).join(' · ');
   }
 
   typeBadge(client: WizardClient): string {
@@ -187,11 +197,11 @@ export class SignatureWizardReviewStepComponent {
 
   /** Campos de los firmantes (los del preparador se cuentan aparte). */
   totalFields(): number {
-    return this.fields.filter(field => field.signerId !== PREPARER_PARTY_ID).length;
+    return this.fields.filter((field) => field.signerId !== PREPARER_PARTY_ID).length;
   }
 
   fieldCountFor(signerId: string): number {
-    return this.fields.filter(field => field.signerId === signerId).length;
+    return this.fields.filter((field) => field.signerId === signerId).length;
   }
 
   /** Desglose "2 Signature · 1 Date" de los campos de un firmante. */
@@ -202,16 +212,16 @@ export class SignatureWizardReviewStepComponent {
         counts.set(field.type, (counts.get(field.type) ?? 0) + 1);
       }
     }
-    return FIELD_TYPE_ORDER.filter(type => counts.has(type))
-      .map(type => `${counts.get(type)} ${FIELD_TYPE_LABEL[type]}`)
+    return FIELD_TYPE_ORDER.filter((type) => counts.has(type))
+      .map((type) => `${counts.get(type)} ${FIELD_TYPE_LABEL[type]}`)
       .join(' · ');
   }
 
   fieldSummaryByDocument(signerId: string): string {
     return this.documents
-      .map(document => {
+      .map((document) => {
         const count = this.fields.filter(
-          field => field.signerId === signerId && field.documentLocalId === document.id,
+          (field) => field.signerId === signerId && field.documentLocalId === document.id,
         ).length;
         return count > 0 ? `${document.name.replace(/\.pdf$/i, '')} (${count})` : null;
       })
@@ -220,13 +230,15 @@ export class SignatureWizardReviewStepComponent {
   }
 
   signersWithoutFields(): EditorSigner[] {
-    return this.signers.filter(signer => this.fieldCountFor(signer.id) === 0);
+    return this.signers.filter((signer) => this.fieldCountFor(signer.id) === 0);
   }
 
   /** El backend exige al menos un campo Signature o Initials (de un firmante; el del preparador no cuenta). */
   hasSignatureField(): boolean {
     return this.fields.some(
-      field => field.signerId !== PREPARER_PARTY_ID && (field.type === 'signature' || field.type === 'initials'),
+      (field) =>
+        field.signerId !== PREPARER_PARTY_ID &&
+        (field.type === 'signature' || field.type === 'initials'),
     );
   }
 

@@ -3,12 +3,20 @@
   <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
     <div *ngIf="client as c" class="mt-3 flex items-center gap-3">
-      <app-avatar [name]="c.displayName" size="lg" sizeClass="h-12 w-12 text-sm" colorClass="bg-brand-bold" />
+      <app-avatar
+        [name]="c.displayName"
+        size="lg"
+        sizeClass="h-12 w-12 text-sm"
+        colorClass="bg-brand-bold"
+      />
       <div class="min-w-0">
         <p class="flex items-center gap-2">
           <span class="truncate text-sm font-semibold text-gray-900">{{ c.displayName }}</span>
-          <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
-            [ngClass]="typeBadge(c)">{{ c.type === 'company' ? 'Company' : 'Individual' }}</span>
+          <span
+            class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+            [ngClass]="typeBadge(c)"
+            >{{ c.type === 'company' ? 'Company' : 'Individual' }}</span
+          >
         </p>
         <p class="mt-0.5 truncate text-xs text-gray-500">{{ c.email }}</p>
         <p class="mt-0.5 text-xs text-gray-500">{{ c.phone }}</p>
@@ -23,17 +31,25 @@
       <span class="text-xs font-medium text-gray-500">{{ documents.length }}</span>
     </div>
     <div *ngFor="let d of documents; let index = index" class="mt-3 flex items-center gap-3">
-      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" [ngClass]="circle(d.kind)">
+      <span
+        class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+        [ngClass]="circle(d.kind)"
+      >
         <ion-icon [name]="icon(d.kind)" class="text-xl text-gray-700"></ion-icon>
       </span>
       <div class="min-w-0">
         <p class="truncate text-sm font-semibold text-gray-900">{{ index + 1 }}. {{ d.name }}</p>
         <p class="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
-          <span class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase"
-            [ngClass]="chip(d.kind)">{{ d.kind }}</span>
+          <span
+            class="inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase"
+            [ngClass]="chip(d.kind)"
+            >{{ d.kind }}</span
+          >
           {{ d.size }}
         </p>
-        <p class="mt-0.5 text-xs text-gray-500">{{ d.blob ? 'Uploaded from your device' : 'Client documents' }}</p>
+        <p class="mt-0.5 text-xs text-gray-500">
+          {{ d.blob ? 'Uploaded from your device' : 'Client documents' }}
+        </p>
       </div>
     </div>
   </div>
@@ -41,43 +57,74 @@
   <!-- Firmantes y campos -->
   <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
     <div class="flex items-center justify-between">
-      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Signers &amp; fields</p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Signers &amp; fields
+      </p>
       <span class="rounded-full bg-brand-bold px-2.5 py-0.5 text-[10px] font-semibold text-white">
         {{ totalFields() }} {{ totalFields() === 1 ? 'field' : 'fields' }}
       </span>
     </div>
 
     <div class="mt-3 space-y-2">
-      <div *ngFor="let signer of signers" class="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
-        <app-avatar [name]="signer.name" sizeClass="h-8 w-8 text-[10px]" [colorClass]="signer.color" />
+      <div
+        *ngFor="let signer of signers"
+        class="flex items-center gap-3 rounded-xl bg-white px-3 py-2"
+      >
+        <app-avatar
+          [name]="signer.name"
+          sizeClass="h-8 w-8 text-[10px]"
+          [colorClass]="signer.color"
+        />
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-medium text-gray-900">{{ signer.name }}</p>
-          <p class="truncate text-xs" [ngClass]="fieldCountFor(signer.id) > 0 ? 'text-gray-500' : 'text-orange-500'">
-            {{ fieldCountFor(signer.id) > 0 ? fieldSummaryByDocument(signer.id) : 'No fields assigned' }}
+          <p
+            class="truncate text-xs"
+            [ngClass]="fieldCountFor(signer.id) > 0 ? 'text-gray-500' : 'text-orange-500'"
+          >
+            {{
+              fieldCountFor(signer.id) > 0
+                ? fieldSummaryByDocument(signer.id)
+                : 'No fields assigned'
+            }}
           </p>
         </div>
-        <span class="hidden shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-flex">
+        <span
+          class="hidden shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500 sm:inline-flex"
+        >
           <ion-icon [name]="channelMeta[signer.channel].icon" class="text-[10px]"></ion-icon>
           {{ channelMeta[signer.channel].label }}
         </span>
-        <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+        <span
+          class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500"
+        >
           {{ fieldCountFor(signer.id) }}
         </span>
       </div>
     </div>
 
     <!-- Antes de enviar: cada firmante necesita una Firma o Iniciales (los del preparador no cuentan). -->
-    <div *ngIf="signersMissingSignature().length > 0 || !hasSignatureField()"
-      class="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs leading-snug text-red-700" data-testid="review-blockers">
+    <div
+      *ngIf="signersMissingSignature().length > 0 || !hasSignatureField()"
+      class="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs leading-snug text-red-700"
+      data-testid="review-blockers"
+    >
       <p class="flex items-center gap-1.5 font-semibold">
         <ion-icon name="alert-circle-outline" class="shrink-0 text-sm"></ion-icon>
         Before you send
       </p>
       <ul class="mt-1.5 space-y-1">
-        <li *ngFor="let signer of signersMissingSignature()" class="flex flex-wrap items-center gap-x-2">
+        <li
+          *ngFor="let signer of signersMissingSignature()"
+          class="flex flex-wrap items-center gap-x-2"
+        >
           <span class="min-w-0">{{ signer.name }} needs a Signature or Initials field.</span>
-          <button type="button" (click)="goToSigner.emit(signer.id)"
-            class="min-h-[32px] font-semibold text-brand-bold underline-offset-2 hover:underline">Go to signer</button>
+          <button
+            type="button"
+            (click)="goToSigner.emit(signer.id)"
+            class="min-h-[32px] font-semibold text-brand-bold underline-offset-2 hover:underline"
+          >
+            Go to signer
+          </button>
         </li>
         <li *ngIf="signersMissingSignature().length === 0 && !hasSignatureField()">
           At least one Signature or Initials field is required before the request can be sent.
@@ -92,30 +139,51 @@
 
     <div class="mt-3 space-y-3">
       <div>
-        <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
+        <label
+          class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors"
+        >
           <span class="shrink-0 text-sm text-gray-400">Title</span>
-          <input type="text" name="reviewTitle" placeholder="e.g. Engagement Letter 2026"
-            [ngModel]="title" (ngModelChange)="titleChange.emit($event)"
-            class="w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          <input
+            type="text"
+            name="reviewTitle"
+            placeholder="e.g. Engagement Letter 2026"
+            [ngModel]="title"
+            (ngModelChange)="titleChange.emit($event)"
+            class="w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"
+          />
         </label>
-        <p *ngIf="titleTooShort()" class="mt-1 px-1 text-xs text-red-500">The title needs at least 3 characters.</p>
+        <p *ngIf="titleTooShort()" class="mt-1 px-1 text-xs text-red-500">
+          The title needs at least 3 characters.
+        </p>
       </div>
 
       <div class="flex items-center gap-2">
         <span class="shrink-0 text-sm text-gray-400">Category</span>
-        <app-signature-category-picker [value]="category" (valueChange)="categoryChange.emit($event)"
-          [allowCreate]="true"></app-signature-category-picker>
+        <app-signature-category-picker
+          [value]="category"
+          (valueChange)="categoryChange.emit($event)"
+          [allowCreate]="true"
+        ></app-signature-category-picker>
       </div>
 
       <!-- F7 — Due date vive aquí solo si el toggle "Set an expiration date" (sección Delivery) está ON.
            Sin expiración, nada que elegir: se muestra una línea informativa. -->
       <ng-container *ngIf="rules?.expirationEnabled !== false; else noExpirationHint">
-        <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors">
+        <label
+          class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 cursor-pointer focus-within:border-gray-300 transition-colors"
+        >
           <span class="shrink-0 text-sm text-gray-400">Due date</span>
-          <input type="date" name="reviewDueDate" [ngModel]="dueDate" (ngModelChange)="dueDateChange.emit($event)"
-            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer" />
+          <input
+            type="date"
+            name="reviewDueDate"
+            [ngModel]="dueDate"
+            (ngModelChange)="dueDateChange.emit($event)"
+            class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer"
+          />
         </label>
-        <p class="px-1 text-xs text-gray-400">Signing links expire {{ dueDateLabel() }} (30 days max).</p>
+        <p class="px-1 text-xs text-gray-400">
+          Signing links expire {{ dueDateLabel() }} (30 days max).
+        </p>
       </ng-container>
       <ng-template #noExpirationHint>
         <p class="px-1 text-xs text-gray-400">
@@ -124,19 +192,31 @@
         </p>
       </ng-template>
 
-      <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors">
+      <div
+        class="rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-gray-300 transition-colors"
+      >
         <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Description</span>
-        <textarea rows="3" name="reviewNotes" placeholder="Optional message for the signers"
-          [ngModel]="notes" (ngModelChange)="notesChange.emit($event)"
-          class="mt-1 w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"></textarea>
+        <textarea
+          rows="3"
+          name="reviewNotes"
+          placeholder="Optional message for the signers"
+          [ngModel]="notes"
+          (ngModelChange)="notesChange.emit($event)"
+          class="mt-1 w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none"
+        ></textarea>
       </div>
-
     </div>
   </div>
 
   <!-- Reglas de la solicitud (antes en la columna derecha del editor; mismos valores y payload) -->
-  <div *ngIf="rules as r" class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5 lg:col-span-2" data-testid="review-rules">
-    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Delivery &amp; security</p>
+  <div
+    *ngIf="rules as r"
+    class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5 lg:col-span-2"
+    data-testid="review-rules"
+  >
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+      Delivery &amp; security
+    </p>
 
     <div class="mt-3 grid gap-5 md:grid-cols-2">
       <div class="space-y-4">
@@ -146,26 +226,56 @@
         <div>
           <p class="text-xs font-medium text-gray-700">Default channel for new signers</p>
           <div class="mt-1.5 flex flex-wrap gap-1.5">
-            <button *ngFor="let ch of deliveryChannels" type="button" (click)="setDefaultChannel(ch)"
+            <button
+              *ngFor="let ch of deliveryChannels"
+              type="button"
+              (click)="setDefaultChannel(ch)"
               [attr.aria-pressed]="r.channels[0] === ch"
               class="flex min-h-[36px] items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors"
-              [ngClass]="r.channels[0] === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100'">
+              [ngClass]="
+                r.channels[0] === ch
+                  ? 'border-brand-bold bg-brand-bold text-white'
+                  : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100'
+              "
+            >
               <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>
               {{ channelMeta[ch].label }}
             </button>
           </div>
-          <p class="mt-1 text-[11px] text-gray-400">Each signer's own channel is set from their “…” menu in Fields.</p>
+          <p class="mt-1 text-[11px] text-gray-400">
+            Each signer's own channel is set from their “…” menu in Fields.
+          </p>
         </div>
 
         <!-- Signing PIN (Form 8879, opcional): se valida al enviar. -->
         <div>
-          <label class="block text-xs font-medium text-gray-700" for="reviewSigningPin">Signing PIN <span class="text-gray-400">(optional)</span></label>
-          <span class="mb-1 block text-[11px] text-gray-400">4–10 digits the signer enters to sign. Share it with them separately.</span>
-          <input id="reviewSigningPin" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="e.g. 1234"
-            [ngModel]="r.signingPin ?? ''" (ngModelChange)="setSigningPin($event)" name="signingPin"
+          <label class="block text-xs font-medium text-gray-700" for="reviewSigningPin"
+            >Signing PIN <span class="text-gray-400">(optional)</span></label
+          >
+          <span class="mb-1 block text-[11px] text-gray-400"
+            >4–10 digits the signer enters to sign. Share it with them separately.</span
+          >
+          <input
+            id="reviewSigningPin"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="10"
+            placeholder="e.g. 1234"
+            [ngModel]="r.signingPin ?? ''"
+            (ngModelChange)="setSigningPin($event)"
+            name="signingPin"
             class="h-11 w-full max-w-xs rounded-full border bg-white px-4 text-sm text-gray-700 focus:outline-none"
-            [ngClass]="signingPinInvalid() ? 'border-red-300' : 'border-gray-200 focus:border-brand-bold'" />
-          <span *ngIf="signingPinInvalid()" class="mt-1 block text-[11px] text-red-500" data-testid="pin-error">PIN must be 4–10 digits.</span>
+            [ngClass]="
+              signingPinInvalid() ? 'border-red-300' : 'border-gray-200 focus:border-brand-bold'
+            "
+          />
+          <span
+            *ngIf="signingPinInvalid()"
+            class="mt-1 block text-[11px] text-red-500"
+            data-testid="pin-error"
+            >PIN must be 4–10 digits.</span
+          >
         </div>
       </div>
 
@@ -173,90 +283,217 @@
         <!-- F7 — sin expiración no hay reloj: los recordatorios no corren, así que escondemos el toggle. -->
         <ng-container *ngIf="r.expirationEnabled">
           <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-            <app-switch size="sm" [checked]="r.autoReminder" (checkedChange)="toggle('autoReminder')" ariaLabel="Auto reminder"></app-switch>
+            <app-switch
+              size="sm"
+              [checked]="r.autoReminder"
+              (checkedChange)="toggle('autoReminder')"
+              ariaLabel="Auto reminder"
+            ></app-switch>
             <span class="min-w-0">
               <span class="block text-xs font-medium text-gray-700">Auto reminder</span>
-              <span class="block text-[11px] text-gray-400">Email/SMS pending signers until they sign</span>
+              <span class="block text-[11px] text-gray-400"
+                >Email/SMS pending signers until they sign</span
+              >
             </span>
           </label>
           <div *ngIf="r.autoReminder" class="flex items-center gap-2 pl-12">
             <span class="text-[11px] text-gray-400">Remind every</span>
-            <input type="number" min="1" max="30" [ngModel]="reminderDays()" name="reminderIntervalDays"
-              (ngModelChange)="setReminderIntervalDays($event)" aria-label="Reminder interval in days"
-              class="h-9 w-16 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+            <input
+              type="number"
+              min="1"
+              max="30"
+              [ngModel]="reminderDays()"
+              name="reminderIntervalDays"
+              (ngModelChange)="setReminderIntervalDays($event)"
+              aria-label="Reminder interval in days"
+              class="h-9 w-16 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none"
+            />
             <span class="text-[11px] text-gray-400">day(s)</span>
           </div>
         </ng-container>
 
         <!-- El certificado de firma se genera siempre (generateCertificate = true): sin switch. -->
+        <fieldset
+          *ngIf="documents.length > 1"
+          class="space-y-2"
+          data-testid="certificate-generation-mode"
+        >
+          <legend class="text-xs font-medium text-gray-700">Completion certificate</legend>
+          <div
+            class="grid grid-cols-2 gap-2"
+            role="radiogroup"
+            aria-label="Completion certificate format"
+          >
+            <label
+              class="cursor-pointer rounded-lg border px-3 py-2.5 transition-colors"
+              [class.border-brand-bold]="r.certificateGenerationMode === 'SingleForRequest'"
+              [class.bg-indigo-50]="r.certificateGenerationMode === 'SingleForRequest'"
+              [class.border-gray-200]="r.certificateGenerationMode !== 'SingleForRequest'"
+            >
+              <input
+                class="sr-only"
+                type="radio"
+                name="certificateGenerationMode"
+                [checked]="r.certificateGenerationMode === 'SingleForRequest'"
+                (change)="setCertificateGenerationMode('SingleForRequest')"
+              />
+              <span class="block text-xs font-semibold text-gray-700">One for the request</span>
+              <span class="mt-0.5 block text-[11px] leading-4 text-gray-400"
+                >All documents in one audit certificate</span
+              >
+            </label>
+            <label
+              class="cursor-pointer rounded-lg border px-3 py-2.5 transition-colors"
+              [class.border-brand-bold]="r.certificateGenerationMode === 'PerDocument'"
+              [class.bg-indigo-50]="r.certificateGenerationMode === 'PerDocument'"
+              [class.border-gray-200]="r.certificateGenerationMode !== 'PerDocument'"
+            >
+              <input
+                class="sr-only"
+                type="radio"
+                name="certificateGenerationMode"
+                [checked]="r.certificateGenerationMode === 'PerDocument'"
+                (change)="setCertificateGenerationMode('PerDocument')"
+              />
+              <span class="block text-xs font-semibold text-gray-700">One per document</span>
+              <span class="mt-0.5 block text-[11px] leading-4 text-gray-400"
+                >A separate audit certificate for each PDF</span
+              >
+            </label>
+          </div>
+        </fieldset>
 
         <!-- Entrega a los firmantes (P2/P8): solo si el usuario tiene signature.document.send -->
         <ng-container *ngIf="canDeliverDocs">
           <!-- F7 — copia inmediata al firmante al terminar. Senior: aplica incluso con un solo firmante. -->
           <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-            <app-switch size="sm" [checked]="r.sendPartialCopy"
-              (checkedChange)="toggle('sendPartialCopy')" ariaLabel="Email each signer their copy as they sign"></app-switch>
+            <app-switch
+              size="sm"
+              [checked]="r.sendPartialCopy"
+              (checkedChange)="toggle('sendPartialCopy')"
+              ariaLabel="Email each signer their copy as they sign"
+            ></app-switch>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-700">Email each signer a copy of what they signed</span>
-              <span class="block text-[11px] text-gray-400">Sent to the signer the moment they finish</span>
+              <span class="block text-xs font-medium text-gray-700"
+                >Email each signer a copy of what they signed</span
+              >
+              <span class="block text-[11px] text-gray-400"
+                >Sent to the signer the moment they finish</span
+              >
             </span>
           </label>
           <div *ngIf="r.sendPartialCopy && signers.length > 1" class="space-y-2 pl-12">
             <div class="flex items-center gap-2 text-[11px] text-gray-500">
               <label class="flex items-center gap-1.5">
-                <input type="radio" name="partialCopyAudienceKind" [checked]="r.partialCopyAudienceKind === 'All'"
-                  (change)="setAudienceKind('All')" />
+                <input
+                  type="radio"
+                  name="partialCopyAudienceKind"
+                  [checked]="r.partialCopyAudienceKind === 'All'"
+                  (change)="setAudienceKind('All')"
+                />
                 <span>All signers</span>
               </label>
               <label class="flex items-center gap-1.5">
-                <input type="radio" name="partialCopyAudienceKind" [checked]="r.partialCopyAudienceKind === 'Specific'"
-                  (change)="setAudienceKind('Specific')" />
+                <input
+                  type="radio"
+                  name="partialCopyAudienceKind"
+                  [checked]="r.partialCopyAudienceKind === 'Specific'"
+                  (change)="setAudienceKind('Specific')"
+                />
                 <span>Specific signers</span>
               </label>
             </div>
             <div *ngIf="r.partialCopyAudienceKind === 'Specific'" class="flex flex-wrap gap-1.5">
-              <button *ngFor="let s of signers; trackBy: trackSigner" type="button"
+              <button
+                *ngFor="let s of signers; trackBy: trackSigner"
+                type="button"
                 (click)="toggleRecipient(s.id)"
                 [attr.aria-pressed]="isRecipient(s.id)"
-                [class]="isRecipient(s.id)
-                  ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-blue-700'
-                  : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50'">
-                <ion-icon *ngIf="isRecipient(s.id)" name="checkmark-outline" class="text-[13px]"></ion-icon>
+                [class]="
+                  isRecipient(s.id)
+                    ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm transition-colors hover:bg-blue-700'
+                    : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50'
+                "
+              >
+                <ion-icon
+                  *ngIf="isRecipient(s.id)"
+                  name="checkmark-outline"
+                  class="text-[13px]"
+                ></ion-icon>
                 {{ s.name }}
               </button>
-              <span *ngIf="audienceInvalid()" class="w-full text-[11px] text-red-500">Pick at least one signer.</span>
+              <span *ngIf="audienceInvalid()" class="w-full text-[11px] text-red-500"
+                >Pick at least one signer.</span
+              >
             </div>
           </div>
 
           <!-- F7 — PDF sellado final al completar. -->
           <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-            <app-switch size="sm" [checked]="r.sendSealedDocument" (checkedChange)="toggle('sendSealedDocument')" ariaLabel="Email the final sealed document"></app-switch>
+            <app-switch
+              size="sm"
+              [checked]="r.sendSealedDocument"
+              (checkedChange)="toggle('sendSealedDocument')"
+              ariaLabel="Email the final sealed document"
+            ></app-switch>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-700">Email the final sealed document when everyone signs</span>
-              <span class="block text-[11px] text-gray-400">The signed PDF with every signature + PAdES seal</span>
+              <span class="block text-xs font-medium text-gray-700"
+                >Email the final sealed document when everyone signs</span
+              >
+              <span class="block text-[11px] text-gray-400"
+                >The signed PDF with every signature + PAdES seal</span
+              >
             </span>
           </label>
 
           <!-- Independiente de la generación. Única excepción: un borrador viejo creado con
                generateCertificate=false (inmutable en el backend; SetCertificateDelivery(true) fallaría). -->
-          <label class="flex w-full cursor-pointer items-center gap-3 text-left" [class.opacity-50]="certificateLocked()">
-            <app-switch size="sm" [checked]="r.sendCertificate && !certificateLocked()" (checkedChange)="toggle('sendCertificate')"
-              [disabled]="certificateLocked()" ariaLabel="Email the signing certificate"></app-switch>
+          <label
+            class="flex w-full cursor-pointer items-center gap-3 text-left"
+            [class.opacity-50]="certificateLocked()"
+          >
+            <app-switch
+              size="sm"
+              [checked]="r.sendCertificate && !certificateLocked()"
+              (checkedChange)="toggle('sendCertificate')"
+              [disabled]="certificateLocked()"
+              ariaLabel="Email the signing certificate"
+            ></app-switch>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-700">Email the signing certificate when complete</span>
-              <span *ngIf="!certificateLocked()" class="block text-[11px] text-gray-400">Audit trail PDF with legal evidence</span>
-              <span *ngIf="certificateLocked()" data-testid="certificate-locked-note" class="block text-[11px] text-gray-400">Certificates weren't enabled when this draft was created.</span>
+              <span class="block text-xs font-medium text-gray-700"
+                >Email the signing certificate when complete</span
+              >
+              <span *ngIf="!certificateLocked()" class="block text-[11px] text-gray-400"
+                >Audit trail PDF with legal evidence</span
+              >
+              <span
+                *ngIf="certificateLocked()"
+                data-testid="certificate-locked-note"
+                class="block text-[11px] text-gray-400"
+                >Certificates weren't enabled when this draft was created.</span
+              >
             </span>
           </label>
         </ng-container>
 
         <!-- F7 — expiración opcional del enlace público. OFF = nunca vence, sin recordatorios. -->
         <label class="flex w-full cursor-pointer items-center gap-3 text-left">
-          <app-switch size="sm" [checked]="r.expirationEnabled" (checkedChange)="toggle('expirationEnabled')" ariaLabel="Set an expiration date for this signing link"></app-switch>
+          <app-switch
+            size="sm"
+            [checked]="r.expirationEnabled"
+            (checkedChange)="toggle('expirationEnabled')"
+            ariaLabel="Set an expiration date for this signing link"
+          ></app-switch>
           <span class="min-w-0">
-            <span class="block text-xs font-medium text-gray-700">Set an expiration date for this signing link</span>
+            <span class="block text-xs font-medium text-gray-700"
+              >Set an expiration date for this signing link</span
+            >
             <span class="block text-[11px] text-gray-400">
-              {{ r.expirationEnabled ? 'The link stops working at the picked time.' : 'The link never expires and no reminders are sent.' }}
+              {{
+                r.expirationEnabled
+                  ? 'The link stops working at the picked time.'
+                  : 'The link never expires and no reminders are sent.'
+              }}
             </span>
           </span>
         </label>

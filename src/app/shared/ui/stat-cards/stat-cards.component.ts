@@ -2,7 +2,8 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { CountUpDirective } from '../../directives/count-up.directive';
 
-export type StatCardTone = 'indigo-50' | 'indigo-100' | 'gray-200' | 'white';
+/** Tintes de la paleta armónica (mismos que los tiles del dashboard): sky, arena, salvia. */
+export type StatCardTone = 'sky' | 'sand' | 'sage' | 'white';
 
 export interface StatCardItem {
   label: string;
@@ -19,14 +20,14 @@ export interface StatCardItem {
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
-  'indigo-50': 'bg-indigo-50',
-  'indigo-100': 'bg-indigo-100',
-  'gray-200': 'bg-gray-200',
-  white: 'bg-white',
+  sky: 'bg-orange-100',
+  sand: 'bg-sand-100',
+  sage: 'bg-sage-100',
+  white: 'bg-white ring-1 ring-brand-line',
 };
 
-/** Rotación que repiten task/meetings/inventory/signature: 50 → 100 → gray-200 → 100. */
-const DEFAULT_TONE_CYCLE: StatCardTone[] = ['indigo-50', 'indigo-100', 'gray-200', 'indigo-100'];
+/** Rotación por defecto: sky → arena → salvia → arena. */
+const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
 
 /**
  * Fila de tarjetas de métricas de la cabecera de las páginas (inventory, task, meetings, signature…).
@@ -59,7 +60,7 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['indigo-50', 'indigo-100', 'gray-200
             <p class="mt-2 text-3xl font-bold text-gray-900">{{ display(item) }}</p>
           }
           @if (item.hint) {
-            <p class="mt-1 text-xs text-gray-500">{{ item.hint }}</p>
+            <p class="mt-1 text-xs text-gray-600">{{ item.hint }}</p>
           }
         </div>
       }

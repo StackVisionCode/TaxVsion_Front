@@ -15,6 +15,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { PlatformBrandLogoComponent } from '@core/theme/platform-brand-logo.component';
 import { SignaturePadComponent } from '@shared/ui/signature-pad/signature-pad.component';
 import { SignDocumentViewComponent } from '../../ui/sign-document-view/sign-document-view.component';
 import { renderPdfPages } from '../../utils/pdf-render.util';
@@ -27,6 +28,7 @@ import {
   PublicSignerDocumentView,
   PublicSignerFieldView,
   PublicSignerView,
+  FIELD_KIND_LABEL,
   SIGNATURE_CATEGORY_LABEL,
   SignatureCaptureMethod,
   SignerVerificationMethod,
@@ -40,7 +42,15 @@ import {
 type StepId = 'welcome' | 'consent' | 'verify' | 'verify-otp' | 'review' | 'sign' | 'done';
 
 /** Orden canónico de los pasos: usado para reubicar el paso actual cuando un gate se cierra. */
-const STEP_ORDER: readonly StepId[] = ['welcome', 'consent', 'verify', 'verify-otp', 'review', 'sign', 'done'];
+const STEP_ORDER: readonly StepId[] = [
+  'welcome',
+  'consent',
+  'verify',
+  'verify-otp',
+  'review',
+  'sign',
+  'done',
+];
 
 /** Segundos de espera antes de poder reenviar el OTP (espejo de SignatureRequest.ChallengeResendCooldown). */
 const OTP_RESEND_COOLDOWN_SECONDS = 30;
@@ -48,6 +58,14 @@ const OTP_RESEND_COOLDOWN_SECONDS = 30;
 interface WizardStep {
   id: StepId;
   caption: string;
+  detail: string;
+}
+
+interface StageCopy {
+  title: string;
+  subtitle: string;
+  badge: string;
+  badgeIcon: string;
 }
 
 /** Situaciones en las que el enlace resuelve pero NO se puede firmar. */
@@ -79,15 +97,21 @@ interface BlockedState {
  * asíncrona y el sellado espera a que esté lista (no hay que hacer nada en el cliente).
  *
  * Limitación del contrato público (no simulable, se muestra como tal):
- *   - F5 (2026-10-03): el documento sí se muestra. GET /signature/public/{token}/document
- *     devuelve el PDF original tras validar la verificación completa; el visor global
- *     `app-file-viewer` lo abre sobre la ceremonia sin salir de pantalla. Las hojas
- *     `app-sign-document-view` siguen mostrando la posición de los campos como fallback
- *     y para el firmante que todavía no abrió el visor.
+ *   - F5 (2026-10-03): GET /signature/public/{token}/document/{documentId} devuelve
+ *     cada PDF original tras validar la verificación completa. El visor lo renderiza
+ *     en la ceremonia y superpone los campos en sus coordenadas normalizadas.
  */
 @Component({
   selector: 'app-sign-page',
-  imports: [CommonModule, FormsModule, ModalComponent, BrandLogoComponent, SignaturePadComponent, SignDocumentViewComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    BrandLogoComponent,
+    PlatformBrandLogoComponent,
+    SignaturePadComponent,
+    SignDocumentViewComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sign-page.component.html',
   styleUrl: './sign-page.component.css',
@@ -140,6 +164,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   /** Pad de firma compartido (Draw/Type/Upload); montado siempre, visible solo en el paso 'sign'. */
   private readonly pad = viewChild(SignaturePadComponent);
+  private readonly documentView = viewChild(SignDocumentViewComponent);
 
   /** Texto que el firmante escribe en cada campo `Text`, indexado por `fieldId` (P4). */
   readonly fieldValues = signal<Record<string, string>>({});
@@ -162,16 +187,22 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly isRejectOpen = signal(false);
   readonly rejectReason = signal('');
+  readonly helpOpen = signal(false);
 
   // F5 — Documento como fondo del Review step: bajamos los bytes del PDF por el endpoint F5 (que
   // ya hard-failea 403 si la verificación no está completa) y lo rendearmos con pdf.js a dataURLs.
   // El componente `app-sign-document-view` ya acepta `[pageImages]` para pintarlos de fondo bajo
   // los campos — así los canvas del preparador se ven en su posición real sobre el documento.
   readonly pageImages = signal<Record<number, string> | null>(null);
+  readonly pageAspectRatios = signal<Record<number, number> | null>(null);
   readonly loadingDocument = signal(false);
   readonly documentError = signal<string | null>(null);
+  readonly documentZoom = signal(100);
+  readonly selectedFieldId = signal<string | null>(null);
   readonly activeDocumentIndex = signal(0);
+  readonly highestReviewedDocumentIndex = signal(0);
   private readonly pageImagesByDocument = new Map<string, Record<number, string>>();
+  private readonly pageAspectRatiosByDocument = new Map<string, Record<number, number>>();
   private documentLoadSequence = 0;
 
   private async loadDocument(): Promise<void> {
@@ -179,12 +210,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
     const sequence = ++this.documentLoadSequence;
     if (!document) {
       this.pageImages.set(null);
+      this.pageAspectRatios.set(null);
       this.loadingDocument.set(false);
       return;
     }
     const cached = this.pageImagesByDocument.get(document.documentId);
     if (cached) {
       this.pageImages.set(cached);
+      this.pageAspectRatios.set(this.pageAspectRatiosByDocument.get(document.documentId) ?? null);
       this.documentError.set(null);
       this.loadingDocument.set(false);
       return;
@@ -192,23 +225,35 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.loadingDocument.set(true);
     this.documentError.set(null);
     this.pageImages.set(null);
+    this.pageAspectRatios.set(null);
     try {
-      const bytes = await firstValueFrom(this.api.getDocumentBytes(this.token, document.documentId));
+      const bytes = await firstValueFrom(
+        this.api.getDocumentBytes(this.token, document.documentId),
+      );
       const pages = await renderPdfPages({ data: bytes });
       const map: Record<number, string> = {};
+      const ratios: Record<number, number> = {};
       for (const p of pages) {
-        if (p.src) map[p.page] = p.src;
+        if (p.src) {
+          map[p.page] = p.src;
+          ratios[p.page] = p.width / p.height;
+        }
       }
-      if (sequence !== this.documentLoadSequence || this.activeDocument()?.documentId !== document.documentId) {
+      if (
+        sequence !== this.documentLoadSequence ||
+        this.activeDocument()?.documentId !== document.documentId
+      ) {
         return;
       }
       this.pageImagesByDocument.set(document.documentId, map);
+      this.pageAspectRatiosByDocument.set(document.documentId, ratios);
       this.pageImages.set(map);
+      this.pageAspectRatios.set(ratios);
     } catch (err) {
       if (sequence !== this.documentLoadSequence) {
         return;
       }
-      // Silencioso: el fallback a hojas en blanco con los canvas sigue siendo utilizable.
+      // El error queda visible y permite reintentar. Nunca simulamos el PDF con una hoja vacia.
       this.documentError.set(toApiError(err).message);
     } finally {
       if (sequence === this.documentLoadSequence) {
@@ -228,8 +273,8 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly tenantReturnUrl = computed(() => {
     const host = window.location.hostname;
     const parts = host.split('.');
-    const sub = this.context()?.tenantSubDomain?.trim().toLowerCase()
-      || inferSubdomainFromParts(parts);
+    const sub =
+      this.context()?.tenantSubDomain?.trim().toLowerCase() || inferSubdomainFromParts(parts);
     const dot = host.indexOf('.');
     if (sub && dot >= 0) {
       const parent = host.slice(dot + 1);
@@ -249,29 +294,45 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   readonly firstName = computed(() => this.context()?.signerFullName.trim().split(/\s+/)[0] ?? '');
 
+  readonly signerInitials = computed(() =>
+    (this.context()?.signerFullName ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join(''),
+  );
+
   /** El email del cliente nunca se muestra completo: cualquiera con el enlace vería esta página. */
   readonly maskedEmail = computed(() => maskEmail(this.context()?.signerEmail));
 
   /** Pasos vigentes: los gates opcionales desaparecen si la solicitud no los exige. */
   readonly steps = computed<WizardStep[]>(() => {
     const ctx = this.context();
-    const steps: WizardStep[] = [{ id: 'welcome', caption: 'Start' }];
+    const steps: WizardStep[] = [
+      { id: 'welcome', caption: 'Welcome', detail: 'Your signing overview' },
+    ];
     if (ctx?.requiresConsent && !ctx.hasAcceptedConsent) {
-      steps.push({ id: 'consent', caption: 'Consent' });
+      steps.push({ id: 'consent', caption: 'Consent', detail: 'Review and agree' });
     }
     if (ctx?.requiresPractitionerPin && !ctx.isPinVerified) {
-      steps.push({ id: 'verify', caption: 'Verify' });
+      steps.push({ id: 'verify', caption: 'Verify identity', detail: 'Confirm your PIN' });
     }
     // Gate OTP: independiente del PIN. Solo mientras no esté completado (el backend lo exige).
     if (ctx?.requiredVerificationMethod && !ctx.isVerificationCompleted) {
-      steps.push({ id: 'verify-otp', caption: 'Code' });
+      steps.push({ id: 'verify-otp', caption: 'Security code', detail: 'Confirm it is you' });
     }
-    steps.push({ id: 'review', caption: 'Review' }, { id: 'sign', caption: 'Sign' }, { id: 'done', caption: 'Done' });
+    steps.push(
+      { id: 'review', caption: 'Review document', detail: 'Read your documents' },
+      { id: 'sign', caption: 'Sign document', detail: 'Add your signature' },
+      { id: 'done', caption: 'All set', detail: 'Signing complete' },
+    );
     return steps;
   });
 
   readonly stepIndex = computed(() => {
-    const index = this.steps().findIndex(s => s.id === this.stepId());
+    const index = this.steps().findIndex((s) => s.id === this.stepId());
     return index < 0 ? 0 : index;
   });
 
@@ -279,6 +340,60 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly stepCount = computed(() => this.steps().length);
   readonly isFirstStep = computed(() => this.stepIndex() === 0);
   readonly isDone = computed(() => this.stepId() === 'done');
+
+  readonly stageCopy = computed<StageCopy>(() => {
+    switch (this.stepId()) {
+      case 'welcome':
+        return {
+          title: 'A few steps. One secure signature.',
+          subtitle: 'Everything you need to review and sign your documents, in one place.',
+          badge: 'Ready to sign',
+          badgeIcon: 'time-outline',
+        };
+      case 'consent':
+        return {
+          title: 'Your signature. Your consent.',
+          subtitle: 'Take a moment to review how electronic signing works before you continue.',
+          badge: 'Consent required',
+          badgeIcon: 'shield-checkmark-outline',
+        };
+      case 'verify':
+        return {
+          title: "Let's confirm it is you.",
+          subtitle: 'Your practitioner PIN helps keep this document in the right hands.',
+          badge: 'Identity verification',
+          badgeIcon: 'lock-closed-outline',
+        };
+      case 'verify-otp':
+        return {
+          title: "Let's confirm it is you.",
+          subtitle: 'A quick security code protects your document before it opens.',
+          badge: 'Identity verification',
+          badgeIcon: 'lock-closed-outline',
+        };
+      case 'review':
+        return {
+          title: 'Take a moment to review.',
+          subtitle: 'Read each document and find the highlighted fields that need your attention.',
+          badge: 'Ready for review',
+          badgeIcon: 'shield-checkmark-outline',
+        };
+      case 'sign':
+        return {
+          title: 'Make it yours. Add your signature.',
+          subtitle: 'Complete the required fields and add one signature for this request.',
+          badge: `${this.completedActiveFieldCount()} of ${this.fields().length} fields ready`,
+          badgeIcon: 'shield-checkmark-outline',
+        };
+      default:
+        return {
+          title: 'Signed. Sealed. All set.',
+          subtitle: 'Your part of this signing request is complete.',
+          badge: 'Signing complete',
+          badgeIcon: 'checkmark-circle-outline',
+        };
+    }
+  });
 
   /** Revisión y firma muestran las hojas del documento: la tarjeta se ensancha en pantallas grandes. */
   readonly wideLayout = computed(
@@ -300,7 +415,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
       case 'verify-otp':
         return 'Confirm code';
       case 'review':
-        return 'Go to sign';
+        return this.isLastDocument() ? 'Continue to signing' : 'Next document';
       case 'sign':
         return this.isLastDocument() ? 'Finish & submit' : 'Next document';
       default:
@@ -366,7 +481,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
   // ---------- OTP derivados ----------
 
   /** Método OTP que exige la solicitud para este firmante (null = no exige OTP). */
-  readonly otpMethod = computed<SignerVerificationMethod | null>(() => this.context()?.requiredVerificationMethod ?? null);
+  readonly otpMethod = computed<SignerVerificationMethod | null>(
+    () => this.context()?.requiredVerificationMethod ?? null,
+  );
 
   /** Cómo se le nombra el canal al firmante en la copy. */
   readonly otpChannelLabel = computed(() => channelLabel(this.otpMethod()));
@@ -414,7 +531,8 @@ export class SignPageComponent implements OnInit, OnDestroy {
         icon: 'checkmark-circle-outline',
         tone: 'success',
         title: 'This link has expired',
-        detail: 'You already signed this document. Your signature is recorded and there is nothing left for you to do.',
+        detail:
+          'You already signed this document. Your signature is recorded and there is nothing left for you to do.',
         showReceipt: true,
       };
     }
@@ -423,7 +541,8 @@ export class SignPageComponent implements OnInit, OnDestroy {
         icon: 'close-circle-outline',
         tone: 'danger',
         title: 'You declined this document',
-        detail: 'The office was notified. If this was a mistake, contact them to receive a new request.',
+        detail:
+          'The office was notified. If this was a mistake, contact them to receive a new request.',
         showReceipt: false,
       };
     }
@@ -498,7 +617,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
   /** Campos ordenados por página: es todo lo que el firmante puede saber del documento. */
   readonly signingDocuments = computed(() =>
     [...(this.context()?.documents ?? [])]
-      .filter(document => document.hasFieldsToSign && document.signedAtUtc === null)
+      .filter((document) => document.hasFieldsToSign && document.signedAtUtc === null)
       .sort((left, right) => left.order - right.order),
   );
 
@@ -506,7 +625,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
     () => this.signingDocuments()[this.activeDocumentIndex()] ?? null,
   );
   readonly isLastDocument = computed(
-    () => this.signingDocuments().length > 0 && this.activeDocumentIndex() === this.signingDocuments().length - 1,
+    () =>
+      this.signingDocuments().length > 0 &&
+      this.activeDocumentIndex() === this.signingDocuments().length - 1,
   );
   readonly documentProgress = computed(() => {
     const document = this.activeDocument();
@@ -518,24 +639,66 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly fields = computed<PublicSignerFieldView[]>(() => {
     const documentId = this.activeDocument()?.documentId;
     return [...(this.context()?.fields ?? [])]
-      .filter(field => field.documentId === documentId)
+      .filter((field) => field.documentId === documentId)
       .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
   });
 
-  readonly requiredFieldCount = computed(() => this.fields().filter(f => f.isRequired).length);
+  readonly captureField = computed<PublicSignerFieldView | null>(() => {
+    const fields = this.fields();
+    const selected = fields.find((field) => field.id === this.selectedFieldId());
+    if (selected?.kind === 'Signature' || selected?.kind === 'Initials') {
+      return selected;
+    }
+    return fields.find((field) => field.kind === 'Initials' || field.kind === 'Signature') ?? null;
+  });
+
+  readonly captureTitle = computed(() =>
+    this.captureField()?.kind === 'Initials' ? 'Add your initials' : 'Add your signature',
+  );
+
+  readonly requiredFieldCount = computed(() => this.fields().filter((f) => f.isRequired).length);
+
+  readonly totalFieldCount = computed(() => {
+    const documentIds = new Set(this.signingDocuments().map((document) => document.documentId));
+    return (this.context()?.fields ?? []).filter((field) => documentIds.has(field.documentId))
+      .length;
+  });
+
+  readonly totalRequiredFieldCount = computed(() => {
+    const documentIds = new Set(this.signingDocuments().map((document) => document.documentId));
+    return (this.context()?.fields ?? []).filter(
+      (field) => documentIds.has(field.documentId) && field.isRequired,
+    ).length;
+  });
+
+  readonly activePageCount = computed(() => {
+    const renderedPages = Object.keys(this.pageImages() ?? {})
+      .map(Number)
+      .filter(Number.isFinite);
+    const fieldPages = this.fields().map((field) => field.page);
+    return Math.max(0, ...renderedPages, ...fieldPages);
+  });
+
+  readonly completedActiveFieldCount = computed(
+    () => this.fields().filter((field) => this.isFieldReady(field)).length,
+  );
 
   /** Páginas distintas donde el preparador puso campos para este firmante. */
-  readonly fieldPageCount = computed(() => new Set(this.fields().map(f => f.page)).size);
+  readonly fieldPageCount = computed(() => new Set(this.fields().map((f) => f.page)).size);
 
   /** La descripción del preparador puede ser larga: se muestra recortada con "Show more". */
   readonly descriptionExpanded = signal(false);
 
   /** Campos de texto rellenables por el firmante (P4), ordenados por página. */
-  readonly textFields = computed<PublicSignerFieldView[]>(() => this.fields().filter(f => f.kind === 'Text'));
+  readonly textFields = computed<PublicSignerFieldView[]>(() =>
+    this.fields().filter((f) => f.kind === 'Text'),
+  );
 
   readonly allTextFields = computed<PublicSignerFieldView[]>(() => {
-    const documentIds = new Set(this.signingDocuments().map(document => document.documentId));
-    return (this.context()?.fields ?? []).filter(field => documentIds.has(field.documentId) && field.kind === 'Text');
+    const documentIds = new Set(this.signingDocuments().map((document) => document.documentId));
+    return (this.context()?.fields ?? []).filter(
+      (field) => documentIds.has(field.documentId) && field.kind === 'Text',
+    );
   });
 
   /**
@@ -543,24 +706,29 @@ export class SignPageComponent implements OnInit, OnDestroy {
    * demás solo alargarían el scroll hasta el pad). La revisión muestra todas.
    */
   readonly fieldsOnTextPages = computed<PublicSignerFieldView[]>(() => {
-    const pages = new Set(this.textFields().map(f => f.page));
-    return this.fields().filter(f => pages.has(f.page));
+    const pages = new Set(this.textFields().map((f) => f.page));
+    return this.fields().filter((f) => pages.has(f.page));
   });
 
   /** true si todos los campos de texto REQUERIDOS tienen valor (gate de la firma). */
   readonly currentRequiredTextComplete = computed(() =>
-    this.textFields().every(f => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0),
+    this.textFields().every(
+      (f) => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0,
+    ),
   );
 
   readonly requiredTextComplete = computed(() =>
-    this.allTextFields().every(f => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0),
+    this.allTextFields().every(
+      (f) => !f.isRequired || (this.fieldValues()[f.id]?.trim().length ?? 0) > 0,
+    ),
   );
 
   // ---------- Acuse derivado de la cadena de audit ----------
 
   /** Fila `DocumentSigned` de la cadena — única fuente real del sellado del firmante. */
   private readonly signedEvent = computed(
-    () => [...(this.audit()?.events ?? [])].reverse().find(e => e.kind === 'DocumentSigned') ?? null,
+    () =>
+      [...(this.audit()?.events ?? [])].reverse().find((e) => e.kind === 'DocumentSigned') ?? null,
   );
 
   readonly signedAtLabel = computed(() => {
@@ -667,22 +835,32 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.context.set(ctx);
     const documents = this.signingDocuments();
     const documentIndex = previousDocumentId
-      ? documents.findIndex(document => document.documentId === previousDocumentId)
+      ? documents.findIndex((document) => document.documentId === previousDocumentId)
       : 0;
     this.activeDocumentIndex.set(documentIndex >= 0 ? documentIndex : 0);
+    this.highestReviewedDocumentIndex.update((current) =>
+      Math.max(current, documentIndex >= 0 ? documentIndex : 0),
+    );
     if (ctx.hasAcceptedConsent) {
       this.consentChecked.set(true);
     }
     const steps = this.steps();
-    if (!steps.some(s => s.id === previous)) {
+    if (!steps.some((s) => s.id === previous)) {
       // El gate previo se cerró (consent aceptado, PIN u OTP verificados): aterrizar en el
       // primer paso vigente que venga en/después de la posición canónica del anterior.
       const previousRank = STEP_ORDER.indexOf(previous);
-      const next = steps.find(s => STEP_ORDER.indexOf(s.id) >= previousRank);
+      const next = steps.find((s) => STEP_ORDER.indexOf(s.id) >= previousRank);
       this.stepId.set(next?.id ?? 'review');
     }
     if (ctx.signerStatus === 'Signed' && !this.justSigned()) {
       void this.loadAudit();
+    }
+
+    // Al completar un gate (consent, PIN u OTP), applyContext puede mover el recorrido
+    // directamente a review sin pasar por goToStep(). Ese salto tambien debe iniciar el visor;
+    // de lo contrario el PDF solo aparecia despues de avanzar a firma y volver atras.
+    if (this.stepId() === 'review' || this.stepId() === 'sign') {
+      void this.loadDocument();
     }
   }
 
@@ -704,6 +882,14 @@ export class SignPageComponent implements OnInit, OnDestroy {
       case 'verify-otp':
         void this.submitOtp();
         return;
+      case 'review':
+        if (this.isLastDocument()) {
+          this.activeDocumentIndex.set(0);
+          this.goToStep(this.stepIndex() + 1);
+        } else {
+          this.moveDocument(1);
+        }
+        return;
       case 'sign':
         if (this.isLastDocument()) {
           void this.submitSignature();
@@ -720,11 +906,39 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (this.busy() || this.isFirstStep()) {
       return;
     }
-    if (this.stepId() === 'sign' && this.activeDocumentIndex() > 0) {
+    if (
+      (this.stepId() === 'review' || this.stepId() === 'sign') &&
+      this.activeDocumentIndex() > 0
+    ) {
       this.moveDocument(-1);
       return;
     }
     this.goToStep(this.stepIndex() - 1);
+  }
+
+  goToJourneyStep(index: number): void {
+    if (this.busy() || this.isDone() || index > this.stepIndex()) {
+      return;
+    }
+    this.goToStep(index);
+  }
+
+  openDocument(index: number): void {
+    if (
+      this.busy() ||
+      index < 0 ||
+      index >= this.signingDocuments().length ||
+      index === this.activeDocumentIndex() ||
+      (this.stepId() === 'review' && index > this.highestReviewedDocumentIndex())
+    ) {
+      return;
+    }
+    this.activeDocumentIndex.set(index);
+    this.selectedFieldId.set(this.fields()[0]?.id ?? null);
+    this.documentZoom.set(100);
+    this.highestReviewedDocumentIndex.update((current) => Math.max(current, index));
+    this.actionError.set(null);
+    void this.loadDocument();
   }
 
   private moveDocument(delta: -1 | 1): void {
@@ -736,6 +950,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
       return;
     }
     this.activeDocumentIndex.set(next);
+    this.selectedFieldId.set(this.fields()[0]?.id ?? null);
+    this.documentZoom.set(100);
+    this.highestReviewedDocumentIndex.update((current) => Math.max(current, next));
     this.actionError.set(null);
     void this.loadDocument();
   }
@@ -748,6 +965,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.stepId.set(nextId);
     if (nextId === 'sign') {
       this.activeDocumentIndex.set(0);
+      this.selectedFieldId.set(this.fields()[0]?.id ?? null);
     }
     // F5: en cuanto el firmante llega a review/sign ya pasó por consent + PIN + OTP si tocaban,
     // así que el endpoint /document ya no responderá 403. Se dispara una sola vez (loadDocument
@@ -758,12 +976,58 @@ export class SignPageComponent implements OnInit, OnDestroy {
   }
 
   toggleConsent(): void {
-    this.consentChecked.update(v => !v);
+    this.consentChecked.update((v) => !v);
   }
 
   /** Guarda el texto de un campo `Text` (P4) por su `fieldId`. */
   setFieldValue(fieldId: string, value: string): void {
-    this.fieldValues.update(current => ({ ...current, [fieldId]: value }));
+    this.fieldValues.update((current) => ({ ...current, [fieldId]: value }));
+  }
+
+  selectField(fieldId: string): void {
+    this.selectedFieldId.set(fieldId);
+    queueMicrotask(() => this.documentView()?.scrollToField(fieldId));
+  }
+
+  adjustDocumentZoom(delta: -25 | 25): void {
+    this.documentZoom.update((current) => Math.min(150, Math.max(75, current + delta)));
+  }
+
+  retryDocument(): void {
+    if (this.loadingDocument()) {
+      return;
+    }
+    const documentId = this.activeDocument()?.documentId;
+    if (documentId) {
+      this.pageImagesByDocument.delete(documentId);
+      this.pageAspectRatiosByDocument.delete(documentId);
+    }
+    void this.loadDocument();
+  }
+
+  fieldLabel(field: PublicSignerFieldView): string {
+    return field.label?.trim() || FIELD_KIND_LABEL[field.kind];
+  }
+
+  fieldMeta(field: PublicSignerFieldView): string {
+    return `Page ${field.page} - ${FIELD_KIND_LABEL[field.kind]}`;
+  }
+
+  fieldStatus(field: PublicSignerFieldView): string {
+    if (field.kind === 'Date') {
+      return 'Automatic';
+    }
+    return this.isFieldReady(field) ? 'Ready' : field.isRequired ? 'Required' : 'Optional';
+  }
+
+  isFieldReady(field: PublicSignerFieldView): boolean {
+    if (field.kind === 'Text') {
+      return (this.fieldValues()[field.id]?.trim().length ?? 0) > 0 || !field.isRequired;
+    }
+    if (field.kind === 'Date') {
+      return true;
+    }
+    return this.pad()?.canSave() ?? false;
   }
 
   // ------------------------------------------------------------------
@@ -789,7 +1053,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
    * para saber si el firmante quedó bloqueado.
    */
   private async submitPin(): Promise<void> {
-    await this.run('Checking your PIN…', () => firstValueFrom(this.api.verifyPin(this.token, this.pin().trim())));
+    await this.run('Checking your PIN…', () =>
+      firstValueFrom(this.api.verifyPin(this.token, this.pin().trim())),
+    );
     this.pin.set('');
     // En ambos casos se recarga: al acertar, `isPinVerified` cierra el gate y
     // `applyContext` avanza; al fallar, el contexto trae `pinLockedUntilUtc` si el
@@ -807,7 +1073,9 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (!method || this.busy() || !this.canResendOtp()) {
       return;
     }
-    const ok = await this.run('Sending your code…', () => firstValueFrom(this.api.issueChallenge(this.token, method)));
+    const ok = await this.run('Sending your code…', () =>
+      firstValueFrom(this.api.issueChallenge(this.token, method)),
+    );
     if (ok) {
       this.otpIssued.set(true);
       this.otpCode.set('');
@@ -856,15 +1124,19 @@ export class SignPageComponent implements OnInit, OnDestroy {
     }
 
     const padMethod = pad.method();
-    const method: SignatureCaptureMethod = padMethod === 'draw' ? 'Drawn' : padMethod === 'upload' ? 'Uploaded' : 'Typed';
+    const method: SignatureCaptureMethod =
+      padMethod === 'draw' ? 'Drawn' : padMethod === 'upload' ? 'Uploaded' : 'Typed';
     const typedName = padMethod === 'type' ? pad.typedText().trim() : null;
-    if (method === 'Typed' && (!typedName || !matchesSignerFullName(typedName, ctx.signerFullName))) {
+    if (
+      method === 'Typed' &&
+      (!typedName || !matchesSignerFullName(typedName, ctx.signerFullName))
+    ) {
       this.actionError.set('Type your full name exactly as it appears on the document.');
       return;
     }
 
-    const documentIds = this.signingDocuments().map(document => document.documentId);
-    const fieldValues = this.allTextFields().map(f => ({
+    const documentIds = this.signingDocuments().map((document) => document.documentId);
+    const fieldValues = this.allTextFields().map((f) => ({
       fieldId: f.id,
       value: this.fieldValues()[f.id]?.trim() || null,
     }));
@@ -997,7 +1269,11 @@ function inferSubdomainFromParts(parts: readonly string[]): string {
 }
 
 function formatDate(iso: string): string {
-  return parseUtcDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return parseUtcDate(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function formatTime(iso: string): string {
@@ -1116,7 +1392,8 @@ function inkBounds(
 function blobFromCanvas(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      blob => (blob ? resolve(blob) : reject(new Error('The signature image could not be encoded.'))),
+      (blob) =>
+        blob ? resolve(blob) : reject(new Error('The signature image could not be encoded.')),
       'image/png',
     );
   });

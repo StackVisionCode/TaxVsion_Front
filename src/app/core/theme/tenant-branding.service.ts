@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { catchError, of, retry, tap, throwError, timer } from 'rxjs';
 import { isThrottled } from '@core/errors/throttling';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { ThemeService } from './theme.service';
 
 /**
  * Cache-buster de una sola vez para las URLs de assets. Una versión anterior del endpoint marcaba el
@@ -47,9 +46,12 @@ interface BrandResponse {
 }
 
 /**
- * Aplica la identidad visual del tenant (TenantBrands) al arrancar: tema (primary/accent),
- * favicon y logo. Usa el endpoint ANÓNIMO `/tenants/branding/public/{slug}` — funciona pre-login y
- * post-login, y solo expone assets ya escaneados.
+ * Aplica la identidad visual del tenant (TenantBrands) al arrancar: favicon y logo. Usa el endpoint
+ * ANÓNIMO `/tenants/branding/public/{slug}` — funciona pre-login y post-login, y solo expone assets
+ * ya escaneados.
+ *
+ * Los colores (primary/accent) del tenant YA NO se aplican al tema: la app usa el azul fijo del
+ * brandbook (ver ThemeService) para todos los tenants, así que esta clase ignora esos campos.
  *
  * REGLA DE ORO: todo aditivo con fallback total. Si la API no responde o el slug no está resuelto,
  * NO se toca nada y queda el look compilado por defecto (idéntico a hoy). Nunca deja la app sin
@@ -59,11 +61,18 @@ interface BrandResponse {
 export class TenantBrandingService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
-  private readonly theme = inject(ThemeService);
 
   private readonly _logoUrl = signal<string | null>(null);
   /** URL absoluta del logo del tenant, o null si no tiene (los consumidores caen a su placeholder). */
   readonly logoUrl = this._logoUrl.asReadonly();
+
+  private readonly _systemLogoUrl = signal<string | null>(null);
+  /**
+   * Logo de la plataforma, separado de la marca de la oficina activa. Las superficies publicas
+   * co-branded necesitan mostrar ambas identidades sin reemplazar el tema ni el logo del tenant.
+   */
+  readonly systemLogoUrl = this._systemLogoUrl.asReadonly();
+  private systemBrandRequestStarted = false;
 
   private readonly _faviconUrl = signal<string | null>(null);
   /**
@@ -113,8 +122,42 @@ export class TenantBrandingService {
     this.http
       .get<PublicBrandingResponse>(url)
       .pipe(
-        tap((branding) => this.apply(branding, this.api.systemBase())),
+        tap((branding) => {
+          this.setSystemLogo(branding, this.api.systemBase());
+          this.apply(branding, this.api.systemBase());
+        }),
         catchError(() => of(null)),
+      )
+      .subscribe();
+  }
+
+  /**
+   * Carga solo el logo de plataforma para una superficie co-branded. No aplica colores ni favicon:
+   * la oficina conserva su identidad visual y TaxProffice se mantiene como marca anfitriona.
+   */
+  loadSystemBrandLogo(surface: 'Crm' | 'Portal' = 'Crm'): void {
+    if (this.systemBrandRequestStarted) {
+      return;
+    }
+
+    this.systemBrandRequestStarted = true;
+    // En una superficie servida desde el subdominio de una oficina, pedimos la marca de plataforma
+    // por ese mismo origen. El gateway expone el endpoint system allí y así evitamos convertir una
+    // lectura pública en una dependencia CORS contra api.*. En app.* (login central) se conserva el
+    // host de sistema, que es justamente el origen de esa pantalla.
+    const useTenantOrigin = this.api.officeFromHost() !== null;
+    const base = useTenantOrigin ? this.api.tenantBase() : this.api.systemBase();
+    const url = useTenantOrigin
+      ? this.api.tenantUrl(`/tenants/branding/system?surface=${surface}`)
+      : this.api.systemUrl(`/tenants/branding/system?surface=${surface}`);
+    this.http
+      .get<PublicBrandingResponse>(url)
+      .pipe(
+        tap((branding) => this.setSystemLogo(branding, base)),
+        catchError(() => {
+          this.systemBrandRequestStarted = false;
+          return of(null);
+        }),
       )
       .subscribe();
   }
@@ -135,7 +178,10 @@ export class TenantBrandingService {
         // listos, un fallo transitorio dejaba el logo/iniciales colgados hasta recargar. Un par de
         // reintentos con espera cubre esa ventana sin castigar el caso feliz (fallback total abajo).
         // Un rate limit no se reintenta: solo gastaría más cupo.
-        retry({ count: 2, delay: err => (isThrottled(err) ? throwError(() => err) : timer(1200)) }),
+        retry({
+          count: 2,
+          delay: (err) => (isThrottled(err) ? throwError(() => err) : timer(1200)),
+        }),
         tap((brand) => this.applyBrand(brand)),
         catchError(() => of(null)),
       )
@@ -143,22 +189,16 @@ export class TenantBrandingService {
   }
 
   /**
-   * Limpia la marca del tenant al cerrar sesión. Sin esto, el logo/favicon y los colores cacheados
-   * del usuario saliente sobreviven en este navegador (los stores providedIn:'root' no se reinician
-   * entre logins de la misma pestaña) y sangran en la sesión siguiente hasta recargar a mano. Vuelve
-   * al look del sistema por defecto; la próxima sesión re-aplica su propia marca.
+   * Limpia la marca del tenant al cerrar sesión. Sin esto, el logo/favicon cacheados del usuario
+   * saliente sobreviven en este navegador (los stores providedIn:'root' no se reinician entre logins
+   * de la misma pestaña) y sangran en la sesión siguiente hasta recargar a mano.
    */
   reset(): void {
     this._logoUrl.set(null);
     this._faviconUrl.set(null);
-    this.theme.resetToDefaults();
   }
 
   private applyBrand(brand: BrandResponse): void {
-    const primary = brand.colors.find((c) => c.token === 'Primary')?.value;
-    const accent = brand.colors.find((c) => c.token === 'Accent')?.value;
-    this.theme.applyBranding({ primary, accent });
-
     const base = this.api.tenantBase();
     const logo = brand.assets.find((a) => a.key === 'Logo' && a.status === 'Confirmed');
     const favicon = brand.assets.find((a) => a.key === 'Favicon' && a.status === 'Confirmed');
@@ -171,8 +211,6 @@ export class TenantBrandingService {
   }
 
   private apply(branding: PublicBrandingResponse, base: string): void {
-    this.theme.applyBranding({ primary: branding.primary, accent: branding.accent });
-
     // Las URLs de assets vienen RELATIVAS; se absolutizan contra la base del mismo origen que sirvió
     // el branding: tenantBase() para la marca de oficina, systemBase() para la del sistema (app.*).
     this._logoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);
@@ -181,6 +219,10 @@ export class TenantBrandingService {
       this._faviconUrl.set(faviconUrl);
       this.setFavicon(faviconUrl);
     }
+  }
+
+  private setSystemLogo(branding: PublicBrandingResponse, base: string): void {
+    this._systemLogoUrl.set(branding.logoUrl ? bust(`${base}${branding.logoUrl}`) : null);
   }
 
   /**

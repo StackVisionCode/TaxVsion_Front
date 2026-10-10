@@ -1,7 +1,16 @@
-import { FieldType, VerificationChannel, WizardClient } from '../ui/signature-request-panel/signature-wizard.model';
+import {
+  FieldType,
+  VerificationChannel,
+  WizardClient,
+} from '../ui/signature-request-panel/signature-wizard.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { AVATAR_PALETTE, initialsOf } from '@shared/utils/avatar.util';
-import { Signer, SignatureRequest, SignatureStatus, SignerStatus } from '../ui/signature-table/signature-table.component';
+import {
+  Signer,
+  SignatureRequest,
+  SignatureStatus,
+  SignerStatus,
+} from '../ui/signature-table/signature-table.component';
 
 /**
  * DTOs del servicio Signature (TaxVision.Signature.Api vía Gateway, base `/signature`).
@@ -28,6 +37,7 @@ export type ApiSignatureRequestStatus =
 export type ApiSignerStatus = 'Pending' | 'InProgress' | 'Signed' | 'Rejected' | 'Expired';
 
 export type SignatureFieldKind = 'Signature' | 'Initials' | 'Date' | 'Text' | 'Checkbox';
+export type CertificateGenerationMode = 'SingleForRequest' | 'PerDocument';
 
 export const SIGNATURE_CATEGORIES: SignatureCategory[] = [
   'Fiscal',
@@ -167,6 +177,7 @@ export interface SignatureRequestDocument {
   originalFileId: string;
   hashPre: string | null;
   sealedFileId: string | null;
+  certificateFileId?: string | null;
   hashPost: string | null;
   sealedAtUtc: string | null;
   note: string | null;
@@ -186,6 +197,7 @@ export interface SignatureRequestDetail {
   requiresSequentialSigning: boolean;
   requiresConsent: boolean;
   generateCertificate: boolean;
+  certificateGenerationMode?: CertificateGenerationMode;
   // F7 — rename del flag histórico; semántica: PDF sellado final.
   sendSealedDocumentToSigners: boolean;
   sendCertificateToSigners: boolean;
@@ -263,6 +275,7 @@ export interface UpsertDraftBody {
   sendPartialCopyOnEachSignature: boolean | null;
   partialCopyAudience: PartialCopyAudienceBody | null;
   expirationEnabled: boolean | null;
+  certificateGenerationMode: CertificateGenerationMode | null;
 }
 
 export interface UpsertDraftDocument {
@@ -319,6 +332,20 @@ export interface ValidateDocumentResponse {
   pageCount: number | null;
   hasExistingSignatures: boolean;
   validationRecordId: string;
+}
+
+/**
+ * F9 — Respuesta del PUT /signature/requests/{id}/documents/{documentId}/original. Si
+ * `fieldsInvalidated > 0`, el nuevo PDF tenía distinto número de páginas y el backend borró los
+ * campos de ese documento; la UI tiene que avisarlo al preparador antes de dejarlo seguir.
+ */
+export interface ReplaceDocumentFileResponse {
+  documentId: string;
+  oldFileId: string;
+  newFileId: string;
+  oldPageCount: number | null;
+  newPageCount: number | null;
+  fieldsInvalidated: number;
 }
 
 /** GET /signature/analytics/summary. */
@@ -593,6 +620,7 @@ export interface CreateSignatureRequestBody {
   sendPartialCopyOnEachSignature?: boolean | null;
   partialCopyAudience?: PartialCopyAudienceBody | null;
   expirationEnabled?: boolean | null;
+  certificateGenerationMode?: CertificateGenerationMode | null;
 }
 
 export interface TemplateDocumentCreatedResponse extends TemplateDocumentResponse {}
@@ -627,6 +655,7 @@ export interface UpdateSignatureRequestBody {
   sendPartialCopyOnEachSignature?: boolean | null;
   partialCopyAudience?: PartialCopyAudienceBody | null;
   expirationEnabled?: boolean | null;
+  certificateGenerationMode?: CertificateGenerationMode | null;
 }
 
 /** Idioma de los correos al firmante (backend Signer.Language). */
@@ -640,13 +669,18 @@ export type SignerLanguage = 'Es' | 'En';
 export type SignerVerificationMethod = 'SmsOtp' | 'EmailOtp' | 'WhatsAppOtp';
 
 /** Canales que sí exigen teléfono para poder entregar el OTP (SMS/WhatsApp). */
-const PHONE_CHANNELS: ReadonlySet<VerificationChannel> = new Set<VerificationChannel>(['sms', 'whatsapp']);
+const PHONE_CHANNELS: ReadonlySet<VerificationChannel> = new Set<VerificationChannel>([
+  'sms',
+  'whatsapp',
+]);
 
 /**
  * Mapea el canal elegido en el wizard al método de verificación del backend.
  * 'app' → undefined: no hay entrega push para firmantes públicos, así que no se exige OTP.
  */
-export function channelToVerificationMethod(channel: VerificationChannel): SignerVerificationMethod | undefined {
+export function channelToVerificationMethod(
+  channel: VerificationChannel,
+): SignerVerificationMethod | undefined {
   switch (channel) {
     case 'email':
       return 'EmailOtp';
@@ -758,7 +792,10 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
 }
 
 /** Detalle del backend -> fila/preview de la tabla existente. El "client" se deriva del primer firmante (orden 1). */
-export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?: string | null): SignatureRequest {
+export function detailToUiRequest(
+  detail: SignatureRequestDetail,
+  currentUserId?: string | null,
+): SignatureRequest {
   const ordered = [...detail.signers].sort((a, b) => a.order - b.order);
   const firstDocument = [...detail.documents].sort((a, b) => a.order - b.order)[0];
   return {
@@ -773,13 +810,14 @@ export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?
     completedDate: detail.completedAtUtc,
     notes: detail.description ?? '',
     category: detail.category,
-    documents: detail.documents.map(document => ({
+    documents: detail.documents.map((document) => ({
       id: document.id,
       order: document.order,
       title: document.title,
       originalFileId: document.originalFileId,
       hashPre: document.hashPre,
       sealedFileId: document.sealedFileId,
+      certificateFileId: document.certificateFileId,
       hashPost: document.hashPost,
       sealedAtUtc: document.sealedAtUtc,
     })),
@@ -789,8 +827,8 @@ export function detailToUiRequest(detail: SignatureRequestDetail, currentUserId?
     requiresPractitionerPin: detail.requiresPractitionerPin,
     practitionerPinSetAtUtc: detail.practitionerPinSetAtUtc,
     // Un borrador solo es "enviable" cuando tiene al menos un campo de firma/iniciales colocado.
-    hasSignatureField: detail.signers.some(signer =>
-      signer.fields.some(f => f.kind === 'Signature' || f.kind === 'Initials'),
+    hasSignatureField: detail.signers.some((signer) =>
+      signer.fields.some((f) => f.kind === 'Signature' || f.kind === 'Initials'),
     ),
     preparerSignatureFileId: detail.preparerSignatureFileId,
     preparerFieldCount: detail.preparerFields.length,

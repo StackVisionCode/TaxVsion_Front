@@ -1,4 +1,12 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject, signal } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  EventEmitter,
+  Input,
+  Output,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -53,6 +61,11 @@ export class SignatureWizardDocumentStepComponent {
   @Output() documentRemoved = new EventEmitter<string>();
   @Output() documentsReordered = new EventEmitter<WizardDocument[]>();
   @Output() activeDocumentChanged = new EventEmitter<string>();
+  /**
+   * F9 — Replace: pide al padre que abra el modal de reemplazo para el doc indicado. El panel sabe
+   * si la request ya está persistida y por tanto si tocar backend o solo swap local.
+   */
+  @Output() replaceRequested = new EventEmitter<string>();
 
   private readonly store = inject(SignatureStore);
 
@@ -131,6 +144,11 @@ export class SignatureWizardDocumentStepComponent {
 
   removeDocument(documentId: string): void {
     this.documentRemoved.emit(documentId);
+  }
+
+  // F9 — Pide al padre que abra el modal de reemplazo para este doc.
+  startReplace(documentId: string): void {
+    this.replaceRequested.emit(documentId);
   }
 
   activateDocument(documentId: string): void {
