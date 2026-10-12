@@ -10,6 +10,13 @@ button:disabled {
 
 .overflow-y-auto {
   -webkit-overflow-scrolling: touch;
+  /* El scroll sigue funcionando, pero sin barra visible. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.overflow-y-auto::-webkit-scrollbar {
+  display: none;
 }
 
 /* Pill que se desliza suavemente hacia el ítem activo cada vez que cambia
