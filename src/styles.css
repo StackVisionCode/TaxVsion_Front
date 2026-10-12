@@ -5,3 +5,13 @@
 @tailwind utilities;
 
 /* You can add global styles to this file, and also import other style files */
+
+/* Scroll funcional sin barra visible (menús laterales y paneles de navegación). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -1,4 +1,5 @@
 import { Directive, ElementRef, Input, NgZone, OnChanges, OnDestroy, inject } from '@angular/core';
+import { prefersReducedMotion } from '../utils/reduced-motion.util';
 
 /** Formatea el número mostrado: entero con separador de miles (satisface ver "1,240" subir). */
 export function formatCount(value: number): string {
@@ -7,14 +8,6 @@ export function formatCount(value: number): string {
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
-}
-
-function prefersReducedMotion(): boolean {
-  try {
-    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -33,6 +26,11 @@ export class CountUpDirective implements OnChanges, OnDestroy {
   @Input('appCountUp') value = 0;
   /** Duración del conteo en ms. */
   @Input() countUpDuration = 700;
+  /**
+   * Formato de cada fotograma (p. ej. dinero: `c => formatCents(c, 'USD')`). Recibe el valor ya
+   * redondeado a entero. Sin formato → `formatCount`. Debe ser una referencia estable.
+   */
+  @Input() countUpFormat: ((value: number) => string) | null = null;
 
   private readonly host = inject(ElementRef<HTMLElement>).nativeElement;
   private readonly zone = inject(NgZone);
@@ -99,7 +97,7 @@ export class CountUpDirective implements OnChanges, OnDestroy {
 
   private render(value: number): void {
     this.displayed = value;
-    this.host.textContent = formatCount(value);
+    this.host.textContent = this.countUpFormat ? this.countUpFormat(Math.round(value)) : formatCount(value);
   }
 
   private cancel(): void {

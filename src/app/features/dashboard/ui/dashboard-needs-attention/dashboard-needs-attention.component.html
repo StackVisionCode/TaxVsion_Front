@@ -1,0 +1,43 @@
+<div class="bg-white rounded-[28px] p-6 ring-1 ring-brand-line shadow-card">
+  <div class="flex items-center gap-2">
+    <h2 class="text-xl font-bold text-gray-900">Needs attention</h2>
+    @if (insights().length > 0) {
+      <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">{{ insights().length }}</span>
+    }
+  </div>
+
+  @if (insights().length > 0) {
+    <div class="mt-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+      @for (insight of insights(); track insight.id) {
+        <a [routerLink]="insight.link"
+          class="group flex items-center gap-3 rounded-2xl px-4 py-3 ring-1 transition-shadow hover:shadow-card"
+          [ngClass]="toneClasses(insight.tone).card">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            [ngClass]="toneClasses(insight.tone).circle">
+            <ion-icon [name]="insight.icon" class="text-lg" aria-hidden="true"></ion-icon>
+          </span>
+          <span class="min-w-0 flex-1">
+            @if (insight.count !== null) {
+              <span class="block text-2xl font-bold leading-tight text-gray-900" [appCountUp]="insight.count"></span>
+            }
+            <span class="block text-sm text-gray-700" [class.font-semibold]="insight.count === null">{{ insight.label }}</span>
+          </span>
+          <ion-icon name="chevron-forward-outline"
+            class="shrink-0 text-base text-gray-400 transition-colors group-hover:text-gray-900" aria-hidden="true"></ion-icon>
+        </a>
+      }
+    </div>
+  } @else if (allClear()) {
+    <div class="mt-4 flex items-center gap-3 rounded-2xl bg-sage-100 px-4 py-3">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sage-600 text-white">
+        <ion-icon name="checkmark-done-outline" class="text-lg" aria-hidden="true"></ion-icon>
+      </span>
+      <span>
+        <span class="block text-sm font-semibold text-sage-700">You're all set</span>
+        <span class="block text-xs text-gray-600">No overdue work, expiring signatures or account warnings.</span>
+      </span>
+    </div>
+  } @else {
+    <p class="mt-4 text-sm text-gray-500">Checking your workspace…</p>
+  }
+</div>

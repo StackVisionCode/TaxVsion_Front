@@ -183,6 +183,20 @@
   to { opacity: 1; transform: none; }
 }
 
+/* --- today: llega desde la derecha, junto al hero --- */
+.widget-cell[data-widget-id="today"] { animation-name: widget-in-today; }
+@keyframes widget-in-today {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- needs-attention: sube suave, como una notificación --- */
+.widget-cell[data-widget-id="needs-attention"] { animation-name: widget-in-needs-attention; }
+@keyframes widget-in-needs-attention {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* --- side-stack: entra deslizando desde la izquierda --- */
 .widget-cell[data-widget-id="side-stack"] { animation-name: widget-in-side-stack; }
 @keyframes widget-in-side-stack {

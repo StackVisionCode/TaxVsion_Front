@@ -8,6 +8,7 @@ import {
   customerInviteeDraft,
   hasScheduleMeetingParams,
   parseScheduleMeetingDeepLink,
+  wantsBlankSchedule,
 } from '../../utils/schedule-deep-link';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -125,7 +126,13 @@ export class MeetingsPageComponent implements OnInit {
     if (hasScheduleMeetingParams(params)) {
       void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
     }
-    if (!link || !this.store.canCreate()) {
+    if (!this.store.canCreate()) {
+      return;
+    }
+    if (!link) {
+      if (wantsBlankSchedule(params)) {
+        this.openSchedulePanel();
+      }
       return;
     }
     // Se espera al directorio (cacheado) antes de abrir: así el invitado lleva nombre y email reales

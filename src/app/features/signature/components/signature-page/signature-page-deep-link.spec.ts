@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { convertToParamMap } from '@angular/router';
-import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
+import { hasNewSignatureParams, parseNewSignatureDeepLink, wantsBlankNewRequest } from './signature-page-deep-link';
+
+describe('wantsBlankNewRequest', () => {
+  it('new=1 sin customerId pide el wizard vacío', () => {
+    expect(wantsBlankNewRequest(convertToParamMap({ new: '1' }))).toBe(true);
+    expect(wantsBlankNewRequest(convertToParamMap({ new: '1', customerId: '  ' }))).toBe(true);
+  });
+
+  it('con cliente o sin new=1 no aplica', () => {
+    expect(wantsBlankNewRequest(convertToParamMap({ new: '1', customerId: 'cus-1' }))).toBe(false);
+    expect(wantsBlankNewRequest(convertToParamMap({}))).toBe(false);
+  });
+});
 
 describe('parseNewSignatureDeepLink', () => {
   it('lee new=1 + customerId + customerName', () => {

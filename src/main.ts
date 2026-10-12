@@ -240,6 +240,11 @@ import {
   walletOutline,
   warning,
   warningOutline,
+  sunnyOutline,
+  partlySunnyOutline,
+  moonOutline,
+  flagOutline,
+  cafeOutline,
 } from 'ionicons/icons';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
@@ -491,6 +496,11 @@ addIcons({
   walletOutline,
   warning,
   warningOutline,
+  sunnyOutline,
+  partlySunnyOutline,
+  moonOutline,
+  flagOutline,
+  cafeOutline,
 });
 
 bootstrapApplication(App, appConfig)

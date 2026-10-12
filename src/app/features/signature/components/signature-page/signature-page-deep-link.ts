@@ -19,6 +19,14 @@ export function parseNewSignatureDeepLink(params: ParamMap): NewSignatureDeepLin
   return { customerId, customerName: params.get('customerName')?.trim() || null };
 }
 
+/**
+ * `/signature?new=1` sin cliente (acceso rápido del dashboard): abrir el wizard vacío, donde el
+ * usuario elige el cliente en el paso 1.
+ */
+export function wantsBlankNewRequest(params: ParamMap): boolean {
+  return params.get('new') === '1' && !params.get('customerId')?.trim();
+}
+
 /** True si la URL trae alguno de los params del deep link (para limpiarlos aunque no sea válido). */
 export function hasNewSignatureParams(params: ParamMap): boolean {
   return params.has('new') || params.has('customerId') || params.has('customerName');

@@ -1,0 +1,44 @@
+<div class="bg-white rounded-[28px] p-6 h-full ring-1 ring-brand-line shadow-card flex flex-col">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Completed this week</h2>
+      <p class="mt-1 text-sm text-gray-500">Tasks closed in the last 7 days</p>
+    </div>
+    @if (!loading() && !error() && !filtered()) {
+      <div class="text-right">
+        <div class="inline-block text-3xl font-bold text-gray-900" [appCountUp]="week().total"></div>
+        <p class="text-xs text-gray-500">{{ week().capped ? 'at least' : 'total' }}</p>
+      </div>
+    }
+  </div>
+
+  @if (loading() || error()) {
+    <app-state-block [loading]="loading()" [error]="error()" variant="inline" minHeight="12rem" (retry)="retry()" />
+  } @else if (filtered()) {
+    <app-state-block [empty]="true" variant="inline" icon="filter-outline" emptyTitle="Task filters are active"
+      emptyMessage="Clear the filters on the Tasks page to see this week's progress." minHeight="12rem" />
+  } @else {
+    <div class="mt-5 flex flex-1 items-end gap-2 sm:gap-3" role="img"
+      [attr.aria-label]="week().total + ' tasks completed in the last 7 days'">
+      @for (bucket of week().buckets; track bucket.dateIso; let i = $index) {
+        <div class="flex flex-1 flex-col items-center gap-2">
+          <span class="text-xs font-semibold" [ngClass]="bucket.count ? 'text-gray-900' : 'text-gray-300'">{{ bucket.count }}</span>
+          <div class="flex h-32 w-full items-end">
+            <div class="trend-bar w-full rounded-xl" [ngClass]="barClass(i, bucket)"
+              [style.height.%]="bucket.count ? barHeight(bucket) : null"></div>
+          </div>
+          <span class="text-xs" [ngClass]="i === week().buckets.length - 1 ? 'font-semibold text-gray-900' : 'text-gray-500'">
+            {{ i === week().buckets.length - 1 ? 'Today' : bucket.label }}
+          </span>
+        </div>
+      }
+    </div>
+    @if (week().capped) {
+      <p class="mt-3 text-xs text-gray-500">Based on the 50 most recent completions.</p>
+    } @else if (week().total === 0) {
+      <p class="mt-3 text-xs text-gray-500">
+        No tasks closed yet this week. <a routerLink="/task" class="font-medium text-brand-bold hover:underline">Open tasks</a>
+      </p>
+    }
+  }
+</div>

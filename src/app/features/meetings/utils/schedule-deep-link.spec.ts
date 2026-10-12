@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { convertToParamMap } from '@angular/router';
-import { customerInviteeDraft, hasScheduleMeetingParams, parseScheduleMeetingDeepLink } from './schedule-deep-link';
+import {
+  customerInviteeDraft,
+  hasScheduleMeetingParams,
+  parseScheduleMeetingDeepLink,
+  wantsBlankSchedule,
+} from './schedule-deep-link';
+
+describe('wantsBlankSchedule', () => {
+  it('schedule=1 sin customerId pide el panel vacío', () => {
+    expect(wantsBlankSchedule(convertToParamMap({ schedule: '1' }))).toBe(true);
+    expect(wantsBlankSchedule(convertToParamMap({ schedule: '1', customerId: ' ' }))).toBe(true);
+  });
+
+  it('con cliente o sin schedule=1 no aplica', () => {
+    expect(wantsBlankSchedule(convertToParamMap({ schedule: '1', customerId: 'cus-1' }))).toBe(false);
+    expect(wantsBlankSchedule(convertToParamMap({}))).toBe(false);
+  });
+});
 
 describe('deep link /meetings?schedule=1', () => {
   it('lee schedule=1 + customerId + customerName', () => {

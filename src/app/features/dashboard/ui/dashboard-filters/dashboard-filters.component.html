@@ -12,7 +12,10 @@
     Drag any widget to rearrange your dashboard.
   </p>
 
-  <!-- Controles de layout: lo único de esta barra que hace algo real -->
+  <!-- Accesos rápidos de creación: fuera del modo edición, a la izquierda -->
+  <app-dashboard-quick-actions *ngIf="!layout.editMode()" class="block min-w-0 flex-1"></app-dashboard-quick-actions>
+
+  <!-- Controles de layout -->
   <div class="ml-auto flex items-center gap-2">
     <!-- Reset (solo en edición y con cambios respecto al orden por defecto) -->
     <button *ngIf="layout.editMode() && layout.isDirty()" type="button" (click)="layout.resetLayout()"
