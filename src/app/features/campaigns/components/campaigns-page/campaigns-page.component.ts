@@ -8,6 +8,8 @@ import { CommunicationRealtimeService } from '@core/realtime/communication-realt
 import { toApiError } from '@core/models/api-error.model';
 import { WalletStore } from '@features/wallet/data-access/wallet.store';
 import { EstimateView, formatMicros } from '@features/wallet/data-access/wallet.model';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ToastService } from '../../../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { RichEditorComponent } from '../../ui/rich-editor/rich-editor.component';
@@ -19,9 +21,11 @@ import {
   ApiChannel,
   CampaignResponse,
   CampaignRunResponse,
+  CampaignScheduleResponse,
   CampaignTemplateResponse,
   CHANNELS,
   ContactResponse,
+  RecurrenceFrequency,
   RunRecipient,
   campaignStatusClass,
   channelClass,
@@ -34,6 +38,7 @@ import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 
 type Tab = 'campaigns' | 'runs' | 'audience' | 'schedules' | 'templates';
 const SENDABLE: ApiChannel[] = ['Email', 'Sms', 'Push']; // canales con ejecutor real hoy
@@ -74,6 +79,7 @@ const CHANNEL_META: ChannelMeta[] = [
     FilterChipsComponent,
     SegmentedComponent,
     SearchInputComponent,
+    PaginationComponent,
   ],
   templateUrl: './campaigns-page.component.html',
 })
@@ -141,8 +147,24 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     { label: 'Phone', token: '{{phone}}' },
   ];
 
+  // Audiencia desde Clientes (Customer directory, GET /customers): ver la lista y seleccionar a quién enviar.
+  private readonly customers = inject(CustomerDirectoryStore);
+  // Vista "Clients" de la pestaña Audience (solo ver/buscar tus clientes).
+  readonly audClients = signal<CustomerSummary[]>([]);
+  readonly audClientsLoading = signal(false);
+  readonly audClientsTerm = signal('');
+  // Selección de clientes en la vista Clients para "agregar a una lista".
+  readonly audClientSel = signal<Record<string, boolean>>({});
+  readonly addToListId = signal<string>('');
+  readonly addingToList = signal(false);
+  // Selector de clientes dentro del modal de envío (buscar + marcar) → sendForm.clientIds.
+  readonly sendClientResults = signal<CustomerSummary[]>([]);
+  readonly sendClientLoading = signal(false);
+  readonly sendClientTerm = signal('');
+  private sendClientSeq = 0;
+
   readonly tab = signal<Tab>('campaigns');
-  readonly audienceTab = signal<'lists' | 'contacts'>('lists');
+  readonly audienceTab = signal<'lists' | 'contacts' | 'clients'>('lists');
   readonly selected = signal<CampaignResponse | null>(null);
   readonly selectedRun = signal<CampaignRunResponse | null>(null);
 
@@ -153,9 +175,10 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     { id: 'Scheduled', label: 'Scheduled' },
     { id: 'Archived', label: 'Archived' },
   ];
-  readonly audienceTabs: SegmentedOption<'lists' | 'contacts'>[] = [
+  readonly audienceTabs: SegmentedOption<'lists' | 'contacts' | 'clients'>[] = [
     { id: 'lists', label: 'Lists' },
     { id: 'contacts', label: 'Contacts' },
+    { id: 'clients', label: 'Clients' },
   ];
 
   // ---------- modals ----------
@@ -218,7 +241,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   private scheduleRunsRefresh(campaignId: string): void {
     if (this.runsRefreshTimer) clearTimeout(this.runsRefreshTimer);
     this.runsRefreshTimer = setTimeout(() => {
-      this.store.loadRuns(campaignId);
+      this.store.refreshRuns();
       this.syncOpenRun();
       this.wallet.refresh();
     }, 800);
@@ -235,7 +258,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     let ticks = 0;
     this.pollTimer = setInterval(() => {
       ticks++;
-      this.store.loadRuns(campaignId);
+      this.store.refreshRuns();
       this.syncOpenRun();
       const anyDispatching = this.store.runs().some(r => r.status === 'Dispatching');
       if (!anyDispatching) {
@@ -627,7 +650,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   // ---------- send to audience ----------
   private blankSend() {
-    return { listIds: {} as Record<string, boolean>, includeCustomers: false, manual: '' };
+    return {
+      listIds: {} as Record<string, boolean>,
+      clientIds: {} as Record<string, boolean>,
+      includeCustomers: false,
+      manual: '',
+    };
   }
   openSend(c: CampaignResponse): void {
     this.selected.set(c);
@@ -637,6 +665,9 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     this.sendEstimateRecipients.set(0);
     this.estimating.set(false);
     this.wallet.init(); // saldo + tarifas para el hint de costo (carga idempotente)
+    this.sendClientTerm.set('');
+    this.sendClientResults.set([]);
+    this.searchSendClients(''); // primera página de clientes para marcar
     this.showSend.set(true);
   }
   toggleList(id: string): void {
@@ -653,17 +684,115 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   /** Reúne la audiencia seleccionada (listas + manual + clientes) — compartido por envío y estimado. */
   private buildAudience() {
     const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
+    // "Todos los clientes" tiene prioridad: si está marcado, la selección específica se ignora.
+    const customerIds = this.sendForm.includeCustomers
+      ? []
+      : Object.keys(this.sendForm.clientIds).filter(id => this.sendForm.clientIds[id]);
     const manual = this.sendForm.manual
       .split(/[\n,;]+/)
       .map(s => s.trim())
       .filter(Boolean)
       .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
-    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers };
+    return { contactListIds, manual, includeCustomers: this.sendForm.includeCustomers, customerIds };
   }
 
-  private hasAudience(a: { contactListIds: string[]; manual: unknown[]; includeCustomers: boolean }): boolean {
-    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers;
+  private hasAudience(a: {
+    contactListIds: string[];
+    manual: unknown[];
+    includeCustomers: boolean;
+    customerIds: string[];
+  }): boolean {
+    return a.contactListIds.length > 0 || a.manual.length > 0 || a.includeCustomers || a.customerIds.length > 0;
   }
+
+  // ---------- Clientes como audiencia ----------
+
+  /** Cambia de sub-pestaña de Audience; al entrar a "clients" carga la lista (idempotente). */
+  setAudienceTab(t: 'lists' | 'contacts' | 'clients'): void {
+    this.audienceTab.set(t);
+    if (t === 'clients' && this.audClients().length === 0) this.loadAudienceClients('');
+  }
+
+  toggleAudClient(id: string): void {
+    this.audClientSel.update(s => ({ ...s, [id]: !s[id] }));
+  }
+
+  isAudClientSelected(id: string): boolean {
+    return !!this.audClientSel()[id];
+  }
+
+  readonly audClientSelCount = computed(() => Object.values(this.audClientSel()).filter(Boolean).length);
+
+  /** Agrega los clientes marcados a la lista elegida (contactos FromCustomer). */
+  addSelectedClientsToList(): void {
+    const listId = this.addToListId();
+    const ids = Object.keys(this.audClientSel()).filter(id => this.audClientSel()[id]);
+    if (!listId) {
+      this.toast.error('Pick a list first.');
+      return;
+    }
+    if (ids.length === 0) {
+      this.toast.error('Select at least one client.');
+      return;
+    }
+    this.addingToList.set(true);
+    this.store.addCustomersToList(listId, ids).subscribe({
+      next: r => {
+        this.addingToList.set(false);
+        this.audClientSel.set({});
+        const parts = [`${r.membersAdded} added to list`];
+        if (r.contactsCreated > 0) parts.push(`${r.contactsCreated} new contact(s)`);
+        if (r.notFound > 0) parts.push(`${r.notFound} not found`);
+        this.toast.success(parts.join(' · '));
+      },
+      error: err => {
+        this.addingToList.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Lista/busca clientes para la vista de la pestaña Audience (solo ver). */
+  loadAudienceClients(term: string): void {
+    this.audClientsTerm.set(term);
+    this.audClientsLoading.set(true);
+    this.customers.search({ term: term || undefined, status: 'Active', page: 1, size: 50 }).subscribe({
+      next: p => {
+        this.audClients.set(p.items);
+        this.audClientsLoading.set(false);
+      },
+      error: () => this.audClientsLoading.set(false),
+    });
+  }
+
+  /** Busca clientes dentro del modal de envío (para marcarlos). */
+  searchSendClients(term: string): void {
+    this.sendClientTerm.set(term);
+    const seq = ++this.sendClientSeq;
+    this.sendClientLoading.set(true);
+    this.customers.search({ term: term || undefined, status: 'Active', page: 1, size: 50 }).subscribe({
+      next: p => {
+        if (seq !== this.sendClientSeq) return;
+        this.sendClientResults.set(p.items);
+        this.sendClientLoading.set(false);
+      },
+      error: () => {
+        if (seq === this.sendClientSeq) this.sendClientLoading.set(false);
+      },
+    });
+  }
+
+  toggleSendClient(id: string): void {
+    this.sendForm.clientIds[id] = !this.sendForm.clientIds[id];
+    this.scheduleEstimate();
+  }
+
+  isSendClientSelected(id: string): boolean {
+    return !!this.sendForm.clientIds[id];
+  }
+
+  readonly selectedSendClientCount = () =>
+    Object.keys(this.sendForm.clientIds).filter(id => this.sendForm.clientIds[id]).length;
 
   /** Recalcula el estimado con un pequeño debounce (se dispara al tocar listas/clientes/manual). */
   scheduleEstimate(): void {
@@ -673,9 +802,19 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
 
   /** preview-audience (conteo real por canal) → cotización en el Wallet (solo Email+SMS se cobran). */
   private estimateNow(): void {
+    this.runEstimate(this.buildAudience());
+  }
+
+  /** Cotiza una audiencia (listas+manual+clientes) vía preview-audience → Wallet. Compartido por el modal
+   *  de envío y el de agendar (solo uno abierto a la vez; comparten las señales sendEstimate*). */
+  private runEstimate(audience: {
+    contactListIds: string[];
+    manual: { email?: string; phoneE164?: string }[];
+    includeCustomers: boolean;
+    customerIds: string[];
+  }): void {
     const c = this.selected();
     if (!c) return;
-    const audience = this.buildAudience();
     if (!this.hasAudience(audience)) {
       this.sendEstimate.set(null);
       this.sendEstimateRecipients.set(0);
@@ -707,18 +846,12 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     if (this.busy() || this.confirmation()) return;
     const c = this.selected();
     if (!c) return;
-    const contactListIds = Object.keys(this.sendForm.listIds).filter(id => this.sendForm.listIds[id]);
-    const manual = this.sendForm.manual
-      .split(/[\n,;]+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(v => (v.includes('@') ? { email: v } : { phoneE164: v }));
-    if (contactListIds.length === 0 && manual.length === 0 && !this.sendForm.includeCustomers) {
+    const audience = this.buildAudience();
+    if (!this.hasAudience(audience)) {
       this.toast.error('Pick at least one audience source.');
       return;
     }
     // Guard anti re-envío accidental: cada Send dispara un envío real a toda la audiencia.
-    const includeCustomers = this.sendForm.includeCustomers;
     this.confirmation.set({
       heading: 'Send campaign',
       message: `Send “${c.name}” now across ${c.channels.join(', ')}? Each recipient gets one message per channel. This cannot be undone.`,
@@ -727,7 +860,7 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       action: () => {
         this.busy.set(true);
         this.sendDeficitMessage.set(null);
-        this.store.sendToAudience(c.id, { contactListIds, manual, includeCustomers }).subscribe({
+        this.store.sendToAudience(c.id, audience).subscribe({
           next: run => {
             this.toast.success(`Run started · ${run.recipientCount} units dispatching.`);
             this.showSend.set(false);
@@ -752,29 +885,159 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
   }
 
   // ---------- schedule ----------
+
+  /** Etiqueta de cadencia para la lista de schedules: "Weekly", "every 30 min", o la fecha one-time. */
+  schedCadence(s: CampaignScheduleResponse): string {
+    if (s.kind !== 'Recurring') return '';
+    if (s.frequency && s.frequency !== 'Custom') return s.frequency;
+    return s.intervalMinutes ? `every ${s.intervalMinutes} min` : 'recurring';
+  }
+
+  /** Etiqueta del fin de un schedule recurrente: "until Mar 1", "N of M fires", o "" si no tiene fin. */
+  schedEndLabel(s: CampaignScheduleResponse): string {
+    if (s.kind !== 'Recurring') return '';
+    if (s.maxOccurrences != null) return `${s.occurrenceCount}/${s.maxOccurrences} fires`;
+    if (s.endsAtUtc) return `until ${new Date(s.endsAtUtc).toLocaleDateString()}`;
+    return '';
+  }
+
   private blankSchedule() {
-    return { recurring: false, runAt: '', intervalMinutes: 1440, listIds: {} as Record<string, boolean>, includeCustomers: false };
+    return {
+      recurring: false,
+      runAt: '',
+      // Recurrencia: frecuencia nombrada (Daily por defecto) o Custom (usa intervalMinutes).
+      frequency: 'Daily' as RecurrenceFrequency,
+      intervalMinutes: 1440,
+      // Fin: 'never' (sin tope), 'date' (hasta una fecha) o 'count' (número de disparos).
+      endsMode: 'never' as 'never' | 'date' | 'count',
+      endsAt: '',
+      maxOccurrences: 10,
+      listIds: {} as Record<string, boolean>,
+      clientIds: {} as Record<string, boolean>,
+      includeCustomers: false,
+    };
   }
   openSchedule(c: CampaignResponse): void {
     this.selected.set(c);
     this.schedForm = this.blankSchedule();
+    this.sendEstimate.set(null);
+    this.sendEstimateRecipients.set(0);
+    this.estimating.set(false);
+    this.wallet.init(); // saldo + tarifas para el estimado por disparo (carga idempotente)
+    this.sendClientTerm.set('');
+    this.sendClientResults.set([]);
+    this.searchSendClients(''); // primera página de clientes para marcar (buscador compartido con el envío)
     this.showSchedule.set(true);
   }
+
+  toggleSchedClient(id: string): void {
+    this.schedForm.clientIds[id] = !this.schedForm.clientIds[id];
+    this.scheduleSchedEstimate();
+  }
+
+  // Estimado de costo del modal Schedule (reusa las señales sendEstimate*; solo un modal abierto a la vez).
+  private schedEstimateTimer: ReturnType<typeof setTimeout> | null = null;
+  scheduleSchedEstimate(): void {
+    if (this.schedEstimateTimer) clearTimeout(this.schedEstimateTimer);
+    this.schedEstimateTimer = setTimeout(() => this.runEstimate(this.buildSchedAudience()), 450);
+  }
+  private buildSchedAudience() {
+    const contactListIds = Object.keys(this.schedForm.listIds).filter(id => this.schedForm.listIds[id]);
+    const customerIds = this.schedForm.includeCustomers
+      ? []
+      : Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]);
+    return { contactListIds, manual: [], includeCustomers: this.schedForm.includeCustomers, customerIds };
+  }
+  isSchedClientSelected(id: string): boolean {
+    return !!this.schedForm.clientIds[id];
+  }
+  readonly selectedSchedClientCount = () =>
+    Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]).length;
+
+  /** Avanza un instante un paso según la frecuencia (Monthly por calendario, igual que el backend). */
+  private advanceByFrequency(d: Date, freq: RecurrenceFrequency, intervalMinutes: number): Date {
+    const n = new Date(d);
+    switch (freq) {
+      case 'Hourly':
+        n.setHours(n.getHours() + 1);
+        break;
+      case 'Daily':
+        n.setDate(n.getDate() + 1);
+        break;
+      case 'Weekly':
+        n.setDate(n.getDate() + 7);
+        break;
+      case 'Monthly':
+        n.setMonth(n.getMonth() + 1);
+        break;
+      default: // Custom
+        n.setMinutes(n.getMinutes() + Math.max(1, intervalMinutes));
+    }
+    return n;
+  }
+
+  /**
+   * Cuántos disparos tendrá el schedule sobre la ventana elegida.
+   * - OneTime o no recurrente → 1.
+   * - Fin por cantidad → ese número.
+   * - Fin por fecha → cuenta los slots desde runAt hasta endsAt (cap defensivo 1000).
+   * - Sin fin → null (indefinido).
+   */
+  plannedScheduleOccurrences(): number | null {
+    const f = this.schedForm;
+    if (!f.recurring) return f.runAt ? 1 : null;
+    if (f.endsMode === 'count') return f.maxOccurrences > 0 ? f.maxOccurrences : null;
+    if (f.endsMode === 'date') {
+      if (!f.runAt || !f.endsAt) return null;
+      const end = new Date(f.endsAt).getTime();
+      let cur = new Date(f.runAt);
+      if (isNaN(cur.getTime()) || isNaN(end) || end <= cur.getTime()) return null;
+      let count = 0;
+      while (cur.getTime() <= end && count < 1000) {
+        count++;
+        cur = this.advanceByFrequency(cur, f.frequency, f.intervalMinutes);
+      }
+      return count;
+    }
+    return null; // 'never'
+  }
+
+  /** Costo total estimado (micros) = costo por disparo × ocurrencias planificadas (null si indefinido). */
+  scheduleTotalEstimateMicros(): number | null {
+    const per = this.sendEstimate();
+    const occ = this.plannedScheduleOccurrences();
+    if (!per || occ == null) return null;
+    return per.costMicros * occ;
+  }
+
   submitSchedule(): void {
     const c = this.selected();
     if (!c || !this.schedForm.runAt) {
       this.toast.error('Pick a first-run date/time.');
       return;
     }
+    if (this.schedForm.recurring && this.schedForm.endsMode === 'date' && !this.schedForm.endsAt) {
+      this.toast.error('Pick an end date, or switch the end mode.');
+      return;
+    }
     const contactListIds = Object.keys(this.schedForm.listIds).filter(id => this.schedForm.listIds[id]);
+    const rec = this.schedForm.recurring;
     this.busy.set(true);
     this.store
       .schedule(c.id, {
-        recurring: this.schedForm.recurring,
+        recurring: rec,
         runAtUtc: new Date(this.schedForm.runAt).toISOString(),
-        intervalMinutes: this.schedForm.recurring ? this.schedForm.intervalMinutes : null,
+        frequency: rec ? this.schedForm.frequency : undefined,
+        intervalMinutes: rec && this.schedForm.frequency === 'Custom' ? this.schedForm.intervalMinutes : null,
+        endsAtUtc:
+          rec && this.schedForm.endsMode === 'date' ? new Date(this.schedForm.endsAt).toISOString() : null,
+        maxOccurrences: rec && this.schedForm.endsMode === 'count' ? this.schedForm.maxOccurrences : null,
         contactListIds,
         includeCustomers: this.schedForm.includeCustomers,
+        // "Todos los clientes" tiene prioridad sobre la selección específica.
+        customerIds: this.schedForm.includeCustomers
+          ? []
+          : Object.keys(this.schedForm.clientIds).filter(id => this.schedForm.clientIds[id]),
       })
       .subscribe({
         next: () => {
@@ -790,6 +1053,18 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
       });
   }
   readonly pendingScheduleId = signal<string | null>(null);
+
+  /** Cancelar un schedule es definitivo (no se puede reanudar) → pide confirmación primero. */
+  confirmCancelSchedule(scheduleId: string): void {
+    if (this.pendingScheduleId()) return;
+    this.confirmation.set({
+      heading: 'Cancel schedule',
+      message: 'This stops the schedule for good — it will not fire again and cannot be resumed. Continue?',
+      confirmLabel: 'Cancel schedule',
+      tone: 'danger',
+      action: () => this.scheduleAction(scheduleId, 'cancel'),
+    });
+  }
 
   scheduleAction(scheduleId: string, action: 'pause' | 'resume' | 'cancel'): void {
     const c = this.selected();

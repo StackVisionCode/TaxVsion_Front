@@ -2,8 +2,12 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { CountUpDirective } from '../../directives/count-up.directive';
 
-/** Tintes de la paleta armónica (mismos que los tiles del dashboard): sky, arena, salvia. */
-export type StatCardTone = 'sky' | 'sand' | 'sage' | 'white';
+/**
+ * Tintes de la paleta armónica (mismos que los tiles del dashboard): sky, arena, salvia, y `navy`
+ * como tile focal sólido (texto en blanco). Los tintes necesitan ir dentro de una tarjeta blanca:
+ * sand-100 directo sobre el canvas crema casi no se distingue.
+ */
+export type StatCardTone = 'sky' | 'sand' | 'sage' | 'navy' | 'white';
 
 export interface StatCardItem {
   label: string;
@@ -23,6 +27,7 @@ const TONE_CLASSES: Record<StatCardTone, string> = {
   sky: 'bg-orange-100',
   sand: 'bg-sand-100',
   sage: 'bg-sage-100',
+  navy: 'bg-brand-bold',
   white: 'bg-white ring-1 ring-brand-line',
 };
 
@@ -47,20 +52,23 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
   template: `
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
       @for (item of items; track item.label; let i = $index) {
+        @let dark = isDark(item);
         <div class="rounded-[24px] p-5" [ngClass]="toneClass(item, i)">
           <div class="flex items-start justify-between gap-2">
-            <p class="text-sm text-gray-600">{{ item.label }}</p>
+            <p class="text-sm" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">{{ item.label }}</p>
             @if (item.icon) {
-              <ion-icon [name]="item.icon" class="shrink-0 text-lg text-gray-500" aria-hidden="true"></ion-icon>
+              <ion-icon [name]="item.icon" class="shrink-0 text-lg" [ngClass]="dark ? 'text-white/75' : 'text-gray-500'"
+                aria-hidden="true"></ion-icon>
             }
           </div>
           @if (!loading && item.countUp && isNumber(item.value)) {
-            <p class="mt-2 inline-block text-3xl font-bold text-gray-900" [appCountUp]="$any(item.value)">0</p>
+            <p class="mt-2 inline-block text-3xl font-bold" [ngClass]="dark ? 'text-white' : 'text-gray-900'"
+              [appCountUp]="$any(item.value)">0</p>
           } @else {
-            <p class="mt-2 text-3xl font-bold text-gray-900">{{ display(item) }}</p>
+            <p class="mt-2 text-3xl font-bold" [ngClass]="dark ? 'text-white' : 'text-gray-900'">{{ display(item) }}</p>
           }
           @if (item.hint) {
-            <p class="mt-1 text-xs text-gray-600">{{ item.hint }}</p>
+            <p class="mt-1 text-xs" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">{{ item.hint }}</p>
           }
         </div>
       }
@@ -75,6 +83,11 @@ export class StatCardsComponent {
   toneClass(item: StatCardItem, index: number): string {
     const tone = item.tone ?? DEFAULT_TONE_CYCLE[index % DEFAULT_TONE_CYCLE.length];
     return TONE_CLASSES[tone];
+  }
+
+  /** El tono navy no entra en la rotación por defecto: solo aplica cuando se pide explícito. */
+  isDark(item: StatCardItem): boolean {
+    return item.tone === 'navy';
   }
 
   isNumber(value: unknown): value is number {

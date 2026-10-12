@@ -5,6 +5,7 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import {
   ApiCampaignStatus,
   ApiChannel,
+  AddCustomersToListResponse,
   AudiencePreviewResponse,
   CampaignResponse,
   CampaignRunResponse,
@@ -194,6 +195,11 @@ export class CampaignsService {
 
   addListMember(listId: string, contactId: string): Observable<ContactListResponse> {
     return this.http.post<ContactListResponse>(this.url(`/contact-lists/${listId}/members`), { contactId });
+  }
+
+  /** Agrega clientes seleccionados (ids del directorio de Customer) como miembros de la lista. */
+  addCustomersToList(listId: string, customerIds: string[]): Observable<AddCustomersToListResponse> {
+    return this.http.post<AddCustomersToListResponse>(this.url(`/contact-lists/${listId}/customers`), { customerIds });
   }
 
   listMembers(listId: string): Observable<ContactResponse[]> {
