@@ -29,7 +29,7 @@
             <ion-icon name="refresh-outline" class="text-base"
               [ngClass]="store.invoicesLoading() ? 'animate-spin' : ''"></ion-icon>
           </button>
-          <button type="button" (click)="openForm()"
+          <button *ngIf="can.canManageInvoices()" type="button" (click)="openForm()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
             <ion-icon name="add-outline" class="text-base"></ion-icon>
             New invoice

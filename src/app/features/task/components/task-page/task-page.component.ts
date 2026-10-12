@@ -19,8 +19,10 @@ import { PaginationComponent } from '@shared/ui/pagination/pagination.component'
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
+import { consumeQueryFlag } from '@shared/utils/query-flag.util';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
 
@@ -68,6 +70,8 @@ export class TaskPageComponent implements OnInit {
 
   readonly store = inject(TaskStore);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** Cliente del perfil cuando la página va embebida (null en /task). */
   readonly embeddedCustomer = injectEmbeddedCustomer();
@@ -135,6 +139,11 @@ export class TaskPageComponent implements OnInit {
   ngOnInit(): void {
     this.viewMode.set(this.readViewMode());
     this.store.init();
+
+    // `?new=1` (acceso rápido del dashboard): abre el alta directamente. Solo en /task.
+    if (!this.embedded() && consumeQueryFlag(this.route, this.router, 'new') && this.canWrite()) {
+      this.openCreatePanel();
+    }
   }
 
   /** La búsqueda ya viene filtrada del servidor; acá solo se aplica el filtro de prioridad. */

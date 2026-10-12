@@ -1,0 +1,37 @@
+/* Los días en 0 son un tope rayado bajo (no una barra): un día sin cierres no parece un día con pocos. */
+.trend-bar {
+  min-height: 0.375rem;
+  transition: height 500ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Las barras crecen desde 0 al aparecer (solo altura, sin transform: R8). */
+@starting-style {
+  .trend-bar {
+    height: 0;
+  }
+}
+
+.trend-bar--light {
+  background-color: rgb(var(--color-orange-500-rgb, 103 186 244));
+}
+
+.trend-bar--vivid {
+  background-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
+}
+
+/* Rayas diagonales navy sobre blanco, con el borde fino cálido de las tarjetas (brand.line). */
+.trend-bar--striped {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    55deg,
+    rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.35) 0 4px,
+    transparent 4px 9px
+  );
+  border: 1px solid #e9e2d4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend-bar {
+    transition: none;
+  }
+}

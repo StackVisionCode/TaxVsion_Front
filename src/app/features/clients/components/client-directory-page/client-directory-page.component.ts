@@ -13,6 +13,7 @@ import { SearchInputComponent } from '@shared/ui/search-input/search-input.compo
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { toApiError } from '@core/models/api-error.model';
+import { consumeQueryFlag } from '@shared/utils/query-flag.util';
 import { ClientsStore, LIST_PAGE_SIZES } from '../../data-access/clients.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import {
@@ -145,6 +146,11 @@ export class ClientDirectoryPageComponent {
 
     this.searchInput.set(term);
     this.store.initList({ term, status, page, size });
+
+    // `?new=1` (acceso rápido del dashboard): abre el alta directamente.
+    if (consumeQueryFlag(this.route, this.router, 'new') && this.canManage()) {
+      this.openCreatePanel();
+    }
   }
 
   private parsePositiveInt(raw: string | null): number | undefined {

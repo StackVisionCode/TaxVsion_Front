@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DashboardLayoutStore } from '../../data-access/dashboard-layout.store';
+import { DashboardQuickActionsComponent } from '../dashboard-quick-actions/dashboard-quick-actions.component';
 
 /**
  * Barra de herramientas sobre el dashboard.
@@ -14,11 +15,12 @@ import { DashboardLayoutStore } from '../../data-access/dashboard-layout.store';
  * Ninguno de los servicios que alimentan hoy los widgets acepta filtros por
  * rango de fechas ni por equipo/empresa, así que esos controles se retiran en
  * vez de fingir. Queda lo que sí es real: el modo edición del layout, que
- * reordena widgets de verdad y persiste el orden.
+ * reordena widgets de verdad y persiste el orden, y los accesos rápidos de
+ * creación (fuera del modo edición).
  */
 @Component({
   selector: 'app-dashboard-filters',
-  imports: [CommonModule],
+  imports: [CommonModule, DashboardQuickActionsComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-filters.component.html',
 })

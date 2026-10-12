@@ -1,21 +1,41 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnInit, computed, inject } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, DestroyRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
+import { CountUpDirective, formatCount } from '@shared/directives/count-up.directive';
+import { SparklineComponent } from '@shared/ui/sparkline/sparkline.component';
 import { DashboardInvoicesStore, formatCents } from '../../data-access/dashboard-invoices.store';
 import { TaskStore } from '../../../task/data-access/task.store';
+import { MeetingsService } from '../../../meetings/data-access/meetings.service';
+import { MeetingStatsResponse } from '../../../meetings/data-access/meeting.model';
+import { NotificationsStore } from '../../../notifications/data-access/notifications.store';
+import {
+  SummaryInput,
+  greetingFor,
+  isClearDay,
+  overdueTasks,
+  tasksDueOn,
+  todaySummaryParts,
+} from '../../utils/dashboard-insights.util';
 
 interface HeroStat {
   title: string;
   subtitle: string;
-  /** Cifra ya formateada, o "—" cuando todavía no se sabe / no está disponible. */
-  value: string;
+  /** Cifra real a animar, o null cuando todavía no se sabe / no está disponible (se pinta "—"). */
+  amount: number | null;
+  format: (value: number) => string;
   /** Explicación de por qué no hay cifra. null cuando el dato es real. */
   note: string | null;
   bg: string;
   /** Tile focal sólido (navy): invierte el texto a blanco y la flecha a arena. */
   dark: boolean;
+  /** Estado "todo en orden" (p. ej. 0 vencidas): tile salvia con check. */
+  positive: boolean;
+  /** % vs mes anterior. Solo donde hay historial real (Revenue); null = no se muestra. */
+  delta: number | null;
+  /** Serie para la mini-gráfica. null = sin gráfica. */
+  series: number[] | null;
   /** Página real a la que lleva la flecha. */
   link: string;
   linkLabel: string;
@@ -25,32 +45,42 @@ interface HeroStat {
 
 const TASKS: AccessRequirement = { module: 'planner', anyOf: ['tasks.read'] };
 const INVOICING: AccessRequirement = { module: null, anyOf: ['invoicing.view'] };
+const MEETINGS: AccessRequirement = {
+  module: 'meetings',
+  anyOf: ['communication.meeting.create', 'communication.meeting.join'],
+};
 
-/** Marcador de "sin dato" — nunca un 0 ni una cifra de relleno. */
-const NO_VALUE = '—';
+const CLOCK_TICK_MS = 60_000;
 
 /**
- * Zona hero del dashboard: saludo + 3 stat cards.
+ * Zona hero del dashboard: saludo según la hora + fecha + resumen del día enlazado, y 3 stat cards.
  *
- * Antes las tres cifras eran literales ('128' clientes, '14' facturas
- * pendientes, '$42,500' de ingresos del mes): en producción se leían como los
- * números reales de la oficina.
- *
- * Ahora las tres salen del backend:
- *  - Overdue tasks   → tareas del {@link TaskStore} con vencimiento pasado.
+ * Todo sale del backend y nunca se rellena con un número inventado:
+ *  - Overdue tasks   → tareas del {@link TaskStore} con vencimiento ANTES de hoy (día local).
  *  - Outstanding     → `GET /billing/invoices`, facturas emitidas con saldo.
- *  - Revenue         → suma de lo cobrado en el mes en curso.
+ *  - Revenue         → lo cobrado en el mes en curso, con % vs el mes anterior y la serie de 6 meses.
+ *  - Resumen         → tareas que vencen hoy, `GET /communication/meetings/stats` y no leídas.
  *
- * Mientras cargan, o si el backend responde error (típicamente falta de
- * permiso `customers.view` / billing), la tarjeta muestra "—" con el motivo,
- * nunca un número inventado. Las flechas ahora llevan a la página real
- * correspondiente en vez de ser botones muertos.
+ * Mientras cargan, o si el backend responde error (típicamente falta de permiso), la tarjeta muestra
+ * "—" con el motivo. Outstanding y Overdue no llevan % porque no hay historial con qué compararlos.
  */
 @Component({
   selector: 'app-dashboard-hero',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, CountUpDirective, SparklineComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-hero.component.html',
+  // La pastilla del % aparece con un fundido corto (solo opacidad, sin transform: R8).
+  styles: `
+    .delta-pill {
+      transition: opacity 400ms ease 300ms;
+      @starting-style {
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .delta-pill { transition: none; }
+    }
+  `,
 })
 export class DashboardHeroComponent implements OnInit {
   @Input() userName = '';
@@ -58,6 +88,43 @@ export class DashboardHeroComponent implements OnInit {
   private readonly invoices = inject(DashboardInvoicesStore);
   private readonly tasks = inject(TaskStore);
   private readonly access = inject(AccessStore);
+  private readonly meetingsService = inject(MeetingsService);
+  private readonly notifications = inject(NotificationsStore);
+  private readonly destroyRef = inject(DestroyRef);
+
+  private readonly now = signal(new Date());
+  private readonly meetingStats = signal<MeetingStatsResponse | null>(null);
+
+  readonly greeting = computed(() => greetingFor(this.now().getHours()));
+  readonly greetingIcon = computed(() => {
+    const hour = this.now().getHours();
+    if (hour >= 5 && hour < 12) {
+      return 'sunny-outline';
+    }
+    return hour >= 12 && hour < 18 ? 'partly-sunny-outline' : 'moon-outline';
+  });
+  readonly dateLabel = computed(() =>
+    this.now().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+  );
+
+  /** Las tareas son fiables solo cargadas, sin error y sin filtros de /task (el store es compartido). */
+  private readonly tasksReady = computed(
+    () =>
+      this.access.canUse(TASKS) && !this.tasks.loading() && !this.tasks.error() && !this.tasks.isSearching(),
+  );
+
+  private readonly summaryInput = computed<SummaryInput>(() => {
+    const stats = this.meetingStats();
+    const unread = this.notifications.unreadCount();
+    return {
+      tasksDueToday: this.tasksReady() ? tasksDueOn(this.tasks.tasks(), this.now()).length : null,
+      meetingsToday: stats?.today ?? null,
+      liveNow: stats?.liveNow ?? null,
+      unread: unread > 0 ? unread : null,
+    };
+  });
+  readonly summary = computed(() => todaySummaryParts(this.summaryInput()));
+  readonly clearDay = computed(() => isClearDay(this.summaryInput()));
 
   /**
    * El hero no se esconde entero aunque el usuario no tenga ninguna de las tres cifras: lleva el
@@ -66,41 +133,61 @@ export class DashboardHeroComponent implements OnInit {
    */
   readonly stats = computed<HeroStat[]>(() => this.allStats().filter(stat => this.access.canUse(stat.needs)));
 
-  private readonly allStats = computed<HeroStat[]>(() => [
-    {
-      title: 'Overdue Tasks',
-      subtitle: 'Past their due date',
-      value: this.overdueValue(),
-      note: this.noteFor(this.tasks.loading(), this.tasks.error()),
-      bg: 'bg-orange-100',
-      dark: false,
-      link: '/task',
-      linkLabel: 'Go to tasks',
-      needs: TASKS,
-    },
-    {
-      title: 'Outstanding Invoices',
-      subtitle: 'Issued and still unpaid',
-      value: this.outstandingValue(),
-      note: this.noteFor(this.invoices.loading(), this.invoices.error()),
-      bg: 'bg-sand-100',
-      dark: false,
-      link: '/billing',
-      linkLabel: 'Go to billing',
-      needs: INVOICING,
-    },
-    {
-      title: 'Revenue This Month',
-      subtitle: 'Collected so far',
-      value: this.revenueValue(),
-      note: this.noteFor(this.invoices.loading(), this.invoices.error()),
-      bg: 'bg-brand-bold',
-      dark: true,
-      link: '/billing',
-      linkLabel: 'Go to billing',
-      needs: INVOICING,
-    },
-  ]);
+  readonly countFormat = formatCount;
+  readonly revenueFormat = (cents: number): string => formatCents(cents, this.invoices.currency());
+
+  private readonly allStats = computed<HeroStat[]>(() => {
+    const overdue = this.overdueAmount();
+    const invoicesReady = !this.invoices.loading() && !this.invoices.error();
+    const allCaughtUp = overdue === 0;
+    return [
+      {
+        title: 'Overdue Tasks',
+        subtitle: allCaughtUp ? 'All caught up' : 'Past their due date',
+        amount: overdue,
+        format: this.countFormat,
+        note: this.taskNote(),
+        bg: allCaughtUp ? 'bg-sage-100' : 'bg-orange-100',
+        dark: false,
+        positive: allCaughtUp,
+        delta: null,
+        series: null,
+        link: '/task',
+        linkLabel: 'Go to tasks',
+        needs: TASKS,
+      },
+      {
+        title: 'Outstanding Invoices',
+        subtitle: 'Issued and still unpaid',
+        amount: invoicesReady ? this.invoices.openInvoices().length : null,
+        format: this.countFormat,
+        note: this.noteFor(this.invoices.loading(), this.invoices.error()),
+        bg: 'bg-sand-100',
+        dark: false,
+        positive: false,
+        delta: null,
+        series: null,
+        link: '/billing',
+        linkLabel: 'Go to billing',
+        needs: INVOICING,
+      },
+      {
+        title: 'Revenue This Month',
+        subtitle: 'Collected so far',
+        amount: invoicesReady ? this.invoices.collectedThisMonthCents() : null,
+        format: this.revenueFormat,
+        note: this.noteFor(this.invoices.loading(), this.invoices.error()),
+        bg: 'bg-brand-bold',
+        dark: true,
+        positive: false,
+        delta: invoicesReady ? this.invoices.monthOverMonthPercent() : null,
+        series: invoicesReady ? this.invoices.monthlyRevenue().map(bucket => bucket.paidCents) : null,
+        link: '/billing',
+        linkLabel: 'Go to billing',
+        needs: INVOICING,
+      },
+    ];
+  });
 
   ngOnInit(): void {
     // Solo lo que se va a mostrar. Los stores son idempotentes: si otro widget ya los cargó, no
@@ -111,44 +198,31 @@ export class DashboardHeroComponent implements OnInit {
     if (this.access.canUse(INVOICING)) {
       this.invoices.load();
     }
+    if (this.access.canUse(MEETINGS)) {
+      this.meetingsService.stats().subscribe({
+        next: stats => this.meetingStats.set(stats),
+        error: () => undefined,
+      });
+    }
+
+    // El saludo y "hoy" cambian solos si la pestaña queda abierta (mañana → tarde, medianoche).
+    const timer = setInterval(() => this.now.set(new Date()), CLOCK_TICK_MS);
+    this.destroyRef.onDestroy(() => clearInterval(timer));
   }
 
-  /**
-   * Vencidas = con fecha de vencimiento ANTERIOR a hoy y todavía abiertas.
-   *
-   * `dueDate` ya viene como 'YYYY-MM-DD' en UTC, así que se compara como texto
-   * contra el día UTC de hoy: es exacto y evita que el huso del navegador
-   * adelante o atrase el corte un día. Lo que vence hoy no cuenta como vencido.
-   */
-  private overdueValue(): string {
-    if (this.tasks.loading() || this.tasks.error()) {
-      return NO_VALUE;
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    const overdue = this.tasks
-      .tasks()
-      .filter(
-        task =>
-          !!task.dueDate &&
-          task.dueDate < today &&
-          task.apiStatus !== 'Completed' &&
-          task.apiStatus !== 'Cancelled',
-      );
-    return overdue.length.toLocaleString('en-US');
+  formatDelta(delta: number): string {
+    return `${delta > 0 ? '+' : ''}${delta}% vs last month`;
   }
 
-  private outstandingValue(): string {
-    if (this.invoices.loading() || this.invoices.error()) {
-      return NO_VALUE;
-    }
-    return this.invoices.openInvoices().length.toLocaleString('en-US');
+  private overdueAmount(): number | null {
+    return this.tasksReady() ? overdueTasks(this.tasks.tasks(), this.now()).length : null;
   }
 
-  private revenueValue(): string {
-    if (this.invoices.loading() || this.invoices.error()) {
-      return NO_VALUE;
+  private taskNote(): string | null {
+    if (this.tasks.isSearching()) {
+      return 'Task filters are active on the Tasks page';
     }
-    return formatCents(this.invoices.collectedThisMonthCents(), this.invoices.currency());
+    return this.noteFor(this.tasks.loading(), this.tasks.error());
   }
 
   /** Por qué la tarjeta no tiene cifra: cargando, o el error tal cual del backend. */

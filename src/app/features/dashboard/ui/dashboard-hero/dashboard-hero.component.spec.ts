@@ -1,10 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { AccessStore } from '@core/access/access.store';
 import { AccessRequirement } from '@core/access/features';
 import { DashboardInvoicesStore } from '../../data-access/dashboard-invoices.store';
 import { TaskStore } from '../../../task/data-access/task.store';
+import { MeetingsService } from '../../../meetings/data-access/meetings.service';
+import { NotificationsStore } from '../../../notifications/data-access/notifications.store';
+import type { TaskItem } from '../../../task/data-access/task.model';
 import { DashboardHeroComponent } from './dashboard-hero.component';
 
 /**
@@ -15,7 +19,11 @@ import { DashboardHeroComponent } from './dashboard-hero.component';
 describe('DashboardHeroComponent', () => {
   let loaded: string[];
 
-  function create(options: { permissions?: readonly string[]; modules?: readonly string[] | null }) {
+  function create(options: {
+    permissions?: readonly string[];
+    modules?: readonly string[] | null;
+    tasks?: Partial<TaskItem>[];
+  }) {
     loaded = [];
     const permissions = new Set(options.permissions ?? []);
     const modules = options.modules === undefined ? null : options.modules;
@@ -41,7 +49,8 @@ describe('DashboardHeroComponent', () => {
             init: () => loaded.push('tasks'),
             loading: signal(false),
             error: signal(null),
-            tasks: signal([]),
+            isSearching: signal(false),
+            tasks: signal(options.tasks ?? []),
           },
         },
         {
@@ -52,9 +61,21 @@ describe('DashboardHeroComponent', () => {
             error: signal(null),
             openInvoices: signal([]),
             collectedThisMonthCents: signal(0),
+            monthOverMonthPercent: signal(12.5),
+            monthlyRevenue: signal([{ paidCents: 100 }, { paidCents: 300 }]),
             currency: signal('USD'),
           },
         },
+        {
+          provide: MeetingsService,
+          useValue: {
+            stats: () => {
+              loaded.push('meeting-stats');
+              return of({ today: 2, thisWeek: 5, liveNow: 0, transcriptsAvailable: 0 });
+            },
+          },
+        },
+        { provide: NotificationsStore, useValue: { unreadCount: signal(0) } },
       ],
     });
     const fixture = TestBed.createComponent(DashboardHeroComponent);
@@ -91,5 +112,33 @@ describe('DashboardHeroComponent', () => {
     create({ permissions: ['tasks.read'], modules: ['planner'] });
 
     expect(loaded).toEqual(['tasks']);
+  });
+
+  it('con acceso a reuniones pide los stats y los suma al resumen del día', () => {
+    const fixture = create({
+      permissions: ['tasks.read', 'communication.meeting.join'],
+      modules: ['planner', 'meetings'],
+    });
+
+    expect(loaded).toContain('meeting-stats');
+    expect(fixture.componentInstance.summary().map(p => p.text)).toEqual(['2 meetings today']);
+  });
+
+  it('con 0 vencidas el tile de tareas pasa a "All caught up"', () => {
+    const fixture = create({ permissions: ['tasks.read'], modules: ['planner'], tasks: [] });
+    const overdue = fixture.componentInstance.stats()[0];
+
+    expect(overdue.amount).toBe(0);
+    expect(overdue.positive).toBe(true);
+    expect(overdue.subtitle).toBe('All caught up');
+  });
+
+  it('Revenue lleva el % vs mes anterior y la serie; Outstanding no inventa delta', () => {
+    const fixture = create({ permissions: ['invoicing.view'], modules: [] });
+    const [outstanding, revenue] = fixture.componentInstance.stats();
+
+    expect(outstanding.delta).toBeNull();
+    expect(revenue.delta).toBe(12.5);
+    expect(revenue.series).toEqual([100, 300]);
   });
 });

@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { formatCount } from './count-up.directive';
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { CountUpDirective, formatCount } from './count-up.directive';
+
+@Component({
+  imports: [CountUpDirective],
+  template: `<span [appCountUp]="value" [countUpDuration]="0" [countUpFormat]="format"></span>`,
+})
+class HostComponent {
+  value = 1234;
+  format: ((v: number) => string) | null = null;
+}
+
+function render(value: number, format: ((v: number) => string) | null): string {
+  const fixture = TestBed.createComponent(HostComponent);
+  fixture.componentInstance.value = value;
+  fixture.componentInstance.format = format;
+  fixture.detectChanges();
+  return (fixture.nativeElement as HTMLElement).querySelector('span')!.textContent ?? '';
+}
+
+describe('CountUpDirective', () => {
+  it('sin formato usa formatCount', () => {
+    expect(render(1234, null)).toBe('1,234');
+  });
+
+  it('con countUpFormat formatea el valor redondeado (p. ej. dinero en centavos)', () => {
+    const cents = (c: number) => `$${(c / 100).toFixed(2)}`;
+    expect(render(123456, cents)).toBe('$1234.56');
+  });
+});
 
 describe('formatCount', () => {
   it('renders small integers as-is', () => {

@@ -1,7 +1,8 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { consumeQueryFlag } from '@shared/utils/query-flag.util';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
@@ -90,6 +91,8 @@ export class BillingPageComponent implements OnInit {
 
   readonly store = inject(BillingStore);
   private readonly directory = inject(CustomerDirectoryStore);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** Cliente fijo cuando la página vive en el perfil del cliente (`null` en /billing). */
   readonly embedded = this.store.embeddedCustomer;
@@ -135,6 +138,11 @@ export class BillingPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.init();
     this.resolveLockedCustomer();
+
+    // `?new=1` (acceso rápido del dashboard): abre el alta directamente. Solo en /billing.
+    if (!this.embedded() && consumeQueryFlag(this.route, this.router, 'new') && this.can.canManageInvoices()) {
+      this.openForm();
+    }
   }
 
   /** Embebido: resuelve el `CustomerSummary` del cliente fijo (cacheado en el directorio). */

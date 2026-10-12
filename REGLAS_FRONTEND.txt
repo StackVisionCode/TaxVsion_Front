@@ -69,7 +69,11 @@ UI  (src/app/shared/ui)
                          neutral|muted|brand". La feature solo define su mapa
                          estado -> tono.
   app-stat-cards ....... fila de KPIs; [items]="{label, value, tone?, hint?,
-                         icon?, countUp?}[]".
+                         icon?, countUp?}[]". tone: sky|sand|sage|navy|white
+                         (los tintes van DENTRO de una tarjeta blanca).
+  app-sparkline ........ mini-gráfica de tendencia (SVG, sin librería);
+                         [values]="number[]" [tone]="sky|sand|sage|navy|white".
+                         Darle alto con una clase (class="h-8").
   app-search-input ..... buscador con icono, botón de borrar y [debounceMs].
   app-filter-chips ..... chips de filtro con conteo opcional.
   app-segmented ........ selector tipo pastilla (A | B | C).
@@ -96,7 +100,8 @@ Directivas  (src/app/shared/directives)
                          (appClickOutside)="close()">. OJO: como atributo
                          plano, NO [appClickOutside]. También cierra con Escape.
   appFileDrop .......... arrastrar y soltar archivos sobre cualquier elemento.
-  appCountUp ........... animación de números.
+  appCountUp ........... animación de números. [countUpFormat]="fn" para
+                         dinero u otros formatos (referencia estable).
   appHasPermission ..... mostrar/ocultar por permiso (no cambiar la lógica de
                          permisos sin acordarlo con el equipo).
 
@@ -113,6 +118,8 @@ Utils  (src/app/shared/utils)
                     parsear SIEMPRE con esto.
   overlay.util .... focus trap / bloqueo de scroll (para overlays nuevos)
   reduced-motion.util
+  query-flag.util . consumeQueryFlag(route, router, 'new'): lee ?new=1 una vez y
+                    lo quita de la URL (deep links "crear" desde el dashboard).
 
 Servicios  (src/app/shared/services y src/app/core)
   ClipboardService.copy(text): Promise<boolean>  (devuelve si copió de verdad)

@@ -19,6 +19,14 @@ export function parseScheduleMeetingDeepLink(params: ParamMap): ScheduleMeetingD
   return { customerId, customerName: params.get('customerName')?.trim() || null };
 }
 
+/**
+ * `/meetings?schedule=1` sin cliente (acceso rápido del dashboard): abrir el panel de agendar vacío,
+ * donde el usuario elige a quién invitar.
+ */
+export function wantsBlankSchedule(params: ParamMap): boolean {
+  return params.get('schedule') === '1' && !params.get('customerId')?.trim();
+}
+
 /** True si hay algo del deep link en la URL (se limpia aunque no sea válido). */
 export function hasScheduleMeetingParams(params: ParamMap): boolean {
   return params.has('schedule') || params.has('customerId') || params.has('customerName');

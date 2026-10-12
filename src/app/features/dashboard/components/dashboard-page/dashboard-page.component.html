@@ -8,14 +8,15 @@
     (cdkDropListSorted)="onSorted()">
 
     @for (widget of layout.widgets(); track widget.id) {
-      <div class="widget-cell relative" [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2 }"
+      <div class="widget-cell relative"
+        [ngClass]="{ 'lg:col-span-2': widget.colSpan === 2, 'lg:col-span-3': widget.colSpan === 3 }"
         [attr.data-widget-id]="widget.id" cdkDrag [cdkDragDisabled]="!layout.editMode()"
         [cdkDragStartDelay]="{ touch: 150, mouse: 0 }"
         (pointerdown)="primeDrag($event, widget.colSpan)" (cdkDragStarted)="onDragStarted()">
         <!-- Placeholder mientras se arrastra: hueco del MISMO tamaño que el widget agarrado (ancho por
              columnas y alto real), en el color de marca, para que la grilla no salte al levantarlo -->
         <div *cdkDragPlaceholder class="drop-slot rounded-[28px] border-2 border-dashed"
-          [ngClass]="{ 'lg:col-span-2': dragSize()?.colSpan === 2 }"
+          [ngClass]="{ 'lg:col-span-2': dragSize()?.colSpan === 2, 'lg:col-span-3': dragSize()?.colSpan === 3 }"
           [style.height.px]="dragSize()?.height"></div>
 
         <!-- Handle visual en modo edición -->
@@ -28,7 +29,7 @@
 
         <!--
           El wrapper con cdkDrag queda FUERA de los @defer a propósito: la lista de drop del
-          CDK sigue viendo siempre las 13 celdas, así que el modo edición funciona igual
+          CDK sigue viendo siempre todas las celdas, así que el modo edición funciona igual
           aunque un widget todavía no se haya renderizado (arrastra su placeholder).
 
           Hero y side-stack van sin diferir: son lo primero que se ve (el LCP de la página),
@@ -42,6 +43,22 @@
             <app-dashboard-hero [userName]="userName()"></app-dashboard-hero>
           }
 
+          @case ('today') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-today class="block h-full"></app-dashboard-today>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="22rem" [rows]="5" />
+            }
+          }
+
+          @case ('needs-attention') {
+            @defer (on viewport; prefetch on idle) {
+              <app-dashboard-needs-attention></app-dashboard-needs-attention>
+            } @placeholder (minimum 200ms) {
+              <app-skeleton variant="card" minHeight="8rem" [rows]="2" />
+            }
+          }
+
           @case ('side-stack') {
             <div class="flex flex-col gap-4 h-full">
               <app-dashboard-pro-banner></app-dashboard-pro-banner>
@@ -51,8 +68,8 @@
           @case ('analytics-stack') {
             @defer (on viewport; prefetch on idle) {
               <div class="flex flex-col gap-6 h-full">
-                <app-dashboard-productivity-trends></app-dashboard-productivity-trends>
-                <app-dashboard-performance-table></app-dashboard-performance-table>
+                <app-dashboard-completed-week></app-dashboard-completed-week>
+                <app-dashboard-filing-deadlines></app-dashboard-filing-deadlines>
               </div>
             } @placeholder (minimum 200ms) {
               <app-skeleton variant="card" minHeight="24rem" [rows]="6" />

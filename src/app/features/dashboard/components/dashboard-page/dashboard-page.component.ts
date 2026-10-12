@@ -4,11 +4,13 @@ import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { measureRects, playFlip } from '@shared/utils/flip.util';
 import { AuthService } from '@core/auth/auth.service';
-import { DashboardLayoutStore, DashboardWidgetConfig } from '../../data-access/dashboard-layout.store';
+import { DashboardColSpan, DashboardLayoutStore, DashboardWidgetConfig } from '../../data-access/dashboard-layout.store';
 import { DashboardHeroComponent } from '../../ui/dashboard-hero/dashboard-hero.component';
+import { DashboardTodayComponent } from '../../ui/dashboard-today/dashboard-today.component';
+import { DashboardNeedsAttentionComponent } from '../../ui/dashboard-needs-attention/dashboard-needs-attention.component';
 import { DashboardProBannerComponent } from '../../ui/dashboard-pro-banner/dashboard-pro-banner.component';
-import { DashboardProductivityTrendsComponent } from '../../ui/dashboard-productivity-trends/dashboard-productivity-trends.component';
-import { DashboardPerformanceTableComponent } from '../../ui/dashboard-performance-table/dashboard-performance-table.component';
+import { DashboardCompletedWeekComponent } from '../../ui/dashboard-completed-week/dashboard-completed-week.component';
+import { DashboardFilingDeadlinesComponent } from '../../ui/dashboard-filing-deadlines/dashboard-filing-deadlines.component';
 import { DashboardTasksComponent } from '../../ui/dashboard-tasks/dashboard-tasks.component';
 import { DashboardMiniCalendarComponent } from '../../ui/dashboard-mini-calendar/dashboard-mini-calendar.component';
 import { DashboardRecentChatsComponent } from '../../ui/dashboard-recent-chats/dashboard-recent-chats.component';
@@ -36,10 +38,9 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
  *
  * Los datos NO son estáticos: cada widget carga lo suyo desde su servicio o
  * store real (clientes, facturas, tareas, firmas, chats, reuniones, notas,
- * notificaciones, storage, calendario). Los dos widgets que hoy no tienen
- * backend que los respalde — Productivity Trends y Performance Analytics —
- * conservan su marco pero muestran un estado vacío honesto en lugar de
- * cifras inventadas.
+ * notificaciones, storage, calendario). Arriba van el hero (saludo + KPIs con
+ * tendencia), "Today" (agenda del día) y "Needs attention" (alertas
+ * accionables); la lógica derivada vive en `utils/dashboard-insights.util.ts`.
  */
 @Component({
   selector: 'app-dashboard-page',
@@ -47,9 +48,11 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
     CommonModule,
     DragDropModule,
     DashboardHeroComponent,
+    DashboardTodayComponent,
+    DashboardNeedsAttentionComponent,
     DashboardProBannerComponent,
-    DashboardProductivityTrendsComponent,
-    DashboardPerformanceTableComponent,
+    DashboardCompletedWeekComponent,
+    DashboardFilingDeadlinesComponent,
     DashboardTasksComponent,
     DashboardMiniCalendarComponent,
     DashboardRecentChatsComponent,
@@ -78,7 +81,7 @@ export class DashboardPageComponent {
   readonly userName = computed(() => this.auth.currentUser()?.name ?? '');
 
   /** Tamaño del widget agarrado: el hueco (placeholder) lo copia para que la grilla no salte. */
-  readonly dragSize = signal<{ height: number; colSpan: 1 | 2 } | null>(null);
+  readonly dragSize = signal<{ height: number; colSpan: DashboardColSpan } | null>(null);
 
   /** Posiciones de layout de las celdas tras el último reordenamiento (el "First" del FLIP). */
   private cellRects = new Map<HTMLElement, DOMRect>();
@@ -92,7 +95,7 @@ export class DashboardPageComponent {
    * Al presionar sobre un widget (antes de que arranque el drag) se guarda su tamaño: el CDK crea
    * el hueco ANTES de emitir `cdkDragStarted`, y así nace ya con el tamaño correcto.
    */
-  primeDrag(event: PointerEvent, colSpan: 1 | 2): void {
+  primeDrag(event: PointerEvent, colSpan: DashboardColSpan): void {
     if (!this.layout.editMode()) {
       return;
     }

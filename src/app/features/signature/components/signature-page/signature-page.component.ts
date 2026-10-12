@@ -15,7 +15,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { EmbeddedCustomerContext, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
-import { hasNewSignatureParams, parseNewSignatureDeepLink } from './signature-page-deep-link';
+import { hasNewSignatureParams, parseNewSignatureDeepLink, wantsBlankNewRequest } from './signature-page-deep-link';
 import { Observable } from 'rxjs';
 import {
   SignatureRequest,
@@ -289,7 +289,13 @@ export class SignaturePageComponent implements OnInit {
     if (hasNewSignatureParams(params)) {
       void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
     }
-    if (!link || !this.can.canCreate()) {
+    if (!this.can.canCreate()) {
+      return;
+    }
+    if (!link) {
+      if (wantsBlankNewRequest(params)) {
+        this.openCreatePanel();
+      }
       return;
     }
     this.openCreatePanel();
