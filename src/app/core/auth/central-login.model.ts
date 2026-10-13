@@ -1,5 +1,5 @@
 /**
- * Login central multi-tenant (app.taxproffice.com): el usuario entra con email+password sin
+ * Login central multi-tenant (app.taxoffix.io): el usuario entra con email+password sin
  * saber su subdominio, y el backend lo autentica contra TODAS sus oficinas. Contrato de los 3
  * endpoints anónimos de Auth (discover-login → session/handoff → session/from-ticket).
  */

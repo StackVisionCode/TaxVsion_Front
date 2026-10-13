@@ -15,6 +15,7 @@ import {
   describeDeadLink,
   isDeadLinkCode,
 } from '../../data-access/public-signature.model';
+import { platformBrand } from '@core/config/platform-config';
 
 /** Una fila de la cadena ya preparada para pintar (nada se calcula en la plantilla). */
 export interface ChainRow {
@@ -61,6 +62,9 @@ export interface ChainRow {
   styleUrl: './verify-audit-page.component.css',
 })
 export class VerifyAuditPageComponent implements OnInit {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
   private readonly clipboard = inject(ClipboardService);

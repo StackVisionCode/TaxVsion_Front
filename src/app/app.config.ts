@@ -4,6 +4,7 @@ import { provideRouter, withPreloading } from '@angular/router';
 import { routes } from './app.routes';
 import { httpProviders } from '@core/http/http.providers';
 import { provideAuthInitializer } from '@core/config/auth-initializer';
+import { providePlatformSettingsInitializer } from '@core/config/platform-config';
 import { provideThemeInitializer } from '@core/theme/theme-initializer';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 
@@ -21,6 +22,8 @@ export const appConfig: ApplicationConfig = {
     // como la segunda: sin él, el chunk de cada pantalla se descargaba recién al hacer clic.
     provideRouter(routes, withPreloading(PacedPreloadStrategy)),
     ...httpProviders,
+    // Marca y dominio vigentes (Tenant). Va primero; si Tenant no contesta, el arranque sigue igual.
+    providePlatformSettingsInitializer(),
     provideAuthInitializer(),
     provideThemeInitializer(),
   ]

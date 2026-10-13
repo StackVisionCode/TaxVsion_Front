@@ -18,6 +18,7 @@ import {
 } from '@angular/forms';
 import { CentralLoginService } from '@core/auth/central-login.service';
 import { landingUrl } from '@core/config/landing';
+import { environment } from '@env/environment';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { DiscoverOffice, DiscoverOutcome } from '@core/auth/central-login.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
@@ -25,11 +26,12 @@ import {
   PlanChoice,
   PlanPickerModalComponent,
 } from '../../ui/plan-picker-modal/plan-picker-modal.component';
+import { platformBrand, platformConfig } from '@core/config/platform-config';
 
 type Step = 'credentials' | 'select';
 
 /**
- * Login central de app.taxproffice.com: el usuario teclea email+password sin saber su subdominio.
+ * Login central de app.taxoffix.io: el usuario teclea email+password sin saber su subdominio.
  * discover-login lo autentica contra todas sus oficinas; con una sola sin MFA saltamos directo al
  * canje, con varias (o MFA) mostramos el selector. Al resolver, se redirige al subdominio de la
  * oficina para canjear el vale allí (CentralLoginService.continueUrl).
@@ -57,6 +59,10 @@ export class CentralLoginPageComponent {
 
   /** Logo del sistema (o null → cae al asterisco). Se llena tras el fetch de la marca del sistema. */
   readonly logoUrl = this.branding.logoUrl;
+  /** Dominio de la plataforma para mostrar el host de cada oficina (sale del environment, no literal). */
+  readonly baseDomain = platformConfig().baseDomain;
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
   readonly showLogoFallback = signal(false);
 
   constructor() {

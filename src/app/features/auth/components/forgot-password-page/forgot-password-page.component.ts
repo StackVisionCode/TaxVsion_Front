@@ -6,7 +6,6 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
 import { TenantResolutionService } from '@core/auth/tenant-resolution.service';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { environment } from '@env/environment';
 
 type RequestStep = 'email' | 'sent';
 
@@ -22,6 +21,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * ResetPasswordPageComponent), no en esta página.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { platformConfig } from '@core/config/platform-config';
 
 @Component({
   selector: 'app-forgot-password-page',
@@ -41,7 +41,7 @@ export class ForgotPasswordPageComponent {
   readonly atOffice = inject(ApiConfigService).officeFromHost() !== null;
   readonly officeName = signal<string | null>(null);
   /** Entrada general, para quien trabaja en otra oficina. */
-  readonly mainForgotUrl = `https://app.${environment.baseDomain}/forgot-password${this.accountKind === 'Portal' ? '?account=portal' : ''}`;
+  readonly mainForgotUrl = `https://app.${platformConfig().baseDomain}/forgot-password${this.accountKind === 'Portal' ? '?account=portal' : ''}`;
 
   readonly step = signal<RequestStep>('email');
   readonly email = signal('');

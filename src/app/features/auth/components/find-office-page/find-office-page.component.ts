@@ -12,7 +12,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * "Encuentra tu oficina" (mismo lenguaje visual que forgot-password/login: tarjeta
  * flotante con panel de gradiente). Para cuando el usuario no sabe el subdominio de
- * su oficina (llegó a app.taxproffice.com sin el ?office=<slug> ni sesión previa).
+ * su oficina (llegó a app.taxoffix.io sin el ?office=<slug> ni sesión previa).
  *
  * Llama a POST /auth/tenant-resolution/by-email, que el backend responde SIEMPRE con
  * 202 (anti-enumeración: nunca revela si el email tiene oficina) — por eso no hay

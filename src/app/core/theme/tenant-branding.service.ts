@@ -117,7 +117,7 @@ export class TenantBrandingService {
    */
   applyForSystem(surface: 'Crm' | 'Portal' = 'Crm'): void {
     // Marca del SISTEMA: host de sistema (app.*), SIN slug. Debe ir por systemUrl/systemBase —
-    // tenantUrl/tenantBase exigen slug y revientan en app.taxproffice.com (bug de arranque directo).
+    // tenantUrl/tenantBase exigen slug y revientan en app.taxoffix.io (bug de arranque directo).
     const url = this.api.systemUrl(`/tenants/branding/system?surface=${surface}`);
     this.http
       .get<PublicBrandingResponse>(url)

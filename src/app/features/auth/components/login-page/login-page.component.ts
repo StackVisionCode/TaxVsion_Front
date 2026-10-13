@@ -24,6 +24,7 @@ import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { TokenService } from '@core/auth/token.service';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { landingUrl } from '@core/config/landing';
+import { platformBrand } from '@core/config/platform-config';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 import { loginNoticeFor } from '@core/auth/session-notice';
@@ -52,6 +53,8 @@ type LoginPhase = 'idle' | 'verifying' | 'sinking';
   styleUrl: './login-page.component.css',
 })
 export class LoginPageComponent {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -75,7 +78,7 @@ export class LoginPageComponent {
   private static readonly MAX_LOADER_MS = 2000;
 
   /**
-   * Estamos en el subdominio de una oficina (manfer.taxproffice.com) y no en el apex/app.
+   * Estamos en el subdominio de una oficina (manfer.taxoffix.io) y no en el apex/app.
    * Sign-up y "encuentra tu oficina" son acciones de sistema (viven en app.<baseDomain>): en una
    * oficina concreta no tienen sentido y se ocultan. Se mira el HOST, no el slug guardado.
    */
@@ -88,7 +91,7 @@ export class LoginPageComponent {
   constructor() {
     // En prod el tenant se resuelve por el subdominio: el slug llega por ?office=<slug>
     // (link del correo "encuentra tu oficina" o redirect post-signup) y lo fijamos antes
-    // del login, para que la request vaya a https://<slug>.taxproffice.com. En dev es no-op
+    // del login, para que la request vaya a https://<slug>.taxoffix.io. En dev es no-op
     // (tenantBase cae al gateway local y el tenant va por tenantId en el body).
     const office = this.route.snapshot.queryParamMap.get('office');
     if (office) {

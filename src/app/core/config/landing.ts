@@ -1,9 +1,14 @@
 import { CanActivateFn } from '@angular/router';
 import { environment } from '@env/environment';
+import { platformConfig } from './platform-config';
 
-/** URL absoluta del sitio público (Landing), donde viven el alta y la gestión de la suscripción. */
+/**
+ * URL absoluta del sitio público (Landing), donde viven el alta y la gestión de la suscripción. En prod
+ * sale del dominio vigente de la plataforma; en dev, del environment (otro puerto local).
+ */
 export function landingUrl(pathAndQuery: string): string {
-  const base = environment.landingUrl.trim().replace(/\/+$/, '');
+  const configured = environment.production ? `https://www.${platformConfig().baseDomain}` : environment.landingUrl;
+  const base = configured.trim().replace(/\/+$/, '');
   const path = pathAndQuery.startsWith('/') ? pathAndQuery : `/${pathAndQuery}`;
   return `${base}${path}`;
 }

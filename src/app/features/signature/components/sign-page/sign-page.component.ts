@@ -37,6 +37,7 @@ import {
   isValidPractitionerPin,
   matchesSignerFullName,
 } from '../../data-access/public-signature.model';
+import { platformBrand } from '@core/config/platform-config';
 
 /** Pasos posibles del recorrido. Cuáles se muestran depende de lo que exija la solicitud. */
 type StepId = 'welcome' | 'consent' | 'verify' | 'verify-otp' | 'review' | 'sign' | 'done';
@@ -117,6 +118,9 @@ interface BlockedState {
   styleUrl: './sign-page.component.css',
 })
 export class SignPageComponent implements OnInit, OnDestroy {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
 
@@ -264,7 +268,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
 
   // Host al que vuelve el firmante cuando termina.
   //  - Prod: si el tenant tiene subdominio proyectado y el host es multi-tenant
-  //    (ej. foo.taxproffice.com) volvemos a `<sub>.<basedomain>/`.
+  //    (ej. foo.taxoffix.io) volvemos a `<sub>.<basedomain>/`.
   //  - Si el backend no sembro `tenantSubDomain` (tenants viejos, pre F1.C) pero el
   //    firmante llego por un subdominio evidente (3+ segmentos, no `www`), lo tomamos
   //    del hostname mismo: es el mismo tenant por el que entro.

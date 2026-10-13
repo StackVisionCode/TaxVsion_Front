@@ -3,6 +3,7 @@ import { HttpBackend, HttpClient } from '@angular/common/http';
 import { Observable, defer } from 'rxjs';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
+import { platformConfig } from '@core/config/platform-config';
 
 /** Body de POST /auth/invitations/accept (espejo de AcceptInvitationCommand). */
 export interface AcceptInvitationRequest {
@@ -40,7 +41,7 @@ export interface InvitationValidation {
 /**
  * Canje de una invitación de equipo (`POST /auth/invitations/accept`, `[AllowAnonymous]`).
  *
- * El invitado llega desde el correo a `<slug>.taxproffice.com/accept-invitation?token=…`
+ * El invitado llega desde el correo a `<slug>.taxoffix.io/accept-invitation?token=…`
  * (lo compone Notification en AuthEventConsumers) y **no tiene sesión**, así que aquí
  * aplican las mismas dos decisiones que en el resto de recorridos públicos:
  *
@@ -62,7 +63,7 @@ export class InvitationService {
     }
     const slug = tenantSlugFromHost();
     if (slug) {
-      return `https://${slug}.${environment.baseDomain}/auth/invitations`;
+      return `https://${slug}.${platformConfig().baseDomain}/auth/invitations`;
     }
     try {
       return this.api.tenantUrl('/auth/invitations');

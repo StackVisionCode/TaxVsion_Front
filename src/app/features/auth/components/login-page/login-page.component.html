@@ -12,7 +12,7 @@
         (error)="showLogoFallback.set(true)"
       />
       <ng-template #taxoffixMark>
-        <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+        <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
           <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
           <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
         </span>

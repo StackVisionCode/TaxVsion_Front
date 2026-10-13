@@ -32,7 +32,8 @@ describe('SettingsModuleGridComponent', () => {
   });
 
   it('muestra solo las tarjetas de los módulos que el usuario tiene', () => {
-    const fixture = create(['signature', 'documents']);
+    // La tarjeta de firma depende de signature-settings (ajustes globales), no del módulo de firmas.
+    const fixture = create(['signature-settings', 'documents']);
 
     expect(fixture.componentInstance.modules().map(m => m.id)).toEqual([
       'overview',

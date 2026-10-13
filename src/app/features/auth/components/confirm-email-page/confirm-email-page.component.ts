@@ -25,6 +25,7 @@ type Phase = 'confirming' | 'done' | 'error' | 'no-token';
  * base derivada del host y `defer` para que los fallos viajen por el Observable.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { platformConfig } from '@core/config/platform-config';
 
 @Component({
   selector: 'app-confirm-email-page',
@@ -47,7 +48,7 @@ export class ConfirmEmailPageComponent implements OnInit {
     }
     const slug = tenantSlugFromHost();
     if (slug) {
-      return `https://${slug}.${environment.baseDomain}/auth`;
+      return `https://${slug}.${platformConfig().baseDomain}/auth`;
     }
     try {
       return this.api.tenantUrl('/auth');

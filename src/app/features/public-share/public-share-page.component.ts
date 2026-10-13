@@ -50,7 +50,7 @@ type ShareMode = 'file' | 'folder';
 
 /**
  * Página pública de un enlace compartido. El cliente externo llega por
- * `https://<oficina>.taxproffice.com/s/<token>`, SIN sesión (fuera del authGuard).
+ * `https://<oficina>.taxoffix.io/s/<token>`, SIN sesión (fuera del authGuard).
  *
  * Dos modos: un link de ARCHIVO abre/descarga un solo documento; un link de CARPETA muestra un
  * mini explorador (navegar subcarpetas, ver o descargar archivos sueltos, o "Download all" en .zip).

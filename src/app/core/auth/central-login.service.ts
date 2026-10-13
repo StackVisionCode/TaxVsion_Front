@@ -12,10 +12,11 @@ import {
   HandoffSession,
   HandoffTicketView,
 } from './central-login.model';
+import { platformConfig } from '@core/config/platform-config';
 
 /**
  * Orquesta el login central multi-tenant. discover/handoff son cross-tenant y anónimos, así que
- * van al HOST DE SISTEMA (api.taxproffice.com): en app.taxproffice.com no hay slug y tenantBase()
+ * van al HOST DE SISTEMA (api.taxoffix.io): en app.taxoffix.io no hay slug y tenantBase()
  * lanzaría. El canje (from-ticket) sí va al host del subdominio destino, porque corre YA en esa
  * oficina, tras el redirect — es lo que hace que la sesión viva en ese origen.
  */
@@ -97,7 +98,7 @@ export class CentralLoginService {
     }
 
     const path = portal ? '/portal/client/auth/continue' : '/auth/continue';
-    return `https://${subdomain}.${environment.baseDomain}${path}?${params.toString()}`;
+    return `https://${subdomain}.${platformConfig().baseDomain}${path}?${params.toString()}`;
   }
 }
 

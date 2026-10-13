@@ -29,6 +29,7 @@ import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import type { ChatStore } from '@features/chat/data-access/chat.store';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth } from './sidebar-width.util';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * El menu del CRM. Cada entrada declara QUE feature es (`featureId`) y el registro
@@ -49,6 +50,9 @@ import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth }
   styleUrl: './sidebar.component.css',
 })
 export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   @Output() sidebarStateChange = new EventEmitter<boolean>();
   @Input() isMobile = false;
 

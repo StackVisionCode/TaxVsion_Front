@@ -127,7 +127,7 @@ export const routes: Routes = [
   },
   {
     // Página pública de un enlace compartido de Documents: el cliente externo llega por
-    // `https://<oficina>.taxproffice.com/s/<token>`, sin sesión (fuera del authGuard). Muestra el
+    // `https://<oficina>.taxoffix.io/s/<token>`, sin sesión (fuera del authGuard). Muestra el
     // documento con la marca de la oficina y dispara la descarga contra el resolver del backend.
     path: 's/:token',
     data: { preload: false },

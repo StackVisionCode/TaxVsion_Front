@@ -8,6 +8,7 @@ export const environment: Environment = {
   // no se usan (ApiConfigService cae a apiUrl cuando production=false).
   systemHost: 'localhost:5047',
   baseDomain: 'localhost',
+  brandName: 'TaxOffix',
   useHostResolution: false,
   // Tenant de plataforma sembrado en el backend (donde vive bootstrap-admin@taxvision.local).
   // Es el tenantId que se manda en /auth/login (con TenantDomains:EnforceHostResolution=false en dev).

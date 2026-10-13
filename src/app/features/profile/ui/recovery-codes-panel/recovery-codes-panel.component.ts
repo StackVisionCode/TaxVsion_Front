@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ClipboardService } from '@shared/services/clipboard.service';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * Panel presentacional de códigos de recuperación: se muestra UNA sola vez
@@ -49,7 +50,7 @@ export class RecoveryCodesPanelComponent implements OnDestroy {
       return;
     }
     const body =
-      'TaxPro Office — Recovery codes\n\n' +
+      `${platformBrand()} — Recovery codes\n\n` +
       'Keep these somewhere safe. Each code can be used once to sign in if you lose your device.\n\n' +
       this.codes.join('\n') +
       '\n';
@@ -57,7 +58,7 @@ export class RecoveryCodesPanelComponent implements OnDestroy {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'taxproffice-recovery-codes.txt';
+    link.download = `${platformBrand().toLowerCase()}-recovery-codes.txt`;
     link.click();
     URL.revokeObjectURL(url);
   }

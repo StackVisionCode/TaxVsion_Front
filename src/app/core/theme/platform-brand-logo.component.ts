@@ -1,6 +1,7 @@
 import { NgIf } from '@angular/common';
 import { Component, inject, input, signal } from '@angular/core';
 import { TenantBrandingService } from './tenant-branding.service';
+import { platformBrand } from '@core/config/platform-config';
 
 /** Logo principal de TaxProffice para superficies que tambien muestran la marca de una oficina. */
 @Component({
@@ -11,12 +12,12 @@ import { TenantBrandingService } from './tenant-branding.service';
     <img
       *ngIf="branding.systemLogoUrl() && !failed(); else fallback"
       [src]="branding.systemLogoUrl()"
-      alt="TaxProffice"
+      [alt]="brand"
       [class]="logoClass()"
       (error)="failed.set(true)"
     />
     <ng-template #fallback>
-      <strong class="platform-logo-fallback" [class]="fallbackClass()">TAXPROFFICE</strong>
+      <strong class="platform-logo-fallback" [class]="fallbackClass()">{{ brand.toUpperCase() }}</strong>
     </ng-template>
   `,
   styles: `
@@ -36,6 +37,9 @@ import { TenantBrandingService } from './tenant-branding.service';
   `,
 })
 export class PlatformBrandLogoComponent {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   readonly branding = inject(TenantBrandingService);
   readonly failed = signal(false);
 

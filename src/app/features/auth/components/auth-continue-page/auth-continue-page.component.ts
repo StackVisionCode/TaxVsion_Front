@@ -9,6 +9,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
+import { platformConfig } from '@core/config/platform-config';
 
 /**
  * Aterrizaje del login central en el subdominio de la oficina: canjea el vale (?ticket=) por
@@ -98,7 +99,7 @@ export class AuthContinuePageComponent implements OnInit {
       void this.router.navigate(['/login']);
       return;
     }
-    window.location.assign(`https://app.${environment.baseDomain}/login`);
+    window.location.assign(`https://app.${platformConfig().baseDomain}/login`);
   }
 
   private returnUrl(): string {
