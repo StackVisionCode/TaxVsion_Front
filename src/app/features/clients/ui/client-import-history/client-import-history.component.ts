@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import {
@@ -18,7 +19,7 @@ import {
  */
 @Component({
   selector: 'app-client-import-history',
-  imports: [CommonModule, StateBlockComponent, PaginationComponent],
+  imports: [CommonModule, StateBlockComponent, PaginationComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-history.component.html',
   styleUrl: './client-import-history.component.css',

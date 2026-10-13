@@ -2,7 +2,7 @@
   @if (phase() === 'validating') {
     <!-- Validando el token contra el backend antes de mostrar nada -->
     <span class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-      <span class="w-5 h-5 border-2 border-gray-300 border-t-brand-bold rounded-full animate-spin"></span>
+      <app-infinity-loader size="sm" />
     </span>
     <h1 class="mt-4 text-3xl font-bold text-gray-900">Checking your invitation…</h1>
     <p class="mt-2 text-sm text-gray-500">Just a moment while we confirm your invitation link.</p>
@@ -84,7 +84,7 @@
       <button type="submit" [disabled]="isSubmitting()"
         class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-bold hover:bg-brand-ink disabled:opacity-70 text-white text-sm font-semibold transition-colors">
         @if (isSubmitting()) {
-          <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+          <app-infinity-loader size="xs" tone="light" />
           <span>Creating your account…</span>
         } @else {
           <span>Create account</span>

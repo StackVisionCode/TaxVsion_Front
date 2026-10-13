@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import {
@@ -18,7 +19,7 @@ import {
  */
 @Component({
   selector: 'app-client-import-progress-step',
-  imports: [CommonModule, StatCardsComponent, StateBlockComponent],
+  imports: [CommonModule, StatCardsComponent, StateBlockComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-progress-step.component.html',
   styleUrl: './client-import-progress-step.component.css',

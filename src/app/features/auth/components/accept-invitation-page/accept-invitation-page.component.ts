@@ -18,6 +18,8 @@ import { environment } from '@env/environment';
 import { AuthShellComponent } from '../../ui/auth-shell/auth-shell.component';
 import { InvitationService, InvitationValidation } from '../../data-access/invitation.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 type Phase = 'validating' | 'form' | 'submitting' | 'done' | 'invalid';
 
@@ -33,7 +35,7 @@ type Phase = 'validating' | 'form' | 'submitting' | 'done' | 'invalid';
  */
 @Component({
   selector: 'app-accept-invitation-page',
-  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './accept-invitation-page.component.html',
 })
@@ -116,7 +118,7 @@ export class AcceptInvitationPageComponent implements OnInit {
         const hostSlug = tenantSlugFromHost();
         if (hostSlug && hostSlug !== office.subDomain) {
           window.location.href =
-            `https://${office.subDomain}.${environment.baseDomain}/accept-invitation` +
+            `https://${office.subDomain}.${platformConfig().baseDomain}/accept-invitation` +
             `?token=${encodeURIComponent(this.token().trim())}`;
           return;
         }
@@ -171,7 +173,7 @@ export class AcceptInvitationPageComponent implements OnInit {
   private portalLoginUrl(): string | null {
     const office = this.tenant();
     if (environment.production && office) {
-      return `https://${office.subDomain}.${environment.baseDomain}/portal/`;
+      return `https://${office.subDomain}.${platformConfig().baseDomain}/portal/`;
     }
     return environment.portalDevUrl ?? null;
   }

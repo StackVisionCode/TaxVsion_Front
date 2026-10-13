@@ -9,7 +9,7 @@
     </p>
 
     <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      <app-infinity-loader size="xs" />
       Loading providers…
     </div>
 
@@ -146,8 +146,11 @@
     <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-4">
       <button *ngIf="canManage" type="button" (click)="save()" [disabled]="!canSave"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
-          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+        @if (saving) {
+          <app-infinity-loader size="xs" tone="light" />
+        } @else {
+          <ion-icon name="save-outline" class="text-base"></ion-icon>
+        }
         {{ saving ? 'Connecting…' : 'Save and activate' }}
       </button>
     </div>

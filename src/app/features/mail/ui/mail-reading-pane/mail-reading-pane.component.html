@@ -21,8 +21,8 @@
       </button>
       <button *ngIf="thread.status === 'Active'" type="button" (click)="archive()" [disabled]="archiving"
         class="flex h-9 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors">
-        <ion-icon [name]="archiving ? 'sync-outline' : 'archive-outline'" class="text-base"
-          [ngClass]="archiving ? 'animate-spin' : ''"></ion-icon>
+        <app-infinity-loader *ngIf="archiving" size="xs" />
+        <ion-icon *ngIf="!archiving" name="archive-outline" class="text-base"></ion-icon>
         {{ archiving ? 'Archiving…' : 'Archive' }}
       </button>
       <button *ngIf="thread.status === 'Archived'" type="button" (click)="unarchiveRequested.emit()" [disabled]="archiving"
@@ -36,7 +36,7 @@
   <!-- Conversación -->
   <div class="flex-1 overflow-y-auto py-4">
     <div *ngIf="loading && messages.length === 0" class="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+      <app-infinity-loader size="sm" />
       Loading conversation…
     </div>
 
@@ -112,7 +112,7 @@
 
           <ng-container *ngIf="bodyFor(message.messageId) as body">
             <div *ngIf="body.loading" class="flex items-center gap-2 py-4 text-sm text-gray-400">
-              <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+              <app-infinity-loader size="xs" />
               Fetching message from the mailbox…
             </div>
 
@@ -142,7 +142,7 @@
               <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Attachments</p>
 
               <div *ngIf="attachmentsView.loading" class="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon>
+                <app-infinity-loader size="xs" />
                 Loading attachments…
               </div>
 
@@ -171,8 +171,8 @@
                     <button type="button" (click)="previewAttachment(message.messageId, file.attachmentId)"
                       class="flex items-center gap-2 rounded-l-full py-1.5 pl-3 pr-2 hover:bg-gray-50 transition-colors"
                       [attr.title]="file.error || 'Preview ' + file.filename">
-                      <ion-icon [name]="file.busy ? 'sync-outline' : 'document-outline'" class="text-sm text-gray-400"
-                        [ngClass]="file.busy ? 'animate-spin' : ''"></ion-icon>
+                      <app-infinity-loader *ngIf="file.busy" size="xs" />
+                      <ion-icon *ngIf="!file.busy" name="document-outline" class="text-sm text-gray-400"></ion-icon>
                       <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
                       <span class="text-gray-400">{{ file.sizeBytes | bytes }}</span>
                     </button>
@@ -242,8 +242,8 @@
               </button>
               <button type="button" (click)="sendReply()" [disabled]="!canSendReply()"
                 class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-                <ion-icon [name]="replyState.sending ? 'sync-outline' : 'send-outline'" class="text-base"
-                  [ngClass]="replyState.sending ? 'animate-spin' : ''"></ion-icon>
+                <app-infinity-loader *ngIf="replyState.sending" size="xs" tone="light" />
+                <ion-icon *ngIf="!replyState.sending" name="send-outline" class="text-base"></ion-icon>
                 {{ replyState.sending ? 'Sending…' : 'Send' }}
               </button>
             </div>

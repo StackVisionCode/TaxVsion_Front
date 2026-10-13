@@ -241,7 +241,7 @@
     </button>
     <button *ngIf="selected()" type="button" (click)="create()" [disabled]="!canCreate() || busy()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-      <span *ngIf="busy()" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+      <app-infinity-loader size="xs" tone="light" />
       {{ busy() ? phaseLabel() : 'Create & send' }}
     </button>
   </div>

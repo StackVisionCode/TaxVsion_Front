@@ -12,7 +12,7 @@
         (error)="showLogoFallback.set(true)"
       />
       <ng-template #taxoffixMark>
-        <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+        <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
           <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
           <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
         </span>
@@ -53,7 +53,7 @@
       <button type="submit" [disabled]="isLoggingIn()"
         class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
         @if (isLoggingIn()) {
-          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+          <app-infinity-loader size="xs" tone="light" />
           <span>Signing in...</span>
         } @else {
           <span>Continue</span>

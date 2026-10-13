@@ -14,6 +14,7 @@ import {
   VerifyChallengeBody,
   VerifyPinBody,
 } from './public-signature.model';
+import { platformConfig } from '@core/config/platform-config';
 
 /**
  * Cliente HTTP del recorrido público del firmante (`signature/public`, `[AllowAnonymous]`).
@@ -55,7 +56,7 @@ export class PublicSignatureService {
     // Prod: el subdominio desde el que se abrió el enlace identifica al tenant.
     const slug = tenantSlugFromHost();
     if (slug) {
-      return `https://${slug}.${environment.baseDomain}/signature/public`;
+      return `https://${slug}.${platformConfig().baseDomain}/signature/public`;
     }
 
     // Enlace servido fuera del subdominio del tenant (dominio propio, acortador…).

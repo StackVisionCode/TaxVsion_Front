@@ -1,6 +1,7 @@
 import { CUSTOM_ELEMENTS_SCHEMA, Component, inject, input, signal } from '@angular/core';
 import { NgIf } from '@angular/common';
 import { TenantBrandingService } from './tenant-branding.service';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * Marca reutilizable para las páginas de auth (login, reset/new password, MFA, etc.): muestra el logo
@@ -24,7 +25,7 @@ import { TenantBrandingService } from './tenant-branding.service';
     />
     <ng-template #fallback>
       <!-- Sin logo de oficina ni del sistema: el asterisco de siempre, o la marca Taxoffix (variant="taxoffix"). -->
-      <span *ngIf="variant() === 'taxoffix'; else asterisk" class="inline-flex items-center gap-2" aria-label="Taxoffix">
+      <span *ngIf="variant() === 'taxoffix'; else asterisk" class="inline-flex items-center gap-2" [attr.aria-label]="brand">
         <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
         <span class="text-[22px] font-extrabold tracking-tight text-[#083645]">Tax<span class="text-[#057BC1]">offix</span></span>
       </span>
@@ -35,6 +36,8 @@ import { TenantBrandingService } from './tenant-branding.service';
 export class BrandLogoComponent {
   readonly branding = inject(TenantBrandingService);
   readonly failed = signal(false);
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
 
   /** 'asterisk' (por defecto) o 'taxoffix' (wordmark de la marca) cuando no hay logo. */
   readonly variant = input<'asterisk' | 'taxoffix'>('asterisk');

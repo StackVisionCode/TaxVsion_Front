@@ -1,7 +1,7 @@
 {
-  "name": "TaxProffice",
-  "short_name": "TaxProffice",
-  "description": "TaxProffice workspace — manage clients, documents and tax work.",
+  "name": "TaxOffix",
+  "short_name": "TaxOffix",
+  "description": "TaxOffix workspace — manage clients, documents and tax work.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

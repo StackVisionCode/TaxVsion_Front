@@ -4,6 +4,7 @@ import { Observable, defer } from 'rxjs';
 import { ApiConfigService, tenantSlugFromHost } from '@core/config/api-config.service';
 import { environment } from '@env/environment';
 import { InvoiceCheckout, PayResult } from './invoice-checkout.model';
+import { platformConfig } from '@core/config/platform-config';
 
 /**
  * Checkout público de una factura (sin login; el token del path es la única prueba de posesión).
@@ -32,7 +33,7 @@ export class InvoiceCheckoutService {
     }
     const slug = tenantSlugFromHost();
     if (slug) {
-      return `https://${slug}.${environment.baseDomain}/payments-client`;
+      return `https://${slug}.${platformConfig().baseDomain}/payments-client`;
     }
     // Enlace servido fuera del subdominio de la oficina: se intenta la sesión y, si
     // tampoco hay, el host de sistema (el token del path identifica la factura).

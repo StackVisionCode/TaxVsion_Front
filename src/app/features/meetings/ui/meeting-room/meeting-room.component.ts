@@ -10,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { PermissionService } from '@core/auth/permission.service';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
@@ -28,7 +29,7 @@ import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-me
  */
 @Component({
   selector: 'app-meeting-room',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     SrcObjectDirective,

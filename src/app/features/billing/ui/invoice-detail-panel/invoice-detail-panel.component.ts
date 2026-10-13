@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { STATUS_TONES, StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
@@ -23,7 +24,7 @@ import {
  */
 @Component({
   selector: 'app-invoice-detail-panel',
-  imports: [CommonModule, ModalComponent, StatusPillComponent],
+  imports: [CommonModule, ModalComponent, StatusPillComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-detail-panel.component.html',
 })

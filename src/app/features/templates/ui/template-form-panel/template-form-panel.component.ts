@@ -10,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
@@ -32,7 +33,7 @@ const CATEGORY_SUGGESTIONS = ['Email', 'Letter', 'Invoice Note', 'Reminder'];
  */
 @Component({
   selector: 'app-template-form-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, ClickOutsideDirective],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './template-form-panel.component.html',
 })

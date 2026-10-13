@@ -1,4 +1,4 @@
-name: Deploy CRM (app.taxproffice.com)
+name: Deploy CRM (app.taxoffix.io)
 
 on:
   push:

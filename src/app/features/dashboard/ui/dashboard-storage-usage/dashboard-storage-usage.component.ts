@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-storage-card.component';
 import { StorageStore } from '../../../storage/data-access/storage.store';
 
@@ -14,7 +15,7 @@ import { StorageStore } from '../../../storage/data-access/storage.store';
  */
 @Component({
   selector: 'app-dashboard-storage-usage',
-  imports: [CommonModule, UsedStorageCardComponent],
+  imports: [InfinityLoaderComponent, CommonModule, UsedStorageCardComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-storage-usage.component.html',
 })

@@ -1,15 +1,16 @@
 import { Injectable, signal } from '@angular/core';
 import { environment } from '@env/environment';
+import { platformConfig } from '@core/config/platform-config';
 
 const SLUG_STORAGE_KEY = 'tenant_slug';
 
 /**
  * Fuente única de la URL base de la API. En multitenancy cada tenant vive en
- * https://<slug>.taxproffice.com y el backend resuelve el tenant por el Host, así que
+ * https://<slug>.taxoffix.io y el backend resuelve el tenant por el Host, así que
  * la base NO puede ser un valor fijo: se calcula desde el slug resuelto.
  *
  * - {@link systemUrl}: endpoints del SISTEMA, sin tenant (signup, check-availability,
- *   tenant-resolution, JWKS). Van a systemHost (api.taxproffice.com).
+ *   tenant-resolution, JWKS). Van a systemHost (api.taxoffix.io).
  * - {@link tenantUrl}: login + todo lo del tenant. Van a https://<slug>.baseDomain.
  *
  * En dev (production=false) ambos caen a environment.apiUrl (el gateway local), porque
@@ -19,9 +20,9 @@ const SLUG_STORAGE_KEY = 'tenant_slug';
 export class ApiConfigService {
   /**
    * El HOST manda sobre lo guardado: si la app se sirve desde
-   * `https://<slug>.taxproffice.com`, ese subdominio ES el tenant, y usar el
+   * `https://<slug>.taxoffix.io`, ese subdominio ES el tenant, y usar el
    * `tenant_slug` de una sesión anterior mandaría las requests a otra oficina.
-   * Sin subdominio de tenant (p. ej. `app.taxproffice.com`) se cae a lo guardado.
+   * Sin subdominio de tenant (p. ej. `app.taxoffix.io`) se cae a lo guardado.
    */
   private readonly _slug = signal<string | null>(tenantSlugFromHost() ?? readStoredSlug());
   /** Slug del tenant actual (o null si aún no se resolvió). Reactivo. */
@@ -46,7 +47,7 @@ export class ApiConfigService {
   }
 
   /**
-   * Oficina cuya dirección sirve la app (`<slug>.taxproffice.com`), o null en la entrada general (app.*) y en dev.
+   * Oficina cuya dirección sirve la app (`<slug>.taxoffix.io`), o null en la entrada general (app.*) y en dev.
    * A diferencia de {@link slug}, ignora la oficina recordada de otra sesión.
    */
   officeFromHost(): string | null {
@@ -55,7 +56,7 @@ export class ApiConfigService {
 
   /** Base para endpoints del sistema (sin tenant). */
   systemBase(): string {
-    return environment.production ? `https://${environment.systemHost}` : environment.apiUrl;
+    return environment.production ? `https://${platformConfig().systemHost}` : environment.apiUrl;
   }
 
   /** Base para endpoints del tenant. Lanza si en prod todavía no hay slug resuelto. */
@@ -69,7 +70,7 @@ export class ApiConfigService {
         'ApiConfigService: no hay tenant (slug) resuelto todavía. Resolvé el slug (email/campo/login) antes de una llamada de tenant.',
       );
     }
-    return `https://${slug}.${environment.baseDomain}`;
+    return `https://${slug}.${platformConfig().baseDomain}`;
   }
 
   /** URL absoluta de un endpoint del sistema. */
@@ -96,7 +97,7 @@ export class ApiConfigService {
     }
 
     const host = parsed.hostname.toLowerCase();
-    const isOurs = host === environment.baseDomain || host.endsWith(`.${environment.baseDomain}`);
+    const isOurs = host === platformConfig().baseDomain || host.endsWith(`.${platformConfig().baseDomain}`);
     if (!isOurs) {
       return false;
     }
@@ -125,12 +126,13 @@ function readStoredSlug(): string | null {
 /**
  * Subdominios que NO son oficinas: tomarlos como slug mandaría las llamadas a un
  * tenant inexistente en vez de usar el que ya estuviera resuelto.
- *  - `api`  → host de sistema (`environment.systemHost`).
+ *  - `api`  → host de sistema (`platformConfig().systemHost`).
  *  - `app`  → portal genérico desde el que se busca la oficina por email
  *             (ver find-office-page).
- *  - `www` / `admin` → nunca sirven la app de un tenant.
+ *  - `www` / `admin` / `client` → nunca sirven la app de un tenant (`client` es el portal).
+ * Es la misma lista que `PlatformSettingsSnapshot.ReservedSubdomains` en el backend.
  */
-const NON_TENANT_SUBDOMAINS = new Set(['api', 'app', 'www', 'admin']);
+const NON_TENANT_SUBDOMAINS = new Set(['api', 'app', 'www', 'admin', 'client']);
 
 /** Buckets de MinIO expuestos en el mismo dominio que la API (ver deploy/docker). */
 const STORAGE_BUCKET_PREFIXES = ['/taxvision-storage/', '/taxvision-temp/', '/taxvision-quarantine/'];
@@ -148,7 +150,7 @@ function isPresignedStorageUrl(parsed: URL): boolean {
 }
 
 /**
- * `<slug>.taxproffice.com` → `slug`; null si el host no identifica a un tenant.
+ * `<slug>.taxoffix.io` → `slug`; null si el host no identifica a un tenant.
  *
  * Sin esto, entrar directo al subdominio de la oficina (lo natural: un marcador,
  * o teclear la URL) dejaba la app sin slug hasta que alguien pasara `?office=`,
@@ -162,11 +164,11 @@ export function tenantSlugFromHost(): string | null {
   }
   try {
     const host = window.location.hostname.toLowerCase();
-    const suffix = `.${environment.baseDomain}`;
+    const suffix = `.${platformConfig().baseDomain}`;
     if (!host.endsWith(suffix)) {
       return null;
     }
-    if (host === environment.systemHost.split(':')[0].toLowerCase()) {
+    if (host === platformConfig().systemHost.split(':')[0].toLowerCase()) {
       return null;
     }
     const slug = host.slice(0, -suffix.length);

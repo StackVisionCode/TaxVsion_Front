@@ -53,8 +53,7 @@
         <td class="rounded-r-2xl px-4 py-3.5 text-right transition-colors group-hover:bg-gray-50"
           [class.border-b]="!last" [class.border-gray-100]="!last">
           <div class="inline-flex items-center gap-1">
-            <ion-icon *ngIf="busyInvoiceId === invoice.id" name="sync-outline"
-              class="animate-spin text-base text-gray-400"></ion-icon>
+            <app-infinity-loader *ngIf="busyInvoiceId === invoice.id" size="xs" />
 
             <button type="button" (click)="openMenu(invoice)"
               class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"

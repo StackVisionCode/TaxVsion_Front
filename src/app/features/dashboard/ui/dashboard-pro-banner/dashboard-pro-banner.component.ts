@@ -2,6 +2,7 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * Banner promocional PRO: tarjeta oscura con degradado, chip "PRO" flotante y
@@ -23,6 +24,9 @@ import { AccessStore } from '@core/access/access.store';
   styleUrl: './dashboard-pro-banner.component.css',
 })
 export class DashboardProBannerComponent {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   private readonly access = inject(AccessStore);
 
   readonly canManageBilling = this.access.canManageBilling;

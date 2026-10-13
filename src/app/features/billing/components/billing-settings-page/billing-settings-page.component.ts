@@ -23,8 +23,8 @@ import { AdminCapabilities } from '@core/access/admin-capabilities';
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Payment providers</h1>
         <p class="mt-1 text-sm text-gray-500">
-          Connect the gateways that collect your invoices online. Your company details and logo live in
-          <a routerLink="/company/settings" class="font-semibold text-brand-bold hover:underline">Company settings</a>.
+          Connect the gateways that collect your invoices online. Your office details and logo live in
+          <a routerLink="/company/settings" class="font-semibold text-brand-bold hover:underline">Office settings</a>.
         </p>
       </div>
 

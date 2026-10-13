@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * Tarjeta flotante de las pantallas públicas sin sesión (aceptar invitación, confirmar email): fondo
@@ -15,7 +16,7 @@ import { TenantBrandingService } from '@core/theme/tenant-branding.service';
   styleUrl: './auth-shell.component.css',
 })
 export class AuthShellComponent {
-  @Input() panelEyebrow = 'Join TaxPro Office';
+  @Input() panelEyebrow = `Join ${platformBrand()}`;
   @Input() panelHeading = 'Create your account and run your tax firm from one place';
 
   /** Logo de la oficina (lo resuelve el branding disparado por la página/contenido); si no hay, cae al `*`. */

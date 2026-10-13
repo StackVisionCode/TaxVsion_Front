@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
@@ -15,6 +16,7 @@ import {
   describeDeadLink,
   isDeadLinkCode,
 } from '../../data-access/public-signature.model';
+import { platformBrand } from '@core/config/platform-config';
 
 /** Una fila de la cadena ya preparada para pintar (nada se calcula en la plantilla). */
 export interface ChainRow {
@@ -55,12 +57,15 @@ export interface ChainRow {
  */
 @Component({
   selector: 'app-verify-audit-page',
-  imports: [CommonModule],
+  imports: [InfinityLoaderComponent, CommonModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './verify-audit-page.component.html',
   styleUrl: './verify-audit-page.component.css',
 })
 export class VerifyAuditPageComponent implements OnInit {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(PublicSignatureService);
   private readonly clipboard = inject(ClipboardService);

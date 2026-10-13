@@ -12,7 +12,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * "Encuentra tu oficina" (mismo lenguaje visual que forgot-password/login: tarjeta
  * flotante con panel de gradiente). Para cuando el usuario no sabe el subdominio de
- * su oficina (llegó a app.taxproffice.com sin el ?office=<slug> ni sesión previa).
+ * su oficina (llegó a app.taxoffix.io sin el ?office=<slug> ni sesión previa).
  *
  * Llama a POST /auth/tenant-resolution/by-email, que el backend responde SIEMPRE con
  * 202 (anti-enumeración: nunca revela si el email tiene oficina) — por eso no hay
@@ -21,10 +21,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * login lee para pegarle al subdominio correcto.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-find-office-page',
-  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './find-office-page.component.html',
   styleUrl: './find-office-page.component.css',

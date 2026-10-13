@@ -15,6 +15,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
 import {
@@ -90,7 +91,7 @@ const MAX_RECIPIENT_OPTIONS = 6;
  */
 @Component({
   selector: 'app-mail-compose',
-  imports: [CommonModule, FormsModule, BytesPipe],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, BytesPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-compose.component.html',
   styleUrl: './mail-compose.component.css',

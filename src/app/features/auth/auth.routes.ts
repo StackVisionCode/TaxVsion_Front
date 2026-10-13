@@ -5,7 +5,7 @@ import { tenantSlugFromHost } from '@core/config/api-config.service';
 
 export const AUTH_ROUTES: Routes = [
   {
-    // En el subdominio de una oficina (manfer.taxproffice.com) va el login directo. En app.* (sin
+    // En el subdominio de una oficina (manfer.taxoffix.io) va el login directo. En app.* (sin
     // slug de Host) y en dev va el login CENTRAL: email+password → descubre las oficinas → redirige
     // al subdominio a canjear el vale. El guestGuard/officeGuard aplican a ambos por igual.
     path: 'login',

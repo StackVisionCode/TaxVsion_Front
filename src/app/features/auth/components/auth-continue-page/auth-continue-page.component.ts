@@ -9,6 +9,8 @@ import { AuthService } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
+import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /**
  * Aterrizaje del login central en el subdominio de la oficina: canjea el vale (?ticket=) por
@@ -22,7 +24,7 @@ import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
  */
 @Component({
   selector: 'app-auth-continue-page',
-  imports: [CommonModule],
+  imports: [InfinityLoaderComponent, CommonModule],
   templateUrl: './auth-continue-page.component.html',
 })
 export class AuthContinuePageComponent implements OnInit {
@@ -98,7 +100,7 @@ export class AuthContinuePageComponent implements OnInit {
       void this.router.navigate(['/login']);
       return;
     }
-    window.location.assign(`https://app.${environment.baseDomain}/login`);
+    window.location.assign(`https://app.${platformConfig().baseDomain}/login`);
   }
 
   private returnUrl(): string {

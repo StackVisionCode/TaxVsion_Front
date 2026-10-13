@@ -111,7 +111,7 @@
     </button>
     <button type="submit" [disabled]="!isValid || busy"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      <ion-icon *ngIf="busy" name="sync-outline" class="animate-spin text-base"></ion-icon>
+      <app-infinity-loader *ngIf="busy" size="xs" tone="light" />
       {{ busy ? 'Connecting…' : 'Connect mailbox' }}
     </button>
   </div>

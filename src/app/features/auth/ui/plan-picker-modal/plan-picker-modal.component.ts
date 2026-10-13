@@ -16,6 +16,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { Plan } from '@core/plans/plan.model';
 import { PlansService } from '@core/plans/plans.service';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 export type BillingCycle = 'Monthly' | 'Yearly';
 
@@ -52,7 +53,7 @@ const MODULE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-plan-picker-modal',
-  imports: [CommonModule, ModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './plan-picker-modal.component.html',
 })

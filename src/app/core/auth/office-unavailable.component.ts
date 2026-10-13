@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { environment } from '@env/environment';
+import { platformConfig } from '@core/config/platform-config';
 
 /**
  * Mensaje plano cuando el subdominio no corresponde a una oficina registrada. Reemplaza el viejo
@@ -33,5 +33,5 @@ import { environment } from '@env/environment';
   `],
 })
 export class OfficeUnavailableComponent {
-  readonly baseDomain = environment.baseDomain;
+  readonly baseDomain = platformConfig().baseDomain;
 }

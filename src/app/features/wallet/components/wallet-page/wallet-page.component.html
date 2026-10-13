@@ -215,7 +215,7 @@
         class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-60"
       >
         @if (busy()) {
-          <ion-icon name="sync-outline" class="animate-spin" aria-hidden="true"></ion-icon>
+          <app-infinity-loader size="xs" tone="light" />
         }
         {{ busy() ? 'Redirecting…' : 'Continue to checkout · ' + fmtDollars(topUpDollars()) }}
       </button>

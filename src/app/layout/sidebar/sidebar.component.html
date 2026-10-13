@@ -21,7 +21,7 @@
             (error)="showLogoFallback.set(true)"
           />
           <ng-template #expandedFallback>
-            <span class="text-gray-900 text-sm font-bold tracking-widest">TAXPROFFICE</span>
+            <span class="text-gray-900 text-sm font-bold tracking-widest">{{ brand.toUpperCase() }}</span>
           </ng-template>
         </ng-container>
         <!-- Colapsado (w-16): la marca del tenant reducida (favicon, o el logo

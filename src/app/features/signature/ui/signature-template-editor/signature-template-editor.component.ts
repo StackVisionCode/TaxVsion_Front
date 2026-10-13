@@ -15,6 +15,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
@@ -166,7 +167,7 @@ interface LayoutSnapshot {
  */
 @Component({
   selector: 'app-signature-template-editor',
-  imports: [CommonModule, FormsModule, SignatureCategoryPickerComponent, ConfirmDialogComponent, SegmentedComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, SignatureCategoryPickerComponent, ConfirmDialogComponent, SegmentedComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-editor.component.html',
   styleUrl: './signature-template-editor.component.css',

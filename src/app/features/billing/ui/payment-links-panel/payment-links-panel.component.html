@@ -11,7 +11,11 @@
       <button type="button" (click)="refreshRequested.emit()" [disabled]="loading"
         class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
         aria-label="Refresh payment links">
-        <ion-icon name="refresh-outline" class="text-base" [ngClass]="loading ? 'animate-spin' : ''"></ion-icon>
+        @if (loading) {
+          <app-infinity-loader size="xs" />
+        } @else {
+          <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+        }
       </button>
       <button *ngIf="canManage" type="button" (click)="openForm()"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
@@ -154,8 +158,11 @@
       </button>
       <button type="button" (click)="submit()" [disabled]="!canCreate"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="creating ? 'sync-outline' : 'link-outline'" class="text-base"
-          [ngClass]="creating ? 'animate-spin' : ''"></ion-icon>
+        @if (creating) {
+          <app-infinity-loader size="xs" tone="light" />
+        } @else {
+          <ion-icon name="link-outline" class="text-base"></ion-icon>
+        }
         {{ creating ? 'Creating…' : 'Create link' }}
       </button>
     </div>

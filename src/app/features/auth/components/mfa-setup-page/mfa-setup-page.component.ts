@@ -17,10 +17,12 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
  * queda la clave manual como respaldo.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { platformBrand } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-mfa-setup-page',
-  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, ReactiveFormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-setup-page.component.html',
   styleUrl: './mfa-setup-page.component.css',
@@ -108,7 +110,7 @@ export class MfaSetupPageComponent implements OnInit {
       return;
     }
     const body =
-      'TaxPro Office — Recovery codes\n\n' +
+      `${platformBrand()} — Recovery codes\n\n` +
       'Keep these somewhere safe. Each code can be used once to sign in if you lose your device.\n\n' +
       codes.join('\n') +
       '\n';
@@ -116,7 +118,7 @@ export class MfaSetupPageComponent implements OnInit {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'taxproffice-recovery-codes.txt';
+    link.download = `${platformBrand().toLowerCase()}-recovery-codes.txt`;
     link.click();
     URL.revokeObjectURL(url);
   }

@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { environment } from '@env/environment';
 import { ApiConfigService } from './api-config.service';
+import { resetPlatformConfigForTests } from './platform-config';
 
 /**
  * El slug del tenant decide a qué host van TODAS las llamadas autenticadas, así que
@@ -23,6 +24,7 @@ describe('ApiConfigService', () => {
       writable: true,
       configurable: true,
     });
+    resetPlatformConfigForTests(hostname);
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [ApiConfigService] });
     return TestBed.inject(ApiConfigService);
@@ -38,6 +40,7 @@ describe('ApiConfigService', () => {
   afterEach(() => {
     localStorage.clear();
     Object.assign(environment, original);
+    resetPlatformConfigForTests();
   });
 
   it('deduce el tenant del subdominio cuando no hay nada guardado', () => {
@@ -64,8 +67,18 @@ describe('ApiConfigService', () => {
     expect(() => service.tenantBase()).toThrow();
   });
 
-  it('ignora www', () => {
+  it('ignora www y el portal de clientes', () => {
     expect(serviceAtHost('www.taxproffice.com').slug()).toBeNull();
+    expect(serviceAtHost('client.taxproffice.com').slug()).toBeNull();
+  });
+
+  // El dominio sale del host que sirve la app, no del bundle: tras cambiar el dominio de la
+  // plataforma el mismo build sigue armando las URLs contra el dominio nuevo.
+  it('sigue al dominio del host aunque el build traiga otro', () => {
+    const service = serviceAtHost('acme.taxoffix.io');
+    expect(service.slug()).toBe('acme');
+    expect(service.tenantUrl('/auth/login')).toBe('https://acme.taxoffix.io/auth/login');
+    expect(service.systemUrl('/plans')).toBe('https://api.taxoffix.io/plans');
   });
 
   it('los endpoints de sistema no dependen del tenant', () => {

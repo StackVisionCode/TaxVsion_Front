@@ -5,7 +5,7 @@
         @if (logoUrl() && !showLogoFallback()) {
           <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
         } @else {
-          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+          <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
             <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
             <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
           </span>
@@ -41,7 +41,7 @@
         <button type="submit" [disabled]="isBusy()"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
           @if (isBusy()) {
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <app-infinity-loader size="xs" tone="light" />
             <span>Signing in...</span>
           } @else {
             <span>Continue</span>
@@ -68,7 +68,7 @@
         @if (logoUrl() && !showLogoFallback()) {
           <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
         } @else {
-          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+          <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
             <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
             <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
           </span>
@@ -98,7 +98,7 @@
         <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
           @if (isBusy()) {
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <app-infinity-loader size="xs" tone="light" />
             <span>Verifying...</span>
           } @else {
             <span>Verify &amp; continue</span>
@@ -115,7 +115,7 @@
         @if (logoUrl() && !showLogoFallback()) {
           <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
         } @else {
-          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+          <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
             <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
             <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
           </span>
@@ -135,7 +135,7 @@
               class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#F8F4ED] disabled:opacity-70">
               <span class="min-w-0">
                 <span class="block truncate text-sm font-semibold">{{ office.tenantName }}</span>
-                <span class="block truncate text-xs text-[#3E5F6B]">{{ office.subdomain }}.taxproffice.com</span>
+                <span class="block truncate text-xs text-[#3E5F6B]">{{ office.subdomain }}.{{ baseDomain }}</span>
                 @if (office.isClientPortal) {
                   <span class="mt-1 inline-block rounded-full bg-[#E3FF00] px-2 py-0.5 text-[11px] font-semibold text-[#083645]">Client portal</span>
                 }
@@ -158,7 +158,7 @@
                   <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
                     class="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
                     @if (isBusy()) {
-                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                      <app-infinity-loader size="xs" tone="light" />
                     } @else {
                       <span>Verify &amp; continue</span>
                     }

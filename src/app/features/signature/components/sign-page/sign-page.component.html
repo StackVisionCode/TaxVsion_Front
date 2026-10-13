@@ -1,7 +1,7 @@
 <div class="signing-page">
   <header class="signing-header">
-    <div class="brand-lockup" aria-label="TaxProffice and office branding">
-      <div class="platform-brand" aria-label="TaxProffice platform">
+    <div class="brand-lockup" [attr.aria-label]="brand + ' and office branding'">
+      <div class="platform-brand" [attr.aria-label]="brand + ' platform'">
         <app-platform-brand-logo
           logoClass="h-10 w-full object-contain object-left"
         ></app-platform-brand-logo>
@@ -304,7 +304,7 @@
                   </summary>
                   <p>
                     The completed document is sealed against changes using a digital certificate
-                    operated by TaxProffice. The seal supports integrity and traceability; it is not
+                    operated by {{ brand }}. The seal supports integrity and traceability; it is not
                     a qualified certificate issued in a signer's name.
                   </p>
                 </details>
@@ -967,7 +967,7 @@
       </div>
 
       <footer class="signing-footer">
-        <span><ion-icon name="lock-closed-outline"></ion-icon>Powered by TaxProffice</span>
+        <span><ion-icon name="lock-closed-outline"></ion-icon>Powered by {{ brand }}</span>
         <span>Private by design. Clear at every step.</span>
       </footer>
     </main>
@@ -1003,7 +1003,7 @@
       </p>
       <h3>Adding your signature</h3>
       <p>
-        Draw, type or upload one signature. TaxProffice applies that evidence to the signature and
+        Draw, type or upload one signature. {{ brand }} applies that evidence to the signature and
         initials fields assigned to you.
       </p>
       <h3>After signing</h3>

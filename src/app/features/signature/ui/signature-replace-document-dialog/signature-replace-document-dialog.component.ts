@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
@@ -36,7 +37,7 @@ type Phase = 'idle' | 'validating' | 'uploading' | 'rejected' | 'failed';
  */
 @Component({
   selector: 'app-signature-replace-document-dialog',
-  imports: [CommonModule, ModalComponent, DropzoneComponent, SignatureDocumentLibraryComponent],
+  imports: [InfinityLoaderComponent, CommonModule, ModalComponent, DropzoneComponent, SignatureDocumentLibraryComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-replace-document-dialog.component.html',
 })

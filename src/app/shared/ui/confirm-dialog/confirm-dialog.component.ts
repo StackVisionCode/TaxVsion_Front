@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ModalComponent } from '../modal/modal.component';
 
 /**
@@ -20,7 +21,7 @@ import { ModalComponent } from '../modal/modal.component';
  */
 @Component({
   selector: 'app-confirm-dialog',
-  imports: [CommonModule, ModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './confirm-dialog.component.html',
 })

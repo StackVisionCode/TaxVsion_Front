@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -32,7 +33,7 @@ type FreqPreset = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 @Component({
   selector: 'app-task-series-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ModalComponent, StatusPillComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-series-modal.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

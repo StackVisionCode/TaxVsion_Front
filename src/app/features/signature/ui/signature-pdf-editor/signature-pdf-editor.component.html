@@ -187,7 +187,7 @@
       <p *ngIf="!pages().length" class="text-center text-[11px] text-gray-400">No pages yet</p>
     </div>
     <div *ngIf="pageReorderBusy" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/85 px-2 text-center" role="status">
-      <span class="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
+      <app-infinity-loader size="md" />
       <span class="text-[11px] font-medium text-gray-600">Reordering pages…</span>
     </div>
   </aside>

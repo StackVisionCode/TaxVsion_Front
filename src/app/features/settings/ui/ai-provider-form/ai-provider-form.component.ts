@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnInit, Output, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import {
   AiProviderConnection,
   AiProviderCredentials,
@@ -16,7 +17,7 @@ import {
  */
 @Component({
   selector: 'app-ai-provider-form',
-  imports: [FormsModule],
+  imports: [InfinityLoaderComponent, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <form class="flex flex-col gap-5" (ngSubmit)="submit()">
@@ -66,7 +67,7 @@ import {
         <button type="submit" [disabled]="saving || !canSubmit()"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
           @if (saving) {
-            <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+            <app-infinity-loader size="xs" tone="light" />
           }
           {{ connection ? 'Save changes' : 'Connect' }}
         </button>

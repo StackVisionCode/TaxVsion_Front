@@ -1,7 +1,7 @@
 <!-- 1) Bootstrap: cuentas de buzón (/connectors) + clientes (/customers) -->
 <div *ngIf="store.bootLoading()" class="flex-1 min-h-0 pt-3 pb-1 flex items-center justify-center">
   <div class="flex items-center gap-2 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    <app-infinity-loader size="sm" />
     Loading your mailbox…
   </div>
 </div>
@@ -112,8 +112,8 @@
         [ngClass]="store.providerDetection().provider === 'Gmail'
           ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
           : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
-        <ion-icon [name]="store.connectBusy() === 'Gmail' ? 'sync-outline' : 'logo-google'" class="text-base"
-          [ngClass]="store.connectBusy() === 'Gmail' ? 'animate-spin' : ''"></ion-icon>
+        <app-infinity-loader *ngIf="store.connectBusy() === 'Gmail'" size="xs" tone="light" />
+        <ion-icon *ngIf="store.connectBusy() !== 'Gmail'" name="logo-google" class="text-base"></ion-icon>
         {{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Connect Gmail' }}
       </button>
       <button *ngIf="showGraphOption()" type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
@@ -121,8 +121,8 @@
         [ngClass]="store.providerDetection().provider === 'Graph'
           ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
           : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
-        <ion-icon [name]="store.connectBusy() === 'Graph' ? 'sync-outline' : 'logo-microsoft'" class="text-base"
-          [ngClass]="store.connectBusy() === 'Graph' ? 'animate-spin' : ''"></ion-icon>
+        <app-infinity-loader *ngIf="store.connectBusy() === 'Graph'" size="xs" tone="light" />
+        <ion-icon *ngIf="store.connectBusy() !== 'Graph'" name="logo-microsoft" class="text-base"></ion-icon>
         {{ store.connectBusy() === 'Graph' ? 'Redirecting…' : 'Connect Microsoft 365' }}
       </button>
     </div>

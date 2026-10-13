@@ -28,7 +28,11 @@
 
     <button type="button" (click)="addNote()" [disabled]="saving() || !draftText().trim()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-base" [class.animate-spin]="saving()"></ion-icon>
+      @if (saving()) {
+        <app-infinity-loader size="xs" tone="light" />
+      } @else {
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+      }
       Add note
     </button>
   </div>

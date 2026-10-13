@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { RecordedVoiceNote, VoiceNoteRecorderService } from '@core/communication/voice-note-recorder.service';
 
@@ -26,7 +27,7 @@ import { RecordedVoiceNote, VoiceNoteRecorderService } from '@core/communication
  */
 @Component({
   selector: 'app-chat-composer',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-composer.component.html',
 })

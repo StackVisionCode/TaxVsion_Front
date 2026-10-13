@@ -7,6 +7,7 @@ import { SearchInputComponent } from '@shared/ui/search-input/search-input.compo
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ReferralsStore } from '../../data-access/referrals.store';
+import { platformBrand } from '@core/config/platform-config';
 
 type StatusFilter = 'All' | ReferralStatus;
 const PAGE_SIZE = 8;
@@ -128,7 +129,7 @@ export class ReferralsPageComponent implements OnInit {
     if (!code || !link) {
       return;
     }
-    const text = encodeURIComponent(`Join TaxPro Office using my referral code ${code} and we both get rewarded!`);
+    const text = encodeURIComponent(`Join ${platformBrand()} using my referral code ${code} and we both get rewarded!`);
     const url = encodeURIComponent(link);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank', 'noopener,noreferrer');
   }
@@ -139,9 +140,9 @@ export class ReferralsPageComponent implements OnInit {
     if (!code || !link) {
       return;
     }
-    const subject = encodeURIComponent('Join me on TaxPro Office');
+    const subject = encodeURIComponent(`Join me on ${platformBrand()}`);
     const body = encodeURIComponent(
-      `Use my referral code ${code} when you sign up for TaxPro Office and we both get rewarded!\n\n${link}`,
+      `Use my referral code ${code} when you sign up for ${platformBrand()} and we both get rewarded!\n\n${link}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }

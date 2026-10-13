@@ -16,6 +16,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
@@ -74,7 +75,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent],
+  imports: [CommonModule, FormsModule, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })

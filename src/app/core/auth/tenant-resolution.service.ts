@@ -7,7 +7,7 @@ import { ApiConfigService } from '@core/config/api-config.service';
  * "Encuentra tu oficina" (estilo Slack). Resuelve a qué tenant/subdominio pertenece un
  * usuario cuando aún no lo sabe (no tiene sesión ni el ?office= en la URL).
  *
- * Endpoint del SISTEMA (api.taxproffice.com): no resuelve tenant por Host, por eso va a
+ * Endpoint del SISTEMA (api.taxoffix.io): no resuelve tenant por Host, por eso va a
  * systemUrl y no a tenantUrl.
  */
 @Injectable({ providedIn: 'root' })

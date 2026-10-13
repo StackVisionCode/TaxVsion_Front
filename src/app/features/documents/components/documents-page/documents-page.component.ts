@@ -442,7 +442,7 @@ export class DocumentsPageComponent implements OnInit {
     this.store.clearCreatedShare();
   }
   shareUrl(token: string): string {
-    // Mismo origen que la oficina actual: en prod es su subdominio (`https://<oficina>.taxproffice.com`),
+    // Mismo origen que la oficina actual: en prod es su subdominio (`https://<oficina>.taxoffix.io`),
     // donde vive la página pública `/s/:token`; en dev es el mismo host del CRM.
     return `${window.location.origin}/s/${token}`;
   }

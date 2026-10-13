@@ -22,12 +22,13 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
  * abrir y se cachea por versión.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 type TermsKind = 'TermsOfService' | 'PrivacyPolicy';
 
 @Component({
   selector: 'app-terms-page',
-  imports: [BrandLogoComponent, CommonModule, ModalComponent],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, ModalComponent],
   templateUrl: './terms-page.component.html',
   styleUrl: './terms-page.component.css',
 })

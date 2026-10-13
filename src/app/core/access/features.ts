@@ -130,7 +130,7 @@ export const FEATURES: readonly FeatureDefinition[] = [
   { id: 'users', label: 'Users', route: 'company/users', module: null, anyOf: ['users.view'] },
   {
     id: 'company-settings',
-    label: 'Company settings',
+    label: 'Office settings',
     route: 'company/settings',
     module: null,
     anyOf: ['settings.manage', 'branding.manage'],

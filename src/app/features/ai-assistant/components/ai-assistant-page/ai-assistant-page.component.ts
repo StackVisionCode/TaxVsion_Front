@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AiChatComposerComponent } from '../../ui/ai-chat-composer/ai-chat-composer.component';
+import { platformBrand } from '@core/config/platform-config';
 
 /**
  * Página del AI Assistant.
@@ -22,4 +23,7 @@ import { AiChatComposerComponent } from '../../ui/ai-chat-composer/ai-chat-compo
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './ai-assistant-page.component.html',
 })
-export class AiAssistantPageComponent {}
+export class AiAssistantPageComponent {
+  /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */
+  protected readonly brand = platformBrand();
+}

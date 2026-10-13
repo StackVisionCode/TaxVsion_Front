@@ -53,7 +53,7 @@ export class AuthService {
    * Base de los endpoints de Auth: la oficina resuelta (`https://<slug>.baseDomain`).
    *
    * Si todavía no hay oficina, cae al HOST DE SISTEMA en vez de reventar. El SPA se
-   * sirve en `app.taxproffice.com`, que a propósito no es un slug de tenant, así que
+   * sirve en `app.taxoffix.io`, que a propósito no es un slug de tenant, así que
    * sin este fallback **nadie podría iniciar sesión desde la portada**. Y no hace
    * falta conocer la oficina para entrar: `/auth/login` resuelve igual en el host de
    * sistema (verificado contra producción) y el tenant viaja en el JWT que devuelve.

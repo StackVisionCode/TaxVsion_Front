@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TenantBrandingService } from './tenant-branding.service';
 import { PlatformBrandLogoComponent } from './platform-brand-logo.component';
+import { platformBrand } from '@core/config/platform-config';
 
 describe('PlatformBrandLogoComponent', () => {
   let fixture: ComponentFixture<PlatformBrandLogoComponent>;
@@ -33,7 +34,7 @@ describe('PlatformBrandLogoComponent', () => {
     expect(loadSystemBrandLogo).toHaveBeenCalledOnce();
     expect(loadSystemBrandLogo).toHaveBeenCalledWith('Crm');
     expect(element.querySelector('img')).toBeNull();
-    expect(element.textContent).toContain('TAXPROFFICE');
+    expect(element.textContent).toContain(platformBrand().toUpperCase());
   });
 
   it('renderiza la URL institucional devuelta por tenant branding', () => {
@@ -44,6 +45,6 @@ describe('PlatformBrandLogoComponent', () => {
     expect(logo?.src).toBe(
       'https://manfer.taxproffice.com/tenants/branding/assets/platform-logo?v=1',
     );
-    expect(logo?.alt).toBe('TaxProffice');
+    expect(logo?.alt).toBe(platformBrand());
   });
 });

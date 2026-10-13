@@ -77,7 +77,7 @@
       <!-- Body -->
       <div>
         <div *ngIf="bodyLoading" class="flex items-center gap-2 px-2 pb-2 text-xs text-gray-400">
-          <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon>
+          <app-infinity-loader size="xs" />
           Loading current content…
         </div>
         <textarea rows="8" placeholder="Write the template HTML..." [ngModel]="bodyDraft()" name="body"

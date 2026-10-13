@@ -6,10 +6,18 @@ export interface Environment {
    * la URL se arma por tenant en ApiConfigService a partir de systemHost/baseDomain.
    */
   apiUrl: string;
-  /** Host de los endpoints DEL SISTEMA (sin tenant): api.taxproffice.com en prod. */
+  /**
+   * Host de los endpoints DEL SISTEMA (sin tenant). En prod solo es el respaldo: el vigente sale del host
+   * que sirve la app y de PlatformSettings (ver `platformConfig()`).
+   */
   systemHost: string;
-  /** Dominio base para componer el subdominio del tenant: <slug>.{baseDomain}. */
+  /** Dominio base de respaldo para `<slug>.{baseDomain}`. En prod manda `platformConfig().baseDomain`. */
   baseDomain: string;
+  /**
+   * Nombre de la plataforma con el que arranca la UI hasta que contesta `/platform/settings/public`.
+   * Se lee solo a través de `platformBrand()` (core/config/platform-config), nunca escrito en un componente.
+   */
+  brandName: string;
   /**
    * true en prod: el backend resuelve el tenant por el Host de la request, así que
    * el front debe pegarle a https://<slug>.baseDomain y NO mandar tenantId en el body.

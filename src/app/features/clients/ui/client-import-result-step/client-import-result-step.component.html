@@ -17,8 +17,11 @@
     </div>
     <button type="button" (click)="downloadCsvRequested.emit()" [disabled]="csvDownloading"
       class="flex shrink-0 items-center gap-2 rounded-full border border-brand-border bg-white px-5 py-2 text-sm font-semibold text-brand-bold transition-colors hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-60">
-      <ion-icon [name]="csvDownloading ? 'sync-outline' : 'download-outline'" class="text-base"
-        [class.animate-spin]="csvDownloading"></ion-icon>
+      @if (csvDownloading) {
+        <app-infinity-loader size="xs" />
+      } @else {
+        <ion-icon name="download-outline" class="text-base"></ion-icon>
+      }
       {{ csvDownloading ? 'Preparing…' : 'Download full report' }}
     </button>
   </div>

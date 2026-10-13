@@ -14,6 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -62,7 +63,7 @@ const BOTTOM_STICK_THRESHOLD = 80;
  */
 @Component({
   selector: 'app-chat-thread',
-  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent],
+  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
   // El host debe llenar su contenedor acotado (`flex-1 min-h-0`); por defecto un
