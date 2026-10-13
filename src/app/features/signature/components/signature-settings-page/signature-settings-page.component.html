@@ -1,0 +1,251 @@
+<div class="min-h-full pt-3 pb-6 flex flex-col gap-4">
+  <!-- Header -->
+  <div class="lg:pr-[var(--shell-notch-width)]">
+    <a routerLink="/settings"
+      class="inline-flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+      <ion-icon name="arrow-back-outline" class="text-sm"></ion-icon>
+      Settings
+    </a>
+    <h1 class="mt-1 text-2xl font-bold text-gray-900">Signature</h1>
+    <p class="mt-1 text-sm text-gray-500">Defaults that apply to every signing request your firm sends.</p>
+  </div>
+
+  @if (draft(); as d) {
+    <!-- Request defaults -->
+    <section class="rounded-[28px] bg-white p-6">
+      <h2 class="text-lg font-bold text-gray-900">Request defaults</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        New requests start from these. Where allowed, the preparer can change them per request.
+      </p>
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <!-- Link expiration -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Link expiration</p>
+            <p class="mt-0.5 text-xs text-gray-500">Signing links stop working after this long.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            @if (d.expirationEnabledByDefault) {
+              <span class="flex items-center gap-1.5">
+                <input type="number" [min]="minHours" [max]="maxHours" [ngModel]="d.defaultTokenExpirationHours"
+                  (ngModelChange)="setHours('defaultTokenExpirationHours', $event)"
+                  class="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm" aria-label="Expiration hours" />
+                <span class="text-xs text-gray-500">hours</span>
+              </span>
+            }
+            <app-switch [checked]="d.expirationEnabledByDefault"
+              (checkedChange)="patch('expirationEnabledByDefault', $event)" ariaLabel="Link expiration"></app-switch>
+          </div>
+        </div>
+
+        <!-- Auto-remind -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Auto-remind unsigned documents</p>
+            <p class="mt-0.5 text-xs text-gray-500">Nudge signers who haven't signed yet.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            @if (d.remindersEnabledByDefault) {
+              <span class="flex items-center gap-1.5 text-xs text-gray-500">
+                Every
+                <input type="number" [min]="minHours" [max]="maxHours" [ngModel]="d.defaultReminderIntervalHours"
+                  (ngModelChange)="setHours('defaultReminderIntervalHours', $event)"
+                  class="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm" aria-label="Reminder interval hours" />
+                hours
+              </span>
+            }
+            <app-switch [checked]="d.remindersEnabledByDefault"
+              (checkedChange)="patch('remindersEnabledByDefault', $event)" ariaLabel="Auto-remind"></app-switch>
+          </div>
+        </div>
+
+        <!-- Generate certificate (firm policy) -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">
+              Generate completion certificate
+              <span class="ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">Firm policy</span>
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">Legal audit trail attached when everyone finishes. Applies to every request.</p>
+          </div>
+          <app-switch [checked]="d.generateCertificateByDefault"
+            (checkedChange)="patch('generateCertificateByDefault', $event)" ariaLabel="Generate certificate"></app-switch>
+        </div>
+
+        <!-- Require consent (firm policy) -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">
+              Require e-signature consent
+              <span class="ml-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">Firm policy</span>
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500">Signers accept the ESIGN/UETA consent before they can sign.</p>
+          </div>
+          <app-switch [checked]="d.requiresConsentByDefault"
+            (checkedChange)="patch('requiresConsentByDefault', $event)" ariaLabel="Require e-signature consent"></app-switch>
+        </div>
+
+        <!-- Email certificate to signers (requires generate) -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Email the certificate to signers</p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              {{ d.generateCertificateByDefault
+                ? 'Send the completion certificate once everyone finishes.'
+                : 'Turn on certificate generation first.' }}
+            </p>
+          </div>
+          <app-switch [checked]="d.sendCertificateToSignersDefault" [disabled]="!d.generateCertificateByDefault"
+            (checkedChange)="patch('sendCertificateToSignersDefault', $event)" ariaLabel="Email certificate to signers"></app-switch>
+        </div>
+
+        <!-- Email sealed document -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Email the sealed document to signers</p>
+            <p class="mt-0.5 text-xs text-gray-500">Send the final PDF once all parties sign.</p>
+          </div>
+          <app-switch [checked]="d.sendSealedDocumentDefault"
+            (checkedChange)="patch('sendSealedDocumentDefault', $event)" ariaLabel="Email sealed document"></app-switch>
+        </div>
+
+        <!-- Partial copy + audience -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Email each signer a copy of what they signed</p>
+            <p class="mt-0.5 text-xs text-gray-500">Immediate per-signature copy.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            @if (d.sendPartialCopyDefault) {
+              <select [ngModel]="d.partialCopyDefaultAudienceKind"
+                (ngModelChange)="patch('partialCopyDefaultAudienceKind', $event)"
+                class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Partial copy audience">
+                <option value="All">All signers</option>
+                <option value="Specific">Specific signers</option>
+              </select>
+            }
+            <app-switch [checked]="d.sendPartialCopyDefault"
+              (checkedChange)="patch('sendPartialCopyDefault', $event)" ariaLabel="Email each signer a copy"></app-switch>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Signer verification -->
+    <section class="rounded-[28px] bg-white p-6">
+      <h2 class="text-lg font-bold text-gray-900">Signer verification</h2>
+      <p class="mt-1 text-sm text-gray-500">How signers prove who they are before signing.</p>
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Allowed channels</p>
+            <p class="mt-0.5 text-xs text-gray-500">Which verification methods preparers can pick.</p>
+          </div>
+          <div class="flex flex-wrap justify-end gap-2">
+            @for (ch of channels; track ch) {
+              <button type="button" (click)="toggleChannel(ch, !isChannelOn(ch))"
+                class="rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
+                [class.border-blue-600]="isChannelOn(ch)" [class.bg-blue-600]="isChannelOn(ch)"
+                [class.text-white]="isChannelOn(ch)" [class.border-gray-200]="!isChannelOn(ch)"
+                [class.text-gray-500]="!isChannelOn(ch)">
+                {{ ch }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Default channel for new signers</p>
+            <p class="mt-0.5 text-xs text-gray-500">Pre-selected when adding a signer.</p>
+          </div>
+          <select [ngModel]="d.defaultVerificationChannel" (ngModelChange)="patch('defaultVerificationChannel', $event)"
+            class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Default verification channel">
+            @for (ch of d.allowedVerificationChannels; track ch) {
+              <option [value]="ch">{{ ch }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Office signature -->
+    <section class="rounded-[28px] bg-white p-6">
+      <h2 class="text-lg font-bold text-gray-900">Office signature</h2>
+      <p class="mt-1 text-sm text-gray-500">The firm's shared signature and whether employees may use their own.</p>
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <!-- Governance toggle (part of the saved settings) -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Let employees use their own signature</p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              On: each employee stamps their personal signature. Off: everyone uses the office signature. Admins are always allowed.
+            </p>
+          </div>
+          <app-switch [checked]="d.allowEmployeeOwnSignature"
+            (checkedChange)="patch('allowEmployeeOwnSignature', $event)" ariaLabel="Let employees use their own signature"></app-switch>
+        </div>
+
+        <!-- Office signature management (instant actions) -->
+        @if (caps.canManagePreparerProfiles()) {
+          <div class="py-4">
+            <app-signature-profile-list scope="office"></app-signature-profile-list>
+          </div>
+        } @else {
+          <p class="py-4 text-xs text-gray-400">Office signatures are managed by a preparer administrator.</p>
+        }
+      </div>
+    </section>
+
+    <!-- Limits & retention (plan, read-only) -->
+    <section class="rounded-[28px] bg-white p-6">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Limits &amp; retention</h2>
+          <p class="mt-1 text-sm text-gray-500">Set by your plan. Visible to the firm, changed by the platform.</p>
+        </div>
+        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+          <ion-icon name="lock-closed-outline"></ion-icon> Plan
+        </span>
+      </div>
+      <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+          <dt class="text-xs text-gray-400">Upload limit (PDF)</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ formatBytes(d.maxPdfBytes) }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400">Upload limit (image)</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ formatBytes(d.maxImageBytes) }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400">Pages per document</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.maxPagesPerDocument }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-400">Retention</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.retentionYears }} yr</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Save -->
+    <div class="sticky bottom-0 flex justify-end rounded-2xl border border-gray-100 bg-white/90 px-4 py-3 backdrop-blur">
+      <button type="button" (click)="save()" [disabled]="saving()"
+        class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+        {{ saving() ? 'Saving…' : 'Save changes' }}
+      </button>
+    </div>
+  } @else {
+    <div class="rounded-[28px] bg-white p-6">
+      <div class="h-6 w-40 animate-pulse rounded bg-gray-100"></div>
+      <div class="mt-4 space-y-3">
+        <div class="h-12 animate-pulse rounded bg-gray-50"></div>
+        <div class="h-12 animate-pulse rounded bg-gray-50"></div>
+        <div class="h-12 animate-pulse rounded bg-gray-50"></div>
+      </div>
+    </div>
+  }
+</div>

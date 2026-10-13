@@ -35,6 +35,7 @@ import {
   SignatureProfileScope,
   SignatureProfilesResult,
   SignatureSettings,
+  SignatureSettingsUpdate,
   UpdateSignatureRequestBody,
   UpdateTemplateDefaultsBody,
   UpdateTemplateMetadataBody,
@@ -276,22 +277,7 @@ export class SignatureService {
   }
 
   /** PUT /signature/settings — reemplaza toda la configuración (semántica PUT del backend). */
-  updateSignatureSettings(body: {
-    allowedVerificationChannels: string[];
-    defaultVerificationChannel: string;
-    defaultTokenExpirationHours: number;
-    remindersEnabledByDefault: boolean;
-    generateCertificateByDefault: boolean;
-    documentLimits: { maxPdfBytes: number; maxImageBytes: number; maxPagesPerDocument: number };
-    retentionPolicy: { retentionYears: number; allowPurge: boolean };
-    defaultReminderIntervalHours: number;
-    allowEmployeeOwnSignature: boolean;
-    // F7 — null = no tocar.
-    sendPartialCopyDefault?: boolean | null;
-    partialCopyDefaultAudienceKind?: string | null;
-    sendSealedDocumentDefault?: boolean | null;
-    expirationEnabledByDefault?: boolean | null;
-  }): Observable<void> {
+  updateSignatureSettings(body: SignatureSettingsUpdate): Observable<void> {
     return this.http.put<void>(`${this.base}/settings`, body);
   }
 

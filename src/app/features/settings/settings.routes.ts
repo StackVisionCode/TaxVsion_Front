@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { accessCanMatch } from '@core/access/access.guard';
 import { SettingsPageComponent } from './components/settings-page/settings-page.component';
 import { BillingStore } from '../billing/data-access/billing.store';
 import { ConnectionsStore } from './data-access/connections.store';
@@ -28,5 +29,29 @@ export const SETTINGS_ROUTES: Routes = [
     loadComponent: () =>
       import('./components/connections-page/connections-page.component').then(m => m.ConnectionsPageComponent),
     title: 'Connections & MCP',
+  },
+  {
+    // Ajustes globales de firma del despacho. Página dedicada (reemplaza el panel inline muerto),
+    // gateada por signature.settings.manage. El componente lo posee la feature signature.
+    path: 'signature',
+    canMatch: [accessCanMatch],
+    data: { feature: 'signature-settings' },
+    loadComponent: () =>
+      import('../signature/components/signature-settings-page/signature-settings-page.component').then(
+        m => m.SignatureSettingsPageComponent,
+      ),
+    title: 'Signature settings',
+  },
+  {
+    // "My Signature" personal del preparador. Gateada por signature.preparer.manage; el backend
+    // cierra el resto. Separada de la gobernanza del despacho (página de arriba).
+    path: 'my-signature',
+    canMatch: [accessCanMatch],
+    data: { feature: 'my-signature' },
+    loadComponent: () =>
+      import('../signature/components/my-signature-page/my-signature-page.component').then(
+        m => m.MySignaturePageComponent,
+      ),
+    title: 'My signature',
   },
 ];
