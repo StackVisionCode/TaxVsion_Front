@@ -177,3 +177,18 @@
     transform: translateY(0);
   }
 }
+
+/* Pestañas de documentos arrastrables (paso 3). */
+.doc-tab.cdk-drag-preview {
+  box-shadow: 0 8px 20px rgba(13, 13, 13, 0.18);
+  background: #fff;
+  color: #1f2937;
+}
+
+.doc-tab.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+
+.doc-tabs.cdk-drop-list-dragging .doc-tab:not(.cdk-drag-placeholder) {
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}
