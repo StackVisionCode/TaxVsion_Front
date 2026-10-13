@@ -484,6 +484,48 @@ describe('SignaturePdfEditorComponent', () => {
     expect(opts).toContain('email');
   });
 
+  describe('Tools (color, vista, limpieza, búsqueda)', () => {
+    it('cambia el color del firmante activo y los campos lo siguen', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      const signer = c.activeSigner()!;
+      c.setSignerColor(signer.id, 'bg-rose-500');
+      fixture.detectChanges();
+      expect(c.activeSigner()?.color).toBe('bg-rose-500');
+      c.addField('signature');
+      expect(c.borderClass(signer.id)).toBe('border-rose-500');
+    });
+
+    it('"Delete all fields" pide un segundo clic y solo borra los del firmante activo', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('signature');
+      c.addField('date');
+      fixture.detectChanges();
+      const id = c.activeSigner()!.id;
+      expect(c.fieldCountBySigner()[id]).toBe(2);
+
+      c.clearActiveSignerFields();
+      expect(c.confirmClearSigner()).toBe(true);
+      expect(c.fieldCountBySigner()[id]).toBe(2);
+
+      c.clearActiveSignerFields();
+      expect(c.confirmClearSigner()).toBe(false);
+      expect(c.fieldCountBySigner()[id] ?? 0).toBe(0);
+    });
+
+    it('una búsqueda de menos de 2 caracteres no se lanza y el panel de Tools se abre', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.toolsOpen.set(true);
+      fixture.detectChanges();
+      c.setSearchQuery('i');
+      expect(c.searchBusy()).toBe(false);
+      expect(c.searchMatches()).toEqual([]);
+      expect(el(fixture, 'tools-panel')).not.toBeNull();
+    });
+  });
+
   describe('columna derecha plegable (xl)', () => {
     beforeEach(() => localStorage.clear());
     afterEach(() => localStorage.clear());

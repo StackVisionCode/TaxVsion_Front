@@ -77,7 +77,8 @@ import {
   signersMissingSignature,
 } from '../../utils/editor-fields.util';
 import { PDF_RENDER_FRIENDLY_ERROR } from '../../utils/pdf-render.util';
-import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { SignatureReplaceDocumentDialogComponent } from '../signature-replace-document-dialog/signature-replace-document-dialog.component';
 
 type WizardStep = 1 | 2 | 3 | 4;
@@ -106,7 +107,9 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
     SignatureWizardReviewStepComponent,
     SignaturePdfEditorComponent,
     ConfirmDialogComponent,
-    SegmentedComponent,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
     SignatureReplaceDocumentDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -808,6 +811,20 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   reorderDocuments(documents: WizardDocument[]): void {
     this.selectedDocuments.set(documents);
+  }
+
+  /** Paso 3: arrastrar una pestaña de documento cambia el orden de firma (igual que en el paso 2). */
+  dropDocument(event: CdkDragDrop<WizardDocument[]>): void {
+    if (event.previousIndex === event.currentIndex) {
+      return;
+    }
+    const reordered = [...this.selectedDocuments()];
+    moveItemInArray(reordered, event.previousIndex, event.currentIndex);
+    this.reorderDocuments(reordered);
+  }
+
+  trackDocumentTab(_index: number, document: WizardDocument): string {
+    return document.id;
   }
 
   private acceptDocument(doc: WizardDocument, keepFields: boolean): void {

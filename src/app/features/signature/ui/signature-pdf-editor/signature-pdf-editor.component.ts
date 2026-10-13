@@ -64,6 +64,7 @@ import {
   MenuItemDirective,
 } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
+import { PDFJS_STANDARD_FONTS_URL, loadPdfjs } from '@shared/utils/pdfjs-loader';
 import {
   PDF_RENDER_FRIENDLY_ERROR,
   RenderedPage,
@@ -140,7 +141,25 @@ const SIGNER_PALETTE = [
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-brand-bold' },
   { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-600' },
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-gray-900' },
+  { bg: 'bg-rose-500', border: 'border-rose-500', text: 'text-rose-600' },
+  { bg: 'bg-sky-500', border: 'border-sky-500', text: 'text-sky-700' },
+  { bg: 'bg-violet-500', border: 'border-violet-500', text: 'text-violet-600' },
+  { bg: 'bg-amber-500', border: 'border-amber-500', text: 'text-amber-700' },
+  { bg: 'bg-teal-500', border: 'border-teal-500', text: 'text-teal-700' },
+  { bg: 'bg-pink-500', border: 'border-pink-500', text: 'text-pink-600' },
 ];
+
+/** Colores que el usuario puede elegir para un firmante (sin repetidos), en el orden de la paleta. */
+const SIGNER_COLOR_CHOICES: readonly string[] = Array.from(new Set(SIGNER_PALETTE.map((p) => p.bg)));
+
+/** Coincidencia de la búsqueda en el documento: rectángulo en fracciones (0–1) de la página, para que sirva a cualquier zoom. */
+interface SearchMatch {
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** Tamaño por defecto de cada tipo, en px a zoom 100% (se escala por el zoom actual al colocar). */
 const DEFAULT_SIZE: Record<FieldType, { w: number; h: number }> = {
@@ -315,6 +334,33 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   readonly inspectorCollapsed = signal(readPanelCollapsed(PDF_EDITOR_INSPECTOR_COLLAPSED_KEY));
   /** lg+: pestaña activa del inspector derecho (Field / Signers / Checklist). */
   readonly inspectorTab = signal<'field' | 'signers' | 'checklist'>('field');
+  // ---------- Tools (búsqueda, color del firmante, vista) ----------
+  readonly toolsOpen = signal(false);
+  readonly signerColorChoices = SIGNER_COLOR_CHOICES;
+  /** Atenúa los campos de los demás firmantes para concentrarse en el activo. */
+  readonly focusActiveSigner = signal(false);
+  /** Confirmación en dos clics de "Delete all fields of <firmante>". */
+  readonly confirmClearSigner = signal(false);
+  readonly searchQuery = signal('');
+  readonly searchMatches = signal<SearchMatch[]>([]);
+  readonly searchIndex = signal(0);
+  readonly searchBusy = signal(false);
+  /** El documento actual es un PDF real (hay bytes): sin él no hay texto que buscar. */
+  readonly hasSearchableDocument = signal(false);
+  readonly searchHitsByPage = computed(() => {
+    const byPage: Record<number, { match: SearchMatch; index: number }[]> = {};
+    this.searchMatches().forEach((match, index) => {
+      (byPage[match.page] ??= []).push({ match, index });
+    });
+    return byPage;
+  });
+  private searchTimer?: ReturnType<typeof setTimeout>;
+  private searchSeq = 0;
+
+  /** Barra de herramientas: los primeros firmantes van como chip con nombre; el resto, compactado en bolitas. */
+  readonly maxSignerChips = 4;
+  readonly toolbarSignerChips = computed(() => this.signers().slice(0, this.maxSignerChips));
+  readonly toolbarSignerDots = computed(() => this.signers().slice(this.maxSignerChips));
   /** Ancho (px) de las miniaturas de página del lateral izquierdo. */
   readonly thumbWidth = 88;
   /** Firmante cuyo teléfono se está editando desde el menú "…". */
@@ -850,6 +896,154 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       return; // el preparador no es un firmante: nunca es el destino de "Add field"
     }
     this.activeSignerId.set(id);
+  }
+
+  // ---------- Tools: búsqueda en el documento ----------
+
+  setSearchQuery(query: string): void {
+    this.searchQuery.set(query);
+    clearTimeout(this.searchTimer);
+    if (query.trim().length < 2 || !this.docBytes) {
+      this.searchSeq++;
+      this.searchMatches.set([]);
+      this.searchIndex.set(0);
+      this.searchBusy.set(false);
+      return;
+    }
+    this.searchBusy.set(true);
+    this.searchTimer = setTimeout(() => void this.runSearch(query.trim()), 250);
+  }
+
+  clearSearch(): void {
+    this.setSearchQuery('');
+  }
+
+  nextMatch(): void {
+    this.goToMatch(this.searchIndex() + 1);
+  }
+
+  prevMatch(): void {
+    this.goToMatch(this.searchIndex() - 1);
+  }
+
+  private resetSearch(): void {
+    clearTimeout(this.searchTimer);
+    this.searchSeq++;
+    this.searchQuery.set('');
+    this.searchMatches.set([]);
+    this.searchIndex.set(0);
+    this.searchBusy.set(false);
+  }
+
+  private goToMatch(index: number): void {
+    const matches = this.searchMatches();
+    if (!matches.length) {
+      return;
+    }
+    const wrapped = (index + matches.length) % matches.length;
+    this.searchIndex.set(wrapped);
+    const match = matches[wrapped];
+    this.goToPage(match.page);
+    const surface = this.surfaceRef?.nativeElement;
+    const pageEl = surface?.querySelector<HTMLElement>(`[data-page="${match.page}"]`);
+    const page = this.pages().find((p) => p.page === match.page);
+    if (surface && pageEl && page) {
+      surface.scrollTop = Math.max(0, pageEl.offsetTop + match.y * page.height - surface.clientHeight / 3);
+    }
+  }
+
+  /** Busca el texto con pdf.js (por elemento de texto: una frase partida entre dos elementos no se encuentra). */
+  private async runSearch(query: string): Promise<void> {
+    const bytes = this.docBytes;
+    const seq = ++this.searchSeq;
+    if (!bytes) {
+      return;
+    }
+    try {
+      const lib = await loadPdfjs();
+      const util = (lib as unknown as { Util: { transform(a: number[], b: number[]): number[] } }).Util;
+      const task = lib.getDocument({ data: bytes.slice(), standardFontDataUrl: PDFJS_STANDARD_FONTS_URL });
+      try {
+        const pdf = await task.promise;
+        const needle = query.toLowerCase();
+        const found: SearchMatch[] = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          if (seq !== this.searchSeq) {
+            return;
+          }
+          const page = await pdf.getPage(p);
+          const viewport = page.getViewport({ scale: 1 });
+          const content = await page.getTextContent();
+          for (const raw of content.items as unknown[]) {
+            const item = raw as { str?: string; transform?: number[]; width?: number };
+            if (!item.str || !item.transform || !item.width) {
+              continue;
+            }
+            const hay = item.str.toLowerCase();
+            const tx = util.transform(viewport.transform, item.transform);
+            const fontHeight = Math.hypot(tx[2], tx[3]);
+            let from = 0;
+            for (let idx = hay.indexOf(needle, from); idx >= 0; idx = hay.indexOf(needle, from)) {
+              from = idx + needle.length;
+              found.push({
+                page: p,
+                x: (tx[4] + (idx / hay.length) * item.width) / viewport.width,
+                y: (tx[5] - fontHeight) / viewport.height,
+                w: ((needle.length / hay.length) * item.width) / viewport.width,
+                h: (fontHeight * 1.15) / viewport.height,
+              });
+            }
+          }
+          page.cleanup();
+        }
+        if (seq === this.searchSeq) {
+          this.searchMatches.set(found);
+          this.searchIndex.set(0);
+          if (found.length) {
+            this.goToMatch(0);
+          }
+        }
+      } finally {
+        void task.destroy();
+      }
+    } catch {
+      if (seq === this.searchSeq) {
+        this.searchMatches.set([]);
+      }
+    } finally {
+      if (seq === this.searchSeq) {
+        this.searchBusy.set(false);
+      }
+    }
+  }
+
+  // ---------- Tools: color y limpieza ----------
+
+  setSignerColor(signerId: string, bg: string): void {
+    if (this.signers().find((s) => s.id === signerId)?.color === bg) {
+      return;
+    }
+    this.signers.update((list) => list.map((s) => (s.id === signerId ? { ...s, color: bg } : s)));
+    this.markDirty();
+  }
+
+  /** Quita todos los campos del firmante activo (pide un segundo clic para confirmar). */
+  clearActiveSignerFields(): void {
+    const id = this.activeSignerId();
+    if (!id || this.interactionLocked()) {
+      return;
+    }
+    if (!this.confirmClearSigner()) {
+      this.confirmClearSigner.set(true);
+      return;
+    }
+    this.fields.update((list) => list.filter((f) => f.signerId !== id));
+    const selected = this.selectedField();
+    if (selected && selected.signerId === id) {
+      this.selectedFieldId.set(null);
+    }
+    this.confirmClearSigner.set(false);
+    this.markDirty();
   }
 
   /** ¿Este firmante tiene algo pendiente en "Before you continue"? (alerta en su chip de la barra). */
@@ -2077,6 +2271,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       this.fields().some((field) => field.documentLocalId === previousDocumentId) &&
       !this.hasPendingSeedFieldsForActiveDocument();
     this.docBytes = null;
+    this.hasSearchableDocument.set(false);
+    this.resetSearch();
 
     const doc = this.document;
     if (!doc) {
@@ -2113,6 +2309,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         throw new Error('PDF has no pages');
       }
       this.docBytes = bytes;
+      this.hasSearchableDocument.set(true);
       this.zoom.set(pages[0].scale / BASE_SCALE);
       if (transferReplacementFields && previousDocumentId) {
         const replacementFields = this.fields().filter(

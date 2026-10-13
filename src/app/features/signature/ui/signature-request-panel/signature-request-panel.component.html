@@ -101,9 +101,24 @@
     <div [hidden]="currentStep() !== 3" class="step-content">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0 flex-1 overflow-x-auto pb-1">
-          <app-segmented *ngIf="documentTabs().length > 1" [options]="documentTabs()"
-            [value]="selectedDocument()?.id ?? ''"
-            (valueChange)="activateDocument($event)"></app-segmented>
+          <!-- Pestañas de documentos: clic = activar, arrastrar el asa = cambiar el orden de firma. -->
+          <div *ngIf="selectedDocuments().length > 1" cdkDropList cdkDropListOrientation="horizontal"
+            [cdkDropListData]="selectedDocuments()" (cdkDropListDropped)="dropDocument($event)"
+            class="doc-tabs inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white p-1"
+            role="tablist" aria-label="Documents (drag to reorder)" data-testid="doc-tabs">
+            <div *ngFor="let doc of selectedDocuments(); let i = index; trackBy: trackDocumentTab" cdkDrag
+              cdkDragLockAxis="x" role="tab" [attr.aria-selected]="doc.id === selectedDocument()?.id"
+              class="doc-tab flex shrink-0 items-center gap-0.5 rounded-full py-0.5 pl-1 pr-3 text-xs font-medium transition-colors"
+              [ngClass]="doc.id === selectedDocument()?.id ? 'bg-brand-bold text-white' : 'text-gray-600 hover:bg-gray-100'">
+              <button type="button" cdkDragHandle aria-label="Drag to reorder document"
+                class="flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded-full opacity-70 hover:opacity-100 active:cursor-grabbing">
+                <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" (click)="activateDocument(doc.id)" class="max-w-[14rem] truncate py-1 text-left">
+                {{ i + 1 }}. {{ doc.name.replace('.pdf', '') }}
+              </button>
+            </div>
+          </div>
         </div>
         <button *ngIf="selectedDocument() as current" type="button"
           (click)="openReplaceDialog(current.id)" [disabled]="replaceSubmitting()"
