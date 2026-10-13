@@ -41,7 +41,7 @@
         <button type="submit" [disabled]="isBusy()"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
           @if (isBusy()) {
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <app-infinity-loader size="xs" tone="light" />
             <span>Signing in...</span>
           } @else {
             <span>Continue</span>
@@ -98,7 +98,7 @@
         <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
           @if (isBusy()) {
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <app-infinity-loader size="xs" tone="light" />
             <span>Verifying...</span>
           } @else {
             <span>Verify &amp; continue</span>
@@ -158,7 +158,7 @@
                   <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
                     class="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
                     @if (isBusy()) {
-                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                      <app-infinity-loader size="xs" tone="light" />
                     } @else {
                       <span>Verify &amp; continue</span>
                     }

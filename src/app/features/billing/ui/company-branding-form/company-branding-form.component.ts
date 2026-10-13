@@ -11,6 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InvoiceBranding, IssuerProfile } from '../../data-access/billing.model';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /** El logo viaja embebido como data URI dentro del JSON del branding. */
 const MAX_LOGO_BYTES = 200 * 1024;
@@ -29,7 +30,7 @@ const MAX_LOGO_BYTES = 200 * 1024;
  */
 @Component({
   selector: 'app-company-branding-form',
-  imports: [CommonModule, FormsModule],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './company-branding-form.component.html',
 })

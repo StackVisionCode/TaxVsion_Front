@@ -143,7 +143,7 @@
           class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
         <button type="button" (click)="create()" [disabled]="!canCreate()"
           class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
-          @if (cSaving()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          @if (cSaving()) { <app-infinity-loader size="xs" tone="light" /> }
           <span>Create series</span>
         </button>
       </div>

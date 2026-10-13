@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { SessionTakeoverService } from './session-takeover.service';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /**
  * Sesión única — interstitial en el dispositivo NUEVO. Aparece cuando el login detecta una sesión
@@ -9,6 +10,7 @@ import { SessionTakeoverService } from './session-takeover.service';
 @Component({
   selector: 'app-session-takeover-modal',
   standalone: true,
+  imports: [InfinityLoaderComponent],
   template: `
     @if (takeover.ticket()) {
       <div
@@ -42,7 +44,7 @@ import { SessionTakeoverService } from './session-takeover.service';
               class="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
             >
               @if (takeover.busy()) {
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                <app-infinity-loader size="xs" tone="light" />
                 <span>Signing you in...</span>
               } @else {
                 <span>Continue here</span>

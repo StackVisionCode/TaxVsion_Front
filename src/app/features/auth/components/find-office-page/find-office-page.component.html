@@ -24,7 +24,7 @@
         <button type="button" (click)="findOffice()" [disabled]="isBusy()"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
           @if (isBusy()) {
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <app-infinity-loader size="xs" tone="light" />
             <span>Sending link...</span>
           } @else {
             <span>Send me my office link</span>

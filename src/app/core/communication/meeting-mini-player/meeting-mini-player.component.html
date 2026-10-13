@@ -221,7 +221,7 @@
         <!-- Fases previas/sin media: estado + volver a la sala / salir -->
         <div class="flex items-center gap-2 px-3 pb-3">
           @if (phase() === 'joining') {
-            <ion-icon name="reload-outline" class="animate-spin text-base text-white/70 motion-reduce:animate-none"></ion-icon>
+            <app-infinity-loader size="xs" tone="light" />
           }
           <p class="min-w-0 flex-1 text-[11px] text-white/70">
             @switch (phase()) {

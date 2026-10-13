@@ -8,7 +8,7 @@
 
     <div class="mt-4 max-h-80 overflow-y-auto">
       <div *ngIf="searching && items.length === 0" class="flex items-center gap-2 px-1 py-6 text-sm text-gray-400">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        <app-infinity-loader size="xs" />
         Searching…
       </div>
 
@@ -125,7 +125,7 @@
         </button>
         <button type="submit" [disabled]="!canCreate()"
           class="inline-flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-40">
-          <ion-icon *ngIf="creating" name="sync-outline" class="animate-spin text-base"></ion-icon>
+          <app-infinity-loader *ngIf="creating" size="xs" tone="light" />
           {{ creating ? 'Creating…' : 'Create & add' }}
         </button>
       </div>

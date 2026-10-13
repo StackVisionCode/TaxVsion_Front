@@ -19,7 +19,7 @@
           <div class="flex flex-wrap items-center justify-center gap-2">
             <button type="button" (click)="installStandard()" [disabled]="installing()"
               class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-60 transition-colors">
-              @if (installing()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+              @if (installing()) { <app-infinity-loader size="xs" tone="light" /> }
               <span>Install standard</span>
             </button>
             <button type="button" (click)="newTemplate()"
@@ -66,7 +66,7 @@
           }
           <button type="button" (click)="installStandard()" [disabled]="installing()"
             class="mt-1 inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors">
-            @if (installing()) { <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div> }
+            @if (installing()) { <app-infinity-loader size="xs" /> }
             <ion-icon name="download-outline" class="text-base"></ion-icon>
             <span>Reinstall standard catalog</span>
           </button>
@@ -137,7 +137,7 @@
 
         <button type="button" (click)="apply()" [disabled]="!canApply()"
           class="inline-flex items-center justify-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
-          @if (applying()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          @if (applying()) { <app-infinity-loader size="xs" tone="light" /> }
           <span>Apply template</span>
         </button>
       }
@@ -274,7 +274,7 @@
             <button type="button" [disabled]="uploadingAttachment()"
               class="w-full flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
               @if (uploadingAttachment()) {
-                <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div>
+                <app-infinity-loader size="xs" />
                 <span>Uploading…</span>
               } @else {
                 <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
@@ -294,7 +294,7 @@
           class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
         <button type="button" (click)="saveTemplate()" [disabled]="!canSave()"
           class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
-          @if (saving()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          @if (saving()) { <app-infinity-loader size="xs" tone="light" /> }
           <span>{{ editingId() ? 'Save changes' : 'Create template' }}</span>
         </button>
       </div>

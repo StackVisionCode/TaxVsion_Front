@@ -17,6 +17,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { formatBytes } from '@shared/utils/format.util';
@@ -101,7 +102,7 @@ type SendPhase = 'idle' | 'paper' | 'signing' | 'done';
  */
 @Component({
   selector: 'app-signature-request-panel',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     SignatureWizardClientStepComponent,

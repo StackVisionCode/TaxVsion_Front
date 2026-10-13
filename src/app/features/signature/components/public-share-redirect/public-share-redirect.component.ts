@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute } from '@angular/router';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
@@ -19,7 +20,7 @@ import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 @Component({
   selector: 'app-public-share-redirect',
   standalone: true,
-  imports: [CommonModule, BrandLogoComponent],
+  imports: [InfinityLoaderComponent, CommonModule, BrandLogoComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './public-share-redirect.component.html',
 })

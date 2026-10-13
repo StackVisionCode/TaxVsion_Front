@@ -19,7 +19,7 @@
 
   <!-- Carga del draft retomado -->
   <div *ngIf="state.loadingDraft" class="flex flex-1 items-center justify-center gap-2 text-sm text-gray-400">
-    <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+    <app-infinity-loader size="sm" />
     Loading draft…
   </div>
 
@@ -215,8 +215,8 @@
       </button>
       <button type="button" (click)="send()" [disabled]="!canSend()"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="state.sending ? 'sync-outline' : 'send-outline'" class="text-base"
-          [ngClass]="state.sending ? 'animate-spin' : ''"></ion-icon>
+        <app-infinity-loader *ngIf="state.sending" size="xs" tone="light" />
+        <ion-icon *ngIf="!state.sending" name="send-outline" class="text-base"></ion-icon>
         {{ state.sending ? 'Sending…' : 'Send' }}
       </button>
     </div>
@@ -229,7 +229,7 @@
     class="absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
     <div *ngIf="recipientSearching && recipientOptions(field).length === 0"
       class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-      <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching clients…
+      <app-infinity-loader size="xs" /> Searching clients…
     </div>
 
     <button *ngIf="typedEmail(field) as typed" type="button" (mousedown)="$event.preventDefault()"

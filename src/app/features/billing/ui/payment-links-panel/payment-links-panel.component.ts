@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
@@ -43,7 +44,7 @@ const STATUS_FILTERS: (PaymentLinkStatus | null)[] = [null, 'Active', 'Used', 'E
  */
 @Component({
   selector: 'app-payment-links-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, StatusPillComponent, FilterChipsComponent, StateBlockComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, StatusPillComponent, FilterChipsComponent, StateBlockComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './payment-links-panel.component.html',
 })

@@ -13,6 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 
@@ -57,7 +58,7 @@ const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
  */
 @Component({
   selector: 'app-signature-creator',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-creator.component.html',
 })

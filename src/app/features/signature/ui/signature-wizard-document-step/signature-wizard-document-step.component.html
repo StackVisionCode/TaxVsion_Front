@@ -79,7 +79,7 @@
     <!-- Preflight / subida / carga en curso -->
     <div *ngIf="phase() === 'validating' || phase() === 'uploading'"
       class="mt-3 flex items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3">
-      <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></span>
+      <app-infinity-loader size="xs" />
       <span class="text-sm text-gray-600">
         {{ phase() === 'validating' ? 'Validating the document…'
            : docSource() === 'library' ? 'Loading the selected PDF…' : 'Uploading to secure storage…' }}

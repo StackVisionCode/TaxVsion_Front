@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -39,7 +40,7 @@ type DocSource = 'upload' | 'library';
  */
 @Component({
   selector: 'app-signature-wizard-document-step',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     SignatureDocumentLibraryComponent,

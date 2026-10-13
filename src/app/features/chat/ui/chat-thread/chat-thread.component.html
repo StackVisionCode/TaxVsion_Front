@@ -10,7 +10,7 @@
     <!-- Loading older history -->
     <div *ngIf="loadingOlder" class="flex justify-center py-2" aria-live="polite">
       <span class="flex items-center gap-2 text-xs text-gray-400">
-        <ion-icon name="reload-outline" class="animate-spin text-sm motion-reduce:animate-none"></ion-icon>
+        <app-infinity-loader size="xs" />
         Loading earlier messages…
       </span>
     </div>

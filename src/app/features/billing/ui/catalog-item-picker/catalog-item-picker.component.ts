@@ -17,6 +17,7 @@ import { SearchInputComponent } from '@shared/ui/search-input/search-input.compo
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { formatMoney } from '@shared/utils/format.util';
 import { BillingCatalogItem } from '../../data-access/billing.model';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /** Payload del alta rápida desde el picker (el resto de campos los completa el formulario). */
 export interface CatalogQuickCreate {
@@ -48,7 +49,7 @@ export interface CatalogQuickCreate {
  */
 @Component({
   selector: 'app-catalog-item-picker',
-  imports: [SwitchComponent, CommonModule, FormsModule, ModalComponent, SearchInputComponent, StateBlockComponent],
+  imports: [InfinityLoaderComponent, SwitchComponent, CommonModule, FormsModule, ModalComponent, SearchInputComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './catalog-item-picker.component.html',
 })

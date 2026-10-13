@@ -18,6 +18,7 @@ import {
   untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
@@ -241,7 +242,7 @@ export interface NormalizedPlacedField {
  */
 @Component({
   selector: 'app-signature-pdf-editor',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     ModalComponent,

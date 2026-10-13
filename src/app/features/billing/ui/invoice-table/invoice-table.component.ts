@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -38,7 +39,7 @@ export type InvoiceAction =
  */
 @Component({
   selector: 'app-invoice-table',
-  imports: [CommonModule, ModalComponent, StatusPillComponent, StateBlockComponent],
+  imports: [CommonModule, ModalComponent, StatusPillComponent, StateBlockComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-table.component.html',
 })

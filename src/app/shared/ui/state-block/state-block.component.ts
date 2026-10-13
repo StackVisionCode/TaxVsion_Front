@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { NgClass } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 export type StateBlockVariant = 'card' | 'inline';
 
@@ -32,13 +33,13 @@ export type StateBlockVariant = 'card' | 'inline';
  */
 @Component({
   selector: 'app-state-block',
-  imports: [NgClass],
+  imports: [InfinityLoaderComponent, NgClass],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     @if (loading) {
       <div class="flex items-center justify-center gap-2 text-sm text-gray-400" role="status"
         [ngClass]="variant === 'card' ? 'py-10' : 'py-6'" [style.min-height]="minHeight || null">
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        <app-infinity-loader size="xs" />
         {{ loadingText }}
       </div>
     } @else if (error) {

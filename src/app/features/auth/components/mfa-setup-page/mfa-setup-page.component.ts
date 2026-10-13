@@ -18,10 +18,11 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { platformBrand } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-mfa-setup-page',
-  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, ReactiveFormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-setup-page.component.html',
   styleUrl: './mfa-setup-page.component.css',

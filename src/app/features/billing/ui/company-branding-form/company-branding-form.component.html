@@ -1,15 +1,15 @@
 <div *ngIf="draftIssuer() as form" class="flex flex-col gap-6">
   <!-- Emisor -->
   <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Company details</h2>
+    <h2 class="text-xl font-bold text-gray-900">Office details</h2>
     <p class="mt-1 text-sm text-gray-500">
-      These are stamped on every invoice you issue. Only the company name is required.
+      These are stamped on every invoice you issue. Only the office name is required.
     </p>
 
     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="lg:col-span-2">
         <label for="companyName" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Company name
+          Office name
         </label>
         <input id="companyName" type="text" name="companyName" [disabled]="saving" [ngModel]="form.name"
           (ngModelChange)="updateIssuer({ name: $event })"
@@ -148,9 +148,9 @@
     <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-4">
       <button type="button" (click)="save()" [disabled]="!canSave"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
-          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
-        {{ saving ? 'Saving…' : 'Save company details' }}
+        <app-infinity-loader *ngIf="saving; else saveIcon" size="xs" tone="light" />
+        <ng-template #saveIcon><ion-icon name="save-outline" class="text-base"></ion-icon></ng-template>
+        {{ saving ? 'Saving…' : 'Save office details' }}
       </button>
     </div>
   </div>

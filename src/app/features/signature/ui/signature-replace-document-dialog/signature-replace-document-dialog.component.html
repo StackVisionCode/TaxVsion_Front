@@ -42,7 +42,7 @@
   <!-- Spinner mientras valida/sube -->
   <div *ngIf="phase() === 'validating' || phase() === 'uploading'"
     class="mt-3 flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
-    <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></span>
+    <app-infinity-loader size="xs" tone="light" />
     <span class="text-sm text-gray-600">
       {{ phase() === 'validating' ? 'Validating the document…' : (docSource() === 'library' ? 'Loading the selected PDF…' : 'Uploading to secure storage…') }}
     </span>
@@ -109,7 +109,7 @@
     <button type="button" (click)="confirmReplace()" [disabled]="!canReplace()"
       [attr.aria-busy]="submitting || null"
       class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-60">
-      <ion-icon *ngIf="submitting" name="sync-outline" class="animate-spin text-base"></ion-icon>
+      <app-infinity-loader size="xs" tone="light" />
       <ion-icon *ngIf="!submitting" name="swap-horizontal-outline" class="text-base"></ion-icon>
       {{ submitting ? 'Replacing…' : 'Replace PDF' }}
     </button>

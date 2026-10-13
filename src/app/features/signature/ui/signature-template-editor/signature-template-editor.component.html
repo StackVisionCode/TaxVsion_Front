@@ -523,7 +523,7 @@
 
           <!-- Render en curso (abrir documento base, zoom, muestra) -->
           <div *ngIf="rendering()" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/70">
-            <div class="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
+            <app-infinity-loader size="md" />
             <p class="text-xs font-medium text-gray-600">Loading document…</p>
           </div>
         </div>
@@ -611,12 +611,12 @@
 
   <!-- Overlay de proceso -->
   <div *ngIf="busy()" class="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-white/90">
-    <div class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
+    <app-infinity-loader size="md" />
     <p class="text-sm font-medium text-gray-700">{{ busyLabel() }}</p>
   </div>
 
   <div *ngIf="loading()" class="absolute inset-0 z-30 flex items-center justify-center bg-white">
-    <div class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></div>
+    <app-infinity-loader size="md" />
   </div>
 </div>
 

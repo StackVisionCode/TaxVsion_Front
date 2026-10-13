@@ -34,6 +34,7 @@ import {
   PlanChoice,
   PlanPickerModalComponent,
 } from '../../ui/plan-picker-modal/plan-picker-modal.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 type LoginPhase = 'idle' | 'verifying' | 'sinking';
 
@@ -47,7 +48,7 @@ type LoginPhase = 'idle' | 'verifying' | 'sinking';
  */
 @Component({
   selector: 'app-login-page',
-  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule, PlanPickerModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, RouterModule, FormsModule, ReactiveFormsModule, PlanPickerModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.css',

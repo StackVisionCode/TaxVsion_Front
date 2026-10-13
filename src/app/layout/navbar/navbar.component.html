@@ -30,8 +30,7 @@
               class="search-input h-full min-w-0 flex-1 bg-transparent pr-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none">
 
             @if (searchLoading()) {
-              <span class="search-input mr-3 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"
-                aria-hidden="true"></span>
+              <app-infinity-loader size="xs" />
             } @else if (searchQuery()) {
               <!-- Clear button -->
               <button type="button" (mousedown)="$event.preventDefault()" (click)="clearSearch()"
@@ -261,7 +260,7 @@
             <a *ngIf="canUse('company-settings')" routerLink="/company/settings"
               class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
               <ion-icon name="business-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
-              <span>Company settings</span>
+              <span>Office settings</span>
             </a>
 
             <!-- La suscripción se gestiona en el Account del sitio público: acá solo está la puerta, y

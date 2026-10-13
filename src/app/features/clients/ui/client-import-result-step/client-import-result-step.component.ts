@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { RouterModule } from '@angular/router';
 import { StatCardItem, StatCardsComponent } from '@shared/ui/stat-cards/stat-cards.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -21,7 +22,7 @@ const ROWS_PAGE_SIZE = 10;
  */
 @Component({
   selector: 'app-client-import-result-step',
-  imports: [CommonModule, RouterModule, StatCardsComponent, StateBlockComponent, PaginationComponent, FilterChipsComponent],
+  imports: [CommonModule, RouterModule, StatCardsComponent, StateBlockComponent, PaginationComponent, FilterChipsComponent, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-result-step.component.html',
   styleUrl: './client-import-result-step.component.css',

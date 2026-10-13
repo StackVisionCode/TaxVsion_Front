@@ -55,7 +55,7 @@
     <button type="button" (click)="accept()" [disabled]="submitting() || !agreed()"
       class="mt-6 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors">
       @if (submitting()) {
-        <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+        <app-infinity-loader size="xs" tone="light" />
         <span>Saving...</span>
       } @else {
         <span>Accept &amp; continue</span>
@@ -74,7 +74,7 @@
 <app-modal [isOpen]="viewerOpen()" [heading]="viewerHeading()" size="2xl" (closed)="closeViewer()">
   @if (viewerLoading()) {
     <div class="flex items-center gap-3 py-10 text-sm text-gray-500">
-      <span class="w-4 h-4 border-2 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></span>
+      <app-infinity-loader size="xs" />
       Loading the document…
     </div>
   } @else if (viewerError()) {

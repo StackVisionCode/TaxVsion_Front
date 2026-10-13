@@ -179,7 +179,7 @@
       <button *ngIf="currentStep() >= 2" type="button" (click)="saveAsDraft()"
         [disabled]="!canSaveDraft() || savingDraft() || isSending()" [attr.title]="saveBlockedReason() || null"
         class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors">
-        <span *ngIf="savingDraft()" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+        <app-infinity-loader size="xs" />
         <ion-icon *ngIf="!savingDraft()" name="save-outline" class="text-sm"></ion-icon>
         {{ savingDraft() ? 'Saving…' : 'Save as draft' }}
       </button>
@@ -212,7 +212,7 @@
             </button>
             <button type="button" (click)="scheduleSend()" [disabled]="scheduling() || !scheduleAtLocal()"
               class="flex items-center gap-1.5 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
-              <span *ngIf="scheduling()" class="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+              <app-infinity-loader size="xs" tone="light" />
               {{ scheduling() ? 'Scheduling…' : 'Schedule' }}
             </button>
           </div>
@@ -221,7 +221,7 @@
 
       <button *ngIf="currentStep() === 4" type="button" (click)="send()" [disabled]="!canSend() || isSending() || scheduling()"
         class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <span *ngIf="isSending()" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+        <app-infinity-loader size="xs" tone="light" />
         <ion-icon *ngIf="!isSending()" name="paper-plane-outline" class="text-sm"></ion-icon>
         {{ isSending() ? 'Sending…' : 'Send for signature' }}
       </button>
@@ -257,7 +257,7 @@
 
 <!-- Cargando el borrador a continuar (detalle + bytes del PDF). -->
 <div *ngIf="hydrating()" class="fixed inset-0 z-[63] flex flex-col items-center justify-center bg-brand-white/95">
-  <span class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
+  <app-infinity-loader size="md" />
   <p class="mt-4 text-sm font-medium text-gray-500">Loading draft…</p>
 </div>
 

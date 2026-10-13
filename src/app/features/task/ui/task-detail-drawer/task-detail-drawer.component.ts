@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
@@ -60,7 +61,7 @@ interface BlockerRow {
 @Component({
   selector: 'app-task-detail-drawer',
   standalone: true,
-  imports: [CommonModule, FormsModule, DrawerComponent, AvatarComponent, StatusPillComponent, FileViewerComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, DrawerComponent, AvatarComponent, StatusPillComponent, FileViewerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-detail-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

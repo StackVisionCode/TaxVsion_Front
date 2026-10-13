@@ -61,8 +61,11 @@
       </button>
       <button type="button" (click)="submit()" [disabled]="!canSubmit"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="saving ? 'sync-outline' : 'checkmark-outline'" class="text-base"
-          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
+        @if (saving) {
+          <app-infinity-loader size="xs" tone="light" />
+        } @else {
+          <ion-icon name="checkmark-outline" class="text-base"></ion-icon>
+        }
         {{ saving ? 'Recording…' : 'Record payment' }}
       </button>
     </div>

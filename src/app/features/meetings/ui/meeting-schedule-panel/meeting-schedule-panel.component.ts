@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -50,7 +51,7 @@ type InvitationState = 'active' | 'used' | 'revoked' | 'expired';
  */
 @Component({
   selector: 'app-meeting-schedule-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, StatusPillComponent, ClickOutsideDirective],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, AvatarComponent, StatusPillComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-schedule-panel.component.html',
 })

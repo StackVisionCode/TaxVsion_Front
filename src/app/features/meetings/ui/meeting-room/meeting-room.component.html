@@ -6,7 +6,7 @@
     : 'min-h-[32rem] bg-white p-6'">
   <!-- Joining -->
   <div *ngIf="phase() === 'joining'" class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-    <ion-icon name="reload-outline" class="animate-spin text-3xl text-brand-bold motion-reduce:animate-none"></ion-icon>
+    <app-infinity-loader size="md" />
     <p class="text-sm font-medium text-gray-600">Joining meeting…</p>
   </div>
 

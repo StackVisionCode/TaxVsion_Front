@@ -26,10 +26,11 @@ type Phase = 'confirming' | 'done' | 'error' | 'no-token';
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-confirm-email-page',
-  imports: [BrandLogoComponent, CommonModule, RouterLink, AuthShellComponent],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterLink, AuthShellComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './confirm-email-page.component.html',
 })

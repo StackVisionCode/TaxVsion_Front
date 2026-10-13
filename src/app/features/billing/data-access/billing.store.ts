@@ -824,7 +824,7 @@ export class BillingStore {
 
   saveCompany(issuer: IssuerProfile, branding: InvoiceBranding): void {
     if (!issuer.name.trim()) {
-      this.toast.error('The company name is required.');
+      this.toast.error('The office name is required.');
       return;
     }
     this._savingCompany.set(true);
@@ -837,7 +837,7 @@ export class BillingStore {
           this._issuer.set({ ...issuer });
           this.officeCurrency.set(issuer.defaultCurrency);
           this._branding.set({ ...branding });
-          this.toast.success('Company details saved. They will appear on the next invoices.');
+          this.toast.success('Office details saved. They will appear on the next invoices.');
         },
         error: err => {
           this._savingCompany.set(false);

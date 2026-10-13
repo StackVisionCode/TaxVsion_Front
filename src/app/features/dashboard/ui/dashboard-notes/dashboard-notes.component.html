@@ -10,8 +10,11 @@
       class="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none disabled:opacity-60" />
     <button type="button" (click)="addNote()" [disabled]="saving() || !draft().trim()" aria-label="Add note"
       class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-xl"
-        [class.animate-spin]="saving()"></ion-icon>
+      @if (saving()) {
+        <app-infinity-loader size="xs" tone="light" />
+      } @else {
+        <ion-icon name="add-outline" class="text-xl"></ion-icon>
+      }
     </button>
   </div>
 

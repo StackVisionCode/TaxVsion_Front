@@ -26,8 +26,8 @@
           <button type="button" (click)="store.loadInvoices(true)" [disabled]="store.invoicesLoading()"
             class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
             aria-label="Refresh invoices">
-            <ion-icon name="refresh-outline" class="text-base"
-              [ngClass]="store.invoicesLoading() ? 'animate-spin' : ''"></ion-icon>
+            <app-infinity-loader *ngIf="store.invoicesLoading(); else refreshIcon" size="xs" />
+            <ng-template #refreshIcon><ion-icon name="refresh-outline" class="text-base"></ion-icon></ng-template>
           </button>
           <button *ngIf="can.canManageInvoices()" type="button" (click)="openForm()"
             class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
@@ -41,7 +41,7 @@
       <div *ngIf="!store.hasIssuerProfile() && !embedded()"
         class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
         <p class="text-sm text-amber-800">
-          Your company details are not set, so invoices will be issued without them.
+          Your office details are not set, so invoices will be issued without them.
         </p>
         <a routerLink="/company/settings"
           class="shrink-0 text-sm font-semibold text-amber-800 hover:text-amber-950 transition-colors">

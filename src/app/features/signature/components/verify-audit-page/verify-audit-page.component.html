@@ -16,7 +16,7 @@
 
     <!-- ---------------------------- CARGANDO ---------------------------- -->
     <div *ngIf="loading()" class="verify-card rounded-[28px] bg-white p-10 text-center shadow-xl shadow-brand-bold/5">
-      <span class="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-brand-surface-strong border-t-brand-bold"></span>
+      <app-infinity-loader size="md" class="mx-auto flex justify-center" />
       <p class="mt-4 text-sm text-gray-500">Recomputing the audit chain…</p>
     </div>
 

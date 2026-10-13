@@ -10,6 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
 import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
@@ -55,7 +56,7 @@ import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
  */
 @Component({
   selector: 'app-mail-page',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     MailFolderListComponent,
     MailListComponent,

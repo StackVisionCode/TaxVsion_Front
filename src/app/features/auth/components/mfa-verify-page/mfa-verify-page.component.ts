@@ -15,10 +15,11 @@ import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
  * navega al dashboard.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-mfa-verify-page',
-  imports: [BrandLogoComponent, CommonModule, RouterModule, ReactiveFormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterModule, ReactiveFormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-verify-page.component.html',
   styleUrl: './mfa-verify-page.component.css',

@@ -1,7 +1,7 @@
 <!-- Cargando la cuota: placeholder con la misma altura para que el dashboard no salte -->
 <div *ngIf="store.usageLoading()"
   class="flex min-h-[260px] items-center justify-center gap-2 rounded-[28px] bg-white text-sm text-gray-400 ring-1 ring-brand-line shadow-card">
-  <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+  <app-infinity-loader size="sm" />
   Loading storage…
 </div>
 

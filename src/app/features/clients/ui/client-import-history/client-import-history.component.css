@@ -47,10 +47,4 @@
   .history-row {
     animation: none;
   }
-
-  /* `animate-spin` es una utilidad global de Tailwind: se anula con !important porque el
-     orden entre la hoja de Tailwind y los estilos del componente no está garantizado. */
-  .import-history .animate-spin {
-    animation: none !important;
-  }
 }

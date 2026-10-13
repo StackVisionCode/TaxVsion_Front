@@ -20,7 +20,7 @@
       class="inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
       [ngClass]="tone === 'primary' ? 'bg-brand-bold hover:bg-brand-ink' : 'bg-red-500 hover:bg-red-600'">
       @if (busy) {
-        <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+        <app-infinity-loader size="xs" tone="light" />
       }
       {{ busy && busyLabel ? busyLabel : confirmLabel }}
     </button>

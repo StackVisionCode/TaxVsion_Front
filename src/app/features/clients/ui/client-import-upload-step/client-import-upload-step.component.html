@@ -25,8 +25,11 @@
     </div>
     <button type="button" (click)="templateRequested.emit()" [disabled]="templateBusy"
       class="flex shrink-0 items-center gap-2 rounded-full border border-brand-border bg-white px-5 py-2 text-sm font-semibold text-brand-bold transition-colors hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-60">
-      <ion-icon [name]="templateBusy ? 'sync-outline' : 'download-outline'" class="text-base"
-        [class.animate-spin]="templateBusy"></ion-icon>
+      @if (templateBusy) {
+        <app-infinity-loader size="xs" />
+      } @else {
+        <ion-icon name="download-outline" class="text-base"></ion-icon>
+      }
       {{ templateBusy ? 'Preparing…' : 'Download template' }}
     </button>
   </div>
@@ -104,8 +107,11 @@
   <div class="import-block flex items-center justify-end gap-3">
     <button type="button" (click)="submit()" [disabled]="!file() || busy"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
-      <ion-icon [name]="busy ? 'sync-outline' : 'cloud-upload-outline'" class="text-base"
-        [class.animate-spin]="busy"></ion-icon>
+      @if (busy) {
+        <app-infinity-loader size="xs" tone="light" />
+      } @else {
+        <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
+      }
       {{ busy ? 'Uploading…' : 'Start import' }}
     </button>
   </div>

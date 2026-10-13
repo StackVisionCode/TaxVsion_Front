@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
@@ -34,7 +35,7 @@ const TOPUP_INTENT_KEY = 'walletTopUpIntentId';
  */
 @Component({
   selector: 'app-wallet-page',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     DatePipe,
     PaginationComponent,
     HasPermissionDirective,

@@ -37,6 +37,7 @@ import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.componen
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /** Nombre de cliente → fragmento seguro para nombre de archivo ("Acme, Inc." → "acme-inc"). */
 function fileSlug(value: string): string {
@@ -64,7 +65,7 @@ type BillingTab = 'invoices' | 'links';
  */
 @Component({
   selector: 'app-billing-page',
-  imports: [
+  imports: [InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     PaginationComponent,

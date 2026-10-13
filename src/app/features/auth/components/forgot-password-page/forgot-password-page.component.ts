@@ -22,10 +22,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-forgot-password-page',
-  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './forgot-password-page.component.html',
   styleUrl: './forgot-password-page.component.css',
