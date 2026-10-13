@@ -141,3 +141,27 @@ button.field {
     animation: none;
   }
 }
+
+/* Enlace de la etiqueta de un campo de texto (abre aparte; muestra el dominio real). */
+.field-link {
+  position: absolute;
+  right: 0;
+  top: -1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #1e466b;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 1px 4px rgba(13, 13, 13, 0.18);
+  white-space: nowrap;
+}
+
+.field-link:hover {
+  text-decoration: underline;
+}

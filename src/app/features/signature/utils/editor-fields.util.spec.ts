@@ -4,16 +4,21 @@ import {
   PlacedField,
 } from '../ui/signature-request-panel/signature-wizard.model';
 import {
+  ALIGN_MARGIN_RATIO,
   DUPLICATE_OFFSET,
+  alignFieldOnPage,
   clampToPage,
   copyFieldToAllPages,
   documentsMissingSigningField,
   duplicateFieldRect,
   nudgeField,
+  projectFieldToPage,
   reassignSignerFields,
   remapFieldsToPages,
   rescaleFields,
   rescaleFieldsBetweenPages,
+  resizeFieldFromCenter,
+  scaleFieldFromCenter,
   scaleSize,
   signerFieldCount,
   signersMissingSignature,
@@ -239,5 +244,57 @@ describe('signersMissingSignature (validación por firmante)', () => {
       field({ id: 'b', signerId: 'signer-2', type: 'initials' }),
     ];
     expect(signersMissingSignature(signers, fields)).toEqual([]);
+  });
+});
+
+describe('herramientas del campo (tamaño, alineación, página)', () => {
+  const page = { page: 1, width: 600, height: 800 };
+  const min = { w: 40, h: 24 };
+
+  it('scaleFieldFromCenter dobla el tamaño conservando el centro', () => {
+    const f = field({ id: 'a', x: 200, y: 300, width: 100, height: 40 });
+    const doubled = scaleFieldFromCenter(f, 2, min, page);
+    expect(doubled.width).toBe(200);
+    expect(doubled.height).toBe(80);
+    expect(doubled.x + doubled.width / 2).toBe(250);
+    expect(doubled.y + doubled.height / 2).toBe(320);
+  });
+
+  it('al achicar respeta el mínimo y al agrandar no se sale de la página', () => {
+    const f = field({ id: 'a', x: 10, y: 10, width: 50, height: 30 });
+    const tiny = scaleFieldFromCenter(f, 0.1, min, page);
+    expect(tiny.width).toBe(min.w);
+    expect(tiny.height).toBe(min.h);
+    const huge = scaleFieldFromCenter(f, 100, min, page);
+    expect(huge.width).toBe(page.width);
+    expect(huge.height).toBe(page.height);
+    expect(huge.x).toBe(0);
+    expect(huge.y).toBe(0);
+  });
+
+  it('resizeFieldFromCenter lleva al tamaño pedido desde el centro', () => {
+    const f = field({ id: 'a', x: 100, y: 100, width: 200, height: 60 });
+    const r = resizeFieldFromCenter(f, { w: 120, h: 44 }, min, page);
+    expect(r).toMatchObject({ width: 120, height: 44, x: 140, y: 108 });
+  });
+
+  it('alignFieldOnPage alinea en un solo eje, con margen y sin salirse', () => {
+    const f = field({ id: 'a', x: 200, y: 300, width: 100, height: 40 });
+    const mx = page.width * ALIGN_MARGIN_RATIO;
+    const my = page.height * ALIGN_MARGIN_RATIO;
+    expect(alignFieldOnPage(f, 'left', page)).toMatchObject({ x: mx, y: 300 });
+    expect(alignFieldOnPage(f, 'right', page)).toMatchObject({ x: page.width - 100 - mx, y: 300 });
+    expect(alignFieldOnPage(f, 'center', page)).toMatchObject({ x: 250, y: 300 });
+    expect(alignFieldOnPage(f, 'top', page)).toMatchObject({ x: 200, y: my });
+    expect(alignFieldOnPage(f, 'bottom', page)).toMatchObject({ x: 200, y: page.height - 40 - my });
+    expect(alignFieldOnPage(f, 'middle', page)).toMatchObject({ x: 200, y: 380 });
+  });
+
+  it('projectFieldToPage conserva la posición relativa en una página de otro tamaño', () => {
+    const f = field({ id: 'a', page: 1, x: 150, y: 400, width: 300, height: 80 });
+    const target = { page: 2, width: 300, height: 400 };
+    const moved = projectFieldToPage(f, page, target);
+    expect(moved.page).toBe(2);
+    expect(moved).toMatchObject({ x: 75, y: 200, width: 150, height: 40 });
   });
 });

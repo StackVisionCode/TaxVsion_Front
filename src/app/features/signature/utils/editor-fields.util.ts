@@ -143,6 +143,69 @@ export function copyFieldToAllPages<T extends PlacedField>(
     );
 }
 
+/** Margen (fracción del lado de la página) al alinear un campo contra un borde. */
+export const ALIGN_MARGIN_RATIO = 0.06;
+
+export type FieldAlign = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+
+/**
+ * Cambia el tamaño del campo conservando su CENTRO (no se "corre" al agrandar/achicar), respetando el
+ * mínimo del tipo y la página.
+ */
+export function resizeFieldFromCenter<T extends PlacedField>(
+  field: T,
+  size: Size,
+  min: Size,
+  page: PageBox,
+): T {
+  const width = clamp(size.w, Math.min(min.w, page.width), page.width);
+  const height = clamp(size.h, Math.min(min.h, page.height), page.height);
+  const cx = field.x + field.width / 2;
+  const cy = field.y + field.height / 2;
+  return clampToPage({ ...field, width, height, x: cx - width / 2, y: cy - height / 2 }, page);
+}
+
+/** Multiplica el tamaño por `factor` (2 = "doblar") desde el centro del campo. */
+export function scaleFieldFromCenter<T extends PlacedField>(
+  field: T,
+  factor: number,
+  min: Size,
+  page: PageBox,
+): T {
+  return resizeFieldFromCenter(field, { w: field.width * factor, h: field.height * factor }, min, page);
+}
+
+/** Alinea el campo contra el borde (con margen) o al centro de la página, en un solo eje. */
+export function alignFieldOnPage<T extends PlacedField>(field: T, align: FieldAlign, page: PageBox): T {
+  const mx = page.width * ALIGN_MARGIN_RATIO;
+  const my = page.height * ALIGN_MARGIN_RATIO;
+  switch (align) {
+    case 'left':
+      return clampToPage({ ...field, x: mx }, page);
+    case 'right':
+      return clampToPage({ ...field, x: page.width - field.width - mx }, page);
+    case 'center':
+      return clampToPage({ ...field, x: (page.width - field.width) / 2 }, page);
+    case 'top':
+      return clampToPage({ ...field, y: my }, page);
+    case 'bottom':
+      return clampToPage({ ...field, y: page.height - field.height - my }, page);
+    case 'middle':
+      return clampToPage({ ...field, y: (page.height - field.height) / 2 }, page);
+  }
+}
+
+/** Lleva el campo a otra página en la misma posición relativa (sirve a páginas de distinto tamaño). */
+export function projectFieldToPage<T extends PlacedField>(field: T, source: PageBox, target: PageBox): T {
+  const rel = {
+    x: field.x / source.width,
+    y: field.y / source.height,
+    width: field.width / source.width,
+    height: field.height / source.height,
+  };
+  return clampToPage({ ...field, page: target.page, ...denormalizeFieldRect(rel, target) }, target);
+}
+
 /**
  * Pasa los campos de `fromSignerId` a `toSignerId` con ids NUEVOS. Ids nuevos a propósito: en un
  * borrador rehidratado los campos ya publicados se saltan por localId, así que conservar el id

@@ -65,13 +65,20 @@
             [ngModel]="values[field.id] || ''"
             (ngModelChange)="onInput(field, $event)"
             [name]="'doc-field-' + field.id"
-            [placeholder]="field.label || 'Type here'"
-            [attr.aria-label]="field.label || 'Text field'"
+            [placeholder]="labelText(field) || 'Type here'"
+            [attr.aria-label]="labelText(field) || 'Text field'"
             [required]="field.isRequired"
-            [title]="field.label || 'Text field'"
+            [title]="labelText(field) || 'Text field'"
             class="h-full w-full bg-transparent px-1.5 text-[13px] text-gray-900 placeholder-indigo-400 focus:outline-none"
           />
           <span *ngIf="field.isRequired" class="required-dot" aria-hidden="true"></span>
+          <!-- La etiqueta es un enlace: se abre aparte (sin enfocar el campo) y siempre muestra el dominio real. -->
+          <a *ngIf="labelLink(field).url as linkUrl" class="field-link" [href]="linkUrl" target="_blank" rel="noopener noreferrer"
+            (click)="$event.stopPropagation()" [attr.aria-label]="'Open link: ' + labelText(field) + ' (' + linkHost(linkUrl) + ')'"
+            [title]="linkUrl" data-testid="field-link">
+            <ion-icon name="open-outline"></ion-icon>
+            <span>{{ linkHost(linkUrl) }}</span>
+          </a>
         </label>
 
         <!-- Texto en solo lectura (revisión) -->
@@ -82,11 +89,11 @@
           [ngStyle]="boxStyle(field)"
           [class.is-selected]="selectedFieldId === field.id"
           [attr.data-field-id]="field.id"
-          [title]="field.label || 'Text field'"
+          [title]="labelText(field) || 'Text field'"
           (click)="selectField(field)"
         >
           <ion-icon name="document-text-outline" class="shrink-0"></ion-icon>
-          <span class="truncate">{{ values[field.id]?.trim() || field.label || 'Text' }}</span>
+          <span class="truncate">{{ values[field.id]?.trim() || labelText(field) || 'Text' }}</span>
         </button>
 
         <!-- Firma, iniciales, fecha: solo se marca dónde irá -->
