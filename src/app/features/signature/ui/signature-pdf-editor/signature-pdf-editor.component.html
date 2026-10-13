@@ -119,91 +119,6 @@
         <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
       </button>
     </div>
-    <!-- Tools: búsqueda en el documento, color del firmante y opciones de vista -->
-    <div class="relative shrink-0" appClickOutside [clickOutsideEnabled]="toolsOpen()" (appClickOutside)="toolsOpen.set(false)"
-      (keydown.escape)="toolsOpen.set(false)">
-      <button type="button" (click)="toolsOpen.set(!toolsOpen())" aria-haspopup="dialog" [attr.aria-expanded]="toolsOpen()"
-        data-testid="tools-trigger" aria-label="Tools" title="Tools: search, signer color, view"
-        class="flex min-h-[36px] items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors"
-        [ngClass]="toolsOpen() || searchMatches().length ? 'border-brand-bold bg-brand-white text-brand-bold' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
-        <ion-icon name="construct-outline" class="text-sm"></ion-icon>
-        <span class="hidden xl:inline">Tools</span>
-        <span *ngIf="searchMatches().length" class="rounded-full bg-brand-bold px-1.5 text-[10px] font-bold text-white">{{ searchMatches().length }}</span>
-      </button>
-
-      <div *ngIf="toolsOpen()" role="dialog" aria-label="Tools" data-testid="tools-panel"
-        class="absolute left-0 top-full z-40 mt-2 w-80 rounded-2xl border border-gray-100 bg-white p-4 shadow-xl">
-        <!-- Buscar en el documento -->
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Search in document</p>
-        <div class="mt-2 flex h-10 items-center gap-1.5 rounded-full border border-gray-200 bg-white pl-3 pr-1 focus-within:border-brand-bold">
-          <ion-icon name="search-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
-          <input type="text" name="docSearch" autocomplete="off" aria-label="Search in document" data-testid="tools-search"
-            [ngModel]="searchQuery()" (ngModelChange)="setSearchQuery($event)" (keydown.enter)="$event.preventDefault(); nextMatch()"
-            [disabled]="!hasSearchableDocument()" placeholder="Find text…"
-            class="h-full min-w-0 flex-1 bg-transparent text-xs text-gray-700 placeholder-gray-400 focus:outline-none disabled:opacity-50" />
-          <ng-container *ngIf="searchQuery().trim().length >= 2">
-            <span class="shrink-0 text-[11px] font-medium tabular-nums text-gray-500" aria-live="polite">
-              <ng-container *ngIf="searchBusy(); else searchCount">…</ng-container>
-              <ng-template #searchCount>{{ searchMatches().length ? searchIndex() + 1 + ' / ' + searchMatches().length : '0 results' }}</ng-template>
-            </span>
-            <button type="button" (click)="prevMatch()" [disabled]="!searchMatches().length" aria-label="Previous result"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40">
-              <ion-icon name="chevron-up-outline" class="text-sm"></ion-icon>
-            </button>
-            <button type="button" (click)="nextMatch()" [disabled]="!searchMatches().length" aria-label="Next result"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40">
-              <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
-            </button>
-            <button type="button" (click)="clearSearch()" aria-label="Clear search"
-              class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-              <ion-icon name="close-outline" class="text-base"></ion-icon>
-            </button>
-          </ng-container>
-        </div>
-        <p *ngIf="!hasSearchableDocument()" class="mt-1.5 text-[10px] text-gray-400">Search needs a PDF with selectable text.</p>
-
-        <!-- Color del firmante activo -->
-        <div class="mt-4 border-t border-gray-100 pt-3">
-          <p class="flex min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Color
-            <span class="truncate font-medium normal-case text-gray-500">· {{ activeSignerName() }}</span>
-          </p>
-          <div class="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Signer color">
-            <button *ngFor="let c of signerColorChoices" type="button" role="radio" (click)="activeSigner() && setSignerColor(activeSigner()!.id, c)"
-              [attr.aria-checked]="activeSigner()?.color === c" [attr.aria-label]="c" [disabled]="!activeSigner()"
-              class="h-7 w-7 rounded-full ring-offset-2 transition-transform hover:scale-110 disabled:opacity-40" [ngClass]="[c, activeSigner()?.color === c ? 'ring-2 ring-gray-900' : '']"></button>
-          </div>
-        </div>
-
-        <!-- Vista -->
-        <div class="mt-4 border-t border-gray-100 pt-3">
-          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">View</p>
-          <button type="button" role="switch" (click)="focusActiveSigner.set(!focusActiveSigner())" [attr.aria-checked]="focusActiveSigner()"
-            data-testid="tools-focus-signer"
-            class="mt-2 flex w-full items-center justify-between gap-3 rounded-xl px-1 py-1.5 text-left hover:bg-gray-50">
-            <span class="min-w-0">
-              <span class="block text-xs font-medium text-gray-800">Focus on active signer</span>
-              <span class="block text-[10px] text-gray-400">Dims the fields of everyone else.</span>
-            </span>
-            <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors" [ngClass]="focusActiveSigner() ? 'bg-brand-bold' : 'bg-gray-300'">
-              <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform" [class.translate-x-4]="focusActiveSigner()"></span>
-            </span>
-          </button>
-        </div>
-
-        <!-- Limpieza -->
-        <div class="mt-3 border-t border-gray-100 pt-3">
-          <button type="button" (click)="clearActiveSignerFields()" (blur)="confirmClearSigner.set(false)"
-            [disabled]="!activeSigner() || !(fieldCountBySigner()[activeSigner()?.id ?? ''] || 0) || interactionLocked()"
-            data-testid="tools-clear-signer"
-            class="flex min-h-[40px] w-full items-center gap-2 rounded-xl border px-3 text-xs font-medium disabled:opacity-40"
-            [ngClass]="confirmClearSigner() ? 'border-red-300 bg-red-50 text-red-700' : 'border-red-100 text-red-600 hover:bg-red-50'">
-            <ion-icon name="trash-outline" class="text-sm"></ion-icon>
-            {{ confirmClearSigner() ? 'Click again to delete ' + (fieldCountBySigner()[activeSigner()?.id ?? ''] || 0) + ' field(s)' : 'Delete all fields of ' + activeSignerName() }}
-          </button>
-        </div>
-      </div>
-    </div>
     <span class="hidden h-6 w-px shrink-0 bg-gray-100 xl:block"></span>
     <div class="flex min-w-0 flex-1 items-center gap-1.5" role="group" aria-label="Fields">
       <span class="mr-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Fields</span>
@@ -238,24 +153,43 @@
   <!-- ===== Cuerpo: miniaturas · documento · inspector ===== -->
   <div class="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
 
-  <!-- ===== Miniaturas de páginas (lg+) ===== -->
-  <aside class="editor-thumbs hidden w-[7.75rem] shrink-0 flex-col gap-3 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 lg:flex"
-    aria-label="Pages" data-testid="page-thumbs">
-    <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pages</p>
-    <button *ngFor="let pg of pages()" type="button" (click)="goToPage(pg.page)" [attr.aria-label]="'Go to page ' + pg.page"
-      [attr.aria-current]="currentPage() === pg.page ? 'page' : null" class="group flex flex-col items-center gap-1">
-      <span class="relative block overflow-hidden rounded-md bg-white shadow-sm ring-1 transition-shadow"
-        [ngClass]="currentPage() === pg.page ? 'ring-2 ring-brand-bold' : 'ring-gray-200 group-hover:ring-gray-300'"
-        [style.width.px]="thumbWidth" [style.height.px]="(thumbWidth * pg.height) / pg.width">
-        <img *ngIf="pg.src" [src]="pg.src" alt="" draggable="false" class="pointer-events-none block h-full w-full select-none" />
-        <span *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField" class="pointer-events-none absolute rounded-[2px] border bg-white/60"
-          [ngClass]="isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId)"
-          [style.left.%]="(f.x / pg.width) * 100" [style.top.%]="(f.y / pg.height) * 100"
-          [style.width.%]="(f.width / pg.width) * 100" [style.height.%]="(f.height / pg.height) * 100"></span>
-      </span>
-      <span class="text-[11px] font-medium tabular-nums" [ngClass]="currentPage() === pg.page ? 'text-brand-bold' : 'text-gray-400'">{{ pg.page }}</span>
-    </button>
-    <p *ngIf="!pages().length" class="text-center text-[11px] text-gray-400">No pages yet</p>
+  <!-- ===== Miniaturas de páginas (lg+): clic = ir a la página, asa = arrastrar para reordenar ===== -->
+  <aside class="editor-thumbs relative hidden w-[7.75rem] shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white lg:flex"
+    aria-label="Pages" data-testid="page-thumbs" [attr.aria-busy]="pageReorderBusy">
+    <div class="shrink-0 px-3 pb-1 pt-3">
+      <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pages</p>
+      <p *ngIf="pages().length > 1" class="mt-0.5 text-[10px] leading-snug text-gray-400">Drag to reorder</p>
+    </div>
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 pt-2" cdkDropList [cdkDropListData]="pages()"
+      [cdkDropListDisabled]="pageReorderBusy || pages().length < 2" (cdkDropListDropped)="dropPage($event)">
+      <div *ngFor="let pg of pages(); let i = index" cdkDrag cdkDragLockAxis="y" class="thumb-item group relative flex flex-col items-center gap-1">
+        <button type="button" (click)="goToPage(pg.page)" [attr.aria-label]="'Go to page ' + pg.page"
+          [attr.aria-current]="currentPage() === pg.page ? 'page' : null" class="flex flex-col items-center gap-1">
+          <span class="relative block overflow-hidden rounded-md bg-white shadow-sm ring-1 transition-shadow"
+            [ngClass]="currentPage() === pg.page ? 'ring-2 ring-brand-bold' : 'ring-gray-200 group-hover:ring-gray-300'"
+            [style.width.px]="thumbWidth" [style.height.px]="(thumbWidth * pg.height) / pg.width">
+            <img *ngIf="pg.src" [src]="pg.src" alt="" draggable="false" class="pointer-events-none block h-full w-full select-none"
+              [ngClass]="'page-tint-' + pageTint()" />
+            <span *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField" class="pointer-events-none absolute rounded-[2px] border bg-white/60"
+              [ngClass]="isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId)"
+              [style.left.%]="(f.x / pg.width) * 100" [style.top.%]="(f.y / pg.height) * 100"
+              [style.width.%]="(f.width / pg.width) * 100" [style.height.%]="(f.height / pg.height) * 100"></span>
+          </span>
+          <span class="text-[11px] font-medium tabular-nums" [ngClass]="currentPage() === pg.page ? 'text-brand-bold' : 'text-gray-400'">{{ pg.page }}</span>
+        </button>
+        <button *ngIf="pages().length > 1" type="button" cdkDragHandle [disabled]="pageReorderBusy"
+          [attr.aria-label]="'Reorder page ' + pg.page + ' (drag, or Alt + arrow up/down)'" title="Drag to reorder"
+          data-testid="page-drag-handle" (keydown)="onPageHandleKeydown($event, i)"
+          class="absolute left-1 top-1 flex h-6 w-6 cursor-grab items-center justify-center rounded-full bg-white/90 text-gray-500 opacity-0 shadow ring-1 ring-gray-200 transition-opacity hover:text-gray-900 focus-visible:opacity-100 group-hover:opacity-100 active:cursor-grabbing disabled:cursor-not-allowed">
+          <ion-icon name="reorder-two-outline" class="text-sm"></ion-icon>
+        </button>
+      </div>
+      <p *ngIf="!pages().length" class="text-center text-[11px] text-gray-400">No pages yet</p>
+    </div>
+    <div *ngIf="pageReorderBusy" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/85 px-2 text-center" role="status">
+      <span class="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-brand-bold"></span>
+      <span class="text-[11px] font-medium text-gray-600">Reordering pages…</span>
+    </div>
   </aside>
 
   <!-- ===== Centro: toolbar + documento ===== -->
@@ -291,6 +225,108 @@
         <ng-container *ngTemplateOutlet="zoomButtonsTpl"></ng-container>
       </span>
 
+
+      <!-- Tools del documento: buscar texto, aspecto de las páginas, zoom y campos -->
+      <div class="relative hidden shrink-0 lg:block" appClickOutside [clickOutsideEnabled]="toolsOpen()"
+        (appClickOutside)="toolsOpen.set(false)" (keydown.escape)="toolsOpen.set(false)">
+        <button type="button" (click)="toolsOpen.set(!toolsOpen())" aria-haspopup="dialog" [attr.aria-expanded]="toolsOpen()"
+          data-testid="tools-trigger" aria-label="Document tools" title="Document tools: search, page color, zoom"
+          class="flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors"
+          [ngClass]="toolsOpen() || searchMatches().length ? 'bg-white text-brand-bold' : 'bg-white/15 text-white hover:bg-white/25'">
+          <ion-icon name="construct-outline" class="text-sm"></ion-icon>
+          Tools
+          <span *ngIf="searchMatches().length" class="rounded-full bg-brand-bold px-1.5 text-[10px] font-bold text-white">{{ searchMatches().length }}</span>
+        </button>
+
+        <div *ngIf="toolsOpen()" role="dialog" aria-label="Document tools" data-testid="tools-panel"
+          class="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-gray-100 bg-white p-4 text-gray-700 shadow-xl">
+          <!-- Buscar en el documento -->
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Search in document</p>
+          <div class="mt-2 flex h-10 items-center gap-1.5 rounded-full border border-gray-200 bg-white pl-3 pr-1 focus-within:border-brand-bold">
+            <ion-icon name="search-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
+            <input type="text" name="docSearch" autocomplete="off" aria-label="Search in document" data-testid="tools-search"
+              [ngModel]="searchQuery()" (ngModelChange)="setSearchQuery($event)" (keydown.enter)="$event.preventDefault(); nextMatch()"
+              [disabled]="!hasSearchableDocument()" placeholder="Find text…"
+              class="h-full min-w-0 flex-1 bg-transparent text-xs text-gray-700 placeholder-gray-400 focus:outline-none disabled:opacity-50" />
+            <ng-container *ngIf="searchQuery().trim().length >= 2">
+              <span class="shrink-0 text-[11px] font-medium tabular-nums text-gray-500" aria-live="polite">
+                <ng-container *ngIf="searchBusy(); else searchCount">…</ng-container>
+                <ng-template #searchCount>{{ searchMatches().length ? searchIndex() + 1 + ' / ' + searchMatches().length : '0 results' }}</ng-template>
+              </span>
+              <button type="button" (click)="prevMatch()" [disabled]="!searchMatches().length" aria-label="Previous result"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40">
+                <ion-icon name="chevron-up-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" (click)="nextMatch()" [disabled]="!searchMatches().length" aria-label="Next result"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40">
+                <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
+              </button>
+              <button type="button" (click)="clearSearch()" aria-label="Clear search"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                <ion-icon name="close-outline" class="text-base"></ion-icon>
+              </button>
+            </ng-container>
+          </div>
+          <p *ngIf="!hasSearchableDocument()" class="mt-1.5 text-[10px] text-gray-400">Search needs a PDF with selectable text.</p>
+
+          <!-- Color / aspecto de las páginas -->
+          <div class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Page color</p>
+            <div class="mt-2 grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Page color">
+              <button type="button" role="radio" (click)="setPageTint('normal')" [attr.aria-checked]="pageTint() === 'normal'" data-testid="tint-normal"
+                class="flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[10px] font-medium"
+                [ngClass]="pageTint() === 'normal' ? 'border-brand-bold bg-brand-white' : 'border-gray-200 hover:bg-gray-50'">
+                <span class="h-6 w-full rounded bg-white ring-1 ring-gray-200"></span>Normal
+              </button>
+              <button type="button" role="radio" (click)="setPageTint('warm')" [attr.aria-checked]="pageTint() === 'warm'" data-testid="tint-warm"
+                class="flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[10px] font-medium"
+                [ngClass]="pageTint() === 'warm' ? 'border-brand-bold bg-brand-white' : 'border-gray-200 hover:bg-gray-50'">
+                <span class="h-6 w-full rounded bg-amber-100 ring-1 ring-amber-200"></span>Warm
+              </button>
+              <button type="button" role="radio" (click)="setPageTint('gray')" [attr.aria-checked]="pageTint() === 'gray'" data-testid="tint-gray"
+                class="flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[10px] font-medium"
+                [ngClass]="pageTint() === 'gray' ? 'border-brand-bold bg-brand-white' : 'border-gray-200 hover:bg-gray-50'">
+                <span class="h-6 w-full rounded bg-gray-200 ring-1 ring-gray-300"></span>Gray
+              </button>
+              <button type="button" role="radio" (click)="setPageTint('night')" [attr.aria-checked]="pageTint() === 'night'" data-testid="tint-night"
+                class="flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[10px] font-medium"
+                [ngClass]="pageTint() === 'night' ? 'border-brand-bold bg-brand-white' : 'border-gray-200 hover:bg-gray-50'">
+                <span class="h-6 w-full rounded bg-gray-800 ring-1 ring-gray-900"></span>Night
+              </button>
+            </div>
+            <p class="mt-1.5 text-[10px] leading-snug text-gray-400">Only changes how you see the document here; the PDF is not modified.</p>
+          </div>
+
+          <!-- Zoom rápido -->
+          <div class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Zoom</p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <button *ngFor="let z of zoomPresets" type="button" (click)="setZoomPercent(z)" [disabled]="!hasRenderedPages() || interactionLocked()"
+                class="min-h-[32px] rounded-full border px-3 text-[11px] font-semibold tabular-nums disabled:opacity-40"
+                [ngClass]="zoomPercent() === z ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">{{ z }}%</button>
+              <button type="button" (click)="fitWidth()" [disabled]="!hasRenderedPages() || interactionLocked()"
+                class="flex min-h-[32px] items-center gap-1 rounded-full border border-gray-200 px-3 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                <ion-icon name="scan-outline" class="text-xs"></ion-icon> Fit width
+              </button>
+            </div>
+          </div>
+
+          <!-- Campos -->
+          <div class="mt-3 border-t border-gray-100 pt-3">
+            <button type="button" role="switch" (click)="showFields.set(!showFields())" [attr.aria-checked]="showFields()"
+              data-testid="tools-show-fields"
+              class="flex w-full items-center justify-between gap-3 rounded-xl px-1 py-1.5 text-left hover:bg-gray-50">
+              <span class="min-w-0">
+                <span class="block text-xs font-medium text-gray-800">Show fields</span>
+                <span class="block text-[10px] text-gray-400">Hide them to read the document without obstruction.</span>
+              </span>
+              <span class="relative h-5 w-9 shrink-0 rounded-full transition-colors" [ngClass]="showFields() ? 'bg-brand-bold' : 'bg-gray-300'">
+                <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform" [class.translate-x-4]="showFields()"></span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- lg+: plegar/desplegar la columna derecha -->
       <button *ngIf="!inspectorCollapsed()" type="button" (click)="setInspectorCollapsed(true)"
@@ -367,7 +403,7 @@
             [style.width.px]="pg.width" [style.height.px]="pg.height" style="background: white;"
             (pointerdown)="onPagePointerDown($event, pg)">
             <img *ngIf="pg.src" [src]="pg.src" [width]="pg.width" [height]="pg.height" alt="Document page {{ pg.page }}"
-              draggable="false" class="pointer-events-none block select-none" />
+              draggable="false" class="pointer-events-none block select-none" [ngClass]="'page-tint-' + pageTint()" />
             <div *ngIf="!pg.src" class="absolute inset-0 border border-gray-200 bg-white"></div>
 
             <!-- Arrastre desde la paleta: contorno exacto de dónde caerá el campo -->
@@ -386,12 +422,12 @@
             </ng-container>
 
             <!-- overlays de campos de esta página -->
-            <div *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField"
+            <div *ngFor="let f of (showFields() || placingType() ? fieldsForPage(pg.page) : []); trackBy: trackField"
               class="field-overlay absolute box-border touch-none rounded-md border-2 bg-white/70 focus:outline-none"
               [ngClass]="[
                 isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId),
                 f.id === selectedFieldId() ? 'is-selected' : '',
-                !isPreparerField(f) && f.signerId !== activeSignerId() && f.id !== selectedFieldId() ? (focusActiveSigner() ? 'opacity-25' : 'opacity-70') : '',
+                !isPreparerField(f) && f.signerId !== activeSignerId() && f.id !== selectedFieldId() ? 'opacity-70' : '',
                 interactionLocked() ? 'cursor-wait' : placingType() ? 'cursor-crosshair' : 'cursor-move'
               ]"
               [style.left.px]="f.x" [style.top.px]="f.y" [style.width.px]="f.width" [style.height.px]="f.height"

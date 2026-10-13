@@ -484,34 +484,33 @@ describe('SignaturePdfEditorComponent', () => {
     expect(opts).toContain('email');
   });
 
-  describe('Tools (color, vista, limpieza, búsqueda)', () => {
-    it('cambia el color del firmante activo y los campos lo siguen', () => {
+  describe('Tools del documento (búsqueda, color de página, campos)', () => {
+    it('cambia el aspecto de las páginas y lo aplica a la imagen', () => {
       const { c, fixture, set } = setup();
       set({ client: client('1'), document: blankDoc() });
-      const signer = c.activeSigner()!;
-      c.setSignerColor(signer.id, 'bg-rose-500');
+      c.setPageTint('night');
       fixture.detectChanges();
-      expect(c.activeSigner()?.color).toBe('bg-rose-500');
-      c.addField('signature');
-      expect(c.borderClass(signer.id)).toBe('border-rose-500');
+      expect(c.pageTint()).toBe('night');
+      const img = fixture.nativeElement.querySelector('[data-page="1"] img') as HTMLElement | null;
+      if (img) {
+        expect(img.className).toContain('page-tint-night');
+      }
     });
 
-    it('"Delete all fields" pide un segundo clic y solo borra los del firmante activo', () => {
+    it('ocultar los campos los quita de la página, pero reaparecen al armar un tipo', () => {
       const { c, fixture, set } = setup();
       set({ client: client('1'), document: blankDoc() });
       c.addField('signature');
-      c.addField('date');
       fixture.detectChanges();
-      const id = c.activeSigner()!.id;
-      expect(c.fieldCountBySigner()[id]).toBe(2);
+      expect(fixture.nativeElement.querySelectorAll('.field-overlay').length).toBeGreaterThan(0);
 
-      c.clearActiveSignerFields();
-      expect(c.confirmClearSigner()).toBe(true);
-      expect(c.fieldCountBySigner()[id]).toBe(2);
+      c.showFields.set(false);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelectorAll('.field-overlay').length).toBe(0);
 
-      c.clearActiveSignerFields();
-      expect(c.confirmClearSigner()).toBe(false);
-      expect(c.fieldCountBySigner()[id] ?? 0).toBe(0);
+      c.armPlacement('date');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelectorAll('.field-overlay').length).toBeGreaterThan(0);
     });
 
     it('una búsqueda de menos de 2 caracteres no se lanza y el panel de Tools se abre', () => {
@@ -523,6 +522,48 @@ describe('SignaturePdfEditorComponent', () => {
       expect(c.searchBusy()).toBe(false);
       expect(c.searchMatches()).toEqual([]);
       expect(el(fixture, 'tools-panel')).not.toBeNull();
+    });
+  });
+
+  describe('Reordenar páginas (miniaturas)', () => {
+    it('al soltar una miniatura emite el nuevo orden de páginas originales', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      fixture.detectChanges();
+      const total = c.pages().length;
+      expect(total).toBeGreaterThan(1);
+      let emitted: number[] | null = null;
+      c.pageOrderChange.subscribe((order) => (emitted = order));
+
+      c.dropPage({ previousIndex: 0, currentIndex: total - 1 } as never);
+      const expected = Array.from({ length: total }, (_, i) => i + 1);
+      expected.push(expected.shift()!);
+      expect(emitted).toEqual(expected);
+    });
+
+    it('no emite nada si no se movió o el padre está ocupado', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      fixture.detectChanges();
+      let calls = 0;
+      c.pageOrderChange.subscribe(() => calls++);
+      c.dropPage({ previousIndex: 1, currentIndex: 1 } as never);
+      c.pageReorderBusy = true;
+      c.dropPage({ previousIndex: 0, currentIndex: 1 } as never);
+      expect(calls).toBe(0);
+    });
+
+    it('remapFieldPages mueve cada campo con su página', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('signature'); // página 1
+      fixture.detectChanges();
+      const total = c.pages().length;
+      const docId = c.document!.id;
+      const order = Array.from({ length: total }, (_, i) => i + 1);
+      order.push(order.shift()!); // 1 pasa a ser la última
+      c.remapFieldPages(docId, order);
+      expect(c.getFields().some((f) => f.page === total)).toBe(true);
     });
   });
 

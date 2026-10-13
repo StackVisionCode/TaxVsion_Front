@@ -254,3 +254,32 @@
   box-shadow: 0 0 0 2px rgb(234 88 12 / 0.9);
   z-index: 2;
 }
+
+/* Aspecto de las páginas en la vista previa (no modifica el PDF). */
+.page-tint-warm {
+  filter: sepia(0.35) saturate(0.9) brightness(0.98);
+}
+
+.page-tint-gray {
+  filter: grayscale(1);
+}
+
+.page-tint-night {
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.95);
+}
+
+/* Miniaturas arrastrables (reordenar páginas). */
+.thumb-item.cdk-drag-preview {
+  box-shadow: 0 10px 24px rgba(13, 13, 13, 0.2);
+  border-radius: 6px;
+  background: #fff;
+  opacity: 0.95;
+}
+
+.thumb-item.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+.cdk-drop-list-dragging .thumb-item:not(.cdk-drag-placeholder) {
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}

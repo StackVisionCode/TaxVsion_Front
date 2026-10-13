@@ -130,6 +130,7 @@
       </div>
       <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="editorDocument()"
         [keepFieldsOnDocumentChange]="keepFieldsOnDocumentChange()" [seed]="editorSeed()"
+        [pageReorderBusy]="pageReorderBusy()" (pageOrderChange)="onPagesReordered($event)"
         (fieldCountChange)="fieldCount.set($event)"
         (editorStateChanged)="onEditorStateChanged()"></app-signature-pdf-editor>
     </div>
