@@ -129,4 +129,29 @@ describe('SignDocumentViewComponent', () => {
     expect(sheet.style.width).toBe('125%');
     expect(sheet.style.getPropertyValue('--page-aspect-ratio')).toBe('0.75');
   });
+
+  it('una etiqueta enmascarada muestra el texto como placeholder y un enlace seguro con el dominio real', () => {
+    const fixture = setup(
+      [field({ id: 't1', label: '[Read the terms](https://www.example.com/terms)' })],
+      true,
+    );
+    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    expect(input.placeholder).toBe('Read the terms');
+    const link = fixture.nativeElement.querySelector('[data-testid="field-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://www.example.com/terms');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link.target).toBe('_blank');
+    expect(link.textContent).toContain('example.com');
+  });
+
+  it('una etiqueta de texto normal no muestra enlace, y un esquema peligroso tampoco', () => {
+    const fixture = setup(
+      [
+        field({ id: 't1', label: 'Social Security Number' }),
+        field({ id: 't2', label: '[Click](javascript:alert(1))' }),
+      ],
+      true,
+    );
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="field-link"]').length).toBe(0);
+  });
 });

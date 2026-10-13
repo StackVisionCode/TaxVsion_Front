@@ -75,10 +75,21 @@ import {
 import { nextSeqAfter } from '../../utils/editor-id-seq.util';
 import { movePageInOrder } from '../../utils/pdf-reorder.util';
 import {
+  buildMaskedLabel,
+  labelDisplayText,
+  linkHost,
+  parseFieldLabel,
+} from '../../utils/field-label-link.util';
+import {
+  FieldAlign,
+  alignFieldOnPage,
   clampToPage,
   copyFieldToAllPages,
   duplicateFieldRect,
   nudgeField,
+  projectFieldToPage,
+  resizeFieldFromCenter,
+  scaleFieldFromCenter,
   reassignSignerFields,
   remapFieldsToPages,
   rescaleFieldsBetweenPages,
@@ -1081,6 +1092,142 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       );
     }
     this.markDirty();
+  }
+
+  // ---------- Herramientas del campo seleccionado (Field settings) ----------
+
+  /** Aplica un cambio puro a un campo (con su página) y lo consolida. */
+  private editField(
+    id: string,
+    change: (field: PlacedField, page: RenderedPage) => PlacedField,
+  ): void {
+    const field = this.fields().find((f) => f.id === id);
+    const page = field ? this.pageBox(field.page) : undefined;
+    if (!field || !page || this.interactionLocked()) {
+      return;
+    }
+    const next = change(field, page);
+    this.fields.update((list) => list.map((f) => (f.id === id ? next : f)));
+    this.markDirty();
+  }
+
+  private minSizeFor(field: PlacedField): { w: number; h: number } {
+    return scaleSize(MIN_SIZE_BY_TYPE[field.type], this.zoom());
+  }
+
+  /** 2 = "doblar" el tamaño, 1.25 = agrandar, 0.8 = achicar; siempre desde el centro del campo. */
+  scaleField(id: string, factor: number): void {
+    this.editField(id, (field, page) => scaleFieldFromCenter(field, factor, this.minSizeFor(field), page));
+  }
+
+  /** Vuelve al tamaño por defecto del tipo (al zoom actual). */
+  resetFieldSize(id: string): void {
+    this.editField(id, (field, page) => {
+      const size = scaleSize(DEFAULT_SIZE[field.type], this.zoom());
+      return resizeFieldFromCenter(field, size, this.minSizeFor(field), page);
+    });
+  }
+
+  /** Da a todos los campos del mismo tipo (en este documento) el tamaño de este, cada uno desde su centro. */
+  matchTypeSize(id: string): void {
+    const source = this.fields().find((f) => f.id === id);
+    if (!source || this.interactionLocked()) {
+      return;
+    }
+    const docId = source.documentLocalId;
+    this.fields.update((list) =>
+      list.map((f) => {
+        const page = this.pageBox(f.page);
+        if (f.id === id || f.type !== source.type || f.documentLocalId !== docId || !page) {
+          return f;
+        }
+        return resizeFieldFromCenter(f, { w: source.width, h: source.height }, this.minSizeFor(f), page);
+      }),
+    );
+    this.markDirty();
+  }
+
+  /** ¿Hay otros campos del mismo tipo a los que igualar el tamaño? */
+  canMatchTypeSize(field: PlacedField): boolean {
+    return this.fields().some(
+      (f) => f.id !== field.id && f.type === field.type && f.documentLocalId === field.documentLocalId,
+    );
+  }
+
+  alignField(id: string, align: FieldAlign): void {
+    this.editField(id, (field, page) => alignFieldOnPage(field, align, page));
+  }
+
+  /** Mueve el campo a la página anterior (-1) o siguiente (+1), en la misma posición relativa. */
+  moveFieldToPage(id: string, delta: -1 | 1): void {
+    const field = this.fields().find((f) => f.id === id);
+    const target = field ? this.pageBox(field.page + delta) : undefined;
+    const source = field ? this.pageBox(field.page) : undefined;
+    if (!field || !target || !source || this.interactionLocked()) {
+      return;
+    }
+    const moved = projectFieldToPage(field, source, target);
+    this.fields.update((list) => list.map((f) => (f.id === id ? moved : f)));
+    this.currentPage.set(target.page);
+    this.markDirty();
+  }
+
+  /** Copia el campo a la página siguiente (misma posición relativa) y selecciona la copia. */
+  duplicateFieldToNextPage(id: string): void {
+    const field = this.fields().find((f) => f.id === id);
+    const source = field ? this.pageBox(field.page) : undefined;
+    const target = field ? this.pageBox(field.page + 1) : undefined;
+    if (!field || !source || !target || this.interactionLocked()) {
+      return;
+    }
+    const copy = {
+      ...projectFieldToPage(field, source, target),
+      id: this.nextId(this.isPreparerField(field) ? 'prep' : 'field'),
+    };
+    this.fields.update((list) => [...list, copy]);
+    this.selectedFieldId.set(copy.id);
+    this.currentPage.set(target.page);
+    this.markDirty();
+  }
+
+  /** ¿Existe la página `delta` posiciones desde la del campo? (habilita mover/duplicar). */
+  hasPageOffset(field: PlacedField, delta: -1 | 1): boolean {
+    return !!this.pageBox(field.page + delta);
+  }
+
+  // ---------- Etiqueta de un campo de texto como enlace (enmascarable) ----------
+
+  /** ¿La etiqueta es un enlace (en crudo o enmascarado)? Solo http/https. */
+  labelLinkOf(field: PlacedField) {
+    return parseFieldLabel(field.label);
+  }
+
+  /** Texto que se ve en el campo: el del enlace enmascarado, o la etiqueta tal cual. */
+  displayLabel(label: string | null | undefined): string {
+    return labelDisplayText(label);
+  }
+
+  hostOf(url: string | null): string {
+    return linkHost(url);
+  }
+
+  /** Enmascara el enlace: el firmante ve `text` (y el dominio real al lado) en vez de la URL larga. */
+  maskLabelLink(id: string, text: string): void {
+    const field = this.fields().find((f) => f.id === id);
+    const link = field ? parseFieldLabel(field.label) : null;
+    if (!link?.url) {
+      return;
+    }
+    this.setFieldLabel(id, buildMaskedLabel(text, link.url));
+  }
+
+  /** Quita el enmascarado: la etiqueta vuelve a ser la URL tal cual. */
+  unmaskLabelLink(id: string): void {
+    const field = this.fields().find((f) => f.id === id);
+    const link = field ? parseFieldLabel(field.label) : null;
+    if (link?.url) {
+      this.setFieldLabel(id, link.url);
+    }
   }
 
   /** ¿Este firmante tiene algo pendiente en "Before you continue"? (alerta en su chip de la barra). */

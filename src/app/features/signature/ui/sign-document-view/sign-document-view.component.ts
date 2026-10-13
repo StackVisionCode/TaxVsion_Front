@@ -1,3 +1,4 @@
+import { labelDisplayText, linkHost, parseFieldLabel } from '../../utils/field-label-link.util';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -173,6 +174,20 @@ export class SignDocumentViewComponent implements OnChanges {
     }
   }
 
+  /** Etiqueta del campo como enlace (en crudo o enmascarada); solo http/https. */
+  labelLink(field: PublicSignerFieldView) {
+    return parseFieldLabel(field.label);
+  }
+
+  /** Texto de la etiqueta: el del enlace enmascarado, o la etiqueta tal cual. */
+  labelText(field: PublicSignerFieldView): string {
+    return labelDisplayText(field.label);
+  }
+
+  linkHost(url: string | null): string {
+    return linkHost(url);
+  }
+
   kindLabel(field: PublicSignerFieldView): string {
     switch (field.kind) {
       case 'Signature':
@@ -182,9 +197,9 @@ export class SignDocumentViewComponent implements OnChanges {
       case 'Date':
         return 'Date · automatic';
       case 'Checkbox':
-        return field.label || 'Checkbox';
+        return this.labelText(field) || 'Checkbox';
       default:
-        return field.label || 'Text';
+        return this.labelText(field) || 'Text';
     }
   }
 

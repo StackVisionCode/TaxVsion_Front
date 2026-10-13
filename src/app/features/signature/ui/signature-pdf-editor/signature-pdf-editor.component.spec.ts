@@ -525,6 +525,100 @@ describe('SignaturePdfEditorComponent', () => {
     });
   });
 
+  describe('Herramientas del campo seleccionado', () => {
+    it.each(['signature', 'initials', 'date', 'text'] as const)('doblar el tamaño, alinear y mover de página funcionan con el campo %s', (type) => {
+      {
+        const { c, fixture, set } = setup();
+        set({ client: client('1'), document: blankDoc() });
+        c.addField(type);
+        fixture.detectChanges();
+        const before = c.selectedField()!;
+
+        c.scaleField(before.id, 2);
+        const doubled = c.getFields().find((f) => f.id === before.id)!;
+        expect(doubled.width).toBeGreaterThan(before.width);
+
+        c.alignField(before.id, 'center');
+        const centered = c.getFields().find((f) => f.id === before.id)!;
+        const page = c.pages()[0];
+        expect(Math.round(centered.x + centered.width / 2)).toBe(Math.round(page.width / 2));
+
+        c.moveFieldToPage(before.id, 1);
+        expect(c.getFields().find((f) => f.id === before.id)!.page).toBe(2);
+      }
+    });
+
+    it('duplicar a la página siguiente crea una copia nueva y la selecciona', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('signature');
+      fixture.detectChanges();
+      const original = c.selectedField()!;
+      const countBefore = c.getFields().length;
+      c.duplicateFieldToNextPage(original.id);
+      expect(c.getFields().length).toBe(countBefore + 1);
+      expect(c.selectedField()!.id).not.toBe(original.id);
+      expect(c.selectedField()!.page).toBe(original.page + 1);
+      expect(c.getFields().find((f) => f.id === original.id)!.page).toBe(original.page);
+    });
+
+    it('"mismo tamaño" iguala los campos del mismo tipo y no toca otros tipos', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('signature');
+      const first = c.selectedField()!;
+      c.addField('signature');
+      const second = c.selectedField()!;
+      c.addField('date');
+      const date = c.selectedField()!;
+      fixture.detectChanges();
+      c.scaleField(first.id, 2);
+      c.matchTypeSize(first.id);
+      const fields = c.getFields();
+      const f1 = fields.find((f) => f.id === first.id)!;
+      const f2 = fields.find((f) => f.id === second.id)!;
+      expect(f2.width).toBeCloseTo(f1.width, 5);
+      expect(f2.height).toBeCloseTo(f1.height, 5);
+      expect(fields.find((f) => f.id === date.id)!.width).toBe(date.width);
+    });
+  });
+
+  describe('Etiqueta de texto como enlace', () => {
+    it('detecta una URL, la enmascara y la desenmascara', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('text');
+      fixture.detectChanges();
+      const id = c.selectedField()!.id;
+
+      c.setFieldLabel(id, 'https://www.irs.gov/forms/8879');
+      let field = c.getFields().find((f) => f.id === id)!;
+      expect(c.labelLinkOf(field)).toMatchObject({ masked: false, url: 'https://www.irs.gov/forms/8879' });
+      expect(c.hostOf(c.labelLinkOf(field).url)).toBe('irs.gov');
+
+      c.maskLabelLink(id, 'Read the IRS form');
+      field = c.getFields().find((f) => f.id === id)!;
+      expect(field.label).toBe('[Read the IRS form](https://www.irs.gov/forms/8879)');
+      expect(c.labelLinkOf(field).masked).toBe(true);
+      expect(c.displayLabel(field.label)).toBe('Read the IRS form');
+
+      c.unmaskLabelLink(id);
+      field = c.getFields().find((f) => f.id === id)!;
+      expect(field.label).toBe('https://www.irs.gov/forms/8879');
+    });
+
+    it('no enmascara si la etiqueta no es un enlace', () => {
+      const { c, fixture, set } = setup();
+      set({ client: client('1'), document: blankDoc() });
+      c.addField('text');
+      fixture.detectChanges();
+      const id = c.selectedField()!.id;
+      c.setFieldLabel(id, 'Social Security Number');
+      c.maskLabelLink(id, 'Whatever');
+      expect(c.getFields().find((f) => f.id === id)!.label).toBe('Social Security Number');
+    });
+  });
+
   describe('Reordenar páginas (miniaturas)', () => {
     it('al soltar una miniatura emite el nuevo orden de páginas originales', () => {
       const { c, fixture, set } = setup();

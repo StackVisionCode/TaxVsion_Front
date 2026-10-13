@@ -453,7 +453,7 @@
                 <div class="pointer-events-none flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-medium"
                   [ngClass]="textClass(f.signerId)">
                   <ion-icon [name]="fieldIcon[f.type]" class="shrink-0 text-xs"></ion-icon>
-                  <span class="truncate">{{ f.type === 'text' && f.label?.trim() ? f.label : fieldLabel[f.type] }}</span>
+                  <span class="truncate">{{ f.type === 'text' && f.label?.trim() ? displayLabel(f.label) : fieldLabel[f.type] }}</span>
                 </div>
               </ng-template>
 
@@ -790,12 +790,121 @@
       </ng-template>
     </div>
 
-    <div *ngIf="asField(f).type === 'text' && !isPreparerField(f)">
-      <p class="mb-1 block text-[11px] font-medium text-gray-600">Label</p>
-      <input type="text" aria-label="Field label" [ngModel]="f.label || ''" (ngModelChange)="setFieldLabel(f.id, $event)"
-        [name]="'label-' + f.id" placeholder="e.g. Social Security Number" (keydown.escape)="$event.stopPropagation()"
-        class="min-h-[40px] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+    <div *ngIf="asField(f).type === 'text' && !isPreparerField(f)" data-testid="field-label-block">
+      <ng-container *ngIf="labelLinkOf(asField(f)) as link">
+        <p class="mb-1 block text-[11px] font-medium text-gray-600">Label</p>
+        <!-- Etiqueta enmascarada: se edita el texto visible; la URL real queda a la vista -->
+        <ng-container *ngIf="link.masked; else rawLabel">
+          <div class="rounded-xl border border-brand-bold/30 bg-brand-white p-2.5" data-testid="label-link-masked">
+            <p class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+              <ion-icon name="link-outline" class="text-sm text-brand-bold"></ion-icon>
+              Masked link
+              <span class="ml-auto truncate rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-gray-500">{{ hostOf(link.url) }}</span>
+            </p>
+            <label class="mt-2 block text-[10px] font-medium text-gray-500" [attr.for]="'link-text-' + f.id">Display text</label>
+            <input type="text" [id]="'link-text-' + f.id" maxlength="120" [ngModel]="link.text" (ngModelChange)="maskLabelLink(f.id, $event)"
+              [name]="'link-text-' + f.id" (keydown.escape)="$event.stopPropagation()" data-testid="label-link-text"
+              class="mt-0.5 min-h-[36px] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+            <p class="mt-1.5 break-all text-[10px] text-gray-400" data-testid="label-link-url">{{ link.url }}</p>
+            <div class="mt-2 flex items-center gap-2">
+              <a [href]="link.url" target="_blank" rel="noopener noreferrer"
+                class="flex min-h-[32px] items-center gap-1 rounded-full border border-gray-200 bg-white px-3 text-[11px] font-medium text-gray-700 hover:bg-gray-50">
+                <ion-icon name="open-outline" class="text-xs"></ion-icon> Test link
+              </a>
+              <button type="button" (click)="unmaskLabelLink(f.id)" data-testid="label-link-unmask"
+                class="min-h-[32px] rounded-full px-3 text-[11px] font-medium text-brand-bold hover:bg-white">Show full address</button>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #rawLabel>
+          <input type="text" aria-label="Field label" [ngModel]="f.label || ''" (ngModelChange)="setFieldLabel(f.id, $event)"
+            [name]="'label-' + f.id" placeholder="e.g. Social Security Number" (keydown.escape)="$event.stopPropagation()"
+            class="min-h-[40px] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+          <!-- La etiqueta es una URL: se ofrece enmascararla -->
+          <div *ngIf="link.url" class="mt-2 rounded-xl border border-dashed border-brand-bold/40 bg-brand-white p-2.5" data-testid="label-link-detected">
+            <p class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+              <ion-icon name="link-outline" class="text-sm text-brand-bold"></ion-icon>
+              Link detected
+              <span class="ml-auto truncate rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-gray-500">{{ hostOf(link.url) }}</span>
+            </p>
+            <p class="mt-1 text-[10px] leading-snug text-gray-500">Show a short text instead of the full address. The signer still sees the real domain.</p>
+            <div class="mt-2 flex items-center gap-1.5">
+              <input #maskText type="text" maxlength="120" placeholder="e.g. Read the terms" aria-label="Link display text"
+                (keydown.enter)="$event.preventDefault(); maskLabelLink(f.id, maskText.value)" (keydown.escape)="$event.stopPropagation()"
+                [name]="'mask-text-' + f.id" data-testid="label-link-mask-input"
+                class="min-h-[34px] min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none" />
+              <button type="button" (click)="maskLabelLink(f.id, maskText.value)" [disabled]="!maskText.value.trim()" data-testid="label-link-mask"
+                class="min-h-[34px] shrink-0 rounded-lg bg-brand-bold px-3 text-[11px] font-semibold text-white hover:bg-brand-ink disabled:opacity-40">Mask</button>
+            </div>
+          </div>
+        </ng-template>
+      </ng-container>
       <p class="mt-1 text-[10px] text-gray-400">The signer sees it as the field's instruction.</p>
+    </div>
+
+    <!-- Herramientas del campo (igual para firma, iniciales, fecha, texto y la firma del preparador) -->
+    <div class="space-y-2.5" data-testid="field-tools">
+      <div>
+        <p class="mb-1 text-[11px] font-medium text-gray-600">Size</p>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button type="button" (click)="scaleField(f.id, 0.8)" [disabled]="interactionLocked()" title="Smaller" aria-label="Make the field smaller"
+            data-testid="field-smaller"
+            class="flex min-h-[36px] items-center justify-center rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+            <ion-icon name="remove-outline" class="text-base"></ion-icon>
+          </button>
+          <button type="button" (click)="scaleField(f.id, 1.25)" [disabled]="interactionLocked()" title="Larger" aria-label="Make the field larger"
+            data-testid="field-larger"
+            class="flex min-h-[36px] items-center justify-center rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+            <ion-icon name="add-outline" class="text-base"></ion-icon>
+          </button>
+          <button type="button" (click)="scaleField(f.id, 2)" [disabled]="interactionLocked()" title="Double the size" aria-label="Double the size of the field"
+            data-testid="field-double"
+            class="flex min-h-[36px] items-center justify-center rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40">×2</button>
+          <button type="button" (click)="resetFieldSize(f.id)" [disabled]="interactionLocked()" title="Default size" aria-label="Reset to the default size"
+            data-testid="field-reset-size"
+            class="flex min-h-[36px] items-center justify-center rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+            <ion-icon name="refresh-outline" class="text-sm"></ion-icon>
+          </button>
+        </div>
+        <button type="button" (click)="matchTypeSize(f.id)" [disabled]="interactionLocked() || !canMatchTypeSize(asField(f))" data-testid="field-match-size"
+          class="mt-1.5 flex min-h-[34px] w-full items-center gap-2 rounded-xl px-2 text-left text-[11px] font-medium text-brand-bold hover:bg-brand-white disabled:opacity-40">
+          <ion-icon name="copy-outline" class="text-sm"></ion-icon>
+          Same size for every {{ fieldLabel[asField(f).type] | lowercase }} field
+        </button>
+      </div>
+
+      <div>
+        <p class="mb-1 text-[11px] font-medium text-gray-600">Align on page</p>
+        <div class="grid grid-cols-3 gap-1.5">
+          <button type="button" (click)="alignField(f.id, 'left')" [disabled]="interactionLocked()" data-testid="field-align-left"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Left</button>
+          <button type="button" (click)="alignField(f.id, 'center')" [disabled]="interactionLocked()" data-testid="field-align-center"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Center</button>
+          <button type="button" (click)="alignField(f.id, 'right')" [disabled]="interactionLocked()" data-testid="field-align-right"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Right</button>
+          <button type="button" (click)="alignField(f.id, 'top')" [disabled]="interactionLocked()" data-testid="field-align-top"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Top</button>
+          <button type="button" (click)="alignField(f.id, 'middle')" [disabled]="interactionLocked()" data-testid="field-align-middle"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Middle</button>
+          <button type="button" (click)="alignField(f.id, 'bottom')" [disabled]="interactionLocked()" data-testid="field-align-bottom"
+            class="min-h-[34px] rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">Bottom</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="mb-1 text-[11px] font-medium text-gray-600">Page</p>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" (click)="moveFieldToPage(f.id, -1)" [disabled]="interactionLocked() || !hasPageOffset(asField(f), -1)" data-testid="field-move-prev"
+            class="flex min-h-[34px] items-center justify-center gap-1 rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+            <ion-icon name="arrow-up-outline" class="text-sm"></ion-icon> Move to previous
+          </button>
+          <button type="button" (click)="moveFieldToPage(f.id, 1)" [disabled]="interactionLocked() || !hasPageOffset(asField(f), 1)" data-testid="field-move-next"
+            class="flex min-h-[34px] items-center justify-center gap-1 rounded-xl border border-gray-200 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+            <ion-icon name="arrow-down-outline" class="text-sm"></ion-icon> Move to next
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="grid gap-1.5">
@@ -809,6 +918,12 @@
         class="flex min-h-[40px] items-center gap-2 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
         <ion-icon name="layers-outline" class="text-sm"></ion-icon>
         Duplicate to all pages
+      </button>
+      <button type="button" (click)="duplicateFieldToNextPage(f.id)" [disabled]="interactionLocked() || !hasPageOffset(asField(f), 1)"
+        data-testid="field-duplicate-next"
+        class="flex min-h-[40px] items-center gap-2 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+        <ion-icon name="arrow-forward-outline" class="text-sm"></ion-icon>
+        Duplicate to next page
       </button>
       <button type="button" (click)="removeField(f.id)" [disabled]="interactionLocked()"
         class="flex min-h-[40px] items-center gap-2 rounded-xl border border-red-100 px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
