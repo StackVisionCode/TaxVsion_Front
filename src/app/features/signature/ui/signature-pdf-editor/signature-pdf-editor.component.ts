@@ -73,6 +73,7 @@ import {
   renderPdfPages,
 } from '../../utils/pdf-render.util';
 import { nextSeqAfter } from '../../utils/editor-id-seq.util';
+import { movePageInOrder } from '../../utils/pdf-reorder.util';
 import {
   clampToPage,
   copyFieldToAllPages,
@@ -141,17 +142,7 @@ const SIGNER_PALETTE = [
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-brand-bold' },
   { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-600' },
   { bg: 'bg-brand-bold', border: 'border-brand-bold', text: 'text-gray-900' },
-  { bg: 'bg-rose-500', border: 'border-rose-500', text: 'text-rose-600' },
-  { bg: 'bg-sky-500', border: 'border-sky-500', text: 'text-sky-700' },
-  { bg: 'bg-violet-500', border: 'border-violet-500', text: 'text-violet-600' },
-  { bg: 'bg-amber-500', border: 'border-amber-500', text: 'text-amber-700' },
-  { bg: 'bg-teal-500', border: 'border-teal-500', text: 'text-teal-700' },
-  { bg: 'bg-pink-500', border: 'border-pink-500', text: 'text-pink-600' },
 ];
-
-/** Colores que el usuario puede elegir para un firmante (sin repetidos), en el orden de la paleta. */
-const SIGNER_COLOR_CHOICES: readonly string[] = Array.from(new Set(SIGNER_PALETTE.map((p) => p.bg)));
-
 /** Coincidencia de la búsqueda en el documento: rectángulo en fracciones (0–1) de la página, para que sirva a cualquier zoom. */
 interface SearchMatch {
   page: number;
@@ -269,6 +260,13 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   @Output() fieldCountChange = new EventEmitter<number>();
   /** F2.5: cada vez que el editor consolida un cambio (campo, firmante, regla…). El panel autoguarda. */
   @Output() editorStateChanged = new EventEmitter<void>();
+  /**
+   * El usuario arrastró una miniatura: nueva secuencia de páginas ORIGINALES (1-based). El padre genera
+   * el PDF reordenado, lo sube y reemplaza el documento; el editor solo avisa (y remapea sus campos).
+   */
+  @Output() pageOrderChange = new EventEmitter<number[]>();
+  /** El padre está generando/subiendo el PDF reordenado: bloquea nuevos arrastres y muestra el aviso. */
+  @Input() pageReorderBusy = false;
 
   @ViewChild('surface') private surfaceRef?: ElementRef<HTMLElement>;
   @ViewChild('ghostEl') private ghostRef?: ElementRef<HTMLElement>;
@@ -336,11 +334,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   readonly inspectorTab = signal<'field' | 'signers' | 'checklist'>('field');
   // ---------- Tools (búsqueda, color del firmante, vista) ----------
   readonly toolsOpen = signal(false);
-  readonly signerColorChoices = SIGNER_COLOR_CHOICES;
-  /** Atenúa los campos de los demás firmantes para concentrarse en el activo. */
-  readonly focusActiveSigner = signal(false);
-  /** Confirmación en dos clics de "Delete all fields of <firmante>". */
-  readonly confirmClearSigner = signal(false);
+  /** Aspecto de las páginas en la vista previa (solo visual: no cambia el PDF). */
+  readonly pageTint = signal<'normal' | 'warm' | 'gray' | 'night'>('normal');
+  /** Oculta los campos mientras se lee el documento. */
+  readonly showFields = signal(true);
+  readonly zoomPresets = [50, 75, 100, 125, 150] as const;
   readonly searchQuery = signal('');
   readonly searchMatches = signal<SearchMatch[]>([]);
   readonly searchIndex = signal(0);
@@ -1017,32 +1015,71 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     }
   }
 
-  // ---------- Tools: color y limpieza ----------
+  // ---------- Tools: vista del documento ----------
 
-  setSignerColor(signerId: string, bg: string): void {
-    if (this.signers().find((s) => s.id === signerId)?.color === bg) {
-      return;
-    }
-    this.signers.update((list) => list.map((s) => (s.id === signerId ? { ...s, color: bg } : s)));
-    this.markDirty();
+  setPageTint(tint: 'normal' | 'warm' | 'gray' | 'night'): void {
+    this.pageTint.set(tint);
   }
 
-  /** Quita todos los campos del firmante activo (pide un segundo clic para confirmar). */
-  clearActiveSignerFields(): void {
-    const id = this.activeSignerId();
-    if (!id || this.interactionLocked()) {
+  setZoomPercent(percent: number): void {
+    void this.applyZoom(clamp(percent / 100, ZOOM_MIN, ZOOM_MAX));
+  }
+
+  // ---------- Reordenar páginas (miniaturas) ----------
+
+  /** Arrastre de una miniatura (CDK): emite el nuevo orden de las páginas. */
+  dropPage(event: CdkDragDrop<RenderedPage[]>): void {
+    this.requestPageMove(event.previousIndex, event.currentIndex);
+  }
+
+  /** Alt + ↑/↓ sobre el asa de una miniatura: alternativa de teclado al arrastre. */
+  onPageHandleKeydown(event: KeyboardEvent, index: number): void {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
       return;
     }
-    if (!this.confirmClearSigner()) {
-      this.confirmClearSigner.set(true);
+    event.preventDefault();
+    this.requestPageMove(index, index + (event.key === 'ArrowUp' ? -1 : 1));
+  }
+
+  private requestPageMove(from: number, to: number): void {
+    const total = this.pages().length;
+    if (this.pageReorderBusy || from === to || to < 0 || to >= total) {
       return;
     }
-    this.fields.update((list) => list.filter((f) => f.signerId !== id));
-    const selected = this.selectedField();
-    if (selected && selected.signerId === id) {
-      this.selectedFieldId.set(null);
+    this.pageOrderChange.emit(
+      movePageInOrder(
+        this.pages().map((p) => p.page),
+        from,
+        to,
+      ),
+    );
+  }
+
+  /**
+   * Tras reordenar el PDF: los campos viajan con su página. `order` = páginas originales en el orden nuevo
+   * (la página `order[i]` pasa a ser la `i + 1`).
+   */
+  remapFieldPages(documentLocalId: string, order: readonly number[]): void {
+    const newPageOf = (page: number): number => {
+      const index = order.indexOf(page);
+      return index >= 0 ? index + 1 : page;
+    };
+    this.fields.update((list) =>
+      list.map((f) => (f.documentLocalId === documentLocalId ? { ...f, page: newPageOf(f.page) } : f)),
+    );
+    const metrics = this.pageMetricsByDocument.get(documentLocalId);
+    if (metrics) {
+      this.pageMetricsByDocument.set(
+        documentLocalId,
+        order.map((original, i) => ({ ...(metrics[original - 1] ?? metrics[i]), page: i + 1 })),
+      );
     }
-    this.confirmClearSigner.set(false);
+    const pending = this.pendingSeedFields();
+    if (pending) {
+      this.pendingSeedFields.set(
+        pending.map((f) => (f.documentLocalId === documentLocalId ? { ...f, page: newPageOf(f.page) } : f)),
+      );
+    }
     this.markDirty();
   }
 

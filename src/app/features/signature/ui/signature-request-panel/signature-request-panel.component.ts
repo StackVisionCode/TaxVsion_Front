@@ -19,6 +19,8 @@ import {
 import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
+import { formatBytes } from '@shared/utils/format.util';
+import { reorderPdfPages } from '../../utils/pdf-reorder.util';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignatureWizardClientStepComponent } from '../signature-wizard-client-step/signature-wizard-client-step.component';
@@ -746,6 +748,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   async replaceDocument(event: {
     documentLocalId: string;
     newDocument: WizardDocument;
+    /** Sin el aviso "replaced the previous PDF" (p. ej. al reordenar páginas). */
+    silent?: boolean;
   }): Promise<void> {
     const current = this.selectedDocuments().find((doc) => doc.id === event.documentLocalId);
     if (!current) {
@@ -782,7 +786,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         event.newDocument.pageCount != null &&
         current.pageCount !== event.newDocument.pageCount;
       applyLocalSwap(willInvalidate);
-      this.toast.success(`"${event.newDocument.name}" replaced the previous PDF.`);
+      if (!event.silent) {
+        this.toast.success(`"${event.newDocument.name}" replaced the previous PDF.`);
+      }
       return;
     }
 
@@ -801,11 +807,56 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         this.toast.success(
           `"${event.newDocument.name}" replaced the previous PDF. ${result.fieldsInvalidated} field(s) were discarded; you'll need to place them again.`,
         );
-      } else {
+      } else if (!event.silent) {
         this.toast.success(`"${event.newDocument.name}" replaced the previous PDF.`);
       }
     } catch (err) {
       this.toast.error(`Replace failed: ${toApiError(err).message}`);
+    }
+  }
+
+  // ---------- Reordenar páginas del PDF (arrastrando miniaturas en el editor) ----------
+  readonly pageReorderBusy = signal(false);
+
+  /**
+   * El editor avisa del nuevo orden de páginas: se genera un PDF nuevo (pdf-lib), pasa el mismo preflight y
+   * subida que cualquier PDF, los campos viajan con su página y el documento se reemplaza en su sitio.
+   */
+  async onPagesReordered(order: number[]): Promise<void> {
+    const doc = this.selectedDocument();
+    if (!doc || this.pageReorderBusy()) {
+      return;
+    }
+    if (!doc.blob) {
+      this.toast.error('This document cannot be reordered because its file is not available.');
+      return;
+    }
+    this.pageReorderBusy.set(true);
+    try {
+      const bytes = await reorderPdfPages(doc.blob, order);
+      const file = new File([bytes as BlobPart], doc.name, { type: 'application/pdf' });
+      const validation = await firstValueFrom(this.store.validateDocument(file));
+      if (!validation.isAcceptable) {
+        this.toast.error('The reordered PDF was rejected by the document check.');
+        return;
+      }
+      const fileId = await firstValueFrom(
+        this.store.uploadOriginalDocument(file, validation.validationRecordId),
+      );
+      const next: WizardDocument = {
+        ...doc,
+        blob: file,
+        fileId,
+        size: formatBytes(file.size),
+        pageCount: validation.pageCount ?? doc.pageCount ?? null,
+      };
+      this.editor?.remapFieldPages(doc.id, order);
+      await this.replaceDocument({ documentLocalId: doc.id, newDocument: next, silent: true });
+      this.toast.success('Pages reordered.');
+    } catch (err) {
+      this.toast.error(`Could not reorder the pages: ${toApiError(err).message}`);
+    } finally {
+      this.pageReorderBusy.set(false);
     }
   }
 
