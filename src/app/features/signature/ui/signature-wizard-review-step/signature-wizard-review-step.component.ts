@@ -7,7 +7,6 @@ import {
   PREPARER_PARTY_ID,
   PlacedField,
   RequestRules,
-  VerificationChannel,
   WizardClient,
   WizardDocKind,
   WizardDocument,
@@ -32,7 +31,6 @@ import {
   reminderIntervalDays,
   togglePartialCopyRecipient,
   toggleRule,
-  withDefaultChannel,
   withPartialCopyAudienceKind,
   withReminderIntervalDays,
   withSequential,
@@ -90,15 +88,8 @@ export class SignatureWizardReviewStepComponent {
   /** "Go to signer": volver al editor con ese firmante activo. */
   @Output() goToSigner = new EventEmitter<string>();
 
-  /** Canales de ENTREGA para el default de firmantes nuevos (mismos que ofrecía el editor). */
-  readonly deliveryChannels: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'none'];
-
   setSequential(sequential: boolean): void {
     this.emitRules((r) => withSequential(r, sequential));
-  }
-
-  setDefaultChannel(channel: VerificationChannel): void {
-    this.emitRules((r) => withDefaultChannel(r, channel));
   }
 
   toggle(key: ToggleableRule): void {

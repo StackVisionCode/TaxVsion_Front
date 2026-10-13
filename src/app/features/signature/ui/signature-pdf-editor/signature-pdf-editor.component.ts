@@ -325,6 +325,11 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   readonly rules = signal<RequestRules>(defaultRules());
   readonly channelMeta = CHANNEL_META;
 
+  /** B5: una request NUEVA preselcciona los defaults del despacho; se hace una vez y solo si el
+   *  usuario aún no tocó las reglas (si editó, no se le pisa su elección). */
+  private rulesSeededFromSettings = false;
+  private userAdjustedRules = false;
+
   private readonly perms = inject(PermissionService);
   /** P2/P8: los toggles de entrega solo se muestran a quien puede entregar (signature.document.send). */
   readonly canDeliverDocs = computed(() => this.perms.has('signature.document.send'));
@@ -436,6 +441,24 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   constructor() {
     // El editor puede montarse sin que la página haya cargado las firmas todavía.
     this.store.loadSignatureProfiles();
+    // B5: necesitamos los defaults del despacho para preseleccionarlos en una request nueva.
+    this.store.loadSignatureSettings();
+    // Preselecciona los defaults del tenant SOLO en una request nueva (sin seed de borrador) y antes
+    // de que el usuario edite las reglas, para no pisar lo que haya elegido. Se corre una vez.
+    effect(() => {
+      const settings = this.store.signatureSettings();
+      if (!settings || this.rulesSeededFromSettings) {
+        return;
+      }
+      untracked(() => {
+        if (this.seed || this.userAdjustedRules) {
+          this.rulesSeededFromSettings = true;
+          return;
+        }
+        this.rulesSeededFromSettings = true;
+        this.rules.set(defaultRules(settings));
+      });
+    });
     // Typeahead server-side del buscador de clientes del "Add signer" (mismo patrón que el picker del paso 1).
     toObservable(this.signerClientSearch)
       .pipe(
@@ -991,12 +1014,14 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Lo usa el paso Review: reemplaza las reglas (las transformaciones viven en request-rules.util). */
   setRules(rules: RequestRules): void {
+    this.userAdjustedRules = true;
     this.rules.set(rules);
     this.markDirty();
   }
 
   /** Toggle Sequential/Any order dentro del editor (antes vivía solo en Review). */
   setSigningOrder(sequential: boolean): void {
+    this.userAdjustedRules = true;
     this.rules.update((r) => withSequential(r, sequential));
     this.markDirty();
   }

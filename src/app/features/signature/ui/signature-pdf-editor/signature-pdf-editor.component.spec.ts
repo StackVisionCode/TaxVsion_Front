@@ -23,6 +23,9 @@ function storeStub() {
     signatureProfiles: profiles,
     activeSignatureProfiles: profiles,
     defaultSignatureProfile: signal(null),
+    // B5: el editor siembra los defaults de la request nuevos desde los settings del despacho.
+    loadSignatureSettings: vi.fn(),
+    signatureSettings: signal(null),
     getDownloadUrl: vi.fn(() => of('blob:x')),
     queryCustomers: vi.fn(),
     loadCustomers: vi.fn(),

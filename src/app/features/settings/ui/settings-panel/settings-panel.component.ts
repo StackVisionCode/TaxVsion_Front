@@ -91,12 +91,8 @@ const PANELS: Record<string, PanelConfig> = {
       { kind: 'pending', key: 'replyTo', control: 'text', label: 'Default reply-to', description: 'Will be used when clients respond to notifications' },
     ],
   },
-  signature: {
-    fields: [
-      { kind: 'pending', key: 'reminders', control: 'toggle', label: 'Auto-remind unsigned documents', description: 'Will send a nudge when a document stays unsigned' },
-      { kind: 'pending', key: 'expiry', control: 'select', label: 'Link expiration', description: 'Will define how long a signing link stays valid' },
-    ],
-  },
+  // 'signature' se movió a su propia página ruteada (/settings/signature); el card del grid navega
+  // en vez de abrir un panel inline, así que ya no hay placeholder acá.
   meetings: {
     fields: [
       { kind: 'pending', key: 'waitingRoom', control: 'toggle', label: 'Enable waiting room', description: 'Will hold clients until you admit them' },

@@ -96,6 +96,23 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: 'signatures',
     anyOf: ['signature.request.read'],
   },
+  {
+    // Ajustes globales de firma (Settings → Signature). Solo admins/managers del despacho.
+    id: 'signature-settings',
+    label: 'Signature settings',
+    route: 'settings/signature',
+    module: 'signatures',
+    anyOf: ['signature.settings.manage'],
+  },
+  {
+    // "My Signature" del preparador (Settings → My signature). El backend cierra el resto
+    // (personal exige `sign_own`; el empleado necesita el flag del tenant). Admin siempre puede.
+    id: 'my-signature',
+    label: 'My signature',
+    route: 'settings/my-signature',
+    module: 'signatures',
+    anyOf: ['signature.preparer.manage'],
+  },
   { id: 'campaigns', label: 'Campaigns', route: 'campaigns', module: 'campaigns', anyOf: ['campaigns.view'] },
   // SMS no es un módulo del plan: se cobra aparte por consumo.
   { id: 'sms', label: 'SMS', route: 'sms', module: null, anyOf: ['sms.read'] },

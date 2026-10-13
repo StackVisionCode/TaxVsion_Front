@@ -32,7 +32,12 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   // se duplica acá — vive en Company (arriba). Reusa el BillingStore de la feature billing.
   { id: 'invoices', featureId: 'billing', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
   { id: 'mail', featureId: 'email', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
-  { id: 'signature', featureId: 'signature', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500' },
+  // Ajustes globales de firma: página dedicada, gateada por signature.settings.manage (no por
+  // request.read), para que solo admins/managers vean la tarjeta y no una puerta pintada.
+  { id: 'signature', featureId: 'signature-settings', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/signature' },
+  // Firma personal del preparador: su propia superficie, gateada por preparer.manage (no por settings.manage),
+  // para que un empleado llegue a sus firmas sin ver la gobernanza del despacho.
+  { id: 'my-signature', featureId: 'my-signature', title: 'My signature', description: 'Your personal reusable signatures', icon: 'create-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/settings/my-signature' },
   { id: 'meetings', featureId: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-gray-200 text-gray-700' },
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
   // Conexiones de terceros para la IA: API keys de proveedores, cuentas OAuth y servidores MCP.

@@ -18,6 +18,7 @@ export const SignaturePermissions = {
   TemplateUpdate: 'signature.template.update',
   TemplateDelete: 'signature.template.delete',
   PreparerManage: 'signature.preparer.manage',
+  SettingsManage: 'signature.settings.manage',
 } as const;
 
 /**
@@ -65,5 +66,10 @@ export class SignatureCapabilities {
   /** Los perfiles de firma del preparador ("My signature"). */
   readonly canManagePreparerProfiles: Signal<boolean> = computed(() =>
     this.access.can(SignaturePermissions.PreparerManage),
+  );
+
+  /** Configuración global de firma del despacho (página admin /settings/signature). */
+  readonly canManageSettings: Signal<boolean> = computed(() =>
+    this.access.can(SignaturePermissions.SettingsManage),
   );
 }

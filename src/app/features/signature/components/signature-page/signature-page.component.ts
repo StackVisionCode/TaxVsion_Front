@@ -24,7 +24,6 @@ import {
 } from '../../ui/signature-table/signature-table.component';
 import { SignatureRequestPanelComponent } from '../../ui/signature-request-panel/signature-request-panel.component';
 import { SignaturePreviewComponent } from '../../ui/signature-preview/signature-preview.component';
-import { SignatureProfilesManagerComponent } from '../../ui/signature-profiles-manager/signature-profiles-manager.component';
 import { SignatureTemplatePickerComponent } from '../../ui/signature-template-picker/signature-template-picker.component';
 import { SignatureCategoryPickerComponent } from '../../ui/signature-category-picker/signature-category-picker.component';
 import { SignatureCategoryManagerComponent } from '../../ui/signature-category-manager/signature-category-manager.component';
@@ -105,7 +104,6 @@ const STATUS_FILTER_LABEL: Record<SignatureStatusFilter, string> = {
     SignatureTableComponent,
     SignatureRequestPanelComponent,
     SignaturePreviewComponent,
-    SignatureProfilesManagerComponent,
     PaginationComponent,
     ModalComponent,
     SearchInputComponent,
@@ -154,8 +152,6 @@ export class SignaturePageComponent implements OnInit {
   /** Id del borrador a continuar en el wizard (null = crear uno nuevo). */
   readonly continueRequestId = signal<string | null>(null);
 
-  /** Gestión de "My Signatures" (firmas reutilizables del preparador, persistidas). */
-  readonly isProfilesManagerOpen = signal(false);
   /** Modal para crear la solicitud a partir de una plantilla guardada. */
   readonly isTemplatePickerOpen = signal(false);
   /** Modal de gestión de categorías del tenant (renombrar/archivar). */
@@ -394,14 +390,6 @@ export class SignaturePageComponent implements OnInit {
         ? `Sent to signers — "${result.detail.title}"`
         : `Saved as draft — "${result.detail.title}" is still scanning; send it from the list`,
     );
-  }
-
-  openProfilesManager(): void {
-    this.isProfilesManagerOpen.set(true);
-  }
-
-  closeProfilesManager(): void {
-    this.isProfilesManagerOpen.set(false);
   }
 
   /** El wizard ya creó y envió la solicitud (los firmantes reciben email del backend). */

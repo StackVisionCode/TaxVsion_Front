@@ -5,6 +5,7 @@ import {
   WizardClient,
   WizardDocKind,
 } from './signature-wizard.model';
+import { SignatureSettings } from '../../data-access/signature.model';
 import { AVATAR_PALETTE } from '@shared/utils/avatar.util';
 
 /**
@@ -80,25 +81,46 @@ export const CHANNEL_META: Record<VerificationChannel, { label: string; icon: st
 
 export const ALL_CHANNELS: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'app'];
 
-/** Reglas por defecto de una solicitud nueva (como en la propuesta UX). */
-export function defaultRules(): RequestRules {
+/**
+ * Mapea el canal por defecto que guarda Settings → Signature (`Email`/`Sms`/`WhatsApp`, capitalizado)
+ * al `VerificationChannel` de la request (minúscula). Desconocido/ausente → `email`, que es el que
+ * todos los planes ofrecen.
+ */
+const SETTINGS_CHANNEL_MAP: Record<string, VerificationChannel> = {
+  email: 'email',
+  sms: 'sms',
+  whatsapp: 'whatsapp',
+};
+
+function defaultChannelFromSettings(value: string | undefined): VerificationChannel {
+  return (value && SETTINGS_CHANNEL_MAP[value.toLowerCase()]) || 'email';
+}
+
+/**
+ * Reglas por defecto de una solicitud nueva. Los defaults de entrega/recordatorio/expiración y la
+ * audiencia de la copia parcial los pone la firma en Settings → Signature; si se pasan, se preseleccionan
+ * aquí para que el wizard NO pise con sus propios hardcodes lo que el despacho configuró (el backend ya
+ * sembraría al omitir, pero el wizard siempre manda valores explícitos). Sin settings, caen a los
+ * hardcodes de siempre. El certificado se genera siempre (firm policy, sin switch) y el consentimiento
+ * tampoco se edita por request.
+ */
+export function defaultRules(settings?: SignatureSettings | null): RequestRules {
   return {
     sequential: true,
-    // Default Email-only (SMS off). Los canales de la request son el default que hereda cada firmante
-    // nuevo (ver defaultSignerChannel en el editor) — ya no son decorativos.
-    channels: ['email'],
-    autoReminder: true,
-    reminderIntervalHours: 48, // cada 2 días
+    // Canal por defecto que hereda cada firmante nuevo (ver defaultSignerChannel en el editor). Si la
+    // firma configuró uno en Settings → Signature se preselecciona; sin settings, Email.
+    channels: [defaultChannelFromSettings(settings?.defaultVerificationChannel)],
+    autoReminder: settings?.remindersEnabledByDefault ?? true,
+    reminderIntervalHours: settings?.defaultReminderIntervalHours ?? 48, // cada 2 días
     certificate: true,
     certificateGenerationMode: 'SingleForRequest',
-    // F7 — alineado con los defaults del tenant (sealed=false, partialCopy=false, expiration=true).
-    sendSealedDocument: false,
-    sendCertificate: false,
+    sendSealedDocument: settings?.sendSealedDocumentDefault ?? false,
+    sendCertificate: settings?.sendCertificateToSignersDefault ?? false,
     signingPin: null,
-    sendPartialCopy: false,
-    partialCopyAudienceKind: 'All',
+    sendPartialCopy: settings?.sendPartialCopyDefault ?? false,
+    partialCopyAudienceKind: settings?.partialCopyDefaultAudienceKind ?? 'All',
     partialCopyAudienceSignerIds: [],
-    expirationEnabled: true,
+    expirationEnabled: settings?.expirationEnabledByDefault ?? true,
   };
 }
 

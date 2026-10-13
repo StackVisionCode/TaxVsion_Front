@@ -34,6 +34,7 @@ import {
   SignatureProfile,
   SignatureProfileScope,
   SignatureSettings,
+  SignatureSettingsUpdate,
   SignatureRequestDetail,
   SignatureTemplateDetail,
   SlotBinding,
@@ -753,6 +754,11 @@ export class SignatureStore {
         allowEmployeeOwnSignature: allow,
       })
       .pipe(tap(() => this._signatureSettings.set({ ...s, allowEmployeeOwnSignature: allow })));
+  }
+
+  /** B1 — guarda la configuración global completa (PUT de reemplazo) y refresca el signal con la verdad del servidor. */
+  saveSignatureSettings(body: SignatureSettingsUpdate): Observable<void> {
+    return this.service.updateSignatureSettings(body).pipe(tap(() => this.loadSignatureSettings()));
   }
 
   /** Renombra una categoría custom y refresca la lista (gestión, F4). */

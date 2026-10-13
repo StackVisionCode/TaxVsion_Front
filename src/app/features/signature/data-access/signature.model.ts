@@ -115,6 +115,31 @@ export interface SignatureSettings {
   partialCopyDefaultAudienceKind: PartialCopyAudienceKind;
   sendSealedDocumentDefault: boolean;
   expirationEnabledByDefault: boolean;
+  // Política legal del despacho: emailar el certificado a firmantes y exigir consentimiento ESIGN.
+  sendCertificateToSignersDefault: boolean;
+  requiresConsentByDefault: boolean;
+}
+
+/**
+ * Cuerpo del PUT /signature/settings (reemplazo completo). Los flags opcionales siguen la semántica
+ * del backend: `null` u omitido = no tocar ese default.
+ */
+export interface SignatureSettingsUpdate {
+  allowedVerificationChannels: string[];
+  defaultVerificationChannel: string;
+  defaultTokenExpirationHours: number;
+  remindersEnabledByDefault: boolean;
+  generateCertificateByDefault: boolean;
+  documentLimits: { maxPdfBytes: number; maxImageBytes: number; maxPagesPerDocument: number };
+  retentionPolicy: { retentionYears: number; allowPurge: boolean };
+  defaultReminderIntervalHours: number;
+  allowEmployeeOwnSignature: boolean;
+  sendPartialCopyDefault?: boolean | null;
+  partialCopyDefaultAudienceKind?: string | null;
+  sendSealedDocumentDefault?: boolean | null;
+  expirationEnabledByDefault?: boolean | null;
+  sendCertificateToSignersDefault?: boolean | null;
+  requiresConsentByDefault?: boolean | null;
 }
 
 /** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
