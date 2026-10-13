@@ -108,7 +108,7 @@ describe('SidebarComponent', () => {
     // lo tenga, este test se cae y avisa que hay que declararlo en el registro.
     const fixture = create({ permissions: [], modules: [] });
 
-    expect(labels(fixture)).toEqual(['Dashboard', 'AI', 'Settings']);
+    expect(labels(fixture)).toEqual(['Dashboard', 'AI', 'Workflow', 'Settings']);
   });
 
   it('sin bootstrap no se esconde nada por plan', () => {

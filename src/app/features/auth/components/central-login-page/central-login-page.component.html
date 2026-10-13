@@ -1,331 +1,179 @@
-<div
-  class="min-h-screen w-full flex items-center justify-center bg-indigo-50 p-4 sm:p-8 relative overflow-hidden"
->
-  <!-- Ambient background glow (mismo que login/find-office) -->
-  <div
-    class="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl"
-  ></div>
-  <div
-    class="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-brand-light/30 rounded-full blur-3xl"
-  ></div>
-
-  <div
-    class="auth-card relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl shadow-brand-light/40 overflow-hidden flex flex-col lg:flex-row"
-  >
-    <!-- Left side - Gradient brand panel (se oculta en mobile) -->
-    <div class="hidden lg:flex lg:w-1/2 relative m-3 rounded-[1.75rem] overflow-hidden">
-      <div
-        class="absolute inset-0 bg-gradient-to-br from-indigo-400 via-indigo-600 to-indigo-700"
-      ></div>
-      <div class="absolute -top-10 -left-10 w-72 h-72 bg-indigo-300/50 blur-3xl"></div>
-      <div class="absolute bottom-0 right-0 w-72 h-72 bg-indigo-600/60 blur-3xl"></div>
-
-      <div class="relative z-10 flex flex-col justify-between w-full p-10">
+<div class="relative flex min-h-screen w-full items-center justify-center bg-[#F8F4ED] px-5 py-10 text-[#083645]">
+  <div class="auth-card w-full max-w-[340px]">
+    @if (step() === 'credentials') {
+      <div class="flex flex-col items-center text-center">
         @if (logoUrl() && !showLogoFallback()) {
-          <img
-            [src]="logoUrl()"
-            alt="Logo"
-            class="h-20 max-w-[300px] object-contain"
-            (error)="showLogoFallback.set(true)"
-          />
+          <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
         } @else {
-          <span class="text-white text-4xl font-bold leading-none">*</span>
+          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+            <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
+            <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
+          </span>
         }
-
-        <div class="text-white space-y-2">
-          <p class="text-sm font-medium text-white/80">One sign-in for every office</p>
-          <h2 class="text-3xl font-bold leading-snug">Sign in once, land in your firm</h2>
-        </div>
+        <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Sign in</h1>
+        <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">Enter your work email and we'll take you to your office.</p>
       </div>
-    </div>
 
-    <!-- Right side - Central login flow -->
-    <div class="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
-      <div class="w-full max-w-sm mx-auto">
-        @if (step() === 'credentials') {
-          @if (logoUrl() && !showLogoFallback()) {
-            <img
-              [src]="logoUrl()"
-              alt="Logo"
-              class="h-9 max-w-[160px] object-contain lg:hidden"
-              (error)="showLogoFallback.set(true)"
-            />
-          } @else {
-            <span class="text-indigo-600 text-3xl font-bold leading-none lg:hidden">*</span>
-          }
-          <h1 class="mt-4 text-3xl font-bold text-gray-900">Sign in</h1>
-          <p class="mt-2 text-sm text-gray-500">
-            Enter your work email and we'll take you to your office.
-          </p>
+      <form class="mt-6 space-y-3.5" [formGroup]="form" (ngSubmit)="submitCredentials()">
+        <div>
+          <label for="email" class="sr-only">Email</label>
+          <input type="email" id="email" formControlName="email" placeholder="Email" autocomplete="username"
+            class="block h-12 w-full rounded-xl border border-[#E4DCCF] bg-white px-4 text-sm text-[#083645] placeholder-[#3E5F6B]/70 transition-colors focus:border-[#083645] focus:outline-none" />
+        </div>
 
-          <form class="mt-6 space-y-4" [formGroup]="form" (ngSubmit)="submitCredentials()">
-            <div class="space-y-1.5">
-              <label for="email" class="block text-sm font-medium text-gray-800">Email</label>
-              <input
-                type="email"
-                id="email"
-                formControlName="email"
-                placeholder="you@company.com"
-                autocomplete="username"
-                class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label for="password" class="block text-sm font-medium text-gray-800">Password</label>
-              <div class="relative">
-                <input
-                  [type]="showPassword() ? 'text' : 'password'"
-                  id="password"
-                  formControlName="password"
-                  placeholder="••••••••"
-                  autocomplete="current-password"
-                  class="block w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
-                />
-                <button
-                  type="button"
-                  (click)="togglePasswordVisibility()"
-                  class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                  [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
-                >
-                  <ion-icon
-                    [name]="showPassword() ? 'eye-off-outline' : 'eye-outline'"
-                    class="text-lg"
-                  ></ion-icon>
-                </button>
-              </div>
-            </div>
-
-            @if (formError()) {
-              <p class="text-sm font-medium text-red-600">{{ formError() }}</p>
-            }
-
-            <button
-              type="submit"
-              [disabled]="isBusy()"
-              class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors"
-            >
-              @if (isBusy()) {
-                <span
-                  class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                ></span>
-                <span>Signing in...</span>
-              } @else {
-                <span>Continue</span>
-              }
-            </button>
-          </form>
-
-          <p class="mt-6 text-center text-sm text-gray-600">
-            <a
-              routerLink="/forgot-password"
-              [queryParams]="portal ? { account: 'portal' } : null"
-              class="font-semibold text-indigo-600 hover:text-indigo-500"
-              >Forgot your password?</a
-            >
-          </p>
-
-          @if (!portal) {
-            <p class="mt-6 text-center text-sm text-gray-600">
-              Don't have an account?
-              <button
-                type="button"
-                (click)="openPlanPicker()"
-                class="font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Sign up
-              </button>
-            </p>
-          }
-          <p class="mt-3 text-center text-sm text-gray-500">
-            Can't sign in?
-            <a routerLink="/find-office" class="font-semibold text-indigo-600 hover:text-indigo-500"
-              >Find your office by email</a
-            >
-          </p>
-        } @else if (onlyOffice(); as office) {
-          <!-- Una sola oficina (llegó aquí porque exige MFA): prompt del código, sin selector -->
-          @if (logoUrl() && !showLogoFallback()) {
-            <img
-              [src]="logoUrl()"
-              alt="Logo"
-              class="h-9 max-w-[160px] object-contain lg:hidden"
-              (error)="showLogoFallback.set(true)"
-            />
-          } @else {
-            <span class="text-indigo-600 text-3xl font-bold leading-none lg:hidden">*</span>
-          }
-          <h1 class="mt-4 text-3xl font-bold text-gray-900">Verify it's you</h1>
-          <p class="mt-2 text-sm text-gray-500">
-            Enter the verification code from your authenticator app to sign in to
-            <span class="font-medium text-gray-700">{{ office.tenantName }}</span
-            >.
-          </p>
-
-          @if (formError()) {
-            <p class="mt-4 text-sm font-medium text-red-600">{{ formError() }}</p>
-          }
-
-          <div class="mt-6 space-y-4">
-            <input
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              [ngModel]="mfaCode()"
-              (ngModelChange)="mfaCode.set($event)"
-              placeholder="123456"
-              class="block w-full px-4 py-3 border border-gray-200 rounded-xl text-center text-lg tracking-[0.5em] font-semibold placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
-            />
-            <!-- Marcar el equipo evita el código en los próximos inicios de sesión DESDE ESTE
-                 navegador. El backend decide si lo honra. -->
-            <label class="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer">
-              <input
-                type="checkbox"
-                [checked]="rememberDevice()"
-                (change)="toggleRememberDevice()"
-                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500/30"
-              />
-              Don't ask for a code on this device again
-            </label>
-            <button
-              type="button"
-              (click)="submitMfa(office)"
-              [disabled]="isBusy()"
-              class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors"
-            >
-              @if (isBusy()) {
-                <span
-                  class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                ></span>
-                <span>Verifying...</span>
-              } @else {
-                <span>Verify &amp; continue</span>
-              }
+        <div>
+          <label for="password" class="sr-only">Password</label>
+          <div class="relative">
+            <input [type]="showPassword() ? 'text' : 'password'" id="password" formControlName="password" placeholder="Password" autocomplete="current-password"
+              class="block h-12 w-full rounded-xl border border-[#E4DCCF] bg-white px-4 pr-11 text-sm text-[#083645] placeholder-[#3E5F6B]/70 transition-colors focus:border-[#083645] focus:outline-none" />
+            <button type="button" (click)="togglePasswordVisibility()"
+              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#3E5F6B] hover:text-[#083645]"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+              <ion-icon [name]="showPassword() ? 'eye-off-outline' : 'eye-outline'" class="text-lg"></ion-icon>
             </button>
           </div>
+        </div>
 
-          <p class="mt-6 text-center text-sm text-gray-500">
-            <button
-              type="button"
-              (click)="backToCredentials()"
-              class="font-semibold text-indigo-600 hover:text-indigo-500"
-            >
-              Back to sign in
-            </button>
-          </p>
-        } @else {
-          <!-- Varias oficinas: selector -->
-          @if (logoUrl() && !showLogoFallback()) {
-            <img
-              [src]="logoUrl()"
-              alt="Logo"
-              class="h-9 max-w-[160px] object-contain lg:hidden"
-              (error)="showLogoFallback.set(true)"
-            />
-          } @else {
-            <span class="text-indigo-600 text-3xl font-bold leading-none lg:hidden">*</span>
-          }
-          <h1 class="mt-4 text-3xl font-bold text-gray-900">Choose your office</h1>
-          <p class="mt-2 text-sm text-gray-500">
-            Your account belongs to more than one firm. Pick where you want to go.
-          </p>
-
-          @if (formError()) {
-            <p class="mt-4 text-sm font-medium text-red-600">{{ formError() }}</p>
-          }
-
-          <ul class="mt-6 space-y-3">
-            @for (office of offices(); track officeKey(office)) {
-              <li class="rounded-xl border border-gray-200 overflow-hidden">
-                <button
-                  type="button"
-                  (click)="chooseOffice(office)"
-                  [disabled]="isBusy()"
-                  class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-indigo-50/60 disabled:opacity-70 transition-colors"
-                >
-                  <span class="min-w-0">
-                    <span class="block text-sm font-semibold text-gray-900 truncate">{{
-                      office.tenantName
-                    }}</span>
-                    <span class="block text-xs text-gray-500 truncate"
-                      >{{ office.subdomain }}.taxproffice.com</span
-                    >
-                    @if (office.isClientPortal) {
-                      <span class="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600"
-                        >Client portal</span
-                      >
-                    }
-                  </span>
-                  <span class="flex items-center gap-2 shrink-0">
-                    @if (office.mfaRequired) {
-                      <ion-icon
-                        name="shield-checkmark-outline"
-                        class="text-base text-gray-400"
-                      ></ion-icon>
-                    }
-                    <ion-icon
-                      name="chevron-forward-outline"
-                      class="text-base text-gray-400"
-                    ></ion-icon>
-                  </span>
-                </button>
-
-                @if (mfaOfficeId() === officeKey(office)) {
-                  <div class="px-4 pb-4 pt-1 space-y-3 bg-indigo-50/40">
-                    <label
-                      [for]="'mfa-' + officeKey(office)"
-                      class="block text-xs font-medium text-gray-700"
-                    >
-                      Enter your verification code
-                    </label>
-                    <input
-                      [id]="'mfa-' + officeKey(office)"
-                      type="text"
-                      inputmode="numeric"
-                      autocomplete="one-time-code"
-                      [ngModel]="mfaCode()"
-                      (ngModelChange)="mfaCode.set($event)"
-                      placeholder="123456"
-                      class="block w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-colors"
-                    />
-                    <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        (click)="submitMfa(office)"
-                        [disabled]="isBusy()"
-                        class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors"
-                      >
-                        @if (isBusy()) {
-                          <span
-                            class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                          ></span>
-                        } @else {
-                          <span>Verify &amp; continue</span>
-                        }
-                      </button>
-                      <button
-                        type="button"
-                        (click)="cancelMfa()"
-                        [disabled]="isBusy()"
-                        class="py-2.5 px-3 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                }
-              </li>
-            }
-          </ul>
+        @if (formError()) {
+          <p class="text-sm font-medium text-red-600" role="alert">{{ formError() }}</p>
         }
+
+        <button type="submit" [disabled]="isBusy()"
+          class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
+          @if (isBusy()) {
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <span>Signing in...</span>
+          } @else {
+            <span>Continue</span>
+          }
+        </button>
+      </form>
+
+      <div class="mt-6 flex flex-col items-center gap-2.5 text-[13px] text-[#3E5F6B]">
+        <a routerLink="/forgot-password" [queryParams]="portal ? { account: 'portal' } : null" class="font-medium hover:text-[#083645]">Forgot your password?</a>
+        @if (!portal) {
+          <p>
+            Don't have an account?
+            <button type="button" (click)="openPlanPicker()" class="font-semibold text-[#083645] hover:underline">Sign up</button>
+          </p>
+        }
+        <p>
+          Can't sign in?
+          <a routerLink="/find-office" class="font-semibold text-[#083645] hover:underline">Find your office by email</a>
+        </p>
       </div>
-    </div>
+    } @else if (onlyOffice(); as office) {
+      <!-- Una sola oficina (llegó aquí porque exige MFA): prompt del código, sin selector -->
+      <div class="flex flex-col items-center text-center">
+        @if (logoUrl() && !showLogoFallback()) {
+          <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
+        } @else {
+          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+            <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
+            <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
+          </span>
+        }
+        <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Verify it's you</h1>
+        <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">
+          Enter the verification code from your authenticator app to sign in to
+          <span class="font-medium text-[#083645]">{{ office.tenantName }}</span>.
+        </p>
+      </div>
+
+      @if (formError()) {
+        <p class="mt-4 text-center text-sm font-medium text-red-600" role="alert">{{ formError() }}</p>
+      }
+
+      <div class="mt-6 space-y-3.5">
+        <input type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Verification code"
+          [ngModel]="mfaCode()" (ngModelChange)="mfaCode.set($event)" placeholder="123456"
+          class="block h-12 w-full rounded-xl border border-[#E4DCCF] bg-white px-4 text-center text-lg font-semibold tracking-[0.5em] text-[#083645] placeholder-[#3E5F6B]/40 transition-colors focus:border-[#083645] focus:outline-none" />
+        <!-- Marcar el equipo evita el código en los próximos inicios de sesión DESDE ESTE
+             navegador. El backend decide si lo honra. -->
+        <label class="flex cursor-pointer select-none items-center gap-2 text-[13px] text-[#3E5F6B]">
+          <input type="checkbox" [checked]="rememberDevice()" (change)="toggleRememberDevice()"
+            class="h-4 w-4 rounded border-[#E4DCCF] text-[#083645] focus:ring-[#083645]/20" />
+          Don't ask for a code on this device again
+        </label>
+        <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
+          class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
+          @if (isBusy()) {
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+            <span>Verifying...</span>
+          } @else {
+            <span>Verify &amp; continue</span>
+          }
+        </button>
+      </div>
+
+      <p class="mt-6 text-center text-[13px]">
+        <button type="button" (click)="backToCredentials()" class="font-semibold text-[#083645] hover:underline">Back to sign in</button>
+      </p>
+    } @else {
+      <!-- Varias oficinas: selector -->
+      <div class="flex flex-col items-center text-center">
+        @if (logoUrl() && !showLogoFallback()) {
+          <img [src]="logoUrl()" alt="Logo" class="h-9 max-w-[180px] object-contain" (error)="showLogoFallback.set(true)" />
+        } @else {
+          <span class="inline-flex items-center gap-2" aria-label="Taxoffix">
+            <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
+            <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
+          </span>
+        }
+        <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Choose your office</h1>
+        <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">Your account belongs to more than one firm. Pick where you want to go.</p>
+      </div>
+
+      @if (formError()) {
+        <p class="mt-4 text-center text-sm font-medium text-red-600" role="alert">{{ formError() }}</p>
+      }
+
+      <ul class="mt-6 space-y-2.5">
+        @for (office of offices(); track officeKey(office)) {
+          <li class="overflow-hidden rounded-xl border border-[#E4DCCF] bg-white">
+            <button type="button" (click)="chooseOffice(office)" [disabled]="isBusy()"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#F8F4ED] disabled:opacity-70">
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-semibold">{{ office.tenantName }}</span>
+                <span class="block truncate text-xs text-[#3E5F6B]">{{ office.subdomain }}.taxproffice.com</span>
+                @if (office.isClientPortal) {
+                  <span class="mt-1 inline-block rounded-full bg-[#E3FF00] px-2 py-0.5 text-[11px] font-semibold text-[#083645]">Client portal</span>
+                }
+              </span>
+              <span class="flex shrink-0 items-center gap-2">
+                @if (office.mfaRequired) {
+                  <ion-icon name="shield-checkmark-outline" class="text-base text-[#3E5F6B]"></ion-icon>
+                }
+                <ion-icon name="chevron-forward-outline" class="text-base text-[#3E5F6B]"></ion-icon>
+              </span>
+            </button>
+
+            @if (mfaOfficeId() === officeKey(office)) {
+              <div class="space-y-3 bg-[#F8F4ED] px-4 pb-4 pt-3">
+                <label [for]="'mfa-' + officeKey(office)" class="block text-xs font-medium text-[#083645]">Enter your verification code</label>
+                <input [id]="'mfa-' + officeKey(office)" type="text" inputmode="numeric" autocomplete="one-time-code"
+                  [ngModel]="mfaCode()" (ngModelChange)="mfaCode.set($event)" placeholder="123456"
+                  class="block h-11 w-full rounded-lg border border-[#E4DCCF] bg-white px-4 text-sm tracking-widest text-[#083645] placeholder-[#3E5F6B]/50 transition-colors focus:border-[#083645] focus:outline-none" />
+                <div class="flex items-center gap-2">
+                  <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
+                    class="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
+                    @if (isBusy()) {
+                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+                    } @else {
+                      <span>Verify &amp; continue</span>
+                    }
+                  </button>
+                  <button type="button" (click)="cancelMfa()" [disabled]="isBusy()"
+                    class="h-11 rounded-lg px-3 text-sm font-medium text-[#3E5F6B] hover:text-[#083645]">Cancel</button>
+                </div>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
   </div>
 </div>
 
 <!-- Catálogo de planes: elegir antes de arrancar el alta (los precios vienen de GET /plans) -->
-<app-plan-picker-modal
-  [isOpen]="isPlanPickerOpen()"
-  (closed)="closePlanPicker()"
-  (planChosen)="startSignup($event)"
-></app-plan-picker-modal>
+<app-plan-picker-modal [isOpen]="isPlanPickerOpen()" (closed)="closePlanPicker()" (planChosen)="startSignup($event)"></app-plan-picker-modal>
