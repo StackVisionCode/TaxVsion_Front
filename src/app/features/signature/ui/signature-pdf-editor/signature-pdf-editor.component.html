@@ -1,5 +1,8 @@
 <!--
-  Editor compacto (plan C/E):
+  Editor compacto, distribución "C" (barra de herramientas + miniaturas + inspector con pestañas):
+  - lg+: barra superior con firmantes (chips) y tipos de campo; miniaturas de páginas a la izquierda, documento al
+    centro y a la derecha el inspector con pestañas Field / Signers / Checklist (plegable desde la barra del documento).
+  Distribuciones anteriores (referencia de los breakpoints angostos):
   - xl: riel izquierdo + documento + columna derecha (inspector del campo o "Before you continue"),
     plegable desde la toolbar (preferencia en localStorage; el documento ocupa el hueco).
   - lg: riel plegable a iconos; inspector/lista flotan sobre el documento.
@@ -7,7 +10,7 @@
   - < md: igual, con la barra de acciones fija abajo (Signers · Fields · Zoom · Checklist).
   En lg+ el workspace ocupa el alto disponible (sin scroll de página en un portátil de 13").
 -->
-<div class="editor-root flex flex-col gap-3 lg:h-[calc(100dvh-21rem)] lg:min-h-[420px] lg:flex-row">
+<div class="editor-root flex flex-col gap-3 lg:h-[calc(100dvh-21rem)] lg:min-h-[420px]">
 
   <!-- ===== Pantallas angostas (< lg): barra superior (md), paneles y barra fija inferior (< md) ===== -->
   <div class="relative lg:hidden" appClickOutside [clickOutsideEnabled]="narrowPanel() !== null"
@@ -80,57 +83,77 @@
     </nav>
   </div>
 
-  <!-- ===== Riel izquierdo (lg+) ===== -->
-  <aside class="editor-rail hidden shrink-0 flex-col rounded-2xl border border-gray-100 lg:flex"
-    [ngClass]="railCollapsed() ? 'lg:w-14 items-center gap-1.5 py-2' : 'lg:w-60 p-3'" data-testid="editor-rail">
-    <ng-container *ngIf="!railCollapsed(); else collapsedRail">
-      <div class="flex min-h-0 flex-1 flex-col">
-        <div class="min-h-0 flex-1 overflow-y-auto pr-0.5">
-          <ng-container *ngTemplateOutlet="signersTpl"></ng-container>
-        </div>
-        <div class="mt-3 shrink-0 border-t border-gray-100 pt-3">
-          <ng-container *ngTemplateOutlet="paletteTpl"></ng-container>
-        </div>
-      </div>
-      <button type="button" (click)="railCollapsed.set(true)"
-        class="mt-2 hidden shrink-0 items-center justify-center gap-1 self-start rounded-full px-2 py-1 text-[11px] text-gray-400 hover:bg-gray-50 hover:text-gray-700 lg:flex xl:hidden"
-        aria-label="Collapse side panel">
-        <ion-icon name="chevron-back-outline" class="text-xs"></ion-icon>
-        Collapse
-      </button>
-    </ng-container>
-
-    <!-- Riel plegado: iconos (firmantes, tipos de campo, firma del preparador) -->
-    <ng-template #collapsedRail>
-      <button type="button" (click)="railCollapsed.set(false)" aria-label="Expand side panel"
-        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
-        <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
-      </button>
-      <button *ngFor="let s of signers()" type="button" (click)="setActiveSigner(s.id)" [title]="s.name"
-        [attr.aria-label]="'Select signer ' + s.name" [attr.aria-pressed]="s.id === activeSignerId()"
-        class="rounded-full p-0.5" [ngClass]="s.id === activeSignerId() ? 'ring-2 ring-brand-bold' : ''">
+  <!-- ===== Barra de herramientas (lg+): firmantes + tipos de campo ===== -->
+  <div class="editor-toolbar hidden shrink-0 items-center gap-3 rounded-2xl border border-gray-100 bg-white px-3 py-2 lg:flex"
+    data-testid="editor-toolbar">
+    <div class="flex min-w-0 items-center gap-1.5">
+      <span class="mr-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Signer</span>
+      <button *ngFor="let s of signers()" type="button" (click)="setActiveSigner(s.id)" [attr.aria-pressed]="s.id === activeSignerId()"
+        [attr.data-testid]="'toolbar-signer-' + s.id" [title]="s.name + ' · ' + (fieldCountBySigner()[s.id] || 0) + ' fields'"
+        class="flex min-h-[36px] max-w-[11rem] items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs font-medium transition-colors"
+        [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-brand-white text-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
         <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+        <span class="truncate">{{ s.name }}</span>
+        <ion-icon *ngIf="signerHasIssue(s.id)" name="alert-circle-outline" class="shrink-0 text-sm text-amber-500"
+          title="Needs attention — see the checklist"></ion-icon>
       </button>
       <button type="button" (click)="openAddSigner()" aria-label="Add signer" title="Add signer"
-        class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100">
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-brand-bold hover:bg-brand-white">
         <ion-icon name="person-add-outline" class="text-sm"></ion-icon>
       </button>
-      <span class="my-1 h-px w-8 bg-gray-100"></span>
-      <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)" [disabled]="!canPlace() || signers().length === 0"
+    </div>
+    <span class="h-6 w-px shrink-0 bg-gray-100"></span>
+    <div class="flex min-w-0 flex-1 items-center gap-1.5" role="group" aria-label="Fields">
+      <span class="mr-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Fields</span>
+      <button *ngFor="let t of fieldTypes" type="button" (click)="armPlacement(t)"
         (pointerdown)="onPalettePointerDown($event, t)" [class.palette-arming]="paletteArming() === t"
-        [title]="fieldLabel[t] + ' — click, or drag onto the page'" [attr.aria-label]="'Place ' + fieldLabel[t]" [attr.aria-pressed]="placingType() === t"
-        class="palette-draggable flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-40"
-        [ngClass]="placingType() === t ? 'bg-brand-bold text-white' : fieldCircle[t] + ' text-gray-700'">
+        [disabled]="!canPlace() || signers().length === 0" [attr.aria-pressed]="placingType() === t"
+        [attr.data-testid]="'toolbar-palette-' + t" [title]="fieldLabel[t] + ' — click, or drag onto the page'"
+        class="palette-draggable flex min-h-[36px] items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-colors disabled:opacity-40"
+        [ngClass]="placingType() === t ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
         <ion-icon [name]="fieldIcon[t]" class="text-sm"></ion-icon>
+        {{ fieldLabel[t] }}
       </button>
       <button type="button" (click)="armPlacement('preparer')" [disabled]="!canPlace() || !hasPreparerSignature()"
         (pointerdown)="onPalettePointerDown($event, 'preparer')" [class.palette-arming]="paletteArming() === 'preparer'"
-        title="Place my signature — click, or drag onto the page" aria-label="Place my signature" [attr.aria-pressed]="placingType() === 'preparer'"
-        class="palette-draggable flex h-9 w-9 items-center justify-center rounded-full border border-brand-bold disabled:opacity-40"
-        [ngClass]="placingType() === 'preparer' ? 'bg-brand-bold text-white' : 'text-brand-bold'">
+        [attr.aria-pressed]="placingType() === 'preparer'" data-testid="toolbar-palette-preparer"
+        title="Place my signature — click, or drag onto the page"
+        class="palette-draggable flex min-h-[36px] items-center gap-1.5 rounded-xl border border-brand-bold px-2.5 text-xs font-semibold text-brand-bold hover:bg-brand-white disabled:opacity-40"
+        [ngClass]="placingType() === 'preparer' ? 'bg-brand-white' : ''">
         <ion-icon name="ribbon-outline" class="text-sm"></ion-icon>
+        My signature
       </button>
-    </ng-template>
+    </div>
+    <button type="button" (click)="inspectorTab.set('checklist'); setInspectorCollapsed(false)"
+      class="flex min-h-[36px] shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold"
+      [ngClass]="readinessItems().length ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'"
+      data-testid="toolbar-checklist" aria-label="Before you continue">
+      <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
+      {{ readinessItems().length ? readinessItems().length + ' to fix' : 'Ready' }}
+    </button>
+  </div>
+
+  <!-- ===== Cuerpo: miniaturas · documento · inspector ===== -->
+  <div class="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+
+  <!-- ===== Miniaturas de páginas (lg+) ===== -->
+  <aside class="editor-thumbs hidden w-[7.75rem] shrink-0 flex-col gap-3 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 lg:flex"
+    aria-label="Pages" data-testid="page-thumbs">
+    <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pages</p>
+    <button *ngFor="let pg of pages()" type="button" (click)="goToPage(pg.page)" [attr.aria-label]="'Go to page ' + pg.page"
+      [attr.aria-current]="currentPage() === pg.page ? 'page' : null" class="group flex flex-col items-center gap-1">
+      <span class="relative block overflow-hidden rounded-md bg-white shadow-sm ring-1 transition-shadow"
+        [ngClass]="currentPage() === pg.page ? 'ring-2 ring-brand-bold' : 'ring-gray-200 group-hover:ring-gray-300'"
+        [style.width.px]="thumbWidth" [style.height.px]="(thumbWidth * pg.height) / pg.width">
+        <img *ngIf="pg.src" [src]="pg.src" alt="" draggable="false" class="pointer-events-none block h-full w-full select-none" />
+        <span *ngFor="let f of fieldsForPage(pg.page); trackBy: trackField" class="pointer-events-none absolute rounded-[2px] border bg-white/60"
+          [ngClass]="isPreparerField(f) ? 'border-brand-bold' : borderClass(f.signerId)"
+          [style.left.%]="(f.x / pg.width) * 100" [style.top.%]="(f.y / pg.height) * 100"
+          [style.width.%]="(f.width / pg.width) * 100" [style.height.%]="(f.height / pg.height) * 100"></span>
+      </span>
+      <span class="text-[11px] font-medium tabular-nums" [ngClass]="currentPage() === pg.page ? 'text-brand-bold' : 'text-gray-400'">{{ pg.page }}</span>
+    </button>
+    <p *ngIf="!pages().length" class="text-center text-[11px] text-gray-400">No pages yet</p>
   </aside>
 
   <!-- ===== Centro: toolbar + documento ===== -->
@@ -166,24 +189,16 @@
         <ng-container *ngTemplateOutlet="zoomButtonsTpl"></ng-container>
       </span>
 
-      <!-- lg: "Before you continue" flotante -->
-      <button type="button" (click)="floatingChecklistOpen.set(!floatingChecklistOpen())" [attr.aria-expanded]="floatingChecklistOpen()"
-        class="hidden h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium lg:flex xl:hidden"
-        [ngClass]="readinessItems().length ? 'bg-amber-400/90 text-gray-900' : 'bg-white/15 text-white'"
-        aria-label="Before you continue">
-        <ion-icon [name]="readinessItems().length ? 'alert-circle-outline' : 'checkmark-circle'" class="text-sm"></ion-icon>
-        {{ readinessItems().length || 'Ready' }}
-      </button>
 
-      <!-- xl: plegar/desplegar la columna derecha (como el riel izquierdo) -->
+      <!-- lg+: plegar/desplegar la columna derecha -->
       <button *ngIf="!inspectorCollapsed()" type="button" (click)="setInspectorCollapsed(true)"
-        class="hidden h-7 w-7 items-center justify-center rounded-md hover:bg-white/15 xl:flex"
+        class="hidden h-7 w-7 items-center justify-center rounded-md hover:bg-white/15 lg:flex"
         aria-label="Hide side panel" title="Hide side panel" data-testid="inspector-collapse">
         <ion-icon name="chevron-forward-outline" class="text-sm"></ion-icon>
       </button>
       <!-- Plegada: botón para reabrir; con un campo seleccionado avisa que tiene ajustes (sin auto-abrir) -->
       <button *ngIf="inspectorCollapsed()" type="button" (click)="setInspectorCollapsed(false)"
-        class="hidden h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium xl:flex"
+        class="hidden h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium lg:flex"
         [ngClass]="selectedField() ? 'bg-white text-brand-bold' : readinessItems().length ? 'bg-amber-400/90 text-gray-900' : 'bg-white/15 text-white'"
         [attr.aria-label]="selectedField() ? 'Show field settings' : 'Show side panel'" aria-expanded="false"
         data-testid="inspector-reopen">
@@ -331,34 +346,37 @@
       </div>
     </div>
 
-    <!-- lg: inspector / lista flotando sobre el documento -->
-    <div *ngIf="selectedField() || floatingChecklistOpen()"
-      class="floating-inspector absolute right-3 top-12 z-30 hidden max-h-[calc(100%-4rem)] w-72 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-xl lg:block xl:hidden"
-      data-testid="floating-inspector">
-      <ng-container *ngIf="selectedField() as f; else floatingChecklist">
-        <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
-      </ng-container>
-      <ng-template #floatingChecklist>
-        <div class="mb-1 flex justify-end">
-          <button type="button" (click)="floatingChecklistOpen.set(false)" aria-label="Close checklist"
-            class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900">
-            <ion-icon name="close-outline" class="text-lg"></ion-icon>
-          </button>
-        </div>
-        <ng-container *ngTemplateOutlet="checklistTpl"></ng-container>
-      </ng-template>
-    </div>
   </div>
 
-  <!-- ===== Derecha (xl): inspector contextual o "Before you continue" (plegable) ===== -->
-  <aside *ngIf="!inspectorCollapsed()" class="editor-inspector hidden shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 p-3 xl:flex xl:w-64"
+  <!-- ===== Derecha (lg+): inspector con pestañas Field / Signers / Checklist (plegable) ===== -->
+  <aside *ngIf="!inspectorCollapsed()" class="editor-inspector hidden w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-100 lg:flex"
     data-testid="side-inspector">
-    <ng-container *ngIf="selectedField() as f; else sideChecklist">
-      <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
-    </ng-container>
-    <ng-template #sideChecklist>
-      <ng-container *ngTemplateOutlet="checklistTpl"></ng-container>
-    </ng-template>
+    <div role="tablist" aria-label="Editor panels" class="m-3 mb-0 flex shrink-0 rounded-full bg-gray-100 p-0.5 text-[11px] font-semibold">
+      <button type="button" role="tab" (click)="inspectorTab.set('field')" [attr.aria-selected]="inspectorTab() === 'field'"
+        data-testid="inspector-tab-field" class="min-h-[30px] flex-1 rounded-full px-2 transition-colors"
+        [ngClass]="inspectorTab() === 'field' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:text-gray-800'">Field</button>
+      <button type="button" role="tab" (click)="inspectorTab.set('signers')" [attr.aria-selected]="inspectorTab() === 'signers'"
+        data-testid="inspector-tab-signers" class="min-h-[30px] flex-1 rounded-full px-2 transition-colors"
+        [ngClass]="inspectorTab() === 'signers' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:text-gray-800'">Signers</button>
+      <button type="button" role="tab" (click)="inspectorTab.set('checklist')" [attr.aria-selected]="inspectorTab() === 'checklist'"
+        data-testid="inspector-tab-checklist" class="flex min-h-[30px] flex-1 items-center justify-center gap-1 rounded-full px-2 transition-colors"
+        [ngClass]="inspectorTab() === 'checklist' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:text-gray-800'">
+        Checklist
+        <span *ngIf="readinessItems().length" class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+      </button>
+    </div>
+    <div class="min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
+      <ng-container [ngSwitch]="inspectorTab()">
+        <ng-container *ngSwitchCase="'signers'"><ng-container *ngTemplateOutlet="signersTpl"></ng-container></ng-container>
+        <ng-container *ngSwitchCase="'checklist'"><ng-container *ngTemplateOutlet="checklistTpl"></ng-container></ng-container>
+        <ng-container *ngSwitchDefault>
+          <ng-container *ngIf="selectedField() as f; else fieldPalette">
+            <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
+          </ng-container>
+          <ng-template #fieldPalette><ng-container *ngTemplateOutlet="paletteTpl"></ng-container></ng-template>
+        </ng-container>
+      </ng-container>
+    </div>
   </aside>
 
   <!-- < lg: inspector como hoja inferior (sobre la barra fija en móvil) -->
@@ -368,6 +386,7 @@
     <ng-container *ngIf="selectedField() as f">
       <ng-container *ngTemplateOutlet="inspectorTpl; context: { $implicit: f }"></ng-container>
     </ng-container>
+  </div>
   </div>
 </div>
 

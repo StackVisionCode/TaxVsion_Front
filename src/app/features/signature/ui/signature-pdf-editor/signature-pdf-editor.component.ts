@@ -313,6 +313,10 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
    * Se recuerda en localStorage. Seleccionar un campo NO la reabre: la toolbar muestra un aviso.
    */
   readonly inspectorCollapsed = signal(readPanelCollapsed(PDF_EDITOR_INSPECTOR_COLLAPSED_KEY));
+  /** lg+: pestaña activa del inspector derecho (Field / Signers / Checklist). */
+  readonly inspectorTab = signal<'field' | 'signers' | 'checklist'>('field');
+  /** Ancho (px) de las miniaturas de página del lateral izquierdo. */
+  readonly thumbWidth = 88;
   /** Firmante cuyo teléfono se está editando desde el menú "…". */
   readonly editingPhoneFor = signal<string | null>(null);
   /** Menús "…" abiertos (para que Escape los cierre antes de tocar el wizard). */
@@ -848,10 +852,17 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     this.activeSignerId.set(id);
   }
 
+  /** ¿Este firmante tiene algo pendiente en "Before you continue"? (alerta en su chip de la barra). */
+  signerHasIssue(id: string): boolean {
+    return this.readinessItems().some((item) => item.signerId === id);
+  }
+
   /** Desde la lista "Before you continue": activa el firmante y abre donde se ve (riel o panel angosto). */
   focusSigner(id: string, editPhone = false): void {
     this.setActiveSigner(id);
     this.railCollapsed.set(false);
+    this.inspectorCollapsed.set(false);
+    this.inspectorTab.set('signers');
     this.selectedFieldId.set(null);
     if (editPhone) {
       this.editingPhoneFor.set(id);
@@ -1473,6 +1484,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       return;
     }
     this.selectedFieldId.set(id);
+    this.inspectorTab.set('field');
     const field = this.fields().find((f) => f.id === id);
     if (field && !this.isPreparerField(field)) {
       this.activeSignerId.set(field.signerId);
@@ -1744,6 +1756,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   openPreparerDetails(): void {
     this.preparerOpen.set(true);
     this.railCollapsed.set(false);
+    this.inspectorCollapsed.set(false);
+    this.inspectorTab.set('field');
     this.selectedFieldId.set(null);
     if (this.isNarrow()) {
       this.narrowPanel.set('fields');
