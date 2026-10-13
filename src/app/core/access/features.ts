@@ -139,9 +139,11 @@ export const FEATURES: readonly FeatureDefinition[] = [
   { id: 'referrals', label: 'Referrals', route: 'referrals', module: null, anyOf: ['referrals.own.read'] },
 
   // ---- Sin backend todavía ----
-  // El constructor de flujos no tiene servicio detrás; se deja mapeado para que el inventario esté
-  // completo, pero su módulo no existe en ningún plan, así que B4 lo tratará como no disponible.
-  { id: 'workflow', label: 'Workflow', route: 'workflow', module: 'builder', anyOf: [] },
+  // El constructor de flujos todavía no tiene servicio detrás (trabaja en el navegador), pero está
+  // HABILITADO para todas las oficinas: antes pedía el módulo 'builder', que no existe en ningún plan,
+  // y el guard lo trataba como no disponible. Es transversal (`module: null`) y basta con estar autenticado.
+  // Cuando haya backend y un módulo de plan para esto, aquí se vuelve a poner el `module`.
+  { id: 'workflow', label: 'Workflow', route: 'workflow', module: null, anyOf: [] },
   { id: 'ai-assistant', label: 'AI', route: 'ai-assistant', module: null, anyOf: [] },
 ];
 
