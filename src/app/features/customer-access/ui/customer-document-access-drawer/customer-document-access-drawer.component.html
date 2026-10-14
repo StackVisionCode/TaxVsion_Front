@@ -196,9 +196,9 @@
                 </span>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-semibold text-gray-800">
-                    {{ group.resourceType }} ·
-                    <span class="font-mono text-xs text-gray-500">{{ group.resourceId }}</span>
+                    {{ displayNameFor(group) }}
                   </p>
+                  <p class="truncate text-xs text-gray-500">{{ group.resourceType }}</p>
                   <div class="mt-2 flex flex-wrap gap-1.5">
                     @for (rule of group.rules; track trackByRuleKey($index, rule)) {
                       <button
