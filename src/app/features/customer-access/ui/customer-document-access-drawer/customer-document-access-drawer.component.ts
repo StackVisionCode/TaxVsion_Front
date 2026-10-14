@@ -391,4 +391,21 @@ export class CustomerDocumentAccessDrawerComponent implements OnChanges {
   ): string {
     return `${group.resourceType}|${group.resourceId}`;
   }
+
+  /**
+   * Nombre visible del grupo. El backend hidrata `resourceName` por regla; alcanza con tomar el
+   * primero no-null del grupo (todas las reglas apuntan al mismo recurso). Si ninguna lo trae
+   * (recurso borrado tras crearse la regla), caemos a un copy fail-closed por tipo.
+   */
+  displayNameFor(group: {
+    resourceType: AccessResourceType;
+    resourceId: string;
+    rules: CustomerAccessRuleView[];
+  }): string {
+    const named = group.rules.find((r) => r.resourceName);
+    if (named?.resourceName) {
+      return named.resourceName;
+    }
+    return group.resourceType === 'Folder' ? 'Deleted folder' : 'Deleted file';
+  }
 }

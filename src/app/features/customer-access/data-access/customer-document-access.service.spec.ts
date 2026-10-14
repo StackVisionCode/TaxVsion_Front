@@ -54,15 +54,21 @@ describe('CustomerDocumentAccessService', () => {
     const req = httpMock.expectOne(`${base}/storage/customer-access/${CUSTOMER}/rules`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(payload);
+    // El endpoint devuelve `SetDenyOverrideResponse { rule, created }`; el service desenvuelve el
+    // rule antes de que el store lo guarde — el mock imita ese contrato exacto.
     req.flush({
-      id: 'rule-1',
-      customerId: CUSTOMER,
-      resourceType: 'File',
-      resourceId: 'file-7',
-      capability: 'Download',
-      setByUserId: 'user-1',
-      setAtUtc: '2026-10-14T00:00:00Z',
-      reason: payload.reason,
+      rule: {
+        id: 'rule-1',
+        customerId: CUSTOMER,
+        resourceType: 'File',
+        resourceId: 'file-7',
+        resourceName: 'W-2 Acme Corp.pdf',
+        capability: 'Download',
+        setByUserId: 'user-1',
+        setAtUtc: '2026-10-14T00:00:00Z',
+        reason: payload.reason,
+      },
+      created: true,
     });
 
     expect(completed).toBe(true);

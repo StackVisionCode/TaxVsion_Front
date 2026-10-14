@@ -38,7 +38,14 @@ describe('CustomerDocumentAccessDrawerComponent', () => {
     service = {
       list: vi.fn(() => of(initial)),
       setDeny: vi.fn((_: string, req) =>
-        of(rule({ id: 'r-new', resourceId: req.resourceId, capability: req.capability, reason: req.reason ?? null })),
+        of(
+          rule({
+            id: 'r-new',
+            resourceId: req.resourceId,
+            capability: req.capability,
+            reason: req.reason ?? null,
+          }),
+        ),
       ),
       clearDeny: vi.fn(() => of(undefined)),
     };
@@ -63,7 +70,11 @@ describe('CustomerDocumentAccessDrawerComponent', () => {
 
   function openItemMode(
     fixture: ReturnType<typeof TestBed.createComponent<CustomerDocumentAccessDrawerComponent>>,
-    item: CustomerAccessDrawerItem = { resourceType: 'File', resourceId: 'file-7', name: 'return.pdf' },
+    item: CustomerAccessDrawerItem = {
+      resourceType: 'File',
+      resourceId: 'file-7',
+      name: 'return.pdf',
+    },
   ): void {
     fixture.componentRef.setInput('customerId', CUSTOMER);
     fixture.componentRef.setInput('mode', 'item');
@@ -99,13 +110,18 @@ describe('CustomerDocumentAccessDrawerComponent', () => {
     expect(service.list).toHaveBeenCalledWith(CUSTOMER);
     const groups = component.groupedRules();
     expect(groups).toHaveLength(2);
-    const fileA = groups.find(g => g.resourceId === 'file-A');
+    const fileA = groups.find((g) => g.resourceId === 'file-A');
     expect(fileA?.rules).toHaveLength(2);
   });
 
   it('modo item: hidrata los toggles desde el store (deny → OFF)', async () => {
     const { fixture, component } = setup([
-      rule({ resourceType: 'File', resourceId: 'file-7', capability: 'Download', reason: 'Pending' }),
+      rule({
+        resourceType: 'File',
+        resourceId: 'file-7',
+        capability: 'Download',
+        reason: 'Pending',
+      }),
     ]);
     openItemMode(fixture);
     await Promise.resolve();
@@ -211,6 +227,32 @@ describe('CustomerDocumentAccessDrawerComponent', () => {
     expect(component.isSystemFolder()).toBe(false);
     const badge = document.body.querySelector('[data-testid="system-folder-badge"]');
     expect(badge).toBeNull();
+  });
+
+  it('displayNameFor devuelve el resourceName cuando el backend lo trae', async () => {
+    const withName: CustomerAccessRuleView = {
+      ...rule({ resourceType: 'Folder', resourceId: 'folder-A', capability: 'Download' }),
+      resourceName: 'Tax Year 2025',
+    };
+    const { fixture, component } = setup([withName]);
+    openCustomerMode(fixture);
+    await Promise.resolve();
+    const group = component.groupedRules()[0];
+    expect(component.displayNameFor(group)).toBe('Tax Year 2025');
+  });
+
+  it('displayNameFor cae a "Deleted folder/file" cuando resourceName es null', async () => {
+    const { fixture, component } = setup([
+      rule({ resourceType: 'Folder', resourceId: 'folder-X', capability: 'Download' }),
+      rule({ id: 'r-f', resourceType: 'File', resourceId: 'file-X', capability: 'Preview' }),
+    ]);
+    openCustomerMode(fixture);
+    await Promise.resolve();
+    const groups = component.groupedRules();
+    const folderGroup = groups.find((g) => g.resourceType === 'Folder')!;
+    const fileGroup = groups.find((g) => g.resourceType === 'File')!;
+    expect(component.displayNameFor(folderGroup)).toBe('Deleted folder');
+    expect(component.displayNameFor(fileGroup)).toBe('Deleted file');
   });
 
   it('isSystemFolder false para files aunque el nombre arranque con "sys."', async () => {

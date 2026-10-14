@@ -16,6 +16,9 @@ export interface CustomerAccessRuleView {
   customerId: string;
   resourceType: AccessResourceType;
   resourceId: string;
+  /** Nombre visible del folder/file. Null para `TenantScope` (sin recurso real) o cuando el
+   * folder/file referenciado ya no existe (orphan tras borrado). El UI debe pintar un fallback. */
+  resourceName?: string | null;
   capability: AccessCapability;
   setByUserId: string;
   setAtUtc: string;
