@@ -1,4 +1,4 @@
-<div class="flex h-full flex-col rounded-[1.75rem] border border-[#E4DCCF] bg-white">
+<div class="flex h-full flex-col rounded-[1.5rem] border border-gray-100 bg-white shadow-sm">
   <div class="flex items-center gap-2.5 px-5 pt-5">
     <span class="grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-[0.625rem] bg-[#057BC1]/10 text-[#057BC1]">
       <ion-icon name="layers-outline" class="text-base"></ion-icon>
@@ -14,7 +14,7 @@
       <label class="block text-xs font-semibold text-[#3E5F6B]" for="wf-process-name">Name</label>
       <input id="wf-process-name" type="text" [ngModel]="name()" (ngModelChange)="draft.set($event)" (blur)="commit()"
         (keydown.enter)="commit()" name="processName"
-        class="w-full rounded-xl border border-[#E4DCCF] bg-white px-3 py-2 text-sm text-[#083645] transition-colors focus:border-[#057BC1] focus:outline-none" />
+        class="w-full rounded-xl border border-gray-100 bg-white shadow-sm px-3 py-2 text-sm text-[#083645] transition-colors focus:border-[#057BC1] focus:outline-none" />
     </div>
 
     <div>

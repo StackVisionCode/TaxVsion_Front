@@ -1,4 +1,4 @@
-<div class="relative h-full w-full overflow-hidden rounded-[1.75rem] bg-[#F4EDE4]">
+<div class="relative h-full w-full overflow-hidden rounded-[1.5rem] bg-[#F4EDE4]">
   <!-- viewport: el pan es scroll nativo -->
   <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
     [class.wf-viewport--place]="tool() === 'note' || tool() === 'text'"
@@ -99,13 +99,13 @@
 
             <img *ngSwitchCase="'image'" [src]="annotation.src" [alt]="annotation.alt || 'Canvas image'"
               draggable="false"
-              class="pointer-events-none h-full w-full rounded-[0.875rem] border border-[#E4DCCF] bg-white object-cover shadow-sm" />
+              class="pointer-events-none h-full w-full rounded-[0.875rem] border border-gray-100 bg-white shadow-sm object-cover shadow-sm" />
           </ng-container>
 
           <!-- Borrado rápido de la seleccionada. El resto de ajustes están en Propiedades:
                tenerlos también aquí serían dos sitios que decidir lo mismo. -->
           <div *ngIf="annotation.id === activeAnnotationId()"
-            class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-[#E4DCCF] bg-white px-1.5 py-1 shadow-md"
+            class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-1.5 py-1 shadow-md"
             (pointerdown)="$event.stopPropagation()">
             <button type="button" (click)="removeAnnotation.emit(annotation.id)"
               class="grid h-6 w-6 place-items-center rounded-full text-[#3E5F6B] transition-colors hover:bg-[#F4EDE4] hover:text-[#083645]"
@@ -156,7 +156,7 @@
         @for (link of layout.links; track trackLink($index, link)) {
           @if (link.id === selectedConnectionId) {
             <button type="button" (click)="deleteConnection.emit(link.id); $event.stopPropagation()"
-              class="wf-link-delete absolute grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-[#E4DCCF] bg-white text-[#083645] shadow-sm"
+              class="wf-link-delete absolute grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-gray-100 bg-white shadow-sm text-[#083645] shadow-sm"
               [style.left.px]="link.midX" [style.top.px]="link.midY" aria-label="Disconnect these processes">
               <ion-icon name="close-outline" class="text-sm"></ion-icon>
             </button>
@@ -184,7 +184,7 @@
   <!-- Tinta y grosor de lo PRÓXIMO que se dibuje. Solo con una herramienta de trazo
        activa: fuera de ese momento no decide nada y sería ruido permanente. -->
   <div *ngIf="showInkBar()"
-    class="absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#E4DCCF] bg-white px-3 py-2 shadow-lg">
+    class="absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white shadow-sm px-3 py-2 shadow-lg">
     <div class="flex items-center gap-1.5">
       <button *ngFor="let color of inkColors" type="button" (click)="ink.set(color)" [style.background]="color"
         class="h-5 w-5 rounded-full ring-offset-2 transition-shadow"
@@ -202,7 +202,7 @@
 
   <!-- Barra de herramientas flotante -->
   <div
-    class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[#E4DCCF] bg-white px-2 py-1.5 shadow-lg">
+    class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-2 py-1.5 shadow-lg">
     <button type="button" (click)="setTool('select')" aria-label="Select tool"
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
       [ngClass]="tool() === 'select' ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F4EDE4]'">
@@ -240,7 +240,7 @@
 
   <!-- Zoom -->
   <div
-    class="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-[#E4DCCF] bg-white px-2 py-1.5 shadow-lg">
+    class="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-2 py-1.5 shadow-lg">
     <button type="button" (click)="zoomBy(-0.1)" [disabled]="!canZoomOut()" aria-label="Zoom out"
       class="flex h-7 w-7 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] disabled:opacity-40 transition-colors">
       <ion-icon name="remove-outline" class="text-base"></ion-icon>
