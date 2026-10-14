@@ -172,7 +172,6 @@ export class UserManagementPageComponent {
     let intentId: string | null = null;
     try {
       intentId = sessionStorage.getItem(SEAT_CHECKOUT_INTENT_KEY);
-      sessionStorage.removeItem(SEAT_CHECKOUT_INTENT_KEY);
     } catch {
       intentId = null;
     }
@@ -190,15 +189,27 @@ export class UserManagementPageComponent {
       )
       .subscribe({
         next: status => {
+          // Un estado terminal libera el intent id: el modal no debe volver a pedir "cancelar" sobre algo ya cerrado.
           if (status.status === 'Provisioned') {
+            this.clearStoredIntent();
             this.store.refreshLimits();
             this.toast.success(`Added ${status.quantity} seat${status.quantity === 1 ? '' : 's'}. You can invite now.`);
           } else if (status.status === 'Failed') {
+            this.clearStoredIntent();
             this.toast.error('The seat payment did not go through.');
           }
+          // Si quedó Pending al terminar los 20 polls, el intent sigue vivo: el modal lo detectará al abrirse.
         },
         error: () => this.toast.error('Could not confirm the seat payment.'),
       });
+  }
+
+  private clearStoredIntent(): void {
+    try {
+      sessionStorage.removeItem(SEAT_CHECKOUT_INTENT_KEY);
+    } catch {
+      // Modo privado o sin storage: nada que limpiar.
+    }
   }
 
   setTab(tab: TeamTab): void {

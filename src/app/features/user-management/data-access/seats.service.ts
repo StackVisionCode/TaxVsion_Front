@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
   AssignSeatRequest,
+  CancelCheckoutResponse,
   PagedResult,
   ProviderCustomer,
   PurchaseSeatsRequest,
@@ -70,6 +71,11 @@ export class SeatsService {
   /** Estado de una intención de checkout — se poll-ea al volver del redirect. */
   getSeatCheckoutStatus(intentId: string): Observable<SeatCheckoutStatusResponse> {
     return this.http.get<SeatCheckoutStatusResponse>(`${this.base}/seats/checkout/${intentId}`);
+  }
+
+  /** Cierra una intención Pending antes de pagar: libera el guard de doble cobro. Idempotente. */
+  cancelOpenSeatCheckout(intentId: string): Observable<CancelCheckoutResponse> {
+    return this.http.post<CancelCheckoutResponse>(`${this.base}/seats/checkout/${intentId}/cancel`, {});
   }
 
   /** Método de pago del tenant para un provider (para decidir off-session vs redirect). 404 = sin tarjeta. */

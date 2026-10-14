@@ -120,6 +120,12 @@ export interface SeatCheckoutStatusResponse {
   checkoutUrl: string | null;
 }
 
+/** Respuesta de `POST /seats/checkout/{id}/cancel`: idempotente — `alreadyCancelled` cuando la intención ya estaba cerrada. */
+export interface CancelCheckoutResponse {
+  alreadyCancelled: boolean;
+  intentId: string;
+}
+
 /** Método de pago guardado del tenant — espejo de `SavedPaymentMethodResponse` (PaymentApp). */
 export interface SavedPaymentMethod {
   id: string;
