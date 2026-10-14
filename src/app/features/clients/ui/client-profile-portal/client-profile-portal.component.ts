@@ -10,6 +10,8 @@ import { ClientPortalStore } from '../../data-access/client-portal.store';
 import { ClientPortalPermissionsComponent } from '../client-portal-permissions/client-portal-permissions.component';
 import { portalStatusChipClass, portalStatusLabel } from '../../data-access/client-portal.model';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { CustomerDocumentAccessDrawerComponent } from '@features/customer-access/ui/customer-document-access-drawer/customer-document-access-drawer.component';
+import { CustomerDocumentAccessPermissions } from '@features/customer-access/data-access/customer-document-access.permissions';
 
 /** Permisos de Auth para gestionar el acceso de portal (BuildingBlocks.Authorization). */
 const USERS_INVITE = 'users.invite';
@@ -29,7 +31,13 @@ const USERS_MANAGE = 'users.manage';
  */
 @Component({
   selector: 'app-client-profile-portal',
-  imports: [CommonModule, ConfirmDialogComponent, ClientPortalPermissionsComponent, StateBlockComponent],
+  imports: [
+    CommonModule,
+    ConfirmDialogComponent,
+    ClientPortalPermissionsComponent,
+    StateBlockComponent,
+    CustomerDocumentAccessDrawerComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-portal.component.html',
   styleUrl: './client-profile-portal.component.css',
@@ -43,11 +51,22 @@ export class ClientProfilePortalComponent implements OnChanges {
   private readonly perms = inject(PermissionService);
   private readonly clientPerms = inject(ClientPermissions);
   private readonly toast = inject(ToastService);
+  private readonly customerAccessPerms = inject(CustomerDocumentAccessPermissions);
 
   readonly canInvite = this.clientPerms.canInvitePortal;
   readonly canManageInvites = computed(() => this.perms.has(USERS_INVITE) && this.perms.isAdmin());
   readonly canManageUsers = computed(() => this.perms.has(USERS_MANAGE));
   readonly canReadStatus = computed(() => this.perms.has(USERS_INVITE) || this.perms.has(USERS_VIEW));
+  readonly canManageDocumentAccess = this.customerAccessPerms.canManage;
+
+  /** Abre el drawer de reglas deny per-item en modo `customer`. */
+  readonly overridesOpen = signal(false);
+  openOverrides(): void {
+    this.overridesOpen.set(true);
+  }
+  closeOverrides(): void {
+    this.overridesOpen.set(false);
+  }
 
   readonly access = this.store.access;
   readonly statusLabel = portalStatusLabel;

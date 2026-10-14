@@ -3,6 +3,19 @@ import { FileResponse, FileStatus, FolderType, OwnerType } from '@core/cloud-sto
 export type { OwnerType, FolderType, FileStatus, FileResponse, InitiateUploadRequest, InitiatedUploadResponse, DownloadUrlResponse } from '@core/cloud-storage/cloud-storage.model';
 export { isFilePending } from '@core/cloud-storage/cloud-storage.model';
 
+/**
+ * Capacidades efectivas que el backend emite junto a los files/folders cuando el flag deny-per-item
+ * está activo. El UI del portal (F6) las consume para ocultar/deshabilitar acciones; el CRM no las
+ * usa todavía — se tipan para que `FileResponse`/`FolderResponse` sigan alineados.
+ */
+export interface EffectiveCapabilities {
+  preview: boolean;
+  download: boolean;
+  upload: boolean;
+  delete: boolean;
+  shareExternal: boolean;
+}
+
 /** GET /storage/folders (subcarpeta) y respuesta de POST /storage/folders. */
 export interface FolderResponse {
   id: string;
@@ -15,6 +28,10 @@ export interface FolderResponse {
   createdAtUtc: string;
   /** true si la carpeta tiene un link de compartir vigente (lo marca el listado). */
   isShared?: boolean;
+  /** Capacidades efectivas para el cliente (solo con deny-per-item activo). */
+  effectiveCapabilities?: EffectiveCapabilities;
+  /** Motivo del deny (si lo hay) para mostrar como tooltip en el portal. */
+  denyReason?: string | null;
 }
 
 /** Opciones de paginación + filtro/orden server-side para GET /storage/folders. */

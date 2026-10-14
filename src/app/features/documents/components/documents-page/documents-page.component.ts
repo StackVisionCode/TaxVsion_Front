@@ -37,6 +37,11 @@ import { MoveDialogComponent } from '../../ui/move-dialog/move-dialog.component'
 import { NamePromptDialogComponent } from '../../ui/name-prompt-dialog/name-prompt-dialog.component';
 import { BulkActionBarComponent } from '../../ui/bulk-action-bar/bulk-action-bar.component';
 import { ShareDialogComponent } from '../../ui/share-dialog/share-dialog.component';
+import {
+  CustomerAccessDrawerItem,
+  CustomerDocumentAccessDrawerComponent,
+} from '@features/customer-access/ui/customer-document-access-drawer/customer-document-access-drawer.component';
+import { CustomerDocumentAccessPermissions } from '@features/customer-access/data-access/customer-document-access.permissions';
 
 /** Elemento que se está moviendo (archivo o carpeta) — el diálogo de destino es el mismo. */
 type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderResponse; file?: undefined };
@@ -74,6 +79,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
     NamePromptDialogComponent,
     BulkActionBarComponent,
     ShareDialogComponent,
+    CustomerDocumentAccessDrawerComponent,
   ],
   templateUrl: './documents-page.component.html',
   styleUrl: './documents-page.component.css',
@@ -181,6 +187,15 @@ export class DocumentsPageComponent implements OnInit {
   /** Cliente fijo cuando la página va embebida en el perfil; `null` en /documents. */
   private readonly embeddedCustomer = injectEmbeddedCustomer();
   readonly embedded = computed(() => this.embeddedCustomer() !== null);
+  readonly embeddedCustomerId = computed(() => this.embeddedCustomer()?.id ?? null);
+
+  /** Reglas deny per-item: el botón "Permissions" se pinta solo embebido en un cliente + permiso. */
+  private readonly customerAccessPerms = inject(CustomerDocumentAccessPermissions);
+  readonly canManagePermissions = computed(
+    () => this.embedded() && this.customerAccessPerms.canManage(),
+  );
+  /** Target activo del drawer de reglas per-item (abre en modo `item`). */
+  readonly permissionsItem = signal<CustomerAccessDrawerItem | null>(null);
 
   readonly title = computed(() => {
     const crumbs = this.breadcrumbs();
@@ -347,6 +362,14 @@ export class DocumentsPageComponent implements OnInit {
         break;
       case 'delete-file':
         this.store.deleteFile(action.file.id);
+        break;
+      case 'permissions':
+        this.permissionsItem.set({
+          resourceType: action.resourceType,
+          resourceId: action.resourceId,
+          name: action.name,
+          category: action.category ?? null,
+        });
         break;
     }
   }

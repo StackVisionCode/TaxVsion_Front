@@ -24,7 +24,16 @@ export type FileRowAction =
   | { kind: 'download-file'; file: FileResponse }
   | { kind: 'share-file'; file: FileResponse }
   | { kind: 'move-file'; file: FileResponse }
-  | { kind: 'delete-file'; file: FileResponse };
+  | { kind: 'delete-file'; file: FileResponse }
+  | {
+      kind: 'permissions';
+      resourceType: 'File' | 'Folder';
+      resourceId: string;
+      name: string;
+      // Slug técnico del folder cuando aplica (p.ej. `sys.email`). El drawer lo usa para marcar
+      // folders del sistema con un badge aun si el display name no empieza por `sys.`.
+      category?: string | null;
+    };
 
 /** Icono ion por tipo de archivo (según extensión, más fiel a lo que ve el usuario). */
 const KIND_ICON: Record<string, string> = {
@@ -58,6 +67,11 @@ export class FileListComponent {
   @Input() selectedFileId: string | null = null;
   @Input() selectedIds: ReadonlySet<string> = new Set();
   @Input() view: 'list' | 'grid' = 'list';
+  /**
+   * Si el contenedor permite declarar reglas deny per-item (modo embebido en el perfil del cliente
+   * + permiso `cloudstorage.customer_access.manage_*`), pinta el botón "Permissions" por fila.
+   */
+  @Input() canManagePermissions = false;
   @Output() action = new EventEmitter<FileRowAction>();
   @Output() toggleAll = new EventEmitter<void>();
   @Output() setSort = new EventEmitter<'name' | 'modified' | 'size'>();
