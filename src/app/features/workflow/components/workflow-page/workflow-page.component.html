@@ -1,44 +1,37 @@
-<!-- `wf-screen` ancla la pantalla al hueco del shell (ver el CSS): sin eso el
-     host crecía con su contenido — el catálogo y el lienzo son altos por
-     naturaleza — y desbordaba la ventana entera. `min-h-0` es lo que permite
-     que cada columna haga su propio scroll en vez de empujar hacia abajo. -->
-<div class="wf-screen flex min-h-0 flex-1 flex-col gap-4">
+<!-- `wf-screen` ancla la pantalla al hueco del shell (ver el CSS): sin eso el host crecía con su
+     contenido — el catálogo y el lienzo son altos por naturaleza — y desbordaba la ventana. `min-h-0`
+     es lo que permite que cada columna haga su propio scroll en vez de empujar hacia abajo. -->
+<div class="wf-screen flex min-h-0 flex-1 flex-col gap-3">
   <!-- ============ Header ============ -->
-  <header class="wf-head flex flex-wrap items-center gap-3 rounded-[1.75rem] bg-white px-5 py-3 lg:pr-[var(--shell-notch-width)]">
-    <!-- Decorativo: este producto no tiene equipos. -->
-    <button type="button" disabled aria-disabled="true" data-decorative="true" title="Teams are not available yet"
-      class="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500">
-      <span class="flex h-5 w-5 items-center justify-center rounded-md bg-amber-400 text-[0.625rem] font-bold text-white">T</span>
-      My Team
-      <ion-icon name="chevron-down-outline" class="text-sm text-gray-400"></ion-icon>
-    </button>
-
+  <header class="wf-head flex min-h-14 flex-wrap items-center gap-3 rounded-[1.75rem] border border-[#E4DCCF] bg-white px-5 py-2 lg:pr-[var(--shell-notch-width)]">
     <div class="flex min-w-0 items-center gap-2">
-      <!-- Antes era un <span> muerto: no había adónde volver porque no existía la lista. -->
-      <button type="button" (click)="backToList()"
-        class="rounded-lg px-1 text-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
-        My Projects
+      <button type="button" (click)="backToList()" aria-label="Back to workflows"
+        class="flex items-center gap-1 rounded-lg px-1 text-sm text-[#3E5F6B] transition-colors hover:bg-[#F8F4ED] hover:text-[#083645]">
+        <ion-icon name="chevron-back-outline" class="text-base"></ion-icon>
+        Workflows
       </button>
-      <span class="text-sm text-gray-300">/</span>
+      <span class="text-sm text-[#E4DCCF]">/</span>
 
-      <input *ngIf="editingName(); else nameLabel" type="text" [ngModel]="store.name()"
-        (ngModelChange)="store.rename($event)" (blur)="editingName.set(false)" (keydown.enter)="editingName.set(false)"
-        name="workflowName" aria-label="Workflow name"
-        class="min-w-0 rounded-lg border border-gray-200 px-2 py-1 text-sm font-semibold text-gray-900 focus:border-brand-bold focus:outline-none" />
-      <ng-template #nameLabel>
+      @if (editingName()) {
+        <input type="text" [ngModel]="store.name()" (ngModelChange)="store.rename($event)" (blur)="editingName.set(false)"
+          (keydown.enter)="editingName.set(false)" name="workflowName" aria-label="Workflow name"
+          class="min-w-0 rounded-lg border border-[#E4DCCF] px-2 py-1 text-sm font-semibold text-[#083645] focus:border-[#057BC1] focus:outline-none" />
+      } @else {
         <button type="button" (click)="editingName.set(true)"
-          class="truncate rounded-lg px-1 text-sm font-semibold text-gray-900 hover:bg-gray-100 transition-colors">
+          class="truncate rounded-lg px-1 text-sm font-semibold text-[#083645] transition-colors hover:bg-[#F8F4ED]">
           {{ store.name() }}
         </button>
-      </ng-template>
+      }
 
       <!-- La señal honesta de que esto no corre todavía -->
       <span title="Saved in this browser. Workflows can't run yet — there is no workflow service."
-        class="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[0.6875rem] font-medium text-amber-700">
-        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+        class="flex shrink-0 items-center gap-1.5 rounded-full bg-[#F4EDE4] px-2.5 py-1 text-[0.6875rem] font-medium text-[#083645]">
+        <span class="h-1.5 w-1.5 rounded-full bg-[#057BC1]"></span>
         Local draft
       </span>
-      <span *ngIf="savedLabel() as saved" class="shrink-0 text-[0.6875rem] text-gray-400">Saved {{ saved }}</span>
+      @if (savedLabel(); as saved) {
+        <span class="shrink-0 text-[0.6875rem] text-[#3E5F6B]">Saved {{ saved }}</span>
+      }
     </div>
 
     <div class="ml-auto flex items-center gap-2">
@@ -47,26 +40,27 @@
         (open)="isShareOpen.set(true)"></app-workflow-collaborator-avatars>
 
       <!-- Simula la ejecución sobre el canvas; corriendo se convierte en Stop. -->
-      <button *ngIf="preview.status() !== 'running'; else stopPreview" type="button" (click)="startPreview()"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
-        <ion-icon name="play-outline" class="text-sm"></ion-icon>
-        Preview
-      </button>
-      <ng-template #stopPreview>
+      @if (preview.status() !== 'running') {
+        <button type="button" (click)="startPreview()"
+          class="flex items-center gap-1.5 rounded-full border border-[#E4DCCF] px-3.5 py-1.5 text-sm font-medium text-[#083645] transition-colors hover:bg-[#F8F4ED]">
+          <ion-icon name="play-outline" class="text-sm"></ion-icon>
+          Preview
+        </button>
+      } @else {
         <button type="button" (click)="preview.stop()"
-          class="flex items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black transition-colors">
+          class="flex items-center gap-1.5 rounded-full bg-[#083645] px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-black">
           <ion-icon name="stop-outline" class="text-sm"></ion-icon>
           Stop
         </button>
-      </ng-template>
+      }
       <button type="button" (click)="isShareOpen.set(true)"
-        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        class="flex items-center gap-1.5 rounded-full border border-[#E4DCCF] px-3.5 py-1.5 text-sm font-medium text-[#083645] transition-colors hover:bg-[#F8F4ED]">
         <ion-icon name="share-social-outline" class="text-sm"></ion-icon>
         Share
       </button>
       <!-- Deploy sí abre algo: explica por qué no puede desplegar. -->
       <button type="button" (click)="isDeployOpen.set(true)"
-        class="flex items-center gap-1.5 rounded-full bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-black transition-colors">
+        class="flex items-center gap-1.5 rounded-full bg-[#057BC1] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#083645]">
         <ion-icon name="rocket-outline" class="text-sm"></ion-icon>
         Deploy
       </button>
@@ -75,10 +69,7 @@
 
   <!-- ============ Cuerpo ============ -->
   <div class="flex min-h-0 flex-1 gap-4">
-    <!-- Paleta -->
-    <!-- El ancho lo manda la paleta: plegada solo ocupa su columna de iconos y el lienzo
-         se queda con el resto. Antes eran 260px fijos, así que plegarla dejaba un hueco
-         vacío en vez de darle sitio al diagrama. -->
+    <!-- Paleta: el ancho lo manda ella; plegada solo ocupa su columna de iconos. -->
     <aside class="wf-side shrink-0" [style.width.px]="paletteCollapsed() ? 64 : 260">
       <app-workflow-step-palette [awaitingInsert]="pendingInsert() !== null"
         (addStep)="onAddStep($event)"
@@ -87,68 +78,100 @@
 
     <!-- Canvas -->
     <section class="relative flex min-w-0 flex-1 flex-col">
-      <!-- Tabs + undo/redo, flotando sobre el lienzo como en el diseño -->
+      <!-- Tabs + undo/redo + añadir proceso, flotando sobre el lienzo -->
       <div class="pointer-events-none absolute inset-x-0 top-3 z-20 flex items-center justify-between px-3">
-        <div class="pointer-events-auto flex items-center gap-1 rounded-full border border-gray-100 bg-white px-1.5 py-1 shadow-sm">
+        <div class="pointer-events-auto flex items-center gap-1 rounded-full border border-[#E4DCCF] bg-white px-1.5 py-1 shadow-sm">
           <button type="button" (click)="store.undo()" [disabled]="!store.canUndo()" aria-label="Undo"
-            class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+            class="flex h-7 w-7 items-center justify-center rounded-full text-[#083645] transition-colors hover:bg-[#F8F4ED] disabled:opacity-40">
             <ion-icon name="arrow-undo-outline" class="text-sm"></ion-icon>
           </button>
           <button type="button" (click)="store.redo()" [disabled]="!store.canRedo()" aria-label="Redo"
-            class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+            class="flex h-7 w-7 items-center justify-center rounded-full text-[#083645] transition-colors hover:bg-[#F8F4ED] disabled:opacity-40">
             <ion-icon name="arrow-redo-outline" class="text-sm"></ion-icon>
           </button>
         </div>
 
-        <div class="pointer-events-auto flex items-center gap-1 rounded-full border border-gray-100 bg-white p-1 shadow-sm">
+        <div class="pointer-events-auto flex items-center gap-1 rounded-full border border-[#E4DCCF] bg-white p-1 shadow-sm">
           <button type="button" (click)="setTab('builder')"
             class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-            [ngClass]="activeTab() === 'builder' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+            [class]="activeTab() === 'builder' ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F8F4ED]'">
             Builder
           </button>
           <!-- Decorativo: sin ejecuciones que depurar. -->
           <button type="button" (click)="setTab('debugger')" data-decorative="true"
             class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-            [ngClass]="activeTab() === 'debugger' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'">
+            [class]="activeTab() === 'debugger' ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F8F4ED]'">
             Debugger
           </button>
         </div>
 
-        <span class="w-24"></span>
+        <button type="button" (click)="addProcess()"
+          class="pointer-events-auto flex items-center gap-1.5 rounded-full bg-[#057BC1] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#083645]">
+          <ion-icon name="add-outline" class="text-base"></ion-icon>
+          Add process
+        </button>
       </div>
 
-      <app-workflow-canvas *ngIf="activeTab() === 'builder'; else debuggerTab" class="min-h-0 flex-1"
-        [layout]="layout()"
-        [selectedId]="store.selectedId()" (selectStep)="store.select($event)" (deleteStep)="requestDelete($event)"
-        (duplicateStep)="store.duplicateStep($event)"
-        (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
-        (moveStepStart)="store.beginMove()" (moveStepLive)="onMoveLive($event)"
-        (moveStepEnd)="onMoveEnd()" (tidy)="store.tidyLayout()"
-        [selectedConnectionId]="store.selectedConnectionId()" (selectConnection)="store.selectConnection($event)"
-        (deleteConnection)="store.disconnect($event)" (connectSteps)="onConnect($event)"
-        [stepPreview]="preview.status() === 'idle' ? null : preview.stepStates()"
-        [edgePreview]="preview.status() === 'idle' ? null : preview.edgeStates()"
-        [annotations]="store.annotations()" [peers]="presence.peers()"
-        (addNote)="onAnnotationCreated(store.addNote($event.x, $event.y))" (pickImage)="onPickImage($event)"
-        (updateAnnotation)="store.updateAnnotation($event.id, $event.patch)"
-        (removeAnnotation)="store.removeAnnotation($event)"
-        (moveAnnotationLive)="store.moveAnnotationLive($event.id, $event.x, $event.y)"
-        (cursorMoved)="presence.publish($event.x, $event.y)"
-        (annotationSelected)="selectedAnnotationId.set($event)"
-        (addText)="onAnnotationCreated(store.addText($event.x, $event.y, $event.stroke, $event.size))"
-        (addDrawing)="onAnnotationCreated(store.addDrawing($event.points, $event.stroke, $event.size))"
-        (addArrow)="onAnnotationCreated(store.addArrow($event.fromX, $event.fromY, $event.toX, $event.toY, $event.stroke, $event.size))"
-        (addRect)="onAnnotationCreated(store.addRect($event.x, $event.y, $event.width, $event.height, $event.stroke, $event.size))"></app-workflow-canvas>
+      @if (activeTab() === 'builder') {
+        <app-workflow-canvas class="min-h-0 flex-1"
+          [layout]="layout()" [pendingInsert]="pendingInsert()"
+          [selectedStepId]="store.selectedId()" [selectedProcessId]="store.selectedProcessId()"
+          (selectStep)="store.select($event)" (selectProcess)="onSelectProcess($event)"
+          (clearSelection)="onClearSelection()"
+          (deleteStep)="requestDelete($event)" (duplicateStep)="onDuplicateStep($event)"
+          (moveStep)="onMoveStep($event.id, $event.delta)"
+          (insertStep)="onInsertRequested($event)" (dropStep)="onDropStep($event)"
+          (renameProcess)="store.renameProcess($event.id, $event.name)"
+          (toggleProcess)="store.toggleProcessCollapsed($event)"
+          (duplicateProcess)="store.duplicateProcess($event)"
+          (deleteProcess)="pendingDeleteProcessId.set($event)"
+          (moveStepStart)="store.beginMove()" (moveProcessLive)="store.moveProcessLive($event.id, $event.x, $event.y)"
+          (moveStepEnd)="store.endMove()" (tidy)="store.tidyLayout()"
+          [selectedConnectionId]="store.selectedConnectionId()" (selectConnection)="store.selectConnection($event)"
+          (deleteConnection)="store.disconnect($event)" (connectExit)="onConnectExit($event)"
+          [stepPreview]="preview.status() === 'idle' ? null : preview.stepStates()"
+          [edgePreview]="preview.status() === 'idle' ? null : preview.edgeStates()"
+          [annotations]="store.annotations()" [peers]="presence.peers()"
+          (addNote)="onAnnotationCreated(store.addNote($event.x, $event.y))" (pickImage)="onPickImage($event)"
+          (updateAnnotation)="store.updateAnnotation($event.id, $event.patch)"
+          (removeAnnotation)="store.removeAnnotation($event)"
+          (moveAnnotationLive)="store.moveAnnotationLive($event.id, $event.x, $event.y)"
+          (cursorMoved)="presence.publish($event.x, $event.y)"
+          (annotationSelected)="selectedAnnotationId.set($event)"
+          (addText)="onAnnotationCreated(store.addText($event.x, $event.y, $event.stroke, $event.size))"
+          (addDrawing)="onAnnotationCreated(store.addDrawing($event.points, $event.stroke, $event.size))"
+          (addArrow)="onAnnotationCreated(store.addArrow($event.fromX, $event.fromY, $event.toX, $event.toY, $event.stroke, $event.size))"
+          (addRect)="onAnnotationCreated(store.addRect($event.x, $event.y, $event.width, $event.height, $event.stroke, $event.size))"></app-workflow-canvas>
 
-    <!-- El aviso de que se acabó el sitio en el navegador. Antes esto fallaba callado y el
-         diagrama dejaba de guardarse sin que nadie se enterara. -->
-    <div *ngIf="store.saveError() as error"
-      class="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center">
-      <p class="rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-700 shadow-lg">{{ error }}</p>
-    </div>
+        <!-- Lienzo vacío: lo primero es crear un proceso. -->
+        @if (store.processes().length === 0) {
+          <div class="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-center">
+            <span class="grid h-12 w-12 place-items-center rounded-2xl bg-white text-[#057BC1] shadow-sm">
+              <ion-icon name="layers-outline" class="text-2xl"></ion-icon>
+            </span>
+            <p class="text-sm font-semibold text-[#083645]">No processes yet</p>
+            <p class="max-w-xs text-xs text-[#3E5F6B]">A process is a list of actions that run in order. Add one, or pick a step from the catalog.</p>
+          </div>
+        }
+      } @else {
+        <div class="flex h-full flex-col items-center justify-center rounded-[1.75rem] bg-[#F4EDE4] text-center">
+          <ion-icon name="bug-outline" class="text-4xl text-[#3E5F6B]/40"></ion-icon>
+          <p class="mt-3 text-sm font-medium text-[#083645]">No runs to debug</p>
+          <p class="mt-1 max-w-xs text-xs text-[#3E5F6B]">
+            Executions will show up here once workflows can actually run. There's no workflow service yet.
+          </p>
+        </div>
+      }
 
-    <!-- Selector de imagen: se dispara desde la barra del lienzo, no se ve nunca. -->
-    <input #imageInput type="file" accept="image/*" class="hidden" (change)="onImageChosen($event)" />
+      <!-- El aviso de que se acabó el sitio en el navegador. -->
+      @if (store.saveError(); as error) {
+        <div class="pointer-events-none absolute inset-x-0 top-16 z-30 flex justify-center">
+          <p class="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#083645] shadow-lg ring-1 ring-[#083645]">{{ error }}</p>
+        </div>
+      }
+
+      <!-- Selector de imagen: se dispara desde la barra del lienzo, no se ve nunca. -->
+      <input #imageInput type="file" accept="image/*" class="hidden" (change)="onImageChosen($event)" />
 
       <!-- HUD de la simulación, encima de la barra de herramientas del canvas -->
       <div class="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center">
@@ -158,34 +181,30 @@
           (closeHud)="preview.reset()"></app-workflow-preview-hud>
       </div>
 
-      <!-- Por qué no se pudo crear ese hilo. -->
-      <div *ngIf="linkError() as error"
-        class="pointer-events-none absolute bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-lg">
-        {{ error }}
-      </div>
-
-      <ng-template #debuggerTab>
-        <div class="flex h-full flex-col items-center justify-center rounded-[1.75rem] bg-brand-white text-center">
-          <ion-icon name="bug-outline" class="text-4xl text-gray-300"></ion-icon>
-          <p class="mt-3 text-sm font-medium text-gray-600">No runs to debug</p>
-          <p class="mt-1 max-w-xs text-xs text-gray-400">
-            Executions will show up here once workflows can actually run. There's no workflow service yet.
-          </p>
+      <!-- Por qué no se pudo hacer algo (crear un hilo, añadir un paso…). -->
+      @if (linkError(); as error) {
+        <div class="pointer-events-none absolute bottom-20 left-1/2 z-30 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#083645] shadow-lg ring-1 ring-[#057BC1]">
+          {{ error }}
         </div>
-      </ng-template>
+      }
     </section>
 
-    <!-- Configuración -->
-    <!-- Una sola columna derecha: o se está editando un PASO o un objeto del lienzo, nunca
-         las dos cosas. Seleccionar una anotación manda, porque es lo último que se tocó. -->
+    <!-- Una sola columna derecha: o se edita un OBJETO del lienzo, o un PROCESO, o un PASO. -->
     <aside class="wf-side hidden shrink-0 xl:block" [style.width.px]="320">
-      <app-workflow-annotation-properties *ngIf="selectedAnnotation() as annotation; else stepConfig"
-        [annotation]="annotation" (patch)="store.updateAnnotation(annotation.id, $event)"
-        (remove)="onRemoveAnnotation(annotation.id)"></app-workflow-annotation-properties>
-      <ng-template #stepConfig>
+      @if (selectedAnnotation(); as annotation) {
+        <app-workflow-annotation-properties [annotation]="annotation" (patch)="store.updateAnnotation(annotation.id, $event)"
+          (remove)="onRemoveAnnotation(annotation.id)"></app-workflow-annotation-properties>
+      } @else if (store.selectedProcess(); as process) {
+        <app-workflow-process-panel [process]="process" [steps]="selectedProcessSteps()"
+          [selectedStepId]="store.selectedId()" (rename)="store.renameProcess(process.id, $event)"
+          (selectStep)="store.select($event)" (move)="onMoveStep($event.id, $event.delta)"
+          (addAction)="onAddActionFor(process.id)" (deleteProcess)="pendingDeleteProcessId.set(process.id)"></app-workflow-process-panel>
+      } @else {
         <app-workflow-step-config [step]="store.selectedStep()" [availableFields]="store.selectedAvailableFields()"
-          [missingFields]="store.selectedMissingInputs()" (save)="onSaveStep($event)"></app-workflow-step-config>
-      </ng-template>
+          [missingFields]="store.selectedMissingInputs()" [position]="selectedPosition()" [dependents]="selectedDependents()"
+          (save)="onSaveStep($event)" (move)="onMoveSelected($event)" (duplicate)="onDuplicateSelected()"
+          (remove)="requestDeleteSelected()"></app-workflow-step-config>
+      }
     </aside>
   </div>
 </div>
@@ -207,12 +226,16 @@
   </div>
   <div class="mt-5 flex justify-end">
     <button type="button" (click)="isDeployOpen.set(false)"
-      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+      class="rounded-full bg-[#057BC1] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#083645]">
       Got it
     </button>
   </div>
 </app-modal>
 
 <app-confirm-dialog [isOpen]="pendingDeleteId() !== null" heading="Delete this step?"
-  message="Any steps that follow it on this branch are removed too. This can't be undone from here, but you can undo it on the canvas."
+  message="The steps around it are reconnected. You can undo it from the canvas."
   confirmLabel="Delete" (confirmed)="confirmDelete()" (cancelled)="pendingDeleteId.set(null)"></app-confirm-dialog>
+
+<app-confirm-dialog [isOpen]="pendingDeleteProcessId() !== null" heading="Delete this process?"
+  message="This removes the process and every action inside it, and any connection to or from it. You can undo it from the canvas."
+  confirmLabel="Delete" (confirmed)="confirmDeleteProcess()" (cancelled)="pendingDeleteProcessId.set(null)"></app-confirm-dialog>

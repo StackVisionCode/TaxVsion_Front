@@ -68,6 +68,20 @@ export class WorkflowStepPaletteComponent {
 
   readonly isEmpty = computed(() => this.groups().length === 0);
 
+  /** Color del cuadrito de icono por categoría (paleta Taxoffix, sin un color por tipo). */
+  chipClass(type: WorkflowStepType): string {
+    switch (type.category) {
+      case 'trigger':
+        return 'bg-[#057BC1]/15 text-[#057BC1]';
+      case 'ai-logic':
+        return 'bg-[#083645] text-[#4DD8FF]';
+      case 'utility':
+        return 'bg-[#F4EDE4] text-[#083645]';
+      default:
+        return 'bg-[#4DD8FF]/25 text-[#057BC1]';
+    }
+  }
+
   /** ⌘K / Ctrl+K enfoca el buscador, como indica el atajo del diseño. */
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {

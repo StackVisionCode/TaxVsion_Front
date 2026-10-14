@@ -8,6 +8,15 @@ import {
   stepTypeOrFallback,
 } from '../../data-access/workflow.model';
 
+export type StepConfigTab = 'setup' | 'data' | 'settings';
+
+/** Qué hacer si el paso falla. Se guarda en `config.onError`. */
+export const ON_ERROR_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'stop', label: 'Stop the process' },
+  { value: 'continue', label: 'Continue with the next step' },
+  { value: 'retry', label: 'Retry 3 times, then stop' },
+];
+
 export interface StepConfigPatch {
   title: string;
   subtitle: string;
@@ -39,7 +48,8 @@ export class WorkflowStepConfigComponent {
     // Copia local: el panel es un borrador hasta que se pulsa "Save Step".
     this.draft.set({ ...(value?.config ?? {}) });
     this.newChip.set('');
-    this.advancedOpen.set(false);
+    this.onError.set(`${value?.config?.['onError'] ?? 'stop'}`);
+    this.tab.set('setup');
   }
 
   /** Lo que llega a esta carta desde las anteriores. */
@@ -47,18 +57,46 @@ export class WorkflowStepConfigComponent {
   /** De lo anterior, lo que la carta necesita y NO recibe. */
   @Input() missingFields: WorkflowDataField[] = [];
 
+  /** Dónde está el paso: "Step 2 of 4 · Intake". */
+  @Input() position: { index: number; total: number; processName: string } | null = null;
+  /** Pasos posteriores que usan datos que este manda. */
+  @Input() dependents: { step: WorkflowStep; fields: string[] }[] = [];
+
   @Output() save = new EventEmitter<StepConfigPatch>();
+  @Output() move = new EventEmitter<-1 | 1>();
+  @Output() duplicate = new EventEmitter<void>();
+  @Output() remove = new EventEmitter<void>();
+
+  readonly tabs: ReadonlyArray<{ id: StepConfigTab; label: string }> = [
+    { id: 'setup', label: 'Setup' },
+    { id: 'data', label: 'Data' },
+    { id: 'settings', label: 'Settings' },
+  ];
+  readonly errorOptions = ON_ERROR_OPTIONS;
+  readonly tab = signal<StepConfigTab>('setup');
+  readonly onError = signal('stop');
 
   readonly current = signal<WorkflowStep | null>(null);
   readonly title = signal('');
   readonly subtitle = signal('');
   readonly draft = signal<Record<string, string | string[]>>({});
   readonly newChip = signal('');
-  readonly advancedOpen = signal(false);
 
   get fields(): WorkflowFieldDef[] {
     const step = this.current();
     return step ? (stepTypeOrFallback(step.typeId).fields ?? []) : [];
+  }
+
+  get icon(): string {
+    const step = this.current();
+    return step ? stepTypeOrFallback(step.typeId).icon : 'options-outline';
+  }
+
+  /** "Lead score, Intent and Summary". */
+  listOf(labels: string[]): string {
+    return labels.length <= 1
+      ? (labels[0] ?? '')
+      : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
   }
 
   get typeLabel(): string {
@@ -131,7 +169,7 @@ export class WorkflowStepConfigComponent {
     this.save.emit({
       title: this.title().trim() || this.typeLabel,
       subtitle: this.subtitle().trim(),
-      config: this.draft(),
+      config: { ...this.draft(), onError: this.onError() },
     });
   }
 }

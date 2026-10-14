@@ -1,0 +1,193 @@
+<!--
+  Todo va posicionado con `top` desde el layout (alturas fijas): los hilos entre procesos se
+  anclan a la fila exacta de cada salida y no pueden despegarse de la tarjeta.
+-->
+@let b = box();
+<div class="pc" [class.pc--selected]="selected()" [class.pc--dragging]="dragging()" [class.pc--collapsed]="b.collapsed"
+  [class.pc--raised]="menu() !== null" [attr.data-accent]="b.accent"
+  [style.width.px]="b.width" [style.height.px]="b.height" (click)="select.emit(); $event.stopPropagation()">
+
+  <!-- Puerto de entrada: de aquí llega el hilo de otro proceso. -->
+  @if (b.fed) {
+    <span class="pc-port pc-port--in" [style.top.px]="pad + headerHeight / 2" aria-hidden="true"></span>
+  }
+
+  <!-- Cabecera: se arrastra desde aquí. -->
+  <div class="pc-head" [style.top.px]="pad" [style.left.px]="pad" [style.width.px]="innerWidth()"
+    [style.height.px]="headerHeight" (pointerdown)="headerDown.emit($event)">
+    <span class="pc-badge"><ion-icon name="layers-outline"></ion-icon></span>
+    <div class="pc-title">
+      @if (renaming()) {
+        <input class="pc-rename" type="text" [value]="b.process.name" aria-label="Process name" (pointerdown)="stopDrag($event)"
+          (click)="stopDrag($event)" (blur)="commitRename($event)" (keydown.enter)="commitRename($event)"
+          (keydown.escape)="renaming.set(false)" />
+      } @else {
+        <strong>{{ b.process.name }}</strong>
+      }
+      <span>Process · {{ actionCount() }} {{ actionCount() === 1 ? 'action' : 'actions' }}</span>
+    </div>
+    <span class="pc-status" [attr.data-status]="b.status">{{ statusLabel() }}</span>
+    <button type="button" class="pc-icon-btn" (pointerdown)="stopDrag($event)" (click)="toggleCollapsed.emit(); $event.stopPropagation()"
+      [attr.aria-label]="b.collapsed ? 'Expand ' + b.process.name : 'Collapse ' + b.process.name">
+      <ion-icon [name]="b.collapsed ? 'chevron-down-outline' : 'chevron-up-outline'"></ion-icon>
+    </button>
+    <div class="pc-menu-host">
+      <button type="button" class="pc-icon-btn" (pointerdown)="stopDrag($event)" (click)="toggleMenu('process', $event)"
+        [attr.aria-label]="'Actions for ' + b.process.name">
+        <ion-icon name="ellipsis-horizontal"></ion-icon>
+      </button>
+      @if (isMenu('process')) {
+        <div class="pc-menu" (pointerdown)="stopDrag($event)">
+          <button type="button" (click)="startRename($event)"><ion-icon name="create-outline"></ion-icon>Rename</button>
+          <button type="button" (click)="duplicateProcess.emit(); closeMenu(); $event.stopPropagation()">
+            <ion-icon name="copy-outline"></ion-icon>Duplicate
+          </button>
+          <button type="button" class="pc-menu--danger" (click)="deleteProcess.emit(); closeMenu(); $event.stopPropagation()">
+            <ion-icon name="trash-outline"></ion-icon>Delete
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (b.collapsed) {
+    <!-- Plegada: iconos de sus pasos y a dónde salen. -->
+    @if (b.stepCount > 0) {
+      <div class="pc-mini" [style.top.px]="pad + headerHeight + 8" [style.left.px]="pad">
+        @for (icon of collapsedIcons(); track $index) {
+          <span class="pc-mini-icon"><ion-icon [name]="icon"></ion-icon></span>
+        }
+        @if (b.stepCount > 6) {
+          <span class="pc-mini-more">+{{ b.stepCount - 6 }}</span>
+        }
+      </div>
+    }
+    @for (exit of b.exits; track exit.id) {
+      <span class="pc-port pc-port--out" [class.pc-port--on]="exit.connectionId" [style.top.px]="exit.y" aria-hidden="true"></span>
+      @if (exit.label) {
+        <span class="pc-mini-exit" [style.top.px]="exit.y - 8">{{ exit.label }}</span>
+      }
+    }
+  } @else {
+    @if (b.startsWithTrigger) {
+      <span class="pc-kicker" [style.top.px]="pad + headerHeight + 8 + 4" [style.left.px]="pad + 2">STARTS WHEN</span>
+    }
+
+    <!-- Pasos -->
+    @for (slot of b.steps; track slot.step.id) {
+      @let run = runState(slot);
+      <div class="pc-step" [ngClass]="[tone(slot), run ? 'pc-step--run-' + run.status : '']"
+        [class.pc-step--selected]="selectedStepId() === slot.step.id" [class.pc-step--missing]="slot.missing.length > 0"
+        [style.top.px]="slot.y" [style.left.px]="pad" [style.width.px]="innerWidth()" [style.height.px]="slot.height"
+        role="button" tabindex="0" (pointerdown)="stopDrag($event)" (click)="selectStep.emit(slot.step.id); $event.stopPropagation()"
+        (keydown.enter)="selectStep.emit(slot.step.id)" [attr.aria-label]="slot.step.title + ', ' + typeOf(slot).label">
+        <div class="pc-step-row">
+          <span class="pc-step-icon"><ion-icon [name]="typeOf(slot).icon"></ion-icon></span>
+          <div class="pc-step-text">
+            <strong>{{ slot.step.title }}</strong>
+            <span>{{ slot.step.subtitle || typeOf(slot).label }}</span>
+          </div>
+          @if (run && (run.status === 'done' || run.status === 'running')) {
+            <span class="pc-run" [title]="run.warning ? 'Ran with missing inputs' : 'Estimated duration'">
+              {{ run.status === 'running' ? 'running…' : run.durationLabel }}
+            </span>
+          } @else if (slot.missing.length > 0) {
+            <span class="pc-warn" [title]="'Missing input: ' + missingLabel(slot)"><ion-icon name="alert-circle"></ion-icon></span>
+          } @else {
+            <span class="pc-ok" title="Ready"><ion-icon name="checkmark-circle"></ion-icon></span>
+          }
+          <div class="pc-menu-host">
+            <button type="button" class="pc-icon-btn pc-icon-btn--sm" (pointerdown)="stopDrag($event)"
+              (click)="toggleMenu('step:' + slot.step.id, $event)" [attr.aria-label]="'Actions for ' + slot.step.title">
+              <ion-icon name="ellipsis-vertical"></ion-icon>
+            </button>
+            @if (isMenu('step:' + slot.step.id)) {
+              <div class="pc-menu" (pointerdown)="stopDrag($event)">
+                @if (slot.index > 0) {
+                  <button type="button" (click)="moveStep.emit({ id: slot.step.id, delta: -1 }); closeMenu(); $event.stopPropagation()">
+                    <ion-icon name="arrow-up-outline"></ion-icon>Move up
+                  </button>
+                }
+                @if (slot.index < b.steps.length - 1) {
+                  <button type="button" (click)="moveStep.emit({ id: slot.step.id, delta: 1 }); closeMenu(); $event.stopPropagation()">
+                    <ion-icon name="arrow-down-outline"></ion-icon>Move down
+                  </button>
+                }
+                <button type="button" (click)="duplicateStep.emit(slot.step.id); closeMenu(); $event.stopPropagation()">
+                  <ion-icon name="copy-outline"></ion-icon>Duplicate
+                </button>
+                <button type="button" class="pc-menu--danger" (click)="deleteStep.emit(slot.step.id); closeMenu(); $event.stopPropagation()">
+                  <ion-icon name="trash-outline"></ion-icon>Delete
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+        @if (slot.showOutputs) {
+          <div class="pc-step-sends" aria-label="Sends">
+            <span class="pc-sends-label">Sends</span>
+            @for (field of slot.outputs; track field.key) {
+              <span class="pc-chip">{{ field.label }}</span>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- `+` entre pasos -->
+    @for (join of b.joins; track join.index) {
+      <span class="pc-join-line" [style.top.px]="join.y - 17" [style.left.px]="b.width / 2 - 1"></span>
+      <button type="button" class="pc-join" [class.pc-join--pending]="pendingIndex() === join.index"
+        [style.top.px]="join.y - 10" [style.left.px]="b.width / 2 - 10" (pointerdown)="stopDrag($event)"
+        (click)="emitInsert(join.index, $event)" aria-label="Insert a step here">
+        <ion-icon name="add-outline"></ion-icon>
+      </button>
+    }
+
+    <!-- Añadir al final -->
+    @if (b.addY !== null) {
+      <button type="button" class="pc-add" [class.pc-add--pending]="pendingIndex() === null"
+        [style.top.px]="b.addY" [style.left.px]="pad" [style.width.px]="innerWidth()" [style.height.px]="addHeight"
+        (pointerdown)="stopDrag($event)" (click)="emitInsert(null, $event)">
+        <ion-icon name="add-outline"></ion-icon>Add action
+      </button>
+    }
+
+    <!-- Salidas: a dónde sigue el flujo cuando este proceso termina. -->
+    @for (exit of b.exits; track exit.id) {
+      <div class="pc-exit" [style.top.px]="exit.y - exitHeight / 2" [style.left.px]="pad" [style.width.px]="innerWidth()"
+        [style.height.px]="exitHeight">
+        @if (exit.label) {
+          <span class="pc-exit-label" [attr.data-port]="exit.port">{{ exit.label }}</span>
+        } @else {
+          <span class="pc-exit-label pc-exit-label--next">Then</span>
+        }
+        <div class="pc-menu-host pc-exit-host">
+          <button type="button" class="pc-exit-pill" [class.pc-exit-pill--on]="exit.connectionId"
+            (pointerdown)="stopDrag($event)" (click)="toggleMenu('exit:' + exit.id, $event)"
+            [attr.aria-label]="'Exit ' + (exit.label ?? 'next') + (exit.targetName ? ': go to ' + exit.targetName : ': not connected')">
+            <ion-icon [name]="exit.connectionId ? 'arrow-forward-outline' : 'add-outline'"></ion-icon>
+            {{ exit.targetName ? 'Go to ' + exit.targetName : 'Connect exit' }}
+          </button>
+          @if (isMenu('exit:' + exit.id)) {
+            <div class="pc-menu pc-menu--up" (pointerdown)="stopDrag($event)">
+              @for (target of targets(); track target.id) {
+                <button type="button" [disabled]="target.disabled" (click)="pick(exit, target, $event)">
+                  <ion-icon name="layers-outline"></ion-icon>{{ target.name }}
+                </button>
+              } @empty {
+                <span class="pc-menu-empty">Add another process first</span>
+              }
+              @if (exit.connectionId) {
+                <button type="button" class="pc-menu--danger" (click)="disconnect(exit, $event)">
+                  <ion-icon name="close-outline"></ion-icon>Disconnect
+                </button>
+              }
+            </div>
+          }
+        </div>
+        <span class="pc-port pc-port--out" [class.pc-port--on]="exit.connectionId" [style.right.px]="-pad - 5" aria-hidden="true"></span>
+      </div>
+    }
+  }
+</div>

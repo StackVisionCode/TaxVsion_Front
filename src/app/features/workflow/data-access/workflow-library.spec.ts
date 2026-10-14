@@ -8,6 +8,7 @@ function doc(over: Partial<WorkflowDoc> = {}): WorkflowDoc {
     id: 'wf-1',
     name: 'Onboarding',
     steps: [{ id: 's1', typeId: 'schedule', title: 'r', subtitle: '', config: {} }],
+    processes: [],
     connections: [],
     annotations: [],
     collaborators: [],
