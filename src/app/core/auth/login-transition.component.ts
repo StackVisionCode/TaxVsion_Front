@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, inject, signal } from '@angular/core';
-import { TenantBrandingService } from '@core/theme/tenant-branding.service';
+import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, inject } from '@angular/core';
 import { LoginTransitionService } from './login-transition.service';
 
 /**
@@ -35,7 +34,7 @@ const CHIP_START: readonly [number, number][] = [
  * `LoginTransitionService`; la escena es decorativa (`aria-hidden`) y el caption es lo que se anuncia.
  *
  * Escena: sobre fondo crema, el infinito de Taxoffix se dibuja con la luz azul del loader; los
- * módulos llegan flotando desde los lados y se funden en él, con la marca del tenant al centro y una
+ * módulos llegan flotando desde los lados y se funden en él, y una
  * barra de progreso indeterminada. Solo se animan opacity/transform (ver el .css).
  */
 @Component({
@@ -47,14 +46,6 @@ const CHIP_START: readonly [number, number][] = [
 })
 export class LoginTransitionComponent {
   protected readonly transition = inject(LoginTransitionService);
-  private readonly branding = inject(TenantBrandingService);
-
-  /**
-   * Logo ya aplicado por la página de login (`applyForSurface`); null → asterisco de marca. Se lee
-   * directo y no vía BrandLogoComponent, que vuelve a pedir el branding en cada constructor.
-   */
-  protected readonly logoUrl = this.branding.logoUrl;
-  protected readonly logoFailed = signal(false);
 
   protected readonly chips = LOGIN_TRANSITION_ICONS.map((icon, i) => ({
     icon,

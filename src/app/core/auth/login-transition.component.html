@@ -21,13 +21,6 @@
         <path class="flow-head" [attr.d]="path" pathLength="100" />
       </svg>
 
-      <div class="brand-tile">
-        @if (logoUrl() && !logoFailed()) {
-          <img [src]="logoUrl()" alt="" class="h-6 max-w-[2.5rem] object-contain" (error)="logoFailed.set(true)" />
-        } @else {
-          <span class="select-none text-2xl font-bold leading-none text-[#083645]">*</span>
-        }
-      </div>
     </div>
 
     <p class="caption mt-6 text-sm font-semibold text-[#083645]">{{ transition.caption() }}</p>
