@@ -87,6 +87,8 @@ const SEARCH_DEBOUNCE_MS = 300;
     StatusPillComponent,
   ],
   templateUrl: './sms-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
 })
 export class SmsPageComponent implements OnInit {
   readonly store = inject(SmsStore);

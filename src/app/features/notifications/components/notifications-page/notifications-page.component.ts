@@ -35,6 +35,8 @@ type NotificationFilter = 'all' | 'unread';
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './notifications-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
 })
 export class NotificationsPageComponent implements OnInit {
   private readonly store = inject(NotificationsStore);

@@ -172,7 +172,16 @@ export class LoginPageComponent {
   onSubmit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.formError.set('Please complete all fields correctly.');
+      const { email, password } = this.form.controls;
+      this.formError.set(
+        email.invalid
+          ? email.hasError('required')
+            ? 'Enter your email.'
+            : 'Enter a valid email address (for example name@office.com).'
+          : password.hasError('required')
+            ? 'Enter your password.'
+            : 'Please complete all fields correctly.',
+      );
       return;
     }
 
@@ -183,7 +192,8 @@ export class LoginPageComponent {
     // 'verifying' = spinner en el botón mientras el backend responde.
     this.phase.set('verifying');
 
-    const { email, password } = this.form.getRawValue();
+    const { email: rawEmail, password } = this.form.getRawValue();
+    const email = String(rawEmail).trim();
     this.auth
       .login({
         tenantId: environment.tenantId,
