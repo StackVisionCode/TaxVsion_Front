@@ -10,7 +10,7 @@
     <p class="mt-1 text-sm text-gray-500">Your personal signatures, stamped on documents you prepare.</p>
   </div>
 
-  <section class="rounded-[1.75rem] bg-white p-6">
+  <section class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
     @if (canManageOwn()) {
       <app-signature-profile-list scope="user"></app-signature-profile-list>
     } @else {

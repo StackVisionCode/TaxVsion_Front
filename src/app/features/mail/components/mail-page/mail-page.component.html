@@ -8,7 +8,7 @@
 
 <!-- 2) El bootstrap falló: nada de bandeja inventada, sólo el error real + reintento -->
 <div *ngIf="!store.bootLoading() && store.bootError() as bootErr" class="flex-1 min-h-0 pt-3 pb-1 flex items-center justify-center">
-  <div class="w-full max-w-md rounded-[1.75rem] bg-white p-8 text-center">
+  <div class="w-full max-w-md rounded-[1.5rem] bg-white p-8 text-center border border-gray-100 shadow-sm">
     <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
       <ion-icon name="alert-circle-outline" class="text-2xl text-red-500"></ion-icon>
     </span>
@@ -25,7 +25,7 @@
      Embebido en el perfil nunca se muestra (evita redirecciones OAuth desde el perfil). -->
 <div *ngIf="!embedded() && !store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager())"
   class="flex-1 min-h-0 pt-3 pb-1 flex items-start justify-center overflow-y-auto">
-  <div class="w-full max-w-xl rounded-[1.75rem] bg-white p-8">
+  <div class="w-full max-w-xl rounded-[1.5rem] bg-white p-8 border border-gray-100 shadow-sm">
 
     <!-- Volver a la bandeja (solo en modo gestión, cuando ya hay un buzón usable) -->
     <div *ngIf="showMailboxManager() && store.hasMailbox()" class="mb-4">
@@ -279,7 +279,7 @@
 
   <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
     <!-- Folders rail -->
-    <div class="bg-white rounded-[1.75rem] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto">
+    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto border border-gray-100 shadow-sm">
       <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
       <p class="mt-1 truncate text-sm text-gray-500 px-1">{{ store.activeAccount()?.emailAddress || 'Your inbox' }}</p>
       <button *ngIf="!embedded()" type="button" (click)="toggleMailboxManager()"
@@ -347,7 +347,7 @@
     </div>
 
     <!-- Message list -->
-    <div class="bg-white rounded-[1.75rem] p-5 lg:col-span-4 flex flex-col min-h-0">
+    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-4 flex flex-col min-h-0 border border-gray-100 shadow-sm">
       <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
         [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
         [showTrashActions]="store.activeFolderId() === 'trash'"
@@ -358,7 +358,7 @@
     </div>
 
     <!-- Reading pane / compose editor -->
-    <div class="bg-white rounded-[1.75rem] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)]">
+    <div class="bg-white rounded-[1.5rem] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)] border border-gray-100 shadow-sm">
       <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
         [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
         [customerName]="selectedCustomerName()" [recipientSuggestions]="store.recipientResults()"

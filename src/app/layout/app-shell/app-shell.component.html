@@ -2,7 +2,7 @@
      (evita el re-pintado del gradiente en cada frame que causaba lag). -->
 <div class="fixed inset-0 -z-10 bg-gradient-to-br from-brand-canvas via-brand-canvas to-brand-canvas-deep" aria-hidden="true"></div>
 
-<div class="min-h-screen flex gap-4 p-4">
+<div class="min-h-screen flex gap-4 overflow-x-clip p-4">
   <!-- Floating sidebar card (reaches the top, rounded) -->
   <app-sidebar (sidebarStateChange)="onSidebarStateChange($event)"></app-sidebar>
 

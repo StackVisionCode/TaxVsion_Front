@@ -1,6 +1,6 @@
 <div *ngIf="draftIssuer() as form" class="flex flex-col gap-6">
   <!-- Emisor -->
-  <div class="rounded-[1.75rem] bg-white p-6">
+  <div class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
     <h2 class="text-xl font-bold text-gray-900">Office details</h2>
     <p class="mt-1 text-sm text-gray-500">
       These are stamped on every invoice you issue. Only the office name is required.
@@ -86,7 +86,7 @@
   </div>
 
   <!-- Marca del PDF -->
-  <div *ngIf="draftBranding() as brand" class="rounded-[1.75rem] bg-white p-6">
+  <div *ngIf="draftBranding() as brand" class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
     <h2 class="text-xl font-bold text-gray-900">Invoice branding</h2>
     <p class="mt-1 text-sm text-gray-500">Applied to the PDF of the invoices you issue from now on.</p>
 

@@ -25,7 +25,7 @@
     <form [formGroup]="form" class="mt-6 space-y-3.5" (ngSubmit)="onSubmit()" (input)="onTyping()">
       <div>
         <label for="email" class="sr-only">Email</label>
-        <input type="email" id="email" formControlName="email" autocomplete="username" placeholder="Email"
+        <input type="email" id="email" formControlName="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="Email"
           class="block h-12 w-full rounded-xl border border-[#E4DCCF] bg-white px-4 text-sm text-[#083645] placeholder-[#3E5F6B]/70 transition-colors focus:border-[#083645] focus:outline-none" />
       </div>
 
