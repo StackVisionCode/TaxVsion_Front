@@ -1,12 +1,12 @@
 <!-- Fuera de la sala (uniéndose, espera, passcode, fin) es una tarjeta blanca; dentro, un escenario
      oscuro del alto de la pantalla para que los participantes tengan todo el espacio. -->
-<div class="relative flex flex-col rounded-[28px]" aria-live="polite"
+<div class="relative flex flex-col rounded-[1.75rem]" aria-live="polite"
   [ngClass]="phase() === 'joined'
     ? 'h-[calc(100dvh-3rem)] min-h-[30rem] bg-brand-black p-3 text-white sm:p-4'
     : 'min-h-[32rem] bg-white p-6'">
   <!-- Joining -->
   <div *ngIf="phase() === 'joining'" class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-    <ion-icon name="reload-outline" class="animate-spin text-3xl text-brand-bold motion-reduce:animate-none"></ion-icon>
+    <app-infinity-loader size="md" />
     <p class="text-sm font-medium text-gray-600">Joining meeting…</p>
   </div>
 
@@ -97,7 +97,7 @@
           <span *ngIf="isLocked()" class="ml-1 inline-flex items-center gap-1 text-gray-300">
             <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> Locked
           </span>
-          <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+          <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums">
             <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
           </span>
         </p>
@@ -183,8 +183,8 @@
             <div *ngIf="!videoEnabled() || !localStream()" class="absolute inset-0 flex items-center justify-center bg-gray-800">
               <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-bold text-sm font-bold text-white">You</span>
             </div>
-            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-              You <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-[10px]"></ion-icon>
+            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[0.625rem] font-medium text-white backdrop-blur-sm">
+              You <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-[0.625rem]"></ion-icon>
             </div>
           </div>
           <div *ngFor="let p of remoteParticipants()" class="relative aspect-video w-40 shrink-0 overflow-hidden rounded-xl bg-gray-900">
@@ -193,8 +193,8 @@
             <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center">
               <app-avatar [name]="p.displayName" [seed]="p.userId" size="md" />
             </div>
-            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-              {{ p.displayName }} <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-[10px]"></ion-icon>
+            <div class="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[0.625rem] font-medium text-white backdrop-blur-sm">
+              {{ p.displayName }} <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-[0.625rem]"></ion-icon>
             </div>
           </div>
         </div>
@@ -210,7 +210,7 @@
             <div *ngIf="!videoEnabled() || !localStream()" class="absolute inset-0 flex items-center justify-center bg-gray-800">
               <span class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-bold text-lg font-bold text-white">You</span>
             </div>
-            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[0.6875rem] font-medium text-white backdrop-blur-sm">
               You
               <ion-icon *ngIf="!audioEnabled()" name="mic-off-outline" class="text-xs"></ion-icon>
             </div>
@@ -232,12 +232,12 @@
             <div *ngIf="!p.videoEnabled || !cameraStreamFor(p.userId)" class="absolute inset-0 flex items-center justify-center rounded-2xl">
               <app-avatar [name]="p.displayName" [seed]="p.userId" size="xl" />
             </div>
-            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[0.6875rem] font-medium text-white backdrop-blur-sm">
               {{ p.displayName }}
               <ion-icon *ngIf="!p.audioEnabled" name="mic-off-outline" class="text-xs"></ion-icon>
               <span *ngIf="p.handRaised" title="Hand raised" aria-label="Hand raised">✋</span>
             </div>
-            <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
+            <span *ngIf="roleLabel(p)" class="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[0.625rem] font-semibold text-brand-bold shadow-sm">{{ roleLabel(p) }}</span>
 
             <!-- Menú de host por participante (swallow del click para que no dispare el spotlight del tile) -->
             <div *ngIf="isHost()" (click)="$event.stopPropagation()" class="absolute right-2 top-2">
@@ -310,7 +310,7 @@
         [ngClass]="chatOpen() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
         <ion-icon name="chatbubble-ellipses-outline" class="text-xl"></ion-icon>
         <span *ngIf="chatUnread() > 0"
-          class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] ring-2 ring-black/60 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] ring-2 ring-black/60 items-center justify-center rounded-full bg-red-500 px-1 text-[0.625rem] font-bold text-white">
           {{ chatUnread() }}
         </span>
       </button>
@@ -325,7 +325,7 @@
 
     <!-- Chat del meeting: columna junto al escenario (sm+); en móvil cubre la sala. -->
     <aside *ngIf="chatOpen()" aria-label="Meeting chat"
-      class="absolute inset-0 z-20 flex flex-col overflow-hidden rounded-[28px] bg-white text-gray-900 sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:rounded-2xl lg:w-[22rem]">
+      class="absolute inset-0 z-20 flex flex-col overflow-hidden rounded-[1.75rem] bg-white text-gray-900 sm:static sm:inset-auto sm:z-auto sm:w-80 sm:shrink-0 sm:rounded-2xl lg:w-[22rem]">
       <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <h3 class="text-sm font-bold text-gray-900">Meeting chat</h3>
         <button type="button" (click)="toggleChat()" aria-label="Close chat"
@@ -337,12 +337,12 @@
       <div class="flex-1 overflow-y-auto px-4 py-3">
         <div class="flex flex-col gap-3">
           <div *ngFor="let m of chatMessages()" class="flex flex-col" [class.items-end]="m.isMine">
-            <span *ngIf="!m.isMine" class="mb-0.5 text-[11px] font-medium text-gray-400">{{ m.senderName }}</span>
+            <span *ngIf="!m.isMine" class="mb-0.5 text-[0.6875rem] font-medium text-gray-400">{{ m.senderName }}</span>
             <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
               [ngClass]="m.isMine ? 'rounded-br-md bg-brand-bold text-white' : 'rounded-bl-md border border-gray-100 bg-gray-50 text-gray-700'">
               <span class="whitespace-pre-line break-words">{{ m.text }}</span>
             </div>
-            <span class="mt-0.5 text-[10px] text-gray-400">{{ m.time }}</span>
+            <span class="mt-0.5 text-[0.625rem] text-gray-400">{{ m.time }}</span>
           </div>
         </div>
         <p *ngIf="chatMessages().length === 0" class="py-10 text-center text-xs text-gray-400">
@@ -363,7 +363,7 @@
     </div>
 
     <!-- Modal de consentimiento de grabación (lo ve quien NO pidió grabar) -->
-    <div *ngIf="recordingConsentFrom()" class="absolute inset-0 z-30 flex items-center justify-center rounded-[28px] bg-black/40 p-4"
+    <div *ngIf="recordingConsentFrom()" class="absolute inset-0 z-30 flex items-center justify-center rounded-[1.75rem] bg-black/40 p-4"
       role="dialog" aria-modal="true" aria-label="Recording consent">
       <div class="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
         <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500">

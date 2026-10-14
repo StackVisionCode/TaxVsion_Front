@@ -71,7 +71,7 @@
             @if (task.assigneeUserId) {
               <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" size="xs" />
             } @else {
-              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
             }
             <span class="text-sm text-gray-800">{{ task.assigneeName }}</span>
           </div>
@@ -249,7 +249,7 @@
             <button type="button" [disabled]="uploadingAttachment()"
               class="w-full flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
               @if (uploadingAttachment()) {
-                <div class="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div>
+                <app-infinity-loader size="xs" />
                 <span>Uploading…</span>
               } @else {
                 <ion-icon name="cloud-upload-outline" class="text-base"></ion-icon>
@@ -274,7 +274,7 @@
             class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
             [ngClass]="myRunningTimer() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-brand-bold text-white hover:bg-brand-ink'">
             @if (timerBusy()) {
-              <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div>
+              <app-infinity-loader size="xs" tone="light" />
             } @else {
               <ion-icon [name]="myRunningTimer() ? 'stop-outline' : 'play-outline'" class="text-base"></ion-icon>
             }

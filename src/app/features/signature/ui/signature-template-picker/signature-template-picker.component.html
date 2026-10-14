@@ -67,21 +67,21 @@
           </span>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-semibold text-gray-900">{{ document.title }}</p>
-            <p class="text-[11px] text-gray-400">Choose whether to keep or replace this document.</p>
+            <p class="text-[0.6875rem] text-gray-400">Choose whether to keep or replace this document.</p>
           </div>
           <div class="inline-flex rounded-full border border-gray-200 p-0.5">
             <button type="button" (click)="setDocSource(document.templateDocumentId, 'template')" [disabled]="busy()"
-              class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
+              class="rounded-full px-3 py-1 text-[0.6875rem] font-medium transition-colors"
               [ngClass]="document.source === 'template' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
               Template
             </button>
             <button type="button" (click)="setDocSource(document.templateDocumentId, 'upload')" [disabled]="busy()"
-              class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
+              class="rounded-full px-3 py-1 text-[0.6875rem] font-medium transition-colors"
               [ngClass]="document.source === 'upload' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
               Upload
             </button>
             <button type="button" (click)="setDocSource(document.templateDocumentId, 'library')" [disabled]="busy()"
-              class="rounded-full px-3 py-1 text-[11px] font-medium transition-colors"
+              class="rounded-full px-3 py-1 text-[0.6875rem] font-medium transition-colors"
               [ngClass]="document.source === 'library' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
               Office library
             </button>
@@ -89,7 +89,7 @@
         </div>
 
         <div *ngIf="document.source === 'template'"
-          class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
+          class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[0.6875rem] text-emerald-700">
           <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
           The template's saved PDF will be used.
         </div>
@@ -119,29 +119,29 @@
     <div class="tpl-card mt-4 relative z-20">
       <div class="mb-2 flex items-center justify-between">
         <p class="text-xs font-medium text-gray-500">Signers</p>
-        <span class="text-[11px] text-gray-400">{{ slots().length }} role(s) · each one picks client or manual</span>
+        <span class="text-[0.6875rem] text-gray-400">{{ slots().length }} role(s) · each one picks client or manual</span>
       </div>
       <div *ngFor="let slot of slots(); let i = index"
         class="mt-2 rounded-2xl border px-3 py-3 transition-colors"
         [ngClass]="slotReady(slot) ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 bg-white'">
         <!-- Encabezado del slot: índice + rol + status + toggle de fuente -->
         <div class="flex flex-wrap items-center gap-2">
-          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
+          <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-semibold"
             [ngClass]="slotReady(slot) ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600'">
             {{ i + 1 }}
           </span>
           <span class="text-sm font-medium text-gray-700">{{ slot.role }}</span>
-          <span *ngIf="slotReady(slot)" class="truncate text-[11px] text-emerald-700">
+          <span *ngIf="slotReady(slot)" class="truncate text-[0.6875rem] text-emerald-700">
             · {{ slotSummaryName(slot) }}
           </span>
           <span class="ml-auto inline-flex rounded-full border border-gray-200 p-0.5">
             <button type="button" (click)="setSlotSource(slot.slotOrder, 'client')" [disabled]="busy()"
-              class="rounded-full px-3 py-0.5 text-[11px] font-medium transition-colors"
+              class="rounded-full px-3 py-0.5 text-[0.6875rem] font-medium transition-colors"
               [ngClass]="slot.source === 'client' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
               From clients
             </button>
             <button type="button" (click)="setSlotSource(slot.slotOrder, 'manual')" [disabled]="busy()"
-              class="rounded-full px-3 py-0.5 text-[11px] font-medium transition-colors"
+              class="rounded-full px-3 py-0.5 text-[0.6875rem] font-medium transition-colors"
               [ngClass]="slot.source === 'manual' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
               Manual
             </button>
@@ -152,11 +152,11 @@
         <div *ngIf="slot.source === 'client'" class="mt-2">
           <app-customer-picker variant="inline" placeholder="Search clients by name or email" [disabled]="busy()"
             (selectedChange)="pickClient(slot.slotOrder, $event)" />
-          <p *ngIf="!slotReady(slot)" class="mt-1 text-[11px] text-gray-400">
+          <p *ngIf="!slotReady(slot)" class="mt-1 text-[0.6875rem] text-gray-400">
             Pick a client — name, email{{ slotNeedsPhone(slot) ? ' and phone' : '' }} will fill in.
           </p>
-          <p *ngIf="slotReady(slot)" class="mt-1 flex items-center gap-1 text-[11px] text-emerald-700">
-            <ion-icon name="checkmark-circle-outline" class="text-[13px]"></ion-icon>
+          <p *ngIf="slotReady(slot)" class="mt-1 flex items-center gap-1 text-[0.6875rem] text-emerald-700">
+            <ion-icon name="checkmark-circle-outline" class="text-[0.8125rem]"></ion-icon>
             {{ slot.fullName }} · {{ slot.email }}
           </p>
         </div>
@@ -179,8 +179,8 @@
               [name]="'phone' + slot.slotOrder" placeholder="+1 786 555 0123" [disabled]="busy()"
               class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
           </div>
-          <p class="mt-1 flex items-center gap-1 text-[11px] text-brand-bold">
-            <ion-icon name="shield-checkmark-outline" class="text-[11px]"></ion-icon>
+          <p class="mt-1 flex items-center gap-1 text-[0.6875rem] text-brand-bold">
+            <ion-icon name="shield-checkmark-outline" class="text-[0.6875rem]"></ion-icon>
             Verifies by {{ slotChannelLabel(slot) }} code — a phone is required.
           </p>
         </div>
@@ -191,30 +191,30 @@
          z menor que el card de signers para que su dropdown de clientes quede por encima. -->
     <div class="tpl-card mt-4 relative z-0 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3">
       <p class="mb-1.5 text-xs font-medium text-gray-500">Inherited from the template</p>
-      <ul class="space-y-0.5 text-[11px] text-gray-600">
+      <ul class="space-y-0.5 text-[0.6875rem] text-gray-600">
         <li>
-          <ion-icon name="time-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="time-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           {{ template.expirationEnabled ? 'Link valid for ' + template.defaultTokenExpirationHours + 'h' : 'Link never expires' }}
         </li>
         <li *ngIf="template.sendPartialCopyOnEachSignature">
-          <ion-icon name="mail-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="mail-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           Partial copy per signature ·
           {{ template.partialCopyAudienceKind === 'All' ? 'all roles' : template.partialCopyAudienceSlotOrders.length + ' role(s)' }}
         </li>
         <li *ngIf="template.sendSealedDocumentToSigners">
-          <ion-icon name="shield-checkmark-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="shield-checkmark-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           Final sealed PDF emailed to signers on completion
         </li>
         <li *ngIf="template.sendCertificateToSigners">
-          <ion-icon name="ribbon-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="ribbon-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           Signing certificate emailed to signers
         </li>
         <li *ngIf="template.autoRemindersEnabled && template.expirationEnabled">
-          <ion-icon name="alarm-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="alarm-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           Auto-reminders every {{ (template.reminderIntervalHours / 24) | number: '1.0-0' }} day(s)
         </li>
         <li *ngIf="template.requiresPractitionerPin">
-          <ion-icon name="lock-closed-outline" class="mr-1 align-middle text-[12px] text-gray-400"></ion-icon>
+          <ion-icon name="lock-closed-outline" class="mr-1 align-middle text-[0.75rem] text-gray-400"></ion-icon>
           Preparer PIN inherited (Form 8879)
         </li>
       </ul>
@@ -241,7 +241,7 @@
     </button>
     <button *ngIf="selected()" type="button" (click)="create()" [disabled]="!canCreate() || busy()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-      <span *ngIf="busy()" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+      <app-infinity-loader size="xs" tone="light" />
       {{ busy() ? phaseLabel() : 'Create & send' }}
     </button>
   </div>

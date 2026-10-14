@@ -21,10 +21,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * login lee para pegarle al subdominio correcto.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-find-office-page',
-  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './find-office-page.component.html',
   styleUrl: './find-office-page.component.css',

@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
@@ -46,7 +47,7 @@ import {
     StateBlockComponent,
     DropdownMenuComponent,
     MenuItemDirective,
-    FileViewerComponent,
+    FileViewerComponent, InfinityLoaderComponent
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-notes.component.html',

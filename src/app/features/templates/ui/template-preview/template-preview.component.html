@@ -1,4 +1,4 @@
-<div class="bg-white rounded-[28px] p-6" *ngIf="template as tpl">
+<div class="bg-white rounded-[1.75rem] p-6" *ngIf="template as tpl">
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div>
       <button type="button" (click)="goBack()"
@@ -57,7 +57,7 @@
     <app-state-block class="block" variant="inline" [loading]="bodyLoading" [error]="bodyError"
       loadingText="Loading content…" (retry)="retry(tpl)">
       <pre *ngIf="body"
-        class="mt-2 max-h-[420px] overflow-auto whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-gray-700">{{ body }}</pre>
+        class="mt-2 max-h-[26.25rem] overflow-auto whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-gray-700">{{ body }}</pre>
       <p *ngIf="!body" class="mt-2 text-sm text-gray-400">
         This template has no published content yet.
       </p>

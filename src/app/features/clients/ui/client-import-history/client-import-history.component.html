@@ -6,7 +6,11 @@
     </div>
     <button type="button" (click)="pageChange.emit(page)" [disabled]="loading"
       class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60">
-      <ion-icon name="refresh-outline" class="text-base" [class.animate-spin]="loading"></ion-icon>
+      @if (loading) {
+        <app-infinity-loader size="xs" />
+      } @else {
+        <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+      }
       Refresh
     </button>
   </div>
@@ -18,7 +22,7 @@
       : 'Once you upload a client list, every run shows up here with its result.'"
     (retry)="retryRequested.emit()">
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+      <table class="w-full min-w-[53.75rem] border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
             <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">File</th>

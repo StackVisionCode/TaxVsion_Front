@@ -94,13 +94,13 @@
         @if (cFreq() !== 'custom') {
           <div class="flex flex-wrap items-end gap-3">
             <div>
-              <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Day of month</label>
+              <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Day of month</label>
               <input type="number" min="1" max="31" [ngModel]="cDay()" (ngModelChange)="cDay.set(+$event)"
                 class="h-10 w-24 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
             </div>
             @if (cFreq() === 'yearly') {
               <div>
-                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Month</label>
+                <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Month</label>
                 <select [ngModel]="cMonth()" (ngModelChange)="cMonth.set(+$event)"
                   class="h-10 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
                   @for (m of months; track m.v) { <option [ngValue]="m.v">{{ m.n }}</option> }
@@ -110,7 +110,7 @@
           </div>
         } @else {
           <div>
-            <label class="mb-0.5 block text-[10px] uppercase text-gray-400">RRULE (RFC 5545)</label>
+            <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">RRULE (RFC 5545)</label>
             <input type="text" [ngModel]="cCustomRule()" (ngModelChange)="cCustomRule.set($event)"
               placeholder="FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=31"
               class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
@@ -119,7 +119,7 @@
 
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex-1">
-            <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Mode</label>
+            <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Mode</label>
             <select [ngModel]="cMode()" (ngModelChange)="cMode.set($event)"
               class="h-10 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
               <option value="FixedSchedule">Fixed schedule</option>
@@ -143,7 +143,7 @@
           class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
         <button type="button" (click)="create()" [disabled]="!canCreate()"
           class="inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
-          @if (cSaving()) { <div class="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin"></div> }
+          @if (cSaving()) { <app-infinity-loader size="xs" tone="light" /> }
           <span>Create series</span>
         </button>
       </div>

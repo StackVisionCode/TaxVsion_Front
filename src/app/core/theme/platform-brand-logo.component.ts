@@ -43,7 +43,7 @@ export class PlatformBrandLogoComponent {
   readonly branding = inject(TenantBrandingService);
   readonly failed = signal(false);
 
-  readonly logoClass = input('h-9 max-w-[170px] object-contain');
+  readonly logoClass = input('h-9 max-w-[10.625rem] object-contain');
   readonly fallbackClass = input('');
 
   constructor() {

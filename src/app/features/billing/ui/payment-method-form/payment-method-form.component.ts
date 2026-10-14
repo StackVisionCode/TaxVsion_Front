@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { PAYMENT_PROVIDERS, PaymentConfig } from '../../data-access/billing.model';
 
@@ -31,7 +32,7 @@ export interface ProviderUrlEdit {
  */
 @Component({
   selector: 'app-payment-method-form',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './payment-method-form.component.html',
 })

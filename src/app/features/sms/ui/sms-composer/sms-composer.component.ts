@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { SMS_BODY_MAX_LENGTH } from '../../data-access/sms.model';
 
@@ -13,7 +14,7 @@ import { SMS_BODY_MAX_LENGTH } from '../../data-access/sms.model';
  */
 @Component({
   selector: 'app-sms-composer',
-  imports: [CommonModule, FormsModule],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './sms-composer.component.html',
 })

@@ -10,6 +10,7 @@ import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /**
  * Aterrizaje del login central en el subdominio de la oficina: canjea el vale (?ticket=) por
@@ -23,7 +24,7 @@ import { platformConfig } from '@core/config/platform-config';
  */
 @Component({
   selector: 'app-auth-continue-page',
-  imports: [CommonModule],
+  imports: [InfinityLoaderComponent, CommonModule],
   templateUrl: './auth-continue-page.component.html',
 })
 export class AuthContinuePageComponent implements OnInit {

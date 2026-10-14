@@ -10,10 +10,10 @@
   (pointerdown)="dragStart.emit($event)" [attr.aria-current]="selected ? 'true' : null">
   <!-- Badge de la simulación: duración al terminar (ámbar si faltan datos). -->
   <span *ngIf="preview && (preview.status === 'done' || preview.status === 'running')"
-    class="wf-run-badge absolute -top-2.5 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm"
+    class="wf-run-badge absolute -top-2.5 right-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.625rem] font-semibold shadow-sm"
     [ngClass]="preview.warning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
     [title]="preview.warning ? 'Ran with missing inputs' : 'Estimated duration'">
-    <ion-icon [name]="preview.warning ? 'alert-circle' : 'time-outline'" class="text-[11px]"></ion-icon>
+    <ion-icon [name]="preview.warning ? 'alert-circle' : 'time-outline'" class="text-[0.6875rem]"></ion-icon>
     {{ preview.status === 'running' ? 'running…' : preview.durationLabel }}
   </span>
 
@@ -29,7 +29,7 @@
     <span class="min-w-0 flex-1 truncate text-sm font-semibold leading-5">{{ type.label }}</span>
 
     <!-- A cuántas cartas está conectada. -->
-    <span class="shrink-0 rounded-full bg-white/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+    <span class="shrink-0 rounded-full bg-white/60 px-1.5 py-0.5 text-[0.625rem] font-medium tabular-nums"
       [title]="'Connected to ' + degreeLabel">{{ degreeLabel }}</span>
 
     <!-- Necesita un dato que nadie aguas arriba produce. -->
@@ -70,7 +70,7 @@
       <p class="truncate text-xs leading-4 text-gray-500">{{ step.subtitle }}</p>
     </div>
     <span *ngIf="step.typeId === 'form-submitted'"
-      class="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-gray-500">
+      class="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[0.625rem] font-semibold tracking-wide text-gray-500">
       DATA
     </span>
   </div>

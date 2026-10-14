@@ -2,18 +2,19 @@
   [class.is-closing]="closing()" (click)="close()">
   <!-- Blur suave del fondo en una capa aparte: un backdrop-filter en el contenedor encerraría los
        `fixed` del panel (mismo problema que un transform, ver R8). -->
-  <div class="pointer-events-none absolute inset-0 backdrop-blur-[3px]" aria-hidden="true"></div>
-  <div #panel class="modal-panel relative max-h-[90vh] w-full overflow-y-auto rounded-[28px] bg-white p-6 shadow-xl"
-    [ngClass]="sizeClass" [class.is-closing]="closing()" (click)="$event.stopPropagation()" role="dialog"
+  <div class="pointer-events-none absolute inset-0 backdrop-blur-[0.1875rem]" aria-hidden="true"></div>
+  <div #panel class="modal-panel relative max-h-[90vh] w-full overflow-y-auto rounded-[1.75rem] p-6 shadow-xl"
+    [ngClass]="[sizeClass, tone === 'cream' ? 'bg-[#F8F4ED]' : 'bg-white']" [class.is-closing]="closing()" (click)="$event.stopPropagation()" role="dialog"
     aria-modal="true" [attr.aria-labelledby]="headingId" tabindex="-1">
     <!-- Header -->
     <div class="flex items-start justify-between">
       <div>
-        <h2 [id]="headingId" class="text-xl font-bold text-gray-900">{{ heading }}</h2>
-        <p *ngIf="subheading" class="mt-1 text-sm text-gray-500">{{ subheading }}</p>
+        <h2 [id]="headingId" [ngClass]="tone === 'cream' ? 'text-[1.75rem] font-semibold tracking-tight text-[#083645]' : 'text-xl font-bold text-gray-900'">{{ heading }}</h2>
+        <p *ngIf="subheading" class="mt-1 text-sm" [ngClass]="tone === 'cream' ? 'text-[#3E5F6B]' : 'text-gray-500'">{{ subheading }}</p>
       </div>
       <button type="button" (click)="close()"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
+        [ngClass]="tone === 'cream' ? 'bg-[#F4EDE4] text-[#083645] hover:bg-[#E4DCCF]' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-900'"
         aria-label="Close panel">
         <ion-icon name="close-outline" class="text-lg"></ion-icon>
       </button>

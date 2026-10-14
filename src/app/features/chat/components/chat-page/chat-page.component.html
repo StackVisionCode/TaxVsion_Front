@@ -5,7 +5,7 @@
 -->
 <div class="flex-1 min-h-0 pt-3 pb-1 grid grid-cols-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-4 gap-4 lg:gap-6">
   <!-- Conversation rail -->
-  <div class="bg-white rounded-[28px] p-4 sm:p-5 lg:col-span-1 flex-col min-h-0"
+  <div class="bg-white rounded-[1.75rem] p-4 sm:p-5 lg:col-span-1 flex-col min-h-0"
     [ngClass]="mobilePane() === 'thread' ? 'hidden lg:flex' : 'flex'">
     <div class="flex items-start justify-between gap-2 px-1">
       <div>
@@ -62,7 +62,7 @@
                 <span class="block truncate text-sm font-medium text-gray-700">{{ entry.displayName }}</span>
                 <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
               </span>
-              <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-500">Portal not activated</span>
+              <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500">Portal not activated</span>
             </div>
           </ng-container>
           <p *ngIf="!employeeSearchLoading() && customerResults().length === 0" class="px-3 py-8 text-center text-sm text-gray-400">
@@ -91,7 +91,7 @@
   </div>
 
   <!-- Thread card: min-h-0 para que respete la fila minmax(0,1fr) y el hilo scrollee por dentro. -->
-  <div class="bg-white rounded-[28px] p-4 sm:p-6 lg:col-span-3 flex-col min-h-0 lg:pt-[var(--shell-notch-height)]"
+  <div class="bg-white rounded-[1.75rem] p-4 sm:p-6 lg:col-span-3 flex-col min-h-0 lg:pt-[var(--shell-notch-height)]"
     [ngClass]="mobilePane() === 'list' ? 'hidden lg:flex' : 'flex'">
     <!-- Empty state: no conversation selected yet -->
     <div *ngIf="!hasActiveConversation()" class="flex-1 min-h-0 flex flex-col items-center justify-center text-center px-6 py-10">
@@ -139,7 +139,7 @@
         <div class="flex min-w-0 items-center gap-2">
           <h2 class="truncate text-base font-bold text-gray-900">{{ activeConversation.name }}</h2>
           <span *ngIf="isActiveSupport"
-            class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
+            class="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
         </div>
         <span class="flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
           <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>

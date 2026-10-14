@@ -8,7 +8,7 @@
 
   <!-- Composer: texto + visibilidad + color (los tres campos que acepta POST /notes) -->
   <div class="mt-4 flex flex-wrap items-center gap-2">
-    <div class="h-10 flex-1 min-w-[200px] bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
+    <div class="h-10 flex-1 min-w-[12.5rem] bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
       <input type="text" placeholder="Write a note about this client..." [ngModel]="draftText()"
         (ngModelChange)="draftText.set($event)" (keydown.enter)="addNote()" [disabled]="saving()"
         class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
@@ -28,7 +28,11 @@
 
     <button type="button" (click)="addNote()" [disabled]="saving() || !draftText().trim()"
       class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-base" [class.animate-spin]="saving()"></ion-icon>
+      @if (saving()) {
+        <app-infinity-loader size="xs" tone="light" />
+      } @else {
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+      }
       Add note
     </button>
   </div>
@@ -170,7 +174,7 @@
             class="min-w-0 flex-1 truncate text-left text-gray-700 hover:text-brand-bold hover:underline">{{ attachment.displayName }}</button>
           <ng-template #attachmentName><span class="min-w-0 flex-1 truncate text-gray-700">{{ attachment.displayName }}</span></ng-template>
           <span class="shrink-0 text-gray-400">{{ attachmentSize(attachment.sizeBytes) }}</span>
-          <span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
+          <span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"
             [ngClass]="attachmentStatusClass(attachment.status)">{{ attachmentStatusLabel(attachment.status) }}</span>
           <button *ngIf="attachment.status === 'Available'" type="button" (click)="downloadAttachment(attachment)"
             class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"

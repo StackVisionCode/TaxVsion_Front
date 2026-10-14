@@ -14,7 +14,7 @@
   <!-- Header -->
   <div class="border-b border-slate-200 px-5 pb-4 pt-5">
     <div class="flex items-center justify-between gap-3">
-      <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-brand-bold">Edit access</span>
+      <span class="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-brand-bold">Edit access</span>
       <button
         type="button"
         class="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -30,13 +30,13 @@
     <div class="mt-3.5 flex items-center gap-3">
       <app-avatar [name]="member.name" [colorClass]="member.avatarColor" sizeClass="h-11 w-11 text-base" />
       <div class="min-w-0 flex-1">
-        <div class="truncate text-[16px] font-bold leading-tight text-slate-800">{{ member.name }}</div>
-        <div class="truncate text-[12.5px] text-slate-500">{{ member.email }}</div>
+        <div class="truncate text-[1rem] font-bold leading-tight text-slate-800">{{ member.name }}</div>
+        <div class="truncate text-[0.7812rem] text-slate-500">{{ member.email }}</div>
       </div>
     </div>
 
     <div class="mt-3 flex flex-wrap items-center gap-1.5">
-      <span class="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-slate-400">Roles</span>
+      <span class="text-[0.7188rem] font-semibold uppercase tracking-[0.08em] text-slate-400">Roles</span>
       <span
         *ngFor="let role of member.roleNames"
         class="inline-flex items-center gap-1.5 rounded-full border border-brand-bold/25 bg-brand-surface px-2.5 py-1 text-xs font-semibold text-brand-ink"
@@ -57,7 +57,7 @@
       </button>
     </div>
 
-    <p class="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-slate-500">
+    <p class="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[0.7812rem] leading-relaxed text-slate-500">
       Permissions come from {{ member.name }}'s <b class="text-slate-600">roles</b>. Turn any off to
       <b class="text-slate-600">restrict it for {{ member.name }} only</b> — no one else is affected. Whatever you turn
       off stops working for them right away, and hides from the screens that check it.
@@ -109,7 +109,7 @@
     >
       <!-- Module header -->
       <div class="flex cursor-pointer select-none items-center gap-3 px-3.5 py-3" (click)="toggleAccordion(module.key)">
-        <div class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] bg-brand-surface text-brand-bold">
+        <div class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[0.625rem] bg-brand-surface text-brand-bold">
           <ng-container [ngSwitch]="module.icon">
             <svg *ngSwitchCase="'clients'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 8.5a3 3 0 0 1 0 5" /><path d="M18 19a5 5 0 0 0-2.5-4.3" /></svg>
             <svg *ngSwitchCase="'tasks'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12.5l2.2 2.2L16 9.5" /></svg>
@@ -128,12 +128,12 @@
         </div>
 
         <div class="min-w-0 flex-1">
-          <div class="text-[13.5px] font-bold text-slate-800">{{ module.label }}</div>
-          <div *ngIf="module.description" class="mt-px text-[11.5px] text-slate-500">{{ module.description }}</div>
+          <div class="text-[0.8438rem] font-bold text-slate-800">{{ module.label }}</div>
+          <div *ngIf="module.description" class="mt-px text-[0.7188rem] text-slate-500">{{ module.description }}</div>
         </div>
 
         <span
-          class="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          class="whitespace-nowrap rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold"
           [ngClass]="
             moduleDeniedCount(module) > 0
               ? 'border border-rose-200 bg-rose-50 text-rose-600'
@@ -175,27 +175,27 @@
         >
           <label class="flex items-center gap-3">
           <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
+            <div class="flex items-center gap-2 text-[0.8125rem] font-semibold text-slate-800">
               {{ row.label }}
               <span
                 *ngIf="!row.locked && isDenied(row.permissionId)"
-                class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-rose-600"
+                class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-rose-600"
                 >Restricted</span
               >
               <span
                 *ngIf="row.locked"
-                class="rounded-full border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-400"
+                class="rounded-full border border-slate-100 bg-slate-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-slate-400"
                 >Not in their roles</span
               >
               <!-- Dormido: el rol se lo da, el plan no lo habilita. No es un problema que se
                    arregle desde acá, así que se marca y no se esconde. -->
               <span
                 *ngIf="row.dormant"
-                class="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700"
+                class="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-amber-700"
                 >Dormant</span
               >
             </div>
-            <div class="mt-px text-[11.5px] text-slate-500">
+            <div class="mt-px text-[0.7188rem] text-slate-500">
               {{ row.code }}<span *ngIf="row.locked"> · add a role that includes it to enable</span>
               <span *ngIf="row.dormant"> · not in the office plan, so it does nothing today</span>
             </div>
@@ -213,7 +213,7 @@
             <button
               type="button"
               (click)="toggleDetail(row.permissionId)"
-              class="mt-1.5 text-[11.5px] font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+              class="mt-1.5 text-[0.7188rem] font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
             >
               {{ detailFor() === row.permissionId ? 'Hide details' : 'Why and until when' }}
             </button>
@@ -225,9 +225,9 @@
                 [ngModel]="reasonFor(row.permissionId)"
                 (ngModelChange)="setReason(row.permissionId, $event)"
                 [ngModelOptions]="{ standalone: true }"
-                class="h-9 w-full rounded-lg border border-slate-200 px-2.5 text-[12.5px] outline-none focus:border-slate-300"
+                class="h-9 w-full rounded-lg border border-slate-200 px-2.5 text-[0.7812rem] outline-none focus:border-slate-300"
               />
-              <label class="flex items-center gap-2 text-[11.5px] text-slate-500">
+              <label class="flex items-center gap-2 text-[0.7188rem] text-slate-500">
                 Until
                 <input
                   type="date"
@@ -235,7 +235,7 @@
                   [ngModel]="expiresFor(row.permissionId)"
                   (ngModelChange)="setExpiry(row.permissionId, $event)"
                   [ngModelOptions]="{ standalone: true }"
-                  class="h-9 rounded-lg border border-slate-200 px-2.5 text-[12.5px] outline-none focus:border-slate-300"
+                  class="h-9 rounded-lg border border-slate-200 px-2.5 text-[0.7812rem] outline-none focus:border-slate-300"
                 />
                 <span class="text-slate-400">empty = no end date</span>
               </label>
@@ -248,7 +248,7 @@
 
   <!-- Footer -->
   <div class="flex items-center gap-3.5 border-t border-slate-200 bg-white px-5 py-3.5">
-    <div class="flex-1 text-[12.5px] leading-snug text-slate-500">
+    <div class="flex-1 text-[0.7812rem] leading-snug text-slate-500">
       <b [class.text-rose-600]="deniedCount() > 0" [class.text-slate-600]="deniedCount() === 0">{{ summary() }}</b>
       <!-- El `perm_v`. Al guardar sube, y los tokens viejos de esta persona empiezan a dar 401
            TokenStale: verlo es cómo se comprueba que el cambio salió de verdad. -->

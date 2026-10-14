@@ -56,9 +56,9 @@ const PANELS: Record<string, PanelConfig> = {
   overview: {
     link: {
       icon: 'business-outline',
-      label: 'Open company settings',
+      label: 'Open office settings',
       description:
-        'Firm name, EIN, address, contact details, logo and favicon are stored with your company profile.',
+        'Firm name, EIN, address, contact details, logo and favicon are stored with your office profile.',
       routerLink: '/company/settings',
     },
     fields: [

@@ -15,7 +15,7 @@
         (pointerdown)="primeDrag($event, widget.colSpan)" (cdkDragStarted)="onDragStarted()">
         <!-- Placeholder mientras se arrastra: hueco del MISMO tamaño que el widget agarrado (ancho por
              columnas y alto real), en el color de marca, para que la grilla no salte al levantarlo -->
-        <div *cdkDragPlaceholder class="drop-slot rounded-[28px] border-2 border-dashed"
+        <div *cdkDragPlaceholder class="drop-slot rounded-[1.75rem] border-2 border-dashed"
           [ngClass]="{ 'lg:col-span-2': dragSize()?.colSpan === 2, 'lg:col-span-3': dragSize()?.colSpan === 3 }"
           [style.height.px]="dragSize()?.height"></div>
 

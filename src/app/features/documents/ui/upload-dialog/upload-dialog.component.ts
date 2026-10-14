@@ -24,15 +24,15 @@ import { formatBytes } from '@shared/utils/format.util';
     <app-modal [isOpen]="isOpen" heading="Upload files" size="lg" (closed)="cancelled.emit()">
       <div class="mt-5 grid grid-cols-3 gap-3">
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Owner</p>
+          <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Owner</p>
           <p class="mt-0.5 truncate text-sm font-semibold text-gray-800">{{ ownerLabel }}</p>
         </div>
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Folder</p>
+          <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Folder</p>
           <p class="mt-0.5 truncate text-sm font-semibold text-gray-800">{{ folderLabel }}</p>
         </div>
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tax year</p>
+          <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Tax year</p>
           <p class="mt-0.5 text-sm font-semibold text-gray-800">{{ taxYear }}</p>
         </div>
       </div>

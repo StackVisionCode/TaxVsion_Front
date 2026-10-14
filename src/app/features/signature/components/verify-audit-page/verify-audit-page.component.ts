@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiError, toApiError } from '@core/models/api-error.model';
@@ -56,7 +57,7 @@ export interface ChainRow {
  */
 @Component({
   selector: 'app-verify-audit-page',
-  imports: [CommonModule],
+  imports: [InfinityLoaderComponent, CommonModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './verify-audit-page.component.html',
   styleUrl: './verify-audit-page.component.css',

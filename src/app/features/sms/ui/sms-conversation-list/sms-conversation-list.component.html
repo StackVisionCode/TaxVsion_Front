@@ -14,7 +14,7 @@
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">
           <span class="truncate text-sm font-semibold">{{ contact.name }}</span>
-          <span class="shrink-0 text-[11px]" [ngClass]="contact.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ contact.lastTime }}</span>
+          <span class="shrink-0 text-[0.6875rem]" [ngClass]="contact.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ contact.lastTime }}</span>
         </div>
         <p class="truncate text-xs" [ngClass]="contact.id === selectedId ? 'text-gray-300' : 'text-gray-400'">
           {{ contact.phoneRaw || 'No phone on file' }}

@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import {
   MessageSummary,
@@ -38,7 +39,7 @@ import {
  */
 @Component({
   selector: 'app-mail-reading-pane',
-  imports: [CommonModule, FormsModule, AvatarComponent, BytesPipe],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, AvatarComponent, BytesPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-reading-pane.component.html',
   styleUrl: './mail-reading-pane.component.css',

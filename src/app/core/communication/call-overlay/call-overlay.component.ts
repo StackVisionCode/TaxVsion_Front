@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from '@core/auth/auth.service';
 import { ActiveCallService } from '../active-call.service';
 import { SrcObjectDirective } from '../src-object.directive';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 /**
  * Overlay global de la llamada 1:1 activa. Montado una vez en el shell autenticado
@@ -14,7 +15,7 @@ import { SrcObjectDirective } from '../src-object.directive';
  */
 @Component({
   selector: 'app-call-overlay',
-  imports: [CommonModule, SrcObjectDirective],
+  imports: [InfinityLoaderComponent, CommonModule, SrcObjectDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './call-overlay.component.html',
 })

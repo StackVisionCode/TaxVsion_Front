@@ -1,4 +1,4 @@
-<div class="bg-white rounded-[28px] p-6 h-full ring-1 ring-brand-line shadow-card">
+<div class="bg-white rounded-[1.75rem] p-6 h-full ring-1 ring-brand-line shadow-card">
   <!-- Header -->
   <h2 class="text-xl font-bold text-gray-900">Notes</h2>
   <p class="mt-1 text-sm text-gray-500">Your latest notes</p>
@@ -10,8 +10,11 @@
       class="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none disabled:opacity-60" />
     <button type="button" (click)="addNote()" [disabled]="saving() || !draft().trim()" aria-label="Add note"
       class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-      <ion-icon [name]="saving() ? 'sync-outline' : 'add-outline'" class="text-xl"
-        [class.animate-spin]="saving()"></ion-icon>
+      @if (saving()) {
+        <app-infinity-loader size="xs" tone="light" />
+      } @else {
+        <ion-icon name="add-outline" class="text-xl"></ion-icon>
+      }
     </button>
   </div>
 
@@ -44,7 +47,7 @@
           <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400">
             <span>{{ relativeTime(note.createdAtUtc) }}</span>
             <!-- Las notas atadas a un cliente/tarea se marcan para no confundirlas con las rápidas -->
-            <span *ngIf="!isQuickNote(note)" class="rounded-full border border-gray-200 px-2 py-0.5 text-[10px]">
+            <span *ngIf="!isQuickNote(note)" class="rounded-full border border-gray-200 px-2 py-0.5 text-[0.625rem]">
               {{ targetLabel(note) }}
             </span>
           </p>

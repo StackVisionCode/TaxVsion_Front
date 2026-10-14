@@ -21,6 +21,7 @@ import { SrcObjectDirective } from '../src-object.directive';
 import { MeetingParticipantDto } from '../meeting.model';
 import { pickMiniPlayerTiles } from '../active-speaker.util';
 import { MiniPlayerPoint, clampMiniPlayerPosition, parseStoredPosition } from './mini-player-position.util';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 const POSITION_KEY = 'tv.meetingMiniPlayer.position';
 const COLLAPSED_KEY = 'tv.meetingMiniPlayer.collapsed';
@@ -47,7 +48,7 @@ const DESKTOP_MIN_WIDTH = 640;
  */
 @Component({
   selector: 'app-meeting-mini-player',
-  imports: [NgClass, SrcObjectDirective, AvatarComponent, ConfirmDialogComponent],
+  imports: [InfinityLoaderComponent, NgClass, SrcObjectDirective, AvatarComponent, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-mini-player.component.html',
 })

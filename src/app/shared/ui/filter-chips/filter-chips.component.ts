@@ -34,7 +34,7 @@ export type FilterChipsSize = 'md' | 'sm';
   host: { class: 'flex flex-wrap items-center gap-2', role: 'group' },
   template: `
     @if (collapsed) {
-      <app-dropdown-menu align="left" panelClass="min-w-[200px]" [ariaLabel]="ariaLabel">
+      <app-dropdown-menu align="left" panelClass="min-w-[12.5rem]" [ariaLabel]="ariaLabel">
         <button menuTrigger type="button" aria-haspopup="menu"
           class="flex items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors"
           [ngClass]="[size === 'sm' ? 'py-1.5' : 'py-2', isDefault ? 'border border-gray-200 text-gray-500 hover:bg-gray-100' : 'bg-brand-bold text-white']">

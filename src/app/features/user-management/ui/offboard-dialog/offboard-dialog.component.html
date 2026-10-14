@@ -20,7 +20,7 @@
       <span class="text-sm text-gray-700">
         <span class="font-semibold text-gray-900">{{ item.available ? item.count : '—' }}</span> {{ item.label }}
       </span>
-      <span class="ml-auto text-[11px]" [class.text-gray-400]="item.available" [class.text-amber-500]="!item.available">
+      <span class="ml-auto text-[0.6875rem]" [class.text-gray-400]="item.available" [class.text-amber-500]="!item.available">
         {{ item.available ? item.action : 'unavailable' }}
       </span>
     </div>

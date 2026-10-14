@@ -16,7 +16,7 @@ export interface DropzoneRejection {
  * Uso: `<app-dropzone accept=".csv,.xlsx" [multiple]="false" [maxBytes]="10 * 1024 * 1024"
  *   label="Drop your client list here" hint="CSV or XLSX" (files)="onFiles($event)" (rejected)="onRejected($event)" />`
  *
- * - Markup de client-import-upload-step (el más "de marca"): `rounded-[24px] border-2 border-dashed p-8
+ * - Markup de client-import-upload-step (el más "de marca"): `rounded-[1.5rem] border-2 border-dashed p-8
  *   text-center`, arrastrando `border-brand-bold bg-brand-surface`, en reposo `border-brand-border
  *   bg-white`; círculo con `cloud-upload-outline`; botón píldora brand "Browse files".
  * - `(files)`: File[] aceptados (tipo según `accept`, tamaño ≤ `maxBytes`; con `multiple=false` solo 1).
@@ -38,7 +38,7 @@ export interface DropzoneRejection {
     <div appFileDrop #drop="appFileDrop" [accept]="accept" [multiple]="multiple" [fileDropDisabled]="disabled"
       (appFileDrop)="onAccepted($event)" (appFileDropRejected)="onTypeRejected($event)"
       (click)="onZoneClick($event)"
-      class="rounded-[24px] border-2 border-dashed p-8 text-center transition-colors"
+      class="rounded-[1.5rem] border-2 border-dashed p-8 text-center transition-colors"
       [class.cursor-pointer]="clickable && !disabled"
       [ngClass]="drop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'"
       [class.opacity-60]="disabled">

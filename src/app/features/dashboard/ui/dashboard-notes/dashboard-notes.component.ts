@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
 import { PermissionService } from '@core/auth/permission.service';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '@core/auth/auth.service';
@@ -42,7 +43,7 @@ const DOT_COLORS = [
  */
 @Component({
   selector: 'app-dashboard-notes',
-  imports: [CommonModule, FormsModule, StateBlockComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-notes.component.html',
 })

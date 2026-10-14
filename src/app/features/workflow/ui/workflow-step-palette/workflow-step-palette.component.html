@@ -1,4 +1,4 @@
-<div class="flex h-full flex-col rounded-[28px] bg-white" [class.w-16]="collapsed()">
+<div class="flex h-full flex-col rounded-[1.75rem] bg-white" [class.w-16]="collapsed()">
   <!-- Cabecera -->
   <div class="flex items-center justify-between gap-2 px-4 pt-4">
     <h2 *ngIf="!collapsed()" class="text-base font-bold text-gray-900">Add Step</h2>
@@ -18,7 +18,7 @@
         <input #searchInput type="text" placeholder="Search Step" [ngModel]="search()"
           (ngModelChange)="search.set($event)" name="stepSearch" aria-label="Search steps"
           class="h-full min-w-0 flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        <span class="ml-2 shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">⌘ K</span>
+        <span class="ml-2 shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[0.625rem] font-medium text-gray-500">⌘ K</span>
       </div>
     </div>
 
@@ -30,7 +30,7 @@
     <!-- Catálogo -->
     <div class="mt-2 flex-1 overflow-y-auto px-2 pb-4">
       <div *ngFor="let group of groups()" class="wf-group mt-3 first:mt-1">
-        <p class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
+        <p class="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
 
         <!-- Se puede pulsar (inserta en el punto marcado) o arrastrar al lienzo. -->
         <button *ngFor="let type of group.types" type="button" (click)="addStep.emit(type.id)" draggable="true"

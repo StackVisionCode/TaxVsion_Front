@@ -5,6 +5,6 @@ export const COMPANY_SETTINGS_ROUTES: Routes = [
   {
     path: '',
     component: CompanySettingsPageComponent,
-    title: 'Company Settings',
+    title: 'Office Settings',
   },
 ];

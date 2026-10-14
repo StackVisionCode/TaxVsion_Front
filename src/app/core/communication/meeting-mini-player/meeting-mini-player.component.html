@@ -19,13 +19,13 @@
       <ion-icon name="reorder-two-outline" class="hidden shrink-0 text-base text-white/40 sm:block" aria-hidden="true"></ion-icon>
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-semibold">{{ title() || 'Meeting' }}</p>
-        <p class="flex items-center gap-1.5 truncate text-[11px] text-white/60">
+        <p class="flex items-center gap-1.5 truncate text-[0.6875rem] text-white/60">
           @if (isJoined()) {
             <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"></span>
           }
           <span class="truncate">{{ statusLabel() }}</span>
           @if (isRecording()) {
-            <span class="flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-1.5 py-px text-[10px] font-semibold tabular-nums text-white">
+            <span class="flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-1.5 py-px text-[0.625rem] font-semibold tabular-nums text-white">
               <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span>
               REC {{ recordingElapsedLabel() }}
             </span>
@@ -74,7 +74,7 @@
                 <app-avatar [name]="main.displayName" [seed]="main.userId" size="xl" />
               </div>
             }
-            <div class="absolute bottom-2 left-2 flex max-w-[55%] items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm">
+            <div class="absolute bottom-2 left-2 flex max-w-[55%] items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[0.6875rem] font-medium backdrop-blur-sm">
               @if (isSpeaking(main.userId)) {
                 <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true"></span>
               }
@@ -96,10 +96,10 @@
                   <ion-icon name="videocam-off-outline" class="text-base text-white/60" aria-label="Your camera is off"></ion-icon>
                 </div>
               }
-              <span class="absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 text-[9px] font-medium">
+              <span class="absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 text-[0.5625rem] font-medium">
                 You
                 @if (!audioEnabled()) {
-                  <ion-icon name="mic-off-outline" class="text-[9px]"></ion-icon>
+                  <ion-icon name="mic-off-outline" class="text-[0.5625rem]"></ion-icon>
                 }
               </span>
             </div>
@@ -112,13 +112,13 @@
                 <span class="flex h-14 w-14 items-center justify-center rounded-full bg-brand-bold text-sm font-bold">You</span>
               </div>
             }
-            <p class="absolute inset-x-2 bottom-2 truncate rounded-full bg-black/50 px-2 py-0.5 text-center text-[11px] backdrop-blur-sm">
+            <p class="absolute inset-x-2 bottom-2 truncate rounded-full bg-black/50 px-2 py-0.5 text-center text-[0.6875rem] backdrop-blur-sm">
               Waiting for others to join…
             </p>
           }
 
           @if (sharingLabel(); as sharing) {
-            <span class="absolute left-2 top-2 flex max-w-[80%] items-center gap-1 rounded-full bg-brand-bold/90 px-2 py-0.5 text-[10px] font-semibold">
+            <span class="absolute left-2 top-2 flex max-w-[80%] items-center gap-1 rounded-full bg-brand-bold/90 px-2 py-0.5 text-[0.625rem] font-semibold">
               <ion-icon name="desktop-outline" class="shrink-0 text-xs"></ion-icon>
               <span class="truncate">{{ sharing }}</span>
             </span>
@@ -139,7 +139,7 @@
                   </div>
                 }
                 @if (!p.audioEnabled) {
-                  <ion-icon name="mic-off-outline" class="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 p-px text-[9px]"
+                  <ion-icon name="mic-off-outline" class="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 p-px text-[0.5625rem]"
                     aria-label="Muted"></ion-icon>
                 }
               </li>
@@ -156,7 +156,7 @@
         <!-- Host: gente esperando para entrar (se admite desde la sala completa) -->
         @if (isHost() && waitingParticipants().length) {
           <button type="button" (click)="expand()"
-            class="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-xl bg-amber-500/20 px-3 py-1.5 text-left text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-500/30 motion-reduce:transition-none">
+            class="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-xl bg-amber-500/20 px-3 py-1.5 text-left text-[0.6875rem] font-medium text-amber-200 transition-colors hover:bg-amber-500/30 motion-reduce:transition-none">
             <ion-icon name="hourglass-outline" class="shrink-0 text-xs"></ion-icon>
             {{ waitingParticipants().length }} waiting to join · Open meeting to admit
           </button>
@@ -165,12 +165,12 @@
         <!-- Consentimiento de grabación (la sala no está montada para mostrar su modal) -->
         @if (recordingConsentFrom()) {
           <div class="mx-3 mt-2 rounded-xl bg-white/10 p-2.5" role="alertdialog" aria-label="Recording consent">
-            <p class="text-[11px]">{{ recordingRequesterName() }} wants to record this meeting.</p>
+            <p class="text-[0.6875rem]">{{ recordingRequesterName() }} wants to record this meeting.</p>
             <div class="mt-2 flex justify-end gap-2">
               <button type="button" (click)="respondRecording(false)"
-                class="rounded-full px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10">Decline</button>
+                class="rounded-full px-3 py-1 text-[0.6875rem] font-semibold text-white/80 hover:bg-white/10">Decline</button>
               <button type="button" (click)="respondRecording(true)"
-                class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-900 hover:bg-white/90">Allow</button>
+                class="rounded-full bg-white px-3 py-1 text-[0.6875rem] font-semibold text-gray-900 hover:bg-white/90">Allow</button>
             </div>
           </div>
         }
@@ -221,9 +221,9 @@
         <!-- Fases previas/sin media: estado + volver a la sala / salir -->
         <div class="flex items-center gap-2 px-3 pb-3">
           @if (phase() === 'joining') {
-            <ion-icon name="reload-outline" class="animate-spin text-base text-white/70 motion-reduce:animate-none"></ion-icon>
+            <app-infinity-loader size="xs" tone="light" />
           }
-          <p class="min-w-0 flex-1 text-[11px] text-white/70">
+          <p class="min-w-0 flex-1 text-[0.6875rem] text-white/70">
             @switch (phase()) {
               @case ('waiting') { You'll join automatically once you're admitted. }
               @case ('passcode') { Return to the meeting to enter the passcode. }
@@ -232,11 +232,11 @@
             }
           </p>
           <button type="button" (click)="expand()"
-            class="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold transition-colors hover:bg-white/25 motion-reduce:transition-none">
+            class="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[0.6875rem] font-semibold transition-colors hover:bg-white/25 motion-reduce:transition-none">
             Open
           </button>
           <button type="button" (click)="leave()"
-            class="shrink-0 rounded-full bg-red-500 px-3 py-1.5 text-[11px] font-semibold transition-colors hover:bg-red-600 motion-reduce:transition-none">
+            class="shrink-0 rounded-full bg-red-500 px-3 py-1.5 text-[0.6875rem] font-semibold transition-colors hover:bg-red-600 motion-reduce:transition-none">
             Leave
           </button>
         </div>

@@ -35,7 +35,7 @@
                 row.unreadCount > 0 ? 'font-bold' : 'font-semibold'
               ]">{{ row.title }}</span>
           </span>
-          <span class="shrink-0 text-[11px]" [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ row.time }}</span>
+          <span class="shrink-0 text-[0.6875rem]" [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ row.time }}</span>
         </div>
 
         <div class="mt-0.5 flex items-center justify-between gap-2">
@@ -43,16 +43,16 @@
           <span class="flex shrink-0 items-center gap-1.5">
             <!-- Clip de adjuntos (carpeta Sent): icono + número -->
             <span *ngIf="(row.attachmentCount ?? 0) > 0"
-              class="flex items-center gap-0.5 text-[10px] font-medium leading-none"
+              class="flex items-center gap-0.5 text-[0.625rem] font-medium leading-none"
               [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">
               <ion-icon name="attach-outline" class="text-xs"></ion-icon>{{ row.attachmentCount }}
             </span>
             <!-- Globo con el número de no-leídos -->
             <span *ngIf="row.unreadCount > 0"
-              class="rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none"
+              class="rounded-full px-1.5 py-0.5 text-[0.625rem] font-bold leading-none"
               [ngClass]="row.id === selectedId ? 'bg-white/20 text-white' : 'bg-brand-bold text-white'">{{ row.unreadCount }}</span>
             <span *ngIf="row.badge"
-              class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              class="rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
               [ngClass]="row.id === selectedId ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'">{{ row.badge }}</span>
 
             <!-- Papelera: restaurar / borrar permanente -->

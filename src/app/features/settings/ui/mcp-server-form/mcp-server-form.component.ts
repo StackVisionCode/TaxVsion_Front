@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnInit, Output, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import {
   MCP_AUTH_LABELS,
@@ -17,19 +18,19 @@ import {
  */
 @Component({
   selector: 'app-mcp-server-form',
-  imports: [FormsModule, SegmentedComponent],
+  imports: [InfinityLoaderComponent, FormsModule, SegmentedComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <form class="flex flex-col gap-5" (ngSubmit)="submit()">
       <div>
-        <label for="mcpName" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Name</label>
+        <label for="mcpName" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Name</label>
         <input id="mcpName" name="name" type="text" placeholder="e.g. Firm knowledge base" maxlength="60"
           [disabled]="saving" [ngModel]="name()" (ngModelChange)="name.set($event)"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
 
       <div>
-        <label for="mcpUrl" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server URL</label>
+        <label for="mcpUrl" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Server URL</label>
         <input id="mcpUrl" name="url" type="url" placeholder="https://mcp.example.com/mcp" autocomplete="off"
           [disabled]="saving" [ngModel]="url()" (ngModelChange)="url.set($event)"
           class="mt-2 h-11 w-full rounded-full border bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none transition-colors"
@@ -42,12 +43,12 @@ import {
       </div>
 
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Transport</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Transport</p>
         <app-segmented class="mt-2" [options]="transportOptions" [value]="transport()" (valueChange)="transport.set($event)"></app-segmented>
       </div>
 
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Authentication</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Authentication</p>
         <app-segmented class="mt-2" [options]="authOptions" [value]="authType()" (valueChange)="authType.set($event)"></app-segmented>
 
         @if (authType() === 'bearer') {
@@ -69,7 +70,7 @@ import {
         <button type="submit" [disabled]="saving || !canSubmit()"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
           @if (saving) {
-            <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+            <app-infinity-loader size="xs" tone="light" />
           }
           {{ server ? 'Save changes' : 'Add server' }}
         </button>

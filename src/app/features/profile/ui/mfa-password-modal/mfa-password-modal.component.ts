@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 
@@ -21,7 +22,7 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
  */
 @Component({
   selector: 'app-mfa-password-modal',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-password-modal.component.html',
   styleUrl: './mfa-password-modal.component.css',

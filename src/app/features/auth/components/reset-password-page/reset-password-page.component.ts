@@ -24,10 +24,11 @@ const MIN_PASSWORD_LENGTH = 12;
  * anulado, avisa directamente en vez de mostrar el formulario.
  */
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 @Component({
   selector: 'app-reset-password-page',
-  imports: [BrandLogoComponent, CommonModule, RouterModule, FormsModule],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, RouterModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './reset-password-page.component.html',
   styleUrl: './reset-password-page.component.css',

@@ -1,6 +1,6 @@
 <div class="import-progress flex flex-col gap-6">
   <!-- Cabecera: archivo + estado -->
-  <div class="progress-block flex flex-wrap items-start justify-between gap-4 rounded-[24px] bg-brand-surface p-5">
+  <div class="progress-block flex flex-wrap items-start justify-between gap-4 rounded-[1.5rem] bg-brand-surface p-5">
     <div class="flex items-center gap-4">
       <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white">
         <ion-icon name="document-text-outline" class="text-xl text-brand-bold"></ion-icon>
@@ -14,13 +14,13 @@
     </div>
     <span class="inline-flex items-center gap-2 rounded-full border bg-white px-4 py-1.5 text-sm font-semibold"
       [ngClass]="statusChipClass(attempt.status)">
-      <ion-icon name="sync-outline" class="text-base animate-spin"></ion-icon>
+      <app-infinity-loader size="xs" />
       {{ statusLabel }}
     </span>
   </div>
 
   <!-- Barra de progreso: determinada sólo cuando el worker ya fijó totalRows -->
-  <div class="progress-block rounded-[24px] bg-white p-5">
+  <div class="progress-block rounded-[1.5rem] bg-white p-5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <p class="text-sm font-semibold text-gray-900">
         <ng-container *ngIf="percent !== null; else preparing">

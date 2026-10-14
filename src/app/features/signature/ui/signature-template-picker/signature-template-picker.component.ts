@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { SignatureDocumentLibraryComponent } from '../signature-document-library/signature-document-library.component';
@@ -58,7 +59,7 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
  */
 @Component({
   selector: 'app-signature-template-picker',
-  imports: [CommonModule, FormsModule, ModalComponent, SignatureDocumentLibraryComponent, CustomerPickerComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, SignatureDocumentLibraryComponent, CustomerPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-template-picker.component.html',
   styleUrl: './signature-template-picker.component.css',

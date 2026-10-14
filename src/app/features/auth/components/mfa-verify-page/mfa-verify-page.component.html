@@ -46,7 +46,7 @@
       <button type="submit" [disabled]="submitting() || expired()"
         class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white text-sm font-semibold transition-colors">
         @if (submitting()) {
-          <span class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+          <app-infinity-loader size="xs" tone="light" />
           <span>Verificando...</span>
         } @else {
           <span>Verify</span>

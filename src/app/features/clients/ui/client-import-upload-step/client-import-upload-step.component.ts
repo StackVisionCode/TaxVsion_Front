@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { DropzoneComponent } from '@shared/ui/dropzone/dropzone.component';
 import { FileDropDirective } from '@shared/directives/file-drop.directive';
 import { formatBytes } from '@shared/utils/format.util';
@@ -30,7 +31,7 @@ const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx'];
  */
 @Component({
   selector: 'app-client-import-upload-step',
-  imports: [CommonModule, DropzoneComponent, FileDropDirective],
+  imports: [CommonModule, DropzoneComponent, FileDropDirective, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-import-upload-step.component.html',
   styleUrl: './client-import-upload-step.component.css',

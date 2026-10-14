@@ -19,6 +19,7 @@ import { AuthShellComponent } from '../../ui/auth-shell/auth-shell.component';
 import { InvitationService, InvitationValidation } from '../../data-access/invitation.service';
 import { BrandLogoComponent } from '@core/theme/brand-logo.component';
 import { platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 type Phase = 'validating' | 'form' | 'submitting' | 'done' | 'invalid';
 
@@ -34,7 +35,7 @@ type Phase = 'validating' | 'form' | 'submitting' | 'done' | 'invalid';
  */
 @Component({
   selector: 'app-accept-invitation-page',
-  imports: [BrandLogoComponent, CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
+  imports: [InfinityLoaderComponent, BrandLogoComponent, CommonModule, ReactiveFormsModule, RouterLink, AuthShellComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './accept-invitation-page.component.html',
 })

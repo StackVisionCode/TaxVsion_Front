@@ -2,19 +2,27 @@
   <div class="checkout-card">
     <!-- Cargando -->
     <ng-container *ngIf="phase() === 'loading'">
-      <p class="muted">Loading…</p>
+      <div class="state-loader"><app-infinity-loader size="lg" label="Loading…" /></div>
     </ng-container>
 
     <!-- Link invalido / vencido / factura anulada o ya pagada -->
     <ng-container *ngIf="phase() === 'invalid'">
-      <div class="icon warn">!</div>
+      <div class="icon icon--sand">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 17H7A5 5 0 0 1 7 7"/><path d="M15 7h2a5 5 0 0 1 4 8"/><path d="M8 12h4"/><path d="M2 2l20 20"/>
+        </svg>
+      </div>
       <h1>Link unavailable</h1>
       <p class="muted">{{ invalidMessage() }}</p>
     </ng-container>
 
     <!-- Pagado -->
     <ng-container *ngIf="phase() === 'paid'">
-      <div class="icon ok">✓</div>
+      <div class="icon icon--azure">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12.5l4.5 4.5L19 7.5"/>
+        </svg>
+      </div>
       <h1>Payment received</h1>
       <p class="muted">Your payment is recorded. Thank you.</p>
       <p class="amount-done">{{ amountLabel() }}</p>
@@ -22,24 +30,37 @@
 
     <!-- Procesando (async) -->
     <ng-container *ngIf="phase() === 'processing'">
-      <div class="icon ok">…</div>
+      <div class="state-loader"><app-infinity-loader size="lg" label="Payment in progress" /></div>
       <h1>Payment in progress</h1>
       <p class="muted">Your payment is being confirmed. You can close this page.</p>
     </ng-container>
 
     <!-- Error -->
     <ng-container *ngIf="phase() === 'error'">
-      <div class="icon warn">!</div>
+      <div class="icon icon--sand">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </div>
       <h1>Payment failed</h1>
       <p class="muted">{{ errorMessage() }}</p>
-      <button class="btn-secondary" (click)="retry()" *ngIf="selectedMethod()">Try again</button>
+      <button class="btn-primary btn-retry" (click)="retry()" *ngIf="selectedMethod()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4DD8FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+        </svg>
+        Try again
+      </button>
     </ng-container>
 
     <!-- Formulario de pago -->
     <ng-container *ngIf="phase() === 'ready' || phase() === 'paying'">
-      <p class="pay-to" *ngIf="checkout() as c">Pay <strong>{{ c.tenantName }}</strong></p>
+      <div class="pay-to" *ngIf="checkout() as c">
+        <span class="office-tile">{{ officeInitials() }}</span>
+        <span class="office-name">{{ c.tenantName }}</span>
+      </div>
+      <p class="amount-caption">AMOUNT DUE</p>
       <p class="amount">{{ amountLabel() }}</p>
-      <p class="ref muted" *ngIf="checkout()?.purposeDescription || checkout()?.purposeExternalReferenceId as label">
+      <p class="ref" *ngIf="checkout()?.purposeDescription || checkout()?.purposeExternalReferenceId as label">
         Factura {{ checkout()?.purposeDescription || label }}
       </p>
 
@@ -64,6 +85,9 @@
         <p class="card-err" *ngIf="cardError()">{{ cardError() }}</p>
 
         <button class="btn-primary" (click)="pay()" [disabled]="phase() === 'paying'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4DD8FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+          </svg>
           {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
         </button>
        </ng-container>

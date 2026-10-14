@@ -1,15 +1,15 @@
 <div *ngIf="draftIssuer() as form" class="flex flex-col gap-6">
   <!-- Emisor -->
-  <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Company details</h2>
+  <div class="rounded-[1.75rem] bg-white p-6">
+    <h2 class="text-xl font-bold text-gray-900">Office details</h2>
     <p class="mt-1 text-sm text-gray-500">
-      These are stamped on every invoice you issue. Only the company name is required.
+      These are stamped on every invoice you issue. Only the office name is required.
     </p>
 
     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="lg:col-span-2">
-        <label for="companyName" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          Company name
+        <label for="companyName" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
+          Office name
         </label>
         <input id="companyName" type="text" name="companyName" [disabled]="saving" [ngModel]="form.name"
           (ngModelChange)="updateIssuer({ name: $event })"
@@ -17,64 +17,64 @@
       </div>
 
       <div>
-        <label for="companyTaxId" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tax ID</label>
+        <label for="companyTaxId" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Tax ID</label>
         <input id="companyTaxId" type="text" name="companyTaxId" [disabled]="saving" [ngModel]="form.taxId"
           (ngModelChange)="updateIssuer({ taxId: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="companyAddress" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Address</label>
+        <label for="companyAddress" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Address</label>
         <input id="companyAddress" type="text" name="companyAddress" [disabled]="saving" [ngModel]="form.line1"
           (ngModelChange)="updateIssuer({ line1: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="companyCity" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">City</label>
+        <label for="companyCity" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">City</label>
         <input id="companyCity" type="text" name="companyCity" [disabled]="saving" [ngModel]="form.city"
           (ngModelChange)="updateIssuer({ city: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label for="companyState" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">State</label>
+          <label for="companyState" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">State</label>
           <input id="companyState" type="text" name="companyState" [disabled]="saving" [ngModel]="form.state"
             (ngModelChange)="updateIssuer({ state: $event })"
             class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
         </div>
         <div>
-          <label for="companyZip" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">ZIP</label>
+          <label for="companyZip" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">ZIP</label>
           <input id="companyZip" type="text" name="companyZip" [disabled]="saving" [ngModel]="form.zip"
             (ngModelChange)="updateIssuer({ zip: $event })"
             class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
         </div>
       </div>
       <div>
-        <label for="companyCountry" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Country</label>
+        <label for="companyCountry" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Country</label>
         <input id="companyCountry" type="text" name="companyCountry" [disabled]="saving" [ngModel]="form.country"
           (ngModelChange)="updateIssuer({ country: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="companyPhone" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Phone</label>
+        <label for="companyPhone" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Phone</label>
         <input id="companyPhone" type="tel" name="companyPhone" [disabled]="saving" [ngModel]="form.phone"
           (ngModelChange)="updateIssuer({ phone: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="companyEmail" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Email</label>
+        <label for="companyEmail" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Email</label>
         <input id="companyEmail" type="email" name="companyEmail" [disabled]="saving" [ngModel]="form.email"
           (ngModelChange)="updateIssuer({ email: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="companyWebsite" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Website</label>
+        <label for="companyWebsite" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Website</label>
         <input id="companyWebsite" type="text" name="companyWebsite" [disabled]="saving" [ngModel]="form.website"
           (ngModelChange)="updateIssuer({ website: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
 
       <div>
-        <label for="companyCurrency" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Default currency</label>
+        <label for="companyCurrency" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Default currency</label>
         <select id="companyCurrency" name="companyCurrency" [disabled]="saving" [ngModel]="form.defaultCurrency"
           (ngModelChange)="updateIssuer({ defaultCurrency: $event })"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
@@ -86,13 +86,13 @@
   </div>
 
   <!-- Marca del PDF -->
-  <div *ngIf="draftBranding() as brand" class="rounded-[28px] bg-white p-6">
+  <div *ngIf="draftBranding() as brand" class="rounded-[1.75rem] bg-white p-6">
     <h2 class="text-xl font-bold text-gray-900">Invoice branding</h2>
     <p class="mt-1 text-sm text-gray-500">Applied to the PDF of the invoices you issue from now on.</p>
 
     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div>
-        <label for="brandName" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="brandName" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
           Display name
         </label>
         <input id="brandName" type="text" name="brandName" [disabled]="saving" [ngModel]="brand.displayName"
@@ -101,7 +101,7 @@
       </div>
 
       <div>
-        <label for="brandColor" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Brand color</label>
+        <label for="brandColor" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Brand color</label>
         <div class="mt-2 flex items-center gap-3">
           <input id="brandColor" type="color" name="brandColor" [disabled]="saving"
             [ngModel]="brand.brandColorHex || '#1e466b'" (ngModelChange)="updateBranding({ brandColorHex: $event })"
@@ -111,7 +111,7 @@
       </div>
 
       <div class="lg:col-span-2">
-        <label class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Logo</label>
+        <label class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Logo</label>
         <div class="mt-2 flex flex-wrap items-center gap-4">
           <span
             class="flex h-16 w-32 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-brand-white">
@@ -136,7 +136,7 @@
       </div>
 
       <div class="lg:col-span-2">
-        <label for="brandFooter" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="brandFooter" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
           Footer text
         </label>
         <input id="brandFooter" type="text" name="brandFooter" [disabled]="saving" [ngModel]="brand.footerText"
@@ -148,9 +148,9 @@
     <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-4">
       <button type="button" (click)="save()" [disabled]="!canSave"
         class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon [name]="saving ? 'sync-outline' : 'save-outline'" class="text-base"
-          [ngClass]="saving ? 'animate-spin' : ''"></ion-icon>
-        {{ saving ? 'Saving…' : 'Save company details' }}
+        <app-infinity-loader *ngIf="saving; else saveIcon" size="xs" tone="light" />
+        <ng-template #saveIcon><ion-icon name="save-outline" class="text-base"></ion-icon></ng-template>
+        {{ saving ? 'Saving…' : 'Save office details' }}
       </button>
     </div>
   </div>

@@ -27,6 +27,7 @@ import {
   PlanPickerModalComponent,
 } from '../../ui/plan-picker-modal/plan-picker-modal.component';
 import { platformBrand, platformConfig } from '@core/config/platform-config';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 
 type Step = 'credentials' | 'select';
 
@@ -38,7 +39,7 @@ type Step = 'credentials' | 'select';
  */
 @Component({
   selector: 'app-central-login-page',
-  imports: [CommonModule, RouterModule, FormsModule, ReactiveFormsModule, PlanPickerModalComponent],
+  imports: [InfinityLoaderComponent, CommonModule, RouterModule, FormsModule, ReactiveFormsModule, PlanPickerModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './central-login-page.component.html',
   styleUrl: './central-login-page.component.css',

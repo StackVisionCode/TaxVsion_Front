@@ -9,6 +9,10 @@
   <button type="submit" [disabled]="disabled || busy"
     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-bold"
     aria-label="Send message">
-    <ion-icon [name]="busy ? 'sync-outline' : 'send-outline'" class="text-base" [class.animate-spin]="busy"></ion-icon>
+    @if (busy) {
+      <app-infinity-loader size="xs" tone="light" />
+    } @else {
+      <ion-icon name="send-outline" class="text-base"></ion-icon>
+    }
   </button>
 </form>

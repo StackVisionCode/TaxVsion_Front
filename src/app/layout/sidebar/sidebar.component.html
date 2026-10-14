@@ -1,6 +1,6 @@
 <ng-container *ngIf="!isMobile; else mobileSidebar">
   <div
-    class="relative hidden md:flex md:flex-col shrink-0 bg-white rounded-[24px] shadow-sm transition-[width] duration-200 sticky top-4 h-[calc(100vh-2rem)] z-40"
+    class="relative hidden md:flex md:flex-col shrink-0 bg-white rounded-[1.5rem] shadow-sm transition-[width] duration-200 sticky top-4 h-[calc(100vh-2rem)] z-40"
     [style.width.px]="currentWidth()"
     (transitionend)="onSidebarTransitionEnd($event)"
   >
@@ -118,8 +118,8 @@
               *ngIf="item.badge"
               class="pointer-events-none absolute flex items-center justify-center rounded-full bg-orange-500 font-bold leading-none text-white ring-2 ring-white"
               [ngClass]="{
-                'top-0 right-0 h-[16px] min-w-[16px] px-1 text-[9px]': !isExpanded(),
-                'top-1.5 right-2.5 h-[18px] min-w-[18px] px-1 text-[10px]': isExpanded(),
+                'top-0 right-0 h-[1rem] min-w-[1rem] px-1 text-[0.5625rem]': !isExpanded(),
+                'top-1.5 right-2.5 h-[1.125rem] min-w-[1.125rem] px-1 text-[0.625rem]': isExpanded(),
               }"
             >{{ item.badge > 9 ? '9+' : item.badge }}</span>
           </button>

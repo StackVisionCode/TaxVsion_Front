@@ -12,7 +12,7 @@
     <span class="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden" aria-hidden="true">
       <span class="block h-full rounded-full bg-red-400 transition-[width] duration-100" [style.width.%]="recorder.level()"></span>
     </span>
-    <span class="shrink-0 text-[11px] italic text-gray-400">Recording…</span>
+    <span class="shrink-0 text-[0.6875rem] italic text-gray-400">Recording…</span>
   </div>
 
   <button type="button" (click)="stopAndSend()" aria-label="Send voice note"
@@ -26,7 +26,11 @@
   <form class="flex items-end gap-2" (ngSubmit)="submit()">
     <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
       class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-      <ion-icon [name]="uploading ? 'reload-outline' : 'attach-outline'" class="text-lg" [class.animate-spin]="uploading"></ion-icon>
+      @if (uploading) {
+        <app-infinity-loader size="xs" />
+      } @else {
+        <ion-icon name="attach-outline" class="text-lg"></ion-icon>
+      }
       <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
     </label>
 

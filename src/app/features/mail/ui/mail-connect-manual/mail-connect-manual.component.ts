@@ -8,6 +8,7 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { ConnectManualAccountRequest } from '../../data-access/mail.model';
 import {
@@ -36,7 +37,7 @@ import {
 @Component({
   selector: 'app-mail-connect-manual',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule],
   templateUrl: './mail-connect-manual.component.html',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })

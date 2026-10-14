@@ -25,7 +25,7 @@
         <span class="flex items-start justify-between">
           <span class="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder" class="text-lg"></ion-icon></span>
           @if (folder.isShared) {
-            <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+            <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[0.625rem] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[0.6875rem]"></ion-icon> Shared</span>
           }
         </span>
         <span class="truncate text-sm font-semibold text-gray-800">{{ folder.name }}</span>
@@ -38,36 +38,36 @@
         <div class="flex items-start justify-between">
           <span class="grid h-9 w-9 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon [name]="fileIcon(file.originalName)" class="text-lg"></ion-icon></span>
           <button type="button" (click)="action.emit({ kind: 'toggle-file', file })" role="checkbox" [attr.aria-checked]="isSelected(file)" [attr.aria-label]="'Select ' + file.originalName"
-            class="cb" [class.cb-on]="isSelected(file)">@if (isSelected(file)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</button>
+            class="cb" [class.cb-on]="isSelected(file)">@if (isSelected(file)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</button>
         </div>
         <button type="button" (click)="action.emit({ kind: 'preview-file', file })" class="truncate text-left text-sm font-semibold text-gray-800">{{ file.originalName }}</button>
         <div class="flex items-center gap-1.5 text-xs text-gray-400">
           <span>{{ size(file) }}</span>
           @if (status(file) !== 'ready') { <span>·</span><span class="capitalize">{{ status(file) }}</span> }
-          @if (file.isShared) { <span>·</span><span class="inline-flex items-center gap-0.5 font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span> }
+          @if (file.isShared) { <span>·</span><span class="inline-flex items-center gap-0.5 font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[0.6875rem]"></ion-icon> Shared</span> }
         </div>
       </div>
     }
   </div>
 } @else {
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[680px] border-collapse text-sm">
+    <table class="w-full min-w-[42.5rem] border-collapse text-sm">
       <thead>
-        <tr class="border-b border-gray-100 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+        <tr class="border-b border-gray-100 text-left text-[0.6875rem] font-bold uppercase tracking-wide text-gray-400">
           <th class="w-9 px-2 py-2.5">
             <button type="button" (click)="toggleAll.emit()" role="checkbox" [attr.aria-checked]="allSelected ? true : someSelected ? 'mixed' : false" aria-label="Select all files"
               class="cb" [class.cb-on]="allSelected || someSelected">
-              @if (allSelected) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }
-              @else if (someSelected) { <ion-icon name="remove" class="text-[11px]"></ion-icon> }
+              @if (allSelected) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }
+              @else if (someSelected) { <ion-icon name="remove" class="text-[0.6875rem]"></ion-icon> }
             </button>
           </th>
           <th class="px-3 py-2.5 font-bold">Name</th>
-          <th class="hide-md w-[74px] px-3 py-2.5 font-bold">Type</th>
-          <th class="hide-md w-[84px] px-3 py-2.5 font-bold">Tax Year</th>
-          <th class="w-[82px] cursor-pointer px-3 py-2.5 font-bold" (click)="setSort.emit('size')">Size</th>
-          <th class="w-[108px] cursor-pointer px-3 py-2.5 font-bold" (click)="setSort.emit('modified')">Modified</th>
-          <th class="hide-sm w-[104px] px-3 py-2.5 font-bold">Status</th>
-          <th class="w-[124px] px-3 py-2.5"><span class="sr-only">Actions</span></th>
+          <th class="hide-md w-[4.625rem] px-3 py-2.5 font-bold">Type</th>
+          <th class="hide-md w-[5.25rem] px-3 py-2.5 font-bold">Tax Year</th>
+          <th class="w-[5.125rem] cursor-pointer px-3 py-2.5 font-bold" (click)="setSort.emit('size')">Size</th>
+          <th class="w-[6.75rem] cursor-pointer px-3 py-2.5 font-bold" (click)="setSort.emit('modified')">Modified</th>
+          <th class="hide-sm w-[6.5rem] px-3 py-2.5 font-bold">Status</th>
+          <th class="w-[7.75rem] px-3 py-2.5"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody>
@@ -79,7 +79,7 @@
                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><ion-icon name="folder" class="text-base"></ion-icon></span>
                 <span class="truncate font-semibold text-gray-800 group-hover:text-indigo-700">{{ folder.name }}</span>
                 @if (folder.isShared) {
-                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6875rem] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[0.6875rem]"></ion-icon> Shared</span>
                 }
               </button>
             </td>
@@ -111,14 +111,14 @@
           <tr class="doc-row group border-b border-gray-50 transition-colors hover:bg-gray-50" [class.bg-indigo-50]="isSelected(file) || file.id === selectedFileId">
             <td class="c-cb px-2 py-2.5">
               <button type="button" (click)="action.emit({ kind: 'toggle-file', file })" role="checkbox" [attr.aria-checked]="isSelected(file)" [attr.aria-label]="'Select ' + file.originalName"
-                class="cb" [class.cb-on]="isSelected(file)">@if (isSelected(file)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</button>
+                class="cb" [class.cb-on]="isSelected(file)">@if (isSelected(file)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</button>
             </td>
             <td class="c-name px-3 py-2.5">
               <div class="flex min-w-0 items-center gap-2.5">
                 <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-500"><ion-icon [name]="fileIcon(file.originalName)" class="text-base"></ion-icon></span>
                 <button type="button" (click)="action.emit({ kind: 'select-file', file })" (dblclick)="action.emit({ kind: 'preview-file', file })" class="truncate text-left font-semibold text-gray-800 group-hover:text-indigo-700">{{ file.originalName }}</button>
                 @if (file.isShared) {
-                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[11px]"></ion-icon> Shared</span>
+                  <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[0.6875rem] font-semibold text-indigo-600" title="Shared with a link"><ion-icon name="share-social" class="text-[0.6875rem]"></ion-icon> Shared</span>
                 }
               </div>
             </td>

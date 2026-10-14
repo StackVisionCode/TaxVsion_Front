@@ -23,7 +23,7 @@
           <!-- Preview -->
           <div class="flex h-12 w-24 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-white">
             @if (previewFor(profile); as url) {
-              <img [src]="url" alt="Signature" class="max-h-10 max-w-[88px] object-contain"
+              <img [src]="url" alt="Signature" class="max-h-10 max-w-[5.5rem] object-contain"
                 [class.opacity-40]="profile.isArchived" />
             } @else {
               <ion-icon name="image-outline" class="text-lg text-gray-300"></ion-icon>
@@ -47,10 +47,10 @@
                 <span class="min-w-0 flex-1 truncate text-sm font-medium"
                   [class.text-gray-400]="profile.isArchived" [class.text-gray-700]="!profile.isArchived">{{ profile.label }}</span>
                 @if (profile.isDefault) {
-                  <span class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Default</span>
+                  <span class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-emerald-600">Default</span>
                 }
                 @if (profile.isArchived) {
-                  <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Archived</span>
+                  <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-500">Archived</span>
                 }
               </div>
             }

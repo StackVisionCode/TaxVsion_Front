@@ -1,4 +1,4 @@
-<div class="flex min-h-0 flex-1 overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-sm">
+<div class="flex min-h-0 flex-1 overflow-hidden rounded-[1.5rem] border border-gray-100 bg-white shadow-sm">
   <!-- Navegador del workspace (no en modo embebido: ahí el gestor está fijo a un cliente) -->
   @if (!embedded()) {
   <div class="hidden w-60 shrink-0 border-r border-gray-100 md:block">
@@ -28,22 +28,22 @@
         @if (embedded()) {
           <!-- sin tramo de sección -->
         } @else if (section() === 'office') {
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Office Files</button>
         } @else if (section() === 'clients') {
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <span class="px-1.5 py-0.5 font-semibold text-gray-700">Clients</span>
         } @else if (section() === 'client') {
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <button type="button" (click)="openClients()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">Clients</button>
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <button type="button" (click)="goToRoot()" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">{{ context().clientName }}</button>
         } @else {
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <span class="px-1.5 py-0.5 font-semibold text-gray-700">{{ title() }}</span>
         }
         @for (crumb of breadcrumbs(); track crumb.id) {
-          <ion-icon name="chevron-forward" class="text-[11px] text-gray-300"></ion-icon>
+          <ion-icon name="chevron-forward" class="text-[0.6875rem] text-gray-300"></ion-icon>
           <button type="button" (click)="goToBreadcrumb(crumb)" class="rounded px-1.5 py-0.5 transition-colors hover:bg-gray-100 hover:text-gray-800">{{ crumb.name }}</button>
         }
       </nav>
@@ -93,22 +93,22 @@
             </button>
             @if (filtersOpen()) {
               <div class="menu-pop absolute left-0 z-20 mt-1.5 max-h-[60vh] w-60 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-lg" role="menu">
-                <p class="px-2 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">Tax year</p>
+                <p class="px-2 pb-1 pt-1.5 text-[0.6562rem] font-bold uppercase tracking-wider text-gray-400">Tax year</p>
                 @for (y of filterYears; track y) {
                   <button type="button" (click)="toggleFilter('years', y)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-gray-50">
-                    <span class="cb" [class.cb-on]="filters().years.includes(y)">@if (filters().years.includes(y)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ y }}
+                    <span class="cb" [class.cb-on]="filters().years.includes(y)">@if (filters().years.includes(y)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span> {{ y }}
                   </button>
                 }
-                <p class="px-2 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">File type</p>
+                <p class="px-2 pb-1 pt-2 text-[0.6562rem] font-bold uppercase tracking-wider text-gray-400">File type</p>
                 @for (t of filterTypes; track t) {
                   <button type="button" (click)="toggleFilter('types', t)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-gray-50">
-                    <span class="cb" [class.cb-on]="filters().types.includes(t)">@if (filters().types.includes(t)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ t }}
+                    <span class="cb" [class.cb-on]="filters().types.includes(t)">@if (filters().types.includes(t)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span> {{ t }}
                   </button>
                 }
-                <p class="px-2 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-wider text-gray-400">Status</p>
+                <p class="px-2 pb-1 pt-2 text-[0.6562rem] font-bold uppercase tracking-wider text-gray-400">Status</p>
                 @for (s of filterStatuses; track s) {
                   <button type="button" (click)="toggleFilter('statuses', s)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm capitalize hover:bg-gray-50">
-                    <span class="cb" [class.cb-on]="filters().statuses.includes(s)">@if (filters().statuses.includes(s)) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span> {{ s }}
+                    <span class="cb" [class.cb-on]="filters().statuses.includes(s)">@if (filters().statuses.includes(s)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span> {{ s }}
                   </button>
                 }
               </div>
@@ -124,7 +124,7 @@
               <div class="menu-pop absolute left-0 z-20 mt-1.5 w-44 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-lg" role="menu">
                 @for (opt of [['name','Name'],['modified','Modified'],['size','Size']]; track opt[0]) {
                   <button type="button" (click)="setSort($any(opt[0]))" class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-gray-50">
-                    <span class="cb" [class.cb-on]="sort().key === opt[0]">@if (sort().key === opt[0]) { <ion-icon name="checkmark" class="text-[11px]"></ion-icon> }</span>
+                    <span class="cb" [class.cb-on]="sort().key === opt[0]">@if (sort().key === opt[0]) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span>
                     {{ opt[1] }}
                     @if (sort().key === opt[0]) { <span class="ml-auto text-xs text-gray-400">{{ sort().dir === 'asc' ? 'A→Z' : 'Z→A' }}</span> }
                   </button>
@@ -144,13 +144,13 @@
         @if (activeFilterCount() > 0) {
           <div class="mt-2 flex flex-wrap items-center gap-1.5">
             @for (y of filters().years; track y) {
-              <span class="fchip">{{ y }} <button type="button" (click)="toggleFilter('years', y)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+              <span class="fchip">{{ y }} <button type="button" (click)="toggleFilter('years', y)" aria-label="Remove filter"><ion-icon name="close" class="text-[0.6875rem]"></ion-icon></button></span>
             }
             @for (t of filters().types; track t) {
-              <span class="fchip">{{ t }} <button type="button" (click)="toggleFilter('types', t)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+              <span class="fchip">{{ t }} <button type="button" (click)="toggleFilter('types', t)" aria-label="Remove filter"><ion-icon name="close" class="text-[0.6875rem]"></ion-icon></button></span>
             }
             @for (s of filters().statuses; track s) {
-              <span class="fchip capitalize">{{ s }} <button type="button" (click)="toggleFilter('statuses', s)" aria-label="Remove filter"><ion-icon name="close" class="text-[11px]"></ion-icon></button></span>
+              <span class="fchip capitalize">{{ s }} <button type="button" (click)="toggleFilter('statuses', s)" aria-label="Remove filter"><ion-icon name="close" class="text-[0.6875rem]"></ion-icon></button></span>
             }
             <button type="button" (click)="clearFilters()" class="rounded-full px-2.5 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-100">Clear all</button>
           </div>
@@ -189,7 +189,7 @@
                     <span class="block truncate text-xs text-gray-500">{{ client.primaryEmail }}</span>
                   </span>
                   @if (client.status !== 'Active') {
-                    <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                    <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-500">
                       {{ client.status }}
                     </span>
                   }
@@ -239,9 +239,9 @@
             [empty]="recycleBinItems().length === 0" emptyTitle="Recycle bin is empty."
             emptyMessage="Deleted files stay here for 30 days before they are removed for good.">
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[560px] border-collapse text-sm">
+              <table class="w-full min-w-[35rem] border-collapse text-sm">
                 <thead>
-                  <tr class="border-b border-gray-100 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                  <tr class="border-b border-gray-100 text-left text-[0.6875rem] font-bold uppercase tracking-wide text-gray-400">
                     <th class="px-3 py-2.5">Name</th>
                     <th class="w-28 px-3 py-2.5">Deleted</th>
                     <th class="w-28 px-3 py-2.5">Expires</th>
@@ -294,9 +294,9 @@
             [empty]="sharedWithMe().length === 0" emptyTitle="Nothing shared with you yet."
             emptyMessage="When a teammate shares a file or folder, it shows up here.">
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[560px] border-collapse text-sm">
+              <table class="w-full min-w-[35rem] border-collapse text-sm">
                 <thead>
-                  <tr class="border-b border-gray-100 text-left text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                  <tr class="border-b border-gray-100 text-left text-[0.6875rem] font-bold uppercase tracking-wide text-gray-400">
                     <th class="px-3 py-2.5">Type</th>
                     <th class="px-3 py-2.5">Permission</th>
                     <th class="w-32 px-3 py-2.5">Expires</th>
@@ -439,8 +439,8 @@
       <span class="min-w-0 break-all text-sm text-gray-700">{{ shareUrl(created.plainToken) }}</span>
     </div>
     <div class="mt-4 grid grid-cols-2 gap-4">
-      <div><p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Permission</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.permission }}</p></div>
-      <div><p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Expires</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.expiresAtUtc ? date(created.link.expiresAtUtc) : 'No expiration' }}</p></div>
+      <div><p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Permission</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.permission }}</p></div>
+      <div><p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Expires</p><p class="mt-0.5 text-sm font-semibold text-gray-800">{{ created.link.expiresAtUtc ? date(created.link.expiresAtUtc) : 'No expiration' }}</p></div>
     </div>
     <p class="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-700">
       <ion-icon name="alert-circle-outline" class="mt-0.5 text-sm"></ion-icon>
@@ -482,19 +482,19 @@
   @if (usage(); as u) {
     <div class="mt-5 grid grid-cols-2 gap-4">
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Used</p>
+        <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Used</p>
         <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.usedBytes) }} GB</p>
       </div>
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Available</p>
+        <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Available</p>
         <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.availableBytes) }} GB</p>
       </div>
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Reserved</p>
+        <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Reserved</p>
         <p class="mt-0.5 text-lg font-bold text-gray-900">{{ usedGb(u.reservedBytes) }} GB</p>
       </div>
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Plan</p>
+        <p class="text-[0.625rem] font-bold uppercase tracking-wider text-gray-400">Plan</p>
         <p class="mt-0.5 text-lg font-bold text-gray-900">{{ u.planCode }}</p>
       </div>
     </div>

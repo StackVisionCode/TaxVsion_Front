@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -51,7 +52,7 @@ interface EditableStep {
 @Component({
   selector: 'app-task-templates-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ModalComponent, CustomerPickerComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, CustomerPickerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-templates-modal.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

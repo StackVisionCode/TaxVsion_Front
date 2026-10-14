@@ -1,24 +1,24 @@
 <div class="relative flex min-h-screen w-full items-center justify-center bg-[#F8F4ED] px-5 py-10 text-[#083645]">
   <!-- La escena de carga post-login no vive acá: es <app-login-transition /> en la raíz (sobrevive al cambio
        de ruta). Esta página solo hunde la tarjeta. -->
-  <div class="auth-card w-full max-w-[340px]" [class.login-sink]="isSunk()">
+  <div class="auth-card w-full max-w-[21.25rem]" [class.login-sink]="isSunk()">
     <div class="flex flex-col items-center text-center">
       <!-- Logo de la oficina (si el subdominio tiene uno); si no, la marca Taxoffix. -->
       <img
         *ngIf="logoUrl() && !showLogoFallback(); else taxoffixMark"
         [src]="logoUrl()"
         alt="Logo"
-        class="h-9 max-w-[180px] object-contain"
+        class="h-9 max-w-[11.25rem] object-contain"
         (error)="showLogoFallback.set(true)"
       />
       <ng-template #taxoffixMark>
         <span class="inline-flex items-center gap-2" [attr.aria-label]="brand">
-          <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
-          <span class="text-[22px] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
+          <ion-icon name="infinite-outline" class="text-[1.75rem] text-[#057BC1]"></ion-icon>
+          <span class="text-[1.375rem] font-extrabold tracking-tight">Tax<span class="text-[#057BC1]">offix</span></span>
         </span>
       </ng-template>
 
-      <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Sign in</h1>
+      <h1 class="mt-5 text-[1.875rem] font-semibold leading-tight tracking-tight">Sign in</h1>
       <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">Enter your work email and we'll take you to your office.</p>
     </div>
 
@@ -53,7 +53,7 @@
       <button type="submit" [disabled]="isLoggingIn()"
         class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">
         @if (isLoggingIn()) {
-          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
+          <app-infinity-loader size="xs" tone="light" />
           <span>Signing in...</span>
         } @else {
           <span>Continue</span>
@@ -61,7 +61,7 @@
       </button>
     </form>
 
-    <div class="mt-6 flex flex-col items-center gap-2.5 text-[13px] text-[#3E5F6B]">
+    <div class="mt-6 flex flex-col items-center gap-2.5 text-[0.8125rem] text-[#3E5F6B]">
       <a routerLink="/forgot-password" class="font-medium hover:text-[#083645]">Forgot your password?</a>
       <!-- Sign-up y "encuentra tu oficina" son de sistema (app.<baseDomain>): se ocultan en el
            subdominio de una oficina concreta, donde no aplican. -->

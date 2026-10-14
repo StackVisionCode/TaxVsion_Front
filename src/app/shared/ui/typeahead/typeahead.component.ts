@@ -14,6 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, Subject, of, timer } from 'rxjs';
 import { catchError, debounce, map, switchMap, tap } from 'rxjs/operators';
@@ -61,7 +62,7 @@ let typeaheadSeq = 0;
  */
 @Component({
   selector: 'app-typeahead',
-  imports: [NgClass, NgTemplateOutlet, ClickOutsideDirective],
+  imports: [InfinityLoaderComponent, NgClass, NgTemplateOutlet, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   host: { class: 'block' },
   template: `
@@ -81,11 +82,11 @@ let typeaheadSeq = 0;
           class="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
           @if (searching()) {
             <div class="flex items-center gap-2 px-3 py-2 text-xs text-gray-400">
-              <ion-icon name="sync-outline" class="animate-spin text-sm"></ion-icon> Searching…
+              <app-infinity-loader size="xs" /> Searching…
             </div>
           }
           @if (showingRecents()) {
-            <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ recentLabel }}</p>
+            <p class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">{{ recentLabel }}</p>
           }
           @for (item of items(); track trackBy(item); let i = $index) {
             <button type="button" role="option" [id]="listId + '-' + i" [attr.aria-selected]="i === highlighted()"

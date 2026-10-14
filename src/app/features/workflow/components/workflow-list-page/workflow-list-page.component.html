@@ -1,5 +1,5 @@
 <div class="flex min-h-0 flex-1 flex-col gap-4">
-  <header class="flex flex-wrap items-center gap-3 rounded-[28px] bg-white px-5 py-4 lg:pr-[var(--shell-notch-width)]">
+  <header class="flex flex-wrap items-center gap-3 rounded-[1.75rem] bg-white px-5 py-4 lg:pr-[var(--shell-notch-width)]">
     <div class="min-w-0">
       <h1 class="text-xl font-bold tracking-tight text-gray-900">Workflows</h1>
       <p class="mt-0.5 text-xs text-gray-500">Open one to keep building, or start a new one.</p>
@@ -20,7 +20,7 @@
     </div>
   </header>
 
-  <section class="min-h-0 flex-1 overflow-y-auto rounded-[28px] bg-white p-5">
+  <section class="min-h-0 flex-1 overflow-y-auto rounded-[1.75rem] bg-white p-5">
     @if (items().length === 0) {
       <div class="flex flex-col items-center gap-2 py-20 text-center text-gray-500">
         <span class="mb-1 grid h-12 w-12 place-items-center rounded-2xl bg-gray-100 text-gray-400">
@@ -41,7 +41,7 @@
     } @else {
       <table class="w-full border-collapse text-sm">
         <thead>
-          <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <tr class="border-b border-gray-100 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
             <th scope="col" class="pb-2.5 pl-2 font-semibold">Name</th>
             <th scope="col" class="pb-2.5 font-semibold">Steps</th>
             <th scope="col" class="hidden pb-2.5 font-semibold sm:table-cell">Notes</th>

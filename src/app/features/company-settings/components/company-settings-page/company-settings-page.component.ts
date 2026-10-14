@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import {
   ASSET_ALLOWED_CONTENT_TYPES,
@@ -18,7 +19,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
  */
 @Component({
   selector: 'app-company-settings-page',
-  imports: [CommonModule, FormsModule],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './company-settings-page.component.html',
 })
@@ -105,7 +106,7 @@ export class CompanySettingsPageComponent {
         website: this.website().trim() || null,
       })
       .subscribe({
-        next: () => this.showToast('Company profile saved'),
+        next: () => this.showToast('Office profile saved'),
         error: () => {
           /* el mensaje ya quedó en store.profileError */
         },

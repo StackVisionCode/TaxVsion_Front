@@ -1,5 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnInit, Output, signal } from '@angular/core';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { AccountConnection, AccountProviderDefinition } from '../../data-access/connections.model';
 
 /**
@@ -12,12 +13,12 @@ import { AccountConnection, AccountProviderDefinition } from '../../data-access/
  */
 @Component({
   selector: 'app-account-connect-form',
-  imports: [SwitchComponent],
+  imports: [InfinityLoaderComponent, SwitchComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <div class="flex flex-col gap-5">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">The assistant will be able to</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">The assistant will be able to</p>
         <ul class="mt-2 flex flex-col gap-2">
           @for (scope of provider.scopes; track scope) {
             <li class="flex items-start gap-2 text-sm text-gray-700">
@@ -53,7 +54,7 @@ import { AccountConnection, AccountProviderDefinition } from '../../data-access/
         <button type="button" (click)="confirmed.emit(allowWrite())" [disabled]="saving"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
           @if (saving) {
-            <ion-icon name="sync-outline" class="animate-spin text-base"></ion-icon>
+            <app-infinity-loader size="xs" tone="light" />
           }
           {{ connection ? 'Save changes' : 'Continue to ' + provider.name }}
         </button>

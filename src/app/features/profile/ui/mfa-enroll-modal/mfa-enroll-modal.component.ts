@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -33,7 +34,7 @@ import { RecoveryCodesPanelComponent } from '../recovery-codes-panel/recovery-co
  */
 @Component({
   selector: 'app-mfa-enroll-modal',
-  imports: [CommonModule, FormsModule, ModalComponent, RecoveryCodesPanelComponent],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, RecoveryCodesPanelComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mfa-enroll-modal.component.html',
   styleUrl: './mfa-enroll-modal.component.css',

@@ -9,6 +9,7 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { firstValueFrom } from 'rxjs';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { VoiceNotePlayback } from '@core/communication/voice-note-playback';
@@ -22,7 +23,7 @@ import { VoiceNotePlayback } from '@core/communication/voice-note-playback';
 @Component({
   selector: 'app-voice-note-player',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './voice-note-player.component.html',

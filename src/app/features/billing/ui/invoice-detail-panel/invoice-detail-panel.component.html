@@ -130,7 +130,11 @@
     <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
       <button type="button" (click)="refreshRequested.emit(inv)" [disabled]="busy"
         class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors">
-        <ion-icon name="refresh-outline" class="text-base" [ngClass]="busy ? 'animate-spin' : ''"></ion-icon>
+        @if (busy) {
+          <app-infinity-loader size="xs" />
+        } @else {
+          <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+        }
         Refresh
       </button>
 
@@ -152,8 +156,11 @@
         </button>
         <button *ngIf="canIssue" type="button" (click)="issueRequested.emit(inv)" [disabled]="busy"
           class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-          <ion-icon [name]="busy ? 'sync-outline' : 'send-outline'" class="text-base"
-            [ngClass]="busy ? 'animate-spin' : ''"></ion-icon>
+          @if (busy) {
+            <app-infinity-loader size="xs" tone="light" />
+          } @else {
+            <ion-icon name="send-outline" class="text-base"></ion-icon>
+          }
           {{ busy ? 'Issuing…' : 'Issue invoice' }}
         </button>
       </div>

@@ -10,7 +10,7 @@
     <!-- Loading older history -->
     <div *ngIf="loadingOlder" class="flex justify-center py-2" aria-live="polite">
       <span class="flex items-center gap-2 text-xs text-gray-400">
-        <ion-icon name="reload-outline" class="animate-spin text-sm motion-reduce:animate-none"></ion-icon>
+        <app-infinity-loader size="xs" />
         Loading earlier messages…
       </span>
     </div>
@@ -18,12 +18,12 @@
     <ng-container *ngFor="let message of messages; let i = index; trackBy: trackMessage">
       <!-- Date separator -->
       <div *ngIf="showDateSeparator(i)" class="my-2 flex justify-center">
-        <span class="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">{{ message.dateGroup }}</span>
+        <span class="rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500">{{ message.dateGroup }}</span>
       </div>
 
       <!-- Evento del sistema (p.ej. "Missed call", "Call ended 2:34"): centrado, con icono de teléfono. -->
       <div *ngIf="message.isSystem" class="my-1 flex justify-center">
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500">
           <ion-icon name="call-outline" class="text-xs"></ion-icon>{{ message.text }}
         </span>
       </div>
@@ -157,9 +157,9 @@
       <span class="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5" aria-hidden="true">
         <ion-icon name="mic" class="text-sm text-red-500 animate-pulse motion-reduce:animate-none"></ion-icon>
         <span class="flex items-end gap-0.5">
-          <span class="w-[3px] h-2 rounded-full bg-red-400 animate-bounce [animation-delay:-0.3s] motion-reduce:animate-none"></span>
-          <span class="w-[3px] h-3 rounded-full bg-red-400 animate-bounce [animation-delay:-0.15s] motion-reduce:animate-none"></span>
-          <span class="w-[3px] h-2 rounded-full bg-red-400 animate-bounce motion-reduce:animate-none"></span>
+          <span class="w-[0.1875rem] h-2 rounded-full bg-red-400 animate-bounce [animation-delay:-0.3s] motion-reduce:animate-none"></span>
+          <span class="w-[0.1875rem] h-3 rounded-full bg-red-400 animate-bounce [animation-delay:-0.15s] motion-reduce:animate-none"></span>
+          <span class="w-[0.1875rem] h-2 rounded-full bg-red-400 animate-bounce motion-reduce:animate-none"></span>
         </span>
       </span>
       <span class="text-xs italic text-gray-500">{{ recordingName }} is recording a voice note…</span>

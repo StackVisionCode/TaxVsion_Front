@@ -7,7 +7,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-sm font-semibold text-gray-800">{{ accessLabel(s.visibility) }}</p>
-              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-gray-400">
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[0.6875rem] text-gray-400">
                 <span>{{ s.permission === 'Download' ? 'Download' : 'View' }}</span>
                 <span aria-hidden="true">·</span>
                 <span>••••{{ s.tokenLast4 }}</span>
@@ -20,14 +20,14 @@
             <div class="flex shrink-0 items-center gap-1.5">
               @if (isCopyable(s)) {
                 <button type="button" (click)="reshare.emit(s)" title="Create a fresh copyable link and revoke this one"
-                  class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                  class="flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[0.6875rem] font-semibold text-gray-700 transition-colors hover:bg-gray-50">
                   <ion-icon name="copy-outline"></ion-icon> Copy link
                 </button>
               } @else {
-                <span class="text-[11px] text-gray-400">{{ noCopyReason(s) }}</span>
+                <span class="text-[0.6875rem] text-gray-400">{{ noCopyReason(s) }}</span>
               }
               <button type="button" (click)="revokeShare.emit(s.id)"
-                class="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:border-red-100 hover:bg-red-50">
+                class="rounded-full border border-gray-200 px-2.5 py-1 text-[0.6875rem] font-semibold text-red-600 transition-colors hover:border-red-100 hover:bg-red-50">
                 Revoke
               </button>
             </div>
@@ -36,7 +36,7 @@
       }
     </ul>
     @if (activeShares.length && hasCopyableShares()) {
-      <p class="mt-2 flex items-start gap-1.5 text-[11px] text-gray-400">
+      <p class="mt-2 flex items-start gap-1.5 text-[0.6875rem] text-gray-400">
         <ion-icon name="information-circle-outline" class="mt-0.5"></ion-icon>
         "Copy link" makes a new link and revokes the current one — the old link can't be shown again.
       </p>
@@ -133,7 +133,7 @@
         <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Expiration</span>
         <input type="date" [ngModel]="expires()" (ngModelChange)="expires.set($event)" [min]="minExpiry" [max]="maxExpiry"
           class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
-        <span class="mt-1 block text-[11px] text-gray-400">
+        <span class="mt-1 block text-[0.6875rem] text-gray-400">
           @if (access() === 'ExternalLink') { Secure links last up to 30 days. } @else { Leave empty for the default 7 days. }
         </span>
       </label>
