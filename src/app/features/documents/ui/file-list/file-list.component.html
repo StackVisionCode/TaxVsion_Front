@@ -89,18 +89,21 @@
             <td class="hide-xs px-3 py-2.5 text-gray-500">{{ folder.createdAtUtc ? formatCreated(folder.createdAtUtc) : '—' }}</td>
             <td class="hide-sm hide-xs px-3 py-2.5 text-gray-400">—</td>
             <td class="c-act act px-3 py-2.5 text-right">
-              @if (isSystemFolder(folder)) {
-                <span class="inline-flex items-center gap-1 text-xs text-gray-300" title="System folder — managed automatically">
-                  <ion-icon name="lock-closed-outline"></ion-icon>
-                </span>
-              } @else {
-                <div class="row-actions inline-flex items-center gap-0.5">
+              <div class="row-actions inline-flex items-center gap-0.5">
+                @if (!isSystemFolder(folder)) {
                   @if (can.canManageFolders()) { <button type="button" (click)="action.emit({ kind: 'rename-folder', folder })" title="Rename" aria-label="Rename folder" class="qbtn"><ion-icon name="create-outline"></ion-icon></button> }
                   @if (can.canShare()) { <button type="button" (click)="action.emit({ kind: 'share-folder', folder })" title="Share" aria-label="Share folder" class="qbtn"><ion-icon name="share-social-outline"></ion-icon></button> }
+                }
+                @if (canManagePermissions) { <button type="button" (click)="action.emit({ kind: 'permissions', resourceType: 'Folder', resourceId: folder.id, name: folder.name, category: folder.category ?? null })" title="Permissions" aria-label="Manage folder permissions" class="qbtn"><ion-icon name="shield-outline"></ion-icon></button> }
+                @if (!isSystemFolder(folder)) {
                   @if (can.canManageFolders()) { <button type="button" (click)="action.emit({ kind: 'move-folder', folder })" title="Move" aria-label="Move folder" class="qbtn"><ion-icon name="arrow-redo-outline"></ion-icon></button> }
                   @if (can.canManageFolders()) { <button type="button" (click)="action.emit({ kind: 'delete-folder', folder })" title="Delete" aria-label="Delete folder" class="qbtn qbtn-danger"><ion-icon name="trash-outline"></ion-icon></button> }
-                </div>
-              }
+                } @else {
+                  <span class="inline-flex items-center gap-1 text-xs text-gray-300" title="System folder — managed automatically">
+                    <ion-icon name="lock-closed-outline"></ion-icon>
+                  </span>
+                }
+              </div>
             </td>
           </tr>
         }
@@ -136,6 +139,7 @@
                 @if (previewable(file)) { <button type="button" (click)="action.emit({ kind: 'preview-file', file })" title="Preview" aria-label="Preview file" class="qbtn"><ion-icon name="eye-outline"></ion-icon></button> }
                 @if (ready(file) && can.canDownload()) { <button type="button" (click)="action.emit({ kind: 'download-file', file })" title="Download" aria-label="Download file" class="qbtn"><ion-icon name="download-outline"></ion-icon></button> }
                 @if (ready(file) && can.canShare()) { <button type="button" (click)="action.emit({ kind: 'share-file', file })" title="Share" aria-label="Share file" class="qbtn"><ion-icon name="share-social-outline"></ion-icon></button> }
+                @if (canManagePermissions) { <button type="button" (click)="action.emit({ kind: 'permissions', resourceType: 'File', resourceId: file.id, name: file.originalName })" title="Permissions" aria-label="Manage file permissions" class="qbtn"><ion-icon name="shield-outline"></ion-icon></button> }
                 @if (can.canManageFolders()) { <button type="button" (click)="action.emit({ kind: 'move-file', file })" title="Move" aria-label="Move file" class="qbtn"><ion-icon name="arrow-redo-outline"></ion-icon></button> }
                 @if (can.canDeleteFile()) { <button type="button" (click)="action.emit({ kind: 'delete-file', file })" title="Delete" aria-label="Delete file" class="qbtn qbtn-danger"><ion-icon name="trash-outline"></ion-icon></button> }
               </div>

@@ -1,8 +1,8 @@
 <aside class="details-panel flex h-full w-full flex-col overflow-hidden bg-white">
-  <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
-    <h3 class="text-sm font-bold text-gray-900">File details</h3>
+  <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3.5 lg:pr-[var(--shell-notch-width)]">
+    <h3 class="truncate text-sm font-bold text-gray-900">File details</h3>
     <button type="button" (click)="closed.emit()" aria-label="Close details"
-      class="grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900">
+      class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900">
       <ion-icon name="close-outline" class="text-base"></ion-icon>
     </button>
   </div>

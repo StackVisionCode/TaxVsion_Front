@@ -60,6 +60,16 @@ export interface FileResponse {
   scannedAtUtc: string | null;
   /** true si el archivo tiene un link de compartir vigente (lo marca el listado de carpeta). */
   isShared?: boolean;
+  /** Capacidades efectivas para el cliente del portal (solo con deny-per-item activo). */
+  effectiveCapabilities?: {
+    preview: boolean;
+    download: boolean;
+    upload: boolean;
+    delete: boolean;
+    shareExternal: boolean;
+  };
+  /** Motivo del deny (si lo hay) para mostrar como tooltip en el portal. */
+  denyReason?: string | null;
 }
 
 /** Body de POST /storage/files/uploads. */

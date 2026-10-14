@@ -330,6 +330,7 @@
             [selectedFileId]="selectedFile()?.id ?? null"
             [selectedIds]="selectedIds()"
             [view]="viewMode()"
+            [canManagePermissions]="canManagePermissions()"
             (action)="onRowAction($event)"
             (toggleAll)="toggleSelectAll()"
             (setSort)="setSort($event)" />
@@ -512,3 +513,13 @@
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">Close</button>
   </div>
 </app-modal>
+
+<!-- Drawer de reglas deny per-item (solo en modo embebido en un cliente) -->
+@if (embedded() && embeddedCustomerId()) {
+  <app-customer-document-access-drawer
+    [customerId]="embeddedCustomerId()!"
+    mode="item"
+    [item]="permissionsItem()"
+    [open]="permissionsItem() !== null"
+    (closed)="permissionsItem.set(null)" />
+}

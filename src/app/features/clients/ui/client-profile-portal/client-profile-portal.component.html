@@ -108,6 +108,27 @@
 <app-client-portal-permissions *ngIf="access().portalUserId as portalUserId" class="mt-6 block"
   [userId]="portalUserId" [clientName]="clientName"></app-client-portal-permissions>
 
+<!-- Document access overrides: deny per-item sobre documentos del cliente -->
+<div *ngIf="canManageDocumentAccess()" class="mt-6 bg-white rounded-[28px] p-6">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h2 class="text-xl font-bold text-gray-900">Document access overrides</h2>
+      <p class="mt-1 text-sm text-gray-500">Hide or restrict actions per file and folder for this client.</p>
+    </div>
+    <button type="button" (click)="openOverrides()"
+      class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+      <ion-icon name="shield-outline" class="text-base"></ion-icon>
+      Review overrides
+    </button>
+  </div>
+</div>
+
+<app-customer-document-access-drawer *ngIf="clientId"
+  [customerId]="clientId"
+  mode="customer"
+  [open]="overridesOpen()"
+  (closed)="closeOverrides()"></app-customer-document-access-drawer>
+
 <!-- Confirmación (cancelar / desactivar) -->
 <app-confirm-dialog [isOpen]="confirm() !== null" [heading]="confirm()?.heading ?? ''" [message]="confirm()?.message ?? ''"
   [confirmLabel]="confirm()?.confirmLabel ?? 'Confirm'" (confirmed)="onConfirm()"
