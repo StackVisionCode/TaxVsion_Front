@@ -1,17 +1,17 @@
 <button type="button" (click)="open.emit()" class="flex items-center"
   [attr.aria-label]="'Manage the ' + collaborators.length + ' people on this workflow'">
   <span class="flex -space-x-2">
-    <span *ngFor="let person of visible"
-      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full text-[0.625rem] font-semibold text-white ring-2 ring-white"
-      [ngClass]="color(person)" [title]="title(person)">
+    <span *ngFor="let person of visible; let i = index"
+      class="wf-avatar flex h-[1.875rem] w-[1.875rem] items-center justify-center rounded-full text-[0.625rem] font-bold ring-2 ring-white"
+      [ngClass]="tone(i)" [title]="title(person)">
       {{ initials(person) }}
     </span>
     <span *ngIf="overflow > 0"
-      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-[0.625rem] font-semibold text-gray-600 ring-2 ring-white">
+      class="wf-avatar flex h-[1.875rem] w-[1.875rem] items-center justify-center rounded-full bg-[#F4EDE4] text-[0.625rem] font-bold text-[#083645] ring-2 ring-white">
       +{{ overflow }}
     </span>
   </span>
-  <span *ngIf="collaborators.length === 0" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+  <span *ngIf="collaborators.length === 0" class="text-xs text-[#3E5F6B] transition-colors hover:text-[#083645]">
     Just you
   </span>
 </button>

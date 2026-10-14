@@ -16,7 +16,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Connector, OpenEnd, PositionedNode, WorkflowLayout } from '../../utils/workflow-layout.util';
+import { ProcessBox, ProcessLayout, ProcessLink } from '../../utils/workflow-process-layout.util';
 import {
   INK_COLORS,
   INK_SIZES,
@@ -29,25 +29,13 @@ import {
 } from '../../data-access/workflow.model';
 import { PeerCursor } from '../../data-access/workflow-presence.service';
 import { PreviewEdgeStatus, PreviewStepView } from '../../data-access/workflow-preview.service';
-import { WorkflowNodeComponent } from '../workflow-node/workflow-node.component';
+import {
+  ExitTarget,
+  InsertRequest,
+  WorkflowProcessCardComponent,
+} from '../workflow-process-card/workflow-process-card.component';
 
-/** Dónde insertar el paso nuevo: de qué carta y por qué salida. */
-export interface InsertRequest {
-  fromStepId: string | null;
-  fromPort: string;
-}
-
-/** Un hilo que se está tirando desde un puerto y aún no ha llegado a destino. */
-export interface PendingLink {
-  fromStepId: string;
-  fromPort: string;
-  /** Origen: el puerto de salida. */
-  x: number;
-  y: number;
-  /** Punta: el cursor. */
-  toX: number;
-  toY: number;
-}
+export type { InsertRequest };
 
 /**
  * Herramientas del lienzo. Todas menos `select`/`pan` quedan a la espera de un gesto sobre
@@ -95,11 +83,11 @@ interface AnnotationDragState {
   moved: boolean;
 }
 
-/** Estado del arrastre de un nodo. */
-interface NodeDragState {
+/** Estado del arrastre de un proceso por su cabecera. */
+interface ProcessDragState {
   pointerId: number;
-  stepId: string;
-  /** Distancia del puntero a la esquina del nodo, en coordenadas del lienzo. */
+  processId: string;
+  /** Distancia del puntero a la esquina de la tarjeta, en coordenadas del lienzo. */
   offsetX: number;
   offsetY: number;
   moved: boolean;
@@ -122,44 +110,66 @@ interface NodeDragState {
  */
 @Component({
   selector: 'app-workflow-canvas',
-  imports: [CommonModule, WorkflowNodeComponent],
+  imports: [CommonModule, WorkflowProcessCardComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './workflow-canvas.component.html',
   styleUrl: './workflow-canvas.component.css',
 })
 export class WorkflowCanvasComponent implements OnDestroy {
-  @Input({ required: true }) layout!: WorkflowLayout;
-  @Input() selectedId: string | null = null;
+  @Input({ required: true }) layout!: ProcessLayout;
+  @Input() selectedStepId: string | null = null;
+  @Input() selectedProcessId: string | null = null;
   @Input() selectedConnectionId: string | null = null;
   /** Overlay de la simulación; null = no hay corrida en pantalla. */
   @Input() stepPreview: ReadonlyMap<string, PreviewStepView> | null = null;
   @Input() edgePreview: ReadonlyMap<string, PreviewEdgeStatus> | null = null;
-
-  previewFor(node: PositionedNode): PreviewStepView | null {
-    return this.stepPreview?.get(node.step.id) ?? null;
-  }
+  /** Punto de inserción elegido en la paleta (para marcarlo en su proceso). */
+  @Input() pendingInsert: InsertRequest | null = null;
 
   edgeRunClass(connectorId: string): string {
     const status = this.edgePreview?.get(connectorId);
     return status ? `wf-edge--run-${status}` : '';
   }
 
+  /** Destinos posibles de una salida: los demás procesos (uno vacío no se puede enlazar). */
+  targetsFor(box: ProcessBox): ExitTarget[] {
+    return this.layout.boxes
+      .filter(other => other.process.id !== box.process.id)
+      .map(other => ({
+        id: other.process.id,
+        name: other.process.name,
+        disabled: other.stepCount === 0,
+      }));
+  }
+
+  pendingIndexFor(box: ProcessBox): number | null | undefined {
+    return this.pendingInsert?.processId === box.process.id ? this.pendingInsert.index : undefined;
+  }
+
+  @Output() selectProcess = new EventEmitter<string>();
   @Output() selectStep = new EventEmitter<string>();
   @Output() deleteStep = new EventEmitter<string>();
   @Output() duplicateStep = new EventEmitter<string>();
+  @Output() moveStep = new EventEmitter<{ id: string; delta: -1 | 1 }>();
   @Output() insertStep = new EventEmitter<InsertRequest>();
-  /** Arrastre de un nodo: en vivo mientras se mueve, y al soltar. */
-  @Output() moveStepLive = new EventEmitter<{ id: string; x: number; y: number }>();
+  @Output() renameProcess = new EventEmitter<{ id: string; name: string }>();
+  @Output() toggleProcess = new EventEmitter<string>();
+  @Output() duplicateProcess = new EventEmitter<string>();
+  @Output() deleteProcess = new EventEmitter<string>();
+  /** Arrastre de un proceso: en vivo mientras se mueve, y al soltar. */
+  @Output() moveProcessLive = new EventEmitter<{ id: string; x: number; y: number }>();
   @Output() moveStepEnd = new EventEmitter<void>();
   @Output() moveStepStart = new EventEmitter<void>();
   /** Soltar un tipo de paso arrastrado desde el catálogo. */
   @Output() dropStep = new EventEmitter<{ typeId: string; x: number; y: number }>();
-  /** Volver al layout automático. */
+  /** Volver al orden automático. */
   @Output() tidy = new EventEmitter<void>();
-  /** Hilos: seleccionar, borrar y crear arrastrando de puerto a puerto. */
+  /** Clic en el lienzo vacío: nada seleccionado. */
+  @Output() clearSelection = new EventEmitter<void>();
+  /** Hilos entre procesos: seleccionar, borrar y enlazar una salida con otro proceso. */
   @Output() selectConnection = new EventEmitter<string>();
   @Output() deleteConnection = new EventEmitter<string>();
-  @Output() connectSteps = new EventEmitter<{ fromStepId: string; fromPort: string; toStepId: string }>();
+  @Output() connectExit = new EventEmitter<{ stepId: string; port: string; processId: string }>();
 
   /** Notas e imágenes: colocar, editar, mover y borrar. */
   @Output() addNote = new EventEmitter<{ x: number; y: number }>();
@@ -193,13 +203,13 @@ export class WorkflowCanvasComponent implements OnDestroy {
 
   readonly zoom = signal(1);
   readonly tool = signal<CanvasTool>('select');
-  /** Nodo que se está arrastrando: solo ese se promociona a capa propia. */
+  /** Proceso que se está arrastrando. */
   readonly draggingId = signal<string | null>(null);
 
   private readonly injector = inject(Injector);
 
   private pan: PanState | null = null;
-  private nodeDrag: NodeDragState | null = null;
+  private processDrag: ProcessDragState | null = null;
   private annotationDrag: AnnotationDragState | null = null;
 
   /** Anotación seleccionada: la que enseña su barra y llena el panel de Propiedades. */
@@ -338,24 +348,23 @@ export class WorkflowCanvasComponent implements OnDestroy {
     };
   }
 
-  /** Arrastre de un nodo. Con la herramienta mano activa manda el pan. */
-  startNodeDrag(event: PointerEvent, node: PositionedNode): void {
-    if (this.tool() === 'pan') {
+  /** Arrastre de un proceso por la cabecera. Con la herramienta mano activa manda el pan. */
+  startProcessDrag(event: PointerEvent, box: ProcessBox): void {
+    if (this.tool() !== 'select' || event.button !== 0) {
       return;
     }
     event.stopPropagation();
-    // Ata el puntero al elemento: los eventos siguen llegando aunque el cursor
-    // se salga del nodo o del viewport, que es el fallo clásico del arrastre.
-    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+    // Ata el puntero al elemento: los eventos siguen llegando aunque el cursor se salga.
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
     const point = this.toCanvas(event.clientX, event.clientY);
-    this.nodeDrag = {
+    this.processDrag = {
       pointerId: event.pointerId,
-      stepId: node.step.id,
-      offsetX: point.x - node.x,
-      offsetY: point.y - node.y,
+      processId: box.process.id,
+      offsetX: point.x - box.x,
+      offsetY: point.y - box.y,
       moved: false,
     };
-    this.draggingId.set(node.step.id);
+    this.draggingId.set(box.process.id);
     this.moveStepStart.emit();
   }
 
@@ -448,6 +457,7 @@ export class WorkflowCanvasComponent implements OnDestroy {
     }
     this.selectAnnotation(null);
     this.editingAnnotationId.set(null);
+    this.clearSelection.emit();
   }
 
   /** Punto único de selección: mantiene el panel y el lienzo diciendo lo mismo. */
@@ -511,8 +521,7 @@ export class WorkflowCanvasComponent implements OnDestroy {
       return;
     }
     const point = this.toCanvas(event.clientX, event.clientY);
-    // Se centra en el cursor: es donde el usuario "ve" el paso al soltarlo.
-    this.dropStep.emit({ typeId, x: point.x - 142, y: point.y - 40 });
+    this.dropStep.emit({ typeId, x: point.x, y: point.y });
   }
 
   allowDrop(event: DragEvent): void {
@@ -520,8 +529,8 @@ export class WorkflowCanvasComponent implements OnDestroy {
     event.preventDefault();
   }
 
-  trackNode = (_index: number, node: PositionedNode): string => node.step.id;
-  trackConnector = (_index: number, connector: Connector): string => connector.id;
+  trackBox = (_index: number, box: ProcessBox): string => box.process.id;
+  trackLink = (_index: number, link: ProcessLink): string => link.id;
 
   zoomPercent(): number {
     return Math.round(this.zoom() * 100);
@@ -692,23 +701,13 @@ export class WorkflowCanvasComponent implements OnDestroy {
       return;
     }
 
-    const link = this.pendingLink();
-    if (link && event.pointerId === this.linkPointerId) {
-      const { clientX, clientY } = event;
-      this.scheduleFrame(() => {
-        const point = this.toCanvas(clientX, clientY);
-        this.pendingLink.set({ ...link, toX: point.x, toY: point.y });
-      });
-      return;
-    }
-
-    const drag = this.nodeDrag;
+    const drag = this.processDrag;
     if (drag && event.pointerId === drag.pointerId) {
       drag.moved = true;
       const { clientX, clientY } = event;
       this.scheduleFrame(() => {
         const point = this.toCanvas(clientX, clientY);
-        this.moveStepLive.emit({ id: drag.stepId, x: point.x - drag.offsetX, y: point.y - drag.offsetY });
+        this.moveProcessLive.emit({ id: drag.processId, x: point.x - drag.offsetX, y: point.y - drag.offsetY });
       });
       return;
     }
@@ -725,12 +724,6 @@ export class WorkflowCanvasComponent implements OnDestroy {
   @HostListener('document:pointerup')
   @HostListener('document:pointercancel')
   onPointerUp(): void {
-    if (this.pendingLink()) {
-      // Soltar fuera de una carta cancela el hilo, sin dejar estado colgando.
-      this.pendingLink.set(null);
-      this.linkPointerId = null;
-      this.cancelFrame();
-    }
     if (this.sketch()) {
       this.cancelFrame();
       this.endSketch();
@@ -741,14 +734,11 @@ export class WorkflowCanvasComponent implements OnDestroy {
       this.suppressClick = this.annotationDrag.moved;
       this.annotationDrag = null;
     }
-    if (this.nodeDrag) {
+    if (this.processDrag) {
       this.cancelFrame();
       this.draggingId.set(null);
       this.moveStepEnd.emit();
-      // Un arrastre no debe además "seleccionar": el clic que sigue al
-      // pointerup se ignora si el nodo llegó a moverse.
-      this.suppressClick = this.nodeDrag.moved;
-      this.nodeDrag = null;
+      this.processDrag = null;
     }
     this.pan = null;
   }
@@ -757,16 +747,10 @@ export class WorkflowCanvasComponent implements OnDestroy {
   private suppressClick = false;
 
   /**
-   * Escape cancela el hilo en curso; Supr borra el hilo seleccionado. Sin esto
-   * la única salida era soltar en el vacío o buscar el botón con el ratón.
+   * Supr borra el hilo seleccionado, sin tener que buscar el botón con el ratón.
    */
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.pendingLink()) {
-      this.pendingLink.set(null);
-      this.linkPointerId = null;
-      return;
-    }
     const target = event.target as HTMLElement | null;
     const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
     if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedConnectionId && !typing) {
@@ -775,70 +759,9 @@ export class WorkflowCanvasComponent implements OnDestroy {
     }
   }
 
-  onNodeClick(stepId: string): void {
-    if (this.suppressClick) {
-      this.suppressClick = false;
-      return;
-    }
-    this.selectStep.emit(stepId);
-  }
-
-  /** `+` sobre un hilo: mete un paso entre esas dos cartas. */
-  onInsert(connector: Connector, event: MouseEvent): void {
+  onLinkClick(link: ProcessLink, event: MouseEvent): void {
     event.stopPropagation();
-    this.insertStep.emit({ fromStepId: connector.fromStepId, fromPort: connector.fromPort });
-  }
-
-  /** `+` de una salida libre: cuelga un paso nuevo de ahí. */
-  onInsertOpenEnd(openEnd: OpenEnd, event: MouseEvent): void {
-    event.stopPropagation();
-    this.insertStep.emit({ fromStepId: openEnd.stepId, fromPort: openEnd.port });
-  }
-
-  onConnectorClick(connector: Connector, event: MouseEvent): void {
-    event.stopPropagation();
-    this.selectConnection.emit(connector.id);
-  }
-
-  trackOpenEnd = (_index: number, openEnd: OpenEnd): string => openEnd.id;
-
-  // ---------- Tirar un hilo de puerto a puerto ----------
-
-  readonly pendingLink = signal<PendingLink | null>(null);
-  private linkPointerId: number | null = null;
-
-  startLink(event: PointerEvent, node: PositionedNode, portId: string): void {
-    event.stopPropagation();
-    event.preventDefault();
-    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
-    this.linkPointerId = event.pointerId;
-    const anchor = node.outputs.find(port => port.portId === portId) ?? node.outputs[0];
-    this.pendingLink.set({
-      fromStepId: node.step.id,
-      fromPort: portId,
-      x: anchor.x,
-      y: anchor.y,
-      toX: anchor.x,
-      toY: anchor.y,
-    });
-  }
-
-  /** Path del hilo en curso, del puerto al cursor. */
-  pendingPath(): string {
-    const link = this.pendingLink();
-    return link ? `M ${link.x} ${link.y} L ${link.toX} ${link.toY}` : '';
-  }
-
-  /** Suelta el hilo sobre una carta: ahí se decide si la conexión vale. */
-  finishLinkOn(node: PositionedNode, event: PointerEvent): void {
-    const link = this.pendingLink();
-    if (!link) {
-      return;
-    }
-    event.stopPropagation();
-    this.connectSteps.emit({ fromStepId: link.fromStepId, fromPort: link.fromPort, toStepId: node.step.id });
-    this.pendingLink.set(null);
-    this.linkPointerId = null;
+    this.selectConnection.emit(link.id);
   }
 }
 

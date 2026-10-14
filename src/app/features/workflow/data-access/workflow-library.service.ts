@@ -13,6 +13,8 @@ export interface WorkflowSummary {
   id: string;
   name: string;
   updatedAtIso: string;
+  /** Opcional: el índice de antes de los procesos no lo trae. */
+  processCount?: number;
   stepCount: number;
   connectionCount: number;
   collaboratorCount: number;
@@ -165,6 +167,7 @@ function summarize(doc: WorkflowDoc): WorkflowSummary {
     id: doc.id,
     name: doc.name,
     updatedAtIso: doc.updatedAtIso,
+    processCount: doc.processes?.length,
     stepCount: doc.steps?.length ?? 0,
     connectionCount: doc.connections?.length ?? 0,
     collaboratorCount: doc.collaborators?.length ?? 0,

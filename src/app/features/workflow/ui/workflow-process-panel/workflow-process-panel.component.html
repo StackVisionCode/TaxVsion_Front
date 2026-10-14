@@ -1,0 +1,65 @@
+<div class="flex h-full flex-col rounded-[1.75rem] border border-[#E4DCCF] bg-white">
+  <div class="flex items-center gap-2.5 px-5 pt-5">
+    <span class="grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-[0.625rem] bg-[#057BC1]/10 text-[#057BC1]">
+      <ion-icon name="layers-outline" class="text-base"></ion-icon>
+    </span>
+    <div class="min-w-0">
+      <h2 class="text-base font-bold leading-tight text-[#083645]">Process</h2>
+      <p class="text-[0.6875rem] text-[#3E5F6B]">Runs its actions in order</p>
+    </div>
+  </div>
+
+  <div class="mt-4 flex-1 space-y-4 overflow-y-auto px-5 pb-4">
+    <div class="space-y-1.5">
+      <label class="block text-xs font-semibold text-[#3E5F6B]" for="wf-process-name">Name</label>
+      <input id="wf-process-name" type="text" [ngModel]="name()" (ngModelChange)="draft.set($event)" (blur)="commit()"
+        (keydown.enter)="commit()" name="processName"
+        class="w-full rounded-xl border border-[#E4DCCF] bg-white px-3 py-2 text-sm text-[#083645] transition-colors focus:border-[#057BC1] focus:outline-none" />
+    </div>
+
+    <div>
+      <p class="mb-1.5 text-xs font-semibold text-[#3E5F6B]">Actions · {{ steps().length }}</p>
+      <div class="space-y-1.5">
+        @for (step of steps(); track step.id; let i = $index) {
+          <div class="flex items-center gap-2 rounded-xl border px-2.5 py-2 transition-colors"
+            [class]="selectedStepId() === step.id ? 'border-2 border-[#057BC1] bg-white' : 'border-[#E4DCCF] bg-[#F8F4ED]'">
+            <button type="button" (click)="selectStep.emit(step.id)" class="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span class="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+                [class]="typeOf(step).category === 'ai-logic' ? 'bg-[#083645] text-[#4DD8FF]' : 'bg-[#4DD8FF]/25 text-[#057BC1]'">
+                <ion-icon [name]="typeOf(step).icon" class="text-sm"></ion-icon>
+              </span>
+              <span class="min-w-0 truncate text-[0.8125rem] font-semibold text-[#083645]">{{ i + 1 }} · {{ step.title }}</span>
+            </button>
+            <button type="button" [disabled]="i === 0" (click)="move.emit({ id: step.id, delta: -1 })"
+              [attr.aria-label]="'Move ' + step.title + ' up'"
+              class="grid h-6 w-6 place-items-center rounded-full text-[#3E5F6B] hover:bg-white disabled:opacity-30">
+              <ion-icon name="arrow-up-outline" class="text-sm"></ion-icon>
+            </button>
+            <button type="button" [disabled]="i === steps().length - 1" (click)="move.emit({ id: step.id, delta: 1 })"
+              [attr.aria-label]="'Move ' + step.title + ' down'"
+              class="grid h-6 w-6 place-items-center rounded-full text-[#3E5F6B] hover:bg-white disabled:opacity-30">
+              <ion-icon name="arrow-down-outline" class="text-sm"></ion-icon>
+            </button>
+          </div>
+        } @empty {
+          <p class="rounded-xl bg-[#F4EDE4] px-3 py-2.5 text-xs text-[#3E5F6B]">
+            No actions yet. Pick one from the catalog on the left.
+          </p>
+        }
+      </div>
+      <button type="button" (click)="addAction.emit()"
+        class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#057BC1] py-2 text-[0.8125rem] font-semibold text-[#057BC1] transition-colors hover:bg-[#057BC1]/5">
+        <ion-icon name="add-outline" class="text-base"></ion-icon>
+        Add action
+      </button>
+    </div>
+  </div>
+
+  <div class="border-t border-[#E4DCCF] p-4">
+    <button type="button" (click)="deleteProcess.emit()"
+      class="flex w-full items-center justify-center gap-1.5 rounded-full border border-[#E4DCCF] py-2 text-[0.8125rem] font-semibold text-[#083645] transition-colors hover:bg-[#F8F4ED]">
+      <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+      Delete process
+    </button>
+  </div>
+</div>
