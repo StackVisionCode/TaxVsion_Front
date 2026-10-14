@@ -3,7 +3,7 @@ import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { LoginTransitionService } from './login-transition.service';
 
 /**
- * Módulos que "pasan" frente a la marca mientras carga el shell (orden del sidebar). Todos están
+ * Módulos que "llegan" al infinito mientras carga el shell (orden del sidebar). Todos están
  * registrados inline en `src/main.ts`; uno nuevo hay que agregarlo ahí o <ion-icon> rompe el render.
  */
 export const LOGIN_TRANSITION_ICONS: readonly string[] = [
@@ -12,26 +12,31 @@ export const LOGIN_TRANSITION_ICONS: readonly string[] = [
   'create-outline',
   'receipt-outline',
   'mail-outline',
-  'checkmark-done-outline',
   'videocam-outline',
   'chatbubbles-outline',
-  'chatbox-ellipses-outline',
   'megaphone-outline',
-  'cube-outline',
-  'pricetags-outline',
-  'git-network-outline',
-  'sparkles-outline',
+];
+
+/** Posición de partida (rem) de cada chip: repartidos a ambos lados, a distintas alturas. */
+const CHIP_START: readonly [number, number][] = [
+  [-13, -3.2],
+  [13, -2.4],
+  [-11, 2.6],
+  [12, 3],
+  [-15, 0],
+  [15, 0.4],
+  [-9, -4],
+  [10, -4],
 ];
 
 /**
  * Overlay de la transición login → dashboard. Host montado UNA vez en `app.html` (como los modales
  * de sesión): la raíz es el único lugar que sobrevive al cambio de ruta. Solo lee
- * `LoginTransitionService`; la escena es puramente decorativa (`aria-hidden` en la cinta) y el
- * caption es lo que se anuncia.
+ * `LoginTransitionService`; la escena es decorativa (`aria-hidden`) y el caption es lo que se anuncia.
  *
- * Escena: marca del tenant en el centro, una cinta de iconos de módulos en bucle continuo, nítida en
- * el centro y cada vez más desenfocada hacia los bordes (capas de backdrop-filter con máscaras), y un
- * "enfoque" inicial donde toda la cinta arranca borrosa. Ver el .css para la mecánica.
+ * Escena: sobre fondo crema, el infinito de Taxoffix se dibuja con la luz azul del loader; los
+ * módulos llegan flotando desde los lados y se funden en él, con la marca del tenant al centro y una
+ * barra de progreso indeterminada. Solo se animan opacity/transform (ver el .css).
  */
 @Component({
   selector: 'app-login-transition',
@@ -51,6 +56,14 @@ export class LoginTransitionComponent {
   protected readonly logoUrl = this.branding.logoUrl;
   protected readonly logoFailed = signal(false);
 
-  /** Dos copias: la pista mide el doble y se desplaza -50 %, así vuelve al mismo pixel sin costura. */
-  protected readonly conveyor = [...LOGIN_TRANSITION_ICONS, ...LOGIN_TRANSITION_ICONS];
+  protected readonly chips = LOGIN_TRANSITION_ICONS.map((icon, i) => ({
+    icon,
+    x: `${CHIP_START[i][0]}rem`,
+    y: `${CHIP_START[i][1]}rem`,
+    delay: `${(i * 0.45).toFixed(2)}s`,
+  }));
+
+  /** Lemniscata de `InfinityLoaderComponent`: dos lazos unidos en el centro (32,16). */
+  protected readonly path =
+    'M32 16 C24 4 14 4 10 4 C5 4 2 9 2 16 C2 23 5 28 10 28 C14 28 24 28 32 16 C40 4 50 4 54 4 C59 4 62 9 62 16 C62 23 59 28 54 28 C50 28 40 28 32 16 Z';
 }
