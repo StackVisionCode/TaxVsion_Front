@@ -1,18 +1,18 @@
 <!-- Cargando la cuota: placeholder con la misma altura para que el dashboard no salte -->
 <div *ngIf="store.usageLoading()"
-  class="flex min-h-[16.25rem] items-center justify-center gap-2 rounded-[1.75rem] bg-white text-sm text-gray-400 ring-1 ring-brand-line shadow-card">
+  class="flex min-h-[16.25rem] items-center justify-center gap-2 rounded-[1.5rem] bg-white text-sm text-gray-400 border border-gray-100 shadow-sm">
   <app-infinity-loader size="sm" />
   Loading storage…
 </div>
 
 <!-- `/storage/usage` exige el permiso cloudstorage settings.manage: sin él no hay cuota que mostrar -->
 <div *ngIf="!store.usageLoading() && store.usageError() as err"
-  class="flex min-h-[16.25rem] flex-col items-center justify-center gap-3 rounded-[1.75rem] bg-white px-6 text-center ring-1 ring-brand-line shadow-card">
+  class="flex min-h-[16.25rem] flex-col items-center justify-center gap-3 rounded-[1.5rem] bg-white px-6 text-center border border-gray-100 shadow-sm">
   <p class="text-sm text-gray-500">Storage usage isn't available</p>
   <p class="text-xs text-gray-400">{{ err }}</p>
 </div>
 
 <app-used-storage-card *ngIf="!store.usageLoading() && !store.usageError()" [groups]="store.groups()"
-  class="block h-full rounded-[1.75rem] ring-1 ring-brand-line shadow-card"
+  class="block h-full rounded-[1.5rem] border border-gray-100 shadow-sm"
   [totalBytes]="store.totalBytes()" [uploadBytes]="store.usage()?.usedBytes ?? 0"
   [downloadBytes]="0"></app-used-storage-card>
