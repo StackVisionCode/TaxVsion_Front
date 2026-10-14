@@ -1,4 +1,4 @@
-<div class="bg-white rounded-[28px] p-6 ring-1 ring-brand-line shadow-card">
+<div class="bg-white rounded-[1.75rem] p-6 ring-1 ring-brand-line shadow-card">
   <div class="flex items-start justify-between gap-4">
     <div>
       <h2 class="text-xl font-bold text-gray-900">Filing deadlines</h2>
@@ -22,7 +22,7 @@
       @for (row of rows(); track row.id) {
         <li class="flex items-center gap-3 py-3">
           <span class="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-gray-50 leading-none">
-            <span class="text-[10px] font-semibold uppercase text-gray-500">{{ monthLabel(row) }}</span>
+            <span class="text-[0.625rem] font-semibold uppercase text-gray-500">{{ monthLabel(row) }}</span>
             <span class="text-sm font-bold text-gray-900">{{ dayLabel(row) }}</span>
           </span>
           <span class="min-w-0 flex-1">

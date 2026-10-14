@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { formatMoney } from '@shared/utils/format.util';
 import { Stripe, StripeCardElement, StripeElements, loadStripe } from '@stripe/stripe-js';
 import { InvoiceCheckoutService } from '../../data-access/invoice-checkout.service';
@@ -47,7 +48,7 @@ const UNAVAILABLE_FALLBACK = 'This payment link is no longer available.';
 
 @Component({
   selector: 'app-invoice-checkout-page',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, InfinityLoaderComponent],
   templateUrl: './invoice-checkout-page.component.html',
   styleUrl: './invoice-checkout-page.component.css',
 })
@@ -86,6 +87,12 @@ export class InvoiceCheckoutPageComponent implements OnInit {
 
   /** Un método con flujo de pago implementado en el frontend (hoy Stripe o PayPal). */
   readonly isSupportedSelected = computed(() => this.isStripeSelected() || this.isPayPalSelected());
+
+  /** Iniciales de la oficina para el tile (presentacional). */
+  readonly officeInitials = computed(() => {
+    const words = (this.checkout()?.tenantName ?? '').split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w));
+    return words.slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('');
+  });
 
   readonly amountLabel = computed(() => {
     const c = this.checkout();

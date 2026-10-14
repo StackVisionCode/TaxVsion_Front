@@ -92,7 +92,7 @@
         <div *ngIf="isInviteeOpen()"
           class="absolute left-0 right-0 top-full z-20 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg">
           <ng-container *ngIf="inviteeResults().employees.length > 0">
-            <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Team</p>
+            <p class="px-4 pt-2.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Team</p>
             <button *ngFor="let entry of inviteeResults().employees" type="button" (click)="addEmployee(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
               <app-avatar [name]="entry.displayName" [seed]="entry.userId" size="xs" />
@@ -102,7 +102,7 @@
           </ng-container>
 
           <ng-container *ngIf="inviteeResults().customers.length > 0">
-            <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
+            <p class="px-4 pt-2.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
             <button *ngFor="let entry of inviteeResults().customers" type="button" (click)="addCustomer(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
               <app-avatar [name]="entry.displayName" [seed]="entry.customerId" size="xs" />
@@ -130,7 +130,7 @@
           class="flex items-center gap-2 rounded-full border border-gray-200 pl-1 pr-3 py-1 text-xs font-medium text-gray-700">
           <app-avatar [name]="invitee.name" [seed]="invitee.userId || invitee.email || invitee.name" size="xs" />
           {{ invitee.name }}
-          <span class="text-[10px] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
+          <span class="text-[0.625rem] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
           <button type="button" (click)="removeInvitee(i)" class="text-gray-400 hover:text-gray-700"
             aria-label="Remove invitee">
             <ion-icon name="close-outline" class="text-sm"></ion-icon>
@@ -140,7 +140,7 @@
 
       <!-- Opciones de la reunión (solo al crear) -->
       <div *ngIf="!isEditMode()" class="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Options</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Options</p>
 
         <!-- Passcode opcional -->
         <div class="h-10 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
@@ -187,7 +187,7 @@
             class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-2.5">
             <div class="min-w-0">
               <p class="truncate text-xs font-medium text-gray-900">{{ invitation.inviteeEmail || 'Guest link' }}</p>
-              <p class="truncate text-[11px] text-gray-400">{{ invitation.joinUrl }}</p>
+              <p class="truncate text-[0.6875rem] text-gray-400">{{ invitation.joinUrl }}</p>
             </div>
             <button type="button" (click)="copyToClipboard(invitation.id, invitation.joinUrl)"
               class="shrink-0 flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
@@ -221,7 +221,7 @@
               class="flex items-center justify-between gap-3 border-b border-gray-50 py-2.5 last:border-b-0">
               <div class="min-w-0">
                 <p class="truncate text-sm text-gray-700">{{ invitationLabel(invitation) }}</p>
-                <p class="text-[11px] text-gray-400">{{ invitation.inviteeKind }}</p>
+                <p class="text-[0.6875rem] text-gray-400">{{ invitation.inviteeKind }}</p>
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <app-status-pill [tone]="invitationTone(invitation)" size="xs" [dot]="false">

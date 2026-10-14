@@ -71,7 +71,7 @@
             @if (task.assigneeUserId) {
               <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" size="xs" />
             } @else {
-              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
             }
             <span class="text-sm text-gray-800">{{ task.assigneeName }}</span>
           </div>

@@ -46,10 +46,10 @@
                 <div class="flex items-center gap-2">
                   <p class="truncate text-sm font-semibold text-gray-900">{{ t.name }}</p>
                   @if (t.recurrenceRule) {
-                    <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">Recurring</span>
+                    <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.625rem] font-semibold text-indigo-600">Recurring</span>
                   }
                   @if (!t.isActive) {
-                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-400">Retired</span>
+                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-400">Retired</span>
                   }
                 </div>
                 <p class="text-xs text-gray-500">{{ t.steps.length }} step{{ t.steps.length === 1 ? '' : 's' }}@if (t.description) { · {{ t.description }} }</p>
@@ -215,19 +215,19 @@
             </div>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div>
-                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Due offset (days)</label>
+                <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Due offset (days)</label>
                 <input type="number" [ngModel]="step.dueOffsetDays" (ngModelChange)="updateStep($index, { dueOffsetDays: +$event })"
                   class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
               </div>
               <div>
-                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Priority</label>
+                <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Priority</label>
                 <select [ngModel]="step.priority" (ngModelChange)="updateStep($index, { priority: $event })"
                   class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
                   @for (p of priorities; track p) { <option [value]="p">{{ p }}</option> }
                 </select>
               </div>
               <div>
-                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Depends on</label>
+                <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Depends on</label>
                 <select [ngModel]="step.dependsOnStepOrder" (ngModelChange)="updateStep($index, { dependsOnStepOrder: $event ? +$event : null })"
                   class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
                   <option [ngValue]="null">—</option>
@@ -235,7 +235,7 @@
                 </select>
               </div>
               <div>
-                <label class="mb-0.5 block text-[10px] uppercase text-gray-400">Parent step</label>
+                <label class="mb-0.5 block text-[0.625rem] uppercase text-gray-400">Parent step</label>
                 <select [ngModel]="step.parentStepOrder" (ngModelChange)="updateStep($index, { parentStepOrder: $event ? +$event : null })"
                   class="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
                   <option [ngValue]="null">—</option>

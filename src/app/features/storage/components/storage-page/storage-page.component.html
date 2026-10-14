@@ -9,7 +9,7 @@
   <div class="grid gap-6 lg:grid-cols-12 lg:pr-[var(--shell-notch-width)]">
     <div class="lg:col-span-5">
       <!-- Skeleton mientras carga GET /storage/usage -->
-      <div *ngIf="store.usageLoading()" class="h-full min-h-[20rem] animate-pulse rounded-[28px] bg-white p-6">
+      <div *ngIf="store.usageLoading()" class="h-full min-h-[20rem] animate-pulse rounded-[1.75rem] bg-white p-6">
         <div class="h-5 w-36 rounded-full bg-gray-100"></div>
         <div class="mt-3 h-3 w-44 rounded-full bg-gray-100"></div>
         <div class="mt-6 flex items-center gap-6">
@@ -21,7 +21,7 @@
 
       <!-- Error de uso (p. ej. sin permiso settings.manage) -->
       <div *ngIf="!store.usageLoading() && store.usageError()"
-        class="flex h-full min-h-[20rem] flex-col items-center justify-center rounded-[28px] bg-white p-6 text-center">
+        class="flex h-full min-h-[20rem] flex-col items-center justify-center rounded-[1.75rem] bg-white p-6 text-center">
         <ion-icon name="cloud-offline-outline" class="text-3xl text-gray-300"></ion-icon>
         <p class="mt-2 text-sm font-medium text-gray-700">Storage usage unavailable</p>
         <p class="mt-1 max-w-xs text-xs text-gray-400">{{ store.usageError() }}</p>
@@ -53,7 +53,7 @@
 
       <!-- Skeleton mientras se listan los archivos para el desglose -->
       <div *ngIf="store.groupsLoading()" class="mt-5 grid gap-6 pl-3 pt-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
-        <div *ngFor="let placeholder of skeletonCards" class="h-44 animate-pulse rounded-[24px] bg-white"></div>
+        <div *ngFor="let placeholder of skeletonCards" class="h-44 animate-pulse rounded-[1.5rem] bg-white"></div>
       </div>
 
       <!-- Error del desglose por categoría -->
@@ -70,7 +70,7 @@
             <ion-icon [name]="group.icon" class="text-2xl text-white"></ion-icon>
           </span>
 
-          <div class="category-card rounded-[24px] bg-white p-5 ring-2 transition-shadow"
+          <div class="category-card rounded-[1.5rem] bg-white p-5 ring-2 transition-shadow"
             [style.--tw-ring-color]="selectedCategory() === group.name ? group.color : 'transparent'">
             <p class="text-right text-lg font-bold text-gray-900">{{ formatBytes(group.sizeBytes) }}</p>
             <p class="mt-5 text-center font-semibold text-gray-900">{{ group.name }}</p>
@@ -87,7 +87,7 @@
 
   <!-- Shared with me -->
   <div class="flex-1">
-    <div class="bg-white rounded-[28px] p-6">
+    <div class="bg-white rounded-[1.75rem] p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <!-- Con una categoría activa la tabla lista MIS archivos de esa
              categoría (que es lo que cuentan las tarjetas de arriba); sin
@@ -124,7 +124,7 @@
         (retry)="retryTable()"></app-state-block>
 
       <div *ngIf="!tableLoading() && !tableError()" class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+        <table class="w-full min-w-[40rem] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Name</th>
@@ -199,7 +199,7 @@
                 [class.border-gray-100]="!last">
                 <span class="flex items-center gap-2">
                   <app-avatar class="rounded-full ring-2 ring-white" [name]="item.sharedByName" [seed]="item.sharedById"
-                    sizeClass="h-7 w-7 text-[10px]"></app-avatar>
+                    sizeClass="h-7 w-7 text-[0.625rem]"></app-avatar>
                   <span class="truncate text-sm text-gray-700">{{ item.sharedByName }}</span>
                 </span>
               </td>
@@ -210,7 +210,7 @@
                   {{ permissionLabel(item.permission) }}
                 </span>
                 <span *ngIf="item.status !== 'Active'"
-                  class="ml-1.5 inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">
+                  class="ml-1.5 inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-[0.625rem] font-semibold text-amber-600">
                   {{ item.status }}
                 </span>
               </td>

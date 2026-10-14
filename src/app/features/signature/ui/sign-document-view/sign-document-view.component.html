@@ -2,7 +2,7 @@
   <!-- Progreso de los campos de texto (solo al firmar) -->
   <div
     *ngIf="editable && textFieldCount > 0"
-    class="flex items-center justify-between gap-3 rounded-xl bg-brand-white px-3 py-2 text-[11px]"
+    class="flex items-center justify-between gap-3 rounded-xl bg-brand-white px-3 py-2 text-[0.6875rem]"
   >
     <span *ngIf="pendingRequired > 0" class="text-gray-600">
       <span class="font-semibold text-gray-900">{{ pendingRequired }}</span>
@@ -25,7 +25,7 @@
   </div>
 
   <div *ngFor="let p of pages" class="page-wrap" [attr.data-page]="p.page">
-    <p class="mb-1.5 flex items-center justify-between px-1 text-[11px] text-gray-400">
+    <p class="mb-1.5 flex items-center justify-between px-1 text-[0.6875rem] text-gray-400">
       <span class="font-medium text-gray-500">Page {{ p.page }}</span>
       <span>{{ p.fields.length }} {{ p.fields.length === 1 ? 'field' : 'fields' }}</span>
     </p>
@@ -69,7 +69,7 @@
             [attr.aria-label]="labelText(field) || 'Text field'"
             [required]="field.isRequired"
             [title]="labelText(field) || 'Text field'"
-            class="h-full w-full bg-transparent px-1.5 text-[13px] text-gray-900 placeholder-indigo-400 focus:outline-none"
+            class="h-full w-full bg-transparent px-1.5 text-[0.8125rem] text-gray-900 placeholder-indigo-400 focus:outline-none"
           />
           <span *ngIf="field.isRequired" class="required-dot" aria-hidden="true"></span>
           <!-- La etiqueta es un enlace: se abre aparte (sin enfocar el campo) y siempre muestra el dominio real. -->
@@ -117,7 +117,7 @@
 
   <p
     *ngIf="pages.length === 0"
-    class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400"
+    class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[0.6875rem] text-gray-400"
   >
     The office didn't place any field for you — your signature seals the whole document.
   </p>

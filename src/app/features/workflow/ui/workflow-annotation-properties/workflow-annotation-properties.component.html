@@ -1,4 +1,4 @@
-<section class="flex h-full flex-col overflow-y-auto rounded-[28px] bg-white p-5" aria-label="Annotation properties">
+<section class="flex h-full flex-col overflow-y-auto rounded-[1.75rem] bg-white p-5" aria-label="Annotation properties">
   <header class="flex items-baseline gap-2">
     <h2 class="text-sm font-bold text-gray-900">Properties</h2>
     <span class="text-xs text-gray-400">{{ label() }}</span>
@@ -6,7 +6,7 @@
 
   <!-- Tinta: trazos, flechas, texto y marcos. -->
   @if (supports().ink) {
-    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Color</p>
+    <p class="mt-5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Color</p>
     <div class="mt-2 grid grid-cols-6 gap-2">
       @for (ink of inkColors; track ink) {
         <button type="button" (click)="setInk(ink)" [style.background]="ink"
@@ -19,7 +19,7 @@
 
   <!-- Color de papel: solo la nota. -->
   @if (supports().color) {
-    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Paper</p>
+    <p class="mt-5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Paper</p>
     <div class="mt-2 flex flex-wrap gap-2">
       @for (color of noteColors; track color) {
         <button type="button" (click)="setNoteColor(color)"
@@ -33,7 +33,7 @@
   <!-- Opacidad: cualquier cosa que se pinte encima del diagrama. -->
   @if (supports().opacity) {
     <div class="mt-5 flex items-baseline justify-between">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Opacity</p>
+      <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Opacity</p>
       <span class="text-xs tabular-nums text-gray-500">{{ opacityPercent() }}%</span>
     </div>
     <input type="range" min="10" max="100" step="5" [value]="opacityPercent()" (input)="onOpacity($event)"
@@ -42,7 +42,7 @@
 
   <!-- Tamaño: grosor de trazo, o cuerpo de letra en el texto. -->
   @if (supports().size) {
-    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+    <p class="mt-5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
       {{ annotation().kind === 'text' ? 'Text size' : 'Stroke' }}
     </p>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
@@ -61,7 +61,7 @@
 
   <!-- Tipografía: solo el texto suelto. Cada botón se pinta con SU familia. -->
   @if (supports().textStyle) {
-    <p class="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Style</p>
+    <p class="mt-5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Style</p>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
       @for (style of textStyles; track style) {
         <button type="button" (click)="setTextStyle(style)" [style.font-family]="fontFamily(style)"

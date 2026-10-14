@@ -6,7 +6,7 @@
   <div class="min-w-0 flex-1">
     <div class="flex flex-wrap items-center gap-2">
       <p class="truncate text-base font-semibold text-gray-900">{{ client.displayName }}</p>
-      <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+      <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"
         [ngClass]="typeBadge(client)">{{ client.type === 'company' ? 'Company' : 'Individual' }}</span>
       <app-status-pill class="shrink-0" size="xs" [tone]="client.isActive ? 'success' : 'neutral'">
         {{ client.isActive ? 'Active' : 'Inactive' }}
@@ -58,7 +58,7 @@
     <div class="flex flex-wrap justify-center gap-2">
       <button *ngFor="let customer of visibleRecent(); trackBy: trackCustomer" type="button" (click)="onPicked(customer)"
         class="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <app-avatar [name]="customer.displayName" [seed]="customer.id" sizeClass="h-7 w-7 text-[10px]" />
+        <app-avatar [name]="customer.displayName" [seed]="customer.id" sizeClass="h-7 w-7 text-[0.625rem]" />
         <span class="max-w-[10rem] truncate">{{ customer.displayName }}</span>
       </button>
     </div>

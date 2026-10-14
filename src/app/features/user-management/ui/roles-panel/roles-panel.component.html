@@ -28,7 +28,7 @@
           <p class="flex items-center gap-2 text-sm font-bold text-gray-900">
             {{ role.name }}
             @if (!role.isActive) {
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-500">
                 Inactive
               </span>
             }
@@ -97,7 +97,7 @@
 
 <!-- ---------- Roles integrados ---------- -->
 @if (systemRoles().length > 0) {
-  <h3 class="mt-7 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Built-in</h3>
+  <h3 class="mt-7 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Built-in</h3>
   <div class="mt-2 flex flex-col gap-2">
     @for (role of systemRoles(); track role.id) {
       <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3">
@@ -166,7 +166,7 @@
   confirmLabel="Copy anyway" [busy]="store.saving()" (confirmed)="confirmDuplicate()" (cancelled)="cancelDuplicate()">
   <ul class="max-h-40 overflow-y-auto rounded-xl bg-gray-50 px-4 py-2.5">
     @for (code of droppedOnDuplicate(); track code) {
-      <li class="font-mono text-[11px] text-gray-500">{{ code }}</li>
+      <li class="font-mono text-[0.6875rem] text-gray-500">{{ code }}</li>
     }
   </ul>
 </app-confirm-dialog>

@@ -34,12 +34,12 @@ export type DropdownAlign = 'right' | 'left';
  * - Cierra al pulsar un `appMenuItem`, al pulsar fuera y con Escape. Contenido que no es
  *   `appMenuItem` (p. ej. el stepper de stock de inventory) no cierra el menú.
  * - `align`: 'right' (default, `right-0`) | 'left' (`left-0`). `panelClass` sustituye el ancho
- *   mínimo (`min-w-[180px]`) si hace falta, p. ej. 'w-52'.
+ *   mínimo (`min-w-[11.25rem]`) si hace falta, p. ej. 'w-52'.
  * - `(openChange)` avisa de cada apertura/cierre.
  *
  * Normalizado respecto a las copias (client-table, product-table, invoice-table, user-table): cada
  * una fijaba un ancho (`w-48`/`w-52`) y un `data-dropdown` + HostListener propios; aquí el panel
- * usa `min-w-[180px]` y la animación `menu-pop` de client-table (sin movimiento con reduced-motion).
+ * usa `min-w-[11.25rem]` y la animación `menu-pop` de client-table (sin movimiento con reduced-motion).
  */
 @Component({
   selector: 'app-dropdown-menu',
@@ -58,7 +58,7 @@ export type DropdownAlign = 'right' | 'left';
       @if (open()) {
         <div role="menu" (click)="$event.stopPropagation()"
           class="menu-pop absolute top-full z-20 mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg"
-          [ngClass]="[align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right', panelClass || 'min-w-[180px]']">
+          [ngClass]="[align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right', panelClass || 'min-w-[11.25rem]']">
           <ng-content></ng-content>
         </div>
       }
@@ -96,7 +96,7 @@ export class DropdownMenuComponent {
   @Input() triggerIcon = 'ellipsis-horizontal-outline';
   @Input() ariaLabel = 'More actions';
   @Input() disabled = false;
-  /** Clases de ancho del panel; por defecto `min-w-[180px]`. */
+  /** Clases de ancho del panel; por defecto `min-w-[11.25rem]`. */
   @Input() panelClass = '';
   @Output() readonly openChange = new EventEmitter<boolean>();
 

@@ -136,6 +136,36 @@ export class PlanPickerModalComponent implements OnChanges {
     return MODULE_LABELS[code] ?? code;
   }
 
+  /** Con tres planes se destaca el del medio (el "Pro" del catálogo); con otra cantidad, ninguno. */
+  isFeatured(plan: Plan): boolean {
+    const list = this.plans();
+    return list.length === 3 && list[1].id === plan.id;
+  }
+
+  /** Cinta superior de la tarjeta: solo con tres planes (barato / destacado / grande); si no, ninguna. */
+  ribbon(plan: Plan): string | null {
+    const list = this.plans();
+    if (list.length !== 3) {
+      return null;
+    }
+    const index = list.findIndex(item => item.id === plan.id);
+    return ['Best to get started', 'Most popular', 'For larger teams'][index] ?? null;
+  }
+
+  /** Mayor ahorro anual entre los planes (para la etiqueta del selector); 0 si no hay. */
+  readonly maxYearlySavingMonths = computed(() =>
+    Math.max(0, ...this.plans().map(plan => this.yearlySavingMonths(plan))),
+  );
+
+  /** Módulos visibles en la tarjeta: los primeros 6; el resto se resume en "+N more". */
+  visibleModules(plan: Plan): string[] {
+    return plan.enabledModules.slice(0, 6);
+  }
+
+  hiddenModulesCount(plan: Plan): number {
+    return Math.max(0, plan.enabledModules.length - 6);
+  }
+
   choose(plan: Plan): void {
     this.planChosen.emit({ plan, cycle: this.cycle() });
   }

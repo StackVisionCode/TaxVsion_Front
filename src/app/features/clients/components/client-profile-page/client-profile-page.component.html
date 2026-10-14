@@ -1,5 +1,5 @@
 <div *ngIf="loading() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[28px] p-6">
+  <div class="bg-white rounded-[1.75rem] p-6">
     <div class="h-4 w-28 animate-pulse rounded-full bg-gray-100"></div>
     <div class="mt-4 flex items-center gap-4">
       <div class="h-14 w-14 shrink-0 animate-pulse rounded-full bg-gray-100"></div>
@@ -18,7 +18,7 @@
 </div>
 
 <div *ngIf="loadError() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[28px] p-6">
+  <div class="bg-white rounded-[1.75rem] p-6">
     <a routerLink="/clients"
       class="-ml-3 flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
       <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
@@ -69,7 +69,7 @@
         <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
         Back to clients
       </a>
-      <aside class="min-h-0 w-full flex-1 overflow-y-auto no-scrollbar bg-white rounded-[28px] p-5">
+      <aside class="min-h-0 w-full flex-1 overflow-y-auto no-scrollbar bg-white rounded-[1.75rem] p-5">
         <div class="flex items-center gap-4">
           <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
           <div class="min-w-0">
@@ -134,14 +134,14 @@
     <div class="flex min-w-0 flex-1 flex-col gap-6">
       @if (hasActions() || canManage() || assigneeAvatars().length > 0) {
         <!-- lg:pr deja libre el hueco del navbar (lupa/campana/perfil) que flota arriba a la derecha -->
-        <div class="flex flex-wrap items-center justify-between gap-3 lg:min-h-[63px] lg:pr-[var(--shell-notch-width)]">
+        <div class="flex flex-wrap items-center justify-between gap-3 lg:min-h-[3.9375rem] lg:pr-[var(--shell-notch-width)]">
           <!-- Staff asignado: fotos apiladas que se abren al pasar el mouse; clic → Overview (Assigned staff) -->
           @if (assigneeAvatars().length > 0) {
             <button type="button" (click)="selectTab('overview')"
               [attr.aria-label]="'Assigned staff: ' + assigneeNames()"
               class="group flex items-center rounded-full py-1 pl-1 pr-2">
               @for (person of visibleAssigneeAvatars(); track person.userId; let i = $index) {
-                <span class="assignee-avatar group/avatar relative rounded-full hover:!z-[60] ring-[3px] ring-white transition-[margin,transform] duration-300 ease-out group-hover:-translate-y-0.5"
+                <span class="assignee-avatar group/avatar relative rounded-full hover:!z-[60] ring-[0.1875rem] ring-white transition-[margin,transform] duration-300 ease-out group-hover:-translate-y-0.5"
                   [ngClass]="i === 0 ? '' : '-ml-3 group-hover:ml-1'" [style.z-index]="10 - i"
                   [style.animation-delay.ms]="i * 70">
                   <!-- Nombre de esa persona al pasar el mouse por su foto -->
@@ -156,13 +156,13 @@
                   <app-avatar [name]="person.name" [seed]="person.userId" sizeClass="h-11 w-11 text-sm" />
                   @if (person.isPrimary) {
                     <span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-bold ring-2 ring-white">
-                      <ion-icon name="star-outline" class="text-[9px] text-white"></ion-icon>
+                      <ion-icon name="star-outline" class="text-[0.5625rem] text-white"></ion-icon>
                     </span>
                   }
                 </span>
               }
               @if (extraAssigneeCount() > 0) {
-                <span class="-ml-3 flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 ring-[3px] ring-white transition-[margin] duration-300 group-hover:ml-1">
+                <span class="-ml-3 flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 ring-[0.1875rem] ring-white transition-[margin] duration-300 group-hover:ml-1">
                   +{{ extraAssigneeCount() }}
                 </span>
               }
@@ -211,7 +211,7 @@
         </div>
       } @else {
         <!-- Sin acciones ni asignados: igual se reserva la altura del hueco del navbar en lg+ -->
-        <div class="hidden lg:block lg:h-[63px]"></div>
+        <div class="hidden lg:block lg:h-[3.9375rem]"></div>
       }
       <!--
         Contenido de la pestaña activa.
@@ -320,7 +320,7 @@
 
       @defer (when activeTab() === 'notes'; prefetch on idle) {
         @if (activeTab() === 'notes') {
-          <div class="bg-white rounded-[28px] p-6">
+          <div class="bg-white rounded-[1.75rem] p-6">
             <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
           </div>
         }
@@ -379,7 +379,7 @@
 
       @defer (when activeTab() === 'bank'; prefetch on idle) {
         @if (activeTab() === 'bank') {
-          <div class="bg-white rounded-[28px] p-6">
+          <div class="bg-white rounded-[1.75rem] p-6">
             <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
           </div>
         }
@@ -391,7 +391,7 @@
 
       @defer (when activeTab() === 'reminders'; prefetch on idle) {
         @if (activeTab() === 'reminders') {
-          <div class="bg-white rounded-[28px] p-6">
+          <div class="bg-white rounded-[1.75rem] p-6">
             <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
           </div>
         }

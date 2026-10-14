@@ -28,19 +28,36 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f4efe6;
+      background: #F8F4ED;
     }
-    #app-splash span {
-      color: #1E466B;
-      font: 700 3rem/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-      animation: app-splash-pulse 1.2s ease-in-out infinite;
+    #app-splash svg {
+      width: 88px;
+      height: 44px;
+      overflow: visible;
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
-    @keyframes app-splash-pulse {
-      0%, 100% { opacity: .35; }
-      50% { opacity: 1; }
+    #app-splash .il-base { stroke: #057bc1; opacity: .18; }
+    #app-splash .il-trail {
+      stroke: #057bc1;
+      opacity: .55;
+      stroke-dasharray: 26 74;
+      animation: app-splash-run 1.6s cubic-bezier(.45, 0, .35, 1) infinite;
+    }
+    #app-splash .il-head {
+      stroke: #4dd8ff;
+      stroke-dasharray: 8 92;
+      filter: drop-shadow(0 0 3px rgba(77, 216, 255, .95));
+      animation: app-splash-run 1.6s cubic-bezier(.45, 0, .35, 1) infinite;
+    }
+    @keyframes app-splash-run {
+      from { stroke-dashoffset: 0; }
+      to { stroke-dashoffset: -100; }
     }
     @media (prefers-reduced-motion: reduce) {
-      #app-splash span { animation: none; opacity: .7; }
+      #app-splash .il-trail, #app-splash .il-head { animation: none; stroke-dasharray: 100 0; opacity: .7; }
     }
   </style>
 </head>
@@ -48,7 +65,7 @@
   <!-- Splash de arranque: provideAuthInitializer bloquea el bootstrap con GET /auth/me,
        así que sin esto una recarga completa deja la pantalla en blanco durante un
        round-trip entero. Lo retira `App` en su primer render (ver app.ts). -->
-  <div id="app-splash"><span>*</span></div>
+  <div id="app-splash" role="status" aria-label="Loading"><svg viewBox="0 0 64 32" aria-hidden="true"><path class="il-base" d="M32 16 C24 4 14 4 10 4 C5 4 2 9 2 16 C2 23 5 28 10 28 C14 28 24 28 32 16 C40 4 50 4 54 4 C59 4 62 9 62 16 C62 23 59 28 54 28 C50 28 40 28 32 16 Z" pathLength="100"/><path class="il-trail" d="M32 16 C24 4 14 4 10 4 C5 4 2 9 2 16 C2 23 5 28 10 28 C14 28 24 28 32 16 C40 4 50 4 54 4 C59 4 62 9 62 16 C62 23 59 28 54 28 C50 28 40 28 32 16 Z" pathLength="100"/><path class="il-head" d="M32 16 C24 4 14 4 10 4 C5 4 2 9 2 16 C2 23 5 28 10 28 C14 28 24 28 32 16 C40 4 50 4 54 4 C59 4 62 9 62 16 C62 23 59 28 54 28 C50 28 40 28 32 16 Z" pathLength="100"/></svg></div>
   <app-root></app-root>
 </body>
 </html>

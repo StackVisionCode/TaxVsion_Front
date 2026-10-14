@@ -85,7 +85,7 @@ export type CustomerPickerVariant = 'field' | 'inline';
               {{ customer.displayName }}
             </span>
             @if (customer.primaryEmail) {
-              <span class="block truncate text-[11px] text-gray-400">{{ customer.primaryEmail }}</span>
+              <span class="block truncate text-[0.6875rem] text-gray-400">{{ customer.primaryEmail }}</span>
             }
           </span>
           @if (customer.id === current()?.id) {

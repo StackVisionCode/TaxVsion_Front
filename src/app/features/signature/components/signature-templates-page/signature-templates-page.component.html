@@ -1,6 +1,6 @@
 <div class="min-h-full pt-3 pb-1">
   <!-- ============ VISTA EDITOR ============ -->
-  <div *ngIf="editingId() as id" class="rounded-[28px] border border-gray-100 bg-white" style="height: calc(100dvh - 140px); min-height: 520px">
+  <div *ngIf="editingId() as id" class="rounded-[1.75rem] border border-gray-100 bg-white" style="height: calc(100dvh - 140px); min-height: 520px">
     <app-signature-template-editor
       [templateId]="id"
       (closed)="closeEditor()"
@@ -33,9 +33,9 @@
     <app-state-block [loading]="loading()" [error]="error()" (retry)="load()">
     <div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
       <button *ngFor="let template of templates()" type="button" (click)="openEditor(template.id)"
-        class="flex flex-col rounded-[24px] border border-gray-100 p-4 text-left transition-colors hover:border-brand-bold hover:bg-brand-white">
+        class="flex flex-col rounded-[1.5rem] border border-gray-100 p-4 text-left transition-colors hover:border-brand-bold hover:bg-brand-white">
         <div class="mb-2 flex items-start justify-between gap-2">
-          <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+          <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600">
             {{ categoryLabel(template.category) }}
           </span>
           <app-status-pill size="xs" [dot]="false" [toneClass]="statusClass(template.status)">
@@ -43,7 +43,7 @@
           </app-status-pill>
         </div>
         <h3 class="mb-1 line-clamp-2 text-sm font-bold text-gray-900">{{ template.title }}</h3>
-        <div class="mt-auto flex items-center gap-3 pt-3 text-[11px] text-gray-400">
+        <div class="mt-auto flex items-center gap-3 pt-3 text-[0.6875rem] text-gray-400">
           <span class="flex items-center gap-1">
             <ion-icon name="people-outline"></ion-icon>{{ template.slotCount }} role{{ template.slotCount === 1 ? '' : 's' }}
           </span>
@@ -55,7 +55,7 @@
 
       <!-- Empty state -->
       <div *ngIf="templates().length === 0"
-        class="col-span-full flex flex-col items-center justify-center rounded-[24px] border border-dashed border-gray-200 py-16 text-center">
+        class="col-span-full flex flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-gray-200 py-16 text-center">
         <ion-icon name="documents-outline" class="text-4xl text-gray-300"></ion-icon>
         <p class="mt-3 text-sm font-medium text-gray-600">No templates yet</p>
         <p class="mt-1 max-w-sm text-xs text-gray-400">
@@ -88,7 +88,7 @@
         [allowCreate]="true"></app-signature-category-picker>
     </div>
     <p *ngIf="createError()" class="text-xs font-medium text-red-500">{{ createError() }}</p>
-    <p class="text-[11px] text-gray-400">You'll add roles and place fields on the next screen.</p>
+    <p class="text-[0.6875rem] text-gray-400">You'll add roles and place fields on the next screen.</p>
   </div>
 
   <div class="mt-5 flex items-center justify-end gap-2">

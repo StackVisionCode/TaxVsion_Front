@@ -1,6 +1,6 @@
 <form (ngSubmit)="onSubmit()" class="mt-5 text-left">
   <!-- Identidad del buzón: personal → login bloqueado (guard); oficina → editable -->
-  <label class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Email address</label>
+  <label class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Email address</label>
   <ng-container *ngIf="asOffice; else lockedEmail">
     <input type="email" [(ngModel)]="emailAddress" (ngModelChange)="onEmailChange()" name="officeEmail"
       placeholder="office@yourfirm.com" autocomplete="off"
@@ -16,13 +16,13 @@
   </ng-template>
 
   <!-- Proveedor: prellena host/puerto/cifrado; "Other" deja los campos en blanco -->
-  <label class="mt-4 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Provider</label>
+  <label class="mt-4 block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Provider</label>
   <select [(ngModel)]="selectedProviderId" (ngModelChange)="onProviderChange()" name="providerId"
     class="mt-1 w-full rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold">
     <option *ngFor="let provider of providers" [value]="provider.id">{{ provider.label }}</option>
   </select>
 
-  <label class="mt-4 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+  <label class="mt-4 block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
     Display name <span class="font-normal normal-case tracking-normal text-gray-300">(optional)</span>
   </label>
   <input type="text" [(ngModel)]="displayName" name="displayName" placeholder="Front Office"

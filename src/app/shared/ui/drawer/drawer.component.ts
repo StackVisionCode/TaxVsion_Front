@@ -22,7 +22,7 @@ export type DrawerSide = 'right' | 'left';
 
 const WIDTH_CLASSES: Record<DrawerWidth, string> = {
   md: 'max-w-md',
-  lg: 'max-w-[560px]',
+  lg: 'max-w-[35rem]',
   xl: 'max-w-2xl',
 };
 
@@ -63,7 +63,7 @@ let drawerInstanceSeq = 0;
   template: `
     @if (rendered()) {
       <div #portal>
-      <div class="drawer-backdrop fixed inset-0 z-[64] bg-black/30 backdrop-blur-[3px]" [class.is-closing]="closing()" (click)="close()"></div>
+      <div class="drawer-backdrop fixed inset-0 z-[64] bg-black/30 backdrop-blur-[0.1875rem]" [class.is-closing]="closing()" (click)="close()"></div>
       <aside #panel role="dialog" aria-modal="true" tabindex="-1"
         [attr.aria-labelledby]="heading ? headingId : null" [attr.aria-label]="heading ? null : ariaLabel || null"
         class="drawer-panel fixed inset-y-0 z-[65] flex w-full flex-col bg-white shadow-2xl focus:outline-none"

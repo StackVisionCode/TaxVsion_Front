@@ -38,7 +38,7 @@ describe('StatusPillComponent', () => {
     host.tone.set('danger');
     fixture.detectChanges();
     expect(pill().className).toContain('bg-red-50');
-    expect(pill().className).toContain('text-[10px]');
+    expect(pill().className).toContain('text-[0.625rem]');
     expect(pill().querySelector('.rounded-full')).toBeNull();
   });
 });

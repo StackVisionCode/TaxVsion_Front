@@ -23,14 +23,14 @@ import {
   template: `
     <form class="flex flex-col gap-5" (ngSubmit)="submit()">
       <div>
-        <label for="mcpName" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Name</label>
+        <label for="mcpName" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Name</label>
         <input id="mcpName" name="name" type="text" placeholder="e.g. Firm knowledge base" maxlength="60"
           [disabled]="saving" [ngModel]="name()" (ngModelChange)="name.set($event)"
           class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
       </div>
 
       <div>
-        <label for="mcpUrl" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server URL</label>
+        <label for="mcpUrl" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Server URL</label>
         <input id="mcpUrl" name="url" type="url" placeholder="https://mcp.example.com/mcp" autocomplete="off"
           [disabled]="saving" [ngModel]="url()" (ngModelChange)="url.set($event)"
           class="mt-2 h-11 w-full rounded-full border bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none transition-colors"
@@ -43,12 +43,12 @@ import {
       </div>
 
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Transport</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Transport</p>
         <app-segmented class="mt-2" [options]="transportOptions" [value]="transport()" (valueChange)="transport.set($event)"></app-segmented>
       </div>
 
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Authentication</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Authentication</p>
         <app-segmented class="mt-2" [options]="authOptions" [value]="authType()" (valueChange)="authType.set($event)"></app-segmented>
 
         @if (authType() === 'bearer') {

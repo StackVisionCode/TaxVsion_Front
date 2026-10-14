@@ -1,62 +1,68 @@
 <div class="flex flex-col gap-6">
   <!-- Proveedores ya configurados -->
-  <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Payment providers</h2>
-    <p class="mt-1 text-sm text-gray-500">
+  <div class="rounded-[1.75rem] border border-[#E4DCCF] bg-white p-7">
+    <h2 class="font-display text-[1.75rem] font-semibold tracking-tight text-[#083645]">Payment providers</h2>
+    <p class="mt-2 text-[0.8125rem] text-[#3E5F6B]">
       Invoices are collected online through your own payment providers. You can configure more than one and
       enable each independently. Without an active provider you can still issue invoices and record offline
       payments, but they won't get a payment link.
     </p>
 
-    <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-gray-400">
+    <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-[#3E5F6B]">
       <app-infinity-loader size="xs" />
       Loading providers…
     </div>
 
     <div *ngIf="!loading && configs.length === 0"
-      class="mt-5 flex items-start gap-3 rounded-2xl border border-gray-100 px-4 py-3">
-      <ion-icon name="card-outline" class="mt-0.5 shrink-0 text-base text-gray-400"></ion-icon>
-      <p class="text-sm text-gray-500">No provider connected yet. Add one below.</p>
+      class="mt-5 flex items-start gap-3 rounded-[1.375rem] border border-[#E4DCCF] bg-[#F8F4ED] px-5 py-4">
+      <ion-icon name="card-outline" class="mt-0.5 shrink-0 text-base text-[#3E5F6B]"></ion-icon>
+      <p class="text-sm text-[#3E5F6B]">No provider connected yet. Add one below.</p>
     </div>
 
-    <div *ngIf="configs.length > 0" class="mt-5 flex flex-col gap-2">
+    <div *ngIf="configs.length > 0" class="mt-5 flex flex-col gap-3">
       <div *ngFor="let config of configs; trackBy: trackByConfigId"
-        class="flex flex-col gap-2 rounded-2xl border border-gray-100 px-4 py-3">
+        class="flex flex-col gap-3 rounded-[1.375rem] border border-[#E4DCCF] bg-[#F8F4ED] p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="min-w-0">
-            <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
-              {{ config.providerCode }}
-              <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
-                [ngClass]="config.isActive
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-500'">
-                <span class="h-1.5 w-1.5 rounded-full"
-                  [ngClass]="config.isActive ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-                {{ config.isActive ? 'Active' : 'Inactive' }}
-              </span>
-            </p>
-            <p class="mt-0.5 truncate text-xs text-gray-400">
-              {{ config.mode }} · {{ config.statementDescriptor }}
-              <span *ngIf="!config.hasSecretKey" class="text-amber-600">· secret key missing</span>
-              <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="text-amber-600">
-                · webhook secret missing
-              </span>
-            </p>
-            <p class="mt-0.5 truncate text-xs text-gray-400">
-              URL: <span class="text-gray-500">{{ config.apiBaseUrl || 'default' }}</span>
-            </p>
+          <div class="flex min-w-0 items-center gap-4">
+            <div
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#083645] font-display text-lg font-bold uppercase text-[#4DD8FF]">
+              {{ (config.providerCode || '?').charAt(0) }}
+            </div>
+            <div class="min-w-0">
+              <p class="flex items-center gap-2 text-[0.9375rem] font-bold text-[#083645]">
+                {{ config.providerCode }}
+                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold"
+                  [ngClass]="config.isActive
+                    ? 'bg-[#4DD8FF40] text-[#083645]'
+                    : 'bg-[#F4EDE4] text-[#3E5F6B]'">
+                  <span class="h-1.5 w-1.5 rounded-full"
+                    [ngClass]="config.isActive ? 'bg-[#057BC1]' : 'bg-[#3E5F6B]/40'"></span>
+                  {{ config.isActive ? 'Active' : 'Inactive' }}
+                </span>
+              </p>
+              <p class="mt-0.5 truncate text-xs text-[#3E5F6B]">
+                {{ config.mode }} · {{ config.statementDescriptor }}
+                <span *ngIf="!config.hasSecretKey" class="font-semibold text-[#083645]">· secret key missing</span>
+                <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="font-semibold text-[#083645]">
+                  · webhook secret missing
+                </span>
+              </p>
+              <p class="mt-0.5 truncate text-xs text-[#3E5F6B]">
+                URL: <span class="text-[#083645]">{{ config.apiBaseUrl || 'default' }}</span>
+              </p>
+            </div>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <button *ngIf="canManage" type="button" (click)="startEditUrl(config)"
-              class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
               Edit URL
             </button>
             <button *ngIf="canManage" type="button" (click)="providerToggleRequested.emit(config)"
-              class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
               {{ config.isActive ? 'Deactivate' : 'Activate' }}
             </button>
             <button *ngIf="canManage" type="button" (click)="confirmDelete(config)"
-              class="rounded-full border border-red-200 px-4 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors">
+              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#3E5F6B] hover:bg-[#F4EDE4] hover:text-[#083645] transition-colors">
               Delete
             </button>
           </div>
@@ -64,16 +70,16 @@
 
         <!-- Edición inline de la URL -->
         <div *ngIf="editingUrlFor() === config.providerCode"
-          class="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-2">
+          class="flex flex-wrap items-center gap-2 border-t border-[#E4DCCF] pt-3">
           <input type="text" name="editUrl" placeholder="https://api.mi-proveedor.com"
             [ngModel]="editingUrlValue()" (ngModelChange)="editingUrlValue.set($event)"
-            class="h-10 min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+            class="h-10 min-w-0 flex-1 rounded-full border border-[#E4DCCF] bg-white px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
           <button type="button" (click)="saveEditUrl(config)"
-            class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink transition-colors">
+            class="rounded-full bg-[#083645] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#057BC1] transition-colors">
             Save
           </button>
           <button type="button" (click)="cancelEditUrl()"
-            class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
             Cancel
           </button>
         </div>
@@ -82,74 +88,74 @@
   </div>
 
   <!-- Alta de un proveedor -->
-  <div class="rounded-[28px] bg-white p-6">
-    <h2 class="text-xl font-bold text-gray-900">Connect a provider</h2>
-    <p class="mt-1 text-sm text-gray-500">
+  <div class="rounded-[1.75rem] border border-[#E4DCCF] bg-white p-7">
+    <h2 class="font-display text-[1.75rem] font-semibold tracking-tight text-[#083645]">Connect a provider</h2>
+    <p class="mt-2 text-[0.8125rem] text-[#3E5F6B]">
       Saving creates the configuration, stores the secrets and activates the provider in one go. Only Stripe
       processes payments today; other providers can be configured but won't charge yet.
     </p>
 
     <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div>
-        <label for="providerCode" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="providerCode" class="text-[0.8125rem] font-semibold text-[#083645]">
           Provider
         </label>
         <select id="providerCode" name="providerCode" [disabled]="saving" [ngModel]="providerCode()"
           (ngModelChange)="providerCode.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] focus:border-[#083645] focus:outline-none transition-colors">
           <option *ngFor="let p of providers" [value]="p.code">{{ p.name }}</option>
         </select>
       </div>
       <div>
-        <label for="apiBaseUrl" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="apiBaseUrl" class="text-[0.8125rem] font-semibold text-[#083645]">
           API URL / endpoint (optional)
         </label>
         <input id="apiBaseUrl" type="text" name="apiBaseUrl" placeholder="https://api.mi-proveedor.com"
           [disabled]="saving" [ngModel]="apiBaseUrl()" (ngModelChange)="apiBaseUrl.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-gray-400">Leave empty to use the provider's default endpoint (e.g. Stripe).</p>
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-[#3E5F6B]">Leave empty to use the provider's default endpoint (e.g. Stripe).</p>
       </div>
       <div>
-        <label for="publishableKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="publishableKey" class="text-[0.8125rem] font-semibold text-[#083645]">
           Publishable key
         </label>
         <input id="publishableKey" type="text" name="publishableKey" placeholder="pk_live_…" [disabled]="saving"
           [ngModel]="publishableKey()" (ngModelChange)="publishableKey.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="secretKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Secret key</label>
+        <label for="secretKey" class="text-[0.8125rem] font-semibold text-[#083645]">Secret key</label>
         <input id="secretKey" type="password" name="secretKey" placeholder="sk_live_…" autocomplete="off"
           [disabled]="saving" [ngModel]="secretKey()" (ngModelChange)="secretKey.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
       </div>
       <div>
-        <label for="webhookSecret" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="webhookSecret" class="text-[0.8125rem] font-semibold text-[#083645]">
           Webhook secret
         </label>
         <input id="webhookSecret" type="password" name="webhookSecret" placeholder="whsec_…" autocomplete="off"
           [disabled]="saving" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-gray-400">Needed for the provider to confirm payments back to us.</p>
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-[#3E5F6B]">Needed for the provider to confirm payments back to us.</p>
       </div>
       <div>
-        <label for="statementDescriptor" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="statementDescriptor" class="text-[0.8125rem] font-semibold text-[#083645]">
           Statement descriptor
         </label>
         <input id="statementDescriptor" type="text" name="statementDescriptor" [disabled]="saving"
           [ngModel]="statementDescriptor()" (ngModelChange)="statementDescriptor.set($event)"
-          class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-gray-400">What your clients see on their card statement.</p>
+          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] focus:border-[#083645] focus:outline-none transition-colors" />
+        <p class="mt-1.5 text-xs text-[#3E5F6B]">What your clients see on their card statement.</p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-4">
+    <div class="mt-6 flex items-center justify-start">
       <button *ngIf="canManage" type="button" (click)="save()" [disabled]="!canSave"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        class="flex h-12 items-center gap-2 rounded-full bg-[#083645] px-6 text-[0.8125rem] font-semibold text-white hover:bg-[#057BC1] disabled:opacity-50 disabled:hover:bg-[#083645] transition-colors">
         @if (saving) {
           <app-infinity-loader size="xs" tone="light" />
         } @else {
-          <ion-icon name="save-outline" class="text-base"></ion-icon>
+          <ion-icon name="power-outline" class="text-base text-[#4DD8FF]"></ion-icon>
         }
         {{ saving ? 'Connecting…' : 'Save and activate' }}
       </button>

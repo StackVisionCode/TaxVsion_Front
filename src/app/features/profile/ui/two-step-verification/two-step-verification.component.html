@@ -1,4 +1,4 @@
-<div class="bg-white rounded-[28px] p-6">
+<div class="bg-white rounded-[1.75rem] p-6">
   <!-- Encabezado: estado real + feedback puntual -->
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
@@ -29,7 +29,7 @@
   @if (store.loaded()) {
     <!-- Error al refrescar: se conserva lo último conocido y se ofrece reintentar -->
     @if (store.error(); as err) {
-      <div class="mt-5 flex flex-wrap items-center gap-3 rounded-[20px] border border-red-100 bg-red-50 px-4 py-3">
+      <div class="mt-5 flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-red-100 bg-red-50 px-4 py-3">
         <p class="text-sm text-red-700">{{ err }}</p>
         <button type="button" (click)="store.load()"
           class="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors">
@@ -44,7 +44,7 @@
         <!-- Métodos activos -->
         <div class="mfa-list flex flex-col gap-2">
           @for (method of store.methods(); track method.id) {
-            <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-gray-100 bg-white px-4 py-3">
+            <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-gray-100 bg-white px-4 py-3">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
                 <ion-icon [name]="methodIcon(method)" class="text-lg"></ion-icon>
               </span>
@@ -52,7 +52,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-sm font-semibold text-gray-900">{{ methodLabel(method) }}</span>
                   @if (method.isPreferred) {
-                    <span class="inline-flex items-center rounded-full bg-brand-bold px-2 py-0.5 text-[11px] font-medium text-white">
+                    <span class="inline-flex items-center rounded-full bg-brand-bold px-2 py-0.5 text-[0.6875rem] font-medium text-white">
                       Preferred
                     </span>
                   }
@@ -73,7 +73,7 @@
         </div>
 
         <!-- Códigos de recuperación -->
-        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-gray-100 bg-white px-4 py-3">
+        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-gray-100 bg-white px-4 py-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
             <ion-icon name="key-outline" class="text-lg"></ion-icon>
           </span>
@@ -92,7 +92,7 @@
         </div>
 
         <!-- Desactivar: acción destructiva, en rojo y con confirmación por contraseña -->
-        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[20px] border border-red-100 bg-red-50/50 px-4 py-3">
+        <div class="mfa-row flex flex-wrap items-center gap-3 rounded-[1.25rem] border border-red-100 bg-red-50/50 px-4 py-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500">
             <ion-icon name="shield-outline" class="text-lg"></ion-icon>
           </span>
@@ -143,7 +143,7 @@
       </div>
     } @else {
       <!-- MFA apagado: invitación a activarlo (único método que el backend permite dar de alta: TOTP) -->
-      <div class="mfa-block mt-5 flex flex-wrap items-center gap-4 rounded-[20px] border border-indigo-100 bg-indigo-50 p-5">
+      <div class="mfa-block mt-5 flex flex-wrap items-center gap-4 rounded-[1.25rem] border border-indigo-100 bg-indigo-50 p-5">
         <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600">
           <ion-icon name="shield-checkmark-outline" class="text-2xl"></ion-icon>
         </span>

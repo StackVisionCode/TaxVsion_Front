@@ -39,7 +39,7 @@
       <!-- PiP de la CÁMARA del par (abajo-izquierda) cuando en el escenario hay una pantalla -->
       <div *ngIf="showPeerCameraPip()" class="absolute bottom-3 left-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
         <video [srcObject]="remoteCameraStream()" autoplay playsinline muted class="h-full w-full object-cover"></video>
-        <div class="absolute bottom-0.5 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[9px]">{{ peerDisplayName() || 'Contact' }}</div>
+        <div class="absolute bottom-0.5 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[0.5625rem]">{{ peerDisplayName() || 'Contact' }}</div>
       </div>
 
       <!-- Placeholder cuando el par no envía video (conectando, o audio-only) -->
@@ -53,10 +53,10 @@
       <!-- Nombre + badge "Sharing" (arriba, sobre el video) -->
       <div class="absolute left-3 top-3 flex items-center gap-2">
         <span class="rounded-full bg-black/40 px-3 py-1 text-xs font-medium backdrop-blur-sm">{{ peerDisplayName() || 'Contact' }}</span>
-        <span *ngIf="screenSharing()" class="flex items-center gap-1 rounded-full bg-brand-bold/80 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
+        <span *ngIf="screenSharing()" class="flex items-center gap-1 rounded-full bg-brand-bold/80 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm">
           <ion-icon name="desktop-outline" class="text-xs"></ion-icon> Sharing
         </span>
-        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm tabular-nums">
+        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm tabular-nums">
           <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
         </span>
         <span *ngIf="showQuality()" class="flex items-end gap-0.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm"
@@ -65,7 +65,7 @@
           <span class="h-2.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 2 ? qualityColor() : 'bg-white/25'"></span>
           <span class="h-3.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 3 ? qualityColor() : 'bg-white/25'"></span>
         </span>
-        <span *ngIf="reconnecting()" class="flex items-center gap-1 rounded-full bg-amber-500/90 px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm">
+        <span *ngIf="reconnecting()" class="flex items-center gap-1 rounded-full bg-amber-500/90 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm">
           <app-infinity-loader size="xs" tone="light" /> Reconnecting…
         </span>
       </div>
@@ -139,7 +139,7 @@
             <span class="h-2.5 w-1 rounded-sm" [ngClass]="qualityBars() >= 3 ? qualityColor() : 'bg-white/25'"></span>
           </span>
           <app-infinity-loader *ngIf="reconnecting()" class="ml-1" size="xs" tone="light" />
-          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums">
             <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
           </span>
         </p>
