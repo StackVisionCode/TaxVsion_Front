@@ -47,7 +47,7 @@ function prefersReducedMotion(): boolean {
 
 /**
  * Shell de modal reusable (estilo "Aether"): backdrop oscuro que cierra al
- * click, panel blanco centrado `rounded-[28px]` con scroll interno, header
+ * click, panel blanco centrado `rounded-[1.75rem]` con scroll interno, header
  * con título/subtítulo + botón X, y un único `<ng-content>` para el cuerpo
  * (los botones de pie viajan como parte del contenido, todo scrollea junto).
  * Cierra también con Escape. Es el esqueleto común extraído de los 9
@@ -71,6 +71,8 @@ export class ModalComponent implements OnChanges, OnDestroy {
   @Input() heading = '';
   @Input() subheading = '';
   @Input() size: ModalSize = 'lg';
+  /** `cream` = superficie de marca (crema) con título Twilight; `white` es el panel clásico. */
+  @Input() tone: 'white' | 'cream' = 'white';
   @Output() closed = new EventEmitter<void>();
 
   @ViewChild('panel') panelRef?: ElementRef<HTMLElement>;

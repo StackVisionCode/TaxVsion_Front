@@ -86,7 +86,7 @@ let typeaheadSeq = 0;
             </div>
           }
           @if (showingRecents()) {
-            <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ recentLabel }}</p>
+            <p class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">{{ recentLabel }}</p>
           }
           @for (item of items(); track trackBy(item); let i = $index) {
             <button type="button" role="option" [id]="listId + '-' + i" [attr.aria-selected]="i === highlighted()"

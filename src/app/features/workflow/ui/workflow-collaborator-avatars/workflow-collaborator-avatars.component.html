@@ -2,12 +2,12 @@
   [attr.aria-label]="'Manage the ' + collaborators.length + ' people on this workflow'">
   <span class="flex -space-x-2">
     <span *ngFor="let person of visible"
-      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
+      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full text-[0.625rem] font-semibold text-white ring-2 ring-white"
       [ngClass]="color(person)" [title]="title(person)">
       {{ initials(person) }}
     </span>
     <span *ngIf="overflow > 0"
-      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-600 ring-2 ring-white">
+      class="wf-avatar flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-[0.625rem] font-semibold text-gray-600 ring-2 ring-white">
       +{{ overflow }}
     </span>
   </span>

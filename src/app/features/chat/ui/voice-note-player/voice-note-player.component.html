@@ -11,13 +11,13 @@
 
   <button type="button" (click)="seek($event)" aria-label="Seek voice note"
     class="flex h-8 flex-1 min-w-0 items-center gap-[2px] overflow-hidden cursor-pointer">
-    <span *ngFor="let bar of bars; let i = index" class="w-[3px] shrink-0 rounded-full transition-colors"
+    <span *ngFor="let bar of bars; let i = index" class="w-[0.1875rem] shrink-0 rounded-full transition-colors"
       [style.height.%]="bar" [ngClass]="i / bars.length <= progress
             ? (mine ? 'bg-white' : 'bg-indigo-500')
             : (mine ? 'bg-white/40' : 'bg-gray-300')"></span>
   </button>
 
-  <span class="shrink-0 text-[11px] tabular-nums" [ngClass]="mine ? 'text-white/80' : 'text-gray-400'">
+  <span class="shrink-0 text-[0.6875rem] tabular-nums" [ngClass]="mine ? 'text-white/80' : 'text-gray-400'">
     {{ label }}
   </span>
 </div>

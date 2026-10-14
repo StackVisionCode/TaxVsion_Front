@@ -1,4 +1,4 @@
-<div class="flex h-full flex-col rounded-[28px] bg-white">
+<div class="flex h-full flex-col rounded-[1.75rem] bg-white">
   <div class="flex items-center justify-between gap-2 px-5 pt-5">
     <h2 class="text-base font-bold text-gray-900">Step Configuration</h2>
   </div>
@@ -30,7 +30,7 @@
         </div>
         <div *ngIf="availableFields.length > 0; else noneAvailable" class="mt-1.5 flex flex-wrap gap-1.5">
           <span *ngFor="let field of availableFields"
-            class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+            class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600"
             [title]="field.key + ' · ' + field.type">
             {{ field.label }}
           </span>
@@ -45,7 +45,7 @@
         <p class="text-xs font-medium text-gray-500">Sends</p>
         <div *ngIf="produces.length > 0; else sendsNothing" class="mt-1.5 flex flex-wrap gap-1.5">
           <span *ngFor="let field of produces"
-            class="rounded-full bg-brand-surface px-2 py-0.5 text-[11px] font-medium text-gray-700"
+            class="rounded-full bg-brand-surface px-2 py-0.5 text-[0.6875rem] font-medium text-gray-700"
             [title]="field.key + ' · ' + field.type">
             {{ field.label }}
           </span>

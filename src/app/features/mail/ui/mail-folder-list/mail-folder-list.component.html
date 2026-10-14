@@ -18,7 +18,7 @@
       <ion-icon [name]="folder.icon" class="text-base" [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-400'"></ion-icon>
       <span class="flex-1 truncate">{{ folder.label }}</span>
       <span *ngIf="folder.count > 0"
-        class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+        class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[0.625rem] font-semibold"
         [ngClass]="folder.id === activeFolderId ? 'bg-white text-gray-900' : 'bg-brand-bold text-white'">{{ folder.count }}</span>
     </button>
   </nav>

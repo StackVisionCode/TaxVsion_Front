@@ -1,6 +1,6 @@
 <!-- Top bar: transparente, flota sobre el fondo de la página junto al sidebar -->
 <header class="relative z-40">
-  <div class="flex h-[63px] items-center gap-4">
+  <div class="flex h-[3.9375rem] items-center gap-4">
     <!-- Mobile menu button -->
      
     <button (click)="toggleMobileMenu()"
@@ -61,7 +61,7 @@
                     {{ searchTotal() }} client{{ searchTotal() !== 1 ? 's' : '' }} found
                   }
                 </span>
-                <span class="hidden text-[11px] text-gray-400 sm:block">↑↓ to move · Enter to open</span>
+                <span class="hidden text-[0.6875rem] text-gray-400 sm:block">↑↓ to move · Enter to open</span>
               </div>
 
               @if (hasSearchTerm() && searchError()) {
@@ -88,7 +88,7 @@
                         <span class="block truncate text-sm font-medium text-gray-900">{{ customer.displayName }}</span>
                         <span class="block truncate text-xs text-gray-500">{{ customer.primaryEmail || customer.primaryPhone || 'No contact on file' }}</span>
                       </span>
-                      <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                      <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[0.625rem] font-medium text-gray-500">
                         {{ customer.kind === 'Business' ? 'Company' : 'Individual' }}
                       </span>
                       <ion-icon name="chevron-forward-outline" class="shrink-0 text-sm text-gray-300"></ion-icon>
@@ -137,7 +137,7 @@
                pasado nada nuevo, así que no señalaba un cambio, solo hacía ruido. El número
                ya dice lo que hay que decir. -->
           <span *ngIf="hasUnread()"
-            class="pointer-events-none absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+            class="pointer-events-none absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-orange-500 px-1 text-[0.625rem] font-bold leading-none text-white ring-2 ring-white">
             {{ notificationCount() > 9 ? '9+' : notificationCount() }}
           </span>
         </button>
@@ -166,7 +166,7 @@
                 : 'border-transparent font-medium text-gray-400 hover:text-gray-700'">
               {{ tab.label }}
               <span *ngIf="notificationTabCounts()[tab.id] > 0"
-                class="rounded-full px-1.5 py-px text-[10px] font-semibold leading-4"
+                class="rounded-full px-1.5 py-px text-[0.625rem] font-semibold leading-4"
                 [ngClass]="notificationTab() === tab.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">
                 {{ notificationTabCounts()[tab.id] }}
               </span>
@@ -191,7 +191,7 @@
                 <span class="flex items-baseline gap-2">
                   <span class="min-w-0 flex-1 truncate text-sm text-gray-900"
                     [ngClass]="notification.isRead ? 'font-medium' : 'font-semibold'">{{ notification.title }}</span>
-                  <span class="shrink-0 text-[11px] tabular-nums text-gray-400">{{ notification.time }}</span>
+                  <span class="shrink-0 text-[0.6875rem] tabular-nums text-gray-400">{{ notification.time }}</span>
                   <span *ngIf="!notification.isRead" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"
                     aria-label="Unread"></span>
                 </span>
@@ -238,7 +238,7 @@
                 {{ getTaxUserFullName() || getUserEmail() }}
               </p>
               <span *ngIf="getUserRole()"
-                class="shrink-0 rounded-full bg-brand-surface px-2 py-0.5 text-[10px] font-semibold text-brand-ink">
+                class="shrink-0 rounded-full bg-brand-surface px-2 py-0.5 text-[0.625rem] font-semibold text-brand-ink">
                 {{ getUserRole() }}
               </span>
             </div>

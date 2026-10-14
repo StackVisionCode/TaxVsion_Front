@@ -20,7 +20,7 @@ import { CommonModule } from '@angular/common';
           <button type="button" (click)="setMode('visual')" class="rounded-md px-2.5 py-1 font-semibold" [class]="mode() === 'visual' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'">Visual</button>
           <button type="button" (click)="setMode('html')" class="rounded-md px-2.5 py-1 font-semibold" [class]="mode() === 'html' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'">HTML</button>
         </div>
-        @if (mode() === 'html') { <span class="text-[11px] text-gray-400">Paste your full HTML here — it's used as-is.</span> }
+        @if (mode() === 'html') { <span class="text-[0.6875rem] text-gray-400">Paste your full HTML here — it's used as-is.</span> }
       </div>
 
       <!-- Visual toolbar -->
@@ -48,10 +48,10 @@ import { CommonModule } from '@angular/common';
       <!-- Variable palette (both modes) -->
       @if (variables.length) {
         <div class="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50/60 px-2 py-1.5">
-          <span class="text-[11px] font-semibold text-gray-400 mr-1">Insert:</span>
+          <span class="text-[0.6875rem] font-semibold text-gray-400 mr-1">Insert:</span>
           @for (v of variables; track v.token) {
             <button type="button" title="Insert {{ v.token }}" (mousedown)="$event.preventDefault()" (click)="insertToken(v.token)"
-              class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:text-blue-700">{{ v.label }}</button>
+              class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600 hover:border-blue-300 hover:text-blue-700">{{ v.label }}</button>
           }
         </div>
       }
@@ -59,7 +59,7 @@ import { CommonModule } from '@angular/common';
       <!-- Visual editor -->
       @if (mode() === 'visual') {
         <div #editor
-          class="min-h-[200px] max-h-[380px] overflow-auto px-3.5 py-3 text-sm outline-none"
+          class="min-h-[12.5rem] max-h-[23.75rem] overflow-auto px-3.5 py-3 text-sm outline-none"
           contenteditable="true"
           (input)="onInput()"
           (blur)="onInput()"
@@ -67,14 +67,14 @@ import { CommonModule } from '@angular/common';
       } @else {
         <!-- HTML source -->
         <textarea #source
-          class="block w-full min-h-[240px] max-h-[420px] px-3.5 py-3 font-mono text-xs leading-relaxed outline-none resize-y"
+          class="block w-full min-h-[15rem] max-h-[26.25rem] px-3.5 py-3 font-mono text-xs leading-relaxed outline-none resize-y"
           spellcheck="false"
           [value]="html"
           (input)="onTextarea($event)"
           placeholder="<!DOCTYPE html> …"></textarea>
       }
     </div>
-    @if (notice) { <p class="mt-1 text-[11px] text-amber-700">{{ notice }}</p> }
+    @if (notice) { <p class="mt-1 text-[0.6875rem] text-amber-700">{{ notice }}</p> }
   `,
   styles: [
     `[contenteditable][data-ph]:empty:before { content: attr(data-ph); color: #9ca3af; }

@@ -42,7 +42,7 @@ describe('DrawerComponent', () => {
     fixture.detectChanges();
     const aside = el.querySelector('aside') as HTMLElement;
     expect(aside).toBeTruthy();
-    expect(aside.classList.contains('max-w-[560px]')).toBe(true);
+    expect(aside.classList.contains('max-w-[35rem]')).toBe(true);
     expect(aside.classList.contains('right-0')).toBe(true);
     expect(el.querySelector('h2')?.textContent).toContain('Task detail');
     expect(el.querySelector('#footer')).toBeTruthy();

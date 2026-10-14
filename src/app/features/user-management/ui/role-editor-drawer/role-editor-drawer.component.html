@@ -5,14 +5,14 @@
 
     <div class="flex flex-col gap-3">
       <label class="block">
-        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Name</span>
+        <span class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Name</span>
         <input type="text" name="roleName" [ngModel]="name()" (ngModelChange)="name.set($event)"
           [disabled]="readOnly()" placeholder="e.g. Junior preparer"
           class="mt-1 h-11 w-full rounded-xl border border-gray-200 px-3.5 text-sm outline-none transition-colors focus:border-gray-300 disabled:bg-gray-50 disabled:text-gray-500" />
       </label>
 
       <label class="block">
-        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Description</span>
+        <span class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Description</span>
         <input type="text" name="roleDescription" [ngModel]="description()"
           (ngModelChange)="description.set($event)" [disabled]="readOnly()"
           placeholder="What this role is for"
@@ -31,7 +31,7 @@
 
     @for (group of visibleModules(); track group.module) {
       <section class="mt-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{{ group.module }}</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">{{ group.module }}</p>
         <div class="mt-2 flex flex-col gap-1.5">
           @for (permission of group.permissions; track permission.id) {
             <label class="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors"
@@ -43,11 +43,11 @@
                 <span class="block text-sm text-gray-800" [class.text-gray-400]="isLocked(permission)">
                   {{ permission.description }}
                 </span>
-                <span class="block font-mono text-[11px] text-gray-400">{{ permission.code }}</span>
+                <span class="block font-mono text-[0.6875rem] text-gray-400">{{ permission.code }}</span>
                 <!-- El motivo es el punto: una casilla apagada sin explicación se lee como un error
                      de la aplicación, no como una decisión. -->
                 @if (blockedReason(permission); as reason) {
-                  <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
+                  <span class="mt-0.5 inline-flex items-center gap-1 text-[0.6875rem] font-medium text-amber-700">
                     <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> {{ reason }}
                   </span>
                 }

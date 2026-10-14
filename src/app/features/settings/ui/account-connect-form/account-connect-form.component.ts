@@ -18,7 +18,7 @@ import { AccountConnection, AccountProviderDefinition } from '../../data-access/
   template: `
     <div class="flex flex-col gap-5">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">The assistant will be able to</p>
+        <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">The assistant will be able to</p>
         <ul class="mt-2 flex flex-col gap-2">
           @for (scope of provider.scopes; track scope) {
             <li class="flex items-start gap-2 text-sm text-gray-700">

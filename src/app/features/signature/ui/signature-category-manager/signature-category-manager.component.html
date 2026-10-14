@@ -38,7 +38,7 @@
               {{ category.name }}
             </span>
             <span *ngIf="category.isArchived"
-              class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-500">
               Archived
             </span>
             <button type="button" (click)="startRename(category)" [disabled]="busyId() === category.id"
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <p class="text-[11px] text-gray-400">
+    <p class="text-[0.6875rem] text-gray-400">
       Archiving hides a category from new requests. Requests already using it keep their category unchanged.
     </p>
   </div>

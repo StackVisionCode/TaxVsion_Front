@@ -19,7 +19,7 @@
                 <p class="flex items-center gap-2 text-sm font-medium text-gray-900">
                   <span class="truncate">{{ row.member?.name ?? 'Unknown user' }}</span>
                   @if (row.member && !row.member.isActive) {
-                    <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600">Suspended</span>
+                    <span class="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-amber-600">Suspended</span>
                   }
                 </p>
                 <p class="truncate text-xs text-gray-500">{{ row.member?.email }}</p>
@@ -76,7 +76,7 @@
                   [disabled]="saving()"
                   class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
                 >
-                  <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[10px]" />
+                  <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[0.625rem]" />
                   <div class="min-w-0 flex-1">
                     <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
                     <p class="truncate text-xs text-gray-500">{{ m.email }}</p>
@@ -146,7 +146,7 @@
                       (click)="selectTarget(m)"
                       class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
                     >
-                      <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[10px]" />
+                      <app-avatar [name]="m.name" [seed]="m.userId" sizeClass="h-7 w-7 text-[0.625rem]" />
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-sm text-gray-900">{{ m.name }}</p>
                         <p class="truncate text-xs text-gray-500">{{ m.email }}</p>

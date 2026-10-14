@@ -1,7 +1,7 @@
 <!-- En pantalla completa (editor embebido en el perfil) la tarjeta cubre el viewport; el host ya
      está portado al <body>, así que el `fixed` no queda encerrado por el perfil. -->
 <div class="wizard-card bg-white p-4 sm:p-6" [class.max-md:pb-24]="currentStep() === 3"
-  [ngClass]="fullscreen() ? 'fixed inset-0 z-[62] overflow-y-auto rounded-none' : 'rounded-[28px]'">
+  [ngClass]="fullscreen() ? 'fixed inset-0 z-[62] overflow-y-auto rounded-none' : 'rounded-[1.75rem]'">
   <!-- Header: título + volver a la lista -->
   <div class="flex items-start justify-between gap-4">
     <div class="min-w-0">
@@ -11,12 +11,12 @@
     <div class="flex shrink-0 items-center gap-2">
       <button *ngIf="canFullscreen()" type="button" (click)="toggleFullscreen()"
         [attr.aria-label]="fullscreen() ? 'Exit full screen' : 'Full screen'"
-        class="flex min-h-[44px] items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
+        class="flex min-h-[2.75rem] items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
         <ion-icon [name]="fullscreen() ? 'contract-outline' : 'expand-outline'" class="text-base"></ion-icon>
         <span class="hidden sm:inline">{{ fullscreen() ? 'Exit full screen' : 'Full screen' }}</span>
       </button>
       <button type="button" (click)="close()" aria-label="Back to list"
-        class="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
+        class="flex min-h-[2.75rem] shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors sm:min-h-0">
         <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
         <span class="hidden sm:inline">Back to list</span>
       </button>
@@ -165,27 +165,27 @@
   <!-- Footer: navegación -->
   <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
     <button type="button" (click)="close()"
-      class="min-h-[44px] rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors sm:min-h-0">
+      class="min-h-[2.75rem] rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors sm:min-h-0">
       Cancel
     </button>
 
     <div class="flex flex-wrap items-center justify-end gap-2">
       <button *ngIf="currentStep() > 1" type="button" (click)="back()"
-        class="min-h-[44px] sm:min-h-0 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+        class="min-h-[2.75rem] sm:min-h-0 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
         Back
       </button>
 
       <!-- Guardar como borrador (sin enviar): disponible una vez subido el documento. -->
       <button *ngIf="currentStep() >= 2" type="button" (click)="saveAsDraft()"
         [disabled]="!canSaveDraft() || savingDraft() || isSending()" [attr.title]="saveBlockedReason() || null"
-        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors">
+        class="flex min-h-[2.75rem] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors">
         <app-infinity-loader size="xs" />
         <ion-icon *ngIf="!savingDraft()" name="save-outline" class="text-sm"></ion-icon>
         {{ savingDraft() ? 'Saving…' : 'Save as draft' }}
       </button>
 
       <button *ngIf="currentStep() < 4" type="button" (click)="next()" [disabled]="!canProceed()"
-        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        class="flex min-h-[2.75rem] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
         Next
         <ion-icon name="arrow-forward-outline" class="text-sm"></ion-icon>
       </button>
@@ -194,7 +194,7 @@
       <div *ngIf="currentStep() === 4" class="relative">
         <button type="button" (click)="toggleSchedulePicker()"
           [disabled]="!canSend() || isSending() || scheduling()"
-          class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
+          class="flex min-h-[2.75rem] sm:min-h-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors">
           <ion-icon name="time-outline" class="text-sm"></ion-icon>
           Schedule send
         </button>
@@ -203,7 +203,7 @@
           <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Send on</p>
           <input type="datetime-local" [ngModel]="scheduleAtLocal()" (ngModelChange)="scheduleAtLocal.set($event)"
             class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-brand-bold focus:outline-none" />
-          <p class="mt-1 text-[11px] text-gray-400">Uses your local time zone.</p>
+          <p class="mt-1 text-[0.6875rem] text-gray-400">Uses your local time zone.</p>
           <p *ngIf="scheduleError()" class="mt-2 text-xs text-red-600" role="alert">{{ scheduleError() }}</p>
           <div class="mt-3 flex items-center justify-end gap-2">
             <button type="button" (click)="toggleSchedulePicker()"
@@ -220,7 +220,7 @@
       </div>
 
       <button *ngIf="currentStep() === 4" type="button" (click)="send()" [disabled]="!canSend() || isSending() || scheduling()"
-        class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+        class="flex min-h-[2.75rem] sm:min-h-0 items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
         <app-infinity-loader size="xs" tone="light" />
         <ion-icon *ngIf="!isSending()" name="paper-plane-outline" class="text-sm"></ion-icon>
         {{ isSending() ? 'Sending…' : 'Send for signature' }}
@@ -278,7 +278,7 @@
     <!-- Zona de firma: el trazo se dibuja solo en la fase 'signing' -->
     <div class="mt-5 border-t-2 border-dashed border-gray-200 pt-2"
       [class.paper-signing]="sendPhase() !== 'paper'">
-      <p class="text-[9px] font-medium uppercase tracking-wide text-gray-400">Signature</p>
+      <p class="text-[0.5625rem] font-medium uppercase tracking-wide text-gray-400">Signature</p>
       <svg class="mt-1 h-12 w-44" viewBox="0 0 190 62" fill="none" aria-hidden="true">
         <path class="sig-stroke"
           d="M6 42 C 18 18, 30 18, 34 38 C 37 52, 30 56, 28 46 C 26 34, 40 24, 52 38 C 60 48, 64 28, 74 28 C 84 28, 78 46, 90 44 C 104 42, 100 20, 116 22 C 132 24, 120 50, 138 44 C 150 40, 150 28, 162 32 C 172 35, 178 28, 186 22"

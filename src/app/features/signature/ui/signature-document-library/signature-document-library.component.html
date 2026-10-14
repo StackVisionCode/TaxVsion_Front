@@ -6,12 +6,12 @@
   <!-- Chip opcional: acotar a los PDF del cliente elegido -->
   <div *ngIf="hasClientFilter()" class="mb-2 flex items-center gap-2">
     <button type="button" (click)="toggleClientFilter()"
-      class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors"
+      class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.6875rem] font-medium transition-colors"
       [ngClass]="onlyThisClient() ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
       <ion-icon name="person-outline" class="text-xs"></ion-icon>
       This client only
     </button>
-    <span class="text-[11px] text-gray-400">{{ onlyThisClient() ? 'Showing this client’s PDFs' : 'Showing all office PDFs' }}</span>
+    <span class="text-[0.6875rem] text-gray-400">{{ onlyThisClient() ? 'Showing this client’s PDFs' : 'Showing all office PDFs' }}</span>
   </div>
 
   <p *ngIf="error()" class="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ error() }}</p>
@@ -31,7 +31,7 @@
       </span>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-medium text-gray-800">{{ file.originalName }}</span>
-        <span class="block text-[11px] text-gray-400">
+        <span class="block text-[0.6875rem] text-gray-400">
           {{ formatBytes(file.sizeBytes) }} · {{ shortDate(file.createdAtUtc) }}
           <span *ngIf="file.taxYear"> · {{ file.taxYear }}</span>
         </span>
@@ -43,7 +43,7 @@
     <div *ngIf="pdfs().length === 0" class="flex flex-col items-center justify-center px-4 py-10 text-center">
       <ion-icon name="folder-open-outline" class="text-3xl text-gray-300"></ion-icon>
       <p class="mt-2 text-xs font-medium text-gray-500">No matching PDFs in the office yet</p>
-      <p class="mt-0.5 max-w-xs text-[11px] text-gray-400">Only scanned, available PDFs appear here. Upload a new one instead.</p>
+      <p class="mt-0.5 max-w-xs text-[0.6875rem] text-gray-400">Only scanned, available PDFs appear here. Upload a new one instead.</p>
     </div>
   </div>
 </div>

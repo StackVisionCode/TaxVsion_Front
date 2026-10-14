@@ -1,4 +1,4 @@
-<div *ngIf="canManage()" class="bg-white rounded-[28px] p-6">
+<div *ngIf="canManage()" class="bg-white rounded-[1.75rem] p-6">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h2 class="text-xl font-bold text-gray-900">What this client can do</h2>
@@ -25,11 +25,11 @@
       <!-- Cabecera del módulo -->
       <div class="flex items-center gap-3 bg-gray-50/70 px-4 py-3">
         <div class="min-w-0 flex-1">
-          <div class="text-[13.5px] font-bold text-gray-800">{{ module.label }}</div>
-          <div *ngIf="module.description" class="mt-px text-[11.5px] text-gray-500">{{ module.description }}</div>
+          <div class="text-[0.8438rem] font-bold text-gray-800">{{ module.label }}</div>
+          <div *ngIf="module.description" class="mt-px text-[0.7188rem] text-gray-500">{{ module.description }}</div>
         </div>
 
-        <span class="whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+        <span class="whitespace-nowrap rounded-full border px-2.5 py-1 text-[0.6875rem] font-semibold"
           [ngClass]="moduleDeniedCount(module) > 0 ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-gray-100 bg-white text-gray-500'">
           <ng-container *ngIf="moduleDeniedCount(module) as denied; else allAllowed">{{ denied }} restricted</ng-container>
           <ng-template #allAllowed>{{ moduleGrantedCount(module) }} allowed</ng-template>
@@ -52,14 +52,14 @@
         class="perm-row flex items-center gap-3 border-t border-gray-100 px-4 py-2.5"
         [class.perm-denied]="!row.locked && isDenied(row.permissionId)" [class.perm-locked]="row.locked">
         <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-gray-800">
+          <div class="flex flex-wrap items-center gap-2 text-[0.8125rem] font-semibold text-gray-800">
             {{ row.label }}
             <span *ngIf="!row.locked && isDenied(row.permissionId)"
-              class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-rose-600">Restricted</span>
+              class="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-rose-600">Restricted</span>
             <span *ngIf="row.locked"
-              class="rounded-full border border-gray-100 bg-gray-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-400">Not in their role</span>
+              class="rounded-full border border-gray-100 bg-gray-50 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-gray-400">Not in their role</span>
           </div>
-          <div class="mt-px text-[11.5px] text-gray-500">
+          <div class="mt-px text-[0.7188rem] text-gray-500">
             {{ row.code }}<span *ngIf="row.locked"> · granted by the portal role, not here</span>
           </div>
         </div>

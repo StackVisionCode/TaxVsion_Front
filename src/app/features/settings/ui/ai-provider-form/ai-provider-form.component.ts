@@ -22,7 +22,7 @@ import {
   template: `
     <form class="flex flex-col gap-5" (ngSubmit)="submit()">
       <div>
-        <label for="aiApiKey" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">API key</label>
+        <label for="aiApiKey" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">API key</label>
         <div class="relative mt-2">
           <input id="aiApiKey" name="apiKey" [type]="showKey() ? 'text' : 'password'" autocomplete="off"
             [placeholder]="connection ? 'Leave empty to keep ' + connection.keyHint : provider.keyPlaceholder"
@@ -43,7 +43,7 @@ import {
 
       @if (provider.requiresEndpoint) {
         <div>
-          <label for="aiEndpoint" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Endpoint</label>
+          <label for="aiEndpoint" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Endpoint</label>
           <input id="aiEndpoint" name="endpoint" type="url" placeholder="https://your-resource.openai.azure.com"
             [disabled]="saving" [ngModel]="endpoint()" (ngModelChange)="endpoint.set($event)"
             class="mt-2 h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none transition-colors" />
@@ -51,7 +51,7 @@ import {
       }
 
       <div>
-        <label for="aiModel" class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <label for="aiModel" class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
           {{ provider.requiresEndpoint ? 'Deployment' : 'Default model (optional)' }}
         </label>
         <input id="aiModel" name="defaultModel" type="text" [placeholder]="provider.modelPlaceholder"

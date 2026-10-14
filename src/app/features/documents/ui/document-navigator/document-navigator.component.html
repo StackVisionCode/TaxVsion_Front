@@ -1,6 +1,6 @@
 <nav class="flex h-full w-full flex-col overflow-hidden" aria-label="Documents navigation">
   <div class="flex-1 overflow-y-auto px-2.5 pt-3.5 pb-1.5">
-    <p class="px-2 pb-2.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-gray-400">Workspace</p>
+    <p class="px-2 pb-2.5 text-[0.6562rem] font-bold uppercase tracking-[0.09em] text-gray-400">Workspace</p>
 
     <button type="button" (click)="openOffice.emit()"
       class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
@@ -28,7 +28,7 @@
       <div class="ml-2 mt-1 border-l border-gray-100 pl-2">
         <button type="button" (click)="openClients.emit()"
           class="flex w-full items-center gap-2 rounded-lg bg-indigo-50 px-1.5 py-1.5 text-left">
-          <app-avatar [name]="activeClientName" colorClass="bg-indigo-600" sizeClass="h-6 w-6 text-[9.5px]" />
+          <app-avatar [name]="activeClientName" colorClass="bg-indigo-600" sizeClass="h-6 w-6 text-[0.5938rem]" />
           <span class="truncate text-xs font-semibold text-indigo-700">{{ activeClientName }}</span>
         </button>
       </div>
@@ -48,7 +48,7 @@
       <span>Recent</span>
     </button>
 
-    <p class="px-2 pt-3 pb-2.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-gray-400">Management</p>
+    <p class="px-2 pt-3 pb-2.5 text-[0.6562rem] font-bold uppercase tracking-[0.09em] text-gray-400">Management</p>
     <button type="button" (click)="openTrash.emit()"
       class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-colors"
       [class]="section === 'trash' ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700 hover:bg-gray-100'">
@@ -63,13 +63,13 @@
   @if (usage) {
   <button type="button" (click)="openStorage.emit()"
     class="flex flex-col gap-1.5 border-t border-gray-100 px-3.5 py-3 text-left transition-colors hover:bg-gray-50">
-    <span class="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+    <span class="flex items-center gap-1.5 text-[0.6875rem] font-bold text-gray-500">
       <ion-icon name="server-outline" class="text-xs"></ion-icon> Storage
     </span>
     <span class="h-1.5 overflow-hidden rounded-full bg-gray-100">
       <span class="block h-full rounded-full bg-brand-bold transition-all" [style.width.%]="usedPercent"></span>
     </span>
-    <span class="text-[11px] text-gray-400">{{ usedGb }} GB of {{ maxGb }} GB used</span>
+    <span class="text-[0.6875rem] text-gray-400">{{ usedGb }} GB of {{ maxGb }} GB used</span>
   </button>
   }
 </nav>

@@ -1,9 +1,9 @@
 <div class="relative flex min-h-screen w-full items-center justify-center bg-[#F8F4ED] px-5 py-10 text-[#083645]">
-  <div class="auth-card w-full max-w-[340px]">
+  <div class="auth-card w-full max-w-[21.25rem]">
     @if (step() === 'email') {
       <div class="flex flex-col items-center text-center">
-        <app-brand-logo variant="taxoffix" logoClass="h-9 max-w-[180px] object-contain" />
-        <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Find your office</h1>
+        <app-brand-logo variant="taxoffix" logoClass="h-9 max-w-[11.25rem] object-contain" />
+        <h1 class="mt-5 text-[1.875rem] font-semibold leading-tight tracking-tight">Find your office</h1>
         <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">
           Enter the email linked to your account and we'll send you the sign-in link to your office.
         </p>
@@ -32,7 +32,7 @@
         </button>
       </div>
 
-      <div class="mt-6 flex flex-col items-center gap-2.5 text-[13px] text-[#3E5F6B]">
+      <div class="mt-6 flex flex-col items-center gap-2.5 text-[0.8125rem] text-[#3E5F6B]">
         <p>
           Already have your office URL? Sign in there.
         </p>
@@ -44,11 +44,11 @@
     } @else {
       <!-- Confirmación de envío -->
       <div class="success-content flex flex-col items-center text-center">
-        <app-brand-logo variant="taxoffix" logoClass="h-9 max-w-[180px] object-contain" />
+        <app-brand-logo variant="taxoffix" logoClass="h-9 max-w-[11.25rem] object-contain" />
         <span class="success-check mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#E3FF00]">
           <ion-icon name="mail-outline" class="text-2xl text-[#083645]"></ion-icon>
         </span>
-        <h1 class="mt-5 text-[30px] font-semibold leading-tight tracking-tight">Check your email</h1>
+        <h1 class="mt-5 text-[1.875rem] font-semibold leading-tight tracking-tight">Check your email</h1>
         <p class="mt-2 text-sm leading-relaxed text-[#3E5F6B]">
           If <span class="font-medium text-[#083645]">{{ email() }}</span> has an office with us, we've sent you the
           link to sign in. It may list more than one if you belong to several firms.

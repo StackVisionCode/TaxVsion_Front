@@ -41,7 +41,7 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
  * `stats = computed<StatCardItem[]>(() => [{ label: 'Total tasks', value: total() }, …])`.
  *
  * Markup idéntico a las copias: grid `grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]`,
- * tarjeta `rounded-[24px] p-5`, etiqueta `text-sm text-gray-600`, cifra `mt-2 text-3xl font-bold
+ * tarjeta `rounded-[1.5rem] p-5`, etiqueta `text-sm text-gray-600`, cifra `mt-2 text-3xl font-bold
  * text-gray-900`. Con `countUp` la cifra lleva además `inline-block` (lo necesita el "pop" del
  * count-up, igual que en client-import). `loading` pinta "—" en todas (como signature/calls).
  */
@@ -53,7 +53,7 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
       @for (item of items; track item.label; let i = $index) {
         @let dark = isDark(item);
-        <div class="rounded-[24px] p-5" [ngClass]="toneClass(item, i)">
+        <div class="rounded-[1.5rem] p-5" [ngClass]="toneClass(item, i)">
           <div class="flex items-start justify-between gap-2">
             <p class="text-sm" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">{{ item.label }}</p>
             @if (item.icon) {

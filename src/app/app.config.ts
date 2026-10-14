@@ -7,6 +7,7 @@ import { provideAuthInitializer } from '@core/config/auth-initializer';
 import { providePlatformSettingsInitializer } from '@core/config/platform-config';
 import { provideThemeInitializer } from '@core/theme/theme-initializer';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
+import { provideViewportScale } from '@core/layout/viewport-scale';
 
 // NOTA: no hay RouteReuseStrategy. Se evaluó cachear las instancias de página para que
 // volver a una sección no repitiera sus fetches, pero eso implica que su ngOnDestroy no
@@ -26,5 +27,7 @@ export const appConfig: ApplicationConfig = {
     providePlatformSettingsInitializer(),
     provideAuthInitializer(),
     provideThemeInitializer(),
+    // Escala la interfaz en pantallas con escala alta (125–200 %) o viewports chicos.
+    provideViewportScale(),
   ]
 };

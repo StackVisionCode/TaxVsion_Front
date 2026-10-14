@@ -12,7 +12,7 @@
 
       <div class="relative z-10 flex flex-col justify-between w-full p-10">
         @if (logoUrl() && !logoFailed()) {
-          <img [src]="logoUrl()" alt="Office logo" class="h-12 max-w-[200px] object-contain self-start"
+          <img [src]="logoUrl()" alt="Office logo" class="h-12 max-w-[12.5rem] object-contain self-start"
             (error)="logoFailed.set(true)" />
         } @else {
           <span class="text-white text-4xl font-bold leading-none">*</span>

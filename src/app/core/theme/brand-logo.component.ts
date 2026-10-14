@@ -26,8 +26,8 @@ import { platformBrand } from '@core/config/platform-config';
     <ng-template #fallback>
       <!-- Sin logo de oficina ni del sistema: el asterisco de siempre, o la marca Taxoffix (variant="taxoffix"). -->
       <span *ngIf="variant() === 'taxoffix'; else asterisk" class="inline-flex items-center gap-2" [attr.aria-label]="brand">
-        <ion-icon name="infinite-outline" class="text-[28px] text-[#057BC1]"></ion-icon>
-        <span class="text-[22px] font-extrabold tracking-tight text-[#083645]">Tax<span class="text-[#057BC1]">offix</span></span>
+        <ion-icon name="infinite-outline" class="text-[1.75rem] text-[#057BC1]"></ion-icon>
+        <span class="text-[1.375rem] font-extrabold tracking-tight text-[#083645]">Tax<span class="text-[#057BC1]">offix</span></span>
       </span>
       <ng-template #asterisk><span [class]="fallbackClass()">*</span></ng-template>
     </ng-template>
@@ -41,7 +41,7 @@ export class BrandLogoComponent {
 
   /** 'asterisk' (por defecto) o 'taxoffix' (wordmark de la marca) cuando no hay logo. */
   readonly variant = input<'asterisk' | 'taxoffix'>('asterisk');
-  readonly logoClass = input('h-9 max-w-[160px] object-contain');
+  readonly logoClass = input('h-9 max-w-[10rem] object-contain');
   readonly fallbackClass = input('text-indigo-600 text-3xl font-bold leading-none');
 
   constructor() {

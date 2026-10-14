@@ -8,7 +8,7 @@
 
 <!-- 2) El bootstrap falló: nada de bandeja inventada, sólo el error real + reintento -->
 <div *ngIf="!store.bootLoading() && store.bootError() as bootErr" class="flex-1 min-h-0 pt-3 pb-1 flex items-center justify-center">
-  <div class="w-full max-w-md rounded-[28px] bg-white p-8 text-center">
+  <div class="w-full max-w-md rounded-[1.75rem] bg-white p-8 text-center">
     <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
       <ion-icon name="alert-circle-outline" class="text-2xl text-red-500"></ion-icon>
     </span>
@@ -25,7 +25,7 @@
      Embebido en el perfil nunca se muestra (evita redirecciones OAuth desde el perfil). -->
 <div *ngIf="!embedded() && !store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager())"
   class="flex-1 min-h-0 pt-3 pb-1 flex items-start justify-center overflow-y-auto">
-  <div class="w-full max-w-xl rounded-[28px] bg-white p-8">
+  <div class="w-full max-w-xl rounded-[1.75rem] bg-white p-8">
 
     <!-- Volver a la bandeja (solo en modo gestión, cuando ya hay un buzón usable) -->
     <div *ngIf="showMailboxManager() && store.hasMailbox()" class="mb-4">
@@ -176,14 +176,14 @@
 
     <!-- Buzones del tenant: estado real + acciones (reauth para los que tienen token sin watch, disconnect) -->
     <div *ngIf="store.accounts().length > 0" class="mt-6 border-t border-gray-100 pt-5">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Mailboxes in your office</p>
+      <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Mailboxes in your office</p>
       <div class="mt-3 flex flex-col gap-2">
         <div *ngFor="let account of store.accounts()"
           class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
           <div class="min-w-0">
             <p class="flex items-center gap-2 truncate text-sm font-medium text-gray-900">
               <span class="truncate">{{ account.emailAddress }}</span>
-              <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              <span class="shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide"
                 [ngClass]="account.isOffice ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-brand-bold'">
                 {{ mailboxKindLabel(account) }}
               </span>
@@ -279,7 +279,7 @@
 
   <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
     <!-- Folders rail -->
-    <div class="bg-white rounded-[28px] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto">
+    <div class="bg-white rounded-[1.75rem] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto">
       <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
       <p class="mt-1 truncate text-sm text-gray-500 px-1">{{ store.activeAccount()?.emailAddress || 'Your inbox' }}</p>
       <button *ngIf="!embedded()" type="button" (click)="toggleMailboxManager()"
@@ -302,7 +302,7 @@
       <!-- Selector de cliente: Correspondence no tiene bandeja global, los hilos cuelgan de un cliente.
            Picker compartido (búsqueda server-side, recientes del directorio y teclado ↑/↓/Enter/Esc). -->
       <div *ngIf="!embedded()" class="mt-5">
-        <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Client</label>
+        <label class="px-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Client</label>
         <app-customer-picker class="mt-2" [selected]="store.selectedCustomer()"
           placeholder="Search clients by name or email…" (selectedChange)="onCustomerChange($event)"></app-customer-picker>
       </div>
@@ -310,7 +310,7 @@
       <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->
       <!-- Buzón activo (desde el que se envía): picker con avatar + chip Office/My email. Solo si hay >1. -->
       <div *ngIf="store.usableAccounts().length > 1" class="relative mt-4">
-        <label class="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Send from</label>
+        <label class="px-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Send from</label>
 
         <button type="button" (click)="toggleMailboxPicker()" (blur)="closeMailboxPickerSoon()"
           class="mt-2 flex w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50">
@@ -321,7 +321,7 @@
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium text-gray-900">{{ store.activeAccount()?.emailAddress }}</span>
-            <span *ngIf="store.activeAccount() as a" class="block text-[11px] text-gray-400">{{ mailboxKindLabel(a) }}</span>
+            <span *ngIf="store.activeAccount() as a" class="block text-[0.6875rem] text-gray-400">{{ mailboxKindLabel(a) }}</span>
           </span>
           <ion-icon name="chevron-expand-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
         </button>
@@ -338,7 +338,7 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm text-gray-800">{{ account.emailAddress }}</span>
-              <span class="block text-[11px] text-gray-400">{{ mailboxKindLabel(account) }}</span>
+              <span class="block text-[0.6875rem] text-gray-400">{{ mailboxKindLabel(account) }}</span>
             </span>
             <ion-icon *ngIf="account.id === store.activeAccountId()" name="checkmark-outline" class="shrink-0 text-base text-brand-bold"></ion-icon>
           </button>
@@ -347,7 +347,7 @@
     </div>
 
     <!-- Message list -->
-    <div class="bg-white rounded-[28px] p-5 lg:col-span-4 flex flex-col min-h-0">
+    <div class="bg-white rounded-[1.75rem] p-5 lg:col-span-4 flex flex-col min-h-0">
       <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
         [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
         [showTrashActions]="store.activeFolderId() === 'trash'"
@@ -358,7 +358,7 @@
     </div>
 
     <!-- Reading pane / compose editor -->
-    <div class="bg-white rounded-[28px] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)]">
+    <div class="bg-white rounded-[1.75rem] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)]">
       <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
         [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
         [customerName]="selectedCustomerName()" [recipientSuggestions]="store.recipientResults()"

@@ -2,7 +2,7 @@
   <!-- El backend admite UNA importación activa por tenant: avisar antes de que el POST
        devuelva `Import.AlreadyRunning`. El dato sale del historial, no se inventa nada. -->
   <div *ngIf="runningAttempt as running"
-    class="import-block flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-orange-200 bg-orange-50 px-5 py-4">
+    class="import-block flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-orange-200 bg-orange-50 px-5 py-4">
     <p class="text-sm text-gray-900">
       <span class="font-semibold">An import is already running.</span>
       Only one import can run at a time for this office — “{{ running.sourceFileName }}” has to finish or be
@@ -15,8 +15,8 @@
   </div>
 
   <!-- Plantilla: los encabezados de GET /template son el contrato del parser -->
-  <div class="import-block flex flex-wrap items-center justify-between gap-4 rounded-[24px] bg-brand-surface p-5">
-    <div class="min-w-[240px]">
+  <div class="import-block flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] bg-brand-surface p-5">
+    <div class="min-w-[15rem]">
       <p class="text-sm font-semibold text-gray-900">Start from the official template</p>
       <p class="mt-1 text-sm text-gray-600">
         The importer matches your columns by their header name, so the template headers are the contract. It ships
@@ -47,7 +47,7 @@
     <ng-template #selectedFile>
       <div appFileDrop #drop="appFileDrop" [accept]="acceptAttribute" [multiple]="false"
         (appFileDrop)="acceptFile($event[0])" (appFileDropRejected)="onRejected()"
-        class="mt-3 rounded-[24px] border-2 border-dashed p-8 text-center transition-colors"
+        class="mt-3 rounded-[1.5rem] border-2 border-dashed p-8 text-center transition-colors"
         [ngClass]="drop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'">
         <div class="flex flex-wrap items-center justify-center gap-4">
           <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-surface-strong">
@@ -73,7 +73,7 @@
     <h3 class="text-sm font-semibold text-gray-900">2. When a client already exists</h3>
     <div class="mt-3 grid gap-3 sm:grid-cols-3">
       <button *ngFor="let option of strategies" type="button" (click)="selectStrategy(option.value)"
-        class="strategy-card rounded-[24px] border p-4 text-left transition-colors"
+        class="strategy-card rounded-[1.5rem] border p-4 text-left transition-colors"
         [ngClass]="strategy() === option.value ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white hover:bg-gray-50'">
         <span class="flex items-center gap-2">
           <span class="flex h-5 w-5 items-center justify-center rounded-full border"
@@ -89,7 +89,7 @@
 
   <!-- Error del POST. Retry reusa la misma Idempotency-Key: el backend hace replay, no duplica. -->
   <div *ngIf="errorMessage"
-    class="import-block flex flex-col gap-3 rounded-[24px] border border-red-100 bg-red-50 px-5 py-4">
+    class="import-block flex flex-col gap-3 rounded-[1.5rem] border border-red-100 bg-red-50 px-5 py-4">
     <p class="text-sm text-red-600">{{ errorMessage }}</p>
     <div class="flex flex-wrap items-center gap-3">
       <button *ngIf="file()" type="button" (click)="submit()" [disabled]="busy"

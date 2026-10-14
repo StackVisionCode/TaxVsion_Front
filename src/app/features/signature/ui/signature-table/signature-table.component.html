@@ -2,7 +2,7 @@
      al fondo desborda y el contenedor lo recorta con un scrollbar. Al abrir un menú reservamos hueco
      inferior para que quepa completo (evita position:fixed, que rompe bajo ancestros con transform). -->
 <div class="overflow-x-auto" [ngClass]="{ 'pb-[22rem]': openMenuId() !== null }">
-  <table class="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
+  <table class="w-full min-w-[53.75rem] border-separate border-spacing-0 text-sm">
     <thead>
       <tr>
         <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Document name</th>
@@ -29,9 +29,9 @@
           [class.border-gray-100]="!last">
           <div class="flex -space-x-2">
             <app-avatar *ngFor="let signer of visibleSigners(request)" [name]="signer.name" [colorClass]="signer.color"
-              [title]="signer.name" sizeClass="h-8 w-8 border-2 border-white text-[10px]" />
+              [title]="signer.name" sizeClass="h-8 w-8 border-2 border-white text-[0.625rem]" />
             <span *ngIf="extraSignersCount(request) > 0"
-              class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[10px] font-semibold text-gray-600">
+              class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[0.625rem] font-semibold text-gray-600">
               +{{ extraSignersCount(request) }}
             </span>
           </div>

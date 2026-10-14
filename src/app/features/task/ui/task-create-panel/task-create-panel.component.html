@@ -89,7 +89,7 @@
             @if (assignee(); as current) {
               <app-avatar [name]="current.displayName" [seed]="current.userId" size="xs" />
             } @else {
-              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
             }
             {{ assignee()?.displayName ?? 'Unassigned' }}
           </span>
@@ -106,7 +106,7 @@
             <button type="button" (click)="selectAssignee(null)"
               class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
               <span
-                class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
               Unassigned
               <ion-icon *ngIf="assignee() === null" name="checkmark-outline"
                 class="ml-auto text-sm text-gray-900"></ion-icon>

@@ -68,7 +68,7 @@ export const STATUS_TONES: Record<StatusTone, ToneClasses> = {
  * - `tone`: ver `STATUS_TONES` (default 'neutral'). Si una feature necesita un color fuera de la
  *   paleta, `toneClass`/`dotClass` sobreescriben chip y punto (para migrar mapas existentes 1:1).
  * - `dot` (default true), `soft` (fondo pastel, estilo user-table; default false).
- * - `size`: 'sm' (default, `px-3 py-0.5 text-xs`) | 'xs' (`px-2 py-0.5 text-[10px]`, badges densos).
+ * - `size`: 'sm' (default, `px-3 py-0.5 text-xs`) | 'xs' (`px-2 py-0.5 text-[0.625rem]`, badges densos).
  *
  * Normalizado: product-table/signature-table usan outline sin fondo (default aquí); user-table
  * añade fondo → `soft`.
@@ -99,7 +99,7 @@ export class StatusPillComponent {
   }
 
   get pillClass(): string {
-    const sizing = this.size === 'xs' ? 'gap-1.5 px-2 py-0.5 text-[10px]' : 'gap-2 px-3 py-0.5 text-xs';
+    const sizing = this.size === 'xs' ? 'gap-1.5 px-2 py-0.5 text-[0.625rem]' : 'gap-2 px-3 py-0.5 text-xs';
     const colors = this.toneClass || (this.soft ? this.tones.soft : this.tones.chip);
     return `${sizing} ${colors}`;
   }

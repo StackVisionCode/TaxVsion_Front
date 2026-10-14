@@ -8,7 +8,7 @@ describe('StatCardsComponent', () => {
     fixture.componentRef.setInput('items', items);
     fixture.componentRef.setInput('loading', loading);
     fixture.detectChanges();
-    const cards = Array.from(fixture.nativeElement.querySelectorAll('.rounded-\\[24px\\]')) as HTMLElement[];
+    const cards = Array.from(fixture.nativeElement.querySelectorAll('.rounded-\\[1\\.5rem\\]')) as HTMLElement[];
     return { fixture, cards };
   }
 

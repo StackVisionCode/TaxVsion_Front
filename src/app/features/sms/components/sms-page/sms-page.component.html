@@ -1,6 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Panel principal (mismo patrón que Meetings/Task/Signature: tarjeta blanca con su cabecera) -->
-  <section class="bg-white rounded-[28px] p-6">
+  <section class="bg-white rounded-[1.75rem] p-6">
     <div class="mb-4 flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
       <div>
         <h2 class="text-xl font-bold text-gray-900">SMS</h2>
@@ -71,7 +71,7 @@
                   <div class="flex items-center gap-2">
                     <span class="truncate font-semibold text-gray-800">{{ clientName(c.recipientName, c.customerId, c.to) }}</span>
                     @if (c.messageCount > 1) {
-                      <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">{{ c.messageCount }}</span>
+                      <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-bold text-gray-500">{{ c.messageCount }}</span>
                     }
                     <span class="ml-auto shrink-0 text-xs text-gray-400">{{ c.lastSentAtUtc | date: 'short' }}</span>
                   </div>
@@ -103,7 +103,7 @@
         <div class="mt-4 overflow-x-auto">
           <table class="w-full border-collapse">
             <thead>
-              <tr class="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              <tr class="border-b border-gray-100 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">
                 <th scope="col" class="px-3 py-2.5">Phone</th>
                 <th scope="col" class="px-3 py-2.5">Consent</th>
                 <th scope="col" class="px-3 py-2.5">Updated</th>
@@ -186,7 +186,7 @@
         rows="4"
         placeholder="Hi {{ '{{first_name}}' }}, your tax documents are ready to review in your portal."
         class="mt-1.5 w-full resize-y rounded-xl border border-gray-200 px-3.5 py-3 text-sm outline-none focus:border-brand-bold"></textarea>
-      <div class="mt-1 flex justify-between text-[11px] text-gray-400">
+      <div class="mt-1 flex justify-between text-[0.6875rem] text-gray-400">
         <span>{{ segments().encoding }}</span>
         <span><b class="text-gray-600">{{ segments().count }}</b> chars · <b class="text-gray-600">{{ segments().segments }}</b> segment{{ segments().segments === 1 ? '' : 's' }}</span>
       </div>
@@ -247,7 +247,7 @@
     <div class="py-10 text-center text-sm text-gray-400">Loading…</div>
   } @else if (detail(); as d) {
     <div class="rounded-2xl rounded-bl bg-indigo-50 px-4 py-3 text-sm text-gray-800">{{ d.body }}</div>
-    <div class="mt-1 text-right text-[11px] text-gray-400">{{ d.createdAtUtc | date: 'short' }}</div>
+    <div class="mt-1 text-right text-[0.6875rem] text-gray-400">{{ d.createdAtUtc | date: 'short' }}</div>
 
     <div class="mt-5 rounded-xl bg-gray-50 p-4">
       <div class="flex items-center gap-2">
@@ -279,15 +279,15 @@
           <div class="rounded-2xl rounded-br bg-indigo-50 px-4 py-2.5 text-sm text-gray-800">
             {{ m.body }}
             @if (m.hasMedia) {
-              <span class="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">MMS</span>
+              <span class="ml-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[0.625rem] font-bold text-indigo-600">MMS</span>
             }
           </div>
           <div class="mt-1 flex items-center justify-end gap-2">
             <app-status-pill [toneClass]="pill(statusChip(m.status).chip)" [dotClass]="statusChip(m.status).dot">{{ statusChip(m.status).label }}</app-status-pill>
-            <span class="text-[11px] text-gray-400">{{ m.createdAtUtc | date: 'short' }}</span>
+            <span class="text-[0.6875rem] text-gray-400">{{ m.createdAtUtc | date: 'short' }}</span>
           </div>
           @if (m.status === 'Failed' || m.status === 'Undeliverable' || m.status === 'Suppressed') {
-            <p class="mt-0.5 text-right text-[11px] text-gray-400">{{ reasonText(m.status) }}</p>
+            <p class="mt-0.5 text-right text-[0.6875rem] text-gray-400">{{ reasonText(m.status) }}</p>
           }
         </div>
       }

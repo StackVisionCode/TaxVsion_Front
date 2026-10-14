@@ -6,7 +6,7 @@
   <ng-container *ngIf="tab() === 'invoices'">
     <app-invoice-metrics [metrics]="store.metrics()" [loading]="store.invoicesLoading()"></app-invoice-metrics>
 
-    <div class="rounded-[28px] bg-white p-6">
+    <div class="rounded-[1.75rem] bg-white p-6">
       <div class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Invoices</h2>
@@ -55,17 +55,17 @@
 
       <!-- Filtros -->
       <div class="mt-4 flex flex-wrap items-end gap-3">
-        <app-search-input class="min-w-[200px] flex-1" widthClass="w-full" placeholder="Search by invoice number…"
+        <app-search-input class="min-w-[12.5rem] flex-1" widthClass="w-full" placeholder="Search by invoice number…"
           [value]="store.numberQuery()" (valueChange)="store.setNumberQuery($event)"></app-search-input>
 
         <div>
-          <label for="fromDate" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">From</label>
+          <label for="fromDate" class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">From</label>
           <input id="fromDate" type="date" name="fromDate" [ngModel]="store.fromDate()"
             (ngModelChange)="store.setFromDate($event)"
             class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
         </div>
         <div>
-          <label for="toDate" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">To</label>
+          <label for="toDate" class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">To</label>
           <input id="toDate" type="date" name="toDate" [ngModel]="store.toDate()"
             (ngModelChange)="store.setToDate($event)"
             class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors" />
@@ -73,7 +73,7 @@
 
         <!-- Embebido: se carga el máximo para el cliente, sin selector -->
         <div *ngIf="!embedded()">
-          <label for="takeSize" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Load</label>
+          <label for="takeSize" class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Load</label>
           <select id="takeSize" name="takeSize" [ngModel]="store.take()" (ngModelChange)="store.setTake($event)"
             class="mt-1 h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none transition-colors">
             <option *ngFor="let option of takeOptions" [ngValue]="option">Last {{ option }}</option>

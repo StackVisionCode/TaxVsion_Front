@@ -8,10 +8,10 @@
       </button>
       <div class="min-w-0">
         <h2 class="truncate text-sm font-bold text-gray-900">{{ title() || 'Untitled template' }}</h2>
-        <span class="text-[11px] text-gray-400">{{ categoryLabel(category()) }}</span>
+        <span class="text-[0.6875rem] text-gray-400">{{ categoryLabel(category()) }}</span>
       </div>
       <span *ngIf="detail() as d"
-        class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+        class="shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide"
         [ngClass]="{
           'bg-amber-50 text-amber-600': d.status === 'Draft',
           'bg-emerald-50 text-emerald-600': d.status === 'Published',
@@ -46,7 +46,7 @@
 
   <!-- Qué falta para publicar (los campos del preparador no cuentan como firma del rol) -->
   <div *ngIf="isDraft() && publishBlockers().length > 0 && slots().length > 0"
-    class="mx-3 mt-3 flex items-start gap-2 rounded-xl bg-brand-white px-3 py-2 text-[11px] text-gray-600 sm:mx-5">
+    class="mx-3 mt-3 flex items-start gap-2 rounded-xl bg-brand-white px-3 py-2 text-[0.6875rem] text-gray-600 sm:mx-5">
     <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-gray-400"></ion-icon>
     <div class="min-w-0">
       <span class="font-semibold text-gray-700">Before publishing:</span>
@@ -72,8 +72,8 @@
         <button type="button" (click)="toggleSection('details')" [attr.aria-expanded]="openSection() === 'details'"
           class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
           <span class="min-w-0">
-            <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Details</span>
-            <span *ngIf="openSection() !== 'details'" class="block truncate text-[11px] text-gray-400">{{ title() || 'Untitled template' }}</span>
+            <span class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">Details</span>
+            <span *ngIf="openSection() !== 'details'" class="block truncate text-[0.6875rem] text-gray-400">{{ title() || 'Untitled template' }}</span>
           </span>
           <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
             [class.rotate-180]="openSection() === 'details'"></ion-icon>
@@ -95,7 +95,7 @@
             class="tap mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
             Save details
           </button>
-          <p *ngIf="!isDraft()" class="mt-3 text-[10px] text-gray-400">Published — press “Edit template” up top to change it.</p>
+          <p *ngIf="!isDraft()" class="mt-3 text-[0.625rem] text-gray-400">Published — press “Edit template” up top to change it.</p>
         </div>
       </section>
 
@@ -104,8 +104,8 @@
         <button type="button" (click)="toggleSection('defaults')" [attr.aria-expanded]="openSection() === 'defaults'"
           class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
           <span class="min-w-0">
-            <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Defaults</span>
-            <span *ngIf="openSection() !== 'defaults'" class="block truncate text-[11px] text-gray-400">
+            <span class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">Defaults</span>
+            <span *ngIf="openSection() !== 'defaults'" class="block truncate text-[0.6875rem] text-gray-400">
               {{ expirationEnabled() ? 'Link ' + expirationHours() + 'h' : 'Link never expires' }}{{ sequential() ? ' · in order' : '' }}{{ requiresPractitionerPin() ? ' · PIN' : '' }}
             </span>
           </span>
@@ -127,7 +127,7 @@
               class="tap mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
           </ng-container>
           <ng-template #noExpirationHint>
-            <p class="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-[11px] text-gray-500">The link never expires and no reminders are sent.</p>
+            <p class="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-[0.6875rem] text-gray-500">The link never expires and no reminders are sent.</p>
           </ng-template>
           <label class="tap mb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-600">
             Sign in order
@@ -166,7 +166,7 @@
               [disabled]="!isDraft()" class="accent-brand-bold" />
           </label>
           <div *ngIf="sendPartialCopy()" class="mb-2 space-y-2 pl-2">
-            <div class="flex items-center gap-3 text-[11px] text-gray-500">
+            <div class="flex items-center gap-3 text-[0.6875rem] text-gray-500">
               <label class="flex items-center gap-1.5">
                 <input type="radio" name="tplAudienceKind" [checked]="partialCopyAudienceKind() === 'All'"
                   (change)="setAudienceKind('All')" [disabled]="!isDraft()" />
@@ -183,19 +183,19 @@
                 (click)="toggleAudienceSlot(slot.order)" [disabled]="!isDraft()"
                 [attr.aria-pressed]="isAudienceSlot(slot.order)"
                 [class]="isAudienceSlot(slot.order)
-                  ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[11px] font-medium text-white shadow-sm'
-                  : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] text-gray-700 hover:bg-gray-50'">
-                <ion-icon *ngIf="isAudienceSlot(slot.order)" name="checkmark-outline" class="text-[13px]"></ion-icon>
+                  ? 'inline-flex items-center gap-1.5 rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-[0.6875rem] font-medium text-white shadow-sm'
+                  : 'inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-[0.6875rem] text-gray-700 hover:bg-gray-50'">
+                <ion-icon *ngIf="isAudienceSlot(slot.order)" name="checkmark-outline" class="text-[0.8125rem]"></ion-icon>
                 {{ slot.order }} · {{ slot.role }}
               </button>
-              <span *ngIf="audienceInvalid()" class="w-full text-[11px] text-red-500">Pick at least one role.</span>
+              <span *ngIf="audienceInvalid()" class="w-full text-[0.6875rem] text-red-500">Pick at least one role.</span>
             </div>
           </div>
 
           <!-- Practitioner PIN por defecto (Form 8879): las solicitudes desde esta plantilla lo heredan. -->
           <div class="mt-2 border-t border-gray-100 pt-2">
             <label class="block text-xs font-medium text-gray-700" for="tpl-pin">Signing PIN <span class="text-gray-400">(optional)</span></label>
-            <span class="mb-1 block text-[10px] text-gray-400">
+            <span class="mb-1 block text-[0.625rem] text-gray-400">
               {{ requiresPractitionerPin() ? 'A PIN is set — requests from this template inherit it. Type a new one to replace it.' : '4–10 digits. Requests from this template will require it.' }}
             </span>
             <input id="tpl-pin" type="text" inputmode="numeric" autocomplete="off" maxlength="10"
@@ -203,16 +203,16 @@
               [placeholder]="requiresPractitionerPin() ? '•••• (set)' : 'e.g. 1234'"
               class="tap w-full rounded-lg border px-3 py-1.5 text-sm text-gray-700 focus:outline-none disabled:bg-gray-50"
               [class.border-gray-200]="!templatePinInvalid()" [class.border-red-300]="templatePinInvalid()" />
-            <span *ngIf="templatePinInvalid()" class="mt-0.5 block text-[10px] text-red-500">PIN must be 4–10 digits.</span>
+            <span *ngIf="templatePinInvalid()" class="mt-0.5 block text-[0.625rem] text-red-500">PIN must be 4–10 digits.</span>
             <button *ngIf="isDraft() && requiresPractitionerPin()" type="button" (click)="removeTemplatePin()" [disabled]="busy()"
-              class="tap mt-1 text-[11px] font-medium text-red-500 hover:underline disabled:opacity-50">Remove PIN</button>
+              class="tap mt-1 text-[0.6875rem] font-medium text-red-500 hover:underline disabled:opacity-50">Remove PIN</button>
           </div>
 
           <button *ngIf="isDraft()" type="button" (click)="saveDetails()" [disabled]="busy() || templatePinInvalid()"
             class="tap mt-3 w-full rounded-full border border-gray-200 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
             Save details
           </button>
-          <p *ngIf="!isDraft()" class="mt-3 text-[10px] text-gray-400">Published — press “Edit template” up top to change it.</p>
+          <p *ngIf="!isDraft()" class="mt-3 text-[0.625rem] text-gray-400">Published — press “Edit template” up top to change it.</p>
         </div>
       </section>
 
@@ -221,8 +221,8 @@
         <button type="button" (click)="toggleSection('roles')" [attr.aria-expanded]="openSection() === 'roles'"
           class="tap flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
           <span class="flex min-w-0 items-center gap-2">
-            <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Signer roles</span>
-            <span class="rounded-full bg-gray-100 px-1.5 text-[10px] font-medium text-gray-500">{{ slots().length }}</span>
+            <span class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">Signer roles</span>
+            <span class="rounded-full bg-gray-100 px-1.5 text-[0.625rem] font-medium text-gray-500">{{ slots().length }}</span>
           </span>
           <ion-icon name="chevron-down-outline" class="acc-chevron shrink-0 text-sm text-gray-400"
             [class.rotate-180]="openSection() === 'roles'"></ion-icon>
@@ -239,7 +239,7 @@
                   <span class="truncate font-medium text-gray-700">{{ slot.role }}</span>
                 </span>
                 <span class="flex shrink-0 items-center gap-1.5">
-                  <span class="rounded-full bg-gray-100 px-1.5 text-[10px] text-gray-500">{{ fieldCountBySlot()[slot.order] || 0 }}</span>
+                  <span class="rounded-full bg-gray-100 px-1.5 text-[0.625rem] text-gray-500">{{ fieldCountBySlot()[slot.order] || 0 }}</span>
                   <button *ngIf="isDraft()" type="button" (click)="removeSlot(slot.order); $event.stopPropagation()" [disabled]="busy()"
                     [attr.aria-label]="'Remove role ' + slot.role"
                     class="tap flex h-7 w-7 items-center justify-center rounded-full text-gray-300 hover:text-red-500 transition-colors">
@@ -252,26 +252,26 @@
               <div *ngIf="isDraft()" class="mt-1.5 flex items-center gap-1.5" (click)="$event.stopPropagation()">
                 <select [ngModel]="slot.defaultLanguage" (ngModelChange)="updateSlot(slot, { defaultLanguage: $event })" [disabled]="busy()"
                   title="Email language" aria-label="Email language"
-                  class="tap h-7 shrink-0 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+                  class="tap h-7 shrink-0 rounded-full border border-gray-200 px-1.5 text-[0.6875rem] text-gray-600 focus:border-brand-bold focus:outline-none">
                   <option *ngFor="let l of languageOptions" [value]="l.value">{{ l.value }}</option>
                 </select>
                 <select [ngModel]="slotVerificationValue(slot)" (ngModelChange)="updateSlot(slot, { verification: $event })" [disabled]="busy()"
                   title="Identity verification (OTP)" aria-label="Identity verification (OTP)"
-                  class="tap h-7 min-w-0 flex-1 rounded-full border border-gray-200 px-1.5 text-[11px] text-gray-600 focus:border-brand-bold focus:outline-none">
+                  class="tap h-7 min-w-0 flex-1 rounded-full border border-gray-200 px-1.5 text-[0.6875rem] text-gray-600 focus:border-brand-bold focus:outline-none">
                   <option *ngFor="let v of verificationOptions" [value]="v.value">{{ v.label }}</option>
                 </select>
               </div>
 
               <!-- Published/Archived: solo lectura -->
               <div *ngIf="!isDraft()" class="mt-1 flex items-center gap-1.5">
-                <span class="text-[10px] text-gray-400">{{ slot.defaultLanguage }}</span>
+                <span class="text-[0.625rem] text-gray-400">{{ slot.defaultLanguage }}</span>
                 <span *ngIf="slot.requiredVerificationMethod as m"
-                  class="flex items-center gap-0.5 rounded-full bg-brand-white px-1.5 text-[9px] font-medium text-brand-bold">
-                  <ion-icon name="shield-checkmark-outline" class="text-[9px]"></ion-icon>{{ verificationLabel(m) }}
+                  class="flex items-center gap-0.5 rounded-full bg-brand-white px-1.5 text-[0.5625rem] font-medium text-brand-bold">
+                  <ion-icon name="shield-checkmark-outline" class="text-[0.5625rem]"></ion-icon>{{ verificationLabel(m) }}
                 </span>
               </div>
             </li>
-            <li *ngIf="slots().length === 0" class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
+            <li *ngIf="slots().length === 0" class="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-center text-[0.6875rem] text-gray-400">
               Add a role (Client, Spouse, Preparer…) to place its fields.
             </li>
           </ul>
@@ -295,7 +295,7 @@
                 <ion-icon name="add-outline" class="text-lg"></ion-icon>
               </button>
             </div>
-            <p class="text-[10px] text-gray-400">
+            <p class="text-[0.625rem] text-gray-400">
               SMS/WhatsApp need the signer's phone (from the linked client). Email code works for anyone.
             </p>
           </div>
@@ -312,7 +312,7 @@
             <app-segmented *ngIf="documentTabs().length > 0" class="min-w-0 flex-1"
               [options]="documentTabs()" [value]="activeDocumentId() ?? ''"
               (valueChange)="switchDocument($event)"></app-segmented>
-            <span class="text-[11px] text-gray-400">{{ documents().length }} / 20 documents</span>
+            <span class="text-[0.6875rem] text-gray-400">{{ documents().length }} / 20 documents</span>
           </div>
           <p *ngIf="documents().length === 0" class="text-xs text-gray-500">
             Add the first PDF to start placing fields.
@@ -322,18 +322,18 @@
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-3 py-2">
           <!-- Sin roles: guía explícita en vez de botones deshabilitados sin explicación -->
           <button *ngIf="slots().length === 0" type="button" (click)="openSection.set('roles'); mobileTab.set('settings')"
-            class="tap flex items-center gap-1.5 text-left text-[11px] font-medium text-brand-bold">
+            class="tap flex items-center gap-1.5 text-left text-[0.6875rem] font-medium text-brand-bold">
             <ion-icon name="arrow-back-outline" class="hidden text-sm lg:inline"></ion-icon>
             <ion-icon name="settings-outline" class="text-sm lg:hidden"></ion-icon>
             Add a signer role to start placing fields.
           </button>
 
           <div *ngIf="slots().length > 0" class="flex min-w-0 flex-wrap items-center gap-1.5">
-            <label class="flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
+            <label class="flex items-center gap-1.5 text-[0.6875rem] font-medium text-gray-400">
               <span class="h-2.5 w-2.5 shrink-0 rounded-full" [ngClass]="activeSlotOrder() !== null ? slotPalette(activeSlotOrder()!).bg : 'bg-gray-300'"></span>
               <span class="sr-only sm:not-sr-only">Field for</span>
               <select [ngModel]="activeSlotOrder()" (ngModelChange)="setActiveSlot(+$event)" aria-label="Role for new fields"
-                class="tap h-7 max-w-[9rem] rounded-full border border-gray-200 px-2 text-[11px] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
+                class="tap h-7 max-w-[9rem] rounded-full border border-gray-200 px-2 text-[0.6875rem] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
                 <option *ngFor="let slot of slots()" [ngValue]="slot.order">{{ slot.role }}</option>
               </select>
             </label>
@@ -342,7 +342,7 @@
               [disabled]="activeSlotOrder() === null || !canEdit()"
               [attr.aria-label]="'Add ' + fieldLabel[type] + ' for ' + activeSlotLabel()"
               [attr.data-testid]="'tpl-palette-' + type" [title]="fieldLabel[type] + ' — click, or drag onto the page'"
-              class="palette-draggable tap flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
+              class="palette-draggable tap flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40">
               <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
               {{ fieldLabel[type] }}
             </button>
@@ -350,7 +350,7 @@
 
           <!-- Campos del preparador (sin slot): "from template" los hereda y estampa la firma efectiva. -->
           <div *ngIf="isDraft()" class="flex flex-wrap items-center gap-1.5">
-            <span class="mr-0.5 flex items-center gap-1 text-[11px] font-semibold text-brand-bold">
+            <span class="mr-0.5 flex items-center gap-1 text-[0.6875rem] font-semibold text-brand-bold">
               <ion-icon name="ribbon-outline" class="text-xs"></ion-icon>
               Preparer:
             </span>
@@ -359,7 +359,7 @@
               [disabled]="pages().length === 0 || !canEdit()"
               [attr.aria-label]="'Add preparer ' + fieldLabel[type]"
               [attr.data-testid]="'tpl-palette-preparer-' + type" [title]="'Preparer ' + fieldLabel[type] + ' — click, or drag onto the page'"
-              class="palette-draggable tap flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
+              class="palette-draggable tap flex items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[0.6875rem] font-semibold text-brand-bold hover:bg-brand-white transition-colors disabled:opacity-40">
               <ion-icon [name]="fieldIcon[type]" class="text-xs"></ion-icon>
               {{ fieldLabel[type] }}
             </button>
@@ -368,7 +368,7 @@
 
         <!-- Toolbar del documento: zoom, página, documento, guardar -->
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-3 py-1.5">
-          <div class="flex items-center gap-0.5 text-[11px] text-gray-600">
+          <div class="flex items-center gap-0.5 text-[0.6875rem] text-gray-600">
             <button type="button" (click)="zoomOut()" [disabled]="!canZoomOut()" aria-label="Zoom out"
               class="tap flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-40">
               <ion-icon name="remove-outline" class="text-sm"></ion-icon>
@@ -385,10 +385,10 @@
             </button>
           </div>
 
-          <label *ngIf="pages().length > 0" class="flex items-center gap-1 text-[11px] text-gray-500">
+          <label *ngIf="pages().length > 0" class="flex items-center gap-1 text-[0.6875rem] text-gray-500">
             <span>Page</span>
             <select [ngModel]="currentPage()" (ngModelChange)="goToPage(+$event)" aria-label="Go to page"
-              class="tap h-7 rounded-full border border-gray-200 px-1.5 text-[11px] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
+              class="tap h-7 rounded-full border border-gray-200 px-1.5 text-[0.6875rem] font-semibold text-gray-700 focus:border-brand-bold focus:outline-none">
               <option *ngFor="let p of pages()" [ngValue]="p.page">{{ p.page }}</option>
             </select>
             <span>/ {{ pages().length }}</span>
@@ -398,39 +398,39 @@
             <!-- xl con el inspector plegado: reabrirlo (seleccionar un campo no lo abre solo) -->
             <button *ngIf="inspectorCollapsed() && selectedField()" type="button" (click)="setInspectorCollapsed(false)"
               aria-label="Show field settings" data-testid="tpl-inspector-reopen"
-              class="tap hidden items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[11px] font-semibold text-brand-bold hover:bg-brand-white transition-colors xl:flex">
+              class="tap hidden items-center gap-1 rounded-full border border-brand-bold px-2.5 py-1 text-[0.6875rem] font-semibold text-brand-bold hover:bg-brand-white transition-colors xl:flex">
               <ion-icon name="chevron-back-outline" class="text-xs"></ion-icon>
               <span class="h-1.5 w-1.5 rounded-full bg-brand-bold" aria-hidden="true"></span>
               Field settings
             </button>
-            <label *ngIf="isDraft()" class="tap flex cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            <label *ngIf="isDraft()" class="tap flex cursor-pointer items-center gap-1 rounded-full px-2 text-[0.6875rem] font-medium text-gray-500 hover:text-gray-900 transition-colors"
               [class.pointer-events-none]="savingBaseDoc() || rendering()" [class.opacity-50]="savingBaseDoc() || rendering()">
               <input type="file" accept="application/pdf" class="hidden" (change)="onSamplePicked($event)" [disabled]="savingBaseDoc() || rendering()" />
               <ion-icon name="cloud-upload-outline" class="text-sm"></ion-icon>
               {{ savingBaseDoc() ? 'Saving document…' : 'Add document' }}
             </label>
             <button *ngIf="isDraft() && activeDocument()" type="button" (click)="clearSample()" [disabled]="savingBaseDoc() || rendering()"
-              class="tap rounded-full px-2 text-[11px] font-medium text-red-500 hover:text-red-700 transition-colors">Remove document</button>
+              class="tap rounded-full px-2 text-[0.6875rem] font-medium text-red-500 hover:text-red-700 transition-colors">Remove document</button>
             <button *ngIf="isDraft()" type="button" (click)="saveLayout()" [disabled]="!layoutDirty() || busy() || rendering()"
-              class="tap rounded-full bg-brand-bold px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+              class="tap rounded-full bg-brand-bold px-3 py-1.5 text-[0.6875rem] font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
               Save layout
             </button>
           </div>
         </div>
 
-        <p *ngIf="pdfError()" class="px-3 pt-2 text-[11px] text-red-500" role="alert">{{ pdfError() }}</p>
-        <p *ngIf="surfaceNotice()" class="flex items-start gap-1 px-3 pt-2 text-[11px] text-amber-600">
+        <p *ngIf="pdfError()" class="px-3 pt-2 text-[0.6875rem] text-red-500" role="alert">{{ pdfError() }}</p>
+        <p *ngIf="surfaceNotice()" class="flex items-start gap-1 px-3 pt-2 text-[0.6875rem] text-amber-600">
           <ion-icon name="warning-outline" class="mt-px shrink-0 text-xs"></ion-icon>
           <span class="flex-1">{{ surfaceNotice() }}</span>
           <button type="button" (click)="surfaceNotice.set('')" aria-label="Dismiss" class="tap -my-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-50">
             <ion-icon name="close-outline" class="text-xs"></ion-icon>
           </button>
         </p>
-        <p *ngIf="activeDocument() && !savingBaseDoc() && !renderError()" class="flex items-center gap-1 px-3 pt-2 text-[11px] text-emerald-600">
+        <p *ngIf="activeDocument() && !savingBaseDoc() && !renderError()" class="flex items-center gap-1 px-3 pt-2 text-[0.6875rem] text-emerald-600">
           <ion-icon name="checkmark-circle-outline" class="text-xs"></ion-icon>
           {{ activeDocument()!.title }} is saved in this template and will be reused by default.
         </p>
-        <div *ngIf="renderError()" class="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] text-red-600" role="alert">
+        <div *ngIf="renderError()" class="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[0.6875rem] text-red-600" role="alert">
           <ion-icon name="alert-circle-outline" class="shrink-0"></ion-icon>
           <span class="flex-1">{{ renderError() }} Editing is paused until the document loads.</span>
           <button type="button" (click)="retryRender()" [disabled]="rendering()"
@@ -478,7 +478,7 @@
                 (click)="$event.stopPropagation()"
                 (focus)="selectField(field.localId)"
                 (keydown)="onFieldKeydown($event, field)"
-                class="tpl-field group absolute flex items-center justify-center rounded-md border-2 bg-white/70 text-[10px] font-semibold backdrop-blur-sm focus:outline-none"
+                class="tpl-field group absolute flex items-center justify-center rounded-md border-2 bg-white/70 text-[0.625rem] font-semibold backdrop-blur-sm focus:outline-none"
                 [class.cursor-move]="canEdit() && (field.type !== 'text' || isPreparerField(field))"
                 [class.tpl-field-selected]="selectedId() === field.localId"
                 [ngClass]="isPreparerField(field) ? 'border-brand-bold text-brand-bold' : [borderClass(field.slotOrder), textClass(field.slotOrder)]"
@@ -496,10 +496,10 @@
                     (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
                     [readonly]="!canEdit()" aria-label="Field label"
                     placeholder="Field label" (pointerdown)="$event.stopPropagation(); selectField(field.localId)"
-                    class="h-full w-full bg-transparent px-1 text-[10px] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
+                    class="h-full w-full bg-transparent px-1 text-[0.625rem] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
                   <span *ngIf="canEdit()" (pointerdown)="startMove($event, field, pageEl)" aria-hidden="true" title="Drag to move"
                     class="tpl-handle tpl-move-handle absolute -left-2 -top-2 flex h-5 w-5 cursor-move items-center justify-center rounded-full bg-gray-700 text-white shadow">
-                    <ion-icon name="move-outline" class="text-[11px]"></ion-icon>
+                    <ion-icon name="move-outline" class="text-[0.6875rem]"></ion-icon>
                   </span>
                 </ng-container>
                 <ng-template #fieldBadge>
@@ -512,7 +512,7 @@
                   <button type="button" (pointerdown)="$event.stopPropagation()" (click)="removeField(field.localId); $event.stopPropagation()"
                     aria-label="Remove field" tabindex="-1"
                     class="tpl-handle tpl-delete absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow transition-opacity">
-                    <ion-icon name="close-outline" class="text-[11px]"></ion-icon>
+                    <ion-icon name="close-outline" class="text-[0.6875rem]"></ion-icon>
                   </button>
                   <span (pointerdown)="startResize($event, field, pageEl)" aria-hidden="true"
                     class="tpl-handle absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-gray-500"></span>
@@ -558,7 +558,7 @@
 
         <div class="space-y-3">
           <div>
-            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-role">Assigned to</label>
+            <label class="mb-1 block text-[0.6875rem] font-medium text-gray-500" for="insp-role">Assigned to</label>
             <p *ngIf="isPreparerField(field)" class="text-xs font-semibold text-brand-bold">Preparer</p>
             <select *ngIf="!isPreparerField(field)" id="insp-role" [ngModel]="field.slotOrder"
               (ngModelChange)="reassignField(field.localId, +$event)" [disabled]="!canEdit()"
@@ -568,14 +568,14 @@
           </div>
 
           <div *ngIf="field.type === 'text' && !isPreparerField(field)">
-            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-label">Label</label>
+            <label class="mb-1 block text-[0.6875rem] font-medium text-gray-500" for="insp-label">Label</label>
             <input id="insp-label" type="text" [ngModel]="field.label || ''" (ngModelChange)="setFieldLabel(field.localId, $event)"
               [disabled]="!canEdit()" placeholder="What should the signer type?"
               class="tap h-8 w-full rounded-full border border-gray-200 px-3 text-xs text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
           </div>
 
           <div>
-            <label class="mb-1 block text-[11px] font-medium text-gray-500" for="insp-page">Page</label>
+            <label class="mb-1 block text-[0.6875rem] font-medium text-gray-500" for="insp-page">Page</label>
             <select id="insp-page" [ngModel]="field.page" (ngModelChange)="setFieldPage(field.localId, +$event)"
               [disabled]="!canEdit() || pages().length < 2"
               class="tap h-8 w-full rounded-full border border-gray-200 px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50">
@@ -585,25 +585,25 @@
 
           <div *ngIf="isDraft()" class="grid grid-cols-2 gap-1.5 lg:grid-cols-1">
             <button type="button" (click)="duplicate(field.localId)" [disabled]="!canEdit()"
-              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
+              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[0.6875rem] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
               <ion-icon name="copy-outline" class="text-sm"></ion-icon>
               Duplicate
             </button>
             <button type="button" (click)="duplicateToAllPages(field.localId)" [disabled]="!canEdit() || pages().length < 2"
-              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
+              class="tap flex items-center justify-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[0.6875rem] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 lg:justify-start">
               <ion-icon name="documents-outline" class="text-sm"></ion-icon>
               Copy to all pages
             </button>
             <button type="button" (click)="removeField(field.localId)" [disabled]="!canEdit()"
-              class="tap col-span-2 flex items-center justify-center gap-1.5 rounded-full border border-red-100 px-3 py-1.5 text-[11px] font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 lg:col-span-1 lg:justify-start">
+              class="tap col-span-2 flex items-center justify-center gap-1.5 rounded-full border border-red-100 px-3 py-1.5 text-[0.6875rem] font-medium text-red-500 hover:bg-red-50 disabled:opacity-40 lg:col-span-1 lg:justify-start">
               <ion-icon name="trash-outline" class="text-sm"></ion-icon>
               Delete
             </button>
           </div>
-          <p *ngIf="isDraft()" class="hidden text-[10px] leading-snug text-gray-400 lg:block">
+          <p *ngIf="isDraft()" class="hidden text-[0.625rem] leading-snug text-gray-400 lg:block">
             Arrows move 1 px (Shift: 10 px) · Ctrl/⌘ D duplicates · Delete removes · Esc deselects.
           </p>
-          <p *ngIf="!isDraft()" class="text-[10px] text-gray-400">Read only — press “Edit template” to change the layout.</p>
+          <p *ngIf="!isDraft()" class="text-[0.625rem] text-gray-400">Read only — press “Edit template” to change the layout.</p>
         </div>
       </section>
     </div>
@@ -626,7 +626,7 @@
   [class.is-blocked]="paletteGhost()?.phase === 'drag' && !paletteGhost()?.overPage"
   [class.is-settling]="paletteGhost()?.phase === 'settle'">
   <div *ngIf="paletteGhost() as g"
-    class="palette-ghost-body box-border flex items-center justify-center rounded-md border-2 bg-white/90 text-[10px] font-semibold"
+    class="palette-ghost-body box-border flex items-center justify-center rounded-md border-2 bg-white/90 text-[0.625rem] font-semibold"
     [ngClass]="g.slotOrder === 0 ? 'border-brand-bold text-brand-bold' : [borderClass(g.slotOrder), textClass(g.slotOrder)]"
     [style.width.px]="g.width" [style.height.px]="g.height">
     <ion-icon [name]="fieldIcon[g.type]" class="mr-1 text-xs"></ion-icon>
@@ -656,11 +656,11 @@
 
     <!-- Layout reutilizable: los "campos" del molde aparecen sobre el papel -->
     <div class="mt-5 flex items-center gap-2 border-t-2 border-dashed border-gray-200 pt-3">
-      <span class="field-chip field-chip-1 flex items-center gap-1 rounded-md border-2 border-brand-bold bg-white px-2 py-1 text-[9px] font-semibold text-brand-bold">
-        <ion-icon name="create-outline" class="text-[10px]"></ion-icon>Signature
+      <span class="field-chip field-chip-1 flex items-center gap-1 rounded-md border-2 border-brand-bold bg-white px-2 py-1 text-[0.5625rem] font-semibold text-brand-bold">
+        <ion-icon name="create-outline" class="text-[0.625rem]"></ion-icon>Signature
       </span>
-      <span class="field-chip field-chip-2 flex items-center gap-1 rounded-md border-2 border-orange-500 bg-white px-2 py-1 text-[9px] font-semibold text-orange-600">
-        <ion-icon name="text-outline" class="text-[10px]"></ion-icon>Initials
+      <span class="field-chip field-chip-2 flex items-center gap-1 rounded-md border-2 border-orange-500 bg-white px-2 py-1 text-[0.5625rem] font-semibold text-orange-600">
+        <ion-icon name="text-outline" class="text-[0.625rem]"></ion-icon>Initials
       </span>
     </div>
 

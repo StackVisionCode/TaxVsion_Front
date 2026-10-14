@@ -45,7 +45,7 @@
           <!-- Mobile meta -->
           <div class="mt-1 flex items-center gap-2 sm:hidden">
             <span class="text-xs" [class.text-red-500]="isOverdue(task)" [class.text-gray-400]="!isOverdue(task)">{{ formatDue(task.dueDate) }}</span>
-            <span class="rounded-full border px-2 py-0.5 text-[10px] font-medium" [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
+            <span class="rounded-full border px-2 py-0.5 text-[0.625rem] font-medium" [ngClass]="priorityChip(task.priority)">{{ task.priority }}</span>
           </div>
         </div>
 
@@ -54,7 +54,7 @@
           @if (task.assigneeUserId) {
             <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" size="xs" />
           } @else {
-            <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-semibold text-white">—</span>
+            <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
           }
           <span class="truncate text-sm text-gray-600">{{ task.assigneeName }}</span>
         </div>
