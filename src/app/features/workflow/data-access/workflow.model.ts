@@ -53,14 +53,32 @@ export interface WorkflowStep {
   /** Configuración libre por tipo; la pinta el panel derecho. */
   config: Record<string, string | string[]>;
   /**
-   * Posición en el lienzo, si el usuario movió el nodo.
-   *
-   * Cuando falta, el layout automático decide dónde va: así un paso recién
-   * insertado aparece ordenado sin pedirle al usuario que lo coloque, pero en
-   * cuanto lo arrastra su posición manda y ya no se le vuelve a mover debajo.
+   * Proceso al que pertenece. El orden de los pasos de un proceso es el orden en que
+   * aparecen en `WorkflowDoc.steps`. Opcional solo en el tipo: los documentos guardados
+   * antes de los procesos no lo traen y `normalizeDoc` se lo pone al abrirlos.
    */
+  processId?: string;
+  /** Heredado del lienzo libre; ya no se usa para colocar nada. */
   x?: number;
   y?: number;
+}
+
+/**
+ * Un proceso: una lista ordenada de pasos que se ejecutan uno tras otro.
+ *
+ * Los procesos se conectan entre sí desde la SALIDA del último paso (la 'main' de un paso
+ * normal, o el Yes / No de uno que bifurca) hacia el PRIMER paso de otro proceso: un hilo
+ * de paso a paso como cualquier otro, solo que cruza de un proceso a otro.
+ */
+export interface WorkflowProcess {
+  id: string;
+  name: string;
+  /** Esquina superior izquierda en el lienzo. */
+  x: number;
+  y: number;
+  collapsed?: boolean;
+  /** Índice en la rampa de acentos (Star / Twilight / Azure), cíclico. */
+  colorIndex: number;
 }
 
 export type WorkflowCollaboratorRole = 'owner' | 'editor' | 'viewer';
@@ -225,6 +243,8 @@ export interface WorkflowDoc {
   id: string;
   name: string;
   steps: WorkflowStep[];
+  /** Procesos del lienzo, con su posición. Cada paso apunta a uno por `processId`. */
+  processes: WorkflowProcess[];
   /** Los hilos, como dato propio y no como algo derivado de los pasos. */
   connections: WorkflowConnection[];
   /** Notas e imágenes sueltas sobre el lienzo. */

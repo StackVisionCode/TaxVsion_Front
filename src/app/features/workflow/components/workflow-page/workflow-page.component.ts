@@ -15,6 +15,7 @@ import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '../../../../shared/ui/modal/modal.component';
 import { ConfirmDialogComponent } from '../../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { WorkflowCanvasComponent, InsertRequest } from '../../ui/workflow-canvas/workflow-canvas.component';
+import { WorkflowProcessPanelComponent } from '../../ui/workflow-process-panel/workflow-process-panel.component';
 import { WorkflowStepPaletteComponent } from '../../ui/workflow-step-palette/workflow-step-palette.component';
 import { WorkflowCollaboratorAvatarsComponent } from '../../ui/workflow-collaborator-avatars/workflow-collaborator-avatars.component';
 import { WorkflowShareModalComponent } from '../workflow-share-modal/workflow-share-modal.component';
@@ -30,8 +31,9 @@ import { WorkflowAnnotationPropertiesComponent } from '../../ui/workflow-annotat
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ImageTooLargeError, prepareImage } from '../../utils/workflow-image.util';
 import { WorkflowPreviewHudComponent } from '../../ui/workflow-preview-hud/workflow-preview-hud.component';
-import { WorkflowStepTypeId } from '../../data-access/workflow.model';
-import { layoutSkeleton, positionLayout, workflowStructureKey } from '../../utils/workflow-layout.util';
+import { WorkflowStepTypeId, missingInputs } from '../../data-access/workflow.model';
+import { layoutProcesses } from '../../utils/workflow-process-layout.util';
+import { dependentsOf, stepsOfProcess } from '../../utils/workflow-process.util';
 
 type WorkflowTab = 'builder' | 'debugger';
 
@@ -58,6 +60,7 @@ type WorkflowTab = 'builder' | 'debugger';
     WorkflowStepPaletteComponent,
     WorkflowAnnotationPropertiesComponent,
     WorkflowStepConfigComponent,
+    WorkflowProcessPanelComponent,
     WorkflowCollaboratorAvatarsComponent,
     WorkflowShareModalComponent,
     WorkflowPreviewHudComponent,
@@ -192,43 +195,50 @@ export class WorkflowPageComponent implements OnDestroy {
    */
   readonly pendingInsert = signal<InsertRequest | null>(null);
 
-  /** El layout es derivado: misma lista de pasos, mismo dibujo. */
-  private readonly structureKey = computed(() =>
-    workflowStructureKey(this.store.steps(), this.store.connections()),
-  );
-
   /**
-   * Sube al SOLTAR. Mientras se arrastra, el orden por baricentro se congela; si no, las
-   * cartas sin posición manual bailan bajo el cursor mientras mueves otra. Al terminar el
-   * gesto se recoloca una sola vez.
+   * Lo que le falta a cada paso, calculado UNA vez por cambio de estructura. Arrastrar un proceso
+   * solo cambia su posición (ni `steps` ni `connections`), así que no vuelve a recorrer el grafo.
    */
-  private readonly settleTick = signal(0);
-
-  /**
-   * Fase CARA del layout. Solo declara como dependencia la huella de la estructura: las
-   * posiciones se leen con `untracked` porque alimentan el baricentro, pero no deben
-   * disparar un recálculo en cada frame del arrastre — que es de donde venía el lag.
-   */
-  private readonly skeleton = computed(() => {
-    this.structureKey();
-    this.settleTick();
-    return untracked(() => layoutSkeleton(this.store.steps(), this.store.connections()));
+  private readonly missingByStep = computed(() => {
+    const steps = this.store.steps();
+    const connections = this.store.connections();
+    return new Map(steps.map(step => [step.id, missingInputs(steps, connections, step.id)]));
   });
 
+  /** El layout es derivado: mismos procesos, mismo dibujo. */
   readonly layout = computed(() =>
-    positionLayout(
-      this.store.steps(),
-      this.store.connections(),
-      this.skeleton(),
-      this.store.annotations(),
-    ),
+    layoutProcesses({
+      processes: this.store.processes(),
+      steps: this.store.steps(),
+      connections: this.store.connections(),
+      missing: this.missingByStep(),
+      selectedStepId: this.store.selectedId(),
+      selectedProcessId: this.store.selectedProcessId(),
+    }),
   );
 
-  /** Fin del arrastre: cierra el historial y recoloca el orden una sola vez. */
-  onMoveEnd(): void {
-    this.store.endMove();
-    this.settleTick.update(tick => tick + 1);
-  }
+  readonly pendingDeleteProcessId = signal<string | null>(null);
+
+  readonly selectedProcessSteps = computed(() => {
+    const id = this.store.selectedProcessId();
+    return id ? stepsOfProcess(this.store.steps(), id) : [];
+  });
+
+  /** "Step 2 of 4 · Intake" del paso seleccionado. */
+  readonly selectedPosition = computed(() => {
+    const step = this.store.selectedStep();
+    if (!step?.processId) {
+      return null;
+    }
+    const own = stepsOfProcess(this.store.steps(), step.processId);
+    const process = this.store.processes().find(candidate => candidate.id === step.processId);
+    return { index: own.findIndex(candidate => candidate.id === step.id), total: own.length, processName: process?.name ?? '' };
+  });
+
+  readonly selectedDependents = computed(() => {
+    const id = this.store.selectedId();
+    return id ? dependentsOf(this.store.steps(), this.store.connections(), id) : [];
+  });
 
   readonly savedLabel = computed(() => {
     const iso = this.store.doc().updatedAtIso;
@@ -241,61 +251,63 @@ export class WorkflowPageComponent implements OnDestroy {
   }
 
   onInsertRequested(request: InsertRequest): void {
+    this.store.selectProcess(request.processId);
     this.pendingInsert.set(request);
   }
 
   /**
-   * Añade el paso donde marque el `+` pulsado. Sin punto elegido, cuelga de la
-   * primera salida libre, que es lo que espera quien va apilando pasos desde
-   * el catálogo.
+   * Añade el paso donde marque el `+` / "Add action" pulsado. Sin punto elegido va al proceso
+   * activo (el seleccionado, el de la carta seleccionada o el último); un trigger que no cabe ahí
+   * abre un proceso nuevo. Si una regla lo impide se explica en vez de no hacer nada.
    */
   onAddStep(typeId: WorkflowStepTypeId): void {
     const pending = this.pendingInsert();
-    if (pending) {
-      this.store.addStep(typeId, pending.fromStepId, pending.fromPort);
-      this.pendingInsert.set(null);
-      return;
+    const result = this.store.addStep(typeId, pending ? { processId: pending.processId, index: pending.index } : undefined);
+    this.pendingInsert.set(null);
+    if (result.error) {
+      this.showLinkError(result.error);
     }
-    const steps = this.store.steps();
-    if (steps.length === 0) {
-      this.store.addStep(typeId, null);
-      return;
-    }
-    // Sin punto elegido, cuelga de la primera carta con una salida libre.
-    const openEnd = this.layout().openEnds[0];
-    this.store.addStep(typeId, openEnd?.stepId ?? steps[steps.length - 1].id, openEnd?.port ?? 'main');
   }
 
-  /** Suelta un paso del catálogo en el lienzo. */
+  /** "Add action" del panel de proceso: deja el punto de inserción al final de ese proceso. */
+  onAddActionFor(processId: string): void {
+    this.pendingInsert.set({ processId, index: null });
+  }
+
+  addProcess(): void {
+    this.store.addProcess();
+    this.pendingInsert.set(null);
+  }
+
+  onSelectProcess(processId: string): void {
+    this.store.selectProcess(processId);
+    this.selectedAnnotationId.set(null);
+  }
+
+  onClearSelection(): void {
+    this.store.select(null);
+    this.pendingInsert.set(null);
+  }
+
+  /**
+   * Suelta un paso del catálogo en el lienzo: sobre un proceso entra en él (al final); en un hueco
+   * nace un proceso nuevo ahí mismo.
+   */
   onDropStep(event: { typeId: string; x: number; y: number }): void {
     const typeId = event.typeId as WorkflowStepTypeId;
-    const nodes = this.layout().nodes;
-
-    if (nodes.length === 0) {
-      this.store.addStepAt(typeId, null, event.x, event.y);
-      return;
+    const over = this.layout().boxes.find(
+      box => event.x >= box.x && event.x <= box.x + box.width && event.y >= box.y && event.y <= box.y + box.height,
+    );
+    const processId = over?.process.id ?? this.store.addProcess({ x: event.x - 190, y: event.y - 27 });
+    const result = this.store.addStep(typeId, { processId });
+    if (result.error) {
+      this.showLinkError(result.error);
     }
-
-    // Se engancha a la carta más cercana que quede POR ENCIMA del punto: es la
-    // que la vista sugiere. Si no hay ninguna encima, queda suelta y el usuario
-    // tira el hilo a mano — mejor eso que inventarle un origen equivocado.
-    const above = nodes.filter(node => node.y + node.height <= event.y);
-    if (above.length === 0) {
-      this.store.addStepAt(typeId, null, event.x, event.y);
-      return;
-    }
-    const nearest = above.reduce((best, node) => {
-      const distance = Math.hypot(node.x + node.width / 2 - event.x, node.y + node.height - event.y);
-      const bestDistance = Math.hypot(best.x + best.width / 2 - event.x, best.y + best.height - event.y);
-      return distance < bestDistance ? node : best;
-    });
-
-    this.store.addStepAt(typeId, nearest.step.id, event.x, event.y);
   }
 
-  /** Un hilo nuevo: si no vale, el store devuelve el motivo y se muestra. */
-  onConnect(event: { fromStepId: string; fromPort: string; toStepId: string }): void {
-    const error = this.store.connect(event.fromStepId, event.fromPort, event.toStepId);
+  /** Enlaza una salida con otro proceso; si no vale, el store devuelve el motivo y se muestra. */
+  onConnectExit(event: { stepId: string; port: string; processId: string }): void {
+    const error = this.store.connectExit(event.stepId, event.port, event.processId);
     if (error) {
       this.showLinkError(error);
     }
@@ -309,11 +321,42 @@ export class WorkflowPageComponent implements OnDestroy {
     if (this.linkErrorTimer) {
       clearTimeout(this.linkErrorTimer);
     }
-    this.linkErrorTimer = setTimeout(() => this.linkError.set(null), 3200);
+    this.linkErrorTimer = setTimeout(() => this.linkError.set(null), 3600);
   }
 
-  onMoveLive(event: { id: string; x: number; y: number }): void {
-    this.store.moveStepLive(event.id, event.x, event.y);
+  onDuplicateStep(stepId: string): void {
+    const result = this.store.duplicateStep(stepId);
+    if (result.error) {
+      this.showLinkError(result.error);
+    }
+  }
+
+  onMoveStep(stepId: string, delta: -1 | 1): void {
+    const error = this.store.moveStep(stepId, delta);
+    if (error) {
+      this.showLinkError(error);
+    }
+  }
+
+  onMoveSelected(delta: -1 | 1): void {
+    const id = this.store.selectedId();
+    if (id) {
+      this.onMoveStep(id, delta);
+    }
+  }
+
+  onDuplicateSelected(): void {
+    const id = this.store.selectedId();
+    if (id) {
+      this.onDuplicateStep(id);
+    }
+  }
+
+  requestDeleteSelected(): void {
+    const id = this.store.selectedId();
+    if (id) {
+      this.requestDelete(id);
+    }
   }
 
   requestDelete(stepId: string): void {
@@ -326,6 +369,14 @@ export class WorkflowPageComponent implements OnDestroy {
       this.store.removeStep(id);
     }
     this.pendingDeleteId.set(null);
+  }
+
+  confirmDeleteProcess(): void {
+    const id = this.pendingDeleteProcessId();
+    if (id) {
+      this.store.removeProcess(id);
+    }
+    this.pendingDeleteProcessId.set(null);
   }
 
   onSaveStep(patch: StepConfigPatch): void {

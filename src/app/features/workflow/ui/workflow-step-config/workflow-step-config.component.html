@@ -1,138 +1,187 @@
-<div class="flex h-full flex-col rounded-[1.75rem] bg-white">
-  <div class="flex items-center justify-between gap-2 px-5 pt-5">
-    <h2 class="text-base font-bold text-gray-900">Step Configuration</h2>
-  </div>
+<div class="flex h-full flex-col rounded-[1.5rem] border border-gray-100 bg-white shadow-sm">
+  @if (!current()) {
+    <div class="px-5 pt-5">
+      <h2 class="font-heading text-base font-bold text-[#083645]">Step configuration</h2>
+    </div>
+    <div class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <ion-icon name="options-outline" class="text-3xl text-[#E4DCCF]"></ion-icon>
+      <p class="mt-2 text-sm text-[#3E5F6B]">Select a step to configure it</p>
+      <p class="mt-1 text-xs text-[#3E5F6B]/70">Click any step inside a process.</p>
+    </div>
+  } @else {
+    <div class="flex items-center gap-2.5 px-5 pt-5">
+      <span class="grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-[0.625rem] bg-[#083645] text-[#4DD8FF]">
+        <ion-icon [name]="icon" class="text-base"></ion-icon>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 class="truncate text-base font-bold leading-tight text-[#083645]">{{ typeLabel }}</h2>
+        @if (position) {
+          <p class="truncate text-[0.6875rem] text-[#3E5F6B]">
+            Step {{ position.index + 1 }} of {{ position.total }} · {{ position.processName }}
+          </p>
+        }
+      </div>
+    </div>
 
-  <!-- Sin nodo seleccionado -->
-  <div *ngIf="!current()" class="flex flex-1 flex-col items-center justify-center px-6 text-center">
-    <ion-icon name="options-outline" class="text-3xl text-gray-300"></ion-icon>
-    <p class="mt-2 text-sm text-gray-500">Select a step to configure it</p>
-    <p class="mt-1 text-xs text-gray-400">Click any card on the canvas.</p>
-  </div>
+    <!-- Pestañas -->
+    <div class="mx-5 mt-3 flex items-center gap-0.5 rounded-full bg-[#F8F4ED] p-[0.1875rem]" role="tablist">
+      @for (item of tabs; track item.id) {
+        <button type="button" role="tab" [attr.aria-selected]="tab() === item.id" (click)="tab.set(item.id)"
+          class="h-[1.875rem] flex-1 rounded-full text-xs font-semibold transition-colors"
+          [class]="tab() === item.id ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:text-[#083645]'">
+          {{ item.label }}
+        </button>
+      }
+    </div>
 
-  <ng-container *ngIf="current() as step">
     <div class="wf-config mt-4 flex-1 space-y-4 overflow-y-auto px-5 pb-4">
-      <!-- Para qué sirve esta carta y qué hace. -->
-      <div class="rounded-2xl bg-brand-surface px-3 py-2.5">
-        <p class="text-sm font-medium text-gray-800">{{ purpose }}</p>
-        <p class="mt-1 text-xs text-gray-500">{{ action }}</p>
-      </div>
-
-      <!-- Lo que le llega y lo que le falta. -->
-      <div>
-        <p class="text-xs font-medium text-gray-500">Receives</p>
-        <div *ngIf="missingFields.length > 0"
-          class="mt-1.5 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Nothing upstream provides
-          <span class="font-semibold">{{ missingFields[0].label }}</span
-          ><span *ngIf="missingFields.length > 1"> and {{ missingFields.length - 1 }} more</span>.
-          Connect a step that produces it.
-        </div>
-        <div *ngIf="availableFields.length > 0; else noneAvailable" class="mt-1.5 flex flex-wrap gap-1.5">
-          <span *ngFor="let field of availableFields"
-            class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600"
-            [title]="field.key + ' · ' + field.type">
-            {{ field.label }}
-          </span>
-        </div>
-        <ng-template #noneAvailable>
-          <p class="mt-1.5 text-xs text-gray-400">Nothing yet — this step has no incoming links.</p>
-        </ng-template>
-      </div>
-
-      <!-- Lo que manda a las siguientes. -->
-      <div>
-        <p class="text-xs font-medium text-gray-500">Sends</p>
-        <div *ngIf="produces.length > 0; else sendsNothing" class="mt-1.5 flex flex-wrap gap-1.5">
-          <span *ngFor="let field of produces"
-            class="rounded-full bg-brand-surface px-2 py-0.5 text-[0.6875rem] font-medium text-gray-700"
-            [title]="field.key + ' · ' + field.type">
-            {{ field.label }}
-          </span>
-        </div>
-        <ng-template #sendsNothing>
-          <p class="mt-1.5 text-xs text-gray-400">Passes through what it receives.</p>
-        </ng-template>
-      </div>
-
-      <div class="h-px bg-gray-100"></div>
-      <!-- Comunes a todos los tipos -->
-      <div class="space-y-1.5">
-        <label class="block text-xs font-medium text-gray-500">Title</label>
-        <input type="text" [ngModel]="title()" (ngModelChange)="title.set($event)" name="stepTitle"
-          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="block text-xs font-medium text-gray-500">Description</label>
-        <input type="text" [ngModel]="subtitle()" (ngModelChange)="subtitle.set($event)" name="stepSubtitle"
-          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
-      </div>
-
-      <!-- Campos declarados por el tipo -->
-      <div *ngFor="let field of fields" class="space-y-1.5">
-        <label class="block text-xs font-medium text-gray-500">{{ field.label }}</label>
-
-        <input *ngIf="field.control === 'text'" type="text" [ngModel]="textValue(field.key)"
-          (ngModelChange)="setValue(field.key, $event)" [name]="field.key" [placeholder]="field.placeholder || ''"
-          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
-
-        <textarea *ngIf="field.control === 'textarea'" rows="4" [ngModel]="textValue(field.key)"
-          (ngModelChange)="setValue(field.key, $event)" [name]="field.key" [placeholder]="field.placeholder || ''"
-          class="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors"></textarea>
-
-        <input *ngIf="field.control === 'number'" type="number" [min]="field.min ?? null"
-          [ngModel]="textValue(field.key)" (ngModelChange)="setNumber(field.key, $event)" [name]="field.key"
-          [placeholder]="field.placeholder || ''"
-          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
-
-        <select *ngIf="field.control === 'select'" [ngModel]="textValue(field.key)"
-          (ngModelChange)="setValue(field.key, $event)" [name]="field.key"
-          class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors">
-          <option value="">Select…</option>
-          <option *ngFor="let option of field.options" [value]="option">{{ option }}</option>
-        </select>
-
-        <!-- Chips: cada valor con su × y un campo para añadir -->
-        <ng-container *ngIf="field.control === 'chips'">
-          <div *ngFor="let chip of chipValues(field.key)"
-            class="flex items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2">
-            <span class="min-w-0 truncate text-sm text-gray-700">{{ chip }}</span>
-            <button type="button" (click)="removeChip(field.key, chip)" [attr.aria-label]="'Remove ' + chip"
-              class="shrink-0 text-gray-400 hover:text-red-600 transition-colors">
-              <ion-icon name="close-outline" class="text-base"></ion-icon>
-            </button>
+      @switch (tab()) {
+        @case ('setup') {
+          <div class="rounded-2xl bg-[#F4EDE4] px-3 py-2.5">
+            <p class="text-sm font-medium text-[#083645]">{{ purpose }}</p>
+            <p class="mt-1 text-xs text-[#3E5F6B]">{{ action }}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <input type="text" [ngModel]="newChip()" (ngModelChange)="newChip.set($event)"
-              [name]="field.key + 'New'" placeholder="Add a value" (keydown.enter)="addChip(field.key)"
-              class="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none transition-colors" />
-            <button type="button" (click)="addChip(field.key)"
-              class="flex shrink-0 items-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-              <ion-icon name="add-outline" class="text-sm"></ion-icon>
-              Add Output
-            </button>
-          </div>
-        </ng-container>
-      </div>
 
-      <!-- Decorativo: existe en el diseño, todavía no hay nada que configurar aquí -->
-      <button type="button" (click)="advancedOpen.set(!advancedOpen())" data-decorative="true"
-        class="flex w-full items-center justify-between rounded-xl px-1 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
-        Advanced Settings
-        <ion-icon [name]="advancedOpen() ? 'chevron-down-outline' : 'chevron-forward-outline'"
-          class="text-base text-gray-400"></ion-icon>
-      </button>
-      <p *ngIf="advancedOpen()" class="rounded-xl bg-brand-surface px-3 py-2 text-xs text-gray-500">
-        Retries, timeouts and error handling will live here once workflows can actually run.
-      </p>
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-[#3E5F6B]">Title</label>
+            <input type="text" [ngModel]="title()" (ngModelChange)="title.set($event)" name="stepTitle" class="wf-field" />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-[#3E5F6B]">Description</label>
+            <input type="text" [ngModel]="subtitle()" (ngModelChange)="subtitle.set($event)" name="stepSubtitle" class="wf-field" />
+          </div>
+
+          @for (field of fields; track field.key) {
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-[#3E5F6B]">{{ field.label }}</label>
+
+              @switch (field.control) {
+                @case ('text') {
+                  <input type="text" [ngModel]="textValue(field.key)" (ngModelChange)="setValue(field.key, $event)"
+                    [name]="field.key" [placeholder]="field.placeholder || ''" class="wf-field" />
+                }
+                @case ('textarea') {
+                  <textarea rows="4" [ngModel]="textValue(field.key)" (ngModelChange)="setValue(field.key, $event)"
+                    [name]="field.key" [placeholder]="field.placeholder || ''" class="wf-field resize-none"></textarea>
+                }
+                @case ('number') {
+                  <input type="number" [min]="field.min ?? null" [ngModel]="textValue(field.key)"
+                    (ngModelChange)="setNumber(field.key, $event)" [name]="field.key"
+                    [placeholder]="field.placeholder || ''" class="wf-field" />
+                }
+                @case ('select') {
+                  <select [ngModel]="textValue(field.key)" (ngModelChange)="setValue(field.key, $event)" [name]="field.key" class="wf-field">
+                    <option value="">Select…</option>
+                    @for (option of field.options; track option) {
+                      <option [value]="option">{{ option }}</option>
+                    }
+                  </select>
+                }
+                @case ('chips') {
+                  @for (chip of chipValues(field.key); track chip) {
+                    <div class="flex items-center justify-between gap-2 rounded-xl border border-[#E4DCCF] px-3 py-2">
+                      <span class="min-w-0 truncate text-sm text-[#083645]">{{ chip }}</span>
+                      <button type="button" (click)="removeChip(field.key, chip)" [attr.aria-label]="'Remove ' + chip"
+                        class="shrink-0 text-[#3E5F6B] transition-colors hover:text-[#083645]">
+                        <ion-icon name="close-outline" class="text-base"></ion-icon>
+                      </button>
+                    </div>
+                  }
+                  <div class="flex items-center gap-2">
+                    <input type="text" [ngModel]="newChip()" (ngModelChange)="newChip.set($event)"
+                      [name]="field.key + 'New'" placeholder="Add a value" (keydown.enter)="addChip(field.key)"
+                      class="wf-field min-w-0 flex-1" />
+                    <button type="button" (click)="addChip(field.key)"
+                      class="flex shrink-0 items-center gap-1 rounded-xl border border-[#E4DCCF] px-3 py-2 text-xs font-semibold text-[#083645] transition-colors hover:bg-[#F8F4ED]">
+                      <ion-icon name="add-outline" class="text-sm"></ion-icon>
+                      Add
+                    </button>
+                  </div>
+                }
+              }
+            </div>
+          }
+        }
+
+        @case ('data') {
+          <div>
+            <p class="text-xs font-semibold text-[#3E5F6B]">Receives from previous steps</p>
+            @if (missingFields.length > 0) {
+              <div class="mt-1.5 rounded-xl border border-dashed border-[#083645] bg-[#F8F4ED] px-3 py-2 text-xs text-[#083645]">
+                Nothing before this step provides
+                <span class="font-semibold">{{ missingFields[0].label }}</span>@if (missingFields.length > 1) {
+                  <span> and {{ missingFields.length - 1 }} more</span>}. Add a step that produces it earlier in this process, or connect a process that does.
+              </div>
+            }
+            @if (availableFields.length > 0) {
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                @for (field of availableFields; track field.key) {
+                  <span class="rounded-full bg-[#F8F4ED] px-2 py-0.5 text-[0.6875rem] font-medium text-[#083645]"
+                    [title]="field.key + ' · ' + field.type">{{ field.label }}</span>
+                }
+              </div>
+            } @else {
+              <p class="mt-1.5 text-xs text-[#3E5F6B]">Nothing yet — no step comes before this one.</p>
+            }
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold text-[#3E5F6B]">Sends to the next steps</p>
+            @if (produces.length > 0) {
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                @for (field of produces; track field.key) {
+                  <span class="rounded-full bg-[#4DD8FF]/25 px-2 py-0.5 text-[0.6875rem] font-semibold text-[#083645]"
+                    [title]="field.key + ' · ' + field.type">{{ field.label }}</span>
+                }
+              </div>
+            } @else {
+              <p class="mt-1.5 text-xs text-[#3E5F6B]">Passes through what it receives.</p>
+            }
+          </div>
+        }
+
+        @case ('settings') {
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-[#3E5F6B]">If this step fails</label>
+            <select [ngModel]="onError()" (ngModelChange)="onError.set($event)" name="stepOnError" class="wf-field">
+              @for (option of errorOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+            <p class="text-[0.6875rem] text-[#3E5F6B]">
+              Saved with the step. Nothing runs these workflows yet, so it only applies once they can.
+            </p>
+          </div>
+
+          @for (dependent of dependents; track dependent.step.id) {
+            <div class="flex gap-2 rounded-xl bg-[#F4EDE4] px-3 py-2.5 text-xs text-[#3E5F6B]">
+              <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm text-[#057BC1]"></ion-icon>
+              <span>
+                <b class="text-[#083645]">{{ dependent.step.title }}</b> needs {{ listOf(dependent.fields) }}, which this step sends.
+              </span>
+            </div>
+          }
+
+          <div class="flex flex-wrap gap-2 pt-1">
+            @if (position && position.index > 0) {
+              <button type="button" (click)="move.emit(-1)" class="wf-ghost"><ion-icon name="arrow-up-outline"></ion-icon>Move up</button>
+            }
+            @if (position && position.index < position.total - 1) {
+              <button type="button" (click)="move.emit(1)" class="wf-ghost"><ion-icon name="arrow-down-outline"></ion-icon>Move down</button>
+            }
+            <button type="button" (click)="duplicate.emit()" class="wf-ghost"><ion-icon name="copy-outline"></ion-icon>Duplicate</button>
+            <button type="button" (click)="remove.emit()" class="wf-ghost"><ion-icon name="trash-outline"></ion-icon>Delete</button>
+          </div>
+        }
+      }
     </div>
 
-    <div class="border-t border-gray-100 p-4">
+    <div class="border-t border-[#E4DCCF] p-4">
       <button type="button" (click)="onSave()"
-        class="w-full rounded-full bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-black transition-colors">
-        Save Step
+        class="w-full rounded-full bg-[#057BC1] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#083645]">
+        Save step
       </button>
     </div>
-  </ng-container>
+  }
 </div>

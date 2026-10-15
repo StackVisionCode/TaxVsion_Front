@@ -29,6 +29,11 @@ function storeOpening(id: string): WorkflowStore {
   return created;
 }
 
+/** Pasos de un proceso, por id de proceso. */
+function inProcess(store: WorkflowStore, processId: string): string[] {
+  return store.steps().filter(step => step.processId === processId).map(step => step.id);
+}
+
 describe('WorkflowStore', () => {
   let store: WorkflowStore;
 
@@ -39,54 +44,270 @@ describe('WorkflowStore', () => {
 
   afterEach(() => localStorage.clear());
 
-  it('arranca con el flujo de ejemplo, ya con sus hilos', () => {
+  // ---------- Ejemplo ----------
+
+  it('arranca con el flujo de ejemplo: procesos, pasos e hilos', () => {
+    expect(store.processes().length).toBe(3);
     expect(store.steps().length).toBeGreaterThan(0);
+    expect(store.steps().every(step => !!step.processId)).toBe(true);
     expect(store.connections().length).toBeGreaterThan(0);
   });
 
-  it('el ejemplo une las dos ramas en la misma carta', () => {
-    const merge = store.steps().find(step => store.inDegreeOf(step.id) === 2);
-    expect(merge).toBeTruthy();
+  it('en el ejemplo, el paso que bifurca es el último de su proceso y sus salidas llevan a otros procesos', () => {
+    const agent = store.steps().find(step => step.typeId === 'ai-agent')!;
+    const own = inProcess(store, agent.processId!);
+    expect(own[own.length - 1]).toBe(agent.id);
+
+    const exits = store.connections().filter(link => link.fromStepId === agent.id);
+    expect(exits.map(link => link.fromPort).sort()).toEqual(['no', 'yes']);
+    for (const link of exits) {
+      const target = store.steps().find(step => step.id === link.toStepId)!;
+      expect(target.processId).not.toBe(agent.processId);
+      // Entra por el PRIMER paso del otro proceso.
+      expect(inProcess(store, target.processId!)[0]).toBe(target.id);
+    }
   });
 
-  // ---------- Hilos ----------
+  // ---------- Procesos ----------
 
-  it('conecta dos cartas y el hilo queda con identidad propia', () => {
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', null);
+  it('añade un proceso vacío a la derecha de los demás y lo selecciona', () => {
+    const before = store.processes();
+    const rightmost = Math.max(...before.map(process => process.x));
 
-    expect(store.connect(a, 'main', b)).toBeNull();
-    const link = store.connections().find(c => c.fromStepId === a && c.toStepId === b);
+    const id = store.addProcess();
+
+    const created = store.processes().find(process => process.id === id)!;
+    expect(created.x).toBeGreaterThan(rightmost);
+    expect(created.name).toMatch(/^Process \d+$/);
+    expect(store.selectedProcessId()).toBe(id);
+    expect(inProcess(store, id)).toEqual([]);
+  });
+
+  it('renombra, pliega y duplica un proceso', () => {
+    const [first] = store.processes();
+    store.renameProcess(first.id, '  Intake v2  ');
+    store.toggleProcessCollapsed(first.id);
+    expect(store.processes()[0].name).toBe('Intake v2');
+    expect(store.processes()[0].collapsed).toBe(true);
+
+    const copyId = store.duplicateProcess(first.id)!;
+    expect(inProcess(store, copyId).length).toBe(inProcess(store, first.id).length);
+    // Los pasos copiados son otros (id nuevo), y no arrastran las salidas hacia otros procesos.
+    expect(inProcess(store, copyId).some(id => inProcess(store, first.id).includes(id))).toBe(false);
+    const copiedLast = inProcess(store, copyId).slice(-1)[0];
+    expect(store.connections().some(link => link.fromStepId === copiedLast)).toBe(false);
+  });
+
+  it('borrar un proceso se lleva sus pasos y los hilos que lo tocaban', () => {
+    const follow = store.processes().find(process => process.name === 'Follow-up')!;
+    const ids = inProcess(store, follow.id);
+
+    store.removeProcess(follow.id);
+
+    expect(store.processes().some(process => process.id === follow.id)).toBe(false);
+    expect(store.steps().some(step => ids.includes(step.id))).toBe(false);
+    expect(store.connections().some(link => ids.includes(link.toStepId) || ids.includes(link.fromStepId))).toBe(false);
+  });
+
+  // ---------- Pasos ----------
+
+  it('un paso nuevo va al final del proceso y se enlaza con el anterior', () => {
+    const processId = store.addProcess();
+    const a = store.addStep('schedule', { processId }).id!;
+    const b = store.addStep('delay', { processId }).id!;
+    const c = store.addStep('send-sms', { processId }).id!;
+
+    expect(inProcess(store, processId)).toEqual([a, b, c]);
+    expect(store.connections().some(l => l.fromStepId === a && l.toStepId === b)).toBe(true);
+    expect(store.connections().some(l => l.fromStepId === b && l.toStepId === c)).toBe(true);
+  });
+
+  it('insertar en un índice mete el paso EN MEDIO y re-enlaza', () => {
+    const processId = store.addProcess();
+    const a = store.addStep('schedule', { processId }).id!;
+    const c = store.addStep('send-sms', { processId }).id!;
+
+    const b = store.addStep('delay', { processId, index: 1 }).id!;
+
+    expect(inProcess(store, processId)).toEqual([a, b, c]);
+    expect(store.connections().some(l => l.fromStepId === a && l.toStepId === c)).toBe(false);
+    expect(store.connections().some(l => l.fromStepId === a && l.toStepId === b)).toBe(true);
+    expect(store.connections().some(l => l.fromStepId === b && l.toStepId === c)).toBe(true);
+  });
+
+  it('sin destino explícito el paso va al proceso seleccionado', () => {
+    const [first] = store.processes();
+    store.selectProcess(first.id);
+    const id = store.addStep('delay').id!;
+    expect(store.steps().find(step => step.id === id)!.processId).toBe(first.id);
+  });
+
+  it('un trigger solo puede ser el primer paso de un proceso', () => {
+    const processId = store.addProcess();
+    store.addStep('delay', { processId });
+
+    const result = store.addStep('schedule', { processId });
+    expect(result.id).toBeNull();
+    expect(result.error).toBeTruthy();
+  });
+
+  it('un trigger elegido sin destino abre un proceso nuevo si no cabe en el activo', () => {
+    const before = store.processes().length;
+    const first = store.processes()[0];
+    store.selectProcess(first.id);
+
+    const id = store.addStep('manual-trigger').id!;
+
+    expect(store.processes().length).toBe(before + 1);
+    expect(store.steps().find(step => step.id === id)!.processId).not.toBe(first.id);
+  });
+
+  it('un paso que bifurca va siempre el último; uno normal entra ANTES de la bifurcación', () => {
+    const processId = store.addProcess();
+    const branch = store.addStep('condition', { processId }).id!;
+    const after = store.addStep('delay', { processId }).id!;
+
+    expect(inProcess(store, processId)).toEqual([after, branch]);
+    // Un segundo paso que bifurca no cabe: ya hay una bifurcación al final.
+    expect(store.addStep('router', { processId }).error).toBeTruthy();
+  });
+
+  it('un paso que bifurca insertado en medio se coloca al final', () => {
+    const processId = store.addProcess();
+    const a = store.addStep('schedule', { processId }).id!;
+    const b = store.addStep('delay', { processId }).id!;
+    const branch = store.addStep('condition', { processId, index: 1 }).id!;
+
+    expect(inProcess(store, processId)).toEqual([a, b, branch]);
+  });
+
+  it('borrar un paso recose a los vecinos', () => {
+    const processId = store.addProcess();
+    const a = store.addStep('schedule', { processId }).id!;
+    const b = store.addStep('delay', { processId }).id!;
+    const c = store.addStep('send-sms', { processId }).id!;
+
+    store.removeStep(b);
+
+    expect(inProcess(store, processId)).toEqual([a, c]);
+    expect(store.connections().some(l => l.fromStepId === a && l.toStepId === c)).toBe(true);
+    expect(store.connections().some(l => l.fromStepId === b || l.toStepId === b)).toBe(false);
+  });
+
+  it('borrar el último paso lleva la salida hacia otro proceso al nuevo último', () => {
+    const source = store.addProcess();
+    const a = store.addStep('schedule', { processId: source }).id!;
+    const b = store.addStep('delay', { processId: source }).id!;
+    const target = store.addProcess();
+    const t = store.addStep('send-sms', { processId: target }).id!;
+    expect(store.connectExit(b, 'main', target)).toBeNull();
+
+    store.removeStep(b);
+
+    expect(store.connections().some(l => l.fromStepId === a && l.toStepId === t)).toBe(true);
+  });
+
+  it('borrar el primer paso de un proceso alimentado re-apunta el hilo al nuevo primero', () => {
+    const source = store.addProcess();
+    const s = store.addStep('schedule', { processId: source }).id!;
+    const target = store.addProcess();
+    const t1 = store.addStep('send-sms', { processId: target }).id!;
+    const t2 = store.addStep('create-record', { processId: target }).id!;
+    expect(store.connectExit(s, 'main', target)).toBeNull();
+
+    store.removeStep(t1);
+
+    expect(store.connections().some(l => l.fromStepId === s && l.toStepId === t2)).toBe(true);
+  });
+
+  it('duplicar deja la copia justo detrás; un trigger o una bifurcación no se duplican', () => {
+    const processId = store.addProcess();
+    const trigger = store.addStep('schedule', { processId }).id!;
+    const a = store.addStep('delay', { processId }).id!;
+    const branch = store.addStep('condition', { processId }).id!;
+
+    const copy = store.duplicateStep(a).id!;
+    expect(inProcess(store, processId)).toEqual([trigger, a, copy, branch]);
+    expect(store.duplicateStep(trigger).error).toBeTruthy();
+    expect(store.duplicateStep(branch).error).toBeTruthy();
+  });
+
+  it('reordena respetando las reglas: el trigger primero, la bifurcación última', () => {
+    const processId = store.addProcess();
+    const trigger = store.addStep('schedule', { processId }).id!;
+    const a = store.addStep('delay', { processId }).id!;
+    const b = store.addStep('send-sms', { processId }).id!;
+    const branch = store.addStep('condition', { processId }).id!;
+    expect(inProcess(store, processId)).toEqual([trigger, a, b, branch]);
+
+    expect(store.moveStep(b, -1)).toBeNull();
+    expect(inProcess(store, processId)).toEqual([trigger, b, a, branch]);
+
+    // Nada puede pasar por delante del trigger ni por detrás de la bifurcación.
+    expect(store.moveStep(b, -1)).toBeTruthy();
+    expect(store.moveStep(a, 1)).toBeTruthy();
+    expect(store.moveStep(branch, -1)).toBeTruthy();
+    expect(inProcess(store, processId)).toEqual([trigger, b, a, branch]);
+  });
+
+  // ---------- Salidas entre procesos ----------
+
+  it('conecta la salida del último paso con el primer paso de otro proceso', () => {
+    const from = store.addProcess();
+    const a = store.addStep('schedule', { processId: from }).id!;
+    const to = store.addProcess();
+    const b = store.addStep('send-sms', { processId: to }).id!;
+
+    expect(store.connectExit(a, 'main', to)).toBeNull();
+
+    const link = store.connections().find(l => l.fromStepId === a && l.toStepId === b);
     expect(link).toBeTruthy();
     expect(link!.id).toBeTruthy();
   });
 
-  it('rechaza conectar una carta consigo misma', () => {
-    const a = store.addStep('delay', null);
-    expect(store.connect(a, 'main', a)).toBe("A step can't connect to itself");
+  it('una salida lleva a un solo sitio: reconectarla reemplaza el hilo anterior', () => {
+    const from = store.addProcess();
+    const a = store.addStep('schedule', { processId: from }).id!;
+    const p1 = store.addProcess();
+    const t1 = store.addStep('send-sms', { processId: p1 }).id!;
+    const p2 = store.addProcess();
+    const t2 = store.addStep('create-record', { processId: p2 }).id!;
+
+    store.connectExit(a, 'main', p1);
+    store.connectExit(a, 'main', p2);
+
+    const exits = store.connections().filter(l => l.fromStepId === a);
+    expect(exits.map(l => l.toStepId)).toEqual([t2]);
+    void t1;
   });
 
-  it('rechaza un hilo duplicado', () => {
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', null);
-    store.connect(a, 'main', b);
+  it('rechaza lo que no vale con su motivo', () => {
+    const from = store.addProcess();
+    const a = store.addStep('delay', { processId: from }).id!;
+    const b = store.addStep('send-sms', { processId: from }).id!;
+    const to = store.addProcess();
+    const t = store.addStep('send-sms', { processId: to }).id!;
+    const empty = store.addProcess();
+    const triggerProcess = store.addProcess();
+    store.addStep('manual-trigger', { processId: triggerProcess });
 
-    expect(store.connect(a, 'main', b)).toBe('These steps are already connected');
+    expect(store.connectExit(a, 'main', to)).toBe('Only the last step of a process can lead to another process');
+    expect(store.connectExit(b, 'main', from)).toBe("A process can't lead to itself");
+    expect(store.connectExit(b, 'main', empty)).toBe('That process has no steps yet');
+    expect(store.connectExit(b, 'main', triggerProcess)).toMatch(/trigger/);
+    expect(store.connectExit(b, 'yes', to)).toBe('That exit does not exist');
+
+    // Un ciclo entre procesos dejaría el flujo sin principio.
+    store.connectExit(b, 'main', to);
+    expect(store.connectExit(t, 'main', from)).toBe('That would create a loop');
   });
 
-  /** Un ciclo dejaría el grafo sin principio y el layout sin forma de ordenarlo. */
-  it('rechaza un hilo que cerraría un ciclo', () => {
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', null);
-    store.connect(a, 'main', b);
-
-    expect(store.connect(b, 'main', a)).toBe('That would create a loop');
-  });
-
-  it('borrar un hilo no borra las cartas', () => {
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', null);
-    store.connect(a, 'main', b);
+  it('borrar un hilo no borra los pasos', () => {
+    const from = store.addProcess();
+    const a = store.addStep('schedule', { processId: from }).id!;
+    const to = store.addProcess();
+    const b = store.addStep('send-sms', { processId: to }).id!;
+    store.connectExit(a, 'main', to);
     const link = store.connections().find(c => c.fromStepId === a)!;
 
     store.disconnect(link.id);
@@ -96,46 +317,10 @@ describe('WorkflowStore', () => {
     expect(store.steps().some(step => step.id === b)).toBe(true);
   });
 
-  // ---------- Cartas ----------
-
-  it('insertar en un hilo mete la carta EN MEDIO', () => {
-    const link = store.connections()[0];
-    const { fromStepId, toStepId } = link;
-
-    const newId = store.addStep('delay', fromStepId, link.fromPort);
-
-    // El origen ahora apunta al paso nuevo, y el paso nuevo al destino de antes.
-    expect(store.connections().some(c => c.fromStepId === fromStepId && c.toStepId === newId)).toBe(true);
-    expect(store.connections().some(c => c.fromStepId === newId && c.toStepId === toStepId)).toBe(true);
-  });
-
-  /**
-   * En un grafo, lo que venía detrás puede estar alimentado por otras cartas:
-   * borrar ya no puede llevarse el subárbol entero por delante.
-   */
-  it('borrar una carta cose el hilo de quien la alimentaba con quien la seguía', () => {
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', a);
-    const c = store.addStep('create-record', b);
-
-    store.removeStep(b);
-
-    expect(store.steps().some(step => step.id === c)).toBe(true);
-    expect(store.connections().some(link => link.fromStepId === a && link.toStepId === c)).toBe(true);
-  });
-
-  it('duplicar deja la copia al lado, no encima', () => {
-    const id = store.addStepAt('delay', null, 100, 100);
-    store.duplicateStep(id);
-
-    const copy = store.steps().find(step => step.title.endsWith('(copy)'))!;
-    expect(copy.x).not.toBe(100);
-  });
-
   // ---------- Migración ----------
 
   /** Sin esto, quien ya tenía un workflow guardado lo perdería. */
-  it('migra un documento del formato viejo (parentId) a hilos', () => {
+  it('migra un documento del formato viejo (parentId) a procesos con sus hilos', () => {
     localStorage.setItem(
       'tvf.workflow.v1',
       JSON.stringify({
@@ -154,10 +339,48 @@ describe('WorkflowStore', () => {
 
     expect(revived.name()).toBe('Legacy');
     expect(revived.steps().length).toBe(2);
+    expect(revived.steps().every(step => !!step.processId)).toBe(true);
     const link = revived.connections().find(c => c.fromStepId === 'root' && c.toStepId === 'yes');
     expect(link).toBeTruthy();
     // La rama del hijo era, en la práctica, el puerto del padre.
     expect(link!.fromPort).toBe('yes');
+  });
+
+  it('un grafo guardado sin procesos se segmenta en cadenas', () => {
+    localStorage.setItem(
+      'tvf.workflow.v1',
+      JSON.stringify({
+        id: 'wf',
+        name: 'Graph',
+        updatedAtIso: new Date().toISOString(),
+        steps: [
+          { id: 'trigger', typeId: 'form-submitted', title: 't', subtitle: '', config: {} },
+          { id: 'agent', typeId: 'ai-agent', title: 'a', subtitle: '', config: {} },
+          { id: 'mail', typeId: 'send-email', title: 'm', subtitle: '', config: {} },
+          { id: 'rec', typeId: 'create-record', title: 'r', subtitle: '', config: {} },
+          { id: 'end', typeId: 'update-record', title: 'e', subtitle: '', config: {} },
+        ],
+        connections: [
+          { id: '1', fromStepId: 'trigger', fromPort: 'main', toStepId: 'agent' },
+          { id: '2', fromStepId: 'agent', fromPort: 'yes', toStepId: 'mail' },
+          { id: '3', fromStepId: 'agent', fromPort: 'no', toStepId: 'rec' },
+          { id: '4', fromStepId: 'mail', fromPort: 'main', toStepId: 'end' },
+          { id: '5', fromStepId: 'rec', fromPort: 'main', toStepId: 'end' },
+        ],
+      }),
+    );
+
+    const revived = storeOpening('wf');
+    const byProcess = new Map<string, string[]>();
+    for (const step of revived.steps()) {
+      byProcess.set(step.processId!, [...(byProcess.get(step.processId!) ?? []), step.id]);
+    }
+    // [trigger, agent] · [mail] · [rec] · [end]: la unión (2 entradas) abre proceso propio.
+    expect([...byProcess.values()].sort((x, y) => y.length - x.length)[0]).toEqual(['trigger', 'agent']);
+    expect(byProcess.size).toBe(4);
+    expect(revived.processes().length).toBe(4);
+    // El grafo de datos no cambia: todos los hilos siguen ahí.
+    expect(revived.connections().length).toBe(5);
   });
 
   it('descarta hilos que apuntan a cartas inexistentes', () => {
@@ -180,14 +403,16 @@ describe('WorkflowStore', () => {
     expect(freshStore().steps().length).toBeGreaterThan(0);
   });
 
-  it('persiste el documento y lo recupera en un store nuevo', () => {
+  it('persiste el documento (con sus procesos) y lo recupera en un store nuevo', () => {
     store.rename('My automation');
-    const id = store.addStep('delay', null);
+    const processId = store.addProcess();
+    const id = store.addStep('delay', { processId }).id!;
 
     // Reabrir el MISMO documento, no crear otro: es lo que hace la tabla al pulsarlo.
     const revived = storeOpening(store.doc().id);
     expect(revived.name()).toBe('My automation');
-    expect(revived.steps().some(step => step.id === id)).toBe(true);
+    expect(revived.steps().find(step => step.id === id)!.processId).toBe(processId);
+    expect(revived.processes().some(process => process.id === processId)).toBe(true);
   });
 
   // ---------- Personas ----------
@@ -231,34 +456,38 @@ describe('WorkflowStore', () => {
 
   // ---------- Datos ----------
 
-  it('sabe qué datos le llegan a una carta y cuáles le faltan', () => {
-    const form = store.addStep('form-submitted', null);
-    const mail = store.addStep('send-email', form);
-    store.select(mail);
+  it('los datos viajan entre procesos: lo que manda un proceso le llega al siguiente', () => {
+    const intake = store.addProcess();
+    store.addStep('form-submitted', { processId: intake });
+    const last = store.addStep('delay', { processId: intake }).id!;
+    const follow = store.addProcess();
+    const mail = store.addStep('send-email', { processId: follow }).id!;
 
-    // `form-submitted` produce `email`, que es justo lo que `send-email` pide.
+    // Sin conectar, `send-email` no recibe el email del formulario.
+    store.select(mail);
+    expect(store.selectedMissingInputs().map(f => f.key)).toContain('email');
+
+    store.connectExit(last, 'main', follow);
+    store.select(mail);
     expect(store.selectedAvailableFields().map(f => f.key)).toContain('email');
     expect(store.selectedMissingInputs()).toEqual([]);
-
-    // Suelta, la misma carta se queda sin ese dato.
-    const alone = store.addStep('send-email', null);
-    store.select(alone);
-    expect(store.selectedMissingInputs().map(f => f.key)).toContain('email');
   });
 
   // ---------- Historial ----------
 
-  it('un arrastre completo deja UN solo paso en el historial', () => {
-    const target = store.steps()[1];
+  it('un arrastre completo de un proceso deja UN solo paso en el historial', () => {
+    const target = store.processes()[1];
 
     store.beginMove();
-    store.moveStepLive(target.id, 500, 400);
-    store.moveStepLive(target.id, 520, 420);
+    store.moveProcessLive(target.id, 500, 400);
+    store.moveProcessLive(target.id, 520, 420);
     store.endMove();
+    expect(store.processes().find(p => p.id === target.id)!.x).toBe(520);
 
     store.undo();
-    const restored = store.steps().find(step => step.id === target.id)!;
+    const restored = store.processes().find(p => p.id === target.id)!;
     expect(restored.x).toBe(target.x);
+    expect(restored.y).toBe(target.y);
   });
 
   it('un clic sin desplazamiento no ensucia el historial', () => {
@@ -269,22 +498,24 @@ describe('WorkflowStore', () => {
 
   it('deshacer restaura también los hilos', () => {
     const before = store.connections().length;
-    const a = store.addStep('delay', null);
-    const b = store.addStep('send-sms', a);
+    const processId = store.addProcess();
+    store.addStep('delay', { processId });
+    store.addStep('send-sms', { processId });
     expect(store.connections().length).toBeGreaterThan(before);
 
     store.undo();
     store.undo();
     expect(store.connections().length).toBe(before);
-    void b;
   });
 
-  it('tidyLayout devuelve las cartas al layout automático', () => {
-    const id = store.addStepAt('delay', null, 700, 500);
-    expect(store.steps().find(step => step.id === id)!.x).toBe(700);
-
+  it('tidyLayout recoloca los procesos de izquierda a derecha según sus conexiones', () => {
+    store.moveProcessLive(store.processes()[0].id, 3000, 2000);
     store.tidyLayout();
-    expect(store.steps().every(step => step.x === undefined && step.y === undefined)).toBe(true);
+
+    const intake = store.processes().find(process => process.name === 'Intake')!;
+    const follow = store.processes().find(process => process.name === 'Follow-up')!;
+    expect(intake.x).toBeLessThan(follow.x);
+    expect(intake.x).toBeLessThan(3000);
   });
 });
 

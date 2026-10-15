@@ -1,6 +1,6 @@
 <div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
   <!-- Cabecera -->
-  <div class="page-head bg-white rounded-[1.75rem] p-6">
+  <div class="page-head bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <div class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
       <div>
         <a routerLink="/clients"
@@ -52,7 +52,7 @@
   </div>
 
   <!-- Wizard -->
-  <div *ngIf="tab() === 'wizard'" class="page-body bg-white rounded-[1.75rem] p-6">
+  <div *ngIf="tab() === 'wizard'" class="page-body bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <app-client-import-upload-step *ngIf="step() === 'upload'" [busy]="store.starting()"
       [errorMessage]="store.startError()" [templateBusy]="store.templateDownloading()"
       [templateError]="store.templateError()" [runningAttempt]="store.runningAttempt()"
@@ -71,7 +71,7 @@
   </div>
 
   <!-- Historial -->
-  <div *ngIf="tab() === 'history'" class="page-body bg-white rounded-[1.75rem] p-6">
+  <div *ngIf="tab() === 'history'" class="page-body bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <app-client-import-history [attempts]="store.history()" [loading]="store.historyLoading()"
       [error]="store.historyError()" [page]="store.historyPage()" [hasMore]="store.historyHasMore()"
       (retryRequested)="handleHistoryRetry()" (pageChange)="handleHistoryPage($event)"

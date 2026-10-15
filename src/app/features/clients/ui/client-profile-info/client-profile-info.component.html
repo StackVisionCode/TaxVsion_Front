@@ -1,6 +1,6 @@
 <div class="grid gap-6 grid-cols-1 lg:grid-cols-2" *ngIf="client as c">
   <!-- Contact information -->
-  <div class="bg-white rounded-[1.75rem] p-6">
+  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <div class="flex items-start justify-between gap-3">
       <div>
         <h2 class="text-xl font-bold text-gray-900">Contact information</h2>
@@ -35,7 +35,7 @@
   </div>
 
   <!-- Personal details (individual) -->
-  <div class="bg-white rounded-[1.75rem] p-6" *ngIf="c.type === 'individual'; else businessDetails">
+  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm" *ngIf="c.type === 'individual'; else businessDetails">
     <div class="flex items-start justify-between gap-3">
       <div>
         <h2 class="text-xl font-bold text-gray-900">Personal details</h2>
@@ -96,7 +96,7 @@
 
   <!-- Business details (company) -->
   <ng-template #businessDetails>
-    <div class="bg-white rounded-[1.75rem] p-6">
+    <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="text-xl font-bold text-gray-900">Business details</h2>

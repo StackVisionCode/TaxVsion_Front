@@ -22,6 +22,8 @@ import { platformBrand } from '@core/config/platform-config';
   imports: [RouterLink, AiChatComposerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './ai-assistant-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
 })
 export class AiAssistantPageComponent {
   /** Nombre de la plataforma (platformBrand()), nunca escrito en el template. */

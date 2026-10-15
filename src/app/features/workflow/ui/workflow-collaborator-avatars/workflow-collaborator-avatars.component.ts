@@ -1,6 +1,6 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
+import { initialsOf } from '@shared/utils/avatar.util';
 import { WorkflowCollaborator } from '../../data-access/workflow.model';
 
 /**
@@ -35,8 +35,9 @@ export class WorkflowCollaboratorAvatarsComponent {
     return initialsOf(collaborator.name || collaborator.email);
   }
 
-  color(collaborator: WorkflowCollaborator): string {
-    return avatarColorFor(collaborator.email || collaborator.userId);
+  /** Acento por orden de aparición: Twilight, Star, Azure (paleta Taxoffix). */
+  tone(index: number): string {
+    return ['bg-[#083645] text-white', 'bg-[#057BC1] text-white', 'bg-[#4DD8FF] text-[#083645]'][index % 3];
   }
 
   title(collaborator: WorkflowCollaborator): string {

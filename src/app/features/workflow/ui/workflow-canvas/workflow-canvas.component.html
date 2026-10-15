@@ -1,4 +1,4 @@
-<div class="relative h-full w-full overflow-hidden rounded-[1.75rem] bg-brand-white">
+<div class="relative h-full w-full overflow-hidden rounded-[1.5rem] bg-[#F4EDE4]">
   <!-- viewport: el pan es scroll nativo -->
   <div #viewport class="wf-viewport h-full w-full overflow-auto" [class.wf-viewport--pan]="tool() === 'pan'"
     [class.wf-viewport--place]="tool() === 'note' || tool() === 'text'"
@@ -99,95 +99,69 @@
 
             <img *ngSwitchCase="'image'" [src]="annotation.src" [alt]="annotation.alt || 'Canvas image'"
               draggable="false"
-              class="pointer-events-none h-full w-full rounded-[0.875rem] border border-gray-200 bg-white object-cover shadow-sm" />
+              class="pointer-events-none h-full w-full rounded-[0.875rem] border border-gray-100 bg-white shadow-sm object-cover shadow-sm" />
           </ng-container>
 
           <!-- Borrado rápido de la seleccionada. El resto de ajustes están en Propiedades:
                tenerlos también aquí serían dos sitios que decidir lo mismo. -->
           <div *ngIf="annotation.id === activeAnnotationId()"
-            class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-md"
+            class="absolute -top-9 left-0 flex items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-1.5 py-1 shadow-md"
             (pointerdown)="$event.stopPropagation()">
             <button type="button" (click)="removeAnnotation.emit(annotation.id)"
-              class="grid h-6 w-6 place-items-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+              class="grid h-6 w-6 place-items-center rounded-full text-[#3E5F6B] transition-colors hover:bg-[#F4EDE4] hover:text-[#083645]"
               aria-label="Delete annotation">
               <ion-icon name="trash-outline" class="text-sm"></ion-icon>
             </button>
           </div>
         </div>
 
-        <!-- Conectores por DEBAJO de los nodos: así las líneas no tapan el contenido
-             ni bloquean el menú de la tarjeta. La semántica la ponen los botones. -->
-        <!-- `overflow-visible`: sin él, el hilo que se está tirando se recorta en el
-             borde del SVG en cuanto el cursor pasa del área del contenido. -->
-        <svg class="absolute left-0 top-0 overflow-visible" [attr.width]="layout.width"
+        <!-- Procesos -->
+        @for (box of layout.boxes; track trackBox($index, box)) {
+          <div class="wf-process absolute left-0 top-0" [class.wf-process--dragging]="draggingId() === box.process.id"
+            [style.transform]="'translate3d(' + box.x + 'px,' + box.y + 'px,0)'">
+            <app-workflow-process-card [box]="box" [selectedStepId]="selectedStepId"
+              [selected]="selectedProcessId === box.process.id" [dragging]="draggingId() === box.process.id"
+              [preview]="stepPreview" [targets]="targetsFor(box)" [pendingIndex]="pendingIndexFor(box)"
+              (select)="selectProcess.emit(box.process.id)" (selectStep)="selectStep.emit($event)"
+              (insertAt)="insertStep.emit($event)" (headerDown)="startProcessDrag($event, box)"
+              (rename)="renameProcess.emit({ id: box.process.id, name: $event })"
+              (toggleCollapsed)="toggleProcess.emit(box.process.id)"
+              (duplicateProcess)="duplicateProcess.emit(box.process.id)"
+              (deleteProcess)="deleteProcess.emit(box.process.id)"
+              (duplicateStep)="duplicateStep.emit($event)" (deleteStep)="deleteStep.emit($event)"
+              (moveStep)="moveStep.emit($event)" (connectExit)="connectExit.emit($event)"
+              (disconnectExit)="deleteConnection.emit($event)"></app-workflow-process-card>
+          </div>
+        }
+
+        <!-- Hilos entre procesos. Encima de las tarjetas para que la punta se vea, pero sin
+             capturar el ratón salvo en el propio trazo. -->
+        <svg class="wf-links absolute left-0 top-0 overflow-visible" [attr.width]="layout.width"
           [attr.height]="layout.height" aria-hidden="true">
-          <!-- Dos paths por hilo: uno grueso e invisible que hace de zona de
-               clic (una línea de 1.5px es imposible de acertar) y el visible. -->
-          <g *ngFor="let connector of layout.connectors; trackBy: trackConnector">
-            <path [attr.d]="connector.path" class="wf-edge-hit" fill="none"
-              (click)="onConnectorClick(connector, $event)" />
-            <path [attr.d]="connector.path" class="wf-edge" fill="none"
-              [class.wf-edge--selected]="connector.id === selectedConnectionId"
-              [ngClass]="edgeRunClass(connector.id)" />
-          </g>
-          <!-- Hilo que se está tirando -->
-          <path *ngIf="pendingLink()" [attr.d]="pendingPath()" class="wf-edge wf-edge--pending" fill="none" />
+          <defs>
+            <marker id="wf-link-arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"
+              markerUnits="userSpaceOnUse">
+              <path d="M1,1 L8,4.5 L1,8" fill="none" class="wf-link-head" />
+            </marker>
+          </defs>
+          @for (link of layout.links; track trackLink($index, link)) {
+            <g>
+              <path [attr.d]="link.path" class="wf-edge-hit" fill="none" (click)="onLinkClick(link, $event)" />
+              <path [attr.d]="link.path" class="wf-edge" fill="none" marker-end="url(#wf-link-arrow)"
+                [class.wf-edge--selected]="link.id === selectedConnectionId" [ngClass]="edgeRunClass(link.id)" />
+            </g>
+          }
         </svg>
 
-        <!-- Píldoras de rama (Yes / No) -->
-        <ng-container *ngFor="let connector of layout.connectors; trackBy: trackConnector">
-          <span *ngIf="connector.label"
-            class="wf-pill absolute -translate-x-1/2 -translate-y-1/2 rounded-full px-2.5 py-0.5 text-xs font-medium"
-            [class.bg-emerald-50]="connector.label === 'Yes'" [class.text-emerald-700]="connector.label === 'Yes'"
-            [class.bg-rose-50]="connector.label === 'No'" [class.text-rose-700]="connector.label === 'No'"
-            [style.left.px]="connector.labelX" [style.top.px]="connector.labelY">
-            {{ connector.label }}
-          </span>
-        </ng-container>
-
-        <!-- Botones `+` de inserción: HTML sobre el SVG para que sean botones de verdad -->
-        <!-- `+` para insertar EN un hilo; si el hilo está seleccionado, se
-             ofrece además borrarlo. -->
-        <ng-container *ngFor="let connector of layout.connectors; trackBy: trackConnector">
-          <button type="button" (click)="onInsert(connector, $event)"
-            class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:border-brand-bold hover:text-brand-bold transition-colors"
-            [style.left.px]="connector.midX" [style.top.px]="connector.midY" aria-label="Insert step on this link">
-            <ion-icon name="add-outline" class="text-xs"></ion-icon>
-          </button>
-          <button *ngIf="connector.id === selectedConnectionId" type="button"
-            (click)="deleteConnection.emit(connector.id); $event.stopPropagation()"
-            class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-red-200 bg-white text-red-500 hover:bg-red-50 transition-colors"
-            [style.left.px]="connector.midX + 26" [style.top.px]="connector.midY" aria-label="Delete this link">
-            <ion-icon name="close-outline" class="text-xs"></ion-icon>
-          </button>
-        </ng-container>
-
-        <!-- `+` de una salida sin usar. Antes esto se solapaba con el hilo al
-             END y el clic acababa creando una raíz nueva. -->
-        <button *ngFor="let openEnd of layout.openEnds; trackBy: trackOpenEnd" type="button"
-          (click)="onInsertOpenEnd(openEnd, $event)"
-          class="wf-plus absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:border-brand-bold hover:text-brand-bold transition-colors"
-          [style.left.px]="openEnd.x" [style.top.px]="openEnd.y" aria-label="Add a step after this one">
-          <ion-icon name="add-outline" class="text-xs"></ion-icon>
-        </button>
-
-        <!-- Nodos -->
-        <ng-container *ngFor="let node of layout.nodes; trackBy: trackNode">
-          <app-workflow-node [node]="node" [selected]="node.step.id === selectedId"
-            [dragging]="node.step.id === draggingId()" [linking]="pendingLink() !== null"
-            [preview]="previewFor(node)"
-            (dragStart)="startNodeDrag($event, node)" (selectStep)="onNodeClick($event)"
-            (deleteStep)="deleteStep.emit($event)" (duplicateStep)="duplicateStep.emit($event)"
-            (pointerup)="finishLinkOn(node, $event)"></app-workflow-node>
-
-          <!-- Puertos de salida: de aquí se tira el hilo. -->
-          <button *ngFor="let port of node.outputs" type="button"
-            (pointerdown)="startLink($event, node, port.portId)"
-            class="wf-port absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
-            [style.left.px]="port.x" [style.top.px]="port.y"
-            [attr.aria-label]="'Drag to connect from ' + node.step.title + (port.label ? ' (' + port.label + ')' : '')">
-          </button>
-        </ng-container>
+        @for (link of layout.links; track trackLink($index, link)) {
+          @if (link.id === selectedConnectionId) {
+            <button type="button" (click)="deleteConnection.emit(link.id); $event.stopPropagation()"
+              class="wf-link-delete absolute grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-gray-100 bg-white shadow-sm text-[#083645] shadow-sm"
+              [style.left.px]="link.midX" [style.top.px]="link.midY" aria-label="Disconnect these processes">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          }
+        }
 
         <!-- Cursores de los demás. Van DENTRO del stage para seguir al zoom y al scroll sin
              recalcular nada, pero la flecha se contra-escala: un puntero que se agranda con
@@ -203,12 +177,6 @@
             [ngClass]="peer.pill">{{ peer.name }}</span>
         </div>
 
-        <!-- END: se deriva del layout, no es un paso guardado -->
-        <div *ngIf="layout.end as end"
-          class="wf-end absolute flex items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-semibold tracking-wide text-gray-500"
-          [style.left.px]="end.x" [style.top.px]="end.y" [style.width.px]="end.width" [style.height.px]="end.height">
-          END
-        </div>
       </div>
     </div>
   </div>
@@ -216,70 +184,70 @@
   <!-- Tinta y grosor de lo PRÓXIMO que se dibuje. Solo con una herramienta de trazo
        activa: fuera de ese momento no decide nada y sería ruido permanente. -->
   <div *ngIf="showInkBar()"
-    class="absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-2 shadow-lg">
+    class="absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-100 bg-white shadow-sm px-3 py-2 shadow-lg">
     <div class="flex items-center gap-1.5">
       <button *ngFor="let color of inkColors" type="button" (click)="ink.set(color)" [style.background]="color"
         class="h-5 w-5 rounded-full ring-offset-2 transition-shadow"
-        [class.ring-2]="ink() === color" [class.ring-gray-900]="ink() === color"
+        [class.ring-2]="ink() === color" [class.ring-[#083645]]="ink() === color"
         [attr.aria-label]="'Ink ' + color" [attr.aria-pressed]="ink() === color"></button>
     </div>
-    <span class="h-5 w-px bg-gray-200"></span>
+    <span class="h-5 w-px bg-[#E4DCCF]"></span>
     <div class="flex items-center gap-1">
       <button *ngFor="let size of inkSizes" type="button" (click)="inkSize.set(size)"
         class="h-6 min-w-6 rounded-full px-1.5 text-[0.6875rem] font-bold transition-colors"
-        [ngClass]="inkSize() === size ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'"
+        [ngClass]="inkSize() === size ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F4EDE4]'"
         [attr.aria-pressed]="inkSize() === size">{{ size }}</button>
     </div>
   </div>
 
   <!-- Barra de herramientas flotante -->
   <div
-    class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-lg">
+    class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-2 py-1.5 shadow-lg">
     <button type="button" (click)="setTool('select')" aria-label="Select tool"
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-      [ngClass]="tool() === 'select' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="tool() === 'select' ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F4EDE4]'">
       <ion-icon name="navigate-outline" class="text-base"></ion-icon>
     </button>
     <button type="button" (click)="setTool('pan')" aria-label="Pan tool"
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-      [ngClass]="tool() === 'pan' ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="tool() === 'pan' ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F4EDE4]'">
       <ion-icon name="hand-left-outline" class="text-base"></ion-icon>
     </button>
-    <span class="mx-1 h-5 w-px bg-gray-200"></span>
+    <span class="mx-1 h-5 w-px bg-[#E4DCCF]"></span>
     <!-- Anotar y dibujar. Las de trazo se quedan activas (se dibuja en tandas); las de
          colocar vuelven a `select` en cuanto sueltan su objeto. -->
     <button *ngFor="let item of drawTools" type="button" (click)="tool.set(tool() === item.id ? 'select' : item.id)"
       [attr.aria-label]="item.label" [attr.aria-pressed]="tool() === item.id" [title]="item.label"
       class="flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-      [ngClass]="tool() === item.id ? 'bg-brand-bold text-white' : 'text-gray-500 hover:bg-gray-100'">
+      [ngClass]="tool() === item.id ? 'bg-[#083645] text-white' : 'text-[#3E5F6B] hover:bg-[#F4EDE4]'">
       <ion-icon [name]="item.icon" class="text-base"></ion-icon>
     </button>
     <button type="button" (click)="requestImage()" aria-label="Add image" title="Add image"
-      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+      class="flex h-8 w-8 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] transition-colors">
       <ion-icon name="image-outline" class="text-base"></ion-icon>
     </button>
-    <span class="mx-1 h-5 w-px bg-gray-200"></span>
+    <span class="mx-1 h-5 w-px bg-[#E4DCCF]"></span>
     <button type="button" (click)="fit()" aria-label="Fit to screen"
-      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+      class="flex h-8 w-8 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] transition-colors">
       <ion-icon name="scan-outline" class="text-base"></ion-icon>
     </button>
     <!-- Recolocar: rescata el lienzo cuando quedó desordenado a mano. -->
-    <button type="button" (click)="tidy.emit()" aria-label="Tidy layout"
-      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+    <button type="button" (click)="tidy.emit()" aria-label="Tidy processes" title="Tidy processes"
+      class="flex h-8 w-8 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] transition-colors">
       <ion-icon name="grid-outline" class="text-base"></ion-icon>
     </button>
   </div>
 
   <!-- Zoom -->
   <div
-    class="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-lg">
+    class="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-gray-100 bg-white shadow-sm px-2 py-1.5 shadow-lg">
     <button type="button" (click)="zoomBy(-0.1)" [disabled]="!canZoomOut()" aria-label="Zoom out"
-      class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+      class="flex h-7 w-7 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] disabled:opacity-40 transition-colors">
       <ion-icon name="remove-outline" class="text-base"></ion-icon>
     </button>
-    <span class="w-12 text-center text-xs font-medium text-gray-600">{{ zoomPercent() }}%</span>
+    <span class="w-12 text-center text-xs font-medium text-[#083645]">{{ zoomPercent() }}%</span>
     <button type="button" (click)="zoomBy(0.1)" [disabled]="!canZoomIn()" aria-label="Zoom in"
-      class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+      class="flex h-7 w-7 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] disabled:opacity-40 transition-colors">
       <ion-icon name="add-outline" class="text-base"></ion-icon>
     </button>
   </div>

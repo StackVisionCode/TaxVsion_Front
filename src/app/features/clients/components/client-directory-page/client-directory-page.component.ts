@@ -49,6 +49,8 @@ const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived'
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-directory-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
   styleUrl: './client-directory-page.component.css',
 })
 export class ClientDirectoryPageComponent {

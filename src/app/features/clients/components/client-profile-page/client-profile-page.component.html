@@ -1,5 +1,5 @@
 <div *ngIf="loading() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[1.75rem] p-6">
+  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <div class="h-4 w-28 animate-pulse rounded-full bg-gray-100"></div>
     <div class="mt-4 flex items-center gap-4">
       <div class="h-14 w-14 shrink-0 animate-pulse rounded-full bg-gray-100"></div>
@@ -18,7 +18,7 @@
 </div>
 
 <div *ngIf="loadError() && !client()" class="min-h-full pt-3 pb-1">
-  <div class="bg-white rounded-[1.75rem] p-6">
+  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
     <a routerLink="/clients"
       class="-ml-3 flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
       <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
@@ -69,7 +69,7 @@
         <ion-icon name="arrow-back-outline" class="text-base"></ion-icon>
         Back to clients
       </a>
-      <aside class="min-h-0 w-full flex-1 overflow-y-auto no-scrollbar bg-white rounded-[1.75rem] p-5">
+      <aside class="min-h-0 w-full flex-1 overflow-y-auto no-scrollbar bg-white rounded-[1.5rem] p-5 border border-gray-100 shadow-sm">
         <div class="flex items-center gap-4">
           <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
           <div class="min-w-0">
@@ -320,7 +320,7 @@
 
       @defer (when activeTab() === 'notes'; prefetch on idle) {
         @if (activeTab() === 'notes') {
-          <div class="bg-white rounded-[1.75rem] p-6">
+          <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
             <app-client-profile-notes [clientId]="c.id"></app-client-profile-notes>
           </div>
         }
@@ -379,7 +379,7 @@
 
       @defer (when activeTab() === 'bank'; prefetch on idle) {
         @if (activeTab() === 'bank') {
-          <div class="bg-white rounded-[1.75rem] p-6">
+          <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
             <app-client-profile-bank [clientId]="c.id"></app-client-profile-bank>
           </div>
         }
@@ -391,7 +391,7 @@
 
       @defer (when activeTab() === 'reminders'; prefetch on idle) {
         @if (activeTab() === 'reminders') {
-          <div class="bg-white rounded-[1.75rem] p-6">
+          <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
             <app-client-profile-reminders [clientId]="c.id"></app-client-profile-reminders>
           </div>
         }

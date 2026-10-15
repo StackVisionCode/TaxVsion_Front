@@ -1,6 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { WorkflowLibraryService, newWorkflowId } from './workflow-library.service';
 import {
+  PROCESS_ACCENT_COUNT,
+  firstStepOf,
+  isTriggerStep,
+  lastStepOf,
+  migrateToProcesses,
+  nextProcessName,
+  stepsOfProcess,
+  syncProcessLinks,
+} from '../utils/workflow-process.util';
+import { COLLAPSED_WIDTH, PROCESS_WIDTH, autoPlaceProcesses } from '../utils/workflow-process-layout.util';
+import {
   WorkflowAnnotation,
   WorkflowCollaborator,
   WorkflowCollaboratorRole,
@@ -10,6 +21,7 @@ import {
   WorkflowDoc,
   WorkflowInkSize,
   WorkflowNoteColor,
+  WorkflowProcess,
   WorkflowStep,
   WorkflowStepTypeId,
   availableFieldsAt,
@@ -17,7 +29,9 @@ import {
   connectionsFrom,
   connectionsTo,
   inDegree,
+  isBranching,
   missingInputs,
+  outputsOf,
   outDegree,
   stepTypeOrFallback,
 } from './workflow.model';
@@ -29,11 +43,22 @@ function newId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** El flujo de ejemplo del diseño, para que la primera visita no sea un lienzo en blanco. */
+/** Resultado de añadir/duplicar un paso: el id nuevo, o el motivo por el que no se pudo. */
+export type StepResult = { id: string; error: null } | { id: null; error: string };
+
+function fail(error: string): StepResult {
+  return { id: null, error };
+}
+
+/**
+ * El flujo de ejemplo, para que la primera visita no sea un lienzo en blanco: un proceso de
+ * entrada que bifurca (Yes / No) hacia dos procesos más.
+ */
 function sampleDoc(): WorkflowDoc {
   const steps: WorkflowStep[] = [
     {
       id: 'step-trigger',
+      processId: 'proc-intake',
       typeId: 'form-submitted',
       title: 'New Lead Captured',
       subtitle: 'Form Submitted',
@@ -41,6 +66,7 @@ function sampleDoc(): WorkflowDoc {
     },
     {
       id: 'step-agent',
+      processId: 'proc-intake',
       typeId: 'ai-agent',
       title: 'Lead Qualifier',
       subtitle: 'Score lead potential',
@@ -48,39 +74,43 @@ function sampleDoc(): WorkflowDoc {
     },
     {
       id: 'step-email',
+      processId: 'proc-follow-up',
       typeId: 'send-email',
       title: 'Send Welcome Email',
       subtitle: 'Introduce product and next steps',
       config: {},
     },
     {
-      id: 'step-sequence',
-      typeId: 'create-record',
-      title: 'Nurture Sequence',
-      subtitle: 'Add lead to nurturing campaign',
-      config: {},
-    },
-    {
       id: 'step-update',
+      processId: 'proc-follow-up',
       typeId: 'update-record',
       title: 'Update Lead Status',
       subtitle: 'Mark contacted and update score',
       config: {},
     },
+    {
+      id: 'step-sequence',
+      processId: 'proc-nurture',
+      typeId: 'create-record',
+      title: 'Nurture Sequence',
+      subtitle: 'Add lead to nurturing campaign',
+      config: {},
+    },
   ];
-  // Las dos ramas vuelven a unirse en "Update Lead Status", que es lo que
-  // muestra el diseño y lo que el modelo de árbol no podía representar.
-  const connections: WorkflowConnection[] = [
-    { id: 'c-1', fromStepId: 'step-trigger', fromPort: 'main', toStepId: 'step-agent' },
-    { id: 'c-2', fromStepId: 'step-agent', fromPort: 'yes', toStepId: 'step-email' },
-    { id: 'c-3', fromStepId: 'step-agent', fromPort: 'no', toStepId: 'step-sequence' },
-    { id: 'c-4', fromStepId: 'step-email', fromPort: 'main', toStepId: 'step-update' },
-    { id: 'c-5', fromStepId: 'step-sequence', fromPort: 'main', toStepId: 'step-update' },
+  const processes: WorkflowProcess[] = [
+    { id: 'proc-intake', name: 'Intake', x: 0, y: 0, colorIndex: 0 },
+    { id: 'proc-follow-up', name: 'Follow-up', x: 0, y: 0, colorIndex: 1 },
+    { id: 'proc-nurture', name: 'Nurture', x: 0, y: 0, colorIndex: 2 },
   ];
+  const connections = syncProcessLinks(steps, [
+    { id: 'c-yes', fromStepId: 'step-agent', fromPort: 'yes', toStepId: 'step-email' },
+    { id: 'c-no', fromStepId: 'step-agent', fromPort: 'no', toStepId: 'step-sequence' },
+  ]);
   return {
     id: 'wf-sample',
     name: 'Crossville Workflow',
     steps,
+    processes: autoPlaceProcesses(processes, steps, connections),
     connections,
     annotations: [],
     collaborators: [],
@@ -102,6 +132,7 @@ interface LegacyDoc {
   id?: string;
   name?: string;
   steps?: LegacyStep[];
+  processes?: WorkflowProcess[];
   connections?: WorkflowConnection[];
   annotations?: WorkflowAnnotation[];
   collaborators?: WorkflowCollaborator[];
@@ -129,6 +160,7 @@ export class WorkflowStore {
    */
   private readonly _doc = signal<WorkflowDoc>(emptyDoc());
   private readonly _selectedId = signal<string | null>(null);
+  private readonly _selectedProcessId = signal<string | null>(null);
   private readonly _selectedConnectionId = signal<string | null>(null);
   /** Último motivo por el que se rechazó un hilo, para poder explicarlo. */
   private readonly _connectionError = signal<string | null>(null);
@@ -138,6 +170,7 @@ export class WorkflowStore {
 
   readonly doc = this._doc.asReadonly();
   readonly steps = computed(() => this._doc().steps);
+  readonly processes = computed(() => this._doc().processes);
   readonly connections = computed(() => this._doc().connections);
   readonly collaborators = computed(() => this._doc().collaborators);
   readonly annotations = computed(() => this._doc().annotations);
@@ -148,6 +181,10 @@ export class WorkflowStore {
   readonly name = computed(() => this._doc().name);
   readonly selectedId = this._selectedId.asReadonly();
   readonly selectedConnectionId = this._selectedConnectionId.asReadonly();
+  readonly selectedProcessId = this._selectedProcessId.asReadonly();
+  readonly selectedProcess = computed<WorkflowProcess | null>(
+    () => this._doc().processes.find(process => process.id === this._selectedProcessId()) ?? null,
+  );
   readonly connectionError = this._connectionError.asReadonly();
   readonly selectedStep = computed<WorkflowStep | null>(
     () => this._doc().steps.find(step => step.id === this._selectedId()) ?? null,
@@ -171,11 +208,33 @@ export class WorkflowStore {
   select(stepId: string | null): void {
     this._selectedId.set(stepId);
     this._selectedConnectionId.set(null);
+    this._selectedProcessId.set(null);
+  }
+
+  selectProcess(processId: string | null): void {
+    this._selectedProcessId.set(processId);
+    this._selectedId.set(null);
+    this._selectedConnectionId.set(null);
   }
 
   selectConnection(connectionId: string | null): void {
     this._selectedConnectionId.set(connectionId);
     this._selectedId.set(null);
+    this._selectedProcessId.set(null);
+  }
+
+  /** Proceso donde cae lo siguiente que se añada: el seleccionado, el de la carta, o el último. */
+  activeProcessId(): string | null {
+    const doc = this._doc();
+    const selectedProcess = this._selectedProcessId();
+    if (selectedProcess && doc.processes.some(process => process.id === selectedProcess)) {
+      return selectedProcess;
+    }
+    const step = doc.steps.find(candidate => candidate.id === this._selectedId());
+    if (step?.processId) {
+      return step.processId;
+    }
+    return doc.processes.length > 0 ? doc.processes[doc.processes.length - 1].id : null;
   }
 
   clearConnectionError(): void {
@@ -235,64 +294,214 @@ export class WorkflowStore {
     return null;
   }
 
-  // ---------- Cartas ----------
+  // ---------- Procesos ----------
 
-  /**
-   * Añade un paso colgando de `fromStepId`. Si esa salida ya llevaba a otra
-   * carta, el paso nuevo se mete EN MEDIO y hereda ese destino: es lo que
-   * espera quien pulsa el `+` de un hilo.
-   */
-  addStep(typeId: WorkflowStepTypeId, fromStepId: string | null, fromPort = 'main'): string {
-    const type = stepTypeOrFallback(typeId);
-    const id = newId('step');
-    const step: WorkflowStep = {
-      id,
-      typeId,
-      title: type.defaultTitle,
-      subtitle: type.defaultSubtitle,
-      config: {},
+  /** Hueco a la derecha de lo que ya hay: un proceso nuevo no debe nacer encima de otro. */
+  private nextProcessPosition(doc: WorkflowDoc): { x: number; y: number } {
+    if (doc.processes.length === 0) {
+      return { x: 56, y: 100 };
+    }
+    const right = Math.max(
+      ...doc.processes.map(process => process.x + (process.collapsed ? COLLAPSED_WIDTH : PROCESS_WIDTH)),
+    );
+    const top = Math.min(...doc.processes.map(process => process.y));
+    return { x: right + 120, y: top };
+  }
+
+  private makeProcess(doc: WorkflowDoc, at?: { x: number; y: number }): WorkflowProcess {
+    const position = at ?? this.nextProcessPosition(doc);
+    return {
+      id: newId('proc'),
+      name: nextProcessName(doc.processes),
+      x: Math.max(0, Math.round(position.x)),
+      y: Math.max(0, Math.round(position.y)),
+      colorIndex: doc.processes.length % PROCESS_ACCENT_COUNT,
     };
+  }
 
+  /** Proceso vacío, con su "Add action". Queda seleccionado. */
+  addProcess(at?: { x: number; y: number }): string {
+    const process = this.makeProcess(this._doc(), at);
+    this.commit(doc => ({ ...doc, processes: [...doc.processes, process] }));
+    this.selectProcess(process.id);
+    return process.id;
+  }
+
+  renameProcess(processId: string, name: string): void {
+    const clean = name.trim();
+    if (!clean) {
+      return;
+    }
+    this.commit(doc => ({
+      ...doc,
+      processes: doc.processes.map(process => (process.id === processId ? { ...process, name: clean } : process)),
+    }));
+  }
+
+  toggleProcessCollapsed(processId: string): void {
+    this.commit(doc => ({
+      ...doc,
+      processes: doc.processes.map(process =>
+        process.id === processId ? { ...process, collapsed: !process.collapsed } : process,
+      ),
+    }));
+  }
+
+  /** Copia el proceso con sus pasos (sin las salidas hacia otros procesos), un poco desplazada. */
+  duplicateProcess(processId: string): string | null {
+    const source = this._doc().processes.find(process => process.id === processId);
+    if (!source) {
+      return null;
+    }
+    const id = newId('proc');
     this.commit(doc => {
-      const connections = [...doc.connections];
-      if (fromStepId) {
-        // El hilo que ya salía por ese puerto pasa a salir del paso nuevo.
-        const displaced = connections.filter(c => c.fromStepId === fromStepId && c.fromPort === fromPort);
-        for (const link of displaced) {
-          link.fromStepId = id;
-          link.fromPort = 'main';
-        }
-        connections.push({ id: newId('c'), fromStepId, fromPort, toStepId: id });
-      }
-      return { ...doc, steps: [...doc.steps, step], connections };
+      const copies = stepsOfProcess(doc.steps, processId).map(step => ({
+        ...step,
+        id: newId('step'),
+        processId: id,
+        config: { ...step.config },
+      }));
+      const copy: WorkflowProcess = {
+        ...source,
+        id,
+        name: `${source.name} (copy)`,
+        x: source.x + 40,
+        y: source.y + 40,
+        colorIndex: doc.processes.length % PROCESS_ACCENT_COUNT,
+      };
+      const steps = [...doc.steps, ...copies];
+      return {
+        ...doc,
+        processes: [...doc.processes, copy],
+        steps,
+        connections: syncProcessLinks(steps, doc.connections),
+      };
     });
-    this.select(id);
+    this.selectProcess(id);
     return id;
   }
 
-  /** Igual pero fijando la posición: es lo que usa el arrastre desde el catálogo. */
-  addStepAt(typeId: WorkflowStepTypeId, fromStepId: string | null, x: number, y: number): string {
+  /** Borra el proceso y todo lo que contiene, con los hilos que lo tocaban. */
+  removeProcess(processId: string): void {
+    this.commit(doc => {
+      const gone = new Set(stepsOfProcess(doc.steps, processId).map(step => step.id));
+      const steps = doc.steps.filter(step => !gone.has(step.id));
+      return {
+        ...doc,
+        processes: doc.processes.filter(process => process.id !== processId),
+        steps,
+        connections: syncProcessLinks(
+          steps,
+          doc.connections.filter(link => !gone.has(link.fromStepId) && !gone.has(link.toStepId)),
+        ),
+      };
+    });
+    if (this._selectedProcessId() === processId) {
+      this._selectedProcessId.set(null);
+    }
+    const selected = this._selectedId();
+    if (selected && !this._doc().steps.some(step => step.id === selected)) {
+      this._selectedId.set(null);
+    }
+  }
+
+  /** ¿Algún otro proceso desemboca en este? Si sí, no puede empezar con un trigger. */
+  private isFed(doc: WorkflowDoc, processId: string): boolean {
+    const first = firstStepOf(doc.steps, processId);
+    return !!first && doc.connections.some(link => link.toStepId === first.id && this.crosses(doc, link));
+  }
+
+  private crosses(doc: WorkflowDoc, link: WorkflowConnection): boolean {
+    const from = doc.steps.find(step => step.id === link.fromStepId);
+    const to = doc.steps.find(step => step.id === link.toStepId);
+    return !!from && !!to && from.processId !== to.processId;
+  }
+
+  // ---------- Pasos ----------
+
+  /**
+   * Añade un paso a un proceso. Sin destino explícito va al proceso activo (el seleccionado, el
+   * de la carta seleccionada, o el último); si no hay ninguno, se crea uno.
+   *
+   * Reglas del proceso, que se aplican aquí y no en la UI:
+   * - Un trigger solo puede ser el PRIMER paso de un proceso que nadie alimenta. Si se elige un
+   *   trigger sin destino y no cabe en el proceso activo, nace en uno nuevo.
+   * - Un paso que bifurca (Condition, Router, AI Agent) va SIEMPRE el último: sus Yes / No son
+   *   las salidas del proceso. Uno nuevo que bifurca se coloca al final; uno normal que se
+   *   quiere añadir "al final" de un proceso que ya acaba en bifurcación entra justo antes.
+   */
+  addStep(
+    typeId: WorkflowStepTypeId,
+    target?: { processId?: string | null; index?: number | null } | null,
+  ): StepResult {
     const type = stepTypeOrFallback(typeId);
+    const isTrigger = type.category === 'trigger';
+    const explicit = target?.processId ?? null;
+    let doc = this._doc();
+    let processId = explicit ?? this.activeProcessId();
+    let createdProcess: WorkflowProcess | null = null;
+
+    const fits = (id: string): boolean => {
+      const own = stepsOfProcess(doc.steps, id);
+      return !isTrigger || (own.length === 0 && !this.isFed(doc, id));
+    };
+    if (!processId || !doc.processes.some(process => process.id === processId) || (!explicit && !fits(processId))) {
+      createdProcess = this.makeProcess(doc);
+      processId = createdProcess.id;
+      doc = { ...doc, processes: [...doc.processes, createdProcess] };
+    }
+
+    const own = stepsOfProcess(doc.steps, processId);
+    const last = own.length > 0 ? own[own.length - 1] : null;
+    const lastBranches = !!last && isBranching(last);
+    let index = Math.min(Math.max(target?.index ?? own.length, 0), own.length);
+
+    if (isTrigger) {
+      if (index !== 0 || own.length > 0 || this.isFed(doc, processId)) {
+        return fail(
+          own.some(isTriggerStep)
+            ? 'This process already has a trigger'
+            : 'A trigger can only be the first step of a process that no other process feeds',
+        );
+      }
+    } else if (index === 0 && own.length > 0 && isTriggerStep(own[0])) {
+      index = 1;
+    }
+    if (type.branching) {
+      if (lastBranches) {
+        return fail('This process already ends with a branch');
+      }
+      index = own.length;
+    } else if (lastBranches && index >= own.length) {
+      index = own.length - 1;
+    }
+
     const id = newId('step');
     const step: WorkflowStep = {
       id,
+      processId,
       typeId,
       title: type.defaultTitle,
       subtitle: type.defaultSubtitle,
       config: {},
-      x: Math.max(0, Math.round(x)),
-      y: Math.max(0, Math.round(y)),
     };
-    this.commit(doc => ({
-      ...doc,
-      steps: [...doc.steps, step],
-      // Al soltar en un hueco NO se roba el destino de nadie: solo se engancha.
-      connections: fromStepId
-        ? [...doc.connections, { id: newId('c'), fromStepId, fromPort: 'main', toStepId: id }]
-        : doc.connections,
+    const steps = [...doc.steps];
+    const before = own[index];
+    if (before) {
+      steps.splice(steps.indexOf(before), 0, step);
+    } else if (last) {
+      steps.splice(steps.indexOf(last) + 1, 0, step);
+    } else {
+      steps.push(step);
+    }
+    this.commit(current => ({
+      ...current,
+      processes: createdProcess ? [...current.processes, createdProcess] : current.processes,
+      steps,
+      connections: syncProcessLinks(steps, current.connections),
     }));
     this.select(id);
-    return id;
+    return { id, error: null };
   }
 
   updateStep(stepId: string, patch: Partial<Omit<WorkflowStep, 'id'>>): void {
@@ -303,31 +512,50 @@ export class WorkflowStore {
   }
 
   /**
-   * Borra la carta y sus hilos.
-   *
-   * A diferencia del modelo de árbol, ya NO se lleva por delante todo lo que
-   * venía detrás: en un grafo esas cartas pueden estar alimentadas por otras.
-   * Se cosen padre→hijo cuando la carta tenía una sola entrada y una sola
-   * salida, que es el caso en el que la intención es inequívoca.
+   * Borra el paso. Lo que lo rodeaba se recose: los pasos vecinos se vuelven a enlazar, la salida
+   * 'main' hacia otro proceso pasa al nuevo último paso, y un hilo que entraba por el primer
+   * paso entra ahora por el siguiente.
    */
   removeStep(stepId: string): void {
     this.commit(doc => {
-      const incoming = connectionsTo(doc.connections, stepId);
-      const outgoing = connectionsFrom(doc.connections, stepId);
-      let connections = doc.connections.filter(c => c.fromStepId !== stepId && c.toStepId !== stepId);
-
-      if (incoming.length === 1 && outgoing.length === 1) {
-        connections = [
-          ...connections,
-          {
-            id: newId('c'),
-            fromStepId: incoming[0].fromStepId,
-            fromPort: incoming[0].fromPort,
-            toStepId: outgoing[0].toStepId,
-          },
-        ];
+      const step = doc.steps.find(candidate => candidate.id === stepId);
+      if (!step?.processId) {
+        return { ...doc, steps: doc.steps.filter(candidate => candidate.id !== stepId) };
       }
-      return { ...doc, steps: doc.steps.filter(step => step.id !== stepId), connections };
+      const own = stepsOfProcess(doc.steps, step.processId);
+      const index = own.findIndex(candidate => candidate.id === stepId);
+      let connections = doc.connections;
+      if (own.length > 1) {
+        const replacement =
+          index === own.length - 1 && !isBranching(step)
+            ? { from: own[index - 1].id, to: null }
+            : index === 0
+              ? { from: null, to: own[1].id }
+              : null;
+        if (replacement) {
+          connections = connections.map(link => {
+            if (!this.crosses(doc, link)) {
+              return link;
+            }
+            if (replacement.from && link.fromStepId === stepId && link.fromPort === 'main') {
+              return { ...link, fromStepId: replacement.from };
+            }
+            if (replacement.to && link.toStepId === stepId) {
+              return { ...link, toStepId: replacement.to };
+            }
+            return link;
+          });
+        }
+      }
+      const steps = doc.steps.filter(candidate => candidate.id !== stepId);
+      return {
+        ...doc,
+        steps,
+        connections: syncProcessLinks(
+          steps,
+          connections.filter(link => link.fromStepId !== stepId && link.toStepId !== stepId),
+        ),
+      };
     });
 
     if (this._selectedId() === stepId) {
@@ -335,41 +563,119 @@ export class WorkflowStore {
     }
   }
 
-  /** Copia la carta (sin sus hilos) al lado de la original. */
-  duplicateStep(stepId: string): void {
+  /** Copia el paso justo detrás del original. Un trigger o un paso que bifurca no se duplican. */
+  duplicateStep(stepId: string): StepResult {
     const source = this._doc().steps.find(step => step.id === stepId);
-    if (!source) {
-      return;
+    if (!source?.processId) {
+      return fail('That step no longer exists');
     }
+    if (isTriggerStep(source)) {
+      return fail('A process has only one trigger');
+    }
+    if (isBranching(source)) {
+      return fail('A process can only end with one branch');
+    }
+    const id = newId('step');
     const copy: WorkflowStep = {
       ...source,
-      id: newId('step'),
+      id,
       title: `${source.title} (copy)`,
       config: { ...source.config },
-      // Desplazada, o quedaría exactamente encima y parecería que no pasó nada.
-      x: typeof source.x === 'number' ? source.x + 40 : undefined,
-      y: typeof source.y === 'number' ? source.y + 40 : undefined,
     };
-    this.commit(doc => ({ ...doc, steps: [...doc.steps, copy] }));
+    this.commit(doc => {
+      const steps = [...doc.steps];
+      steps.splice(steps.findIndex(step => step.id === stepId) + 1, 0, copy);
+      return { ...doc, steps, connections: syncProcessLinks(steps, doc.connections) };
+    });
+    this.select(id);
+    return { id, error: null };
   }
 
-  // ---------- Hilos ----------
+  /**
+   * Cambia el orden dentro del proceso. Devuelve el motivo si rompe una regla (el trigger va
+   * primero, el paso que bifurca va último) o null si se movió.
+   */
+  reorderStep(stepId: string, toIndex: number): string | null {
+    const doc = this._doc();
+    const step = doc.steps.find(candidate => candidate.id === stepId);
+    if (!step?.processId) {
+      return null;
+    }
+    const own = stepsOfProcess(doc.steps, step.processId);
+    const from = own.indexOf(step);
+    const to = Math.min(Math.max(toIndex, 0), own.length - 1);
+    if (from === to) {
+      return null;
+    }
+    const next = [...own];
+    next.splice(from, 1);
+    next.splice(to, 0, step);
+    if (next.some((candidate, index) => isTriggerStep(candidate) && index !== 0)) {
+      return 'A trigger has to stay first in its process';
+    }
+    if (next.some((candidate, index) => isBranching(candidate) && index !== next.length - 1)) {
+      return 'A step that branches has to stay last in its process';
+    }
+    this.commit(current => {
+      const queue = [...next];
+      const steps = current.steps.map(candidate =>
+        candidate.processId === step.processId ? queue.shift()! : candidate,
+      );
+      return { ...current, steps, connections: syncProcessLinks(steps, current.connections) };
+    });
+    return null;
+  }
+
+  /** Atajo para subir / bajar un puesto. */
+  moveStep(stepId: string, delta: -1 | 1): string | null {
+    const step = this._doc().steps.find(candidate => candidate.id === stepId);
+    if (!step?.processId) {
+      return null;
+    }
+    const own = stepsOfProcess(this._doc().steps, step.processId);
+    return this.reorderStep(stepId, own.indexOf(step) + delta);
+  }
+
+  // ---------- Salidas entre procesos ----------
 
   /**
-   * Crea un hilo. Devuelve el motivo si no es válido, o null si se creó: el
-   * lienzo lo muestra en vez de dejar que el usuario adivine por qué no pasó
-   * nada.
+   * Conecta una salida del proceso con el PRIMER paso de otro. Cada salida lleva a un solo sitio,
+   * así que una conexión anterior se reemplaza. Devuelve el motivo si no es válida.
    */
-  connect(fromStepId: string, fromPort: string, toStepId: string): string | null {
-    const error = connectionError(this._doc().connections, fromStepId, fromPort, toStepId);
+  connectExit(fromStepId: string, fromPort: string, toProcessId: string): string | null {
+    const doc = this._doc();
+    const from = doc.steps.find(step => step.id === fromStepId);
+    if (!from?.processId) {
+      return 'That step no longer exists';
+    }
+    if (lastStepOf(doc.steps, from.processId)?.id !== from.id) {
+      return 'Only the last step of a process can lead to another process';
+    }
+    if (!outputsOf(from).some(port => port.id === fromPort)) {
+      return 'That exit does not exist';
+    }
+    if (toProcessId === from.processId) {
+      return "A process can't lead to itself";
+    }
+    const target = firstStepOf(doc.steps, toProcessId);
+    if (!target) {
+      return 'That process has no steps yet';
+    }
+    if (isTriggerStep(target)) {
+      return 'A process that starts with a trigger cannot be fed by another one';
+    }
+    const kept = doc.connections.filter(
+      link => !(link.fromStepId === fromStepId && link.fromPort === fromPort && this.crosses(doc, link)),
+    );
+    const error = connectionError(kept, fromStepId, fromPort, target.id);
     if (error) {
       this._connectionError.set(error);
       return error;
     }
     this._connectionError.set(null);
-    this.commit(doc => ({
-      ...doc,
-      connections: [...doc.connections, { id: newId('c'), fromStepId, fromPort, toStepId }],
+    this.commit(current => ({
+      ...current,
+      connections: [...kept, { id: newId('c'), fromStepId, fromPort, toStepId: target.id }],
     }));
     return null;
   }
@@ -605,11 +911,12 @@ export class WorkflowStore {
     this.dragOrigin = this._doc();
   }
 
-  moveStepLive(stepId: string, x: number, y: number): void {
+  /** Arrastre en vivo de un proceso por su cabecera, sin apilar historial (lo cierra `endMove`). */
+  moveProcessLive(processId: string, x: number, y: number): void {
     this._doc.update(doc => ({
       ...doc,
-      steps: doc.steps.map(step =>
-        step.id === stepId ? { ...step, x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) } : step,
+      processes: doc.processes.map(process =>
+        process.id === processId ? { ...process, x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) } : process,
       ),
     }));
   }
@@ -624,7 +931,7 @@ export class WorkflowStore {
     // Se comparan pasos Y anotaciones: `endMove` cierra el arrastre de ambos, y mirando
     // solo `steps` un movimiento de nota se quedaba fuera del historial y sin guardar.
     if (
-      JSON.stringify(origin.steps) === JSON.stringify(current.steps) &&
+      JSON.stringify(origin.processes) === JSON.stringify(current.processes) &&
       JSON.stringify(origin.annotations) === JSON.stringify(current.annotations)
     ) {
       return;
@@ -635,12 +942,9 @@ export class WorkflowStore {
     this.saveDoc(this._doc());
   }
 
-  /** Devuelve todas las cartas al layout automático. */
+  /** Devuelve los procesos al orden automático, de izquierda a derecha según sus conexiones. */
   tidyLayout(): void {
-    this.commit(doc => ({
-      ...doc,
-      steps: doc.steps.map(({ x: _x, y: _y, ...step }) => step),
-    }));
+    this.commit(doc => ({ ...doc, processes: autoPlaceProcesses(doc.processes, doc.steps, doc.connections) }));
   }
 
   // ---------- Historial ----------
@@ -744,6 +1048,7 @@ export class WorkflowStore {
     this._past.set([]);
     this._future.set([]);
     this._selectedId.set(null);
+    this._selectedProcessId.set(null);
     this._selectedConnectionId.set(null);
     this._connectionError.set(null);
   }
@@ -766,6 +1071,7 @@ function emptyDoc(): WorkflowDoc {
     id: '',
     name: '',
     steps: [],
+    processes: [],
     connections: [],
     annotations: [],
     collaborators: [],
@@ -797,11 +1103,30 @@ function normalizeDoc(parsed: LegacyDoc): WorkflowDoc {
           toStepId: step.id,
         }));
 
+  // Procesos: los documentos nuevos ya los traen; los anteriores eran un grafo libre y se
+  // segmentan en cadenas (ver `migrateToProcesses`).
+  const hasProcesses =
+    !!parsed.processes && steps.every(step => !!step.processId && parsed.processes!.some(p => p.id === step.processId));
+  let processes: WorkflowProcess[];
+  let finalSteps: WorkflowStep[];
+  let finalConnections: WorkflowConnection[];
+  if (hasProcesses) {
+    processes = parsed.processes!;
+    finalSteps = steps;
+    finalConnections = syncProcessLinks(steps, connections);
+  } else {
+    const migrated = migrateToProcesses(steps, connections);
+    finalSteps = migrated.steps;
+    finalConnections = migrated.connections;
+    processes = autoPlaceProcesses(migrated.processes, migrated.steps, migrated.connections);
+  }
+
   return {
     id: parsed.id ?? newWorkflowId(),
     name: parsed.name ?? 'Untitled workflow',
-    steps,
-    connections,
+    steps: finalSteps,
+    processes,
+    connections: finalConnections,
     annotations: parsed.annotations ?? [],
     collaborators: parsed.collaborators ?? [],
     updatedAtIso: parsed.updatedAtIso ?? new Date().toISOString(),

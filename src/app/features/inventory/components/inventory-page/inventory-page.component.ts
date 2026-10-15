@@ -35,6 +35,8 @@ const PAGE_SIZE = 8;
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './inventory-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
 })
 export class InventoryPageComponent implements OnInit {
   readonly store = inject(InventoryStore);

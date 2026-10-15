@@ -58,6 +58,8 @@ const SEARCH_DEBOUNCE_MS = 300;
   providers: [RolesStore],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-management-page.component.html',
+  // El host llena el alto del shell para que la tarjeta quede alineada con el sidebar (como Documents).
+  host: { class: 'flex flex-1 flex-col' },
 })
 export class UserManagementPageComponent {
   /** B6 — la §34 marcaba esta pantalla entera como "todo visible". */
