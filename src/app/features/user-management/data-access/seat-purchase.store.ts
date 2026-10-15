@@ -3,6 +3,7 @@ import { Observable, finalize, map, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SeatsService } from './seats.service';
 import {
+  CancelCheckoutResponse,
   SavedPaymentMethod,
   SeatCheckoutStatusResponse,
   SeatPurchaseOutcome,
@@ -106,5 +107,10 @@ export class SeatPurchaseStore {
   /** Estado de la intención de checkout (para pollear al volver del redirect). */
   getCheckoutStatus(intentId: string): Observable<SeatCheckoutStatusResponse> {
     return this.service.getSeatCheckoutStatus(intentId);
+  }
+
+  /** Cancela un intent abierto antes de pagar: libera el guard y permite abrir una compra nueva. */
+  cancelOpenCheckout(intentId: string): Observable<CancelCheckoutResponse> {
+    return this.service.cancelOpenSeatCheckout(intentId);
   }
 }

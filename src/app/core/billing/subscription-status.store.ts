@@ -3,8 +3,9 @@ import { take, takeWhile, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
+import { BillingPreference, BillingPreferenceService } from './billing-preference.service';
 import { SubscriptionStatusService } from './subscription-status.service';
-import { MySubscription, SubscriptionTone, toneForStatus } from './subscription-status.model';
+import { MySubscription, SubscriptionTone, toneForStatus, daysUntil } from './subscription-status.model';
 
 /** Clave del intentId de renovación en sessionStorage, para retomar el poll al volver del redirect. */
 /**
@@ -16,21 +17,44 @@ import { MySubscription, SubscriptionTone, toneForStatus } from './subscription-
 @Injectable({ providedIn: 'root' })
 export class SubscriptionStatusStore {
   private readonly service = inject(SubscriptionStatusService);
+  private readonly preferenceService = inject(BillingPreferenceService);
   private readonly auth = inject(AuthService);
 
   private readonly _summary = signal<MySubscription | null>(null);
   private readonly _blocked = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _preference = signal<BillingPreference | null>(null);
 
   readonly summary = this._summary.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly preference = this._preference.asReadonly();
 
   /** Estado efectivo: el de `/me`, o "Suspended" si un 403 nos marcó bloqueado antes de poder cargar. */
   readonly status = computed<string | null>(() => this._summary()?.status ?? (this._blocked() ? 'Suspended' : null));
-  readonly tone = computed<SubscriptionTone>(() => toneForStatus(this.status()));
-  /** El banner aparece en cualquier estado de lapso (o si un 403 nos marcó bloqueado). */
+
+  /** Días que faltan para el fin del período en curso (banner pre-vencimiento). */
+  readonly daysUntilRenewal = computed<number | null>(() => {
+    const s = this._summary();
+    if (!s) return null;
+    const normalized = (s.status ?? '').toLowerCase();
+    if (normalized !== 'active' && normalized !== 'trialing') return null;
+    return daysUntil(s.nextRenewalAtUtc ?? s.currentPeriodEndUtc);
+  });
+
+  /** Tono efectivo: estados de lapso siguen mandando; si es Active con ≤7 días escala a info/warning/critical. */
+  readonly tone = computed<SubscriptionTone>(() => {
+    const base = toneForStatus(this.status());
+    if (base !== 'ok') return base;
+    const d = this.daysUntilRenewal();
+    if (d === null || d > 7) return 'ok';
+    if (d <= 1) return 'critical';
+    if (d <= 3) return 'warning';
+    return 'info';
+  });
+
+  /** El banner aparece en cualquier estado de lapso o cerca de la renovación. */
   readonly showBanner = computed(() => this.tone() !== 'ok');
-  readonly gracePeriodEndsAtUtc = computed(() => this._summary()?.gracePeriodEndsAtUtc ?? null);
+  readonly nextRenewalAtUtc = computed(() => this._summary()?.nextRenewalAtUtc ?? null);
 
   /** Carga el estado real de la suscripción (idempotente, silenciosa: no rompe la app si falla). */
   load(): void {
@@ -41,6 +65,13 @@ export class SubscriptionStatusStore {
       },
       error: () => {
         // Silencioso: si /me falla (p.ej. 403 por bloqueo), el interceptor ya marcó `_blocked`.
+      },
+    });
+    // La preferencia va aparte para no bloquear el banner si falla (p. ej. 403 en lapso).
+    this.preferenceService.get().subscribe({
+      next: p => this._preference.set(p),
+      error: () => {
+        /* silencioso: el banner cae al copy neutro mientras no cargue. */
       },
     });
   }

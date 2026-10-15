@@ -120,6 +120,12 @@ export interface SeatCheckoutStatusResponse {
   checkoutUrl: string | null;
 }
 
+/** Respuesta de `POST /seats/checkout/{id}/cancel`: idempotente — `alreadyCancelled` cuando la intención ya estaba cerrada. */
+export interface CancelCheckoutResponse {
+  alreadyCancelled: boolean;
+  intentId: string;
+}
+
 /** Método de pago guardado del tenant — espejo de `SavedPaymentMethodResponse` (PaymentApp). */
 export interface SavedPaymentMethod {
   id: string;
@@ -141,7 +147,7 @@ export interface ProviderCustomer {
 // ---------- Helpers de presentación ----------
 
 const ACTIVE_STATES = ['active', 'assigned', 'available'];
-const WARNING_STATES = ['pastdue', 'graceperiod', 'suspended'];
+const WARNING_STATES = ['pastdue', 'suspended'];
 const ENDED_STATES = ['cancelled', 'canceled', 'expired', 'released'];
 
 /**

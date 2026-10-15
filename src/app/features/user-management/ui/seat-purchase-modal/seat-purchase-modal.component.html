@@ -5,6 +5,53 @@
   size="md"
   (closed)="close()"
 >
+  <ng-container *ngIf="checkingPending(); else resolved">
+    <p class="text-sm text-slate-500">Checking for pending purchases…</p>
+  </ng-container>
+
+  <ng-template #resolved>
+    <ng-container *ngIf="pendingIntent() as pending; else purchaseView">
+      <div class="flex flex-col gap-4">
+        <div class="rounded-2xl bg-amber-50 p-4 text-sm">
+          <p class="font-semibold text-amber-900">Open seat purchase pending</p>
+          <p class="mt-1 text-amber-800">
+            There's a seat purchase in progress ({{ pendingLabel() }}). Finish it first or cancel to start fresh.
+          </p>
+        </div>
+        <p *ngIf="pendingCancelError()" class="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ pendingCancelError() }}</p>
+        <div class="flex flex-col gap-3">
+          <button
+            type="button"
+            class="w-full rounded-full bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            (click)="resumePendingCheckout()"
+            [disabled]="cancellingPending() || !pending.checkoutUrl"
+          >
+            Resume payment
+          </button>
+          <button
+            type="button"
+            class="w-full rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            (click)="cancelPendingCheckout()"
+            [disabled]="cancellingPending()"
+          >
+            {{ cancellingPending() ? 'Cancelling…' : 'Cancel open purchase' }}
+          </button>
+        </div>
+        <div class="flex justify-end">
+          <button
+            type="button"
+            class="rounded-full px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+            (click)="close()"
+            [disabled]="cancellingPending()"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </ng-container>
+  </ng-template>
+
+  <ng-template #purchaseView>
   <div class="flex flex-col gap-5">
     <p *ngIf="seatCap !== null" class="text-sm text-slate-500">{{ seatsInUse ?? 0 }} / {{ seatCap }} seats in use</p>
 
@@ -126,4 +173,5 @@
       </button>
     </div>
   </div>
+  </ng-template>
 </app-modal>

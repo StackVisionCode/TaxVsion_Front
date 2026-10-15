@@ -29,7 +29,6 @@ export interface MySubscription {
   currentPeriodEndUtc: string;
   cancelledAtUtc?: string | null;
   nextRenewalAtUtc?: string | null;
-  gracePeriodEndsAtUtc?: string | null;
   suspendedAtUtc?: string | null;
   expiredAtUtc?: string | null;
   suspensionReason?: string | null;
@@ -63,10 +62,10 @@ export interface RenewCheckoutStatusResponse {
 }
 
 /** Severidad del banner por estado — decide color y prominencia. */
-export type SubscriptionTone = 'ok' | 'warning' | 'critical';
+export type SubscriptionTone = 'ok' | 'info' | 'warning' | 'critical';
 
-/** Estados que consumen banner. Active/Trialing/Cancelled no muestran nada (o lo maneja otra UX). */
-const WARNING = ['pastdue', 'graceperiod'];
+/** Estados que consumen banner por sí mismos. Active+pocos días cae en 'info'/'warning' por `nextRenewalAtUtc`. */
+const WARNING = ['pastdue'];
 const CRITICAL = ['suspended', 'expired'];
 
 export function toneForStatus(status: string | null | undefined): SubscriptionTone {
@@ -74,4 +73,12 @@ export function toneForStatus(status: string | null | undefined): SubscriptionTo
   if (CRITICAL.includes(s)) return 'critical';
   if (WARNING.includes(s)) return 'warning';
   return 'ok';
+}
+
+/** Días que faltan para el fin del período (recordatorio pre-vencimiento). Negativo si ya pasó. */
+export function daysUntil(iso: string | null | undefined, now: Date = new Date()): number | null {
+  if (!iso) return null;
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return null;
+  return Math.ceil((target - now.getTime()) / 86_400_000);
 }
