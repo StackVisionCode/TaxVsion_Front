@@ -147,7 +147,7 @@ export interface ProviderCustomer {
 // ---------- Helpers de presentación ----------
 
 const ACTIVE_STATES = ['active', 'assigned', 'available'];
-const WARNING_STATES = ['pastdue', 'graceperiod', 'suspended'];
+const WARNING_STATES = ['pastdue', 'suspended'];
 const ENDED_STATES = ['cancelled', 'canceled', 'expired', 'released'];
 
 /**

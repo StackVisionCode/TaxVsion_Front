@@ -108,8 +108,8 @@ export class AccessSyncService {
    * puede estar donde está.
    *
    * El banner de suscripción se recarga junto con esto en vez de leerse del bootstrap: el bootstrap
-   * solo dice `active | billing_blocked | suspended`, y el banner distingue PastDue de GracePeriod y
-   * muestra la fecha de corte. Pisar el dato rico con el pobre sería una regresión; lo que hacía
+   * solo dice `active | billing_blocked | suspended`, y el banner distingue PastDue de Suspended y
+   * muestra fechas y motivos. Pisar el dato rico con el pobre sería una regresión; lo que hacía
    * falta era que se enterara, no que cambiara de fuente.
    */
   private refresh(options: { force: boolean }): void {
