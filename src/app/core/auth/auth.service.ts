@@ -13,9 +13,9 @@ import {
   LoginResponse,
   MeResponse,
   MfaVerifyResponse,
+  PasswordResetValidation,
   RefreshRequest,
   ResetPasswordRequest,
-  ValidateResetTokenRequest,
   TakeoverSessionRequest,
   TermsAcceptanceResponse,
   TermsAcceptanceStatusResponse,
@@ -226,13 +226,16 @@ export class AuthService {
     return defer(() => this.http.post<AccountHandoffResponse>(`${this.base}/auth/account/handoff`, {}));
   }
 
-  /** ¿El enlace de reset todavía sirve? Resuelve si sí; falla con `Auth.InvalidResetToken` si caducó, ya se usó o fue anulado. No lo consume. */
-  validateResetToken(token: string): Observable<void> {
-    const req: ValidateResetTokenRequest = { token };
+  /** ¿El enlace de reset todavía sirve y a qué oficina pertenece? Resuelve siempre (anti-enumeración) con
+   * `status: 'Valid' | 'Invalid'` + la oficina real del token cuando `Valid` — para pintar su branding y
+   * rebotar al subdominio correcto si el enlace se abrió en otro host. No consume el token. */
+  validateResetToken(token: string): Observable<PasswordResetValidation> {
     if (environment.authMock) {
-      return defer(() => of(void 0));
+      return defer(() => of({ status: 'Valid', tenant: null } satisfies PasswordResetValidation));
     }
-    return defer(() => this.http.post<void>(`${this.base}/auth/password/reset/validate`, req));
+    return defer(() =>
+      this.http.get<PasswordResetValidation>(`${this.base}/auth/password/reset/validate`, { params: { token } }),
+    );
   }
 
   /** `token` sale del query param `?token=` del link emailado (`/reset-password?token=...`), no de un código tipeado. */

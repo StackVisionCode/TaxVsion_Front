@@ -26,6 +26,7 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { CallOverlayComponent } from '@core/communication/call-overlay/call-overlay.component';
 import { MeetingMiniPlayerComponent } from '@core/communication/meeting-mini-player/meeting-mini-player.component';
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
+import { SeatOverCapBannerComponent } from '../seat-over-cap-banner/seat-over-cap-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { MeetingSessionState } from '@core/communication/meeting-session-state';
@@ -50,6 +51,7 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
     CallOverlayComponent,
     MeetingMiniPlayerComponent,
     SubscriptionBannerComponent,
+    SeatOverCapBannerComponent,
   ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',

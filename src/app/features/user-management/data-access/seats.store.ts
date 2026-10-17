@@ -1,5 +1,4 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SeatResponse } from './seats.model';
 import { SeatsService } from './seats.service';
@@ -7,8 +6,9 @@ import { SeatsService } from './seats.service';
 const PAGE_SIZE = 20;
 
 /**
- * Lista de asientos comprados y a quién está asignado cada uno. Comprar vive en `SeatPurchaseStore`; acá
- * solo se reparte lo ya comprado, que es lo propio del espacio de trabajo.
+ * Lista paginada de asientos comprados. La compra vive en `SeatPurchaseStore`; acá solo se enumera el
+ * pool actual (ej. para mostrar un contador o un breakdown). No hay flujo de asignación manual: el seat
+ * se consume lógicamente al invitar (`PlanGuard.EnsureSeatAvailableAsync` en el backend).
  */
 @Injectable({ providedIn: 'root' })
 export class SeatsStore {
@@ -21,8 +21,6 @@ export class SeatsStore {
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
-  readonly busy = signal(false);
-  readonly actionError = signal<string | null>(null);
 
   load(page = this.page()): void {
     this.loading.set(true);
@@ -37,34 +35,6 @@ export class SeatsStore {
       error: err => {
         this.error.set(toApiError(err).message);
         this.loading.set(false);
-      },
-    });
-  }
-
-  assign(id: string, userId: string, onDone: () => void): void {
-    this.run(this.service.assignSeat(id, { userId }), onDone);
-  }
-
-  release(id: string, reason: string | null, onDone: () => void): void {
-    this.run(this.service.releaseSeat(id, { reason }), onDone);
-  }
-
-  reassign(id: string, toUserId: string, reason: string | null, onDone: () => void): void {
-    this.run(this.service.reassignSeat(id, { toUserId, reason }), onDone);
-  }
-
-  private run(action: Observable<unknown>, onDone: () => void): void {
-    this.busy.set(true);
-    this.actionError.set(null);
-    action.subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.load();
-        onDone();
-      },
-      error: err => {
-        this.busy.set(false);
-        this.actionError.set(toApiError(err).message);
       },
     });
   }

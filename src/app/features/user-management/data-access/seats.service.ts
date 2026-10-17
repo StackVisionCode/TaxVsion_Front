@@ -3,13 +3,10 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
-  AssignSeatRequest,
   CancelCheckoutResponse,
   PagedResult,
   ProviderCustomer,
   PurchaseSeatsRequest,
-  ReassignSeatRequest,
-  ReleaseSeatRequest,
   SeatCheckoutStatusResponse,
   SeatQuoteResponse,
   SeatResponse,
@@ -81,17 +78,5 @@ export class SeatsService {
   /** Método de pago del tenant para un provider (para decidir off-session vs redirect). 404 = sin tarjeta. */
   getProviderCustomer(provider: string): Observable<ProviderCustomer> {
     return this.http.get<ProviderCustomer>(`${this.base}/payments-app/provider-customers/${provider}`);
-  }
-
-  assignSeat(id: string, req: AssignSeatRequest): Observable<void> {
-    return this.http.post<void>(`${this.base}/seats/${id}/assign`, req);
-  }
-
-  releaseSeat(id: string, req: ReleaseSeatRequest): Observable<void> {
-    return this.http.post<void>(`${this.base}/seats/${id}/release`, req);
-  }
-
-  reassignSeat(id: string, req: ReassignSeatRequest): Observable<void> {
-    return this.http.post<void>(`${this.base}/seats/${id}/reassign`, req);
   }
 }

@@ -36,7 +36,6 @@ const MODULE_LABELS: Record<string, string> = {
   meetings: 'Video meetings',
   campaigns: 'Email campaigns',
   marketing: 'Marketing tools',
-  reports: 'Reports',
   miles: 'Mileage tracking',
   builder: 'Form builder',
   planner: 'Task planner',
@@ -82,13 +81,13 @@ export class PlanPickerModalComponent implements OnChanges {
     this.loading.set(true);
     this.error.set(null);
     this.catalog.list().subscribe({
-      next: plans => {
+      next: (plans) => {
         // De más barato a más caro: el catálogo llega sin orden garantizado.
         this.plans.set([...plans].sort((a, b) => a.monthlyPriceUsd - b.monthlyPriceUsd));
         this.loaded = true;
         this.loading.set(false);
       },
-      error: err => {
+      error: (err) => {
         this.error.set(toApiError(err).message);
         this.loading.set(false);
       },
@@ -97,7 +96,7 @@ export class PlanPickerModalComponent implements OnChanges {
 
   /** Solo se ofrece el ciclo anual si algún plan lo soporta. */
   readonly yearlyAvailable = computed(() =>
-    this.plans().some(plan => plan.supportedBillingCycles?.includes('Yearly')),
+    this.plans().some((plan) => plan.supportedBillingCycles?.includes('Yearly')),
   );
 
   setCycle(cycle: BillingCycle): void {
@@ -148,13 +147,13 @@ export class PlanPickerModalComponent implements OnChanges {
     if (list.length !== 3) {
       return null;
     }
-    const index = list.findIndex(item => item.id === plan.id);
+    const index = list.findIndex((item) => item.id === plan.id);
     return ['Best to get started', 'Most popular', 'For larger teams'][index] ?? null;
   }
 
   /** Mayor ahorro anual entre los planes (para la etiqueta del selector); 0 si no hay. */
   readonly maxYearlySavingMonths = computed(() =>
-    Math.max(0, ...this.plans().map(plan => this.yearlySavingMonths(plan))),
+    Math.max(0, ...this.plans().map((plan) => this.yearlySavingMonths(plan))),
   );
 
   /** Módulos visibles en la tarjeta: los primeros 6; el resto se resume en "+N more". */

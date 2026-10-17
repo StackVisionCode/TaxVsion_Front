@@ -53,26 +53,69 @@ interface ModuleMeta {
  * new backend module still renders sensibly without a code change here.
  */
 const MODULE_META: Record<string, ModuleMeta> = {
-  customers: { label: 'Clients', description: 'Client directory, records and data', icon: 'clients' },
+  customers: {
+    label: 'Clients',
+    description: 'Client directory, records and data',
+    icon: 'clients',
+  },
   clients: { label: 'Clients', description: 'Client directory, records and data', icon: 'clients' },
   tasks: { label: 'Tasks', description: 'Create, assign and close tasks', icon: 'tasks' },
-  communication: { label: 'Communication', description: 'Email, chat and client meetings', icon: 'communication' },
-  comms: { label: 'Communication', description: 'Chat and calls with clients', icon: 'communication' },
-  meetings: { label: 'Meetings', description: 'Video meetings with clients', icon: 'communication' },
-  email: { label: 'Communication', description: 'Email, chat and client meetings', icon: 'communication' },
-  support: { label: 'Support', description: 'Support tickets and agent queue', icon: 'communication' },
+  communication: {
+    label: 'Communication',
+    description: 'Email, chat and client meetings',
+    icon: 'communication',
+  },
+  comms: {
+    label: 'Communication',
+    description: 'Chat and calls with clients',
+    icon: 'communication',
+  },
+  meetings: {
+    label: 'Meetings',
+    description: 'Video meetings with clients',
+    icon: 'communication',
+  },
+  email: {
+    label: 'Communication',
+    description: 'Email, chat and client meetings',
+    icon: 'communication',
+  },
+  support: {
+    label: 'Support',
+    description: 'Support tickets and agent queue',
+    icon: 'communication',
+  },
   campaigns: { label: 'Campaigns', description: 'Email campaigns and audiences', icon: 'mail' },
   billing: { label: 'Billing', description: 'Invoices, payments and receipts', icon: 'billing' },
   subscription: { label: 'Subscription', description: 'Plan and subscription', icon: 'billing' },
-  catalog: { label: 'Products & services', description: "The firm's service catalog", icon: 'catalog' },
+  catalog: {
+    label: 'Products & services',
+    description: "The firm's service catalog",
+    icon: 'catalog',
+  },
   inventory: { label: 'Inventory', description: 'Stock, items and suppliers', icon: 'catalog' },
   codes: { label: 'Activation codes', description: 'Growth and activation codes', icon: 'catalog' },
-  documents: { label: 'Documents', description: 'Files, sharing and e-signature', icon: 'documents' },
+  documents: {
+    label: 'Documents',
+    description: 'Files, sharing and e-signature',
+    icon: 'documents',
+  },
   storage: { label: 'Files & storage', description: 'Files and folders', icon: 'storage' },
-  cloudstorage: { label: 'Files & storage', description: 'Files, folders and secure uploads', icon: 'storage' },
-  signature: { label: 'Signatures', description: 'E-signature requests and templates', icon: 'documents' },
-  signatures: { label: 'Signatures', description: 'E-signature requests and templates', icon: 'documents' },
-  reports: { label: 'Reports', description: 'Reporting and analytics', icon: 'catalog' },
+  cloudstorage: {
+    label: 'Files & storage',
+    description: 'Files, folders and secure uploads',
+    icon: 'storage',
+  },
+  signature: {
+    label: 'Signatures',
+    description: 'E-signature requests and templates',
+    icon: 'documents',
+  },
+  signatures: {
+    label: 'Signatures',
+    description: 'E-signature requests and templates',
+    icon: 'documents',
+  },
   notes: { label: 'Notes', description: 'Client notes and attachments', icon: 'notes' },
   calendar: { label: 'Calendar', description: 'Appointments and availability', icon: 'calendar' },
   reminder: { label: 'Reminders', description: 'Scheduled reminders', icon: 'reminder' },
@@ -85,7 +128,11 @@ const MODULE_META: Record<string, ModuleMeta> = {
   onboarding: { label: 'Onboarding', description: 'Sign-up and onboarding', icon: 'users' },
   mail: { label: 'Mail', description: 'Mailboxes and messages', icon: 'mail' },
   connectors: { label: 'Mail', description: 'Connected mailboxes', icon: 'mail' },
-  portal: { label: 'Client portal', description: 'What clients see in their portal', icon: 'clients' },
+  portal: {
+    label: 'Client portal',
+    description: 'What clients see in their portal',
+    icon: 'clients',
+  },
 };
 
 /** Nicer English verbs for the action segment of a permission code (the last segment). */
@@ -125,12 +172,14 @@ const ACTION_VERBS: Record<string, string> = {
 };
 
 function metaFor(key: string): ModuleMeta {
-  return MODULE_META[key.toLowerCase()] ?? { label: titleCase(key), description: '', icon: 'default' };
+  return (
+    MODULE_META[key.toLowerCase()] ?? { label: titleCase(key), description: '', icon: 'default' }
+  );
 }
 
 function titleCase(key: string): string {
   const words = key.replace(/[._-]+/g, ' ').trim();
-  return words.replace(/\b\w/g, character => character.toUpperCase()) || key;
+  return words.replace(/\b\w/g, (character) => character.toUpperCase()) || key;
 }
 
 /**
@@ -178,7 +227,7 @@ export function buildAccessView(
 
   /** El módulo con el que el gate de entitlements mide cada permiso, por id. */
   const gateModuleById = new Map<string, string | null>(
-    catalog.map(permission => [permission.id, permission.gateModule ?? null]),
+    catalog.map((permission) => [permission.id, permission.gateModule ?? null]),
   );
   const isDormant = (permissionId: string): boolean => {
     if (enabledModules === null) {
@@ -198,9 +247,9 @@ export function buildAccessView(
     lockedByModule.set(permission.module, list);
   }
 
-  return grantedModules.map(module => {
+  return grantedModules.map((module) => {
     const granted: AccessRow[] = module.permissions
-      .map(permission => ({
+      .map((permission) => ({
         permissionId: permission.permissionId,
         code: permission.code,
         label: labelFromCode(permission.code),
@@ -211,7 +260,7 @@ export function buildAccessView(
       .sort((a, b) => a.code.localeCompare(b.code));
 
     const locked: AccessRow[] = (lockedByModule.get(module.module) ?? [])
-      .map(permission => ({
+      .map((permission) => ({
         permissionId: permission.id,
         code: permission.code,
         label: labelFromCode(permission.code),
@@ -222,6 +271,12 @@ export function buildAccessView(
       .sort((a, b) => a.code.localeCompare(b.code));
 
     const meta = metaFor(module.module);
-    return { key: module.module, label: meta.label, description: meta.description, icon: meta.icon, rows: [...granted, ...locked] };
+    return {
+      key: module.module,
+      label: meta.label,
+      description: meta.description,
+      icon: meta.icon,
+      rows: [...granted, ...locked],
+    };
   });
 }

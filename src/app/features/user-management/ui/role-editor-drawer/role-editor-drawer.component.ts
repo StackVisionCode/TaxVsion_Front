@@ -1,4 +1,14 @@
-import { CUSTOM_ELEMENTS_SCHEMA, Component, EventEmitter, Input, OnInit, Output, computed, inject, signal } from '@angular/core';
+import {
+  CUSTOM_ELEMENTS_SCHEMA,
+  Component,
+  EventEmitter,
+  Input,
+  OnInit,
+  Output,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { FormsModule } from '@angular/forms';
@@ -11,7 +21,7 @@ import { RolesStore, notGrantableLabel, notGrantableReason } from '../../data-ac
  *
  * El picker ofrece SOLO lo que el backend dice que hoy es concedible (`grantable`), y lo que no,
  * lo muestra apagado **con el motivo**. Ésa es la diferencia con no mostrarlo: el administrador que
- * busca "reports.view" y no lo encuentra cree que la aplicación está rota; el que lo ve apagado con
+ * busca un permiso y no lo encuentra cree que la aplicación está rota; el que lo ve apagado con
  * "Not included in your plan" sabe exactamente qué hacer.
  *
  * Un rol de sistema no se edita: se abre en modo lectura para poder mirar qué trae antes de
@@ -48,7 +58,11 @@ export class RoleEditorDrawerComponent implements OnInit {
 
   /** Sin catálogo no se puede traducir a ids: guardar dejaría el rol sin permisos. */
   readonly canSave = computed(
-    () => !this.readOnly() && this.name().trim().length > 0 && !this.saving() && this.store.catalogReady(),
+    () =>
+      !this.readOnly() &&
+      this.name().trim().length > 0 &&
+      !this.saving() &&
+      this.store.catalogReady(),
   );
   readonly selectedCount = computed(() => this.selected().size);
 
@@ -59,15 +73,15 @@ export class RoleEditorDrawerComponent implements OnInit {
       return this.catalogByModule();
     }
     return this.catalogByModule()
-      .map(group => ({
+      .map((group) => ({
         module: group.module,
         permissions: group.permissions.filter(
-          permission =>
+          (permission) =>
             permission.code.toLowerCase().includes(query) ||
             permission.description.toLowerCase().includes(query),
         ),
       }))
-      .filter(group => group.permissions.length > 0);
+      .filter((group) => group.permissions.length > 0);
   });
 
   ngOnInit(): void {
@@ -99,7 +113,7 @@ export class RoleEditorDrawerComponent implements OnInit {
     if (this.readOnly() || this.isLocked(permission)) {
       return;
     }
-    this.selected.update(current => {
+    this.selected.update((current) => {
       const next = new Set(current);
       if (!next.delete(permission.code)) {
         next.add(permission.code);
