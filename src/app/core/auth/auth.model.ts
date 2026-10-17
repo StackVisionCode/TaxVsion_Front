@@ -78,9 +78,21 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
-/** Cuerpo de POST /auth/password/reset/validate: el mismo token del enlace, sin contraseña. */
-export interface ValidateResetTokenRequest {
-  token: string;
+/** Datos mínimos de la oficina real del token — para pintar branding y rebotar al subdominio correcto si el
+ * enlace se abrió en otro host. Espejo de <c>InvitationTenantBrand</c>. */
+export interface PasswordResetTenantBrand {
+  id: string;
+  name: string;
+  subDomain: string;
+}
+
+/** Respuesta de GET /auth/password/reset/validate — estado del token ANTES de mostrar el formulario. Siempre
+ * 200 (anti-enumeración). `status === 'Valid'` muestra el formulario; el resto muestra "este enlace ya no es
+ * válido". `tenant` solo se incluye en `Valid`. */
+export interface PasswordResetValidation {
+  /** 'Valid' | 'Invalid'. */
+  status: string;
+  tenant: PasswordResetTenantBrand | null;
 }
 
 /** Respuesta de POST /auth/account/handoff: vale de un solo uso para abrir el Account del Landing. */

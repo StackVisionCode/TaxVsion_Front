@@ -44,10 +44,22 @@ export const FEATURES: readonly FeatureDefinition[] = [
   { id: 'plans', label: 'Plans', route: 'plans', module: null, anyOf: [] },
   // Soporte queda exento del gate de módulo a propósito: una oficina con el plan vencido tiene que
   // poder escribirle a soporte, que es justamente cuando más lo necesita.
-  { id: 'support', label: 'Support', route: 'support', module: null, anyOf: ['communication.support.open'] },
+  {
+    id: 'support',
+    label: 'Support',
+    route: 'support',
+    module: null,
+    anyOf: ['communication.support.open'],
+  },
 
   // ---- Clientes ----
-  { id: 'clients', label: 'Clients', route: 'clients', module: 'customers', anyOf: ['customers.view'] },
+  {
+    id: 'clients',
+    label: 'Clients',
+    route: 'clients',
+    module: 'customers',
+    anyOf: ['customers.view'],
+  },
   // Subruta de clients con su propio permiso. El backend además exige actor administrativo, y eso
   // no es un permission: lo cubre `ClientPermissions.canImport`, que mira las dos capas.
   {
@@ -59,8 +71,20 @@ export const FEATURES: readonly FeatureDefinition[] = [
   },
 
   // ---- Documentos y archivos ----
-  { id: 'documents', label: 'Documents', route: 'documents', module: 'documents', anyOf: ['cloudstorage.file.view'] },
-  { id: 'storage', label: 'Storage', route: 'storage', module: 'documents', anyOf: ['cloudstorage.file.view'] },
+  {
+    id: 'documents',
+    label: 'Documents',
+    route: 'documents',
+    module: 'documents',
+    anyOf: ['cloudstorage.file.view'],
+  },
+  {
+    id: 'storage',
+    label: 'Storage',
+    route: 'storage',
+    module: 'documents',
+    anyOf: ['cloudstorage.file.view'],
+  },
 
   // ---- Comunicación: chat, reuniones y correo ----
   {
@@ -113,13 +137,31 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: 'signatures',
     anyOf: ['signature.preparer.manage'],
   },
-  { id: 'campaigns', label: 'Campaigns', route: 'campaigns', module: 'campaigns', anyOf: ['campaigns.view'] },
+  {
+    id: 'campaigns',
+    label: 'Campaigns',
+    route: 'campaigns',
+    module: 'campaigns',
+    anyOf: ['campaigns.view'],
+  },
   // SMS no es un módulo del plan: se cobra aparte por consumo.
   { id: 'sms', label: 'SMS', route: 'sms', module: null, anyOf: ['sms.read'] },
 
   // ---- Catálogo e inventario ----
-  { id: 'catalog', label: 'Products/Services', route: 'products-services', module: null, anyOf: ['catalog.read'] },
-  { id: 'inventory', label: 'Inventory', route: 'inventory', module: null, anyOf: ['inventory.read'] },
+  {
+    id: 'catalog',
+    label: 'Products/Services',
+    route: 'products-services',
+    module: null,
+    anyOf: ['catalog.read'],
+  },
+  {
+    id: 'inventory',
+    label: 'Inventory',
+    route: 'inventory',
+    module: null,
+    anyOf: ['inventory.read'],
+  },
 
   // ---- Dinero ----
   { id: 'billing', label: 'Billing', route: 'billing', module: null, anyOf: ['invoicing.view'] },
@@ -135,8 +177,20 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: null,
     anyOf: ['settings.manage', 'branding.manage'],
   },
-  { id: 'templates', label: 'Templates', route: 'templates', module: null, anyOf: ['notification.template.view'] },
-  { id: 'referrals', label: 'Referrals', route: 'referrals', module: null, anyOf: ['referrals.own.read'] },
+  {
+    id: 'templates',
+    label: 'Templates',
+    route: 'templates',
+    module: null,
+    anyOf: ['notification.template.view'],
+  },
+  {
+    id: 'referrals',
+    label: 'Referrals',
+    route: 'referrals',
+    module: null,
+    anyOf: ['referrals.own.read'],
+  },
 
   // ---- Sin backend todavía ----
   // El constructor de flujos todavía no tiene servicio detrás (trabaja en el navegador), pero está
@@ -159,7 +213,7 @@ export const NON_FEATURE_ROUTES: readonly string[] = [
 ];
 
 export function featureByRoute(route: string): FeatureDefinition | undefined {
-  return FEATURES.find(feature => feature.route === route);
+  return FEATURES.find((feature) => feature.route === route);
 }
 
 /**
@@ -167,7 +221,7 @@ export function featureByRoute(route: string): FeatureDefinition | undefined {
  * ruta de una entrada puede ser una subpágina (`/signature/templates`) de la misma feature.
  */
 export function featureById(id: string): FeatureDefinition | undefined {
-  return FEATURES.find(feature => feature.id === id);
+  return FEATURES.find((feature) => feature.id === id);
 }
 
 /**
@@ -177,9 +231,9 @@ export function featureById(id: string): FeatureDefinition | undefined {
  */
 export function featureForUrl(url: string): FeatureDefinition | undefined {
   const path = url.split('?')[0].split('#')[0].replace(/^\/+/, '');
-  return FEATURES.filter(feature => path === feature.route || path.startsWith(feature.route + '/')).sort(
-    (a, b) => b.route.length - a.route.length,
-  )[0];
+  return FEATURES.filter(
+    (feature) => path === feature.route || path.startsWith(feature.route + '/'),
+  ).sort((a, b) => b.route.length - a.route.length)[0];
 }
 
 /**
@@ -199,7 +253,6 @@ const MODULE_LABELS: Readonly<Record<string, string>> = {
   planner: 'Tasks and calendar',
   signatures: 'E-signature',
   campaigns: 'Campaigns',
-  reports: 'Reports',
 };
 
 export function moduleLabel(module: string): string {

@@ -40,27 +40,12 @@ export interface SeatResponse {
   nextRenewalAtUtc: string | null;
   autoRenew: boolean;
   billingCycle: string;
-  currentUserId: string | null;
-  currentUserAssignedAtUtc: string | null;
 }
 
 export interface PurchaseSeatsRequest {
   seatType: string;
   quantity: number;
   autoRenew: boolean;
-}
-
-export interface AssignSeatRequest {
-  userId: string;
-}
-
-export interface ReleaseSeatRequest {
-  reason: string | null;
-}
-
-export interface ReassignSeatRequest {
-  toUserId: string;
-  reason: string | null;
 }
 
 /**
@@ -146,9 +131,9 @@ export interface ProviderCustomer {
 
 // ---------- Helpers de presentación ----------
 
-const ACTIVE_STATES = ['active', 'assigned', 'available'];
+const ACTIVE_STATES = ['active', 'available'];
 const WARNING_STATES = ['pastdue', 'suspended'];
-const ENDED_STATES = ['cancelled', 'canceled', 'expired', 'released'];
+const ENDED_STATES = ['cancelled', 'canceled', 'expired'];
 
 /**
  * Tono (de `app-status-pill`) del estado. Se compara en minúsculas y cualquier valor que el

@@ -59,10 +59,6 @@
         (pageChange)="onInvitationsPageChange($event)"></app-pagination>
     </div>
 
-    <!-- Seats: quién ocupa cada asiento comprado. Comprar sigue siendo el botón de arriba. -->
-    <div *ngIf="tab() === 'seats'" class="mt-5">
-      <app-seats-panel [teammates]="members()"></app-seats-panel>
-    </div>
   </div>
 </div>
 

@@ -17,12 +17,11 @@ import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
 import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
-import { SeatsPanelComponent } from '../../ui/seats-panel/seats-panel.component';
 import { UserManagementCapabilities } from '../../data-access/user-management-permissions';
 import { RolesPanelComponent } from '../../ui/roles-panel/roles-panel.component';
 import { RolesStore } from '../../data-access/roles.store';
 
-type TeamTab = 'members' | 'invitations' | 'roles' | 'seats';
+type TeamTab = 'members' | 'invitations' | 'roles';
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -47,7 +46,6 @@ const SEARCH_DEBOUNCE_MS = 300;
     EditAccessDrawerComponent,
     OffboardDialogComponent,
     SeatPurchaseModalComponent,
-    SeatsPanelComponent,
     PaginationComponent,
     ConfirmDialogComponent,
     RolesPanelComponent,
@@ -114,7 +112,9 @@ export class UserManagementPageComponent {
       : '';
   });
 
-  /** Pestañas; Roles y Seats solo con su permiso (`roles.manage` / seats), igual que antes. */
+  /** Pestañas; Roles solo con `roles.manage`. La compra de asientos vive en el botón "Buy seats" de la
+   * cabecera — ya no hay tab Seats: la asignación manual se retiró porque el seat se consume automáticamente
+   * al invitar (`PlanGuard.EnsureSeatAvailableAsync` en el backend). */
   readonly tabOptions = computed<FilterChipOption<TeamTab>[]>(() => {
     const options: FilterChipOption<TeamTab>[] = [
       { id: 'members', label: `Members (${this.membersTotal()})` },
@@ -122,9 +122,6 @@ export class UserManagementPageComponent {
     ];
     if (this.can.canManageRoles()) {
       options.push({ id: 'roles', label: 'Roles' });
-    }
-    if (this.can.canManageSeats()) {
-      options.push({ id: 'seats', label: 'Seats' });
     }
     return options;
   });

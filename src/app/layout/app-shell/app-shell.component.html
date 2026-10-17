@@ -15,6 +15,9 @@
     <!-- Banner global del ciclo de vida de la suscripción (Expiración/Dunning). Se auto-oculta si está OK.
          En desktop (lg+) deja libre el ancho del hueco del navbar. -->
     <app-subscription-banner class="block lg:pr-[var(--shell-notch-width)]"></app-subscription-banner>
+    <!-- Over-cap de asientos: cuando el tenant tiene más empleados activos que seats pagados (p. ej. un
+         seat se suspendió por falta de pago y bajó el cupo). Solo lo ve el TenantAdmin. -->
+    <app-seat-over-cap-banner class="block lg:pr-[var(--shell-notch-width)]"></app-seat-over-cap-banner>
     <main class="relative min-w-0 flex-1">
       <!-- Señal de que se está cambiando de sección. Aparece solo si la navegación pasa de
            120 ms: antes no había NADA entre el clic en el sidebar y el pintado. -->
