@@ -252,4 +252,16 @@ export class UserManagementService {
   reactivateRole(roleId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/roles/${roleId}/reactivate`, {});
   }
+
+  /**
+   * SG-8 — PATCH /auth/admin/users/{userId}/slot-priority. Reasigna la prioridad del asiento del
+   * empleado (null = quitar el override). `reason` es obligatorio para el audit log; el backend
+   * rechaza con 400 si viene vacío.
+   */
+  overrideSlotPriority(userId: string, slotPriorityAt: string | null, reason: string): Observable<void> {
+    return this.http.patch<void>(`${this.base}/admin/users/${userId}/slot-priority`, {
+      slotPriorityAt,
+      reason,
+    });
+  }
 }

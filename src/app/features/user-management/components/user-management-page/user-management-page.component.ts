@@ -18,6 +18,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { UserManagementStore } from '../../data-access/user-management.store';
 import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 import { UserManagementCapabilities } from '../../data-access/user-management-permissions';
+import { UserManagementService } from '../../data-access/user-management.service';
 import { RolesPanelComponent } from '../../ui/roles-panel/roles-panel.component';
 import { RolesStore } from '../../data-access/roles.store';
 
@@ -65,6 +66,7 @@ export class UserManagementPageComponent {
 
   private readonly store = inject(UserManagementStore);
   private readonly seatStore = inject(SeatPurchaseStore);
+  private readonly service = inject(UserManagementService);
   private readonly toast = inject(ToastService);
 
   readonly members = this.store.members;
@@ -343,5 +345,50 @@ export class UserManagementPageComponent {
       error: err => this.toast.error(toApiError(err).message),
     });
     this.pendingCancel.set(null);
+  }
+
+  /**
+   * SG-8 — "Move up in order": fija la prioridad del asiento al origen de tiempo (`DateTime.MinValue`),
+   * poniendo al empleado al tope del orden. La UI del CRM lo pide con un prompt ligero: el landing ya
+   * tiene el modal pesado con el textarea.
+   */
+  moveSlotUp(member: TeamMember): void {
+    this.applySlotOverride(member, '0001-01-01T00:00:00Z', 'Move up in order');
+  }
+
+  /** "Set to end": null quita el override y manda al empleado al final del orden determinista. */
+  moveSlotEnd(member: TeamMember): void {
+    this.applySlotOverride(member, null, 'Set to end');
+  }
+
+  private applySlotOverride(member: TeamMember, slotPriorityAt: string | null, defaultReason: string): void {
+    const reason = this.askForReason(defaultReason);
+    if (reason === null) {
+      return;
+    }
+    this.service.overrideSlotPriority(member.id, slotPriorityAt, reason).subscribe({
+      next: () => {
+        this.toast.success(`Updated slot order for ${member.name}`);
+        this.store.loadMembers(this.membersPage());
+      },
+      error: err => this.toast.error(toApiError(err).message),
+    });
+  }
+
+  /**
+   * Prompt rápido para capturar el `reason` del audit log. El landing ya tiene el modal largo con
+   * textarea; acá se mantiene liviano. Si el usuario cancela, devuelve null (no se dispara el PATCH).
+   */
+  private askForReason(defaultText: string): string | null {
+    try {
+      const value = window.prompt('Reason for the slot change (required for audit log):', defaultText);
+      if (value === null) {
+        return null;
+      }
+      const trimmed = value.trim();
+      return trimmed.length === 0 ? defaultText : trimmed;
+    } catch {
+      return defaultText;
+    }
   }
 }

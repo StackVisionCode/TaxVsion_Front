@@ -31,6 +31,14 @@ export interface UserSummary {
   mfaEnabled: boolean;
   createdAtUtc: string;
   roles: string[];
+  /**
+   * SG-8 — posición del empleado en el orden determinista de asientos del tenant (1-based). Null si
+   * no ocupa slot (p. ej. `isActive=false`). Opcional: un backend anterior a Seat Slot Gating no la
+   * expone, y la UI tolera su ausencia (columna vacía, sin badge).
+   */
+  slotIndex?: number | null;
+  /** SG-8 — `true` si este empleado está por encima del cap efectivo (asiento add-on impago). */
+  isGated?: boolean;
 }
 
 /** Fila de GET /auth/invitations (InvitationResponse). El backend no expone los roleIds de la invitación. */
@@ -298,6 +306,8 @@ export function userToTeamMember(user: UserSummary): TeamMember {
     // 'Offboarded' es terminal (Removed): distinto de una suspensión reversible; el resto por isActive.
     status: user.status === 'Offboarded' ? 'removed' : user.isActive ? 'active' : 'suspended',
     activity: `Joined ${formatDate(user.createdAtUtc)}`,
+    slotIndex: user.slotIndex ?? null,
+    isGated: user.isGated === true,
   };
 }
 
@@ -319,5 +329,7 @@ export function invitationToTeamMember(invitation: InvitationSummary): TeamMembe
     actorType: invitation.actorType,
     status: 'invited',
     activity: `Invited ${formatDate(invitation.lastSentAtUtc ?? invitation.createdAtUtc)} · expires ${formatDate(invitation.expiresAtUtc)}`,
+    slotIndex: null,
+    isGated: false,
   };
 }

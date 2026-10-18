@@ -26,6 +26,10 @@ export interface TeamMember {
   actorType: string;
   status: MemberStatus;
   activity: string;
+  /** SG-8 — posición 1-based en el orden determinista de asientos. Null para invitaciones y backend viejo. */
+  slotIndex?: number | null;
+  /** SG-8 — asiento add-on impago, por encima del cap efectivo del tenant. */
+  isGated?: boolean;
 }
 
 const ROLE_CHIP_PALETTE = [
@@ -62,12 +66,20 @@ export class UserTableComponent {
   @Input() canInvite = true;
   @Input() canManageUsers = true;
   @Input() canManageRoles = true;
+  /**
+   * SG-8 — las acciones "Move up in order" / "Set to end" solo tienen sentido para TenantAdmin.
+   * El backend valida igual (G-C4), pero esto evita ofrecer un botón que iba a dar 403.
+   */
+  @Input() canManageSlotPriority = false;
 
   @Output() editRoles = new EventEmitter<TeamMember>();
   @Output() resendInvite = new EventEmitter<TeamMember>();
   @Output() toggleSuspend = new EventEmitter<TeamMember>();
   @Output() offboard = new EventEmitter<TeamMember>();
   @Output() cancelInvite = new EventEmitter<TeamMember>();
+  /** SG-8 — reordena hacia arriba (prioridad más antigua) o al final (slot más alto, candidato a gated). */
+  @Output() moveSlotUp = new EventEmitter<TeamMember>();
+  @Output() moveSlotEnd = new EventEmitter<TeamMember>();
 
   /** Chip determinístico por nombre de rol (los roles del tenant son dinámicos, no un enum fijo). */
   roleChip(roleName: string): string {

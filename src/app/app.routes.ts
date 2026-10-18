@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
+import { seatSlotGatedCanActivateChild } from '@core/auth/seat-slot-gated.guard';
 import { accessCanActivateChild, accessCanMatch } from '@core/access/access.guard';
 import { redirectToLandingGuard } from '@core/config/landing';
 
@@ -156,9 +157,17 @@ export const routes: Routes = [
     title: 'Pay invoice',
   },
   {
+    // SG-8 — pantalla de bloqueo por asiento gated. Fuera del shell y del authGuard: cuando el
+    // interceptor atrapa el 403 `seats.user_slot_gated` manda acá, y a esa altura el token puede
+    // estar vigente o no — da igual, la pantalla solo necesita el payload del store.
+    path: 'blocked',
+    data: { preload: false },
+    loadChildren: () => import('./features/blocked/blocked.routes').then(m => m.BLOCKED_ROUTES),
+  },
+  {
     path: '',
     component: AppShellComponent,
-    canActivateChild: [authGuard, accessCanActivateChild],
+    canActivateChild: [authGuard, seatSlotGatedCanActivateChild, accessCanActivateChild],
     children: [
       {
         path: 'dashboard',

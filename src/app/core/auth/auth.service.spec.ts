@@ -168,9 +168,17 @@ describe('AuthService', () => {
 
     service.validateResetToken('raw-1').subscribe();
 
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/password/reset/validate`);
-    expect(req.request.body).toEqual({ token: 'raw-1' });
-    req.flush(null, { status: 204, statusText: 'No Content' });
+    // Anti-enumeración: el endpoint responde siempre (Valid|Invalid). Es un GET con `token`
+    // en query — nunca en el body — para que proxies/logs no vean credenciales en POST bodies
+    // y, de paso, para que nada que se parezca a una contraseña viaje con la petición.
+    const req = httpMock.expectOne(
+      r =>
+        r.method === 'GET' &&
+        r.url === `${environment.apiUrl}/auth/password/reset/validate` &&
+        r.params.get('token') === 'raw-1',
+    );
+    expect(req.request.body).toBeNull();
+    req.flush({ status: 'Valid', tenant: null });
   });
 
   describe('olvido de contraseña en producción', () => {
