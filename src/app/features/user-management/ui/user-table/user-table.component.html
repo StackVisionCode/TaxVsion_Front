@@ -5,6 +5,7 @@
         <th class="rounded-l-2xl bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Name</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Email</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Roles</th>
+        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Slot #</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Activity</th>
         <th class="rounded-r-2xl bg-brand-white px-4 py-3"></th>
@@ -38,6 +39,18 @@
           </span>
         </td>
         <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
+          [class.border-gray-100]="!last" data-testid="slot-cell">
+          <span class="flex items-center gap-2">
+            <span class="font-medium text-gray-700" *ngIf="member.slotIndex != null; else noSlot">{{ member.slotIndex }}</span>
+            <ng-template #noSlot><span class="text-xs text-gray-400">—</span></ng-template>
+            <span *ngIf="member.isGated"
+              class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.6875rem] font-semibold text-amber-700"
+              data-testid="gated-badge">
+              Gated
+            </span>
+          </span>
+        </td>
+        <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors" [class.border-b]="!last"
           [class.border-gray-100]="!last">
           <app-status-pill [tone]="statusTone(member.status)" [soft]="true">{{ statusLabel(member.status) }}</app-status-pill>
         </td>
@@ -56,6 +69,16 @@
                 <ion-icon [name]="member.status === 'suspended' ? 'play-circle-outline' : 'pause-circle-outline'"
                   class="text-sm text-gray-400"></ion-icon>
                 {{ member.status === 'suspended' ? 'Reactivate' : 'Suspend' }}
+              </button>
+              <button *ngIf="canManageSlotPriority && member.slotIndex != null" appMenuItem type="button"
+                data-testid="slot-move-up" (click)="moveSlotUp.emit(member)">
+                <ion-icon name="arrow-up-outline" class="text-sm text-gray-400"></ion-icon>
+                Move up in order
+              </button>
+              <button *ngIf="canManageSlotPriority && member.slotIndex != null" appMenuItem type="button"
+                data-testid="slot-set-end" (click)="moveSlotEnd.emit(member)">
+                <ion-icon name="arrow-down-outline" class="text-sm text-gray-400"></ion-icon>
+                Set to end
               </button>
               <button *ngIf="canManageUsers" appMenuItem [danger]="true" type="button" class="border-t border-gray-100"
                 (click)="offboard.emit(member)">

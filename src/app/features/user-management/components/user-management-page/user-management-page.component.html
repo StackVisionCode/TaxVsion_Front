@@ -36,8 +36,10 @@
       <p *ngIf="membersError()" class="mb-3 text-sm text-red-600">{{ membersError() }}</p>
       <app-user-table [members]="members()" [currentUserId]="currentUserId()"
         [canInvite]="can.canInvite()" [canManageUsers]="can.canManageUsers()" [canManageRoles]="can.canManageRoles()"
+        [canManageSlotPriority]="can.canManageSlotPriority()"
         emptyMessage="No team members match your search" (editRoles)="openAccessDrawer($event)"
-        (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)"></app-user-table>
+        (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)"
+        (moveSlotUp)="moveSlotUp($event)" (moveSlotEnd)="moveSlotEnd($event)"></app-user-table>
       <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
         (pageChange)="onMembersPageChange($event)"></app-pagination>
     </div>

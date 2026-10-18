@@ -43,4 +43,10 @@ export class UserManagementCapabilities {
   readonly canManageAddOns: Signal<boolean> = computed(() =>
     this.access.can(UserManagementPermissions.AddOnsManage),
   );
+
+  /**
+   * SG-8 — "Move up in order" / "Set to end" solo tienen sentido para TenantAdmin: el backend valida
+   * igual (G-C4), pero esto evita ofrecer el botón a quien iba a recibir 403.
+   */
+  readonly canManageSlotPriority: Signal<boolean> = computed(() => this.access.isAdmin());
 }
