@@ -207,13 +207,32 @@ export class MailStore {
    * Buzón de OFICINA (compartido) del tenant, si existe. El list del backend lo devuelve a todos
    * (OwnerUserId null es visible para cualquiera del tenant), así que esto se puebla también para
    * empleados sin permiso de administrarlo. Hay como mucho uno (el admin conecta un solo buzón).
+   *
+   * Excluimos `Disconnected`/`Draft`: un buzón desconectado NO debe bloquear la reconexión; el UI
+   * tiene que ofrecer los proveedores (Gmail OAuth, Microsoft, IMAP) de nuevo. Error sí entra para
+   * que el panel permita reautorizar.
    */
-  readonly officeAccount = computed(() => this._accounts().find(account => account.isOffice) ?? null);
+  readonly officeAccount = computed(
+    () =>
+      this._accounts().find(
+        account =>
+          account.isOffice &&
+          (account.status === 'Connected' || account.status === 'Active' || account.status === 'Error'),
+      ) ?? null,
+  );
   /**
    * Buzón PERSONAL del usuario, si existe. El list del backend scopea a oficina + propios, así que
-   * cualquier cuenta no-oficina de la lista es la del propio usuario.
+   * cualquier cuenta no-oficina de la lista es la del propio usuario. Misma regla de estado que
+   * officeAccount: Disconnected/Draft no bloquea el flujo de conectar uno nuevo.
    */
-  readonly myAccount = computed(() => this._accounts().find(account => !account.isOffice) ?? null);
+  readonly myAccount = computed(
+    () =>
+      this._accounts().find(
+        account =>
+          !account.isOffice &&
+          (account.status === 'Connected' || account.status === 'Active' || account.status === 'Error'),
+      ) ?? null,
+  );
   /** ¿El usuario ya conectó su buzón personal? (no queda nada personal por conectar). */
   readonly myMailboxConnected = computed(() => this.myAccount() !== null);
 
@@ -1006,6 +1025,17 @@ export class MailStore {
     this.expandMessage(messageId);
   }
 
+  /** Expande un mensaje concreto sin alternarlo; false indica que el hilo aun no lo cargo. */
+  openMessage(messageId: string): boolean {
+    if (!this._messages().some(message => message.messageId === messageId)) {
+      return false;
+    }
+    if (this._expandedMessageId() !== messageId) {
+      this.expandMessage(messageId);
+    }
+    return true;
+  }
+
   private expandMessage(messageId: string): void {
     this._expandedMessageId.set(messageId);
     this.ensureBody(messageId);
@@ -1178,6 +1208,12 @@ export class MailStore {
    * - Saliente: el binario ya está en CloudStorage (attachmentId == fileId) — URL directa.
    * - Entrante: si nunca se pidió, POST /download dispara la copia a CloudStorage y se espera
    *   (GET /download-url da 409 mientras no termina). Marca el adjunto como Downloaded/Blocked.
+   *
+   * Lazy-download race: `downloadStatus=Downloaded` significa que Correspondence bajó el blob de
+   * Gmail, pero el `SaveFileRequestedIntegrationEvent` que lo copia a CloudStorage puede estar en
+   * vuelo o haber fallado en un intento previo — el GET /download-url devuelve 404 hasta que el
+   * file aterrice. En vez de propagar el 404 al user, caemos a la ruta lenta (POST /download +
+   * wait) para re-disparar la copia y transparentar el retry.
    */
   attachmentUrl(messageId: string, attachmentId: string): Observable<string> {
     const message = this._messages().find(m => m.messageId === messageId);
@@ -1185,12 +1221,19 @@ export class MailStore {
       return this.uploads.getDownloadUrl(attachmentId).pipe(map(result => result.downloadUrl));
     }
     const item = this._attachments().get(messageId)?.items.find(att => att.attachmentId === attachmentId);
+    const slowPath$ = this.service
+      .requestAttachmentDownload(messageId, attachmentId)
+      .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
     const url$ =
       item?.downloadStatus === 'Downloaded'
-        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId)
-        : this.service
-            .requestAttachmentDownload(messageId, attachmentId)
-            .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
+        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId).pipe(
+            catchError(err =>
+              err instanceof HttpErrorResponse && err.status === 404
+                ? slowPath$
+                : throwError(() => err),
+            ),
+          )
+        : slowPath$;
     return url$.pipe(
       map(result => {
         this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Downloaded' });

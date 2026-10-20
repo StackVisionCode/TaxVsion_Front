@@ -31,7 +31,10 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO
   // se duplica acá — vive en Company (arriba). Reusa el BillingStore de la feature billing.
   { id: 'invoices', featureId: 'billing', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
-  { id: 'mail', featureId: 'email', title: 'Mail', description: 'Notification emails and signatures', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
+  { id: 'mail', featureId: 'email', title: 'Mail', description: 'Outgoing signatures and default reply-to', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
+  // Preferencias de notificación por categoría × canal (FASE 8 del plan). Autoservicio: siempre
+  // visible, el backend filtra por UserId del JWT; sin featureId porque no hay módulo que apagar.
+  { id: 'notifications', title: 'Notifications', description: 'Choose how you want to be notified for each category', icon: 'notifications-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/notifications' },
   // Ajustes globales de firma: página dedicada, gateada por signature.settings.manage (no por
   // request.read), para que solo admins/managers vean la tarjeta y no una puerta pintada.
   { id: 'signature', featureId: 'signature-settings', title: 'Signature', description: 'E-signature defaults and reminders', icon: 'pencil-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/signature' },

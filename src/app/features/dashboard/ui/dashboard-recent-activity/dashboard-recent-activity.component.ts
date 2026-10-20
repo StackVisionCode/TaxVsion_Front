@@ -21,9 +21,8 @@ const MAX_EVENTS = 6;
  * feed de notificaciones de Communication (GET /communication/notifications),
  * que es literalmente el registro de lo que va pasando en el workspace:
  * signature.*, cloudstorage.*, customer.*, connectors.*. Así que el widget se
- * alimenta del `NotificationsStore` (providedIn: 'root', ya compartido con la
- * página de notificaciones: si esa página ya cargó, esto no repite la llamada)
- * y muestra las primeras filas de la página 1.
+ * alimenta de un feed propio del `NotificationsStore`, separado de la campana
+ * y de la página paginada, y muestra las primeras filas de la página 1.
  *
  * Es solo lectura: marcar como leída vive en la página de notificaciones.
  */
@@ -36,21 +35,21 @@ const MAX_EVENTS = 6;
 export class DashboardRecentActivityComponent implements OnInit {
   private readonly store = inject(NotificationsStore);
 
-  readonly loading = this.store.loading;
-  readonly error = this.store.error;
+  readonly loading = this.store.dashboardLoading;
+  readonly error = this.store.dashboardError;
 
-  readonly events = computed<AppNotification[]>(() => this.store.items().slice(0, MAX_EVENTS));
+  readonly events = computed<AppNotification[]>(() =>
+    this.store.dashboardItems().slice(0, MAX_EVENTS),
+  );
 
   ngOnInit(): void {
-    // El store es de root: si la página de notificaciones ya trajo la página 1,
-    // esto simplemente la vuelve a pedir una vez al entrar al dashboard.
-    if (this.store.items().length === 0) {
-      this.store.loadFirstPage();
+    if (this.store.dashboardItems().length === 0) {
+      this.store.loadDashboard();
     }
   }
 
   retry(): void {
-    this.store.loadFirstPage();
+    this.store.loadDashboard();
   }
 
   trackByEventId(_index: number, event: AppNotification): string {

@@ -37,6 +37,7 @@ const TASKS_READ = 'tasks.read';
 export class ClientProfileRequestsComponent implements OnChanges {
   @Input() clientId = '';
   @Input() clientName = '';
+  @Input() focusRequestId = '';
 
   readonly store = inject(ClientRequestsStore);
   private readonly perms = inject(PermissionService);

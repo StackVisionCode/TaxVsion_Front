@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { toApiError } from '@core/models/api-error.model';
@@ -23,6 +24,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { consumeQueryFlag } from '@shared/utils/query-flag.util';
+import { notificationResourceError } from '../../../notifications/data-access/notification-resource-error';
 
 type PriorityFilter = 'All' | ApiTaskPriority;
 
@@ -141,12 +143,44 @@ export class TaskPageComponent implements OnInit {
   ngOnInit(): void {
     this.viewMode.set(this.readViewMode());
     this.store.init();
-
-    // `?new=1` (acceso rápido del dashboard): abre el alta directamente. Solo en /task.
-    if (!this.embedded() && consumeQueryFlag(this.route, this.router, 'new') && this.canWrite()) {
-      this.openCreatePanel();
-    }
   }
+
+  /** Deep link reactivo: si el usuario ya esta en /task, un nuevo taskId cambia los
+   *  queryParams pero no vuelve a disparar ngOnInit; el efecto sigue a la URL. */
+  private readonly routeParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  private consumedTaskId: string | null = null;
+  private readonly taskDeepLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const taskId = this.routeParams().get('taskId');
+    if (!taskId || this.consumedTaskId === taskId) return;
+    this.consumedTaskId = taskId;
+    untracked(() => {
+      this.store.openTaskById(taskId).subscribe({
+        next: task => {
+          if (task) {
+            this.openDrawer(task);
+          } else {
+            this.toast.info('This task is no longer available in the active workspace.');
+          }
+        },
+        error: error => this.toast.error(notificationResourceError(error)),
+      });
+    });
+  });
+
+  private readonly newFlagEffect = effect(() => {
+    if (this.embedded()) return;
+    const flag = this.routeParams().get('new');
+    if (flag !== '1') return;
+    untracked(() => {
+      // consumeQueryFlag borra el flag de la URL; si quedan ids viejos no afectan al create panel.
+      if (consumeQueryFlag(this.route, this.router, 'new') && this.canWrite()) {
+        this.openCreatePanel();
+      }
+    });
+  });
 
   /** La búsqueda ya viene filtrada del servidor; acá solo se aplica el filtro de prioridad. */
   readonly visibleTasks = computed<TaskItem[]>(() => {

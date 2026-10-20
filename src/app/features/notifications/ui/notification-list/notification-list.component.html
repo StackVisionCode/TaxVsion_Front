@@ -2,12 +2,28 @@
   <div *ngFor="let notification of notifications; trackBy: trackByNotificationId"
     (click)="onRowClick(notification)"
     class="group relative flex cursor-pointer items-center gap-3 rounded-2xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50"
-    [ngClass]="notification.isRead ? 'bg-white' : 'bg-brand-white'">
+    [ngClass]="[notification.isRead ? 'bg-white' : 'bg-brand-white', isSelected(notification) ? 'ring-2 ring-brand-bold ring-offset-1' : '']">
 
-    <!-- Icon circle -->
+    <!-- Selection checkbox (solo cuando selectable=true) -->
+    <input *ngIf="selectable"
+      type="checkbox"
+      class="shrink-0 h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-bold focus:ring-brand-bold"
+      [checked]="isSelected(notification)"
+      (click)="onCheckboxClick($event, notification)"
+      [attr.aria-label]="'Select notification: ' + notification.title" />
+
+    <!-- Icon / avatar circle: iniciales del actor cuando el backend las mandó, ion-icon si no.
+         Mantiene el fondo gris/rojo del tipo para preservar el canal visual de "attention". -->
     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-      [ngClass]="[iconBgFor(notification.type), iconTextFor(notification.type)]">
-      <ion-icon [name]="iconFor(notification.type)" class="text-lg"></ion-icon>
+      [ngClass]="[iconBgFor(notification.type), iconTextFor(notification.type)]"
+      [attr.aria-label]="notification.actorDisplayName || null"
+      [attr.title]="notification.actorDisplayName || null">
+      <ng-container *ngIf="initialsFor(notification) as initials; else iconTpl">
+        <span class="text-xs font-bold tracking-wide">{{ initials }}</span>
+      </ng-container>
+      <ng-template #iconTpl>
+        <ion-icon [name]="iconFor(notification.type)" class="text-lg"></ion-icon>
+      </ng-template>
     </span>
 
     <!-- Info -->
@@ -22,7 +38,11 @@
     </div>
 
     <!-- Relative time -->
-    <span class="shrink-0 text-xs text-gray-400">{{ notification.time }}</span>
+    <time
+      class="shrink-0 text-xs text-gray-400"
+      [attr.datetime]="notification.occurredAtUtc || notification.createdAtUtc"
+      [attr.title]="absoluteTime(notification)"
+    >{{ relativeTime(notification) }}</time>
 
     <!-- Ghost "..." menu — solo para no leídas (la única acción HTTP del backend es mark-as-read) -->
     <app-dropdown-menu *ngIf="!notification.isRead" class="shrink-0" ariaLabel="Notification options" panelClass="w-48">

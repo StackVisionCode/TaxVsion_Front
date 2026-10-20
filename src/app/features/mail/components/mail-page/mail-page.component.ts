@@ -10,6 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
@@ -33,6 +34,14 @@ import { CorrespondenceCapabilities } from '../../data-access/correspondence-per
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
+import { ToastService } from '@shared/ui/toast/toast.service';
+
+interface NotificationMailDeepLink {
+  accountId: string | null;
+  customerId: string;
+  threadId: string;
+  messageId: string | null;
+}
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -79,6 +88,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly directory = inject(CustomerDirectoryStore);
+  private readonly toast = inject(ToastService);
 
   /** Cliente fijado por el perfil; `null` en /email. */
   private readonly embeddedCustomer = injectEmbeddedCustomer();
@@ -101,6 +111,47 @@ export class MailPageComponent implements OnInit, OnDestroy {
     });
   });
 
+  private readonly pendingNotificationLink = signal<NotificationMailDeepLink | null>(null);
+  private readonly notificationDeepLinkEffect = effect(() => {
+    const pending = this.pendingNotificationLink();
+    if (!pending) {
+      return;
+    }
+
+    if (pending.accountId && this.store.activeAccountId() !== pending.accountId) {
+      if (!this.store.usableAccounts().some(account => account.id === pending.accountId)) {
+        return;
+      }
+      untracked(() => this.store.setActiveAccount(pending.accountId!));
+      return;
+    }
+    if (this.store.selectedCustomerId() !== pending.customerId || this.store.threadsLoading()) {
+      return;
+    }
+    if (!this.store.threads().some(thread => thread.threadId === pending.threadId)) {
+      return;
+    }
+    if (this.store.selectedThreadId() !== pending.threadId) {
+      untracked(() => this.store.selectThread(pending.threadId));
+      return;
+    }
+    if (pending.messageId) {
+      if (this.store.messagesLoading() || !this.store.openMessage(pending.messageId)) {
+        return;
+      }
+    }
+
+    untracked(() => {
+      this.pendingNotificationLink.set(null);
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { accountId: null, customerId: null, threadId: null, messageId: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    });
+  });
+
   /** Draft resaltado en el listado mientras el composer lo carga (GET /drafts/{id} es async). */
   readonly selectedDraftId = signal<string | null>(null);
 
@@ -117,44 +168,85 @@ export class MailPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
     this.store.init();
-    // Embebido: los query params son del perfil, no de Mail (ni OAuth ni deep link de compose).
-    if (this.embedded()) {
-      return;
-    }
-    this.consumeOAuthCallback();
-    this.consumeComposeDeepLink();
   }
+
+  /**
+   * Reactivo: si el usuario ya esta en /email y abre otra notificacion de correo, los
+   * queryParams cambian pero ngOnInit no vuelve a disparar; los efectos siguen a la URL.
+   * Cada handler limpia los params que consume para no reactivar el mismo deep link.
+   */
+  private readonly routeParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+
+  private consumedNotificationLink: string | null = null;
+  private consumedComposeLink: string | null = null;
+  private consumedOAuthCallback: string | null = null;
+
+  private readonly notificationLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const params = this.routeParams();
+    const customerId = params.get('customerId');
+    const threadId = params.get('threadId');
+    if (!customerId || !threadId) return;
+    const key = `${customerId}|${threadId}|${params.get('messageId') ?? ''}|${params.get('accountId') ?? ''}`;
+    if (this.consumedNotificationLink === key) return;
+    this.consumedNotificationLink = key;
+    untracked(() => {
+      const pending: NotificationMailDeepLink = {
+        accountId: params.get('accountId'),
+        customerId,
+        threadId,
+        messageId: params.get('messageId'),
+      };
+      this.directory.byId([customerId]).subscribe({
+        next: found => {
+          const customer = found.get(customerId);
+          if (!customer) {
+            this.toast.info('This client is no longer available.');
+            return;
+          }
+          this.directory.addRecent(customer);
+          this.pickCustomer(customer);
+          this.pendingNotificationLink.set(pending);
+        },
+        error: () => this.toast.error('We could not open this email conversation.'),
+      });
+    });
+  });
 
   /**
    * `/email?compose=1&customerId=<id>&to=<email>` (acción "Send email" del perfil del cliente):
    * elige ese cliente (leído del directorio) y abre el composer con el destinatario precargado.
    * Limpia la URL. Solo con permiso de redactar (`correspondence.compose`).
    */
-  private consumeComposeDeepLink(): void {
-    const params = this.route.snapshot.queryParamMap;
+  private readonly composeLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const params = this.routeParams();
+    if (!hasComposeMailParams(params)) return;
     const link = parseComposeMailDeepLink(params);
-    if (hasComposeMailParams(params)) {
+    const key = `${params.get('compose') ?? ''}|${params.get('customerId') ?? ''}|${params.get('to') ?? ''}`;
+    if (this.consumedComposeLink === key) return;
+    this.consumedComposeLink = key;
+    untracked(() => {
       void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
-    }
-    if (!link || !this.can.canCompose()) {
-      return;
-    }
-    this.directory.byId([link.customerId]).subscribe({
-      next: found => {
-        const customer = found.get(link.customerId);
-        if (!customer) {
-          return;
-        }
-        this.directory.addRecent(customer);
-        this.pickCustomer(customer);
-        this.pendingCompose.set(link);
-      },
-      error: () => undefined,
+      if (!link || !this.can.canCompose()) return;
+      this.directory.byId([link.customerId]).subscribe({
+        next: found => {
+          const customer = found.get(link.customerId);
+          if (!customer) return;
+          this.directory.addRecent(customer);
+          this.pickCustomer(customer);
+          this.pendingCompose.set(link);
+        },
+        error: () => undefined,
+      });
     });
-  }
+  });
 
   ngOnDestroy(): void {
     this.pendingCompose.set(null);
+    this.pendingNotificationLink.set(null);
     // Cierra el socket realtime de correo entrante al salir del módulo.
     this.store.teardown();
   }
@@ -186,34 +278,36 @@ export class MailPageComponent implements OnInit, OnDestroy {
    * `accountId` recién conectado y no deben quedar en el historial). Tras un connect
    * exitoso se re-listan las cuentas para que la bandeja aparezca sin recargar.
    */
-  private consumeOAuthCallback(): void {
-    const params = this.route.snapshot.queryParamMap;
+  private readonly oauthCallbackEffect = effect(() => {
+    if (this.embedded()) return;
+    const params = this.routeParams();
     const connected = params.get('connectors_connected');
     const error = params.get('connectors_error');
     const adminConsent = params.get('connectors_admin_consent');
-    if (!connected && !error && !adminConsent) {
-      return;
-    }
-
-    if (connected === 'true') {
-      this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
-      this.store.reloadAccounts();
-    } else if (adminConsent) {
-      this.connectResult.set(
-        adminConsent === 'true'
-          ? { ok: true, text: 'Admin consent granted — you can connect the mailbox now.' }
-          : { ok: false, text: 'Admin consent was denied.' },
-      );
-    } else {
-      this.connectResult.set({ ok: false, text: this.mailboxErrorMessage(error) });
-    }
-
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {},
-      replaceUrl: true,
+    if (!connected && !error && !adminConsent) return;
+    const key = `${connected ?? ''}|${error ?? ''}|${adminConsent ?? ''}`;
+    if (this.consumedOAuthCallback === key) return;
+    this.consumedOAuthCallback = key;
+    untracked(() => {
+      if (connected === 'true') {
+        this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
+        this.store.reloadAccounts();
+      } else if (adminConsent) {
+        this.connectResult.set(
+          adminConsent === 'true'
+            ? { ok: true, text: 'Admin consent granted — you can connect the mailbox now.' }
+            : { ok: false, text: 'Admin consent was denied.' },
+        );
+      } else {
+        this.connectResult.set({ ok: false, text: this.mailboxErrorMessage(error) });
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true,
+      });
     });
-  }
+  });
 
   // ---------- Carpetas (sólo las que el backend respalda) ----------
 

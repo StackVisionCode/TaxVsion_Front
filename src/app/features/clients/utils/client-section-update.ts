@@ -16,6 +16,9 @@ export interface ContactSectionPatch {
   primaryPhone: string | null;
   language: CustomerLanguage;
   preferredChannel: PreferredChannel;
+  /** ContactPolicy (T7.2) — se envía con el PATCH; backend trata null como "preservar". */
+  emailEnabled: boolean;
+  smsEnabled: boolean;
 }
 
 export interface PersonalSectionPatch {
@@ -86,6 +89,8 @@ export function buildSectionUpdateRequest(
         primaryPhone: patch.primaryPhone,
         language: patch.language,
         preferredChannel: patch.preferredChannel,
+        emailEnabled: patch.emailEnabled,
+        smsEnabled: patch.smsEnabled,
       };
     case 'personal':
       return {

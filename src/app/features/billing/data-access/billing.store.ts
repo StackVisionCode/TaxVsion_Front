@@ -312,6 +312,20 @@ export class BillingStore {
     });
   }
 
+  /** Carga puntual para deep links; el endpoint vuelve a autorizar tenant, permiso y plan. */
+  openInvoiceById(invoiceId: string): Observable<InvoiceSummary> {
+    return this.service.getInvoice(invoiceId).pipe(
+      tap(invoice => {
+        this._invoices.update(list =>
+          list.some(item => item.id === invoice.id)
+            ? list.map(item => (item.id === invoice.id ? invoice : item))
+            : [invoice, ...list],
+        );
+        this.selectInvoice(invoice);
+      }),
+    );
+  }
+
   private patchInvoice(updated: InvoiceSummary): void {
     this._invoices.update(list => list.map(invoice => (invoice.id === updated.id ? updated : invoice)));
     if (this._selectedInvoice()?.id === updated.id) {

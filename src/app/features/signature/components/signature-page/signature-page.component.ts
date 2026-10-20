@@ -10,6 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
@@ -55,6 +56,7 @@ import {
   TOKEN_EXPIRATION_MIN_HOURS,
 } from '../../data-access/signature.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
+import { notificationResourceError } from '../../../notifications/data-access/notification-resource-error';
 
 const STATUS_FILTERS: SignatureStatusFilter[] = [
   'All',
@@ -240,8 +242,30 @@ export class SignaturePageComponent implements OnInit {
     if (this.hosted) {
       return;
     }
-    this.consumeNewRequestDeepLink();
+    const requestId = this.route.snapshot.paramMap.get('id');
+    if (requestId) {
+      this.store.getRequestUi(requestId).subscribe({
+        next: request => this.previewRequest.set(request),
+        error: error => this.toast.error(notificationResourceError(error)),
+      });
+    }
   }
+
+  /** Deep link reactivo: `/signature?new=1&customerId=...` sobre la pagina ya montada abre
+   *  el wizard sin esperar un ngOnInit que no vuelve a disparar. */
+  private readonly routeParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  private consumedNewLink: string | null = null;
+  private readonly newRequestDeepLinkEffect = effect(() => {
+    if (this.hosted) return;
+    const params = this.routeParams();
+    if (!hasNewSignatureParams(params)) return;
+    const key = `${params.get('new') ?? ''}|${params.get('customerId') ?? ''}|${params.get('customerName') ?? ''}`;
+    if (this.consumedNewLink === key) return;
+    this.consumedNewLink = key;
+    untracked(() => this.consumeNewRequestDeepLink());
+  });
 
   /**
    * "New Signature Request". Embebida: abre el wizard con el cliente del perfil ya elegido

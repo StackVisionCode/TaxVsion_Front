@@ -2,8 +2,8 @@ import type {
   AppNotification,
   NotificationType,
 } from '../ui/notification-list/notification-list.component';
-import { formatRelativeTime } from '@shared/utils/format.util';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { notificationRelativeTime, notificationText } from './notification-i18n';
 
 /**
  * Contratos del backend de notificaciones (Communication, Fastify/TS vía
@@ -11,12 +11,12 @@ import { parseUtcDate } from '@shared/utils/utc-date.util';
  * Services/Communication). Endpoints HTTP reales:
  *
  * - GET  /communication/notifications?page&size[&unreadOnly] → NotificationListResult
- * - GET  /communication/notifications/unread-count           → { count }
- * - POST /communication/notifications/{id}/read              → { notificationId, unreadCount }
- *
- * NO existen por HTTP: delete/dismiss (dismiss es Socket.IO-only:
- * `notification.dismiss`), mark-as-unread (no existe en el backend) ni un
- * bulk "mark all read".
+ * - GET  /communication/notifications/unread-count           → { count, asOfUtc }
+ * - POST /communication/notifications/{id}/read              → MarkNotificationReadResult
+ * - POST /communication/notifications/read-all               → MarkAllNotificationsReadResult
+ * - POST /communication/notifications/mark-many-read         → BulkNotificationResult
+ * - POST /communication/notifications/mark-many-unread       → BulkNotificationResult
+ * - POST /communication/notifications/delete-many            → BulkNotificationResult
  */
 
 export type NotificationPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
@@ -30,30 +30,120 @@ export interface NotificationDto {
   title: string;
   body: string;
   metadata: Record<string, unknown>;
+  category: string | null;
+  actorUserId: string | null;
+  actorDisplayName: string | null;
+  /**
+   * "System" | "TenantEmployee" | "TenantAdmin" | "CustomerPortal" | "External".
+   * Permite al UI distinguir "lo hizo el sistema" (sin avatar interno, badge
+   * neutral) de "lo hizo un usuario real". Null para notificaciones legacy
+   * pre-contrato — el UI cae al heurístico por kind/priority.
+   */
+  actorType: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  resourceContext: Record<string, string>;
+  titleKey: string | null;
+  bodyKey: string | null;
+  params: Record<string, string>;
+  action: string | null;
+  groupKey: string | null;
+  occurredAtUtc: string | null;
   /** ISO 8601 UTC. */
   createdAtUtc: string;
   /** ISO 8601 UTC o null si no está leída. */
   readAtUtc: string | null;
 }
 
-/** Envelope de GET /communication/notifications (sin total global — solo la página). */
+/** Envelope de GET /communication/notifications/since?sinceUtc=X&limit=Y — resync tras corte de socket. */
+export interface NotificationsSinceResult {
+  items: NotificationDto[];
+  unreadCount: number;
+  asOfUtc: string;
+  /** `createdAtUtc` del último item devuelto (ISO) o null si items vacío. Cursor implícito. */
+  nextCursorUtc: string | null;
+}
+
+/** Envelope de GET /communication/notifications. */
 export interface NotificationListResult {
   items: NotificationDto[];
   page: number;
   size: number;
+  /** Total de filas que cumplen el filtro actual (`unreadOnly`): para "Page X of Y". */
+  total: number;
   /** Conteo de no-leídas del usuario en TODO el tenant (no solo esta página). */
   unreadCount: number;
+  asOfUtc: string;
+}
+
+/** Resultado común de los endpoints bulk mark-many-read / mark-many-unread / delete-many. */
+export interface BulkNotificationResult {
+  affectedCount: number;
+  unreadCount: number;
+  asOfUtc: string;
 }
 
 /** GET /communication/notifications/unread-count */
 export interface UnreadCountResult {
   count: number;
+  asOfUtc: string;
 }
 
 /** POST /communication/notifications/{id}/read */
 export interface MarkNotificationReadResult {
   notificationId: string;
   unreadCount: number;
+  asOfUtc: string;
+}
+
+export interface MarkAllNotificationsReadResult {
+  cutoffUtc: string;
+  markedCount: number;
+  unreadCount: number;
+  asOfUtc: string;
+}
+
+export interface NotificationReadConfirmed {
+  notificationId: string;
+  asOfUtc: string;
+}
+
+export interface NotificationsReadAllConfirmed {
+  cutoffUtc: string;
+  asOfUtc: string;
+}
+
+/**
+ * Mapea la `category` canónica del backend (enum del catálogo .NET, 8 valores)
+ * a la categoría visual del UI. Es el camino preferido: el server ya decidió
+ * qué categoría es, así que agregar un `kind` nuevo bajo una categoría existente
+ * no requiere tocar el front. `typeForKind` queda como fallback para filas sin
+ * categoría (notificaciones viejas pre-contrato).
+ */
+export function typeForCategory(
+  category: string | null | undefined,
+  priority: NotificationPriority,
+): NotificationType | null {
+  if (!category) return null;
+  switch (category) {
+    case 'Security':
+      return 'system_alert';
+    case 'Signatures':
+      return 'document_signed';
+    case 'DocumentsStorage':
+      return 'document_uploaded';
+    case 'Clients':
+      return 'customer_created';
+    case 'Billing':
+      return priority === 'High' || priority === 'Urgent' ? 'payment_failed' : 'invoice_generated';
+    case 'CalendarMeetings':
+      return 'session_expiring';
+    case 'Work':
+    case 'Portal':
+      return priority === 'High' || priority === 'Urgent' ? 'system_alert' : 'general';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -152,13 +242,32 @@ export function notificationIconText(type: NotificationType): string {
 
 /** DTO del backend → modelo de la lista (leída = readAtUtc !== null). */
 export function dtoToAppNotification(dto: NotificationDto): AppNotification {
+  // Pasamos `kind` para que i18n pueda caer en el catalogo cuando falte titleKey/bodyKey.
+  const text = notificationText({ ...dto, kind: dto.kind });
+  const displayAtUtc = dto.occurredAtUtc ?? dto.createdAtUtc;
   return {
     id: dto.id,
-    type: typeForKind(dto.kind, dto.priority),
-    title: dto.title,
-    message: dto.body,
-    time: formatRelativeTime(dto.createdAtUtc),
+    kind: dto.kind,
+    // Preferir el `category` canónico del server sobre el mapeo por `kind`:
+    // el server ya decidió a qué categoría pertenece esta fila, y agregar un
+    // `kind` nuevo bajo una categoría existente no requiere tocar el front.
+    type: typeForCategory(dto.category, dto.priority) ?? typeForKind(dto.kind, dto.priority),
+    priority: dto.priority,
+    category: dto.category,
+    title: text.title,
+    message: text.body,
+    time: notificationRelativeTime(displayAtUtc),
+    createdAtUtc: dto.createdAtUtc,
+    occurredAtUtc: dto.occurredAtUtc,
     createdAt: parseUtcDate(dto.createdAtUtc).getTime(),
+    actorUserId: dto.actorUserId,
+    actorDisplayName: dto.actorDisplayName,
+    actorType: dto.actorType,
+    resourceType: dto.resourceType,
+    resourceId: dto.resourceId,
+    resourceContext: dto.resourceContext,
+    action: dto.action,
+    metadata: dto.metadata,
     isRead: dto.readAtUtc !== null,
   };
 }
