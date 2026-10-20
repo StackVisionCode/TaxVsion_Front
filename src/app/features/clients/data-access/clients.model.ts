@@ -109,6 +109,13 @@ export interface Customer {
   legalName?: string | null;
   createdAtUtc: string;
   assignedPreparerUserId: string | null;
+  /**
+   * ContactPolicy (T7.2): puede recibir por email / sms. Default true/true para clientes previos a
+   * la migración y para respuestas donde el backend aún no incluye los flags. Independiente de
+   * `preferredChannel` (que sigue siendo el canal nominal para flows OTP).
+   */
+  emailEnabled: boolean;
+  smsEnabled: boolean;
 }
 
 export interface AddressResponse {
@@ -297,6 +304,9 @@ export interface CreateCustomerRequest {
    * true → aplica los datos sobre el cliente existente (publica CustomerUpdated, no crea otro).
    */
   overwrite?: boolean;
+  /** ContactPolicy (T7.2) — defaults true/true si se omiten. */
+  emailEnabled?: boolean;
+  smsEnabled?: boolean;
 }
 
 /** GET /customers/check-exists?email=&taxIdentifier= — preflight de duplicados (email + tax id). */
@@ -325,6 +335,9 @@ export interface UpdateCustomerRequest {
   businessStructure?: ApiBusinessStructure | null;
   formationDate?: string | null;
   principalBusinessActivityId?: string | null;
+  /** ContactPolicy (T7.2) — PATCH-style: null (omitido) = preservar valor actual. */
+  emailEnabled?: boolean | null;
+  smsEnabled?: boolean | null;
 }
 
 /** Body de POST /customers/bulk/{statusAction}. */
@@ -438,6 +451,8 @@ export function customerToClientProfile(customer: CustomerDetailResponse): Clien
     phone: base.phone,
     language: customer.language,
     preferredChannel: customer.preferredChannel,
+    emailEnabled: customer.emailEnabled ?? true,
+    smsEnabled: customer.smsEnabled ?? true,
     isActive: base.isActive,
     createdAt: base.createdAt,
     individual: base.individual,

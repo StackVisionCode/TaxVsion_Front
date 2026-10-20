@@ -111,6 +111,9 @@ export class ClientSectionEditDialogComponent implements OnChanges {
   readonly phone = signal('');
   readonly language = signal<CustomerLanguage>('En');
   readonly preferredChannel = signal<PreferredChannel>('Email');
+  // ContactPolicy (T7.2) — por canal, opt-out, independiente del canal preferido.
+  readonly emailEnabled = signal(true);
+  readonly smsEnabled = signal(true);
   // Personal
   readonly firstName = signal('');
   readonly middleName = signal('');
@@ -162,6 +165,8 @@ export class ClientSectionEditDialogComponent implements OnChanges {
     this.phone.set(d?.primaryPhone ? formatPhoneForDisplay(d.primaryPhone) : '');
     this.language.set(d?.language ?? 'En');
     this.preferredChannel.set(d?.preferredChannel ?? 'Email');
+    this.emailEnabled.set(d?.emailEnabled ?? true);
+    this.smsEnabled.set(d?.smsEnabled ?? true);
     this.firstName.set(d?.firstName ?? '');
     this.middleName.set(d?.middleName ?? '');
     this.lastName.set(d?.lastName ?? '');
@@ -226,6 +231,8 @@ export class ClientSectionEditDialogComponent implements OnChanges {
           primaryPhone: phone || null,
           language: this.language(),
           preferredChannel: this.preferredChannel(),
+          emailEnabled: this.emailEnabled(),
+          smsEnabled: this.smsEnabled(),
         };
       }
       case 'personal': {

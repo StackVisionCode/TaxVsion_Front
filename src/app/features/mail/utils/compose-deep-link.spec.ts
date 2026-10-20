@@ -22,4 +22,17 @@ describe('deep link /email?compose=1', () => {
     expect(hasComposeMailParams(convertToParamMap({ connectors_connected: 'true' }))).toBe(false);
     expect(hasComposeMailParams(convertToParamMap({ compose: '1' }))).toBe(true);
   });
+
+  it('no limpia la URL del deep link de notificacion (threadId/messageId/accountId)', () => {
+    // El deep link de notificacion de un hilo lleva customerId para contexto; si
+    // hasComposeMailParams devolviera true aqui, mail-page limpiaria la URL antes
+    // de que la pagina pueda aplicar el threadId.
+    expect(
+      hasComposeMailParams(convertToParamMap({ customerId: 'cus-1', threadId: 'thr-1' })),
+    ).toBe(false);
+    expect(hasComposeMailParams(convertToParamMap({ messageId: 'msg-1' }))).toBe(false);
+    expect(hasComposeMailParams(convertToParamMap({ accountId: 'acc-1' }))).toBe(false);
+    // customerId solo (sin compose, sin to) ya no cuenta como deep link de compose.
+    expect(hasComposeMailParams(convertToParamMap({ customerId: 'cus-1' }))).toBe(false);
+  });
 });

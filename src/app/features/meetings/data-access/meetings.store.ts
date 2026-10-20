@@ -104,6 +104,10 @@ export class MeetingsStore {
     return state.loaded && state.responses.length < state.totalCount;
   }
 
+  isScopeLoaded(scope: MeetingsScope): boolean {
+    return this.scopeSignal(scope)().loaded;
+  }
+
   private scopeSignal(scope: MeetingsScope): WritableSignal<ScopeState> {
     return scope === 'upcoming' ? this._upcoming : this._past;
   }

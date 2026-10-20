@@ -1,4 +1,5 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -38,6 +39,8 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { notificationResourceError } from '../../../notifications/data-access/notification-resource-error';
 
 /** Nombre de cliente → fragmento seguro para nombre de archivo ("Acme, Inc." → "acme-inc"). */
 function fileSlug(value: string): string {
@@ -94,6 +97,7 @@ export class BillingPageComponent implements OnInit {
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
 
   /** Cliente fijo cuando la página vive en el perfil del cliente (`null` en /billing). */
   readonly embedded = this.store.embeddedCustomer;
@@ -139,12 +143,36 @@ export class BillingPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.init();
     this.resolveLockedCustomer();
-
-    // `?new=1` (acceso rápido del dashboard): abre el alta directamente. Solo en /billing.
-    if (!this.embedded() && consumeQueryFlag(this.route, this.router, 'new') && this.can.canManageInvoices()) {
-      this.openForm();
-    }
   }
+
+  /** Deep link reactivo: cambios en invoiceId sobre /billing abren la factura sin recrear la pagina. */
+  private readonly routeParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  private consumedInvoiceId: string | null = null;
+  private readonly invoiceDeepLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const invoiceId = this.routeParams().get('invoiceId');
+    if (!invoiceId || this.consumedInvoiceId === invoiceId) return;
+    this.consumedInvoiceId = invoiceId;
+    untracked(() => {
+      this.tab.set('invoices');
+      this.store.openInvoiceById(invoiceId).subscribe({
+        error: error => this.toast.error(notificationResourceError(error)),
+      });
+    });
+  });
+
+  private readonly newFlagEffect = effect(() => {
+    if (this.embedded()) return;
+    const flag = this.routeParams().get('new');
+    if (flag !== '1') return;
+    untracked(() => {
+      if (consumeQueryFlag(this.route, this.router, 'new') && this.can.canManageInvoices()) {
+        this.openForm();
+      }
+    });
+  });
 
   /** Embebido: resuelve el `CustomerSummary` del cliente fijo (cacheado en el directorio). */
   private resolveLockedCustomer(): void {

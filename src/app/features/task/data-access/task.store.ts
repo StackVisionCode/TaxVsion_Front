@@ -208,6 +208,21 @@ export class TaskStore {
     }
   }
 
+  /** Carga puntual para deep links; el endpoint vuelve a autorizar tenant, permiso y plan. */
+  openTaskById(id: string): Observable<TaskItem | null> {
+    return this.service.getById(id).pipe(
+      tap(response => {
+        this._raw.update(list => {
+          const exists = list.some(item => item.id === response.id);
+          return exists
+            ? list.map(item => (item.id === response.id ? response : item))
+            : [response, ...list];
+        });
+      }),
+      map(response => toTaskItem(response, this.clientNameById(), this._userNames())),
+    );
+  }
+
   /** Fija los filtros server-side (assignee/customer/taxYear) y recarga (vuelve a la primera página). */
   setFilters(patch: { assignee?: string | null; customer?: string | null; taxYear?: number | null }): void {
     if (patch.assignee !== undefined) this._filterAssignee.set(patch.assignee);

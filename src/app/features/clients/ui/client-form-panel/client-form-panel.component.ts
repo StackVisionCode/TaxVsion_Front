@@ -128,6 +128,9 @@ export class ClientFormPanelComponent implements OnChanges {
   readonly phone = signal('');
   readonly language = signal<CustomerLanguage>('En');
   readonly preferredChannel = signal<PreferredChannel>('Email');
+  // ContactPolicy (T7.2) — opt-out por canal, independiente de preferredChannel.
+  readonly emailEnabled = signal(true);
+  readonly smsEnabled = signal(true);
   readonly isActive = signal(true);
 
   // Individual
@@ -217,6 +220,8 @@ export class ClientFormPanelComponent implements OnChanges {
       next: detail => {
         this.language.set(detail.language);
         this.preferredChannel.set(detail.preferredChannel);
+        this.emailEnabled.set(detail.emailEnabled ?? true);
+        this.smsEnabled.set(detail.smsEnabled ?? true);
         if (detail.dateOfBirth) {
           this.dateOfBirth.set(detail.dateOfBirth);
         }
@@ -496,6 +501,8 @@ export class ClientFormPanelComponent implements OnChanges {
       primaryPhone: this.phone().trim() ? this.toApiPhone(this.phone()) : null,
       language: this.language(),
       preferredChannel: this.preferredChannel(),
+      emailEnabled: this.emailEnabled(),
+      smsEnabled: this.smsEnabled(),
       overwrite,
     };
     if (this.clientType() === 'individual') {
@@ -530,6 +537,8 @@ export class ClientFormPanelComponent implements OnChanges {
       preferredChannel: this.preferredChannel(),
       primaryEmail: normalizeEmailToApi(this.email()),
       primaryPhone: this.phone().trim() ? this.toApiPhone(this.phone()) : null,
+      emailEnabled: this.emailEnabled(),
+      smsEnabled: this.smsEnabled(),
     };
     if (this.clientType() === 'individual') {
       return {
@@ -583,6 +592,8 @@ export class ClientFormPanelComponent implements OnChanges {
     this.formationErr.set(null);
     this.language.set('En');
     this.preferredChannel.set('Email');
+    this.emailEnabled.set(true);
+    this.smsEnabled.set(true);
     this.middleName.set('');
     this.occupationId.set(null);
     this.occupationName.set(null);

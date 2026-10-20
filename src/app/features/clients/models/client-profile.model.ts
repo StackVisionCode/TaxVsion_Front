@@ -68,6 +68,9 @@ export interface ClientProfile {
   /** Idioma y canal preferido reales (GET /customers/{id}). */
   language: CustomerLanguage;
   preferredChannel: PreferredChannel;
+  /** ContactPolicy (T7.2) — opt-out por canal; defaults true/true. */
+  emailEnabled: boolean;
+  smsEnabled: boolean;
   isActive: boolean;
   /** ISO date string (YYYY-MM-DD). */
   createdAt: string;

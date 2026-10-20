@@ -1,0 +1,79 @@
+<div class="flex flex-1 flex-col gap-6">
+  <div class="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Notifications</h2>
+        <p class="mt-1 text-sm text-gray-500">
+          Choose how you want to be notified for each category. Security notifications are mandatory and
+          can't be turned off.
+        </p>
+      </div>
+    </div>
+
+    @if (error(); as msg) {
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+        <div class="flex min-w-0 items-center gap-2 text-sm text-red-600">
+          <ion-icon name="alert-circle-outline" class="shrink-0 text-base"></ion-icon>
+          <span class="truncate">{{ msg }}</span>
+        </div>
+        <button type="button" (click)="retry()"
+          class="rounded-full border border-red-200 px-4 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100">
+          Retry
+        </button>
+      </div>
+    }
+
+    <app-state-block [loading]="loading()" variant="inline" loadingText="Loading preferences…">
+      @if (categoryRows().length > 0) {
+        <div class="mt-6 overflow-x-auto">
+          <table class="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th scope="col" class="py-3 pr-4">Category</th>
+                @for (channel of channels; track channel) {
+                  <th scope="col" class="w-24 px-3 py-3 text-center">{{ labelFor(channel) }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of categoryRows(); track row.category) {
+                <tr class="border-b border-gray-50 last:border-0">
+                  <th scope="row" class="py-4 pr-4 align-top">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-semibold text-gray-900">{{ row.label }}</span>
+                      @if (row.locked) {
+                        <ion-icon name="lock-closed-outline" class="text-sm text-gray-400"
+                          [attr.title]="'Mandatory — cannot be disabled'"></ion-icon>
+                      }
+                    </div>
+                    <p class="mt-1 max-w-[32rem] text-xs text-gray-500">{{ row.description }}</p>
+                  </th>
+                  @for (cell of row.cells; track cell.channel) {
+                    <td class="w-24 px-3 py-4 text-center align-top">
+                      <!-- Toggle: shadow-brand-bold when on, gray when off. Click PUT con rollback. -->
+                      <button type="button"
+                        role="switch"
+                        [attr.aria-checked]="cell.enabled"
+                        [attr.aria-label]="labelFor(cell.channel) + ' for ' + row.label"
+                        [disabled]="cell.locked || isSaving(cell.category, cell.channel)"
+                        (click)="toggle(cell)"
+                        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        [class.bg-brand-bold]="cell.enabled"
+                        [class.bg-gray-200]="!cell.enabled">
+                        <span class="inline-block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform"
+                          [class.translate-x-5]="cell.enabled"></span>
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (!loading() && !error()) {
+        <app-state-block [empty]="true" variant="inline" icon="notifications-off-outline"
+          emptyTitle="No notification preferences to show"></app-state-block>
+      }
+    </app-state-block>
+  </div>
+</div>

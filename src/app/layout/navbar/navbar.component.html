@@ -2,9 +2,11 @@
 <header class="relative z-40">
   <div class="flex h-[3.9375rem] items-center gap-4">
     <!-- Mobile menu button -->
-     
-    <button (click)="toggleMobileMenu()"
-      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200 md:hidden">
+
+    <button
+      (click)="toggleMobileMenu()"
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/60 hover:text-gray-900 transition-colors duration-200 md:hidden"
+    >
       <ion-icon name="menu-outline" class="text-xl"></ion-icon>
       <span class="sr-only">Open menu</span>
     </button>
@@ -15,33 +17,56 @@
            Busca en el directorio real de clientes (solo quien puede ver clientes lo tiene). -->
       @if (canSearchClients()) {
         <div class="relative" data-dropdown="search">
-          <div class="search-shell flex h-10 items-center overflow-hidden rounded-full border border-gray-200 bg-white"
-            [class.is-open]="isSearchOpen()">
-            <button type="button" (click)="toggleSearch()" [attr.aria-expanded]="isSearchOpen()"
+          <div
+            class="search-shell flex h-10 items-center overflow-hidden rounded-full border border-gray-200 bg-white"
+            [class.is-open]="isSearchOpen()"
+          >
+            <button
+              type="button"
+              (click)="toggleSearch()"
+              [attr.aria-expanded]="isSearchOpen()"
               [attr.aria-label]="isSearchOpen() ? 'Close search' : 'Search clients'"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors duration-200 hover:text-gray-900">
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors duration-200 hover:text-gray-900"
+            >
               <ion-icon name="search-outline" class="text-lg"></ion-icon>
             </button>
-            <input #searchInput type="text" placeholder="Search clients" aria-label="Search clients" autocomplete="off"
-              role="combobox" aria-controls="navbar-search-results" [attr.aria-expanded]="isSearchDropdownOpen()"
+            <input
+              #searchInput
+              type="text"
+              placeholder="Search clients"
+              aria-label="Search clients"
+              autocomplete="off"
+              role="combobox"
+              aria-controls="navbar-search-results"
+              [attr.aria-expanded]="isSearchDropdownOpen()"
               [tabindex]="isSearchOpen() ? 0 : -1"
-              [value]="searchQuery()" (input)="onSearchChange($any($event.target).value)" (focus)="onSearchFocus()"
-              (blur)="onSearchBlur()" (keydown.escape)="closeSearch()" (keydown)="onSearchKeydown($event)"
-              class="search-input h-full min-w-0 flex-1 bg-transparent pr-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none">
+              [value]="searchQuery()"
+              (input)="onSearchChange($any($event.target).value)"
+              (focus)="onSearchFocus()"
+              (blur)="onSearchBlur()"
+              (keydown.escape)="closeSearch()"
+              (keydown)="onSearchKeydown($event)"
+              class="search-input h-full min-w-0 flex-1 bg-transparent pr-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none"
+            />
 
             @if (searchLoading()) {
               <app-infinity-loader size="xs" />
             } @else if (searchQuery()) {
               <!-- Clear button -->
-              <button type="button" (mousedown)="$event.preventDefault()" (click)="clearSearch()"
+              <button
+                type="button"
+                (mousedown)="$event.preventDefault()"
+                (click)="clearSearch()"
                 class="search-input mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                aria-label="Clear search">
+                aria-label="Clear search"
+              >
                 <ion-icon name="close-outline"></ion-icon>
               </button>
             } @else {
               <!-- Keyboard shortcut hint -->
               <kbd
-                class="search-input mr-4 hidden shrink-0 items-center gap-0.5 text-xs font-medium text-gray-400 pointer-events-none select-none sm:flex">
+                class="search-input mr-4 hidden shrink-0 items-center gap-0.5 text-xs font-medium text-gray-400 pointer-events-none select-none sm:flex"
+              >
                 &#8984; F
               </kbd>
             }
@@ -49,8 +74,12 @@
 
           <!-- Resultados (o recientes sin texto) -->
           @if (isSearchDropdownOpen()) {
-            <div id="navbar-search-results" role="listbox" (mousedown)="$event.preventDefault()"
-              class="dropdown-panel absolute top-full right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg z-50">
+            <div
+              id="navbar-search-results"
+              role="listbox"
+              (mousedown)="$event.preventDefault()"
+              class="dropdown-panel absolute top-full right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg z-50"
+            >
               <div class="flex items-center justify-between border-b border-gray-100 px-4 py-2">
                 <span class="text-xs font-medium text-gray-500">
                   @if (!hasSearchTerm()) {
@@ -61,7 +90,9 @@
                     {{ searchTotal() }} client{{ searchTotal() !== 1 ? 's' : '' }} found
                   }
                 </span>
-                <span class="hidden text-[0.6875rem] text-gray-400 sm:block">↑↓ to move · Enter to open</span>
+                <span class="hidden text-[0.6875rem] text-gray-400 sm:block"
+                  >↑↓ to move · Enter to open</span
+                >
               </div>
 
               @if (hasSearchTerm() && searchError()) {
@@ -79,27 +110,49 @@
               } @else {
                 <div class="max-h-80 overflow-y-auto py-1">
                   @for (customer of visibleCustomers(); track customer.id; let i = $index) {
-                    <button type="button" role="option" [attr.aria-selected]="i === activeResultIndex()"
-                      (click)="selectCustomer(customer)" (mouseenter)="activeResultIndex.set(i)"
+                    <button
+                      type="button"
+                      role="option"
+                      [attr.aria-selected]="i === activeResultIndex()"
+                      (click)="selectCustomer(customer)"
+                      (mouseenter)="activeResultIndex.set(i)"
                       class="search-result flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150"
-                      [ngClass]="i === activeResultIndex() ? 'bg-gray-50' : ''" [style.animation-delay.ms]="i * 30">
-                      <app-avatar [name]="customer.displayName" [seed]="customer.id" sizeClass="h-8 w-8 text-xs" />
+                      [ngClass]="i === activeResultIndex() ? 'bg-gray-50' : ''"
+                      [style.animation-delay.ms]="i * 30"
+                    >
+                      <app-avatar
+                        [name]="customer.displayName"
+                        [seed]="customer.id"
+                        sizeClass="h-8 w-8 text-xs"
+                      />
                       <span class="min-w-0 flex-1">
-                        <span class="block truncate text-sm font-medium text-gray-900">{{ customer.displayName }}</span>
-                        <span class="block truncate text-xs text-gray-500">{{ customer.primaryEmail || customer.primaryPhone || 'No contact on file' }}</span>
+                        <span class="block truncate text-sm font-medium text-gray-900">{{
+                          customer.displayName
+                        }}</span>
+                        <span class="block truncate text-xs text-gray-500">{{
+                          customer.primaryEmail || customer.primaryPhone || 'No contact on file'
+                        }}</span>
                       </span>
-                      <span class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[0.625rem] font-medium text-gray-500">
+                      <span
+                        class="shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[0.625rem] font-medium text-gray-500"
+                      >
                         {{ customer.kind === 'Business' ? 'Company' : 'Individual' }}
                       </span>
-                      <ion-icon name="chevron-forward-outline" class="shrink-0 text-sm text-gray-300"></ion-icon>
+                      <ion-icon
+                        name="chevron-forward-outline"
+                        class="shrink-0 text-sm text-gray-300"
+                      ></ion-icon>
                     </button>
                   }
                 </div>
               }
 
               @if (hasSearchTerm() && searchTotal() > searchResults().length) {
-                <button type="button" (click)="openClientDirectory()"
-                  class="flex w-full items-center justify-center gap-1 border-t border-gray-100 px-4 py-2.5 text-xs font-semibold text-brand-bold hover:bg-gray-50">
+                <button
+                  type="button"
+                  (click)="openClientDirectory()"
+                  class="flex w-full items-center justify-center gap-1 border-t border-gray-100 px-4 py-2.5 text-xs font-semibold text-brand-bold hover:bg-gray-50"
+                >
                   View all {{ searchTotal() }} results
                   <ion-icon name="arrow-forward-outline"></ion-icon>
                 </button>
@@ -128,29 +181,37 @@
 
       <!-- Notifications button -->
       <div class="relative" data-dropdown="notifications">
-        <button (click)="toggleNotifications()"
-          class="relative flex h-10 w-10 items-center justify-center rounded-full bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200">
+        <button
+          (click)="toggleNotifications()"
+          class="relative flex h-10 w-10 items-center justify-center rounded-full bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200"
+        >
           <ion-icon name="notifications-outline" class="text-lg"></ion-icon>
           <span class="sr-only">Notifications</span>
 
           <!-- Contador de no-leídas. Sin anillo pulsante: latía sin parar aunque no hubiera
                pasado nada nuevo, así que no señalaba un cambio, solo hacía ruido. El número
                ya dice lo que hay que decir. -->
-          <span *ngIf="hasUnread()"
-            class="pointer-events-none absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-orange-500 px-1 text-[0.625rem] font-bold leading-none text-white ring-2 ring-white">
+          <span
+            *ngIf="hasUnread()"
+            class="pointer-events-none absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-orange-500 px-1 text-[0.625rem] font-bold leading-none text-white ring-2 ring-white"
+          >
             {{ notificationCount() > 9 ? '9+' : notificationCount() }}
           </span>
         </button>
 
         <!-- Notifications dropdown -->
-        <div *ngIf="isNotificationsOpen()"
-          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
-
+        <div
+          *ngIf="isNotificationsOpen()"
+          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]"
+        >
           <!-- Cabecera: título + la única acción global. -->
           <div class="flex items-center justify-between px-4 pb-2 pt-3.5">
             <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
-            <button (click)="markAllAsRead()" *ngIf="hasUnread()"
-              class="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+            <button
+              (click)="markAllAsRead()"
+              *ngIf="hasUnread()"
+              class="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            >
               Mark all read
             </button>
           </div>
@@ -158,16 +219,29 @@
           <!-- Pestañas. Filtran el feed que ya está cargado; el subrayado marca la activa
                en vez de un fondo de color, para que la lista siga siendo lo más llamativo. -->
           <div class="flex items-center gap-5 border-b border-gray-100 px-4" role="tablist">
-            <button *ngFor="let tab of notificationTabs" type="button" role="tab"
-              [attr.aria-selected]="notificationTab() === tab.id" (click)="selectNotificationTab(tab.id)"
+            <button
+              *ngFor="let tab of notificationTabs"
+              type="button"
+              role="tab"
+              [attr.aria-selected]="notificationTab() === tab.id"
+              (click)="selectNotificationTab(tab.id)"
               class="-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-xs transition-colors"
-              [ngClass]="notificationTab() === tab.id
-                ? 'border-gray-900 font-semibold text-gray-900'
-                : 'border-transparent font-medium text-gray-400 hover:text-gray-700'">
+              [ngClass]="
+                notificationTab() === tab.id
+                  ? 'border-gray-900 font-semibold text-gray-900'
+                  : 'border-transparent font-medium text-gray-400 hover:text-gray-700'
+              "
+            >
               {{ tab.label }}
-              <span *ngIf="notificationTabCounts()[tab.id] > 0"
+              <span
+                *ngIf="notificationTabCounts()[tab.id] > 0"
                 class="rounded-full px-1.5 py-px text-[0.625rem] font-semibold leading-4"
-                [ngClass]="notificationTab() === tab.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'">
+                [ngClass]="
+                  notificationTab() === tab.id
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-500'
+                "
+              >
                 {{ notificationTabCounts()[tab.id] }}
               </span>
             </button>
@@ -175,40 +249,89 @@
 
           <!-- Lista -->
           <div class="max-h-80 overflow-y-auto">
-            <button *ngFor="let notification of visibleNotifications(); trackBy: trackByNotificationId" type="button"
-              (click)="markAsRead(notification.id, $event)"
-              class="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50
-                     border-b border-gray-50 last:border-b-0">
-              <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-                [ngClass]="notificationIconBg(notification.type)">
-                <ion-icon [name]="notificationIcon(notification.type)" class="text-base"
-                  [ngClass]="notificationIconText(notification.type)"></ion-icon>
+            <div
+              *ngIf="notificationsError()"
+              class="mx-3 my-3 flex items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5"
+            >
+              <p class="min-w-0 text-xs text-red-600">{{ notificationsError() }}</p>
+              <button
+                type="button"
+                (click)="retryNotifications()"
+                class="shrink-0 text-xs font-semibold text-red-700 hover:text-red-900"
+              >
+                Retry
+              </button>
+            </div>
+
+            <div
+              *ngIf="notificationsLoading() && notifications().length === 0"
+              class="flex items-center justify-center px-4 py-10 text-sm text-gray-400"
+            >
+              Loading notifications&hellip;
+            </div>
+
+            <button
+              *ngFor="let notification of visibleNotifications(); trackBy: trackByNotificationId"
+              type="button"
+              (click)="openNotification(notification)"
+              class="group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
+            >
+              <span
+                class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                [ngClass]="notificationIconBg(notification.type)"
+              >
+                <ion-icon
+                  [name]="notificationIcon(notification.type)"
+                  class="text-base"
+                  [ngClass]="notificationIconText(notification.type)"
+                ></ion-icon>
               </span>
 
               <span class="min-w-0 flex-1">
                 <!-- Título y "cuándo" en la misma línea: el ojo termina el renglón sabiendo
                      ya de qué es y de cuándo, sin bajar a buscar la fecha. -->
                 <span class="flex items-baseline gap-2">
-                  <span class="min-w-0 flex-1 truncate text-sm text-gray-900"
-                    [ngClass]="notification.isRead ? 'font-medium' : 'font-semibold'">{{ notification.title }}</span>
-                  <span class="shrink-0 text-[0.6875rem] tabular-nums text-gray-400">{{ notification.time }}</span>
-                  <span *ngIf="!notification.isRead" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"
-                    aria-label="Unread"></span>
+                  <span
+                    class="min-w-0 flex-1 truncate text-sm text-gray-900"
+                    [ngClass]="notification.isRead ? 'font-medium' : 'font-semibold'"
+                    >{{ notification.title }}</span
+                  >
+                  <time
+                    class="shrink-0 text-[0.6875rem] tabular-nums text-gray-400"
+                    [attr.datetime]="notification.occurredAtUtc || notification.createdAtUtc"
+                    [attr.title]="notificationTimeTitle(notification)"
+                  >{{ notificationTime(notification) }}</time>
+                  <span
+                    *ngIf="!notification.isRead"
+                    class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-bold"
+                    aria-label="Unread"
+                  ></span>
                 </span>
-                <span class="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-500">{{ notification.message }}</span>
+                <span class="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-500">{{
+                  notification.message
+                }}</span>
               </span>
             </button>
 
             <!-- Vacío: dice de QUÉ está vacío, que cambia según la pestaña. -->
-            <p *ngIf="visibleNotifications().length === 0" class="px-4 py-12 text-center text-sm text-gray-400">
+            <p
+              *ngIf="
+                !notificationsLoading() &&
+                !notificationsError() &&
+                visibleNotifications().length === 0
+              "
+              class="px-4 py-12 text-center text-sm text-gray-400"
+            >
               {{ emptyNotificationsMessage() }}
             </p>
           </div>
 
           <!-- La campana solo trae el feed corto; el historial completo vive en /notifications. -->
           <div class="border-t border-gray-100 p-2">
-            <button (click)="navigateToNotificationCenter()"
-              class="w-full rounded-xl py-2 text-center text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
+            <button
+              (click)="navigateToNotificationCenter()"
+              class="w-full rounded-xl py-2 text-center text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            >
               View all
             </button>
           </div>
@@ -217,18 +340,26 @@
 
       <!-- User menu (avatar only, reference style) -->
       <div class="relative" data-dropdown="user">
-        <button (click)="toggleUserMenu()"
-          class="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-1 ring-gray-200 hover:ring-gray-300 transition-shadow duration-200 bg-indigo-600 text-white">
-          <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
-            class="w-full h-full object-cover" (error)="onImageError($event)">
+        <button
+          (click)="toggleUserMenu()"
+          class="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-1 ring-gray-200 hover:ring-gray-300 transition-shadow duration-200 bg-indigo-600 text-white"
+        >
+          <img
+            *ngIf="getUserImageSrc()"
+            [src]="getUserImageSrc()"
+            [alt]="getTaxUserFullName()"
+            class="w-full h-full object-cover"
+            (error)="onImageError($event)"
+          />
           <span *ngIf="!getUserImageSrc()" class="text-xs font-bold">{{ getUserInitials() }}</span>
           <span class="sr-only">Open user menu</span>
         </button>
 
         <!-- User dropdown -->
-        <div *ngIf="isUserMenuOpen()"
-          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]">
-
+        <div
+          *ngIf="isUserMenuOpen()"
+          class="dropdown-panel absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-[0_24px_48px_rgba(17,24,39,0.18),0_8px_16px_rgba(17,24,39,0.1)]"
+        >
           <!-- Quién eres y en qué oficina estás. El CRM es multi-tenant: el nombre de la
                oficina no es adorno, es lo que evita operar en la cuenta equivocada. Sin el
                degradado ni el avatar repetido de antes — el avatar ya está justo arriba. -->
@@ -237,12 +368,16 @@
               <p class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
                 {{ getTaxUserFullName() || getUserEmail() }}
               </p>
-              <span *ngIf="getUserRole()"
-                class="shrink-0 rounded-full bg-brand-surface px-2 py-0.5 text-[0.625rem] font-semibold text-brand-ink">
+              <span
+                *ngIf="getUserRole()"
+                class="shrink-0 rounded-full bg-brand-surface px-2 py-0.5 text-[0.625rem] font-semibold text-brand-ink"
+              >
                 {{ getUserRole() }}
               </span>
             </div>
-            <p class="mt-0.5 truncate text-xs text-gray-500">{{ getCompanyName() || getUserEmail() }}</p>
+            <p class="mt-0.5 truncate text-xs text-gray-500">
+              {{ getCompanyName() || getUserEmail() }}
+            </p>
           </div>
 
           <div class="mx-1.5 border-t border-gray-100"></div>
@@ -250,24 +385,33 @@
           <!-- Los iconos van monocromos: en un menú de seis filas, seis colores distintos
                no ordenan nada, solo compiten. El realce lo da la pastilla del hover. -->
           <div class="py-1">
-            <a routerLink="/profile"
-              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+            <a
+              routerLink="/profile"
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
               <ion-icon name="person-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
               <span>Profile</span>
             </a>
 
             <!-- La gestión de usuarios se movió al sidebar ("Users"), con el mismo gate `users`. -->
-            <a *ngIf="canUse('company-settings')" routerLink="/company/settings"
-              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900">
+            <a
+              *ngIf="canUse('company-settings')"
+              routerLink="/company/settings"
+              class="dropdown-menu-item flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
               <ion-icon name="business-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
               <span>Office settings</span>
             </a>
 
             <!-- La suscripción se gestiona en el Account del sitio público: acá solo está la puerta, y
                  solo para quien puede abrirla. Se sale con esta misma sesión. -->
-            <button *ngIf="canManageSubscription()" type="button" (click)="manageSubscription()"
+            <button
+              *ngIf="canManageSubscription()"
+              type="button"
+              (click)="manageSubscription()"
               [disabled]="handoff.opening()"
-              class="dropdown-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-60">
+              class="dropdown-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-60"
+            >
               <ion-icon name="card-outline" class="shrink-0 text-lg text-gray-500"></ion-icon>
               <span>{{ handoff.opening() ? 'Opening…' : 'Manage subscription' }}</span>
             </button>
@@ -278,10 +422,15 @@
           <!-- Cerrar sesión no lleva rojo permanente: solo se tiñe cuando el puntero está
                encima, que es cuando el aviso sirve de algo. -->
           <div class="py-1">
-            <button type="button" (click)="logout()"
-              class="dropdown-menu-item group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-red-50 hover:text-red-600">
-              <ion-icon name="log-out-outline"
-                class="shrink-0 text-lg text-gray-500 transition-colors group-hover:text-red-500"></ion-icon>
+            <button
+              type="button"
+              (click)="logout()"
+              class="dropdown-menu-item group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-red-50 hover:text-red-600"
+            >
+              <ion-icon
+                name="log-out-outline"
+                class="shrink-0 text-lg text-gray-500 transition-colors group-hover:text-red-500"
+              ></ion-icon>
               <span>Sign out</span>
             </button>
           </div>
@@ -289,23 +438,33 @@
       </div>
     </nav>
   </div>
-
 </header>
 
 <!-- Mobile menu drawer -->
-<div *ngIf="isMobileMenuOpen()" class="fixed inset-0 z-50 flex md:hidden" (click)="closeMobileMenu($event)">
+<div
+  *ngIf="isMobileMenuOpen()"
+  class="fixed inset-0 z-50 flex md:hidden"
+  (click)="closeMobileMenu($event)"
+>
   <div class="fixed inset-0 bg-black/20 backdrop-blur-sm" aria-hidden="true"></div>
   <div
-    class="fixed bottom-0 left-0 top-0 w-full max-w-xs overflow-y-auto bg-brand-white p-6 shadow-xl border-r border-gray-200">
+    class="fixed bottom-0 left-0 top-0 w-full max-w-xs overflow-y-auto bg-brand-white p-6 shadow-xl border-r border-gray-200"
+  >
     <!-- Mobile menu content -->
     <div class="flex flex-col gap-6 relative">
       <!-- Mobile user header -->
       <div class="flex items-center gap-3 pt-2 pb-4 border-b border-gray-200">
         <!-- TaxUser Avatar -->
         <div
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden">
-          <img *ngIf="getUserImageSrc()" [src]="getUserImageSrc()" [alt]="getTaxUserFullName()"
-            class="w-full h-full object-cover" (error)="onImageError($event)">
+          class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden"
+        >
+          <img
+            *ngIf="getUserImageSrc()"
+            [src]="getUserImageSrc()"
+            [alt]="getTaxUserFullName()"
+            class="w-full h-full object-cover"
+            (error)="onImageError($event)"
+          />
           <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
         </div>
 
@@ -321,7 +480,9 @@
           </p>
 
           <!-- Role Badge -->
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-brand-bold text-white">
+          <span
+            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 bg-brand-bold text-white"
+          >
             {{ getUserRole() }}
           </span>
         </div>
@@ -330,9 +491,15 @@
       <!-- Mobile search bar -->
       <div class="relative">
         <div class="h-10 bg-white rounded-full flex items-center border border-gray-200">
-          <ion-icon name="search-outline" class="absolute left-4 text-base text-gray-400"></ion-icon>
-          <input type="search" placeholder="Search..."
-            class="h-full w-full bg-transparent pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none">
+          <ion-icon
+            name="search-outline"
+            class="absolute left-4 text-base text-gray-400"
+          ></ion-icon>
+          <input
+            type="search"
+            placeholder="Search..."
+            class="h-full w-full bg-transparent pl-11 pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none"
+          />
         </div>
       </div>
 

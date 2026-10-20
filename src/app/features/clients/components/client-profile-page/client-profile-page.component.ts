@@ -327,6 +327,10 @@ export class ClientProfilePageComponent implements OnDestroy {
    * que el id debe seguir actualizándose, no quedar congelado en el primero.
    */
   private readonly paramMap = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
+  private readonly queryParamMap = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  readonly focusedRequestId = computed(() => this.queryParamMap().get('requestId') ?? '');
 
   readonly loading = signal(false);
   readonly loadError = signal<string | null>(null);
@@ -415,6 +419,15 @@ export class ClientProfilePageComponent implements OnDestroy {
       const id = this.paramMap().get('id');
       if (id) {
         this.loadClient(id);
+      }
+    });
+    effect(() => {
+      const requested = this.queryParamMap().get('tab');
+      const tab = this.navItems().flatMap(entry =>
+        entry.kind === 'tab' ? [entry.id] : entry.tabs.map(item => item.id),
+      ).find(id => id === requested);
+      if (tab) {
+        untracked(() => this.selectTab(tab));
       }
     });
 

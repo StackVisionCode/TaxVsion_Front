@@ -8,6 +8,11 @@ export const SIGNATURE_ROUTES: Routes = [
     title: 'Signature',
   },
   {
+    path: 'requests/:id',
+    component: SignaturePageComponent,
+    title: 'Signature request',
+  },
+  {
     // Autoría de plantillas reutilizables: /signature/templates (staff con permiso template.create).
     path: 'templates',
     loadComponent: () =>

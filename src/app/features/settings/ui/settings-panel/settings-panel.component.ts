@@ -85,8 +85,10 @@ const PANELS: Record<string, PanelConfig> = {
     ],
   },
   mail: {
+    // `emailNotifs` se movió a su propia página ruteada (/settings/notifications) — mismo
+    // criterio que signature: cuando hay backend, el panel inline se reemplaza por una pantalla
+    // dedicada. Los otros 2 campos siguen pendientes (no hay endpoint todavía).
     fields: [
-      { kind: 'pending', key: 'emailNotifs', control: 'toggle', label: 'Email notifications', description: 'Will control emails about client replies and uploads' },
       { kind: 'pending', key: 'signature', control: 'toggle', label: 'Signature on outgoing mail', description: "Will append your firm's signature block" },
       { kind: 'pending', key: 'replyTo', control: 'text', label: 'Default reply-to', description: 'Will be used when clients respond to notifications' },
     ],

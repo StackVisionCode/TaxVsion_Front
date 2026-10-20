@@ -54,4 +54,14 @@ export const SETTINGS_ROUTES: Routes = [
       ),
     title: 'My signature',
   },
+  {
+    // Preferencias de notificación del staff (FASE 8 del plan). Autoservicio sin
+    // permiso especial — el backend filtra por el UserId del JWT.
+    path: 'notifications',
+    loadComponent: () =>
+      import('./components/notification-preferences-page/notification-preferences-page.component').then(
+        m => m.NotificationPreferencesPageComponent,
+      ),
+    title: 'Notification preferences',
+  },
 ];

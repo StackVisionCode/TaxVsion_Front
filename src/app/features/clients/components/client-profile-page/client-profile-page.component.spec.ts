@@ -99,7 +99,14 @@ async function setup(): Promise<{ component: ClientProfilePageComponent; store: 
           canRevealFiscal: signal(true),
         },
       },
-      { provide: ActivatedRoute, useValue: { paramMap: of(paramMap), snapshot: { paramMap } } },
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          paramMap: of(paramMap),
+          queryParamMap: of(convertToParamMap({})),
+          snapshot: { paramMap, queryParamMap: convertToParamMap({}) },
+        },
+      },
     ],
   });
   // Los `@defer` de la plantilla dejan metadata perezosa: hay que compilar antes de crear.

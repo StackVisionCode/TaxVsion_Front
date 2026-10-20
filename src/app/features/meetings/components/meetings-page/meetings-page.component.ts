@@ -1,4 +1,5 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
@@ -93,6 +94,30 @@ export class MeetingsPageComponent implements OnInit {
   readonly panelError = signal<string | null>(null);
   /** Links de invitación recién emitidos: el backend no los vuelve a exponer. */
   readonly creationOutcome = signal<MeetingCreationOutcome | null>(null);
+  private readonly pendingMeetingId = signal<string | null>(null);
+  private readonly meetingDeepLinkEffect = effect(() => {
+    const meetingId = this.pendingMeetingId();
+    if (!meetingId) {
+      return;
+    }
+    const upcoming = this.store.upcoming().find(meeting => meeting.id === meetingId);
+    const past = this.store.past().find(meeting => meeting.id === meetingId);
+    const meeting = upcoming ?? past;
+    if (meeting) {
+      untracked(() => {
+        this.activeTab.set(upcoming ? 'upcoming' : 'past');
+        this.openManagePanel(meeting);
+        this.pendingMeetingId.set(null);
+      });
+      return;
+    }
+    if (this.store.isScopeLoaded('upcoming') && this.store.isScopeLoaded('past')) {
+      untracked(() => {
+        this.pendingMeetingId.set(null);
+        this.toast.info('This meeting is no longer available.');
+      });
+    }
+  });
 
   /** Fila con una acción en curso (start/end/cancel): deshabilita sus botones. */
   readonly busyId = signal<string | null>(null);
@@ -109,39 +134,51 @@ export class MeetingsPageComponent implements OnInit {
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
-    // Embebido: la URL es la del perfil, no hay deep link que consumir.
-    if (!this.embedded()) {
-      this.consumeScheduleDeepLink();
-    }
   }
 
-  /**
-   * `/meetings?schedule=1&customerId=<id>&customerName=<name>` (acción "Schedule meeting" del perfil
-   * del cliente): abre el panel de agendar con ese cliente ya invitado (kind `customer`) y limpia la
-   * URL. Mismo gate que el botón "Schedule meeting" (`communication.meeting.create`).
-   */
-  private consumeScheduleDeepLink(): void {
-    const params = this.route.snapshot.queryParamMap;
-    const link = parseScheduleMeetingDeepLink(params);
-    if (hasScheduleMeetingParams(params)) {
-      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
-    }
-    if (!this.store.canCreate()) {
-      return;
-    }
-    if (!link) {
-      if (wantsBlankSchedule(params)) {
-        this.openSchedulePanel();
-      }
-      return;
-    }
-    // Se espera al directorio (cacheado) antes de abrir: así el invitado lleva nombre y email reales
-    // y el formulario no se reinicia a mitad de escritura.
-    this.directory.byId([link.customerId]).subscribe({
-      next: found => this.openScheduleFor(link, found.get(link.customerId) ?? null),
-      error: () => this.openScheduleFor(link, null),
+  /** Deep links reactivos: estando ya en /meetings, abrir otra notificacion de meeting
+   *  cambia los queryParams pero no vuelve a disparar ngOnInit. */
+  private readonly routeParams = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+  private consumedMeetingId: string | null = null;
+  private consumedScheduleLink: string | null = null;
+  private readonly meetingIdDeepLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const meetingId = this.routeParams().get('meetingId');
+    if (!meetingId || this.consumedMeetingId === meetingId) return;
+    this.consumedMeetingId = meetingId;
+    untracked(() => {
+      this.pendingMeetingId.set(meetingId);
+      this.store.loadScope('past');
     });
-  }
+  });
+
+  private readonly scheduleDeepLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const params = this.routeParams();
+    if (!hasScheduleMeetingParams(params) && !wantsBlankSchedule(params)) return;
+    const key = `${params.get('schedule') ?? ''}|${params.get('customerId') ?? ''}|${params.get('customerName') ?? ''}`;
+    if (this.consumedScheduleLink === key) return;
+    this.consumedScheduleLink = key;
+    untracked(() => {
+      const link = parseScheduleMeetingDeepLink(params);
+      if (hasScheduleMeetingParams(params)) {
+        void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+      }
+      if (!this.store.canCreate()) return;
+      if (!link) {
+        if (wantsBlankSchedule(params)) {
+          this.openSchedulePanel();
+        }
+        return;
+      }
+      this.directory.byId([link.customerId]).subscribe({
+        next: found => this.openScheduleFor(link, found.get(link.customerId) ?? null),
+        error: () => this.openScheduleFor(link, null),
+      });
+    });
+  });
 
   private openScheduleFor(
     link: ScheduleMeetingDeepLink,

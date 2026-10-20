@@ -19,7 +19,13 @@ export function parseComposeMailDeepLink(params: ParamMap): ComposeMailDeepLink 
   return { customerId, to: params.get('to')?.trim() || null };
 }
 
-/** True si hay algo del deep link en la URL (se limpia aunque no sea válido). */
+/** True si hay algo del deep link en la URL (se limpia aunque no sea válido).
+ * Importante: cuando viene `threadId`/`messageId`/`accountId` la URL pertenece
+ * al deep link de notificación (abrir hilo), no al compose; devolvemos false
+ * para no borrar esos params antes de que el deep link de notificación los lea. */
 export function hasComposeMailParams(params: ParamMap): boolean {
-  return params.has('compose') || params.has('customerId') || params.has('to');
+  if (params.has('threadId') || params.has('messageId') || params.has('accountId')) {
+    return false;
+  }
+  return params.has('compose') || params.has('to');
 }

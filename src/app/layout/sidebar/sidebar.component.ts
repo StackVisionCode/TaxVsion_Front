@@ -28,6 +28,7 @@ import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import type { ChatStore } from '@features/chat/data-access/chat.store';
+import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth } from './sidebar-width.util';
 import { platformBrand } from '@core/config/platform-config';
 
@@ -67,6 +68,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
    * primer render y hasta entonces el badge simplemente no se muestra.
    */
   private readonly chatStore = signal<ChatStore | null>(null);
+  /** Mismo patrón para el badge de Notifications (reuso del singleton del navbar). */
+  private readonly notificationsStore = signal<NotificationsStore | null>(null);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
@@ -78,6 +81,16 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     const unread = this.chatStore()?.totalUnread() ?? 0;
     this.menuItems.update(items =>
       items.map(item => (item.route === '/chat' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
+    );
+  });
+
+  /** Mismo badge en vivo para Notifications; el navbar ya mantiene el store suscrito. */
+  private readonly notificationsBadgeEffect = effect(() => {
+    const unread = this.notificationsStore()?.unreadCount() ?? 0;
+    this.menuItems.update(items =>
+      items.map(item =>
+        item.route === '/notifications' ? { ...item, badge: unread > 0 ? unread : undefined } : item,
+      ),
     );
   });
 
@@ -145,6 +158,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Products/Services', icon: 'pricetags-outline', route: '/products-services', featureId: 'catalog' },
     { label: 'Inventory', icon: 'cube-outline', route: '/inventory', featureId: 'inventory' },
     { label: 'Signature', icon: 'create-outline', route: '/signature', featureId: 'signature' },
+    { label: 'Notifications', icon: 'notifications-outline', route: '/notifications', featureId: 'notifications' },
     { label: 'SMS', icon: 'chatbox-ellipses-outline', route: '/sms', featureId: 'sms' },
     { label: 'Chat', icon: 'chatbubbles-outline', route: '/chat', featureId: 'chat' },
     { label: 'Meetings', icon: 'videocam-outline', route: '/meetings', featureId: 'meetings' },
@@ -198,6 +212,11 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
         void import('@features/chat/data-access/chat.store').then(m => {
           if (!this.destroyRef.destroyed) {
             this.chatStore.set(this.injector.get(m.ChatStore));
+          }
+        });
+        void import('@features/notifications/data-access/notifications.store').then(m => {
+          if (!this.destroyRef.destroyed) {
+            this.notificationsStore.set(this.injector.get(m.NotificationsStore));
           }
         });
         this.measureWidth();

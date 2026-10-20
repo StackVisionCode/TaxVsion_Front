@@ -1,7 +1,20 @@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, timer } from 'rxjs';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
-import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, Injector, ViewChild, afterNextRender, computed, effect, inject, signal, DestroyRef } from '@angular/core';
+import {
+  Component,
+  CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
+  HostListener,
+  Injector,
+  ViewChild,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  DestroyRef,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
@@ -9,13 +22,21 @@ import { AuthService } from '@core/auth/auth.service';
 import { WalletStore } from '@features/wallet/data-access/wallet.store';
 import { formatMicros } from '@features/wallet/data-access/wallet.model';
 import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
-import { AppNotification, NotificationType } from '@features/notifications/ui/notification-list/notification-list.component';
+import {
+  AppNotification,
+  NotificationType,
+} from '@features/notifications/ui/notification-list/notification-list.component';
 import {
   needsAttention,
   notificationIcon,
   notificationIconBg,
   notificationIconText,
 } from '@features/notifications/data-access/notifications.model';
+import { NotificationRouteResolver } from '@features/notifications/data-access/notification-route-resolver.service';
+import {
+  notificationAbsoluteTime,
+  notificationRelativeTime,
+} from '@features/notifications/data-access/notification-i18n';
 import { AccessStore } from '@core/access/access.store';
 import { AccountHandoffStore } from '@core/billing/account-handoff.store';
 import type { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
@@ -58,11 +79,12 @@ interface NavbarUser {
 export class NavbarComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly notificationRoutes = inject(NotificationRouteResolver);
   private readonly injector = inject(Injector);
   /** El store de notificaciones se descarga tras el primer render (fuera del bundle inicial). */
   private readonly notificationsStore = signal<NotificationsStore | null>(null);
   private readonly loadNotificationsStore = afterNextRender(() => {
-    void import('@features/notifications/data-access/notifications.store').then(m =>
+    void import('@features/notifications/data-access/notifications.store').then((m) =>
       this.notificationsStore.set(this.injector.get(m.NotificationsStore)),
     );
   });
@@ -119,8 +141,16 @@ export class NavbarComponent {
 
   // Notificaciones REALES (Communication): feed corto de la campana + conteo en vivo.
   readonly notifications = computed(() => this.notificationsStore()?.recent() ?? []);
+  readonly notificationsLoading = computed(
+    () => this.notificationsStore()?.recentLoading() ?? false,
+  );
+  readonly notificationsError = computed(() => this.notificationsStore()?.recentError() ?? null);
   readonly notificationCount = computed(() => this.notificationsStore()?.unreadCount() ?? 0);
   readonly hasUnread = computed(() => this.notificationCount() > 0);
+  private readonly notificationNow = signal(Date.now());
+  private readonly notificationClock = timer(60_000, 60_000)
+    .pipe(takeUntilDestroyed(inject(DestroyRef)))
+    .subscribe(() => this.notificationNow.set(Date.now()));
 
   /**
    * Pestañas de la campana. Filtran EN LOCAL el mismo feed corto que ya está cargado: son
@@ -137,21 +167,30 @@ export class NavbarComponent {
     const list = this.notifications();
     switch (this.notificationTab()) {
       case 'unread':
-        return list.filter(n => !n.isRead);
+        return list.filter((n) => !n.isRead);
       case 'alerts':
-        return list.filter(n => needsAttention(n.type));
+        return list.filter((n) => needsAttention(n.type));
       default:
         return list;
     }
   });
 
-  /** Cuántas hay en cada pestaña, para el contador que va junto a su nombre. */
+  /**
+   * Cuántas hay en cada pestaña, para el contador que va junto a su nombre.
+   *
+   * `unread` usa el conteo **global del servidor** (`notificationCount`) para no
+   * contradecir el badge del navbar: antes tomaba `list.filter(!isRead).length`
+   * sobre las 8 filas de `_recent`, así que con 25 unread totales la pestaña
+   * decía "Unread 1" mientras el badge decía "25" — bug reportado §13 del MD.
+   * `alerts` se queda local porque `needsAttention` es heurística client-side y
+   * no hay contador equivalente del server.
+   */
   readonly notificationTabCounts = computed(() => {
     const list = this.notifications();
     return {
       all: list.length,
-      unread: list.filter(n => !n.isRead).length,
-      alerts: list.filter(n => needsAttention(n.type)).length,
+      unread: this.notificationCount(),
+      alerts: list.filter((n) => needsAttention(n.type)).length,
     } satisfies Record<NotificationTab, number>;
   });
 
@@ -176,18 +215,23 @@ export class NavbarComponent {
   readonly recentCustomers = computed(() => (this.directory()?.recent() ?? []).slice(0, 5));
   readonly hasSearchTerm = computed(() => this.searchQuery().trim().length > 0);
   /** Lo que se navega con el teclado: resultados si hay texto, recientes si no. */
-  readonly visibleCustomers = computed(() => (this.hasSearchTerm() ? this.searchResults() : this.recentCustomers()));
+  readonly visibleCustomers = computed(() =>
+    this.hasSearchTerm() ? this.searchResults() : this.recentCustomers(),
+  );
 
   readonly isSearchDropdownOpen = computed(
-    () => this.isSearchOpen() && this.searchFocused() && (this.hasSearchTerm() || this.recentCustomers().length > 0),
+    () =>
+      this.isSearchOpen() &&
+      this.searchFocused() &&
+      (this.hasSearchTerm() || this.recentCustomers().length > 0),
   );
 
   private readonly wireSearch = this.searchTerm$
     .pipe(
-      map(term => term.trim()),
+      map((term) => term.trim()),
       debounceTime(NAVBAR_SEARCH_DEBOUNCE_MS),
       distinctUntilChanged(),
-      switchMap(term => {
+      switchMap((term) => {
         const directory = this.directory();
         if (!term || !directory) {
           this.searchLoading.set(false);
@@ -195,10 +239,12 @@ export class NavbarComponent {
         }
         this.searchLoading.set(true);
         this.searchError.set(false);
-        return directory.search({ term, status: 'NotArchived', page: 1, size: NAVBAR_SEARCH_SIZE }).pipe(
-          map(page => ({ items: page.items, totalCount: page.totalCount, failed: false })),
-          catchError(() => of({ items: [] as CustomerSummary[], totalCount: 0, failed: true })),
-        );
+        return directory
+          .search({ term, status: 'NotArchived', page: 1, size: NAVBAR_SEARCH_SIZE })
+          .pipe(
+            map((page) => ({ items: page.items, totalCount: page.totalCount, failed: false })),
+            catchError(() => of({ items: [] as CustomerSummary[], totalCount: 0, failed: true })),
+          );
       }),
       takeUntilDestroyed(inject(DestroyRef)),
     )
@@ -215,7 +261,7 @@ export class NavbarComponent {
   // ==========================================
 
   toggleMobileMenu(): void {
-    this.isMobileMenuOpen.update(open => !open);
+    this.isMobileMenuOpen.update((open) => !open);
     document.body.style.overflow = this.isMobileMenuOpen() ? 'hidden' : '';
   }
 
@@ -254,7 +300,11 @@ export class NavbarComponent {
   @HostListener('document:keydown', ['$event'])
   onDocumentKeydown(event: KeyboardEvent): void {
     // Sin buscador (no puede ver clientes) se deja el ⌘F del navegador intacto.
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && this.canSearchClients()) {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === 'f' &&
+      this.canSearchClients()
+    ) {
       event.preventDefault();
       this.openSearch();
     }
@@ -265,7 +315,7 @@ export class NavbarComponent {
   // ==========================================
 
   toggleUserMenu(): void {
-    this.isUserMenuOpen.update(open => !open);
+    this.isUserMenuOpen.update((open) => !open);
     this.isNotificationsOpen.set(false);
   }
 
@@ -350,7 +400,7 @@ export class NavbarComponent {
   // ==========================================
 
   toggleNotifications(): void {
-    this.isNotificationsOpen.update(open => !open);
+    this.isNotificationsOpen.update((open) => !open);
     this.isUserMenuOpen.set(false);
     // Abrir siempre arranca en "All": si la última vez quedó en Alerts, reabrir mostraría
     // una lista vacía y parecería que no hay nada.
@@ -394,8 +444,32 @@ export class NavbarComponent {
     this.notificationsStore()?.markRead(notificationId);
   }
 
+  openNotification(notification: AppNotification): void {
+    this.isNotificationsOpen.set(false);
+    if (!notification.isRead) {
+      this.notificationsStore()?.markRead(notification.id);
+    }
+    void this.notificationRoutes.navigate(notification);
+  }
+
+  notificationTime(notification: AppNotification): string {
+    return notificationRelativeTime(
+      notification.occurredAtUtc ?? notification.createdAtUtc,
+      this.notificationNow(),
+    );
+  }
+
+  notificationTimeTitle(notification: AppNotification): string {
+    const timeZone = this.auth.currentUser()?.timeZoneId || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return notificationAbsoluteTime(notification.occurredAtUtc ?? notification.createdAtUtc, timeZone);
+  }
+
   markAllAsRead(): void {
     this.notificationsStore()?.markAllRead();
+  }
+
+  retryNotifications(): void {
+    this.notificationsStore()?.loadRecent();
   }
 
   navigateToNotificationCenter(): void {
@@ -462,7 +536,7 @@ export class NavbarComponent {
       return;
     }
     if (!this.directory()) {
-      void import('@core/customers/customer-directory.store').then(m =>
+      void import('@core/customers/customer-directory.store').then((m) =>
         this.directory.set(this.injector.get(m.CustomerDirectoryStore)),
       );
     }

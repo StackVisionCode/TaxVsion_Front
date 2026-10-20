@@ -48,7 +48,14 @@ describe('ClientProfilePageComponent · pestañas', () => {
             canRevealFiscal: signal(false),
           },
         },
-        { provide: ActivatedRoute, useValue: { paramMap: of(paramMap), snapshot: { paramMap } } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(paramMap),
+            queryParamMap: of(convertToParamMap({})),
+            snapshot: { paramMap, queryParamMap: convertToParamMap({}) },
+          },
+        },
       ],
     });
     // Los `@defer` de la plantilla dejan metadata perezosa: hay que compilar antes de crear.
