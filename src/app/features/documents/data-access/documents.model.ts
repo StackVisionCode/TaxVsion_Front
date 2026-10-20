@@ -211,6 +211,8 @@ export const USER_FACING_FOLDER_TYPES: readonly FolderType[] = [
   'EmailOutgoing',
   'Tasks',
   'Signatures',
+  'VoiceNotes',
+  'ClientForms',
 ];
 
 const USER_FACING_FOLDER_TYPE_SET: ReadonlySet<FolderType> = new Set(USER_FACING_FOLDER_TYPES);

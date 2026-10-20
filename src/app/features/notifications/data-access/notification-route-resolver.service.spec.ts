@@ -19,6 +19,7 @@ function notification(patch: Partial<AppNotification> = {}): AppNotification {
     createdAt: Date.parse('2026-10-19T10:00:00Z'),
     actorUserId: null,
     actorDisplayName: null,
+    actorType: null,
     resourceType: 'email_thread',
     resourceId: 'thread-1',
     resourceContext: { accountId: 'account-1', customerId: 'customer-1', messageId: 'message-1' },

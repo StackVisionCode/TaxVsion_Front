@@ -28,7 +28,7 @@ describe('SettingsModuleGridComponent', () => {
   it('Overview no depende de ningún módulo', () => {
     const fixture = create([]);
 
-    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['overview']);
+    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['overview', 'notifications']);
   });
 
   it('muestra solo las tarjetas de los módulos que el usuario tiene', () => {
@@ -38,6 +38,7 @@ describe('SettingsModuleGridComponent', () => {
     expect(fixture.componentInstance.modules().map(m => m.id)).toEqual([
       'overview',
       'documents',
+      'notifications',
       'signature',
     ]);
   });
