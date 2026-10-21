@@ -1,6 +1,6 @@
 import { FileResponse, FileStatus, FolderType, OwnerType } from '@core/cloud-storage/cloud-storage.model';
 
-export type { OwnerType, FolderType, FileStatus, FileResponse, InitiateUploadRequest, InitiatedUploadResponse, DownloadUrlResponse } from '@core/cloud-storage/cloud-storage.model';
+export type { OwnerType, FolderType, FileStatus, FileResponse, InitiateUploadRequest, InitiatedUploadResponse, DownloadUrlResponse, CopyFileRequest, CopiedFileResponse } from '@core/cloud-storage/cloud-storage.model';
 export { isFilePending } from '@core/cloud-storage/cloud-storage.model';
 
 /**

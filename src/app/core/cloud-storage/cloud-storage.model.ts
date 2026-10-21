@@ -102,6 +102,19 @@ export interface DownloadUrlResponse {
   expiresAtUtc: string;
 }
 
+export interface CopyFileRequest {
+  ownerType: OwnerType;
+  ownerId: string | null;
+  folderType: FolderType;
+  taxYear: number | null;
+  folderId?: string | null;
+}
+
+export interface CopiedFileResponse {
+  fileId: string;
+  status: FileStatus;
+}
+
 /** Estados en los que el archivo todavía no está listo para descargar (escaneo en curso). */
 export function isFilePending(status: FileStatus): boolean {
   return status === 'PendingUpload' || status === 'PendingScan' || status === 'Scanning';

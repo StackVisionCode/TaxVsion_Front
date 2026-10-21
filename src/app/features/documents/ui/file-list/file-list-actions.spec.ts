@@ -19,7 +19,11 @@ describe('FileListComponent · acciones de fila', () => {
 
   const FOLDER = { id: 'folder-1', name: 'Tax 2025' } as unknown as FolderResponse;
 
-  function render(permissions: readonly string[]) {
+  function render(
+    permissions: readonly string[],
+    files: FileResponse[] = [FILE],
+    subfolders: FolderResponse[] = [FOLDER],
+  ) {
     // Cada render arma su propio módulo: dos en el mismo test necesitan reiniciarlo.
     TestBed.resetTestingModule();
     const granted = new Set(permissions);
@@ -36,8 +40,8 @@ describe('FileListComponent · acciones de fila', () => {
       ],
     });
     const fixture = TestBed.createComponent(FileListComponent);
-    fixture.componentInstance.files = [FILE];
-    fixture.componentInstance.subfolders = [FOLDER];
+    fixture.componentInstance.files = files;
+    fixture.componentInstance.subfolders = subfolders;
     fixture.detectChanges();
     return fixture;
   }
@@ -91,5 +95,26 @@ describe('FileListComponent · acciones de fila', () => {
     expect(offered).toContain('Move');
     expect(offered).toContain('Share');
     expect(offered).toContain('Rename');
+  });
+
+  it('Client Forms es solo lectura y ofrece copiar a Documents', () => {
+    const fixture = render(
+      [
+        'cloudstorage.file.view',
+        'cloudstorage.file.upload',
+        'cloudstorage.file.download',
+        'cloudstorage.file.delete',
+        'cloudstorage.folder.manage',
+        'cloudstorage.share.create',
+      ],
+      [{ ...FILE, folderType: 'ClientForms' } as FileResponse],
+      [],
+    );
+
+    const offered = titles(fixture);
+    expect(offered).toContain('Copy to Documents');
+    expect(offered).not.toContain('Move');
+    expect(offered).not.toContain('Share');
+    expect(offered).not.toContain('Delete');
   });
 });

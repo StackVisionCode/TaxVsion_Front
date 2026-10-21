@@ -24,6 +24,7 @@ export type FileRowAction =
   | { kind: 'download-file'; file: FileResponse }
   | { kind: 'share-file'; file: FileResponse }
   | { kind: 'move-file'; file: FileResponse }
+  | { kind: 'copy-to-documents'; file: FileResponse }
   | { kind: 'delete-file'; file: FileResponse }
   | {
       kind: 'permissions';
@@ -95,12 +96,17 @@ export class FileListComponent {
     return this.selectedIds.has(file.id);
   }
 
+  isClientForms(file: FileResponse): boolean {
+    return file.folderType === 'ClientForms';
+  }
+
   get allSelected(): boolean {
-    return this.files.length > 0 && this.files.every(f => this.selectedIds.has(f.id));
+    const selectable = this.files.filter(file => !this.isClientForms(file));
+    return selectable.length > 0 && selectable.every(file => this.selectedIds.has(file.id));
   }
 
   get someSelected(): boolean {
-    return this.files.some(f => this.selectedIds.has(f.id)) && !this.allSelected;
+    return this.files.some(file => !this.isClientForms(file) && this.selectedIds.has(file.id)) && !this.allSelected;
   }
 
   fileIcon(name: string): string {

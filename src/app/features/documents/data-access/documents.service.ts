@@ -8,6 +8,8 @@ import {
   CreateShareLinkRequest,
   CreateFolderShareLinkRequest,
   CreatedShareLinkResponse,
+  CopiedFileResponse,
+  CopyFileRequest,
   FileResponse,
   FolderContentsResponse,
   FolderContentsQueryOpts,
@@ -97,6 +99,10 @@ export class DocumentsService {
 
   moveFileToFolder(fileId: string, folderId: string | null): Observable<void> {
     return this.http.put<void>(`${this.base}/files/${fileId}/folder`, { folderId });
+  }
+
+  copyFile(fileId: string, request: CopyFileRequest): Observable<CopiedFileResponse> {
+    return this.http.post<CopiedFileResponse>(`${this.base}/files/${fileId}/copies`, request);
   }
 
   deleteFile(fileId: string): Observable<void> {
