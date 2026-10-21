@@ -34,6 +34,8 @@ function detail(relations: RelationResponse[]): CustomerDetailResponse {
     primaryPhone: null,
     language: 'Es',
     preferredChannel: 'Email',
+    emailEnabled: true,
+    smsEnabled: true,
     occupationId: null,
     occupationName: null,
     principalBusinessActivityId: null,

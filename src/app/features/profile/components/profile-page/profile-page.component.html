@@ -1,277 +1,417 @@
-<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Header card -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex flex-wrap items-center gap-5 lg:pr-[var(--shell-notch-width)]">
-      <app-avatar [name]="fullName()" [imageUrl]="avatarPhotoUrl()" sizeClass="h-20 w-20 text-2xl"
-        [colorClass]="avatarColor" />
-
-      <div class="min-w-0 flex-1">
-        <h2 class="text-xl font-bold text-gray-900">{{ fullName() }}</h2>
-        <div class="mt-1.5">
-          <span class="inline-flex items-center gap-1 rounded-full bg-brand-bold px-2.5 py-0.5 text-xs font-medium text-white">
-            <ion-icon [name]="isOwner ? 'shield-checkmark-outline' : 'person-outline'" class="text-xs"></ion-icon>
+<div class="profile-page min-h-full pb-6 pt-3 flex flex-col gap-6">
+  <!-- ================= Cabecera: identidad + chequeo de seguridad (mismo patrón que el resto de módulos) ================= -->
+  <section class="pf-reveal rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm" style="--i: 0" aria-label="Your account">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center lg:pr-[var(--shell-notch-width)]">
+      <app-avatar class="pf-avatar inline-block shrink-0" [name]="savedFullName()" [seed]="email()" sizeClass="h-16 w-16 text-xl sm:h-[4.5rem] sm:w-[4.5rem]" />
+      <div class="min-w-0">
+        <h2 class="truncate text-xl font-bold text-gray-900">{{ savedFullName() || 'Your profile' }}</h2>
+        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center gap-1 rounded-full bg-brand-bold px-2.5 py-0.5 text-xs font-semibold text-white">
+            <ion-icon [name]="isAdminRole() ? 'shield-checkmark-outline' : 'person-outline'" class="text-xs"></ion-icon>
             {{ roleLabel() }}
           </span>
-        </div>
-        <p class="mt-2 text-sm text-gray-500">{{ email() }}</p>
-      </div>
-
-      <div class="flex flex-col items-end gap-1">
-        <label
-          class="cursor-pointer rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          Change photo
-          <input type="file" accept="image/*" class="hidden" (change)="onPhotoSelected($event)" />
-        </label>
-        <!-- Sin endpoint de backend para avatar todavía: la foto es solo una vista previa local. -->
-        <span class="text-[0.6875rem] text-gray-400">Preview only — photo upload isn't available yet</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Personal information card -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-xl font-bold text-gray-900">Personal information</h2>
-        <p class="mt-1 text-sm text-gray-500">Update your name; email and phone changes require verification</p>
-      </div>
-    </div>
-
-    <div class="mt-5 grid gap-3 sm:grid-cols-2">
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <span class="mr-2 text-sm text-gray-400">First name</span>
-        <input type="text" [ngModel]="firstName()" name="firstName" (ngModelChange)="firstName.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
-      </div>
-
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <span class="mr-2 text-sm text-gray-400">Last name</span>
-        <input type="text" [ngModel]="lastName()" name="lastName" (ngModelChange)="lastName.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 text-right placeholder-gray-400 focus:outline-none" />
-      </div>
-    </div>
-
-    <!-- Email: lectura + flujo verificado (request → code → confirm) -->
-    <div class="mt-3 flex flex-col gap-2">
-      <div class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4">
-        <span class="text-sm text-gray-400">Email</span>
-        <span class="ml-auto truncate text-sm text-gray-700">{{ email() }}</span>
-        <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
-          [ngClass]="emailVerified() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
-          {{ emailVerified() ? 'Verified' : 'Unverified' }}
-        </span>
-        <button *ngIf="emailStep() === 'idle'" type="button" (click)="startEmailChange()"
-          class="shrink-0 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          Change
-        </button>
-      </div>
-
-      <div *ngIf="emailStep() === 'editing'" class="flex flex-wrap items-center gap-2 pl-2">
-        <div class="flex h-11 min-w-[13.75rem] flex-1 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <input type="email" placeholder="New email address" [ngModel]="newEmail()" name="newEmail"
-            (ngModelChange)="newEmail.set($event)"
-            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        </div>
-        <button type="button" (click)="sendEmailChange()" [disabled]="emailBusy()"
-          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-          {{ emailBusy() ? 'Sending…' : 'Send code' }}
-        </button>
-        <button type="button" (click)="cancelEmailChange()"
-          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
-        </button>
-      </div>
-
-      <div *ngIf="emailStep() === 'confirming'" class="flex flex-col gap-2 pl-2">
-        <p class="text-xs text-gray-500">
-          We sent a confirmation code to <span class="font-medium text-gray-700">{{ newEmail() }}</span>. Enter it below to confirm the change.
-        </p>
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex h-11 min-w-[13.75rem] flex-1 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <input type="text" placeholder="Confirmation code" [ngModel]="emailToken()" name="emailToken"
-              (ngModelChange)="emailToken.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-          </div>
-          <button type="button" (click)="confirmEmailChange()" [disabled]="emailBusy()"
-            class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-            {{ emailBusy() ? 'Confirming…' : 'Confirm' }}
-          </button>
-          <button type="button" (click)="sendEmailChange()" [disabled]="emailBusy()"
-            class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
-            Resend
-          </button>
-          <button type="button" (click)="cancelEmailChange()"
-            class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
-        </div>
-      </div>
-
-      <p *ngIf="emailError()" class="pl-2 text-xs text-red-600">{{ emailError() }}</p>
-    </div>
-
-    <!-- Phone: lectura + flujo verificado por SMS (request → OTP → confirm) -->
-    <div class="mt-3 flex flex-col gap-2">
-      <div class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4">
-        <span class="text-sm text-gray-400">Phone</span>
-        <span class="ml-auto truncate text-sm" [ngClass]="phone() ? 'text-gray-700' : 'text-gray-400'">
-          {{ phone() || 'Not set' }}
-        </span>
-        <span *ngIf="phone()" class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
-          [ngClass]="phoneVerified() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
-          {{ phoneVerified() ? 'Verified' : 'Unverified' }}
-        </span>
-        <button *ngIf="phoneStep() === 'idle'" type="button" (click)="startPhoneChange()"
-          class="shrink-0 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          {{ phone() ? 'Change' : 'Add' }}
-        </button>
-      </div>
-
-      <div *ngIf="phoneStep() === 'editing'" class="flex flex-wrap items-center gap-2 pl-2">
-        <div class="flex h-11 min-w-[13.75rem] flex-1 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-          <input type="tel" placeholder="Phone number" [ngModel]="newPhone()" name="newPhone"
-            (ngModelChange)="newPhone.set($event)"
-            class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        </div>
-        <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()"
-          class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-          {{ phoneBusy() ? 'Sending…' : 'Send code' }}
-        </button>
-        <button type="button" (click)="cancelPhoneChange()"
-          class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
-        </button>
-      </div>
-
-      <div *ngIf="phoneStep() === 'confirming'" class="flex flex-col gap-2 pl-2">
-        <p class="text-xs text-gray-500">
-          We texted a verification code to <span class="font-medium text-gray-700">{{ newPhone() }}</span>. It expires in 10 minutes.
-        </p>
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex h-11 min-w-[11.25rem] flex-1 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-            <input type="text" inputmode="numeric" placeholder="Verification code" [ngModel]="phoneCode()" name="phoneCode"
-              (ngModelChange)="phoneCode.set($event)"
-              class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-          </div>
-          <button type="button" (click)="confirmPhoneChange()" [disabled]="phoneBusy()"
-            class="rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-            {{ phoneBusy() ? 'Confirming…' : 'Confirm' }}
-          </button>
-          <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()"
-            class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
-            Resend
-          </button>
-          <button type="button" (click)="cancelPhoneChange()"
-            class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
-        </div>
-      </div>
-
-      <p *ngIf="phoneError()" class="pl-2 text-xs text-red-600">{{ phoneError() }}</p>
-    </div>
-
-    <div class="mt-5 flex justify-end">
-      <button type="button" (click)="saveProfile()" [disabled]="savingProfile()"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-        {{ savingProfile() ? 'Saving…' : 'Save changes' }}
-      </button>
-    </div>
-  </div>
-
-  <!-- Security card -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-xl font-bold text-gray-900">Security</h2>
-        <p class="mt-1 text-sm text-gray-500">Change your password</p>
-      </div>
-    </div>
-
-    <div class="mt-5 flex flex-col gap-3 max-w-md">
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <input type="password" placeholder="Current password" [ngModel]="currentPassword()" name="currentPassword"
-          (ngModelChange)="currentPassword.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
-
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <input type="password" placeholder="New password" [ngModel]="newPassword()" name="newPassword"
-          (ngModelChange)="newPassword.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
-
-      <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <input type="password" placeholder="Confirm new password" [ngModel]="confirmPassword()" name="confirmPassword"
-          (ngModelChange)="confirmPassword.set($event)"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-      </div>
-
-      <p class="pl-2 text-xs text-gray-400">
-        At least {{ passwordMinLength }} characters. Changing your password signs you out on all other devices.
-      </p>
-    </div>
-
-    <div class="mt-5 flex justify-end">
-      <button type="button" (click)="updatePassword()" [disabled]="changingPassword()"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
-        {{ changingPassword() ? 'Updating…' : 'Update password' }}
-      </button>
-    </div>
-  </div>
-
-  <!-- Two-step verification card (MFA real: /auth/mfa/*) -->
-  <app-two-step-verification></app-two-step-verification>
-
-  <!-- Active sessions card -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-xl font-bold text-gray-900">Active sessions</h2>
-        <p class="mt-1 text-sm text-gray-500">Devices currently signed in to your account</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <button type="button" (click)="signOutEverywhereElse()"
-          [disabled]="revokingOthers() || store.sessionsLoading()"
-          class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
-          <ion-icon name="log-out-outline" class="text-sm"></ion-icon>
-          {{ revokingOthers() ? 'Signing out…' : 'Sign out everywhere else' }}
-        </button>
-      </div>
-    </div>
-
-    <app-state-block class="mt-4 block" variant="inline" [loading]="store.sessionsLoading()"
-      [error]="store.sessionsError()" [empty]="store.sessions().length === 0" loadingText="Loading sessions…"
-      icon="desktop-outline" emptyTitle="No active sessions found." (retry)="store.loadSessions()">
-    <div class="divide-y divide-gray-100">
-      <div *ngFor="let session of store.sessions(); trackBy: trackSession"
-        class="flex flex-wrap items-center gap-3 py-3">
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-          <ion-icon [name]="deviceIcon(session)" class="text-lg"></ion-icon>
-        </div>
-
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-semibold text-gray-900">{{ deviceLabel(session) }}</span>
-            <span *ngIf="isCurrentSession(session)"
-              class="inline-flex items-center gap-1 rounded-full bg-brand-bold px-2 py-0.5 text-[0.6875rem] font-medium text-white">
-              This device
+          @if (officeName(); as office) {
+            <span class="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+              <ion-icon name="business-outline" class="text-xs"></ion-icon>
+              {{ office }}
             </span>
-          </div>
-          <p class="mt-0.5 truncate text-xs text-gray-500">
-            <span *ngIf="session.ipAddress">{{ session.ipAddress }} · </span>
-            Signed in {{ session.createdAtUtc | date: 'MMM d, y, h:mm a' }} ·
-            Last seen {{ session.lastSeenAtUtc | date: 'MMM d, y, h:mm a' }}
-          </p>
+          }
         </div>
-
-        <button *ngIf="!isCurrentSession(session)" type="button" (click)="revokeSession(session)"
-          [disabled]="revokingSessionId() === session.id"
-          class="shrink-0 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
-          {{ revokingSessionId() === session.id ? 'Signing out…' : 'Sign out' }}
-        </button>
+        <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+          <span class="inline-flex min-w-0 items-center gap-1.5">
+            <ion-icon name="mail-outline" class="shrink-0 text-gray-400"></ion-icon>
+            <span class="truncate">{{ email() }}</span>
+          </span>
+          @if (timeZoneLabel(); as tz) {
+            <span class="inline-flex items-center gap-1.5">
+              <ion-icon name="time-outline" class="text-gray-400"></ion-icon>
+              {{ tz }}
+            </span>
+          }
+        </div>
       </div>
     </div>
-    </app-state-block>
+
+    <!-- Chequeo de seguridad: solo datos reales -->
+    <div class="pf-health mt-5 flex flex-col gap-4 border-t border-gray-100 pt-5 md:flex-row md:items-center" [attr.data-tone]="securityTone()">
+      @if (securityReady()) {
+        <div class="flex items-center gap-3">
+          <div class="relative h-14 w-14 shrink-0" role="img" [attr.aria-label]="'Account security ' + securityScore() + ' percent'">
+            <svg viewBox="0 0 64 64" class="h-14 w-14 -rotate-90">
+              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" class="pf-ring-track"></circle>
+              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" stroke-linecap="round" class="pf-ring-value"
+                [attr.stroke-dasharray]="ringCircumference" [attr.stroke-dashoffset]="ringOffset()"></circle>
+            </svg>
+            <span class="absolute inset-0 grid place-items-center text-xs font-bold text-gray-900 tabular-nums">{{ securityScore() }}%</span>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500">Account security</p>
+            <p class="pf-health__label text-sm font-semibold">{{ securityLabel() }}</p>
+          </div>
+        </div>
+        <ul class="flex flex-wrap gap-2 md:ml-auto">
+          @for (check of securityChecks(); track check.id) {
+            <li>
+              @if (check.done) {
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+                  <ion-icon name="checkmark-circle" class="text-sm"></ion-icon>{{ check.label }}
+                </span>
+              } @else {
+                <button type="button" (click)="scrollTo(check.target)"
+                  class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100">
+                  <ion-icon name="ellipse-outline" class="text-sm text-gray-400"></ion-icon>{{ check.label }}
+                  <ion-icon name="arrow-forward-outline" class="text-xs text-brand-bold"></ion-icon>
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="flex items-center gap-3" aria-hidden="true">
+          <div class="h-14 w-14 animate-pulse rounded-full bg-gray-100"></div>
+          <div class="flex flex-col gap-2">
+            <div class="h-3 w-24 animate-pulse rounded bg-gray-100"></div>
+            <div class="h-3 w-32 animate-pulse rounded bg-gray-100"></div>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="grid gap-6 lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:items-start">
+    <!-- ================= Índice (desktop: lateral fijo · móvil: chips) ================= -->
+    <nav class="pf-reveal pf-nav lg:sticky lg:top-4" style="--i: 1" aria-label="Profile sections">
+      <ul class="flex gap-2 overflow-x-auto rounded-full border border-gray-100 bg-white p-1.5 shadow-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:rounded-[1.5rem] lg:p-3">
+        @for (section of sections; track section.id) {
+          <li class="shrink-0">
+            <button type="button" (click)="scrollTo(section.id)" [attr.aria-current]="activeSection() === section.id ? 'true' : null"
+              class="pf-nav__item flex w-full items-center gap-2.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium transition-colors lg:rounded-xl"
+              [ngClass]="activeSection() === section.id ? 'bg-brand-bold text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'">
+              <ion-icon [name]="section.icon" class="text-base"></ion-icon>
+              <span>{{ section.label }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="flex min-w-0 flex-col gap-6">
+      <!-- ================= Información personal ================= -->
+      <section id="personal" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 2" aria-labelledby="personal-title">
+        <header class="flex items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="person-outline"></ion-icon></span>
+          <div>
+            <h2 id="personal-title" class="text-lg font-bold text-gray-900">Personal information</h2>
+            <p class="mt-0.5 text-sm text-gray-500">How you appear to your team. Email and phone changes are verified with a code.</p>
+          </div>
+        </header>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <label class="pf-field">
+            <span class="pf-field__label">First name</span>
+            <input type="text" autocomplete="given-name" [ngModel]="firstName()" name="firstName"
+              (ngModelChange)="firstName.set($event)" class="pf-input" />
+          </label>
+          <label class="pf-field">
+            <span class="pf-field__label">Last name</span>
+            <input type="text" autocomplete="family-name" [ngModel]="lastName()" name="lastName"
+              (ngModelChange)="lastName.set($event)" class="pf-input" />
+          </label>
+        </div>
+
+        <!-- Barra de guardado: solo aparece con cambios sin guardar -->
+        @if (profileDirty()) {
+          <div class="pf-savebar mt-4 flex flex-col gap-3 rounded-2xl bg-brand-surface px-4 py-3 sm:flex-row sm:items-center">
+            <p class="flex items-center gap-2 text-sm text-brand-ink">
+              <ion-icon name="create-outline" class="text-base"></ion-icon>
+              You have unsaved changes
+            </p>
+            <div class="flex gap-2 sm:ml-auto">
+              <button type="button" (click)="discardProfile()" [disabled]="savingProfile()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">
+                Discard
+              </button>
+              <button type="button" (click)="saveProfile()" [disabled]="savingProfile()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                {{ savingProfile() ? 'Saving…' : 'Save changes' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <div class="mt-6 flex flex-col divide-y divide-gray-100 rounded-2xl border border-gray-100">
+          <!-- Email -->
+          <div class="p-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="pf-icon-tile pf-icon-tile--sm"><ion-icon name="mail-outline"></ion-icon></span>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-gray-500">Email</p>
+                <p class="truncate text-sm font-semibold text-gray-900">{{ email() }}</p>
+              </div>
+              <span class="pf-badge" [ngClass]="emailVerified() ? 'pf-badge--ok' : 'pf-badge--warn'">
+                <ion-icon [name]="emailVerified() ? 'checkmark-circle' : 'alert-circle-outline'"></ion-icon>
+                {{ emailVerified() ? 'Verified' : 'Unverified' }}
+              </span>
+              @if (emailStep() === 'idle') {
+                <button type="button" (click)="startEmailChange()" class="pf-btn pf-btn--ghost pf-btn--sm">Change</button>
+              }
+            </div>
+
+            @if (emailStep() !== 'idle') {
+              <div class="pf-flow mt-4 rounded-2xl bg-brand-white p-4">
+                <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">
+                  Step {{ emailStep() === 'editing' ? 1 : 2 }} of 2 ·
+                  {{ emailStep() === 'editing' ? 'New email' : 'Confirm it' }}
+                </p>
+                @if (emailStep() === 'editing') {
+                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input type="email" autocomplete="email" placeholder="new@example.com" [ngModel]="newEmail()" name="newEmail"
+                      (ngModelChange)="newEmail.set($event)" (keydown.enter)="sendEmailChange()" class="pf-input flex-1" />
+                    <div class="flex gap-2">
+                      <button type="button" (click)="cancelEmailChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
+                      <button type="button" (click)="sendEmailChange()" [disabled]="emailBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                        {{ emailBusy() ? 'Sending…' : 'Send code' }}
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="mt-2 text-sm text-gray-600">
+                    We sent a code to <span class="font-semibold text-gray-900">{{ newEmail() }}</span>. Enter it to finish.
+                  </p>
+                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input type="text" autocomplete="one-time-code" placeholder="Confirmation code" [ngModel]="emailToken()"
+                      name="emailToken" (ngModelChange)="emailToken.set($event)" (keydown.enter)="confirmEmailChange()"
+                      class="pf-input pf-input--code flex-1" />
+                    <div class="flex gap-2">
+                      <button type="button" (click)="sendEmailChange()" [disabled]="emailBusy()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Resend</button>
+                      <button type="button" (click)="cancelEmailChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
+                      <button type="button" (click)="confirmEmailChange()" [disabled]="emailBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                        {{ emailBusy() ? 'Confirming…' : 'Confirm' }}
+                      </button>
+                    </div>
+                  </div>
+                }
+                @if (emailError(); as err) {
+                  <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
+                    <ion-icon name="alert-circle-outline"></ion-icon>{{ err }}
+                  </p>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Teléfono -->
+          <div class="p-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="pf-icon-tile pf-icon-tile--sm"><ion-icon name="call-outline"></ion-icon></span>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-gray-500">Phone</p>
+                @if (phone()) {
+                  <p class="truncate text-sm font-semibold text-gray-900">{{ phone() }}</p>
+                } @else {
+                  <p class="text-sm text-gray-500">Add a phone for account recovery and text alerts</p>
+                }
+              </div>
+              @if (phone()) {
+                <span class="pf-badge" [ngClass]="phoneVerified() ? 'pf-badge--ok' : 'pf-badge--warn'">
+                  <ion-icon [name]="phoneVerified() ? 'checkmark-circle' : 'alert-circle-outline'"></ion-icon>
+                  {{ phoneVerified() ? 'Verified' : 'Unverified' }}
+                </span>
+              }
+              @if (phoneStep() === 'idle') {
+                <button type="button" (click)="startPhoneChange()" class="pf-btn pf-btn--sm"
+                  [ngClass]="phone() ? 'pf-btn--ghost' : 'pf-btn--primary'">
+                  {{ phone() ? 'Change' : 'Add phone' }}
+                </button>
+              }
+            </div>
+
+            @if (phoneStep() !== 'idle') {
+              <div class="pf-flow mt-4 rounded-2xl bg-brand-white p-4">
+                <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">
+                  Step {{ phoneStep() === 'editing' ? 1 : 2 }} of 2 ·
+                  {{ phoneStep() === 'editing' ? 'Phone number' : 'Confirm it' }}
+                </p>
+                @if (phoneStep() === 'editing') {
+                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input type="tel" autocomplete="tel" placeholder="+1 202 555 0112" [ngModel]="newPhone()" name="newPhone"
+                      (ngModelChange)="newPhone.set($event)" (keydown.enter)="sendPhoneChange()" class="pf-input flex-1" />
+                    <div class="flex gap-2">
+                      <button type="button" (click)="cancelPhoneChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
+                      <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                        {{ phoneBusy() ? 'Sending…' : 'Text me a code' }}
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="mt-2 text-sm text-gray-600">
+                    We texted a code to <span class="font-semibold text-gray-900">{{ newPhone() }}</span>. It expires in 10 minutes.
+                  </p>
+                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <input type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"
+                      [ngModel]="phoneCode()" name="phoneCode" (ngModelChange)="phoneCode.set($event)"
+                      (keydown.enter)="confirmPhoneChange()" class="pf-input pf-input--code flex-1" />
+                    <div class="flex gap-2">
+                      <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Resend</button>
+                      <button type="button" (click)="cancelPhoneChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
+                      <button type="button" (click)="confirmPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                        {{ phoneBusy() ? 'Confirming…' : 'Confirm' }}
+                      </button>
+                    </div>
+                  </div>
+                }
+                @if (phoneError(); as err) {
+                  <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
+                    <ion-icon name="alert-circle-outline"></ion-icon>{{ err }}
+                  </p>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Contraseña ================= -->
+      <section id="password" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 3" aria-labelledby="password-title">
+        <header class="flex flex-wrap items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="key-outline"></ion-icon></span>
+          <div class="min-w-0 flex-1">
+            <h2 id="password-title" class="text-lg font-bold text-gray-900">Password</h2>
+            <p class="mt-0.5 text-sm text-gray-500">Updating it signs you out on every other device.</p>
+          </div>
+          <button type="button" (click)="showPasswords.set(!showPasswords())" [attr.aria-pressed]="showPasswords()"
+            class="pf-btn pf-btn--ghost pf-btn--sm">
+            <ion-icon [name]="showPasswords() ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+            {{ showPasswords() ? 'Hide' : 'Show' }}
+          </button>
+        </header>
+
+        <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_16rem]">
+          <div class="flex flex-col gap-4">
+            <label class="pf-field">
+              <span class="pf-field__label">Current password</span>
+              <input [type]="showPasswords() ? 'text' : 'password'" autocomplete="current-password" [ngModel]="currentPassword()"
+                name="currentPassword" (ngModelChange)="currentPassword.set($event)" class="pf-input" />
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="pf-field">
+                <span class="pf-field__label">New password</span>
+                <input [type]="showPasswords() ? 'text' : 'password'" autocomplete="new-password" [ngModel]="newPassword()"
+                  name="newPassword" (ngModelChange)="newPassword.set($event)" class="pf-input" />
+              </label>
+              <label class="pf-field">
+                <span class="pf-field__label">Confirm new password</span>
+                <input [type]="showPasswords() ? 'text' : 'password'" autocomplete="new-password" [ngModel]="confirmPassword()"
+                  name="confirmPassword" (ngModelChange)="confirmPassword.set($event)" (keydown.enter)="updatePassword()"
+                  class="pf-input" />
+              </label>
+            </div>
+
+            <!-- Medidor de fuerza -->
+            <div aria-live="polite">
+              <div class="flex gap-1.5" aria-hidden="true">
+                @for (step of [1, 2, 3, 4]; track step) {
+                  <span class="pf-meter h-1.5 flex-1 rounded-full" [attr.data-on]="newPassword() && strength() >= step ? strength() : null"></span>
+                }
+              </div>
+              <p class="mt-1.5 text-xs text-gray-500">
+                @if (newPassword()) {
+                  Strength: <span class="pf-strength-label font-semibold" [attr.data-strength]="strength()">{{ strengthLabel() }}</span>
+                } @else {
+                  Use a passphrase — a few unrelated words is long and easy to remember.
+                }
+              </p>
+            </div>
+          </div>
+
+          <!-- Requisitos en vivo -->
+          <div class="flex flex-col gap-4 rounded-2xl bg-brand-white p-4">
+            <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">Requirements</p>
+            <ul class="flex flex-col gap-2">
+              @for (rule of passwordRules(); track rule.label) {
+                <li class="flex items-start gap-2 text-sm" [class.text-gray-900]="rule.met" [class.text-gray-500]="!rule.met">
+                  <ion-icon [name]="rule.met ? 'checkmark-circle' : 'ellipse-outline'" class="pf-rule-icon mt-0.5 shrink-0 text-base"
+                    [class.text-emerald-600]="rule.met" [class.text-gray-300]="!rule.met"></ion-icon>
+                  {{ rule.label }}
+                </li>
+              }
+            </ul>
+            <button type="button" (click)="updatePassword()" [disabled]="!canUpdatePassword()" class="pf-btn pf-btn--primary mt-auto w-full">
+              {{ changingPassword() ? 'Updating…' : 'Update password' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Verificación en dos pasos + dispositivos de confianza ================= -->
+      <app-two-step-verification class="pf-reveal block" style="--i: 4"></app-two-step-verification>
+
+      <!-- ================= Sesiones activas ================= -->
+      <section id="sessions" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 5" aria-labelledby="sessions-title">
+        <header class="flex flex-wrap items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="desktop-outline"></ion-icon></span>
+          <div class="min-w-0 flex-1">
+            <h2 id="sessions-title" class="text-lg font-bold text-gray-900">Active sessions</h2>
+            <p class="mt-0.5 text-sm text-gray-500">Where you're signed in right now. Sign out anything you don't recognize.</p>
+          </div>
+          @if (otherSessions().length > 0) {
+            <button type="button" (click)="signOutEverywhereElse()" [disabled]="revokingOthers() || store.sessionsLoading()"
+              class="pf-btn pf-btn--ghost pf-btn--danger w-full sm:w-auto">
+              <ion-icon name="log-out-outline"></ion-icon>
+              {{ revokingOthers() ? 'Signing out…' : 'Sign out everywhere else' }}
+            </button>
+          }
+        </header>
+
+        <app-state-block class="mt-5 block" variant="inline" [loading]="store.sessionsLoading() && store.sessions().length === 0"
+          [error]="store.sessionsError()" [empty]="store.sessions().length === 0" loadingText="Loading sessions…"
+          icon="desktop-outline" emptyTitle="No active sessions found." (retry)="store.loadSessions()">
+          <div class="flex flex-col gap-3">
+            @if (currentSession(); as session) {
+              <div class="pf-session pf-session--current flex flex-wrap items-center gap-3 rounded-2xl border border-brand-border bg-brand-surface p-4">
+                <span class="pf-icon-tile pf-icon-tile--sm bg-white"><ion-icon [name]="deviceIcon(session)"></ion-icon></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm font-semibold text-gray-900">{{ deviceLabel(session) }}</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[0.6875rem] font-semibold text-emerald-700">
+                      <span class="pf-live-dot" aria-hidden="true"></span> This device · active now
+                    </span>
+                  </div>
+                  <p class="mt-0.5 truncate text-xs text-gray-600">
+                    @if (locationLabel(session); as where) {<span>{{ where }} · </span>}
+                    Signed in {{ session.createdAtUtc | date: 'MMM d, h:mm a' }}
+                  </p>
+                </div>
+              </div>
+            }
+
+            @for (session of otherSessions(); track session.id) {
+              <div class="pf-session flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 p-4">
+                <span class="pf-icon-tile pf-icon-tile--sm"><ion-icon [name]="deviceIcon(session)"></ion-icon></span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-sm font-semibold text-gray-900">{{ deviceLabel(session) }}</span>
+                  <p class="mt-0.5 truncate text-xs text-gray-500">
+                    @if (locationLabel(session); as where) {<span>{{ where }} · </span>}
+                    Last active {{ session.lastSeenAtUtc | timeAgo }}
+                  </p>
+                </div>
+                <button type="button" (click)="revokeSession(session)" [disabled]="revokingSessionId() === session.id"
+                  class="pf-btn pf-btn--ghost pf-btn--danger pf-btn--sm">
+                  {{ revokingSessionId() === session.id ? 'Signing out…' : 'Sign out' }}
+                </button>
+              </div>
+            }
+
+            @if (currentSession() && otherSessions().length === 0) {
+              <p class="flex items-center gap-2 px-1 text-sm text-gray-500">
+                <ion-icon name="checkmark-circle" class="text-base text-emerald-600"></ion-icon>
+                You're only signed in on this device.
+              </p>
+            }
+          </div>
+        </app-state-block>
+      </section>
+    </div>
   </div>
 </div>

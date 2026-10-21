@@ -185,6 +185,14 @@ export interface AttachmentDownloadUrlResult {
 export type DraftStatus = 'Draft' | 'Sending' | 'Sent' | 'Failed' | 'Discarded';
 
 /**
+ * De qué correo saliente se habla en Drafts/Sent/Trash: el archivado en un cliente, o el que se
+ * mandó a alguien que no es cliente (proveedor, IRS, colega) y no se archivó en ninguno. Es un tipo
+ * explícito y no un `customerId | null`: un id que falta por error no debe leerse como "sin cliente"
+ * y mostrar otro correo. El backend exige lo mismo (`customerId` o `unlinked=true`).
+ */
+export type MailCustomerScope = { readonly kind: 'customer'; readonly customerId: string } | { readonly kind: 'unlinked' };
+
+/**
  * Fila de la carpeta "Sent" (GET /correspondence/sent?customerId=): un mensaje ya enviado.
  * `emailThreadId` null = envío nuevo (compose) sin hilo → el front lo abre como mensaje suelto;
  * no-null = reply → abre el hilo completo. El body se pide con GET /drafts/{id} al abrirlo.
@@ -249,7 +257,8 @@ export interface ReplyContext {
 /** GET /correspondence/drafts/{id} — vista completa para el composer. */
 export interface DraftDetail {
   draftId: string;
-  customerId: string;
+  /** Cliente en cuya ficha queda el correo; null = correo a alguien que no es cliente. */
+  customerId: string | null;
   accountId: string;
   subject: string;
   htmlBody: string;

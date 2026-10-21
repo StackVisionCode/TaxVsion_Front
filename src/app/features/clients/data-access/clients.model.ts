@@ -10,6 +10,18 @@ export type CustomerStatus = 'Active' | 'Inactive' | 'Archived';
 /** Espejo de TaxVision.Customer.Application.Customers.CustomerStatusFilter (query param `status` de GET /customers). */
 export type CustomerStatusFilter = 'Active' | 'Inactive' | 'Archived' | 'NotArchived' | 'All';
 
+/** Filtro de tipo del directorio (query param `kind`); `All` = individuos y empresas (no se envía). */
+export type CustomerKindFilter = 'All' | CustomerKind;
+
+/** Espejo de CustomerSortField / CustomerSortDirection de Customer.Api (query params `sort` y `dir`). */
+export type CustomerSortField = 'Name' | 'Created';
+export type CustomerSortDirection = 'Asc' | 'Desc';
+
+export interface CustomerListSort {
+  field: CustomerSortField;
+  dir: CustomerSortDirection;
+}
+
 /** Espejo de TaxVision.Customer.Domain.Customers.Language. */
 export type CustomerLanguage = 'Es' | 'En' | 'Pt' | 'Fr';
 

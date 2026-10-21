@@ -31,7 +31,6 @@ describe('MailStore.sendCompose', () => {
   let calls: string[];
 
   const payload = (over: Partial<ComposeSendPayload> = {}): ComposeSendPayload => ({
-    customerId: 'c1',
     accountId: 'a1',
     to: 'uno@cli.com',
     cc: '',

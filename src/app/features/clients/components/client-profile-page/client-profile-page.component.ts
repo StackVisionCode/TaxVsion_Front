@@ -922,7 +922,7 @@ export class ClientProfilePageComponent implements OnDestroy {
   }
 
   typeLabel(client: ClientProfile): string {
-    return client.type === 'individual' ? 'Individual' : 'Company';
+    return client.type === 'individual' ? 'Individual' : 'Business';
   }
 
   typeBadgeClass(client: ClientProfile): string {

@@ -3,11 +3,18 @@
   <div class="flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
     <div class="min-w-0">
       <h2 class="text-xl font-bold text-gray-900">{{ state.draft ? 'Continue draft' : 'New message' }}</h2>
-      <!-- Contexto real del envío: el draft cuelga de una cuenta de buzón y de un cliente. -->
-      <p class="mt-1 truncate text-sm text-gray-500">
-        <ng-container *ngIf="accountEmail">From {{ accountEmail }}</ng-container>
-        <ng-container *ngIf="accountEmail && customerName"> · </ng-container>
-        <ng-container *ngIf="customerName">Client {{ customerName }}</ng-container>
+      <!-- Contexto real del envío: el buzón desde el que sale y el cliente en cuya ficha se archiva
+           (o ninguno, si se escribe a alguien que no es cliente). -->
+      <p class="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 text-sm text-gray-500">
+        <span *ngIf="accountEmail" class="truncate">From {{ accountEmail }} ·</span>
+        <ng-container *ngIf="customerName; else notFiled">
+          <span class="truncate">Filed under {{ customerName }}</span>
+          <button *ngIf="canUnlinkCustomer" type="button" (click)="unlinkCustomer()" [disabled]="state.sending"
+            class="font-medium text-gray-400 underline-offset-2 hover:text-gray-700 hover:underline disabled:opacity-50 transition-colors">
+            Don't file under this client
+          </button>
+        </ng-container>
+        <ng-template #notFiled><span class="truncate">Not filed under a client</span></ng-template>
       </p>
     </div>
     <button type="button" (click)="close()" [disabled]="state.sending"

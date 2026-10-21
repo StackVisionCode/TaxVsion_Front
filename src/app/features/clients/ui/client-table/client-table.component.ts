@@ -5,6 +5,7 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StaffDirectoryStore, StaffMember } from '../../data-access/staff-directory.store';
+import { CustomerListSort, CustomerSortField } from '../../data-access/clients.model';
 
 export type ClientType = 'individual' | 'company';
 
@@ -68,6 +69,8 @@ export class ClientTableComponent {
   @Input() canAssignPreparer = false;
   /** Mostrar la columna "Assigned to" (roster). Solo admin/view_all — need-to-know. */
   @Input() canViewAssignees = false;
+  /** Orden vigente: pinta la flecha en Name/Created. El padre decide el nuevo orden al hacer clic. */
+  @Input() sort: CustomerListSort | null = null;
 
   @Output() editRequested = new EventEmitter<ClientItem>();
   @Output() toggleActiveRequested = new EventEmitter<ClientItem>();
@@ -75,6 +78,7 @@ export class ClientTableComponent {
   @Output() assignRequested = new EventEmitter<ClientItem>();
   @Output() selectToggled = new EventEmitter<string>();
   @Output() selectAllToggled = new EventEmitter<void>();
+  @Output() sortRequested = new EventEmitter<CustomerSortField>();
 
   private readonly staff = inject(StaffDirectoryStore);
 
@@ -106,6 +110,12 @@ export class ClientTableComponent {
     const ids = client.assigneeUserIds ?? [];
     const members = ids.map(id => this.staff.resolve(id)).filter((m): m is StaffMember => !!m);
     return { shown: members.slice(0, 3), extra: Math.max(0, ids.length - members.slice(0, 3).length) };
+  }
+
+  /** `aria-sort` de la columna: solo la que ordena dice hacia dónde. */
+  ariaSort(field: CustomerSortField): 'ascending' | 'descending' | null {
+    if (this.sort?.field !== field) return null;
+    return this.sort.dir === 'Asc' ? 'ascending' : 'descending';
   }
 
   typeLabel(client: ClientItem): string {
