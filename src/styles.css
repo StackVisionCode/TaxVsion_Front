@@ -1,4 +1,5 @@
 @import './styles/public-signing-flow.css';
+@import './styles/settings-ui.css';
 
 @tailwind base;
 @tailwind components;

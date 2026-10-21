@@ -1,5 +1,5 @@
-/* Piezas visuales de las páginas de ajustes (Profile, Office Settings). Cada componente la
-   incluye en sus styleUrls. Colores del brandbook: navy #1e466b / #132c43, superficie #f1f6fb,
+/* Piezas visuales de las páginas de ajustes (Profile, Office Settings). Global (styles.css) para que
+   se descargue una sola vez: como styleUrl de cada componente se copiaba entera en cada uno. Colores del brandbook: navy #1e466b / #132c43, superficie #f1f6fb,
    borde #d7e3ef. Solo se anima transform/opacity y todo se apaga con prefers-reduced-motion. */
 
 /* ---- Entrada escalonada de las tarjetas (cada una trae su índice en --i) ---- */
@@ -12,6 +12,22 @@
   from {
     opacity: 0;
     transform: translateY(14px);
+  }
+}
+
+/* ---- Tarjeta de sección (con ancla para el índice lateral) ---- */
+.pf-card {
+  scroll-margin-top: 1.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgb(243 244 246);
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+@media (min-width: 640px) {
+  .pf-card {
+    padding: 1.75rem;
   }
 }
 
