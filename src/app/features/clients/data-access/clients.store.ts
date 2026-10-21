@@ -17,6 +17,8 @@ import {
   Customer,
   CustomerDetailResponse,
   CustomerExistsResponse,
+  CustomerKindFilter,
+  CustomerListSort,
   CustomerStatus,
   CustomerStatusAction,
   CustomerStatusFilter,
@@ -34,6 +36,8 @@ import {
 export const LIST_PAGE_SIZES = [10, 25, 50, 100] as const;
 const DEFAULT_SIZE = 25;
 const DEFAULT_STATUS: CustomerStatusFilter = 'NotArchived';
+/** Orden por defecto: el mismo que el backend sin parámetros (nombre A→Z). */
+export const DEFAULT_CLIENT_SORT: CustomerListSort = { field: 'Name', dir: 'Asc' };
 
 /** El aviso exacto de lo que no se guardó, en inglés y sin jerga de API. */
 function partialSaveWarning(statusApplied: boolean, fiscalApplied: boolean): string | null {
@@ -58,7 +62,7 @@ export interface ClientSaveOptions {
  * Store de clientes (Customer.Api vía /customers), compartido por directorio y perfil
  * (`providedIn: 'root'`).
  *
- * El LISTADO es paginación server-side real: `GET /customers?term&status&page&size`.
+ * El LISTADO es paginación server-side real: `GET /customers?term&status&kind&sort&dir&page&size`.
  * Las señales de query (`term/status/page/size`) alimentan una única canalización con
  * `switchMap`, que cancela la petición anterior cuando el usuario cambia algo (evita
  * respuestas fuera de orden). Tras una mutación (crear/editar/estado/bulk) se re-pide la
@@ -72,6 +76,8 @@ export class ClientsStore {
   // ---------- Estado del listado ----------
   private readonly _term = signal('');
   private readonly _status = signal<CustomerStatusFilter>(DEFAULT_STATUS);
+  private readonly _kind = signal<CustomerKindFilter>('All');
+  private readonly _sort = signal<CustomerListSort>(DEFAULT_CLIENT_SORT);
   private readonly _page = signal(1);
   private readonly _size = signal<number>(DEFAULT_SIZE);
   private readonly _items = signal<CustomerSummary[]>([]);
@@ -84,6 +90,8 @@ export class ClientsStore {
 
   readonly term = this._term.asReadonly();
   readonly status = this._status.asReadonly();
+  readonly kind = this._kind.asReadonly();
+  readonly sort = this._sort.asReadonly();
   readonly page = this._page.asReadonly();
   readonly size = this._size.asReadonly();
   readonly items = this._items.asReadonly();
@@ -103,13 +111,16 @@ export class ClientsStore {
           this._listLoading.set(true);
           this._listError.set(null);
         }),
-        switchMap(() =>
-          this.service
+        switchMap(() => {
+          const kind = this._kind();
+          return this.service
             .search({
               term: this._term().trim() || undefined,
               status: this._status(),
               page: this._page(),
               size: this._size(),
+              kind: kind === 'All' ? undefined : kind,
+              sort: this._sort(),
             })
             .pipe(
               catchError(err => {
@@ -119,12 +130,20 @@ export class ClientsStore {
                 this._listLoading.set(false);
                 return of(null);
               }),
-            ),
-        ),
+            );
+        }),
         takeUntilDestroyed(),
       )
       .subscribe(result => {
         if (!result) {
+          return;
+        }
+        // La página quedó fuera de rango (se archivó lo último de la última página, o una URL vieja):
+        // se pasa a la última página real en vez de mostrar "no hay clientes" habiendo clientes.
+        const lastPage = Math.max(1, Math.ceil(result.totalCount / this._size()));
+        if (result.items.length === 0 && result.page > lastPage && result.totalCount > 0) {
+          this._page.set(lastPage);
+          this.load$.next();
           return;
         }
         this._items.set(result.items);
@@ -136,9 +155,18 @@ export class ClientsStore {
   }
 
   /** Inicializa el listado desde el estado de la URL (idempotente); dispara la primera carga una sola vez. */
-  initList(query: { term?: string; status?: CustomerStatusFilter; page?: number; size?: number }): void {
+  initList(query: {
+    term?: string;
+    status?: CustomerStatusFilter;
+    kind?: CustomerKindFilter;
+    sort?: CustomerListSort;
+    page?: number;
+    size?: number;
+  }): void {
     if (query.term !== undefined) this._term.set(query.term);
     if (query.status !== undefined) this._status.set(query.status);
+    if (query.kind !== undefined) this._kind.set(query.kind);
+    if (query.sort !== undefined) this._sort.set(query.sort);
     if (query.size !== undefined) this._size.set(query.size);
     if (query.page !== undefined) this._page.set(query.page);
     this.started = true;
@@ -166,6 +194,28 @@ export class ClientsStore {
 
   setStatus(status: CustomerStatusFilter): void {
     this._status.set(status);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  setKind(kind: CustomerKindFilter): void {
+    this._kind.set(kind);
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  /** Quita búsqueda, estado y tipo de una vez (una sola petición); el orden se respeta. */
+  resetFilters(): void {
+    this._term.set('');
+    this._status.set(DEFAULT_STATUS);
+    this._kind.set('All');
+    this._page.set(1);
+    this.load$.next();
+  }
+
+  /** Cambiar el orden vuelve a la página 1: la página N de otro orden son otros clientes. */
+  setSort(sort: CustomerListSort): void {
+    this._sort.set(sort);
     this._page.set(1);
     this.load$.next();
   }

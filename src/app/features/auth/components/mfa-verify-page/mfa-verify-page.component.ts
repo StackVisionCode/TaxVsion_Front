@@ -7,6 +7,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { SessionTakeoverService } from '@core/auth/session-takeover.service';
 import { LoginTransitionService } from '@core/auth/login-transition.service';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { SUBSCRIPTION_LOCKED_URL } from '@core/billing/subscription-locked.guard';
 
 /**
  * Paso 2 del login (MFA): verifica el código TOTP/Email/SMS o un código de
@@ -136,6 +137,10 @@ export class MfaVerifyPageComponent implements OnDestroy {
         },
         error: err => {
           this.submitting.set(false);
+          if (toApiError(err).code === 'Auth.SubscriptionInactive') {
+            void this.router.navigateByUrl(SUBSCRIPTION_LOCKED_URL);
+            return;
+          }
           this.formError.set(this.messageFor(err));
         },
       });

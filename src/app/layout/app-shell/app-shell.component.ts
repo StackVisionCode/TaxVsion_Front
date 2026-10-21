@@ -28,6 +28,7 @@ import { MeetingMiniPlayerComponent } from '@core/communication/meeting-mini-pla
 import { SubscriptionBannerComponent } from '../subscription-banner/subscription-banner.component';
 import { SeatOverCapBannerComponent } from '../seat-over-cap-banner/seat-over-cap-banner.component';
 import { SubscriptionStatusStore } from '@core/billing/subscription-status.store';
+import { SUBSCRIPTION_LOCKED_URL } from '@core/billing/subscription-locked.guard';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { MeetingSessionState } from '@core/communication/meeting-session-state';
 import { ChatSocketService } from '@features/chat/data-access/chat-socket.service';
@@ -147,6 +148,14 @@ export class AppShellComponent implements OnInit, OnDestroy {
       if (tenantId && tenantId !== this.lastBrandedTenantId) {
         this.lastBrandedTenantId = tenantId;
         this.branding.applyForTenant(tenantId, 'Crm');
+      }
+    });
+
+    // La oficina dejó de pagar (al cargar /me o por un 403 en el camino): se tapa el CRM con la pantalla
+    // de pago. El guard cubre las navegaciones siguientes.
+    effect(() => {
+      if (this.subscriptionStatus.isLocked()) {
+        void this.router.navigateByUrl(SUBSCRIPTION_LOCKED_URL);
       }
     });
   }

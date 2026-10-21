@@ -51,6 +51,7 @@ const EMPTY_STATE: ComposeState = {
   sending: false,
   error: null,
   initialTo: null,
+  customerId: null,
 };
 
 /** Campo de destinatarios con autocompletar. Bcc no existe en el payload del store. */
@@ -100,8 +101,10 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   @Input() state: ComposeState = EMPTY_STATE;
   /** Buzón desde el que sale el correo (cuenta activa del store). */
   @Input() accountEmail: string | null = null;
-  /** Cliente dueño del hilo — Correspondence es customer-céntrico. */
+  /** Cliente en cuya ficha se archiva el correo; null = a alguien que no es cliente. */
   @Input() customerName: string | null = null;
+  /** Redacción nueva de /email: se puede no archivarla en el cliente. Nunca en el perfil ni en un draft. */
+  @Input() canUnlinkCustomer = false;
   /** Clientes que devolvió la búsqueda del término tecleado en To/Cc. */
   @Input() recipientSuggestions: CustomerSummary[] = [];
   @Input() recipientSearching = false;
@@ -111,6 +114,8 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   @Output() sendRequested = new EventEmitter<ComposeDraftPayload>();
   /** Término tecleado en el destinatario en curso: el padre lo busca contra /customers. */
   @Output() recipientSearchRequested = new EventEmitter<string>();
+  /** "No archivar en este cliente": el padre lo resuelve contra el store. */
+  @Output() customerUnlinked = new EventEmitter<void>();
 
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -639,6 +644,20 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     }
     this.reset();
     this.discarded.emit();
+  }
+
+  /**
+   * "Don't file under this client": si "To" sigue siendo solo el email del cliente que se precargó, se
+   * vacía — dejarlo mandaría el correo AL cliente sin archivarlo en su ficha. Si el usuario ya escribió
+   * otros destinatarios, no se toca lo suyo.
+   */
+  unlinkCustomer(): void {
+    const prefilled = this.appliedInitialTo?.trim().toLowerCase();
+    const current = this.to().replace(/[,;\s]+$/, '').trim().toLowerCase();
+    if (prefilled && current === prefilled) {
+      this.to.set('');
+    }
+    this.customerUnlinked.emit();
   }
 
   send(): void {

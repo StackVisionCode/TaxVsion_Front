@@ -1,0 +1,215 @@
+/* Piezas visuales de las páginas de ajustes (Profile, Office Settings). Cada componente la
+   incluye en sus styleUrls. Colores del brandbook: navy #1e466b / #132c43, superficie #f1f6fb,
+   borde #d7e3ef. Solo se anima transform/opacity y todo se apaga con prefers-reduced-motion. */
+
+/* ---- Entrada escalonada de las tarjetas (cada una trae su índice en --i) ---- */
+.pf-reveal {
+  animation: pf-reveal-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes pf-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---- Icono en baldosa (encabezado de sección y filas) ---- */
+.pf-icon-tile {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.875rem;
+  background: #f1f6fb;
+  color: #1e466b;
+  font-size: 1.15rem;
+}
+
+.pf-icon-tile--sm {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  font-size: 1.05rem;
+}
+
+/* ---- Campos ---- */
+.pf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.pf-field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgb(55 65 81);
+}
+
+.pf-input {
+  height: 2.75rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.875rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgb(229 231 235);
+  background: #fff;
+  color: rgb(17 24 39);
+  font-size: 0.9375rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.pf-input::placeholder {
+  color: rgb(156 163 175);
+}
+
+.pf-input:hover {
+  border-color: rgb(209 213 219);
+}
+
+.pf-input:focus {
+  outline: none;
+  border-color: #1e466b;
+  box-shadow: 0 0 0 4px rgb(30 70 107 / 0.12);
+}
+
+.pf-input--code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+}
+
+/* ---- Botones ---- */
+.pf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.5rem;
+  padding: 0 1.125rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.pf-btn--sm {
+  height: 2rem;
+  padding: 0 0.875rem;
+  font-size: 0.8125rem;
+}
+
+.pf-btn--primary {
+  background: #1e466b;
+  color: #fff;
+  box-shadow: 0 8px 18px -10px rgb(30 70 107 / 0.7);
+}
+
+.pf-btn--primary:hover:not(:disabled) {
+  background: #132c43;
+  transform: translateY(-1px);
+}
+
+.pf-btn--ghost {
+  border: 1px solid rgb(229 231 235);
+  background: #fff;
+  color: rgb(55 65 81);
+}
+
+.pf-btn--ghost:hover:not(:disabled) {
+  background: rgb(249 250 251);
+  border-color: rgb(209 213 219);
+}
+
+.pf-btn--danger {
+  color: rgb(220 38 38);
+}
+
+.pf-btn--danger:hover:not(:disabled) {
+  background: rgb(254 242 242);
+  border-color: rgb(254 202 202);
+}
+
+.pf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.pf-btn:focus-visible {
+  outline: 3px solid #67baf4;
+  outline-offset: 2px;
+}
+
+/* ---- Insignias de estado ---- */
+.pf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.pf-badge--ok {
+  background: rgb(236 253 245);
+  color: rgb(4 120 87);
+}
+
+.pf-badge--warn {
+  background: rgb(255 251 235);
+  color: rgb(180 83 9);
+}
+
+.pf-badge--danger {
+  background: rgb(254 242 242);
+  color: rgb(185 28 28);
+}
+
+/* ---- Paneles que se abren (flujo de código, barra de guardado) ---- */
+.pf-flow,
+.pf-savebar {
+  animation: pf-open 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes pf-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* ---- Filas de listas (sesiones, dispositivos, métodos) ---- */
+.pf-row {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.pf-row:hover {
+  border-color: #d7e3ef;
+  box-shadow: 0 6px 18px -12px rgb(19 44 67 / 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-reveal,
+  .pf-flow,
+  .pf-savebar {
+    animation: none;
+  }
+
+  .pf-btn--primary:hover:not(:disabled) {
+    transform: none;
+  }
+}

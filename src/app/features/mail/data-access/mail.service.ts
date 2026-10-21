@@ -14,6 +14,7 @@ import {
   DraftListItem,
   InitiateOAuthConnectResult,
   MailAccount,
+  MailCustomerScope,
   MessageBody,
   MessageSummary,
   SentMessageListItem,
@@ -23,6 +24,13 @@ import {
   StartReplyResult,
   ThreadSummary,
 } from './mail.model';
+
+/** Alcance de los listados de Correspondence: `customerId=` o `unlinked=true`, nunca ninguno. */
+function scopeParams(scope: MailCustomerScope): HttpParams {
+  return scope.kind === 'customer'
+    ? new HttpParams().set('customerId', scope.customerId)
+    : new HttpParams().set('unlinked', true);
+}
 
 /**
  * Cliente HTTP fino del módulo Mail sobre dos servicios del Gateway:
@@ -96,9 +104,9 @@ export class MailService {
     );
   }
 
-  /** Carpeta "Sent": mensajes ya enviados del cliente, más reciente primero. */
-  listSent(customerId: string, page: number, size: number): Observable<PagedResult<SentMessageListItem>> {
-    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+  /** Carpeta "Sent": mensajes ya enviados del cliente (o sin cliente), más reciente primero. */
+  listSent(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<SentMessageListItem>> {
+    const params = scopeParams(scope).set('page', page).set('size', size);
     return this.http.get<PagedResult<SentMessageListItem>>(`${this.correspondence}/sent`, { params });
   }
 
@@ -121,9 +129,9 @@ export class MailService {
     return this.http.post<void>(`${this.correspondence}/threads/${threadId}/unarchive`, {});
   }
 
-  /** Papelera unificada (entrantes + enviados borrados) del cliente. */
-  listTrash(customerId: string, page: number, size: number): Observable<PagedResult<TrashItem>> {
-    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+  /** Papelera unificada (entrantes + enviados borrados) del cliente; sin cliente solo hay enviados. */
+  listTrash(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<TrashItem>> {
+    const params = scopeParams(scope).set('page', page).set('size', size);
     return this.http.get<PagedResult<TrashItem>>(`${this.correspondence}/trash`, { params });
   }
 
@@ -203,12 +211,13 @@ export class MailService {
 
   // ---------- Correspondence: drafts ----------
 
-  listDrafts(customerId: string, page: number, size: number): Observable<PagedResult<DraftListItem>> {
-    const params = new HttpParams().set('customerId', customerId).set('page', page).set('size', size);
+  listDrafts(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<DraftListItem>> {
+    const params = scopeParams(scope).set('page', page).set('size', size);
     return this.http.get<PagedResult<DraftListItem>>(`${this.correspondence}/drafts`, { params });
   }
 
-  createDraft(customerId: string, accountId: string): Observable<{ draftId: string }> {
+  /** `customerId` null = correo a alguien que no es cliente: no se archiva en ninguna ficha. */
+  createDraft(customerId: string | null, accountId: string): Observable<{ draftId: string }> {
     return this.http.post<{ draftId: string }>(`${this.correspondence}/drafts`, { customerId, accountId });
   }
 

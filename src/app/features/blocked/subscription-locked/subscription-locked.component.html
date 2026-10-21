@@ -1,0 +1,141 @@
+<main class="locked-screen" aria-labelledby="locked-title">
+  <!-- Fondo: orbes de marca que derivan despacio sobre el azul; solo decorativo. -->
+  <div class="locked-backdrop" aria-hidden="true">
+    <span class="orb orb--sky"></span>
+    <span class="orb orb--sand"></span>
+    <span class="orb orb--deep"></span>
+    <span class="grid-veil"></span>
+  </div>
+
+  <section class="locked-card" data-testid="locked-card">
+    <div class="reveal flex justify-center" style="--i: 0">
+      <app-brand-logo
+        variant="taxoffix"
+        logoClass="h-12 max-w-[12rem] object-contain"
+        fallbackClass="text-brand-bold text-4xl font-bold leading-none"
+      ></app-brand-logo>
+    </div>
+
+    <div class="reveal lock-badge" style="--i: 1" aria-hidden="true">
+      <span class="lock-ring"></span>
+      <span class="lock-ring lock-ring--late"></span>
+      <span class="lock-core">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+      </span>
+    </div>
+
+    @switch (viewer()) {
+      @case ('admin') {
+        <h1 id="locked-title" class="reveal locked-title" style="--i: 2">Your subscription is inactive</h1>
+        <p class="reveal locked-lead" style="--i: 3">
+          {{ officeName() ?? 'Your office' }} is paused until the subscription is renewed. Pay now and your whole
+          team gets access back right away.
+        </p>
+
+        @if (summary(); as s) {
+          <dl class="reveal locked-facts" style="--i: 4" data-testid="locked-facts">
+            <div class="fact">
+              <dt><ion-icon name="layers-outline" aria-hidden="true"></ion-icon>Plan</dt>
+              <dd>{{ s.planName }}</dd>
+            </div>
+            <div class="fact">
+              <dt><ion-icon name="wallet-outline" aria-hidden="true"></ion-icon>Amount due</dt>
+              <dd>
+                {{ s.currentCyclePriceUsd | money: 'USD' }}
+                @if (cycleLabel()) {
+                  <span class="fact-unit">{{ cycleLabel() }}</span>
+                }
+              </dd>
+            </div>
+            @if (inactiveSince(); as since) {
+              <div class="fact">
+                <dt><ion-icon name="calendar-outline" aria-hidden="true"></ion-icon>Inactive since</dt>
+                <dd>{{ since | date: 'MMM d, y' }}</dd>
+              </div>
+            }
+          </dl>
+        }
+
+        <div class="reveal locked-actions" style="--i: 5">
+          <button
+            type="button"
+            class="btn-pay"
+            data-testid="pay-now"
+            [disabled]="handoff.opening()"
+            (click)="payNow()"
+          >
+            <ion-icon name="card-outline" aria-hidden="true"></ion-icon>
+            {{ handoff.opening() ? 'Opening…' : 'Pay now' }}
+          </button>
+          <button
+            type="button"
+            class="btn-quiet"
+            data-testid="check-again"
+            [disabled]="checking()"
+            (click)="checkAgain()"
+          >
+            <ion-icon name="refresh-outline" aria-hidden="true" [class.spin]="checking()"></ion-icon>
+            {{ checking() ? 'Checking…' : "I've already paid" }}
+          </button>
+        </div>
+      }
+      @default {
+        <h1 id="locked-title" class="reveal locked-title" style="--i: 2">Your office's access is paused</h1>
+        <p class="reveal locked-lead" style="--i: 3">
+          The subscription for {{ officeName() ?? 'your office' }} is inactive, so the workspace is locked for
+          everyone. Ask your firm's administrator to renew it — you'll be able to sign in again right after.
+        </p>
+
+        <div class="reveal locked-actions" style="--i: 4">
+          @if (viewer() === 'member') {
+            <button
+              type="button"
+              class="btn-pay"
+              data-testid="check-again"
+              [disabled]="checking()"
+              (click)="checkAgain()"
+            >
+              <ion-icon name="refresh-outline" aria-hidden="true" [class.spin]="checking()"></ion-icon>
+              {{ checking() ? 'Checking…' : 'Try again' }}
+            </button>
+          } @else {
+            <button type="button" class="btn-pay" data-testid="back-to-sign-in" (click)="backToSignIn()">
+              <ion-icon name="arrow-back-outline" aria-hidden="true"></ion-icon>
+              Back to sign in
+            </button>
+          }
+        </div>
+      }
+    }
+
+    <p class="locked-status" role="status" aria-live="polite">
+      @if (stillPending()) {
+        <span data-testid="still-pending">
+          We haven't received the payment yet. It can take a minute to show up — we'll keep checking.
+        </span>
+      } @else if (handoff.error()) {
+        <span>{{ handoff.error() }}</span>
+      }
+    </p>
+
+    <div class="reveal locked-footer" style="--i: 6">
+      <span class="safe-note">
+        <ion-icon name="shield-checkmark-outline" aria-hidden="true"></ion-icon>
+        Your data stays saved while the subscription is inactive.
+      </span>
+      @if (viewer() !== 'signed-out') {
+        <button type="button" class="btn-link" data-testid="sign-out" (click)="signOut()">
+          <ion-icon name="log-out-outline" aria-hidden="true"></ion-icon>
+          Sign out
+        </button>
+      }
+    </div>
+  </section>
+
+  <footer class="reveal powered-by" style="--i: 7">
+    <span>Powered by</span>
+    <span class="powered-pill">
+      <app-platform-brand-logo logoClass="h-8 max-w-[9rem] object-contain"></app-platform-brand-logo>
+    </span>
+  </footer>
+</main>

@@ -104,3 +104,53 @@ export function sessionDeviceLabel(session: Pick<UserSession, 'deviceName' | 'us
 export function sessionIsMobile(session: Pick<UserSession, 'userAgent'>): boolean {
   return /iPhone|iPad|iPod|Android|Mobile/.test(session.userAgent ?? '');
 }
+
+/** Nombre legible del rol (actorType de /auth/me): "TenantAdmin" no le dice nada a nadie. */
+export function roleDisplayName(actorType: string | null | undefined): string {
+  switch (actorType) {
+    case 'TenantAdmin':
+      return 'Office admin';
+    case 'TenantEmployee':
+      return 'Team member';
+    case 'PlatformAdmin':
+      return 'Platform admin';
+    case 'CustomerPortal':
+      return 'Client';
+    default:
+      return actorType || 'Member';
+  }
+}
+
+export type PasswordStrength = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * Fuerza orientativa para el medidor: 0 = no llega al mínimo del backend; luego suma por largo extra y
+ * por variedad (mayúsculas+minúsculas, números, símbolos). No reemplaza la validación del servidor.
+ */
+export function passwordStrength(password: string): PasswordStrength {
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return 0;
+  }
+  let score = 1;
+  if (password.length >= PASSWORD_MIN_LENGTH + 4) score++;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score++;
+  return Math.min(score, 4) as PasswordStrength;
+}
+
+/** IP para mostrar: las de loopback son "este equipo", no un número que nadie reconoce. */
+export function sessionLocationLabel(ipAddress: string | null | undefined): string | null {
+  const ip = ipAddress?.trim();
+  if (!ip) {
+    return null;
+  }
+  if (ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') {
+    return 'This computer';
+  }
+  return ip;
+}
+
+/** Días enteros que faltan para `isoUtc` (negativo si ya pasó). */
+export function daysUntil(isoUtc: string, now: Date = new Date()): number {
+  return Math.ceil((new Date(toUtcIso(isoUtc)).getTime() - now.getTime()) / 86_400_000);
+}

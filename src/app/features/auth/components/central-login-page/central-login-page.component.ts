@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
   FormBuilder,
   FormGroup,
@@ -22,6 +22,7 @@ import { environment } from '@env/environment';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { DiscoverOffice, DiscoverOutcome } from '@core/auth/central-login.model';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { SUBSCRIPTION_LOCKED_URL } from '@core/billing/subscription-locked.guard';
 import {
   PlanChoice,
   PlanPickerModalComponent,
@@ -47,6 +48,7 @@ type Step = 'credentials' | 'select';
 export class CentralLoginPageComponent {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly centralLogin = inject(CentralLoginService);
   private readonly branding = inject(TenantBrandingService);
   private readonly destroyRef = inject(DestroyRef);
@@ -236,6 +238,10 @@ export class CentralLoginPageComponent {
 
   private fail(err: unknown): void {
     this.isBusy.set(false);
+    if (toApiError(err).code === 'Auth.SubscriptionInactive') {
+      void this.router.navigateByUrl(SUBSCRIPTION_LOCKED_URL);
+      return;
+    }
     this.formError.set(this.messageFor(err));
   }
 

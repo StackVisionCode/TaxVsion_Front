@@ -32,6 +32,7 @@ import {
   DraftDetail,
   DraftListItem,
   MailAccount,
+  MailCustomerScope,
   MessageSummary,
   SentMessageListItem,
   ThreadSummary,
@@ -98,11 +99,19 @@ export interface ComposeState {
   error: string | null;
   /** Destinatario a precargar en "To" en una redacción NUEVA (deep link desde el perfil del cliente). */
   initialTo: string | null;
+  /**
+   * Cliente en cuya ficha se archivará el correo; null = a alguien que no es cliente. Se fija al ABRIR
+   * el composer (y en un draft retomado, el del draft), no al enviar: cambiar de cliente en el rail
+   * a mitad de redacción no debe re-archivar lo que se está escribiendo.
+   */
+  customerId: string | null;
 }
 
-/** Payload que el composer emite al presionar Send; el store corre la cadena real. */
+/**
+ * Payload que el composer emite al presionar Send; el store corre la cadena real. El cliente NO viaja
+ * acá: lo decide el estado del composer (`ComposeState.customerId`), fijado al abrirlo.
+ */
 export interface ComposeSendPayload {
-  customerId: string;
   accountId: string;
   to: string;
   cc: string;
@@ -116,6 +125,8 @@ export interface ComposeSendPayload {
   removedFileIds: string[];
 }
 
+const ATTACHMENT_OWNER_UNKNOWN = 'We could not identify your user to attach files. Sign in again and retry.';
+
 const EMPTY_COMPOSE: ComposeState = {
   open: false,
   draft: null,
@@ -124,6 +135,7 @@ const EMPTY_COMPOSE: ComposeState = {
   sending: false,
   error: null,
   initialTo: null,
+  customerId: null,
 };
 
 /**
@@ -274,6 +286,22 @@ export class MailStore {
 
   readonly selectedCustomerId = this._selectedCustomerId.asReadonly();
   readonly activeFolderId = this._activeFolderId.asReadonly();
+
+  /**
+   * Vista "Not a client" de /email: Drafts/Sent/Trash del correo mandado a quien no es cliente. Nunca
+   * en el perfil del cliente (embebido), donde todo cuelga del cliente fijado.
+   */
+  private readonly _unlinkedView = signal(false);
+  readonly unlinkedView = this._unlinkedView.asReadonly();
+
+  /** Alcance de Drafts/Sent/Trash; null mientras no hay cliente elegido (nada que listar todavía). */
+  private readonly listScope = computed<MailCustomerScope | null>(() => {
+    if (this._unlinkedView()) {
+      return { kind: 'unlinked' };
+    }
+    const customerId = this._selectedCustomerId();
+    return customerId ? { kind: 'customer', customerId } : null;
+  });
 
   // ---------- Cliente activo ----------
   // La búsqueda y los recientes viven en `app-customer-picker` + CustomerDirectoryStore (compartidos
@@ -453,6 +481,31 @@ export class MailStore {
     }
     this._selectedCustomer.set(customer);
     this.selectCustomer(customer.id);
+  }
+
+  /**
+   * Pasa /email a la vista "Not a client". Sin conversaciones (solo entra correo de clientes): abre en
+   * Sent. El cliente elegido se conserva para volver a él con `showCustomerMail`.
+   */
+  showUnlinkedMail(): void {
+    if (this.embedded() || this._unlinkedView()) {
+      return;
+    }
+    this._unlinkedView.set(true);
+    this.resetListsFor('sent');
+    this.loadSent(true);
+    this.loadDrafts(true);
+  }
+
+  /** Vuelve de "Not a client" al correo del cliente elegido. */
+  showCustomerMail(): void {
+    if (!this._unlinkedView()) {
+      return;
+    }
+    this._unlinkedView.set(false);
+    this.resetListsFor('conversations');
+    this.loadThreads(true);
+    this.loadDrafts(true);
   }
 
   /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
@@ -693,18 +746,31 @@ export class MailStore {
 
   selectCustomer(customerId: string): void {
     // Embebido: el cliente está fijado por el perfil, no se cambia.
-    if (customerId === this._selectedCustomerId() || this.embedded()) {
+    if (this.embedded()) {
+      return;
+    }
+    // Elegir un cliente desde "Not a client" vuelve a su correo, aunque sea el mismo que estaba.
+    if (customerId === this._selectedCustomerId() && !this._unlinkedView()) {
       return;
     }
     this._selectedCustomerId.set(customerId);
-    this.clearThreadSelection();
-    this.closeComposeSilently();
-    this._activeFolderId.set('conversations');
-    // Sent/Trash son de otro cliente ahora: se vacían para recargarse perezoso.
-    this._sent.set([]);
-    this._trash.set([]);
+    this._unlinkedView.set(false);
+    this.resetListsFor('conversations');
     this.loadThreads(true);
     this.loadDrafts(true);
+  }
+
+  /** Cambio de alcance (cliente ↔ sin cliente): lo cargado y lo seleccionado era del anterior. */
+  private resetListsFor(folderId: MailFolderId): void {
+    this.clearThreadSelection();
+    this.closeComposeSilently();
+    this._activeFolderId.set(folderId);
+    this._threads.set([]);
+    this._drafts.set([]);
+    this._draftsTotal.set(0);
+    // Sent/Trash se recargan perezosos al entrar a la carpeta.
+    this._sent.set([]);
+    this._trash.set([]);
   }
 
   selectFolder(folderId: MailFolderId): void {
@@ -724,7 +790,8 @@ export class MailStore {
 
   loadThreads(reset: boolean): void {
     const customerId = this._selectedCustomerId();
-    if (!customerId) {
+    // Sin cliente no hay conversaciones: solo entra correo de clientes.
+    if (!customerId || this._unlinkedView()) {
       return;
     }
     const page = reset ? 1 : this._threadsPage() + 1;
@@ -750,8 +817,8 @@ export class MailStore {
   // ---------- Drafts ----------
 
   loadDrafts(reset: boolean): void {
-    const customerId = this._selectedCustomerId();
-    if (!customerId) {
+    const scope = this.listScope();
+    if (!scope) {
       return;
     }
     const page = reset ? 1 : this._draftsPage() + 1;
@@ -760,7 +827,7 @@ export class MailStore {
     if (reset) {
       this._drafts.set([]);
     }
-    this.service.listDrafts(customerId, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listDrafts(scope, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
         this._drafts.update(list => (reset ? result.items : [...list, ...result.items]));
         this._draftsPage.set(result.page);
@@ -778,8 +845,8 @@ export class MailStore {
   // ---------- Enviados (Sent) ----------
 
   loadSent(reset: boolean): void {
-    const customerId = this._selectedCustomerId();
-    if (!customerId) {
+    const scope = this.listScope();
+    if (!scope) {
       return;
     }
     const page = reset ? 1 : this._sentPage() + 1;
@@ -788,7 +855,7 @@ export class MailStore {
     if (reset) {
       this._sent.set([]);
     }
-    this.service.listSent(customerId, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listSent(scope, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
         this._sent.update(list => (reset ? result.items : [...list, ...result.items]));
         this._sentPage.set(result.page);
@@ -805,8 +872,8 @@ export class MailStore {
   // ---------- Papelera ----------
 
   loadTrash(reset: boolean): void {
-    const customerId = this._selectedCustomerId();
-    if (!customerId) {
+    const scope = this.listScope();
+    if (!scope) {
       return;
     }
     const page = reset ? 1 : this._trashPage() + 1;
@@ -815,7 +882,7 @@ export class MailStore {
     if (reset) {
       this._trash.set([]);
     }
-    this.service.listTrash(customerId, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listTrash(scope, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
         this._trash.update(list => (reset ? result.items : [...list, ...result.items]));
         this._trashPage.set(result.page);
@@ -1522,10 +1589,32 @@ export class MailStore {
 
   // ---------- Composer completo ----------
 
-  /** Redacción nueva; `initialTo` precarga el destinatario (p. ej. el email del cliente). */
+  /**
+   * Redacción nueva; `initialTo` precarga el destinatario (p. ej. el email del cliente). Se archiva en
+   * el cliente que se está viendo: en el perfil, siempre el del perfil; en "Not a client", en ninguno.
+   */
   openCompose(initialTo: string | null = null): void {
     this._reply.set(null);
-    this._compose.set({ ...EMPTY_COMPOSE, open: true, initialTo: initialTo?.trim() || null });
+    this._compose.set({
+      ...EMPTY_COMPOSE,
+      open: true,
+      initialTo: initialTo?.trim() || null,
+      customerId: this._unlinkedView() ? null : this._selectedCustomerId(),
+    });
+  }
+
+  /** En una redacción nueva de /email aún se puede no archivarla en el cliente; nunca en el perfil. */
+  readonly canUnlinkComposeCustomer = computed(() => {
+    const compose = this._compose();
+    return !this.embedded() && compose.open && !compose.draft && !compose.loadingDraft && compose.customerId !== null;
+  });
+
+  /** "No archivar en este cliente": el correo sale igual, pero a la vista "Not a client". */
+  unlinkComposeCustomer(): void {
+    if (!this.canUnlinkComposeCustomer()) {
+      return;
+    }
+    this._compose.update(state => ({ ...state, customerId: null }));
   }
 
   /** Retoma un draft existente desde la carpeta Drafts (GET /drafts/{id} para prellenar). */
@@ -1534,7 +1623,10 @@ export class MailStore {
     this._compose.set({ ...EMPTY_COMPOSE, open: true, loadingDraft: true });
     this.service.getDraft(draftId).subscribe({
       next: draft => {
-        this._compose.update(state => (state.open ? { ...state, draft, loadingDraft: false } : state));
+        // Un draft retomado ya tiene su cliente (o ninguno) desde que se creó.
+        this._compose.update(state =>
+          state.open ? { ...state, draft, loadingDraft: false, customerId: draft.customerId } : state,
+        );
       },
       error: err => {
         this._compose.update(state =>
@@ -1577,11 +1669,18 @@ export class MailStore {
     if (state.sending) {
       return;
     }
+    // El cliente del draft retomado manda sobre el del estado: es con el que ya se creó en el backend.
+    const customerId = state.draft ? state.draft.customerId : state.customerId;
+    // Sin cliente, los adjuntos van a la carpeta del autor: sin su id no hay dónde subirlos. Se corta
+    // antes de crear nada, con un mensaje que diga qué hacer.
+    if (payload.files.length > 0 && !this.attachmentOwner(customerId)) {
+      this._compose.update(current => ({ ...current, error: ATTACHMENT_OWNER_UNKNOWN }));
+      return;
+    }
     this._compose.update(current => ({ ...current, sending: true, error: null }));
-
     const draftId$: Observable<string> = state.draft
       ? of(state.draft.draftId)
-      : this.service.createDraft(payload.customerId, payload.accountId).pipe(map(result => result.draftId));
+      : this.service.createDraft(customerId, payload.accountId).pipe(map(result => result.draftId));
 
     draftId$
       .pipe(
@@ -1597,7 +1696,7 @@ export class MailStore {
             .pipe(map(() => draftId)),
         ),
         concatMap(draftId => this.removeAttachmentsChain(draftId, payload.removedFileIds)),
-        concatMap(draftId => this.uploadAndAttachChain(draftId, payload)),
+        concatMap(draftId => this.uploadAndAttachChain(draftId, customerId, payload.files)),
         concatMap(draftId => this.service.sendDraft(draftId)),
       )
       .subscribe({
@@ -1623,27 +1722,35 @@ export class MailStore {
     return chain.pipe(map(() => draftId));
   }
 
-  private uploadAndAttachChain(draftId: string, payload: ComposeSendPayload): Observable<string> {
+  private uploadAndAttachChain(draftId: string, customerId: string | null, files: File[]): Observable<string> {
     let chain: Observable<unknown> = of(null);
-    for (const file of payload.files) {
+    for (const file of files) {
       chain = chain.pipe(
-        concatMap(() => this.uploadToCloudStorage(payload.customerId, file)),
+        concatMap(() => this.uploadToCloudStorage(customerId, file)),
         concatMap(ref => this.service.attachFileToDraft(draftId, ref)),
       );
     }
     return chain.pipe(map(() => draftId));
   }
 
-  /** Flujo presigned-POST de CloudStorage (mismo cliente core que documents/chat), bucket EmailOutgoing. */
-  private uploadToCloudStorage(customerId: string, file: File): Observable<AttachFileToDraftRequest> {
+  /**
+   * Flujo presigned-POST de CloudStorage (mismo cliente core que documents/chat), bucket EmailOutgoing.
+   * Con cliente, el adjunto va a su carpeta; sin cliente, a la del autor: no puede caer en la ficha de
+   * un cliente que no tiene nada que ver con el correo.
+   */
+  private uploadToCloudStorage(customerId: string | null, file: File): Observable<AttachFileToDraftRequest> {
+    const owner = this.attachmentOwner(customerId);
+    if (!owner) {
+      return throwError(() => new Error(ATTACHMENT_OWNER_UNKNOWN));
+    }
     const contentType = file.type || 'application/octet-stream';
     return this.uploads
       .initiateUpload({
         originalName: file.name,
         contentType,
         sizeBytes: file.size,
-        ownerType: 'Customer',
-        ownerId: customerId,
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
         folderType: 'EmailOutgoing',
         // EmailOutgoing particiona por año (RequiresYear en CloudStorage), igual que EmailIncoming
         // usa el año de recepción — acá el saliente se sube al enviar, así que va el año actual.
@@ -1656,6 +1763,14 @@ export class MailStore {
         concatMap(fileId => this.uploads.completeUpload(fileId).pipe(map(() => fileId))),
         map(fileId => ({ fileId, filename: file.name, contentType, sizeBytes: file.size })),
       );
+  }
+
+  private attachmentOwner(customerId: string | null): { ownerType: 'Customer' | 'User'; ownerId: string } | null {
+    if (customerId) {
+      return { ownerType: 'Customer', ownerId: customerId };
+    }
+    const userId = this.auth.currentUser()?.id;
+    return userId ? { ownerType: 'User', ownerId: userId } : null;
   }
 
   // ---------- Toast ----------

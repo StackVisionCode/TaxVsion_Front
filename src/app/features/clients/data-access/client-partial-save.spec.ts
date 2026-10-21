@@ -25,6 +25,8 @@ describe('ClientsStore · guardado parcial', () => {
     primaryPhone: null,
     language: 'En',
     preferredChannel: 'Email',
+    emailEnabled: true,
+    smsEnabled: true,
     occupationId: null,
     occupationName: null,
     principalBusinessActivityId: null,

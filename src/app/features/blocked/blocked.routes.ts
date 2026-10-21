@@ -13,4 +13,12 @@ export const BLOCKED_ROUTES: Routes = [
       import('./seat-suspended/seat-suspended.component').then(m => m.SeatSuspendedComponent),
     title: 'Seat suspended',
   },
+  {
+    // Oficina sin pagar: la ven el admin (para pagar) y los empleados (sesión abierta o rechazados en el login).
+    path: 'subscription',
+    data: { preload: false },
+    loadComponent: () =>
+      import('./subscription-locked/subscription-locked.component').then(m => m.SubscriptionLockedComponent),
+    title: 'Subscription inactive',
+  },
 ];

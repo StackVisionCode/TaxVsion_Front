@@ -11,13 +11,17 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { toApiError } from '@core/models/api-error.model';
 import { consumeQueryFlag } from '@shared/utils/query-flag.util';
-import { ClientsStore, LIST_PAGE_SIZES } from '../../data-access/clients.store';
+import { ClientsStore, DEFAULT_CLIENT_SORT, LIST_PAGE_SIZES } from '../../data-access/clients.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import {
   BulkStatusFailure,
+  CustomerKindFilter,
+  CustomerListSort,
+  CustomerSortField,
   CustomerStatusAction,
   CustomerStatusFilter,
   summaryToClientItem,
@@ -26,9 +30,26 @@ import {
 const SEARCH_DEBOUNCE_MS = 300;
 const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived', 'NotArchived', 'All'];
 
+/** Valor de `?kind=` en la URL ↔ filtro de tipo. Sin parámetro = todos. */
+const KIND_PARAMS: Record<string, CustomerKindFilter> = { individual: 'Individual', business: 'Business' };
+
+interface SortOption extends CustomerListSort {
+  /** Valor de `?sort=` en la URL (el orden por defecto no se escribe). */
+  param: string;
+  label: string;
+}
+
+/** Los cuatro órdenes que ofrece el menú "Sort"; el primero es el de siempre. */
+const SORT_OPTIONS: readonly SortOption[] = [
+  { field: 'Name', dir: 'Asc', param: 'name', label: 'Name A–Z' },
+  { field: 'Name', dir: 'Desc', param: 'name-desc', label: 'Name Z–A' },
+  { field: 'Created', dir: 'Desc', param: 'newest', label: 'Newest first' },
+  { field: 'Created', dir: 'Asc', param: 'oldest', label: 'Oldest first' },
+];
+
 /**
- * Directorio de clientes con paginación server-side real (GET /customers?term&status&page&size).
- * El estado navegable (term/status/page/size) vive en los query params → refrescar o volver
+ * Directorio de clientes con paginación server-side real (GET /customers?term&status&kind&sort&dir&page&size).
+ * El estado navegable (term/status/kind/sort/page/size) vive en los query params → refrescar o volver
  * atrás conserva la vista. Selección múltiple + acciones de estado masivas con fallos parciales.
  */
 @Component({
@@ -45,6 +66,8 @@ const VALID_STATUSES: CustomerStatusFilter[] = ['Active', 'Inactive', 'Archived'
     ClientAssignDialogComponent,
     SearchInputComponent,
     FilterChipsComponent,
+    DropdownMenuComponent,
+    MenuItemDirective,
     StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -69,6 +92,8 @@ export class ClientDirectoryPageComponent {
   readonly size = this.store.size;
   readonly totalCount = this.store.totalCount;
   readonly status = this.store.status;
+  readonly kind = this.store.kind;
+  readonly sort = this.store.sort;
 
   readonly pageSizes = LIST_PAGE_SIZES;
   readonly statusOptions: FilterChipOption<CustomerStatusFilter>[] = [
@@ -78,6 +103,24 @@ export class ClientDirectoryPageComponent {
     { id: 'Archived', label: 'Archived' },
     { id: 'All', label: 'All statuses' },
   ];
+
+  // Tipo: una píldora con menú (como el resto de filtros que no caben en chips).
+  readonly kindOptions: FilterChipOption<CustomerKindFilter>[] = [
+    { id: 'All', label: 'All types' },
+    { id: 'Individual', label: 'Individuals' },
+    { id: 'Business', label: 'Businesses' },
+  ];
+
+  readonly sortOptions = SORT_OPTIONS;
+  readonly sortLabel = computed(() => this.sortOptionFor(this.sort())?.label ?? SORT_OPTIONS[0].label);
+  /** Orden distinto del de siempre: la píldora se pinta activa, igual que un filtro aplicado. */
+  readonly isCustomSort = computed(
+    () => this.sort().field !== DEFAULT_CLIENT_SORT.field || this.sort().dir !== DEFAULT_CLIENT_SORT.dir,
+  );
+  /** Hay algo que limpiar además del buscador (para ofrecer "Clear filters" en el vacío). */
+  readonly hasFilters = computed(
+    () => this.kind() !== 'All' || this.status() !== 'NotArchived' || this.store.term().trim() !== '',
+  );
 
   // Permisos.
   readonly canManage = this.caps.canManage;
@@ -142,12 +185,14 @@ export class ClientDirectoryPageComponent {
     const status = statusParam && VALID_STATUSES.includes(statusParam as CustomerStatusFilter)
       ? (statusParam as CustomerStatusFilter)
       : undefined;
+    const kind = KIND_PARAMS[map.get('kind') ?? ''];
+    const sort = SORT_OPTIONS.find(o => o.param === map.get('sort'));
     const page = this.parsePositiveInt(map.get('page'));
     const sizeParam = this.parsePositiveInt(map.get('size'));
     const size = sizeParam && (LIST_PAGE_SIZES as readonly number[]).includes(sizeParam) ? sizeParam : undefined;
 
     this.searchInput.set(term);
-    this.store.initList({ term, status, page, size });
+    this.store.initList({ term, status, kind, sort: sort && { field: sort.field, dir: sort.dir }, page, size });
 
     // `?new=1` (acceso rápido del dashboard): abre el alta directamente.
     if (consumeQueryFlag(this.route, this.router, 'new') && this.canManage()) {
@@ -168,6 +213,8 @@ export class ClientDirectoryPageComponent {
       queryParams: {
         term: this.store.term().trim() || null,
         status: this.store.status() === 'NotArchived' ? null : this.store.status(),
+        kind: this.store.kind() === 'All' ? null : this.store.kind().toLowerCase(),
+        sort: this.isCustomSort() ? (this.sortOptionFor(this.store.sort())?.param ?? null) : null,
         page: this.store.page() > 1 ? this.store.page() : null,
         size: this.store.size() !== 25 ? this.store.size() : null,
       },
@@ -193,6 +240,45 @@ export class ClientDirectoryPageComponent {
     this.clearSelection();
     this.store.setStatus(status);
     this.syncUrl();
+  }
+
+  setKind(kind: CustomerKindFilter): void {
+    this.clearSelection();
+    this.store.setKind(kind);
+    this.syncUrl();
+  }
+
+  setSort(sort: CustomerListSort): void {
+    if (sort.field === this.sort().field && sort.dir === this.sort().dir) return;
+    this.clearSelection();
+    this.store.setSort({ field: sort.field, dir: sort.dir });
+    this.syncUrl();
+  }
+
+  /** Clic en el encabezado: la misma columna invierte; otra arranca en su orden natural (A–Z, lo más nuevo). */
+  toggleSort(field: CustomerSortField): void {
+    const current = this.sort();
+    if (current.field === field) {
+      this.setSort({ field, dir: current.dir === 'Asc' ? 'Desc' : 'Asc' });
+    } else {
+      this.setSort({ field, dir: field === 'Created' ? 'Desc' : 'Asc' });
+    }
+  }
+
+  isSortSelected(option: CustomerListSort): boolean {
+    return option.field === this.sort().field && option.dir === this.sort().dir;
+  }
+
+  /** Vuelve al listado de siempre (estado, tipo y búsqueda); el orden se respeta. */
+  clearFilters(): void {
+    this.searchInput.set('');
+    this.clearSelection();
+    this.store.resetFilters();
+    this.syncUrl();
+  }
+
+  private sortOptionFor(sort: CustomerListSort): SortOption | undefined {
+    return SORT_OPTIONS.find(o => o.field === sort.field && o.dir === sort.dir);
   }
 
   setSize(size: number): void {

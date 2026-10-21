@@ -20,10 +20,33 @@
       </div>
     </div>
 
-    <!-- Filters: status chips (left) + search (right) -->
+    <!-- Filters: status chips + type + sort (left) · search (right) -->
     <div class="mt-4 flex flex-wrap items-center gap-2">
       <app-filter-chips aria-label="Status filter" [options]="statusOptions" [value]="status()"
         (valueChange)="setStatus($event)"></app-filter-chips>
+      <span class="mx-1 hidden h-6 w-px bg-gray-200 sm:block" aria-hidden="true"></span>
+      <!-- Tipo: con más de 1 opción la píldora colapsa a menú (inactiva en "All types"). -->
+      <app-filter-chips ariaLabel="Client type" [collapseAfter]="1" [options]="kindOptions" [value]="kind()"
+        (valueChange)="setKind($event)"></app-filter-chips>
+      <app-dropdown-menu align="left" panelClass="min-w-[12.5rem]" ariaLabel="Sort clients">
+        <button menuTrigger type="button" aria-haspopup="menu"
+          class="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          [ngClass]="isCustomSort() ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100'">
+          <ion-icon name="swap-vertical-outline" class="text-sm"></ion-icon>
+          {{ sortLabel() }}
+          <ion-icon name="chevron-down-outline" class="text-sm"></ion-icon>
+        </button>
+        <div class="py-1">
+          @for (option of sortOptions; track option.param) {
+            <button appMenuItem type="button" (click)="setSort(option)" [attr.aria-checked]="isSortSelected(option)"
+              [class.font-semibold]="isSortSelected(option)">
+              <span class="flex-1 truncate">{{ option.label }}</span>
+              <ion-icon name="checkmark-outline" class="text-base text-brand-bold"
+                [class.invisible]="!isSortSelected(option)"></ion-icon>
+            </button>
+          }
+        </div>
+      </app-dropdown-menu>
       <app-search-input class="ml-auto" placeholder="Search clients" widthClass="w-44" [debounceMs]="searchDebounceMs"
         [value]="searchInput()" (valueChange)="onSearchChange($event)"></app-search-input>
     </div>
@@ -86,13 +109,20 @@
     <!-- Empty -->
     <app-state-block *ngIf="!loading() && !loadError() && rows().length === 0" class="mt-6 block" variant="inline"
       [empty]="true" icon="people-outline" emptyTitle="No clients match your filters"
-      emptyMessage="Try a different search term or status."></app-state-block>
+      emptyMessage="Try a different search term, status or type."></app-state-block>
+    <div *ngIf="!loading() && !loadError() && rows().length === 0 && hasFilters()" class="mt-3 flex justify-center">
+      <button type="button" (click)="clearFilters()"
+        class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-brand-bold transition-colors hover:bg-gray-100">
+        <ion-icon name="close-outline" class="text-base"></ion-icon>
+        Clear filters
+      </button>
+    </div>
 
     <!-- Table / cards -->
     <div *ngIf="rows().length > 0" class="mt-4" [class.opacity-60]="loading()" [class.transition-opacity]="true">
       <app-client-table [clients]="rows()" [selectedIds]="selected()" [canManage]="canManage()"
         [canChangeStatus]="canChangeStatus()" [canAssignPreparer]="canAssignPreparer()"
-        [canViewAssignees]="canViewAssignees()"
+        [canViewAssignees]="canViewAssignees()" [sort]="sort()" (sortRequested)="toggleSort($event)"
         (selectToggled)="toggleSelect($event)" (selectAllToggled)="toggleSelectAll()"
         (editRequested)="openEditPanel($event)" (toggleActiveRequested)="toggleActive($event)"
         (deleteRequested)="deleteClient($event)" (assignRequested)="openAssign($event)"></app-client-table>

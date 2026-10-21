@@ -1,11 +1,14 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { take, takeWhile, timer } from 'rxjs';
+import { Observable, take, takeWhile, tap, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { BillingPreference, BillingPreferenceService } from './billing-preference.service';
 import { SubscriptionStatusService } from './subscription-status.service';
 import { MySubscription, SubscriptionTone, toneForStatus, daysUntil } from './subscription-status.model';
+
+/** Desde que vence sin pagar: PastDue dura un instante y pasa a Suspended; Expired llega a los 30 días. */
+const LOCKED_STATUSES: readonly string[] = ['pastdue', 'suspended', 'expired'];
 
 /** Clave del intentId de renovación en sessionStorage, para retomar el poll al volver del redirect. */
 /**
@@ -52,6 +55,12 @@ export class SubscriptionStatusStore {
     return 'info';
   });
 
+  /** La oficina no pagó: el CRM se tapa con la pantalla de pago en vez de dejar trabajar. */
+  readonly isLocked = computed(() => {
+    const s = (this.status() ?? '').toLowerCase();
+    return this._blocked() || LOCKED_STATUSES.includes(s);
+  });
+
   /** El banner aparece en cualquier estado de lapso o cerca de la renovación. */
   readonly showBanner = computed(() => this.tone() !== 'ok');
   readonly nextRenewalAtUtc = computed(() => this._summary()?.nextRenewalAtUtc ?? null);
@@ -74,6 +83,16 @@ export class SubscriptionStatusStore {
         /* silencioso: el banner cae al copy neutro mientras no cargue. */
       },
     });
+  }
+
+  /** Vuelve a pedir el estado (la pantalla de pago lo usa para ver si ya entró el pago). */
+  refresh(): Observable<MySubscription> {
+    return this.service.getMySubscription().pipe(
+      tap(summary => {
+        this._summary.set(summary);
+        this._blocked.set(summary.billingAccessBlocked);
+      })
+    );
   }
 
   /** Lo llama el interceptor al recibir `Auth.SubscriptionInactive`: fuerza el banner aunque no haya /me. */
