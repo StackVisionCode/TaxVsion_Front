@@ -17,6 +17,7 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
+import { CheckRingComponent, CheckRingItem } from '@shared/ui/check-ring/check-ring.component';
 import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.util';
 import { ProfileStore } from '../../data-access/profile.store';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
@@ -43,15 +44,6 @@ interface ProfileSection {
   icon: string;
 }
 
-/** Un punto del chequeo de seguridad de la cabecera. */
-interface SecurityCheck {
-  id: string;
-  label: string;
-  done: boolean;
-  /** Sección a la que lleva "Fix" cuando falta. */
-  target: string;
-}
-
 const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as const;
 
 /**
@@ -68,10 +60,18 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
  */
 @Component({
   selector: 'app-profile-page',
-  imports: [CommonModule, FormsModule, TwoStepVerificationComponent, AvatarComponent, StateBlockComponent, TimeAgoPipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    TwoStepVerificationComponent,
+    AvatarComponent,
+    StateBlockComponent,
+    TimeAgoPipe,
+    CheckRingComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
-  styleUrls: ['./profile-page.component.css', '../../../../shared/styles/settings-ui.css'],
+  styleUrl: './profile-page.component.css',
 })
 export class ProfilePageComponent {
   private readonly auth = inject(AuthService);
@@ -117,7 +117,7 @@ export class ProfilePageComponent {
   // ---------------------------------------------------------------------------
   // Chequeo de seguridad (cabecera)
   // ---------------------------------------------------------------------------
-  readonly securityChecks = computed<SecurityCheck[]>(() => [
+  readonly securityChecks = computed<CheckRingItem[]>(() => [
     { id: 'email', label: 'Email verified', done: this.emailVerified(), target: 'personal' },
     { id: 'mfa', label: 'Two-step verification on', done: this.mfa.enabled(), target: 'two-step' },
     { id: 'phone', label: 'Phone number verified', done: !!this.phone() && this.phoneVerified(), target: 'personal' },
@@ -135,10 +135,6 @@ export class ProfilePageComponent {
   readonly securityLabel = computed(() =>
     this.securityTone() === 'strong' ? 'Well protected' : this.securityTone() === 'good' ? 'Almost there' : 'Needs attention',
   );
-  /** Largo del trazo del anillo (r = 26 → circunferencia ≈ 163.4). */
-  readonly ringCircumference = 2 * Math.PI * 26;
-  readonly ringOffset = computed(() => this.ringCircumference * (1 - this.securityScore() / 100));
-
   // ---------------------------------------------------------------------------
   // Índice lateral con seguimiento del scroll
   // ---------------------------------------------------------------------------

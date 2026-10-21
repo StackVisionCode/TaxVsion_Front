@@ -33,55 +33,15 @@
     </div>
 
     <!-- Chequeo de seguridad: solo datos reales -->
-    <div class="pf-health mt-5 flex flex-col gap-4 border-t border-gray-100 pt-5 md:flex-row md:items-center" [attr.data-tone]="securityTone()">
-      @if (securityReady()) {
-        <div class="flex items-center gap-3">
-          <div class="relative h-14 w-14 shrink-0" role="img" [attr.aria-label]="'Account security ' + securityScore() + ' percent'">
-            <svg viewBox="0 0 64 64" class="h-14 w-14 -rotate-90">
-              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" class="pf-ring-track"></circle>
-              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" stroke-linecap="round" class="pf-ring-value"
-                [attr.stroke-dasharray]="ringCircumference" [attr.stroke-dashoffset]="ringOffset()"></circle>
-            </svg>
-            <span class="absolute inset-0 grid place-items-center text-xs font-bold text-gray-900 tabular-nums">{{ securityScore() }}%</span>
-          </div>
-          <div>
-            <p class="text-xs font-medium text-gray-500">Account security</p>
-            <p class="pf-health__label text-sm font-semibold">{{ securityLabel() }}</p>
-          </div>
-        </div>
-        <ul class="flex flex-wrap gap-2 md:ml-auto">
-          @for (check of securityChecks(); track check.id) {
-            <li>
-              @if (check.done) {
-                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
-                  <ion-icon name="checkmark-circle" class="text-sm"></ion-icon>{{ check.label }}
-                </span>
-              } @else {
-                <button type="button" (click)="scrollTo(check.target)"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100">
-                  <ion-icon name="ellipse-outline" class="text-sm text-gray-400"></ion-icon>{{ check.label }}
-                  <ion-icon name="arrow-forward-outline" class="text-xs text-brand-bold"></ion-icon>
-                </button>
-              }
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="flex items-center gap-3" aria-hidden="true">
-          <div class="h-14 w-14 animate-pulse rounded-full bg-gray-100"></div>
-          <div class="flex flex-col gap-2">
-            <div class="h-3 w-24 animate-pulse rounded bg-gray-100"></div>
-            <div class="h-3 w-32 animate-pulse rounded bg-gray-100"></div>
-          </div>
-        </div>
-      }
-    </div>
+    <app-check-ring class="mt-5 border-t border-gray-100 pt-5" title="Account security" [status]="securityLabel()"
+      [score]="securityScore()" [tone]="securityTone()" [items]="securityChecks()" [ready]="securityReady()"
+      (fix)="scrollTo($event)" />
   </section>
 
   <div class="grid gap-6 lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:items-start">
     <!-- ================= Índice (desktop: lateral fijo · móvil: chips) ================= -->
     <nav class="pf-reveal pf-nav lg:sticky lg:top-4" style="--i: 1" aria-label="Profile sections">
-      <ul class="flex gap-2 overflow-x-auto rounded-full border border-gray-100 bg-white p-1.5 shadow-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:rounded-[1.5rem] lg:p-3">
+      <ul class="no-scrollbar flex gap-2 overflow-x-auto rounded-full border border-gray-100 bg-white p-1.5 shadow-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:rounded-[1.5rem] lg:p-3">
         @for (section of sections; track section.id) {
           <li class="shrink-0">
             <button type="button" (click)="scrollTo(section.id)" [attr.aria-current]="activeSection() === section.id ? 'true' : null"
@@ -97,7 +57,7 @@
 
     <div class="flex min-w-0 flex-col gap-6">
       <!-- ================= Información personal ================= -->
-      <section id="personal" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+      <section id="personal" class="pf-reveal pf-card"
         style="--i: 2" aria-labelledby="personal-title">
         <header class="flex items-start gap-3">
           <span class="pf-icon-tile"><ion-icon name="person-outline"></ion-icon></span>
@@ -271,7 +231,7 @@
       </section>
 
       <!-- ================= Contraseña ================= -->
-      <section id="password" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+      <section id="password" class="pf-reveal pf-card"
         style="--i: 3" aria-labelledby="password-title">
         <header class="flex flex-wrap items-start gap-3">
           <span class="pf-icon-tile"><ion-icon name="key-outline"></ion-icon></span>
@@ -347,7 +307,7 @@
       <app-two-step-verification class="pf-reveal block" style="--i: 4"></app-two-step-verification>
 
       <!-- ================= Sesiones activas ================= -->
-      <section id="sessions" class="pf-reveal pf-card scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+      <section id="sessions" class="pf-reveal pf-card"
         style="--i: 5" aria-labelledby="sessions-title">
         <header class="flex flex-wrap items-start gap-3">
           <span class="pf-icon-tile"><ion-icon name="desktop-outline"></ion-icon></span>

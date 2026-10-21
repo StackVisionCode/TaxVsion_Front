@@ -35,7 +35,7 @@ import { RecoveryCodesPanelComponent } from '../recovery-codes-panel/recovery-co
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './two-step-verification.component.html',
-  styleUrls: ['./two-step-verification.component.css', '../../../../shared/styles/settings-ui.css'],
+  styleUrl: './two-step-verification.component.css',
 })
 export class TwoStepVerificationComponent {
   readonly store = inject(ProfileMfaStore);
