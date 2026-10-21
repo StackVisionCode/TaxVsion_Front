@@ -1,0 +1,121 @@
+/* Solo lo propio de la página; las piezas compartidas viven en shared/styles/settings-ui.css. */
+
+:host {
+  display: block;
+}
+
+/* ---- Chequeo "listo para facturar" (mismos tonos que el de Profile) ---- */
+.pf-ring-track {
+  stroke: #e2edf7;
+}
+
+.pf-ring-value {
+  transition:
+    stroke-dashoffset 900ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    stroke 300ms ease;
+}
+
+.pf-health[data-tone='strong'] .pf-ring-value {
+  stroke: #10b981;
+}
+.pf-health[data-tone='good'] .pf-ring-value {
+  stroke: #1e466b;
+}
+.pf-health[data-tone='weak'] .pf-ring-value {
+  stroke: #f59e0b;
+}
+.pf-health[data-tone='strong'] .pf-health__label {
+  color: #047857;
+}
+.pf-health[data-tone='good'] .pf-health__label {
+  color: #1e466b;
+}
+.pf-health[data-tone='weak'] .pf-health__label {
+  color: #b45309;
+}
+
+.cs-office-mark {
+  animation: cs-pop 520ms 120ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes cs-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+/* ---- Índice: en móvil es una tira de chips sin barra de scroll visible ---- */
+.cs-nav ul {
+  scrollbar-width: none;
+}
+.cs-nav ul::-webkit-scrollbar {
+  display: none;
+}
+
+.cs-input-error {
+  border-color: rgb(248 113 113);
+}
+
+/* ---- Vista previa de factura: papel con un poco de profundidad ---- */
+.cs-paper {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfaf7 100%);
+  box-shadow: 0 1px 2px rgb(60 45 20 / 0.04), 0 18px 36px -24px rgb(60 45 20 / 0.25);
+}
+
+/* ---- Assets: fondo de tablero para ver logos con transparencia ---- */
+.cs-checker {
+  background-color: #fafafa;
+  background-image:
+    linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+    linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+    linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+/* La imagen recién confirmada entra con un pequeño zoom. */
+.cs-asset-img {
+  animation: cs-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.cs-tab {
+  animation: cs-tab-in 480ms 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes cs-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---- Barra de guardado flotante ---- */
+.cs-savebar {
+  animation: cs-savebar-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes cs-savebar-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-office-mark,
+  .cs-asset-img,
+  .cs-tab,
+  .cs-savebar {
+    animation: none;
+  }
+
+  .pf-ring-value {
+    transition: none;
+  }
+}

@@ -7,7 +7,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
-import { sessionDeviceLabel, sessionIsMobile } from '../../data-access/profile.model';
+import { daysUntil, sessionDeviceLabel, sessionIsMobile } from '../../data-access/profile.model';
 import { MfaEnrollModalComponent } from '../mfa-enroll-modal/mfa-enroll-modal.component';
 import { MfaPasswordModalComponent } from '../mfa-password-modal/mfa-password-modal.component';
 import { RecoveryCodesPanelComponent } from '../recovery-codes-panel/recovery-codes-panel.component';
@@ -35,7 +35,7 @@ import { RecoveryCodesPanelComponent } from '../recovery-codes-panel/recovery-co
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './two-step-verification.component.html',
-  styleUrl: './two-step-verification.component.css',
+  styleUrls: ['./two-step-verification.component.css', '../../../../shared/styles/settings-ui.css'],
 })
 export class TwoStepVerificationComponent {
   readonly store = inject(ProfileMfaStore);
@@ -188,6 +188,22 @@ export class TwoStepVerificationComponent {
     return sessionIsMobile({ userAgent: device.userAgent })
       ? 'phone-portrait-outline'
       : 'desktop-outline';
+  }
+
+  /** Con pocos códigos de recuperación conviene regenerar antes de quedarse sin salida. */
+  readonly recoveryCodesLow = computed(() => this.store.recoveryCodesRemaining() <= 3);
+
+  /** "Expires in 6 days" / "Expires tomorrow" / "Expires today". */
+  expiryLabel(device: TrustedDeviceInfo): string {
+    const days = daysUntil(device.expiresAtUtc);
+    if (days <= 0) return 'Expires today';
+    if (days === 1) return 'Expires tomorrow';
+    return `Expires in ${days} days`;
+  }
+
+  /** La confianza vence pronto: el dispositivo volverá a pedir el código. */
+  expiresSoon(device: TrustedDeviceInfo): boolean {
+    return daysUntil(device.expiresAtUtc) <= 3;
   }
 
   methodLabel(method: MfaMethodInfo): string {

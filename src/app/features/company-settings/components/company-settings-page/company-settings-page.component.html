@@ -1,234 +1,390 @@
-<div class="min-h-full pt-3 pb-1 flex flex-col gap-6">
-  <!-- Header -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-4 lg:pr-[var(--shell-notch-width)]">
-      <div class="flex items-center gap-4">
-        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-bold text-lg font-bold text-white">
-          <ion-icon name="business-outline" class="text-2xl"></ion-icon>
-        </span>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900">{{ store.profile()?.name || 'Office Settings' }}</h2>
-          <p class="mt-1 text-sm text-gray-500">Manage your firm's legal and business information</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Business identity -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex items-center gap-2">
-      <h3 class="text-xl font-bold text-gray-900">Business identity</h3>
-      <app-infinity-loader *ngIf="store.profileLoading()" size="xs" />
-    </div>
-    <p class="mt-1 text-sm text-gray-500">This information appears on invoices and client-facing documents</p>
-
-    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Office</span>
-        <input type="text" [ngModel]="companyName()" (ngModelChange)="companyName.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">EIN</span>
-        <input type="text" [ngModel]="ein()" (ngModelChange)="ein.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Phone</span>
-        <input type="text" [ngModel]="phone()" (ngModelChange)="phone.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Email</span>
-        <input type="email" [ngModel]="email()" (ngModelChange)="email.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 rounded-full focus:outline-none" />
-      </div>
-
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors sm:col-span-2">
-        <span class="pl-4 pr-2 text-sm text-gray-400 whitespace-nowrap">Website</span>
-        <input type="text" placeholder="https://" [ngModel]="website()" (ngModelChange)="website.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent pr-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-      </div>
-    </div>
-  </div>
-
-  <!-- Address -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <h3 class="text-xl font-bold text-gray-900">Business address</h3>
-    <p class="mt-1 text-sm text-gray-500">Used on invoices and official correspondence</p>
-
-    <div class="mt-4 flex flex-col gap-3">
-      <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-        <input type="text" placeholder="Street address" [ngModel]="addressLine()" (ngModelChange)="addressLine.set($event)"
-          [disabled]="store.profileLoading()"
-          class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="City" [ngModel]="city()" (ngModelChange)="city.set($event)"
-            [disabled]="store.profileLoading()"
-            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="State" [ngModel]="state()" (ngModelChange)="state.set($event)"
-            [disabled]="store.profileLoading()"
-            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="ZIP" [ngModel]="zip()" (ngModelChange)="zip.set($event)"
-            [disabled]="store.profileLoading()"
-            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-        <div class="h-11 rounded-full border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="Country" [ngModel]="country()" (ngModelChange)="country.set($event)"
-            [disabled]="store.profileLoading()"
-            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-      </div>
-    </div>
-
-    <p *ngIf="store.profileError()" class="mt-4 flex items-center gap-1.5 text-sm text-red-500">
-      <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
-      {{ store.profileError() }}
-    </p>
-
-    <div class="mt-5 flex items-center justify-end gap-3">
-      <span *ngIf="!companyName().trim() && !store.profileLoading()" class="text-xs text-gray-400">
-        Office name is required
+<div class="min-h-full pb-6 pt-3 flex flex-col gap-6">
+  <!-- ================= Cabecera: oficina + chequeo "listo para facturar" ================= -->
+  <section class="pf-reveal rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm" style="--i: 0" aria-label="Your office">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center lg:pr-[var(--shell-notch-width)]">
+      <span class="cs-office-mark grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl sm:h-[4.5rem] sm:w-[4.5rem]"
+        [ngClass]="store.logo()?.url && store.surface() === 'Crm' ? 'border border-gray-100 bg-white p-2' : 'bg-brand-bold text-white'">
+        @if (store.logo()?.url && store.surface() === 'Crm') {
+          <img [src]="store.logo()!.url" alt="" class="max-h-full max-w-full object-contain" />
+        } @else {
+          <ion-icon name="business-outline" class="text-3xl"></ion-icon>
+        }
       </span>
-      <button *ngIf="can.canManageIssuerProfile()" type="button" (click)="saveProfile()" [disabled]="!canSaveProfile"
-        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
-        {{ store.profileSaving() ? 'Saving…' : 'Save changes' }}
-      </button>
-    </div>
-  </div>
-
-  <!-- Selector de superficie: CRM (staff) vs Portal del cliente. Cada una tiene su propia marca. -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <h3 class="text-xl font-bold text-gray-900">Brand identity</h3>
-    <p class="mt-1 text-sm text-gray-500">
-      Configure the logo and favicon for each surface. The
-      <span class="font-medium text-gray-700">Staff CRM</span> is what your team sees; the
-      <span class="font-medium text-gray-700">Client portal</span> is what your clients see.
-    </p>
-    <div class="mt-4 inline-flex rounded-full border border-gray-200 bg-gray-50 p-1">
-      <button *ngFor="let s of surfaces" type="button" (click)="selectSurface(s.value)"
-        [disabled]="store.brandLoading()"
-        [class.bg-brand-bold]="store.surface() === s.value"
-        [class.text-white]="store.surface() === s.value"
-        [class.text-gray-600]="store.surface() !== s.value"
-        class="rounded-full px-4 py-1.5 text-sm font-semibold transition-colors hover:text-gray-900 disabled:pointer-events-none">
-        {{ s.label }}
-      </button>
-    </div>
-
-    <p *ngIf="store.brandError()" class="mt-4 flex items-center gap-1.5 text-sm text-red-500">
-      <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
-      {{ store.brandError() }}
-    </p>
-  </div>
-
-  <!-- Company logo -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex items-center gap-2">
-      <h3 class="text-xl font-bold text-gray-900">Office logo</h3>
-      <app-infinity-loader *ngIf="store.brandLoading()" size="xs" />
-    </div>
-    <p class="mt-1 text-sm text-gray-500">Shown on invoices and the client portal · PNG, JPEG or SVG · max {{ assetMaxSizeKb }} KB</p>
-
-    <div class="mt-4 flex flex-wrap items-center gap-4">
-      <ng-container *ngIf="store.logo()?.url as url; else noLogo">
-        <span class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
-          <img [src]="url" alt="Office logo" class="max-h-full max-w-full object-contain" />
-        </span>
-      </ng-container>
-      <ng-template #noLogo>
-        <span class="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-gray-300">
-          <ion-icon *ngIf="store.assetProcessing() !== 'logo'" name="image-outline" class="text-3xl"></ion-icon>
-          <app-infinity-loader *ngIf="store.assetProcessing() === 'logo'" size="sm" />
-        </span>
-      </ng-template>
-
-      <div class="flex flex-col gap-2">
-        <div class="flex flex-wrap items-center gap-3">
-          <button *ngIf="can.canManageBranding()" type="button" (click)="logoInput.click()" [disabled]="store.assetBusy() === 'logo'"
-            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
-            {{ store.assetBusy() === 'logo' ? 'Uploading…' : store.logo() ? 'Replace logo' : 'Upload logo' }}
-          </button>
-          <button *ngIf="store.logo() && can.canManageBranding()" type="button" (click)="removeAsset('logo')" [disabled]="store.assetBusy() === 'logo'"
-            class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
-            Remove
-          </button>
-          <input #logoInput type="file" class="hidden" accept="image/png,image/jpeg,image/svg+xml"
-            (change)="onAssetSelected($event, 'logo')" />
-        </div>
-
-        <p *ngIf="store.assetProcessing() === 'logo'" class="flex items-center gap-1.5 text-xs text-gray-500">
-          <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
-          Scanning uploaded file — the logo will appear here in a few seconds.
-        </p>
-
-        <p *ngIf="logoIsSvg()" class="flex items-start gap-1.5 text-xs text-amber-700">
-          <ion-icon name="alert-circle-outline" class="mt-px text-sm shrink-0"></ion-icon>
-          <span>Email clients cannot display SVG, so your emails show your office name as text instead of this logo. Upload a PNG or JPEG to use it in email too.</span>
-        </p>
+      <div class="min-w-0">
+        <h2 class="truncate text-xl font-bold text-gray-900">{{ officeName() }}</h2>
+        <p class="mt-1 text-sm text-gray-500">Your firm's legal details and brand — what clients see on invoices, emails and the portal.</p>
       </div>
     </div>
-  </div>
 
-  <!-- Favicon -->
-  <div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-    <div class="flex items-center gap-2">
-      <h3 class="text-xl font-bold text-gray-900">Favicon</h3>
-      <app-infinity-loader *ngIf="store.brandLoading()" size="xs" />
+    <!-- Chequeo: lo que se estampa en cada factura -->
+    <div class="pf-health mt-5 flex flex-col gap-4 border-t border-gray-100 pt-5 md:flex-row md:items-center" [attr.data-tone]="readinessTone()">
+      @if (store.profileLoading() && !store.profile()) {
+        <div class="flex items-center gap-3" aria-hidden="true">
+          <div class="h-14 w-14 animate-pulse rounded-full bg-gray-100"></div>
+          <div class="flex flex-col gap-2">
+            <div class="h-3 w-24 animate-pulse rounded bg-gray-100"></div>
+            <div class="h-3 w-32 animate-pulse rounded bg-gray-100"></div>
+          </div>
+        </div>
+      } @else {
+        <div class="flex items-center gap-3">
+          <div class="relative h-14 w-14 shrink-0" role="img" [attr.aria-label]="'Invoice details ' + readinessScore() + ' percent complete'">
+            <svg viewBox="0 0 64 64" class="h-14 w-14 -rotate-90">
+              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" class="pf-ring-track"></circle>
+              <circle cx="32" cy="32" r="26" fill="none" stroke-width="6" stroke-linecap="round" class="pf-ring-value"
+                [attr.stroke-dasharray]="ringCircumference" [attr.stroke-dashoffset]="ringOffset()"></circle>
+            </svg>
+            <span class="absolute inset-0 grid place-items-center text-xs font-bold text-gray-900 tabular-nums">{{ readinessScore() }}%</span>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-500">Invoice details</p>
+            <p class="pf-health__label text-sm font-semibold">{{ readinessLabel() }}</p>
+          </div>
+        </div>
+        <ul class="flex flex-wrap gap-2 md:ml-auto">
+          @for (check of readinessChecks(); track check.id) {
+            <li>
+              @if (check.done) {
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+                  <ion-icon name="checkmark-circle" class="text-sm"></ion-icon>{{ check.label }}
+                </span>
+              } @else {
+                <button type="button" (click)="scrollTo(check.target)"
+                  class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100">
+                  <ion-icon name="ellipse-outline" class="text-sm text-gray-400"></ion-icon>{{ check.label }}
+                  <ion-icon name="arrow-forward-outline" class="text-xs text-brand-bold"></ion-icon>
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
     </div>
-    <p class="mt-1 text-sm text-gray-500">Browser tab icon · PNG or SVG (square, small) · max {{ assetMaxSizeKb }} KB</p>
+  </section>
 
-    <div class="mt-4 flex flex-wrap items-center gap-4">
-      <ng-container *ngIf="store.favicon()?.url as url; else noFavicon">
-        <span class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-          <img [src]="url" alt="Favicon" class="max-h-full max-w-full object-contain" />
-        </span>
-      </ng-container>
-      <ng-template #noFavicon>
-        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-300">
-          <ion-icon *ngIf="store.assetProcessing() !== 'favicon'" name="globe-outline" class="text-2xl"></ion-icon>
-          <app-infinity-loader *ngIf="store.assetProcessing() === 'favicon'" size="xs" />
-        </span>
-      </ng-template>
+  <div class="grid gap-6 lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:items-start">
+    <!-- ================= Índice (desktop: lateral fijo · móvil: chips) ================= -->
+    <nav class="pf-reveal cs-nav lg:sticky lg:top-4" style="--i: 1" aria-label="Office settings sections">
+      <ul class="flex gap-2 overflow-x-auto rounded-full border border-gray-100 bg-white p-1.5 shadow-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:rounded-[1.5rem] lg:p-3">
+        @for (section of sections; track section.id) {
+          <li class="shrink-0">
+            <button type="button" (click)="scrollTo(section.id)" [attr.aria-current]="activeSection() === section.id ? 'true' : null"
+              class="flex w-full items-center gap-2.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium transition-colors lg:rounded-xl"
+              [ngClass]="activeSection() === section.id ? 'bg-brand-bold text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'">
+              <ion-icon [name]="section.icon" class="text-base"></ion-icon>
+              <span>{{ section.label }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
 
-      <div class="flex flex-col gap-2">
-        <div class="flex flex-wrap items-center gap-3">
-          <button type="button" (click)="faviconInput.click()" [disabled]="store.assetBusy() === 'favicon'"
-            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50 disabled:pointer-events-none">
-            {{ store.assetBusy() === 'favicon' ? 'Uploading…' : store.favicon() ? 'Replace favicon' : 'Upload favicon' }}
-          </button>
-          <button *ngIf="store.favicon() && can.canManageBranding()" type="button" (click)="removeAsset('favicon')" [disabled]="store.assetBusy() === 'favicon'"
-            class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:pointer-events-none">
-            Remove
-          </button>
-          <input #faviconInput type="file" class="hidden" accept="image/png,image/svg+xml"
-            (change)="onAssetSelected($event, 'favicon')" />
+    <div class="flex min-w-0 flex-col gap-6">
+      @if (!can.canManageIssuerProfile()) {
+        <p class="pf-reveal flex items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm" style="--i: 2">
+          <ion-icon name="lock-closed-outline" class="text-base text-gray-400"></ion-icon>
+          You can view these details. Only someone who manages invoicing can change them.
+        </p>
+      }
+
+      @if (store.profileError(); as err) {
+        <p class="flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+        </p>
+      }
+
+      <!-- ================= Identidad legal ================= -->
+      <section id="identity" class="pf-reveal scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 2" aria-labelledby="identity-title">
+        <header class="flex items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="business-outline"></ion-icon></span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h2 id="identity-title" class="text-lg font-bold text-gray-900">Business identity</h2>
+              @if (store.profileLoading()) {
+                <app-infinity-loader size="xs" />
+              }
+            </div>
+            <p class="mt-0.5 text-sm text-gray-500">Printed on every invoice and client-facing document.</p>
+          </div>
+        </header>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <label class="pf-field sm:col-span-2">
+            <span class="pf-field__label">Legal office name <span class="text-red-500" aria-hidden="true">*</span></span>
+            <input type="text" autocomplete="organization" [ngModel]="companyName()" (ngModelChange)="companyName.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" [class.cs-input-error]="nameMissing() && profileDirty()"
+              placeholder="Castillo Tax Services LLC" />
+            @if (nameMissing() && profileDirty()) {
+              <span class="text-xs text-red-600">The office name is required — it heads every invoice.</span>
+            }
+          </label>
+          <label class="pf-field">
+            <span class="pf-field__label">EIN</span>
+            <input type="text" inputmode="numeric" [ngModel]="ein()" (ngModelChange)="ein.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input tabular-nums" placeholder="12-3456789" />
+          </label>
+          <label class="pf-field">
+            <span class="pf-field__label">Phone</span>
+            <input type="tel" autocomplete="tel" [ngModel]="phone()" (ngModelChange)="phone.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" placeholder="+1 202 555 0112" />
+          </label>
+          <label class="pf-field">
+            <span class="pf-field__label">Email</span>
+            <input type="email" autocomplete="email" [ngModel]="email()" (ngModelChange)="email.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" placeholder="office@yourfirm.com" />
+          </label>
+          <label class="pf-field">
+            <span class="pf-field__label">Website</span>
+            <input type="url" autocomplete="url" [ngModel]="website()" (ngModelChange)="website.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" placeholder="https://yourfirm.com" />
+          </label>
+        </div>
+      </section>
+
+      <!-- ================= Dirección ================= -->
+      <section id="address" class="pf-reveal scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 3" aria-labelledby="address-title">
+        <header class="flex items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="location-outline"></ion-icon></span>
+          <div>
+            <h2 id="address-title" class="text-lg font-bold text-gray-900">Business address</h2>
+            <p class="mt-0.5 text-sm text-gray-500">Used on invoices and official correspondence.</p>
+          </div>
+        </header>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-6">
+          <label class="pf-field sm:col-span-6">
+            <span class="pf-field__label">Street address</span>
+            <input type="text" autocomplete="address-line1" [ngModel]="addressLine()" (ngModelChange)="addressLine.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" placeholder="1600 Main St, Suite 200" />
+          </label>
+          <label class="pf-field sm:col-span-3">
+            <span class="pf-field__label">City</span>
+            <input type="text" autocomplete="address-level2" [ngModel]="city()" (ngModelChange)="city.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input" />
+          </label>
+          <label class="pf-field sm:col-span-1">
+            <span class="pf-field__label">State</span>
+            <input type="text" autocomplete="address-level1" [ngModel]="state()" (ngModelChange)="state.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input uppercase" maxlength="20" placeholder="TX" />
+          </label>
+          <label class="pf-field sm:col-span-2">
+            <span class="pf-field__label">ZIP</span>
+            <input type="text" inputmode="numeric" autocomplete="postal-code" [ngModel]="zip()" (ngModelChange)="zip.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input tabular-nums" />
+          </label>
+          <label class="pf-field sm:col-span-2">
+            <span class="pf-field__label">Country</span>
+            <input type="text" autocomplete="country" [ngModel]="country()" (ngModelChange)="country.set($event)"
+              [disabled]="!canEditProfile()" class="pf-input uppercase" />
+          </label>
+        </div>
+      </section>
+
+      <!-- ================= Vista previa: cómo lo ve el cliente ================= -->
+      <section id="preview" class="pf-reveal scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 4" aria-labelledby="preview-title">
+        <header class="flex flex-wrap items-start gap-3">
+          <span class="pf-icon-tile"><ion-icon name="receipt-outline"></ion-icon></span>
+          <div class="min-w-0 flex-1">
+            <h2 id="preview-title" class="text-lg font-bold text-gray-900">Invoice preview</h2>
+            <p class="mt-0.5 text-sm text-gray-500">How your details read at the top of an invoice. Updates as you type.</p>
+          </div>
+          <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">Sample</span>
+        </header>
+
+        <div class="cs-paper mt-6 rounded-2xl border border-gray-100 p-5 sm:p-7">
+          <div class="flex flex-col gap-6 sm:flex-row sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-base font-bold text-gray-900" [class.text-gray-300]="!companyName().trim()">
+                {{ companyName().trim() || 'Your office name' }}
+              </p>
+              @if (ein().trim()) {
+                <p class="mt-0.5 text-xs text-gray-500 tabular-nums">EIN {{ ein().trim() }}</p>
+              }
+              <div class="mt-3 text-sm leading-relaxed text-gray-600">
+                @if (addressLine().trim()) {<p>{{ addressLine().trim() }}</p>}
+                @if (previewCityLine()) {<p>{{ previewCityLine() }}</p>}
+                @if (!addressLine().trim() && !previewCityLine()) {
+                  <p class="text-gray-300">Street address · City, State ZIP</p>
+                }
+              </div>
+              @if (previewContact().length) {
+                <p class="mt-2 text-xs text-gray-500">{{ previewContact().join(' · ') }}</p>
+              }
+            </div>
+            <div class="shrink-0 sm:text-right">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Invoice</p>
+              <p class="mt-1 text-lg font-bold text-gray-900 tabular-nums">#INV-0001</p>
+              <p class="mt-1 text-xs text-gray-500">Due on receipt</p>
+            </div>
+          </div>
+          <div class="mt-6 flex flex-col gap-2 border-t border-dashed border-gray-200 pt-4" aria-hidden="true">
+            <div class="flex justify-between text-sm"><span class="text-gray-500">Individual tax return (1040)</span><span class="tabular-nums text-gray-700">$350.00</span></div>
+            <div class="flex justify-between text-sm font-semibold"><span class="text-gray-900">Total</span><span class="tabular-nums text-gray-900">$350.00</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Marca: logo y favicon por superficie ================= -->
+      <section id="brand" class="pf-reveal scroll-mt-6 rounded-[1.5rem] border border-gray-100 bg-white p-5 shadow-sm sm:p-7"
+        style="--i: 5" aria-labelledby="brand-title">
+        <header class="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div class="flex min-w-0 flex-1 items-start gap-3">
+            <span class="pf-icon-tile"><ion-icon name="color-palette-outline"></ion-icon></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <h2 id="brand-title" class="text-lg font-bold text-gray-900">Logo & favicon</h2>
+                @if (store.brandLoading()) {
+                  <app-infinity-loader size="xs" />
+                }
+              </div>
+              <p class="mt-0.5 text-sm text-gray-500">
+                Each surface has its own: the <span class="font-semibold text-gray-700">Staff CRM</span> is what your team sees,
+                the <span class="font-semibold text-gray-700">Client portal</span> what your clients see.
+              </p>
+            </div>
+          </div>
+          <app-segmented class="self-start" [options]="surfaces" [value]="store.surface()" (valueChange)="selectSurface($event)" />
+        </header>
+
+        @if (store.brandError(); as err) {
+          <p class="mt-4 flex items-center gap-2 text-sm text-red-600" role="alert">
+            <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+          </p>
+        }
+
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <!-- Logo -->
+          <div class="flex flex-col gap-3">
+            <div appFileDrop #logoDrop="appFileDrop" accept="image/png,image/jpeg,image/svg+xml" [multiple]="false"
+              [fileDropDisabled]="!can.canManageBranding() || !!store.assetBusy()"
+              (appFileDrop)="onAssetDropped($event, 'logo')" (appFileDropRejected)="onAssetRejected()"
+              class="cs-asset flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed p-5 text-center transition-colors"
+              [ngClass]="logoDrop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'">
+              <div class="cs-checker grid h-28 w-full place-items-center rounded-xl">
+                @if (store.logo()?.url; as url) {
+                  <img [src]="url" alt="Office logo" class="cs-asset-img max-h-20 max-w-[85%] object-contain" />
+                } @else if (store.assetProcessing() === 'logo') {
+                  <span class="flex flex-col items-center gap-2 text-xs text-gray-500">
+                    <app-infinity-loader size="sm" />
+                    Scanning your file…
+                  </span>
+                } @else {
+                  <span class="flex flex-col items-center gap-1 text-gray-400">
+                    <ion-icon name="image-outline" class="text-3xl"></ion-icon>
+                    <span class="text-xs">No logo yet</span>
+                  </span>
+                }
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-900">Office logo</p>
+                <p class="mt-0.5 text-xs text-gray-500">PNG, JPEG or SVG · up to {{ assetMaxSizeKb }} KB · wide works best</p>
+              </div>
+              @if (can.canManageBranding()) {
+                <div class="flex flex-wrap justify-center gap-2">
+                  <button type="button" (click)="logoInput.click()" [disabled]="!!store.assetBusy()" class="pf-btn pf-btn--primary pf-btn--sm">
+                    <ion-icon name="cloud-upload-outline"></ion-icon>
+                    {{ store.assetBusy() === 'logo' ? 'Uploading…' : store.logo() ? 'Replace' : 'Upload logo' }}
+                  </button>
+                  @if (store.logo()) {
+                    <button type="button" (click)="removeAsset('logo')" [disabled]="!!store.assetBusy()" class="pf-btn pf-btn--ghost pf-btn--sm pf-btn--danger">
+                      Remove
+                    </button>
+                  }
+                </div>
+                <p class="text-[0.6875rem] text-gray-400">or drop an image here</p>
+                <input #logoInput type="file" class="hidden" accept="image/png,image/jpeg,image/svg+xml"
+                  (change)="onAssetSelected($event, 'logo')" />
+              }
+            </div>
+            @if (logoIsSvg()) {
+              <p class="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+                <span>Email apps can't show SVG, so emails use your office name as text. Upload a PNG or JPEG to show the logo in email too.</span>
+              </p>
+            }
+          </div>
+
+          <!-- Favicon -->
+          <div class="flex flex-col gap-3">
+            <div appFileDrop #faviconDrop="appFileDrop" accept="image/png,image/svg+xml" [multiple]="false"
+              [fileDropDisabled]="!can.canManageBranding() || !!store.assetBusy()"
+              (appFileDrop)="onAssetDropped($event, 'favicon')" (appFileDropRejected)="onAssetRejected()"
+              class="cs-asset flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed p-5 text-center transition-colors"
+              [ngClass]="faviconDrop.dragging() ? 'border-brand-bold bg-brand-surface' : 'border-brand-border bg-white'">
+              <!-- Maqueta de pestaña del navegador: dónde se ve el favicon -->
+              <div class="grid h-28 w-full place-items-center rounded-xl bg-gray-50">
+                <div class="cs-tab flex w-[13rem] max-w-full items-center gap-2 rounded-t-xl border border-b-0 border-gray-200 bg-white px-3 py-2 shadow-sm">
+                  @if (store.favicon()?.url; as url) {
+                    <img [src]="url" alt="Favicon" class="cs-asset-img h-4 w-4 shrink-0 object-contain" />
+                  } @else if (store.assetProcessing() === 'favicon') {
+                    <app-infinity-loader size="xs" />
+                  } @else {
+                    <ion-icon name="globe-outline" class="shrink-0 text-base text-gray-300"></ion-icon>
+                  }
+                  <span class="truncate text-xs text-gray-700">{{ officeName() }}</span>
+                  <ion-icon name="close-outline" class="ml-auto shrink-0 text-sm text-gray-300"></ion-icon>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-900">Favicon</p>
+                <p class="mt-0.5 text-xs text-gray-500">Browser tab icon for {{ surfaceLabel() }} · square PNG or SVG · up to {{ assetMaxSizeKb }} KB</p>
+              </div>
+              @if (can.canManageBranding()) {
+                <div class="flex flex-wrap justify-center gap-2">
+                  <button type="button" (click)="faviconInput.click()" [disabled]="!!store.assetBusy()" class="pf-btn pf-btn--primary pf-btn--sm">
+                    <ion-icon name="cloud-upload-outline"></ion-icon>
+                    {{ store.assetBusy() === 'favicon' ? 'Uploading…' : store.favicon() ? 'Replace' : 'Upload favicon' }}
+                  </button>
+                  @if (store.favicon()) {
+                    <button type="button" (click)="removeAsset('favicon')" [disabled]="!!store.assetBusy()" class="pf-btn pf-btn--ghost pf-btn--sm pf-btn--danger">
+                      Remove
+                    </button>
+                  }
+                </div>
+                <p class="text-[0.6875rem] text-gray-400">or drop an image here</p>
+                <input #faviconInput type="file" class="hidden" accept="image/png,image/svg+xml"
+                  (change)="onAssetSelected($event, 'favicon')" />
+              }
+            </div>
+          </div>
         </div>
 
-        <p *ngIf="store.assetProcessing() === 'favicon'" class="flex items-center gap-1.5 text-xs text-gray-500">
-          <ion-icon name="shield-checkmark-outline" class="text-sm"></ion-icon>
-          Scanning uploaded file — the favicon will appear here in a few seconds.
-        </p>
-        <p *ngIf="assetFileError() || store.assetError()" class="flex items-center gap-1.5 text-sm text-red-500">
-          <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>
-          {{ assetFileError() || store.assetError() }}
-        </p>
-      </div>
+        @if (assetFileError() || store.assetError(); as err) {
+          <p class="mt-4 flex items-center gap-2 text-sm text-red-600" role="alert">
+            <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+          </p>
+        }
+        @if (!can.canManageBranding()) {
+          <p class="mt-4 flex items-center gap-2 text-xs text-gray-500">
+            <ion-icon name="lock-closed-outline" class="text-sm text-gray-400"></ion-icon>
+            Only someone who manages branding can change the logo and favicon.
+          </p>
+        }
+      </section>
     </div>
   </div>
+
+  <!-- ================= Barra de guardado: flota abajo mientras haya cambios ================= -->
+  @if (profileDirty() && can.canManageIssuerProfile()) {
+    <div class="cs-savebar sticky bottom-4 z-30 mx-auto flex w-full max-w-2xl flex-col gap-3 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-2xl sm:flex-row sm:items-center"
+      role="region" aria-label="Unsaved changes">
+      <p class="flex items-center gap-2 text-sm">
+        <ion-icon name="create-outline" class="text-base text-brand-light"></ion-icon>
+        {{ nameMissing() ? 'Add the office name to save' : 'You have unsaved changes' }}
+      </p>
+      <div class="flex gap-2 sm:ml-auto">
+        <button type="button" (click)="discardProfile()" [disabled]="store.profileSaving()"
+          class="flex-1 rounded-full px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 sm:flex-none">
+          Discard
+        </button>
+        <button type="button" (click)="saveProfile()" [disabled]="!canSaveProfile()"
+          class="flex-1 rounded-full bg-white px-5 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:flex-none">
+          {{ store.profileSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    </div>
+  }
 </div>

@@ -17,6 +17,8 @@ import {
   Customer,
   CustomerDetailResponse,
   CustomerExistsResponse,
+  CustomerKind,
+  CustomerListSort,
   CustomerStatusAction,
   CustomerStatusFilter,
   CustomerSummary,
@@ -34,6 +36,9 @@ interface SearchParams {
   status?: CustomerStatusFilter;
   page?: number;
   size?: number;
+  /** Sin `kind` = individuos y empresas. */
+  kind?: CustomerKind;
+  sort?: CustomerListSort;
 }
 
 /** Cliente HTTP fino sobre CustomerController (`/customers`, servicio Customer.Api vía Gateway). */
@@ -76,6 +81,12 @@ export class ClientsService {
     }
     if (params.size) {
       query = query.set('size', params.size);
+    }
+    if (params.kind) {
+      query = query.set('kind', params.kind);
+    }
+    if (params.sort) {
+      query = query.set('sort', params.sort.field).set('dir', params.sort.dir);
     }
     return this.http.get<PagedResult<CustomerSummary>>(this.base, { params: query });
   }

@@ -29,6 +29,7 @@ import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { RoutePrefetchService } from '@core/performance/route-prefetch.service';
 import { loginNoticeFor } from '@core/auth/session-notice';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
+import { SUBSCRIPTION_LOCKED_URL } from '@core/billing/subscription-locked.guard';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import {
   PlanChoice,
@@ -245,6 +246,11 @@ export class LoginPageComponent {
 
   private handleError(err: unknown): void {
     this.phase.set('idle');
+    // Oficina sin pagar: en vez de un error suelto, la pantalla con la marca de la oficina.
+    if (toApiError(err).code === 'Auth.SubscriptionInactive') {
+      void this.router.navigateByUrl(SUBSCRIPTION_LOCKED_URL);
+      return;
+    }
     this.formError.set(this.messageFor(err));
   }
 

@@ -1,0 +1,133 @@
+/* Solo lo propio de la página; las piezas compartidas viven en shared/styles/settings-ui.css. */
+
+:host {
+  display: block;
+}
+
+.pf-avatar {
+  animation: pf-pop 520ms 120ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+/* ---- Chequeo de seguridad ---- */
+.pf-ring-track {
+  stroke: #e2edf7;
+}
+
+.pf-ring-value {
+  transition:
+    stroke-dashoffset 900ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    stroke 300ms ease;
+}
+
+.pf-health[data-tone='strong'] .pf-ring-value {
+  stroke: #10b981;
+}
+.pf-health[data-tone='good'] .pf-ring-value {
+  stroke: #1e466b;
+}
+.pf-health[data-tone='weak'] .pf-ring-value {
+  stroke: #f59e0b;
+}
+
+.pf-health[data-tone='strong'] .pf-health__label {
+  color: #047857;
+}
+.pf-health[data-tone='good'] .pf-health__label {
+  color: #1e466b;
+}
+.pf-health[data-tone='weak'] .pf-health__label {
+  color: #b45309;
+}
+
+/* ---- Índice: en móvil es una tira de chips sin barra de scroll visible ---- */
+.pf-nav ul {
+  scrollbar-width: none;
+}
+.pf-nav ul::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Medidor de fuerza de la contraseña ---- */
+.pf-meter {
+  background: rgb(229 231 235);
+  transition: background-color 240ms ease;
+}
+.pf-meter[data-on='1'] {
+  background: #f59e0b;
+}
+.pf-meter[data-on='2'] {
+  background: #67baf4;
+}
+.pf-meter[data-on='3'],
+.pf-meter[data-on='4'] {
+  background: #10b981;
+}
+
+.pf-strength-label[data-strength='0'] {
+  color: #b91c1c;
+}
+.pf-strength-label[data-strength='1'] {
+  color: #b45309;
+}
+.pf-strength-label[data-strength='2'] {
+  color: #1e466b;
+}
+.pf-strength-label[data-strength='3'],
+.pf-strength-label[data-strength='4'] {
+  color: #047857;
+}
+
+.pf-rule-icon {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pf-rule-icon.text-emerald-600 {
+  transform: scale(1.1);
+}
+
+/* ---- Sesión actual: punto "en vivo" ---- */
+.pf-live-dot {
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #10b981;
+}
+
+.pf-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: #10b981;
+  animation: pf-pulse 1.8s ease-out infinite;
+}
+
+@keyframes pf-pulse {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-avatar,
+  .pf-live-dot::after {
+    animation: none;
+  }
+
+  .pf-ring-value,
+  .pf-rule-icon {
+    transition: none;
+  }
+}

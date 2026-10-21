@@ -27,6 +27,7 @@ import {
 } from '../../data-access/mail.model';
 import { avatarColorFor } from '@shared/utils/avatar.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
+import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { ComposeMailDeepLink, hasComposeMailParams, parseComposeMailDeepLink } from '../../utils/compose-deep-link';
@@ -42,6 +43,12 @@ interface NotificationMailDeepLink {
   threadId: string;
   messageId: string | null;
 }
+
+/** Vista del rail en /email: el correo de un cliente, o el mandado a quien no es cliente. */
+type MailView = 'client' | 'unlinked';
+
+/** Carpetas que tienen sentido sin cliente: lo que uno manda o redacta (nunca entra correo sin cliente). */
+const UNLINKED_FOLDERS: ReadonlySet<string> = new Set<MailFolderId>(['sent', 'drafts', 'trash']);
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -73,6 +80,7 @@ interface NotificationMailDeepLink {
     MailComposeComponent,
     MailConnectManualComponent,
     CustomerPickerComponent,
+    SegmentedComponent,
     FileViewerComponent,
     RouterLink,
   ],
@@ -311,7 +319,14 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   // ---------- Carpetas (sólo las que el backend respalda) ----------
 
-  readonly folders = computed<MailFolder[]>(() => [
+  /** Sin cliente no hay conversaciones ni archivados: solo entra correo de clientes. */
+  readonly folders = computed<MailFolder[]>(() =>
+    this.store.unlinkedView()
+      ? this.allFolders().filter(folder => UNLINKED_FOLDERS.has(folder.id))
+      : this.allFolders(),
+  );
+
+  private readonly allFolders = computed<MailFolder[]>(() => [
     {
       id: 'conversations',
       // El badge cuenta conversaciones CON no-leídos (baja al abrir/marcar leído, desaparece en 0),
@@ -461,6 +476,16 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   /** Estados vacíos honestos: distinguen "falta elegir cliente" de "no hay nada". */
   readonly listEmptyText = computed(() => {
+    if (this.store.unlinkedView()) {
+      switch (this.store.activeFolderId()) {
+        case 'drafts':
+          return "No drafts to people who aren't clients";
+        case 'trash':
+          return 'Trash is empty';
+        default:
+          return "No messages sent to people who aren't clients yet";
+      }
+    }
     // Embebido: el cliente siempre está fijado, solo aplican los textos por carpeta.
     if (!this.embedded() && this.store.customers().length === 0) {
       return 'No clients yet — mail threads belong to a client';
@@ -482,7 +507,36 @@ export class MailPageComponent implements OnInit, OnDestroy {
     }
   });
 
-  readonly selectedCustomerName = computed(() => this.store.selectedCustomerName());
+  /**
+   * Cliente en cuya ficha se archiva lo que se está redactando (null = ninguno). Sale del composer, no
+   * del rail: es el que quedó fijado al abrirlo.
+   */
+  readonly composeCustomerName = computed(() => {
+    const customerId = this.store.compose().customerId;
+    if (!customerId) {
+      return null;
+    }
+    return customerId === this.store.selectedCustomerId() ? this.store.selectedCustomerName() || 'this client' : 'a client';
+  });
+
+  // ---------- Vista: correo de un cliente o a quien no es cliente ----------
+
+  readonly mailViewOptions: readonly SegmentedOption<MailView>[] = [
+    { id: 'client', label: 'Client' },
+    { id: 'unlinked', label: 'Not a client' },
+  ];
+
+  readonly mailView = computed<MailView>(() => (this.store.unlinkedView() ? 'unlinked' : 'client'));
+
+  setMailView(view: MailView): void {
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
+    if (view === 'unlinked') {
+      this.store.showUnlinkedMail();
+    } else {
+      this.store.showCustomerMail();
+    }
+  }
 
   // ---------- Selector de cliente ----------
   // Correspondence no tiene bandeja global: los hilos cuelgan de un cliente, así que elegir cliente
@@ -511,8 +565,13 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.store.searchRecipients(term);
   }
 
-  /** Redactar exige cuenta de buzón utilizable + cliente (el draft cuelga de ambos). */
-  readonly canCompose = computed(() => !!this.store.activeAccountId() && !!this.store.selectedCustomerId());
+  /**
+   * Redactar exige un buzón utilizable y saber dónde se archiva: el cliente elegido o, en la vista
+   * "Not a client", ninguno.
+   */
+  readonly canCompose = computed(
+    () => !!this.store.activeAccountId() && (this.store.unlinkedView() || !!this.store.selectedCustomerId()),
+  );
 
   // ---------- Cuentas de buzón ----------
 
@@ -804,8 +863,10 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   openCompose(): void {
     this.selectedDraftId.set(null);
-    // Embebido: "To" arranca con el email principal del cliente (si el directorio lo trajo).
-    this.store.openCompose(this.embedded() ? this.store.selectedCustomer()?.primaryEmail || null : null);
+    // Si el correo se archiva en un cliente (perfil o /email viendo un cliente), "To" arranca con su
+    // email principal. En "Not a client" arranca vacío: es para escribirle a otra persona.
+    const prefillTo = this.store.unlinkedView() ? null : this.store.selectedCustomer()?.primaryEmail || null;
+    this.store.openCompose(prefillTo);
   }
 
   closeCompose(): void {
@@ -818,13 +879,19 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.store.discardCompose();
   }
 
-  /** El editor no conoce los ids del contrato: se completan acá con la selección activa. */
+  /**
+   * El editor no conoce el buzón: se completa acá con el activo. El cliente NO se toma del rail: lo fija
+   * el composer al abrirse (en el perfil, siempre el del perfil).
+   */
   sendCompose(payload: ComposeDraftPayload): void {
-    const customerId = this.store.selectedCustomerId();
     const accountId = this.store.activeAccountId();
-    if (!customerId || !accountId) {
+    if (!accountId) {
       return;
     }
-    this.store.sendCompose({ ...payload, customerId, accountId });
+    this.store.sendCompose({ ...payload, accountId });
+  }
+
+  unlinkComposeCustomer(): void {
+    this.store.unlinkComposeCustomer();
   }
 }

@@ -1,3 +1,15 @@
+<!-- Encabezado ordenable: la flecha marca el orden vigente; en hover se insinúa en la columna inactiva. -->
+<ng-template #sortHeader let-field="field" let-label="label">
+  <button type="button" (click)="sortRequested.emit(field)"
+    class="group/sort -mx-1.5 inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-semibold text-gray-900 transition-colors hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-bold"
+    [attr.aria-label]="'Sort by ' + label">
+    {{ label }}
+    <ion-icon class="text-sm transition-[opacity,transform] duration-200"
+      [attr.name]="sort?.field === field && sort?.dir === 'Desc' ? 'arrow-down-outline' : 'arrow-up-outline'"
+      [ngClass]="sort?.field === field ? 'text-brand-bold opacity-100' : 'text-gray-400 opacity-0 group-hover/sort:opacity-100'"></ion-icon>
+  </button>
+</ng-template>
+
 <!-- ================= DESKTOP: tabla (estilo píldora original) ================= -->
 <div class="hidden md:block overflow-x-auto">
   <table class="w-full min-w-[51.25rem] border-separate border-spacing-0 text-sm">
@@ -7,14 +19,18 @@
           <input type="checkbox" class="h-4 w-4 accent-brand-bold align-middle" [checked]="allSelected()"
             (change)="onSelectAll($event)" aria-label="Select all clients on this page" />
         </th>
-        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900" [attr.aria-sort]="ariaSort('Name')">
+          <ng-container *ngTemplateOutlet="sortHeader; context: { field: 'Name', label: 'Name' }"></ng-container>
+        </th>
         @if (canViewAssignees) {
           <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Assigned to</th>
         }
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Email</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Type</th>
         <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Status</th>
-        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900">Created</th>
+        <th class="bg-brand-white px-4 py-3 text-left font-semibold text-gray-900" [attr.aria-sort]="ariaSort('Created')">
+          <ng-container *ngTemplateOutlet="sortHeader; context: { field: 'Created', label: 'Created' }"></ng-container>
+        </th>
         <th class="rounded-r-2xl bg-brand-white px-4 py-3"></th>
       </tr>
     </thead>

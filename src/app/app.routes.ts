@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AppShellComponent } from './layout/app-shell/app-shell.component';
 import { authGuard } from '@core/auth/auth.guard';
 import { seatSlotGatedCanActivateChild } from '@core/auth/seat-slot-gated.guard';
+import { subscriptionLockedCanActivateChild } from '@core/billing/subscription-locked.guard';
 import { accessCanActivateChild, accessCanMatch } from '@core/access/access.guard';
 import { redirectToLandingGuard } from '@core/config/landing';
 
@@ -167,7 +168,12 @@ export const routes: Routes = [
   {
     path: '',
     component: AppShellComponent,
-    canActivateChild: [authGuard, seatSlotGatedCanActivateChild, accessCanActivateChild],
+    canActivateChild: [
+      authGuard,
+      subscriptionLockedCanActivateChild,
+      seatSlotGatedCanActivateChild,
+      accessCanActivateChild,
+    ],
     children: [
       {
         path: 'dashboard',
