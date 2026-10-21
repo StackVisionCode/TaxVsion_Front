@@ -1,5 +1,6 @@
-/* Pantalla de oficina sin pagar. Colores del brandbook (navy #1e466b / #132c43, celeste #67baf4,
-   arena #c9a46a). Solo se anima transform/opacity; todo se apaga con prefers-reduced-motion. */
+/* Pantalla de oficina sin pagar. Tipografía y layout van en Tailwind (plantilla); acá solo lo que
+   Tailwind no cubre: fondo animado, candado, brillo del botón y entradas. Se anima transform/opacity
+   y todo se apaga con prefers-reduced-motion. */
 
 :host {
   display: block;
@@ -8,7 +9,6 @@
 .locked-screen {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -17,10 +17,8 @@
   gap: 1.5rem;
   padding: 2.5rem 1rem;
   overflow: hidden;
-  background: linear-gradient(160deg, #132c43 0%, #1e466b 55%, #18395a 100%);
+  background: linear-gradient(160deg, #132c43, #1e466b 55%, #18395a);
 }
-
-/* ---- Fondo ---- */
 
 .locked-backdrop {
   position: absolute;
@@ -33,7 +31,7 @@
   position: absolute;
   border-radius: 9999px;
   filter: blur(72px);
-  will-change: transform;
+  animation: drift 26s ease-in-out infinite alternate;
 }
 
 .orb--sky {
@@ -42,7 +40,7 @@
   top: -10rem;
   left: -8rem;
   background: rgb(103 186 244 / 0.38);
-  animation: drift-a 22s ease-in-out infinite alternate;
+  --to: 6rem, 4rem;
 }
 
 .orb--sand {
@@ -51,7 +49,7 @@
   bottom: -9rem;
   right: -6rem;
   background: rgb(201 164 106 / 0.3);
-  animation: drift-b 26s ease-in-out infinite alternate;
+  --to: -5rem, -3rem;
 }
 
 .orb--deep {
@@ -60,7 +58,13 @@
   top: 40%;
   left: 55%;
   background: rgb(55 164 241 / 0.22);
-  animation: drift-c 30s ease-in-out infinite alternate;
+  --to: -8rem, 3rem;
+}
+
+@keyframes drift {
+  to {
+    transform: translate(var(--to)) scale(1.08);
+  }
 }
 
 .grid-veil {
@@ -71,28 +75,7 @@
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 
-@keyframes drift-a {
-  to {
-    transform: translate3d(6rem, 4rem, 0) scale(1.08);
-  }
-}
-
-@keyframes drift-b {
-  to {
-    transform: translate3d(-5rem, -3rem, 0) scale(1.12);
-  }
-}
-
-@keyframes drift-c {
-  to {
-    transform: translate3d(-8rem, 3rem, 0) scale(0.92);
-  }
-}
-
-/* ---- Tarjeta ---- */
-
 .locked-card {
-  position: relative;
   width: 100%;
   max-width: 32rem;
   display: flex;
@@ -102,127 +85,27 @@
   padding: 2.5rem 2rem 1.75rem;
   border-radius: 1.75rem;
   background: rgb(255 255 255 / 0.97);
-  border: 1px solid rgb(255 255 255 / 0.6);
-  box-shadow:
-    0 30px 80px -20px rgb(8 20 33 / 0.55),
-    0 0 0 1px rgb(19 44 67 / 0.04);
+  box-shadow: 0 30px 80px -20px rgb(8 20 33 / 0.55);
   text-align: center;
-  animation: card-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(24px) scale(0.97);
-  }
-}
-
-/* Aparición escalonada del contenido: cada bloque trae su índice en --i. */
+/* Contenido escalonado: cada bloque trae su índice en --i. */
 .reveal {
-  animation: reveal-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: calc(180ms + var(--i, 0) * 80ms);
 }
 
-@keyframes reveal-in {
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(14px);
   }
 }
 
-/* ---- Candado con pulso ---- */
-
-.lock-badge {
-  position: relative;
-  width: 4.5rem;
-  height: 4.5rem;
-  display: grid;
-  place-items: center;
-}
-
-.lock-core {
-  position: relative;
-  z-index: 1;
-  width: 4.5rem;
-  height: 4.5rem;
-  display: grid;
-  place-items: center;
-  border-radius: 9999px;
-  background: linear-gradient(145deg, #1e466b, #132c43);
-  color: #fff;
-  font-size: 1.9rem;
-  box-shadow: 0 12px 28px -10px rgb(19 44 67 / 0.7);
-}
-
-.lock-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  border: 2px solid rgb(103 186 244 / 0.55);
-  animation: ring-out 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
-}
-
-.lock-ring--late {
-  animation-delay: 1.3s;
-}
-
-@keyframes ring-out {
-  from {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.9);
-  }
-}
-
-/* ---- Texto ---- */
-
-.locked-title {
-  margin: 0;
-  color: #132c43;
-  font-size: 1.6rem;
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-
-.locked-lead {
-  margin: 0;
-  max-width: 26rem;
-  color: rgb(55 65 81);
-  font-size: 0.95rem;
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
-/* ---- Datos del cobro ---- */
-
-.locked-facts {
-  width: 100%;
-  margin: 0.25rem 0 0;
-  display: grid;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-radius: 1rem;
-  background: #f1f6fb;
-  border: 1px solid #d7e3ef;
-}
-
-.fact {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.875rem;
-}
-
+/* Datos del cobro */
 .fact + .fact {
   border-top: 1px dashed #d7e3ef;
-  padding-top: 0.6rem;
 }
 
 .fact dt {
@@ -234,7 +117,6 @@
 
 .fact dt ion-icon {
   color: #1e466b;
-  font-size: 1rem;
 }
 
 .fact dd {
@@ -242,52 +124,66 @@
   color: #132c43;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
-.fact-unit {
-  margin-left: 0.25rem;
-  color: rgb(107 114 128);
-  font-weight: 500;
-  font-size: 0.8rem;
+/* Candado con pulso */
+.lock-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
 }
 
-/* ---- Botones ---- */
-
-.locked-actions {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+.lock-core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(145deg, #1e466b, #132c43);
+  color: #fff;
+  font-size: 1.9rem;
 }
 
-.btn-pay,
-.btn-quiet,
-.btn-link {
+.lock-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgb(103 186 244 / 0.55);
+  animation: ring 2.6s ease-out infinite;
+}
+
+.lock-ring--late {
+  animation-delay: 1.3s;
+}
+
+@keyframes ring {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+/* Botón principal con brillo al pasar el mouse */
+.btn-pay {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  font-weight: 600;
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease,
-    background-color 180ms ease;
-}
-
-.btn-pay {
-  position: relative;
-  overflow: hidden;
   width: 100%;
   padding: 0.85rem 1.25rem;
   border-radius: 0.9rem;
   color: #fff;
-  font-size: 1rem;
+  font-weight: 600;
   background: linear-gradient(135deg, #1e466b, #2a5d8c);
-  box-shadow: 0 12px 24px -12px rgb(30 70 107 / 0.8);
+  transition: transform 180ms ease;
 }
 
-/* Brillo que cruza el botón principal al pasar el mouse. */
 .btn-pay::after {
   content: '';
   position: absolute;
@@ -298,7 +194,6 @@
 
 .btn-pay:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 16px 30px -12px rgb(30 70 107 / 0.9);
 }
 
 .btn-pay:hover:not(:disabled)::after {
@@ -306,46 +201,14 @@
   transform: translateX(120%);
 }
 
-.btn-pay:active:not(:disabled) {
-  transform: translateY(0) scale(0.99);
-}
-
-.btn-quiet {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.9rem;
-  color: #1e466b;
-  font-size: 0.9rem;
-  background: #fff;
-  border: 1px solid #d7e3ef;
-}
-
-.btn-quiet:hover:not(:disabled) {
-  background: #f1f6fb;
-}
-
-.btn-link {
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
-  color: rgb(75 85 99);
-  font-size: 0.85rem;
-  background: transparent;
-}
-
-.btn-link:hover {
-  color: #132c43;
-  background: #f1f6fb;
-}
-
 .btn-pay:disabled,
-.btn-quiet:disabled {
+.btn:disabled {
   opacity: 0.65;
   cursor: progress;
 }
 
 .btn-pay:focus-visible,
-.btn-quiet:focus-visible,
-.btn-link:focus-visible {
+.btn:focus-visible {
   outline: 3px solid #67baf4;
   outline-offset: 2px;
 }
@@ -360,72 +223,9 @@
   }
 }
 
-/* ---- Estado y pie ---- */
-
-.locked-status {
-  min-height: 1.25rem;
-  margin: -0.25rem 0 0;
-  color: #7a5a26;
-  font-size: 0.82rem;
-  line-height: 1.4;
-}
-
-.locked-footer {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e9e2d4;
-}
-
-.safe-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: rgb(75 85 99);
-  font-size: 0.78rem;
-  text-align: left;
-}
-
-.safe-note ion-icon {
-  color: #55806a;
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.powered-by {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: rgb(255 255 255 / 0.7);
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.powered-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.35rem 0.75rem;
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.92);
-}
-
 @media (max-width: 480px) {
   .locked-card {
     padding: 2rem 1.25rem 1.5rem;
-    border-radius: 1.5rem;
-  }
-
-  .locked-title {
-    font-size: 1.35rem;
-  }
-
-  .locked-footer {
-    justify-content: center;
   }
 }
 
@@ -438,10 +238,7 @@
     animation: none;
   }
 
-  .lock-ring {
-    opacity: 0;
-  }
-
+  .lock-ring,
   .btn-pay::after {
     display: none;
   }

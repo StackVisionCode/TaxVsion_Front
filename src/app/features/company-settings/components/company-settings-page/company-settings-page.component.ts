@@ -13,7 +13,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { SegmentedComponent } from '@shared/ui/segmented/segmented.component';
-import { FileDropDirective } from '@shared/directives/file-drop.directive';
+import { CheckRingComponent, CheckRingItem } from '@shared/ui/check-ring/check-ring.component';
 import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.util';
 import { AuthService } from '@core/auth/auth.service';
 import { AdminCapabilities } from '@core/access/admin-capabilities';
@@ -26,6 +26,7 @@ import {
   CompanyProfile,
 } from '../../data-access/company-settings.model';
 import { CompanySettingsStore } from '../../data-access/company-settings.store';
+import { BrandAssetTileComponent } from '../../ui/brand-asset-tile/brand-asset-tile.component';
 
 type AssetKey = 'logo' | 'favicon';
 
@@ -33,14 +34,6 @@ interface SettingsSection {
   id: string;
   label: string;
   icon: string;
-}
-
-/** Un punto del chequeo "listo para facturar" de la cabecera. */
-interface ReadinessCheck {
-  id: string;
-  label: string;
-  done: boolean;
-  target: string;
 }
 
 /**
@@ -53,10 +46,10 @@ interface ReadinessCheck {
  */
 @Component({
   selector: 'app-company-settings-page',
-  imports: [InfinityLoaderComponent, CommonModule, FormsModule, SegmentedComponent, FileDropDirective],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, SegmentedComponent, CheckRingComponent, BrandAssetTileComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './company-settings-page.component.html',
-  styleUrls: ['./company-settings-page.component.css', '../../../../shared/styles/settings-ui.css'],
+  styleUrl: './company-settings-page.component.css',
 })
 export class CompanySettingsPageComponent {
   /**
@@ -134,7 +127,7 @@ export class CompanySettingsPageComponent {
   // ---------------------------------------------------------------------------
   // Chequeo "listo para facturar": lo que se estampa en cada factura
   // ---------------------------------------------------------------------------
-  readonly readinessChecks = computed<ReadinessCheck[]>(() => {
+  readonly readinessChecks = computed<CheckRingItem[]>(() => {
     const p = this.store.profile();
     return [
       { id: 'name', label: 'Legal name', done: !!p?.name?.trim(), target: 'identity' },
@@ -163,10 +156,6 @@ export class CompanySettingsPageComponent {
         ? 'Almost ready'
         : 'Missing key details',
   );
-  /** Largo del trazo del anillo (r = 26). */
-  readonly ringCircumference = 2 * Math.PI * 26;
-  readonly ringOffset = computed(() => this.ringCircumference * (1 - this.readinessScore() / 100));
-
   // ---------------------------------------------------------------------------
   // Guardado del perfil (identidad + dirección = un solo PUT)
   // ---------------------------------------------------------------------------
@@ -271,26 +260,11 @@ export class CompanySettingsPageComponent {
     return this.store.surface() === 'Crm' ? 'your team' : 'your clients';
   }
 
-  onAssetSelected(event: Event, key: AssetKey): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = ''; // permite reseleccionar el mismo archivo
-    if (file) {
-      this.uploadAsset(key, file);
-    }
-  }
-
-  onAssetDropped(files: File[], key: AssetKey): void {
-    if (files[0]) {
-      this.uploadAsset(key, files[0]);
-    }
-  }
-
   onAssetRejected(): void {
     this.assetFileError.set('Image must be a PNG, JPEG or SVG.');
   }
 
-  private uploadAsset(key: AssetKey, file: File): void {
+  uploadAsset(key: AssetKey, file: File): void {
     if (!this.can.canManageBranding() || this.store.assetBusy()) {
       return;
     }
