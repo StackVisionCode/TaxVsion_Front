@@ -6,6 +6,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { isRefreshRejected } from '@core/auth/refresh-failure';
 import { SessionExpiryService } from '@core/services/session-expiry.service';
 import { LoginTransitionComponent } from '@core/auth/login-transition.component';
+import { AccountHandoffOverlayComponent } from '@core/billing/account-handoff-overlay.component';
 import { SessionExpiryModalComponent } from '@core/auth/session-expiry-modal.component';
 import { SessionRevokedModalComponent } from '@core/auth/session-revoked-modal.component';
 import { SessionTakeoverModalComponent } from '@core/auth/session-takeover-modal.component';
@@ -16,6 +17,7 @@ import { ToastHostComponent } from '@shared/ui/toast/toast-host.component';
   imports: [
     RouterOutlet,
     LoginTransitionComponent,
+    AccountHandoffOverlayComponent,
     SessionExpiryModalComponent,
     SessionRevokedModalComponent,
     SessionTakeoverModalComponent,

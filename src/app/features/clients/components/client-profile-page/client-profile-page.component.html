@@ -351,6 +351,16 @@
         }
       }
 
+      @defer (when activeTab() === 'email-delivery'; prefetch on idle) {
+        @if (activeTab() === 'email-delivery') {
+          <app-client-profile-email-delivery [email]="c.email" />
+        }
+      } @placeholder {
+        @if (activeTab() === 'email-delivery') {
+          <app-skeleton variant="rows" minHeight="12rem" [rows]="4" />
+        }
+      }
+
       @defer (when activeTab() === 'sms'; prefetch on idle) {
         @if (activeTab() === 'sms') {
           <app-client-sms-workspace [clientId]="c.id" [clientName]="c.displayName" />

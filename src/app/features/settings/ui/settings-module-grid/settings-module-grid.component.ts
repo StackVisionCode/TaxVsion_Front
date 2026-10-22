@@ -34,6 +34,8 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'mail', featureId: 'email', title: 'Mail', description: 'Outgoing signatures and default reply-to', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   // Preferencias de notificación por categoría × canal (FASE 8 del plan). Autoservicio: siempre
   // visible, el backend filtra por UserId del JWT; sin featureId porque no hay módulo que apagar.
+  // Qué pasó con cada correo que salió de la oficina (entregado, rebotado, spam).
+  { id: 'email-activity', featureId: 'email-activity', title: 'Email activity', description: 'Delivery status of every email sent from the office', icon: 'paper-plane-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/settings/email-activity' },
   { id: 'notifications', title: 'Notifications', description: 'Choose how you want to be notified for each category', icon: 'notifications-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/notifications' },
   // Ajustes globales de firma: página dedicada, gateada por signature.settings.manage (no por
   // request.read), para que solo admins/managers vean la tarjeta y no una puerta pintada.
