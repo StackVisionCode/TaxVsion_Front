@@ -5,7 +5,7 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import { AccessStore } from '@core/access/access.store';
 
 interface CloudConnection { connected: boolean; email: string | null; }
-interface StoragePolicy { providerId: string; availableProviders: string[]; mode: string; backupFrequency: string | null; backupTime: string | null; backupTimeZoneId: string | null; }
+interface StoragePolicy { providerId: string; availableProviders: string[]; connectedProviders: string[]; mode: string; backupFrequency: string | null; backupTime: string | null; backupTimeZoneId: string | null; }
 interface CloudProvider { id: string; name: string; description: string; }
 interface PendingSwitch { target: CloudProvider; current: CloudProvider[]; policy: StoragePolicy; }
 
@@ -117,7 +117,8 @@ export class CloudProviderConnectionsComponent {
     this.error.set(''); this.notice.set(''); this.busyProvider.set(provider.id);
     this.http.get<StoragePolicy>(`${this.storageUrl}/settings/policy`).subscribe({
       next: policy => {
-        const current = (policy.availableProviders ?? []).filter(id => id !== provider.id).map(id => this.providers.find(item => item.id === id)).filter((item): item is CloudProvider => !!item);
+        // Solo los conectados de verdad: availableProviders son los que se pueden elegir, no los conectados.
+        const current = (policy.connectedProviders ?? []).filter(id => id !== provider.id).map(id => this.providers.find(item => item.id === id)).filter((item): item is CloudProvider => !!item);
         if (current.length) {
           this.pendingSwitch.set({ target: provider, current, policy });
           this.busyProvider.set(null);
