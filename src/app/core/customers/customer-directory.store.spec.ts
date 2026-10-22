@@ -1,5 +1,8 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { EMPTY, Observable, Subject, of } from 'rxjs';
+import { AuthService } from '@core/auth/auth.service';
+import { MeResponse } from '@core/auth/auth.model';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { CustomerDirectoryService } from './customer-directory.service';
 import { CustomerDirectoryStore } from './customer-directory.store';
@@ -11,6 +14,15 @@ class FakeRealtime {
   on<T>(): Observable<T> {
     return EMPTY;
   }
+}
+
+/** Solo lo que lee el store: la sesión actual (tenant + usuario). */
+class FakeAuth {
+  readonly currentUser = signal<MeResponse | null>(session('tenant-a', 'user-a'));
+}
+
+function session(tenantId: string, userId: string): MeResponse {
+  return { id: userId, tenant: { id: tenantId } } as MeResponse;
 }
 
 function customer(id: string, name = `Customer ${id}`): CustomerSummary {
@@ -50,15 +62,18 @@ class FakeCustomerDirectoryService {
 describe('CustomerDirectoryStore', () => {
   let store: CustomerDirectoryStore;
   let service: FakeCustomerDirectoryService;
+  let auth: FakeAuth;
 
   beforeEach(() => {
-    localStorage.removeItem('crm.recentCustomers');
+    localStorage.clear();
     service = new FakeCustomerDirectoryService();
+    auth = new FakeAuth();
     TestBed.configureTestingModule({
       providers: [
         CustomerDirectoryStore,
         { provide: CustomerDirectoryService, useValue: service },
         { provide: CommunicationRealtimeService, useClass: FakeRealtime },
+        { provide: AuthService, useValue: auth },
       ],
     });
     store = TestBed.inject(CustomerDirectoryStore);
@@ -118,6 +133,55 @@ describe('CustomerDirectoryStore', () => {
     store.addRecent(customer('2', 'Bob'));
     store.addRecent(customer('1', 'Ann')); // vuelve al tope, sin duplicar
     expect(store.recent().map(c => c.id)).toEqual(['1', '2']);
-    expect(JSON.parse(localStorage.getItem('crm.recentCustomers')!).length).toBe(2);
+    expect(JSON.parse(localStorage.getItem('crm.recentCustomers.tenant-a.user-a')!).length).toBe(2);
+  });
+  describe('recientes por sesión', () => {
+    it('otro usuario no ve los recientes del anterior y recupera los suyos al volver', () => {
+      store.addRecent(customer('1', 'Ann'));
+
+      auth.currentUser.set(session('tenant-b', 'user-b'));
+      expect(store.recent()).toEqual([]);
+      store.addRecent(customer('9', 'Zoe'));
+
+      auth.currentUser.set(session('tenant-a', 'user-a'));
+      expect(store.recent().map(c => c.id)).toEqual(['1']);
+    });
+
+    it('sin sesión no muestra ni guarda recientes', () => {
+      auth.currentUser.set(null);
+
+      store.addRecent(customer('1', 'Ann'));
+
+      expect(Object.keys(localStorage).filter(k => k.startsWith('crm.recentCustomers'))).toEqual([]);
+    });
+
+    it('borra la clave global vieja que mezclaba sesiones', () => {
+      localStorage.setItem('crm.recentCustomers', JSON.stringify([customer('7', 'Old')]));
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          CustomerDirectoryStore,
+          { provide: CustomerDirectoryService, useValue: service },
+          { provide: CommunicationRealtimeService, useClass: FakeRealtime },
+          { provide: AuthService, useValue: auth },
+        ],
+      });
+      const fresh = TestBed.inject(CustomerDirectoryStore);
+
+      expect(localStorage.getItem('crm.recentCustomers')).toBeNull();
+      expect(fresh.recent()).toEqual([]);
+    });
+
+    it('al cambiar de sesión descarta las búsquedas cacheadas de la anterior', () => {
+      store.search({ term: 'ann' }).subscribe();
+      TestBed.tick();
+
+      auth.currentUser.set(session('tenant-b', 'user-b'));
+      TestBed.tick();
+      store.search({ term: 'ann' }).subscribe();
+
+      expect(service.searchCalls).toBe(2);
+    });
   });
 });

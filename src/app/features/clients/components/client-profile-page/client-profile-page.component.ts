@@ -33,6 +33,7 @@ import { ClientTaskWorkspaceComponent } from '../../../task/components/client-ta
 import { ClientBillingWorkspaceComponent } from '../../../billing/components/client-billing-workspace/client-billing-workspace.component';
 import { ClientMailWorkspaceComponent } from '../../../mail/components/client-mail-workspace/client-mail-workspace.component';
 import { ClientSmsWorkspaceComponent } from '../../../sms/components/client-sms-workspace/client-sms-workspace.component';
+import { ClientProfileEmailDeliveryComponent } from '../../ui/client-profile-email-delivery/client-profile-email-delivery.component';
 import { ClientMeetingsWorkspaceComponent } from '../../../meetings/components/client-meetings-workspace/client-meetings-workspace.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
@@ -146,6 +147,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
       { id: 'signatures', label: 'Signatures', icon: 'create-outline' },
       { id: 'notes', label: 'Notes', icon: 'reader-outline' },
       { id: 'communication', label: 'Email', icon: 'mail-outline' },
+      { id: 'email-delivery', label: 'Email delivery', icon: 'paper-plane-outline' },
       { id: 'sms', label: 'SMS', icon: 'chatbox-ellipses-outline' },
       { id: 'meetings', label: 'Meetings', icon: 'videocam-outline' },
       { id: 'calls', label: 'Calls', icon: 'call-outline' },
@@ -191,6 +193,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
 @Component({
   selector: 'app-client-profile-page',
   imports: [
+    ClientProfileEmailDeliveryComponent,
     AvatarComponent,
     StatusPillComponent,
     CommonModule,

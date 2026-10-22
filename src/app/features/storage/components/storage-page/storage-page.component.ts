@@ -9,6 +9,8 @@ import { formatBytes } from '@shared/utils/format.util';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { StorageStore } from '../../data-access/storage.store';
+import { CloudProviderConnectionsComponent } from '../cloud-provider-connections/cloud-provider-connections.component';
+import { StorageUsagePolicyComponent } from '../storage-usage-policy/storage-usage-policy.component';
 import {
   CATEGORY_META,
   SharePermission,
@@ -48,6 +50,8 @@ export interface CategoryFileRow {
     StateBlockComponent,
     AvatarComponent,
     FileViewerComponent,
+    CloudProviderConnectionsComponent,
+    StorageUsagePolicyComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './storage-page.component.html',
