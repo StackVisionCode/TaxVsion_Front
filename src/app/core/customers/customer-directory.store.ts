@@ -1,6 +1,7 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Injectable, Signal, computed, effect, inject, linkedSignal, untracked } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay, tap } from 'rxjs/operators';
+import { AuthService } from '@core/auth/auth.service';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { CustomerDirectoryService } from './customer-directory.service';
 import { CustomerSearchParams, CustomerSummary, PagedResult } from './customer-summary.model';
@@ -17,13 +18,14 @@ interface CustomerChangedEvent {
  * de nombres por id (byId, alimentado por las búsquedas) y recientes. NO carga todo el directorio en
  * memoria: la búsqueda es server-side. `invalidate()`/`evict()` mantienen la frescura (F4 realtime).
  *
- * Aislamiento de tenant: cada tenant vive en su propio subdominio (origen), así que el cache es
- * naturalmente por-tenant; no hace falta el tenantId en la clave.
+ * Aislamiento: el subdominio separa oficinas en producción, pero en local (y entre usuarios de una
+ * misma oficina) el origen se comparte. Por eso los recientes se guardan por oficina y usuario, y al
+ * cambiar de sesión se recargan y se vacía el cache de búsquedas.
  */
 
 const SEARCH_TTL_MS = 60_000;
 const BYID_TTL_MS = 300_000;
-const RECENTS_KEY = 'crm.recentCustomers';
+const RECENTS_KEY_PREFIX = 'crm.recentCustomers';
 const RECENTS_MAX = 8;
 
 interface CacheEntry<T> {
@@ -36,15 +38,36 @@ interface CacheEntry<T> {
 export class CustomerDirectoryStore {
   private readonly service = inject(CustomerDirectoryService);
   private readonly realtime = inject(CommunicationRealtimeService);
+  private readonly auth = inject(AuthService);
+
+  /** `tenantId.userId` de la sesión actual; null sin sesión. */
+  private readonly scope = computed(() => {
+    const user = this.auth.currentUser();
+    return user ? `${user.tenant.id}.${user.id}` : null;
+  });
 
   private readonly searchCache = new Map<string, CacheEntry<PagedResult<CustomerSummary>>>();
   private readonly byIdCache = new Map<string, CacheEntry<CustomerSummary>>();
 
-  private readonly _recent = signal<CustomerSummary[]>(this.loadRecent());
+  private readonly _recent = linkedSignal<string | null, CustomerSummary[]>({
+    source: this.scope,
+    computation: scope => this.loadRecent(scope),
+  });
   /** Clientes elegidos recientemente (localStorage), para pickers sin teclear. */
   readonly recent: Signal<CustomerSummary[]> = computed(() => this._recent());
 
   constructor() {
+    // La clave global de antes mezclaba sesiones: se borra una vez.
+    try {
+      localStorage.removeItem(RECENTS_KEY_PREFIX);
+    } catch {
+      // storage bloqueado: nada que limpiar.
+    }
+    // Otra sesión no ve las búsquedas cacheadas de la anterior.
+    effect(() => {
+      this.scope();
+      untracked(() => this.invalidate());
+    });
     // F4 — invalidación en tiempo real: Communication emite `customer.changed` al aplicar un
     // customer.*.v1; desalojamos ese cliente (y las búsquedas) para revalidar al próximo uso.
     // Singleton root: la suscripción vive con la app, no hace falta desuscribir.
@@ -129,8 +152,12 @@ export class CustomerDirectoryStore {
   addRecent(customer: CustomerSummary): void {
     const next = [customer, ...this._recent().filter(c => c.id !== customer.id)].slice(0, RECENTS_MAX);
     this._recent.set(next);
+    const scope = this.scope();
+    if (!scope) {
+      return;
+    }
     try {
-      localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+      localStorage.setItem(this.recentsKey(scope), JSON.stringify(next));
     } catch {
       // storage bloqueado / modo privado: recientes es solo conveniencia.
     }
@@ -159,9 +186,16 @@ export class CustomerDirectoryStore {
     return `${p.status ?? ''}|${(p.term ?? '').trim().toLowerCase()}|${p.page ?? 1}|${p.size ?? ''}`;
   }
 
-  private loadRecent(): CustomerSummary[] {
+  private recentsKey(scope: string): string {
+    return `${RECENTS_KEY_PREFIX}.${scope}`;
+  }
+
+  private loadRecent(scope: string | null): CustomerSummary[] {
+    if (!scope) {
+      return [];
+    }
     try {
-      const raw = localStorage.getItem(RECENTS_KEY);
+      const raw = localStorage.getItem(this.recentsKey(scope));
       const parsed = raw ? (JSON.parse(raw) as CustomerSummary[]) : [];
       return Array.isArray(parsed) ? parsed.filter(c => c?.id && c.displayName) : [];
     } catch {

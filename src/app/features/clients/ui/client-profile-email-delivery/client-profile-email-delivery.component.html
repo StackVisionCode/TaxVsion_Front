@@ -1,0 +1,37 @@
+<div class="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h3 class="text-base font-bold text-gray-900">Email delivery</h3>
+      <p class="mt-1 text-sm text-gray-500">What happened with the latest emails sent to {{ email || 'this client' }}.</p>
+    </div>
+    @if (email) {
+      <a routerLink="/settings/email-activity" [queryParams]="{ recipient: email }"
+        class="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">
+        View all
+      </a>
+    }
+  </div>
+
+  <app-state-block class="mt-5 block" variant="inline" icon="paper-plane-outline" loadingText="Loading emails…"
+    [loading]="loading()" [error]="error()" [empty]="items().length === 0"
+    emptyTitle="No emails yet"
+    [emptyMessage]="email ? 'Emails the office sends to this address show up here.' : 'This client has no email address.'"
+    (retry)="load()">
+    <ul class="flex flex-col divide-y divide-gray-50">
+      @for (item of items(); track item.id) {
+        <li class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-gray-900">{{ item.subject }}</p>
+            <p class="text-xs text-gray-500">{{ formatDateTime(item.sentAtUtc ?? item.queuedAtUtc) }} · {{ laneLabel(item.lane) }}</p>
+          </div>
+          <span class="flex items-center gap-2">
+            @if (item.opened || item.clicked) {
+              <span class="text-xs text-gray-400" [attr.title]="engagementHint">{{ item.clicked ? 'Clicked' : 'Opened' }}</span>
+            }
+            <app-status-pill [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</app-status-pill>
+          </span>
+        </li>
+      }
+    </ul>
+  </app-state-block>
+</div>

@@ -4,6 +4,11 @@
 <!-- Transición login → dashboard. Vive en la raíz para sobrevivir al cambio de ruta login → shell.
      Apilado: toasts (80) < transición (90) < modales de sesión (100). -->
 <app-login-transition />
+<!-- Salida al Account del Landing: misma pantalla de carga que verá al llegar allá. Diferida: no pesa en la
+     primera carga y queda lista apenas el navegador está libre, mucho antes de cualquier clic. -->
+@defer (on idle) {
+  <app-account-handoff-overlay />
+}
 <app-session-expiry-modal />
 <app-session-revoked-modal />
 <app-session-takeover-modal />

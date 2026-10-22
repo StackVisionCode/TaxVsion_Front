@@ -3,6 +3,7 @@ import { accessCanMatch } from '@core/access/access.guard';
 import { SettingsPageComponent } from './components/settings-page/settings-page.component';
 import { BillingStore } from '../billing/data-access/billing.store';
 import { ConnectionsStore } from './data-access/connections.store';
+import { EmailActivityStore } from './data-access/email-activity.store';
 
 export const SETTINGS_ROUTES: Routes = [
   {
@@ -63,5 +64,16 @@ export const SETTINGS_ROUTES: Routes = [
         m => m.NotificationPreferencesPageComponent,
       ),
     title: 'Notification preferences',
+  },
+  {
+    // Estado real de entrega de los correos de la oficina (Postmaster). Gateada por
+    // postmaster.messages.read; el backend enmascara las direcciones para quien no es admin.
+    path: 'email-activity',
+    canMatch: [accessCanMatch],
+    data: { feature: 'email-activity' },
+    providers: [EmailActivityStore],
+    loadComponent: () =>
+      import('./components/email-activity-page/email-activity-page.component').then(m => m.EmailActivityPageComponent),
+    title: 'Email activity',
   },
 ];

@@ -11,6 +11,7 @@ export type ClientProfileTabId =
   | 'work'
   | 'notes'
   | 'communication'
+  | 'email-delivery'
   | 'sms'
   | 'meetings'
   | 'calls'
@@ -31,6 +32,8 @@ export const TAB_ACCESS: Partial<Record<ClientProfileTabId, AccessRequirement>> 
   notes: { module: 'planner', anyOf: ['notes.read'] },
   reminders: { module: 'planner', anyOf: ['reminders.read'] },
   communication: { module: 'email', anyOf: ['correspondence.read'] },
+  // Correos que la oficina le mandó y qué pasó con ellos (Postmaster). No depende del plan.
+  'email-delivery': { module: null, anyOf: ['postmaster.messages.read'] },
   sms: { module: null, anyOf: ['sms.read'] },
   meetings: { module: 'meetings', anyOf: ['communication.meeting.create', 'communication.meeting.join'] },
   invoices: { module: null, anyOf: ['invoicing.view'] },

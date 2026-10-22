@@ -17,6 +17,16 @@ export class AccountHandoffStore {
   readonly opening = signal(false);
   readonly error = signal<string | null>(null);
 
+  constructor() {
+    // Volver con "Atrás" desde el Landing restaura esta página de la caché del navegador tal como quedó:
+    // con la capa "Opening your account" encendida. Se apaga para devolver el CRM usable.
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) {
+        this.opening.set(false);
+      }
+    });
+  }
+
   /** `section` es la ruta del Account donde aterrizar, p.ej. `/account/seats`. */
   open(section = '/account'): void {
     if (this.opening()) {

@@ -1,0 +1,77 @@
+<div class="flex flex-1 flex-col gap-6">
+  <div class="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <a routerLink="/settings" class="text-xs font-medium text-gray-500 hover:text-gray-700">← Settings</a>
+        <h2 class="mt-1 text-xl font-bold text-gray-900">Email activity</h2>
+        <p class="mt-1 text-sm text-gray-500">
+          What happened with every email sent from your office: delivered, bounced or marked as spam.
+        </p>
+      </div>
+      <button type="button" (click)="store.load()" [disabled]="store.loading()"
+        class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60">
+        <ion-icon name="refresh-outline" class="text-base"></ion-icon>
+        Refresh
+      </button>
+    </div>
+
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+      <app-segmented [options]="filters" [value]="store.status()" (valueChange)="onFilter($event)" />
+      <app-search-input placeholder="Search recipient" widthClass="w-64" ariaLabel="Search by recipient"
+        [debounceMs]="300" [value]="store.recipient()" (valueChange)="store.setRecipient($event)" />
+    </div>
+
+    <app-state-block class="mt-5 block" icon="paper-plane-outline" loadingText="Loading email activity…"
+      [loading]="store.loading()" [error]="store.error()" [empty]="store.items().length === 0"
+      emptyTitle="No emails here"
+      emptyMessage="Emails sent by the office show up here with what happened to them."
+      (retry)="store.load()">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[48rem] text-sm">
+          <thead>
+            <tr class="border-b border-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th scope="col" class="py-3 pr-4">Recipient</th>
+              <th scope="col" class="py-3 pr-4">Subject</th>
+              <th scope="col" class="py-3 pr-4">Sent via</th>
+              <th scope="col" class="py-3 pr-4">Status</th>
+              <th scope="col" class="py-3 pr-4">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of store.items(); track item.id) {
+              <tr class="cursor-pointer border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50"
+                tabindex="0" (click)="store.open(item.id)" (keydown.enter)="store.open(item.id)">
+                <td class="max-w-[14rem] truncate py-3.5 pr-4 font-medium text-gray-900">{{ recipientsLabel(item) }}</td>
+                <td class="max-w-[18rem] truncate py-3.5 pr-4 text-gray-600">{{ item.subject }}</td>
+                <td class="py-3.5 pr-4 text-gray-600">{{ laneLabel(item.lane) }}</td>
+                <td class="py-3.5 pr-4">
+                  <span class="flex items-center gap-2">
+                    <app-status-pill [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</app-status-pill>
+                    @if (item.opened || item.clicked) {
+                      <span class="text-xs text-gray-400" [attr.title]="engagementHint">
+                        {{ item.clicked ? 'Clicked' : 'Opened' }}
+                      </span>
+                    }
+                  </span>
+                </td>
+                <td class="whitespace-nowrap py-3.5 pr-4 text-gray-600">{{ formatDateTime(item.sentAtUtc ?? item.queuedAtUtc) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination class="mt-4 block" [currentPage]="store.page()" [totalItems]="store.total()"
+        [pageSize]="pageSize" (pageChange)="store.setPage($event)" />
+    </app-state-block>
+  </div>
+</div>
+
+<app-drawer [isOpen]="store.detailOpen()" heading="Email details" [subheading]="store.detail()?.subject ?? ''"
+  width="lg" (closed)="store.close()">
+  <app-state-block variant="inline" loadingText="Loading email…" [loading]="store.detailLoading()"
+    [error]="store.detailError()" [showRetry]="false">
+    @if (store.detail(); as detail) {
+      <app-email-activity-detail [detail]="detail" />
+    }
+  </app-state-block>
+</app-drawer>

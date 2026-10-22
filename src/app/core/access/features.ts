@@ -138,6 +138,15 @@ export const FEATURES: readonly FeatureDefinition[] = [
     anyOf: ['signature.preparer.manage'],
   },
   {
+    // Settings → Email activity: qué pasó con cada correo de la oficina. Transversal: los correos
+    // del sistema salen aunque el plan no tenga el módulo de email.
+    id: 'email-activity',
+    label: 'Email activity',
+    route: 'settings/email-activity',
+    module: null,
+    anyOf: ['postmaster.messages.read'],
+  },
+  {
     id: 'campaigns',
     label: 'Campaigns',
     route: 'campaigns',
