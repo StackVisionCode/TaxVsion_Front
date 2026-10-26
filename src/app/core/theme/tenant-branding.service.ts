@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpBackend, HttpClient } from '@angular/common/http';
 import { catchError, of, retry, tap, throwError, timer } from 'rxjs';
 import { isThrottled } from '@core/errors/throttling';
 import { ApiConfigService } from '@core/config/api-config.service';
@@ -60,6 +60,7 @@ interface BrandResponse {
 @Injectable({ providedIn: 'root' })
 export class TenantBrandingService {
   private readonly http = inject(HttpClient);
+  private readonly publicHttp = new HttpClient(inject(HttpBackend));
   private readonly api = inject(ApiConfigService);
 
   private readonly _logoUrl = signal<string | null>(null);
@@ -105,6 +106,24 @@ export class TenantBrandingService {
       .pipe(
         tap((branding) => this.apply(branding, this.api.tenantBase())),
         // Fallback total: cualquier fallo deja el look actual intacto.
+        catchError(() => of(null)),
+      )
+      .subscribe();
+  }
+
+  /** Aplica la marca indicada por un contrato publico sin persistir el tenant en el navegador. */
+  applyForPublicBrandingKey(brandingKey: string, surface: 'Crm' | 'Portal' = 'Crm'): void {
+    const slug = brandingKey.trim().toLowerCase().split('.')[0];
+    if (!slug) return;
+    const base = this.api.tenantBase();
+    this.publicHttp
+      .get<PublicBrandingResponse>(
+        this.api.tenantUrl(
+          `/tenants/branding/public/${encodeURIComponent(slug)}?surface=${surface}`,
+        ),
+      )
+      .pipe(
+        tap((branding) => this.apply(branding, base)),
         catchError(() => of(null)),
       )
       .subscribe();

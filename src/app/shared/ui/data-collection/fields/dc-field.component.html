@@ -1,0 +1,199 @@
+<div [ngClass]="classes">
+  @switch (component.type) {
+    @case ('heading') {
+      <app-dc-heading-field [component]="renderedComponent" />
+    }
+    @case ('paragraph') {
+      <app-dc-paragraph-field [component]="renderedComponent" />
+    }
+    @case ('callout') {
+      <app-dc-callout-field [component]="renderedComponent" />
+    }
+    @case ('divider') {
+      <app-dc-divider-field />
+    }
+    @case ('spacer') {
+      <app-dc-spacer-field [component]="renderedComponent" />
+    }
+    @case ('consent') {
+      <app-dc-consent-field
+        [component]="renderedComponent"
+        [readonly]="readonly"
+        (requested)="consentRequested.emit()"
+      />
+    }
+    @case ('signatureStep') {
+      <app-dc-signature-step-field [component]="renderedComponent" />
+    }
+    @case ('text') {
+      <app-dc-text-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('textarea') {
+      <app-dc-textarea-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('number') {
+      <app-dc-number-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('currency') {
+      <app-dc-currency-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('date') {
+      <app-dc-date-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('email') {
+      <app-dc-email-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('phone') {
+      <app-dc-phone-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('select') {
+      <app-dc-select-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('radio') {
+      <app-dc-radio-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('checkboxGroup') {
+      <app-dc-checkbox-group-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('yesNo') {
+      <app-dc-yes-no-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('checkbox') {
+      <app-dc-checkbox-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('file') {
+      <app-dc-file-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        [attachments]="attachments"
+        (selected)="fileSelected.emit($event)"
+        (removed)="fileRemoved.emit($event)"
+      />
+    }
+    @case ('address') {
+      <app-dc-address-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (valueChange)="valueChange.emit($event)"
+      />
+    }
+    @case ('taxId') {
+      <app-dc-tax-id-field
+        [component]="renderedComponent"
+        [value]="$any(value)"
+        [rowId]="rowId"
+        [issues]="issues"
+        [readonly]="readonly"
+        [prefilled]="prefilled"
+        (entered)="sensitiveEntered.emit($event)"
+      />
+    }
+    @default {
+      <app-dc-unsupported-field [type]="component.type" />
+    }
+  }
+</div>

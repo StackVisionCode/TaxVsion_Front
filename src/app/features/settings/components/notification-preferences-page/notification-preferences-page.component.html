@@ -10,6 +10,32 @@
       </div>
     </div>
 
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+      <div class="flex min-w-0 items-center gap-3">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-brand-bold shadow-sm">
+          <ion-icon name="notifications-outline" class="text-xl"></ion-icon>
+        </span>
+        <div>
+          <p class="text-sm font-semibold text-gray-900">Browser notifications</p>
+          @switch (webPush.status()) {
+            @case ('enabled') { <p class="text-xs text-emerald-700">Enabled on this browser.</p> }
+            @case ('denied') { <p class="text-xs text-gray-500">Blocked in your browser settings.</p> }
+            @case ('unsupported') { <p class="text-xs text-gray-500">Not available in this environment.</p> }
+            @case ('error') { <p class="text-xs text-red-600">Could not enable notifications. Try again.</p> }
+            @default { <p class="text-xs text-gray-500">Receive important updates even when this tab is closed.</p> }
+          }
+        </div>
+      </div>
+      @if (webPush.status() === 'off' || webPush.status() === 'error') {
+        <button type="button" class="rounded-xl bg-brand-bold px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          [disabled]="webPush.status() === 'registering'" (click)="enableWebPush()">
+          Turn on notifications
+        </button>
+      } @else if (webPush.status() === 'registering') {
+        <span class="text-sm font-medium text-gray-500">Turning on...</span>
+      }
+    </div>
+
     @if (error(); as msg) {
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
         <div class="flex min-w-0 items-center gap-2 text-sm text-red-600">

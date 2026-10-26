@@ -57,7 +57,7 @@ import {
   resetGhost,
   setGhostPosition,
   startPaletteDrag,
-} from '../../utils/palette-drag.util';
+} from '@shared/utils/palette-drag.util';
 import {
   MIN_FIELD_H,
   MIN_FIELD_W,

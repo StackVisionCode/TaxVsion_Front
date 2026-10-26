@@ -114,6 +114,13 @@ export const FEATURES: readonly FeatureDefinition[] = [
   // ---- Trabajo diario ----
   { id: 'task', label: 'Task', route: 'task', module: 'planner', anyOf: ['tasks.read'] },
   {
+    id: 'client-forms',
+    label: 'Client Forms',
+    route: 'client-forms',
+    module: 'planner',
+    anyOf: ['tasks.form_requests.read', 'tasks.form_templates.read'],
+  },
+  {
     id: 'signature',
     label: 'Signature',
     route: 'signature',
@@ -212,6 +219,8 @@ export const FEATURES: readonly FeatureDefinition[] = [
 
 /** Rutas del shell que NO son una feature y por eso no aparecen arriba. */
 export const NON_FEATURE_ROUTES: readonly string[] = [
+  // Puente de deep links push; resuelve y redirige a una feature real.
+  'n/open',
   // Redirección a /billing que se conserva por enlaces guardados; la página vieja se retiró.
   'invoices',
   // Avisos de acceso (B4). No son features: son la pantalla a la que el guard MANDA, y gatearlas

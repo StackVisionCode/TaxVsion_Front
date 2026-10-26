@@ -78,6 +78,26 @@ export const routes: Routes = [
     title: 'Sign document',
   },
   {
+    // El enlace y el OTP autorizan el formulario dirigido, sin sesion del staff.
+    path: 'f/:token',
+    data: { preload: false, kind: 'directed' },
+    loadComponent: () =>
+      import('./features/public-forms/components/public-form-page/public-form-page.component').then(
+        m => m.PublicFormPageComponent,
+      ),
+    title: 'Secure form',
+  },
+  {
+    // La captacion valida email, anti-bot y OTP antes de crear la request.
+    path: 'intake/:token',
+    data: { preload: false, kind: 'intake' },
+    loadComponent: () =>
+      import('./features/public-forms/components/public-form-page/public-form-page.component').then(
+        m => m.PublicFormPageComponent,
+      ),
+    title: 'Secure intake form',
+  },
+  {
     // Verificación pública de la cadena de audit de una firma. Fuera del authGuard por
     // el mismo motivo que /sign/:token: la autoriza el token del firmante, no una
     // sesión. Es de SOLO LECTURA (GET /signature/public/{token}/verify-audit): muestra
@@ -251,6 +271,13 @@ export const routes: Routes = [
         loadChildren: () => import('./features/task/task.routes').then(m => m.TASK_ROUTES),
       },
       {
+        path: 'client-forms',
+        data: { feature: 'client-forms' },
+        canMatch: [accessCanMatch],
+        loadChildren: () =>
+          import('./features/client-forms/client-forms.routes').then(m => m.CLIENT_FORMS_ROUTES),
+      },
+      {
         // mediasoup-client pesa ~316 kB sin comprimir y solo lo necesita quien entra a una
         // videollamada. Se precarga a demanda desde el hover del sidebar.
         path: 'meetings',
@@ -310,6 +337,15 @@ export const routes: Routes = [
         canMatch: [accessCanMatch],
         loadChildren: () =>
           import('./features/company-settings/company-settings.routes').then(m => m.COMPANY_SETTINGS_ROUTES),
+      },
+      {
+        path: 'n/open',
+        data: { preload: false },
+        loadComponent: () =>
+          import(
+            './features/notifications/components/push-notification-open-page/push-notification-open-page.component'
+          ).then(m => m.PushNotificationOpenPageComponent),
+        title: 'Opening notification',
       },
       {
         path: 'notifications',

@@ -58,4 +58,49 @@ describe('NotificationRouteResolver', () => {
       queryParams: { notificationId: 'notification-1' },
     });
   });
+
+  it('routes a client form notification to the client work tab', () => {
+    expect(
+      resolver.resolve(
+        notification({
+          resourceType: 'form_request',
+          resourceId: 'form-1',
+          resourceContext: { customerId: 'customer-1', formRequestId: 'form-1' },
+        }),
+      ),
+    ).toEqual({
+      commands: ['/clients', 'customer-1'],
+      queryParams: { tab: 'work', formRequestId: 'form-1' },
+    });
+  });
+
+  it('routes an external form notification to the global inbox', () => {
+    expect(
+      resolver.resolve(
+        notification({
+          resourceType: 'form_request',
+          resourceId: 'form-2',
+          resourceContext: { formRequestId: 'form-2' },
+        }),
+      ),
+    ).toEqual({
+      commands: ['/client-forms'],
+      queryParams: { formRequestId: 'form-2' },
+    });
+  });
+
+  it('uses the same route for a push deep link and an in-app notification', () => {
+    const fromInApp = resolver.resolve(
+      notification({
+        resourceType: 'form_request',
+        resourceId: 'form-3',
+        resourceContext: { customerId: 'customer-3' },
+      }),
+    );
+    const fromPush = resolver.resolveResource('form_request', 'form-3', {
+      customerId: 'customer-3',
+    });
+
+    expect(fromPush).toEqual(fromInApp);
+  });
 });

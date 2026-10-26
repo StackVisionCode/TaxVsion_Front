@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppNotification } from '../ui/notification-list/notification-list.component';
 
-interface NavigationTarget {
+export interface NavigationTarget {
   commands: readonly string[];
   queryParams?: Readonly<Record<string, string>>;
 }
@@ -17,10 +17,22 @@ export class NotificationRouteResolver {
   }
 
   resolve(notification: AppNotification): NavigationTarget {
-    const id = notification.resourceId;
-    const context = notification.resourceContext;
+    return this.resolveResource(
+      notification.resourceType,
+      notification.resourceId,
+      notification.resourceContext,
+      notification.id,
+    );
+  }
 
-    switch (notification.resourceType) {
+  resolveResource(
+    resourceType: string | null,
+    id: string | null,
+    context: Readonly<Record<string, string>>,
+    fallbackNotificationId = '',
+  ): NavigationTarget {
+
+    switch (resourceType) {
       case 'email_thread':
         return {
           commands: ['/email'],
@@ -34,7 +46,7 @@ export class NotificationRouteResolver {
       case 'signature_request':
         return id
           ? { commands: ['/signature/requests', id] }
-          : this.detailFallback(notification.id);
+          : this.detailFallback(fallbackNotificationId);
       case 'client_request':
         return context['customerId']
           ? {
@@ -42,6 +54,16 @@ export class NotificationRouteResolver {
               queryParams: compact({ tab: 'work', requestId: id }),
             }
           : { commands: ['/task'], queryParams: compact({ requestId: id }) };
+      case 'form_request':
+        return context['customerId']
+          ? {
+              commands: ['/clients', context['customerId']],
+              queryParams: compact({ tab: 'work', formRequestId: context['formRequestId'] ?? id }),
+            }
+          : {
+              commands: ['/client-forms'],
+              queryParams: compact({ formRequestId: context['formRequestId'] ?? id }),
+            };
       case 'task':
       case 'reminder':
         return { commands: ['/task'], queryParams: compact({ taskId: context['taskId'] ?? id }) };
@@ -49,7 +71,10 @@ export class NotificationRouteResolver {
       case 'recording':
         return {
           commands: ['/meetings'],
-          queryParams: compact({ meetingId: context['meetingId'] ?? id, recordingId: context['recordingId'] }),
+          queryParams: compact({
+            meetingId: context['meetingId'] ?? id,
+            recordingId: context['recordingId'],
+          }),
         };
       case 'appointment':
         return { commands: ['/meetings'], queryParams: compact({ appointmentId: id }) };
@@ -87,7 +112,7 @@ export class NotificationRouteResolver {
       case 'seats':
         return { commands: ['/company/users'] };
       default:
-        return this.detailFallback(notification.id);
+        return this.detailFallback(fallbackNotificationId);
     }
   }
 
@@ -96,7 +121,9 @@ export class NotificationRouteResolver {
   }
 }
 
-function compact(values: Readonly<Record<string, string | null | undefined>>): Record<string, string> {
+function compact(
+  values: Readonly<Record<string, string | null | undefined>>,
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(values).filter((entry): entry is [string, string] => !!entry[1]),
   );

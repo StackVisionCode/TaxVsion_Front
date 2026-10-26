@@ -36,6 +36,7 @@ import { ClientSmsWorkspaceComponent } from '../../../sms/components/client-sms-
 import { ClientProfileEmailDeliveryComponent } from '../../ui/client-profile-email-delivery/client-profile-email-delivery.component';
 import { ClientMeetingsWorkspaceComponent } from '../../../meetings/components/client-meetings-workspace/client-meetings-workspace.component';
 import { ClientProfileRequestsComponent } from '../../ui/client-profile-requests/client-profile-requests.component';
+import { ClientProfileFormsComponent } from '../client-profile-forms/client-profile-forms.component';
 import { ClientProfileNotesComponent } from '../../ui/client-profile-notes/client-profile-notes.component';
 import { ClientChatCardComponent } from '../../ui/client-chat-card/client-chat-card.component';
 import { ClientProfileCallsComponent } from '../../ui/client-profile-calls/client-profile-calls.component';
@@ -67,17 +68,31 @@ import { Observable, finalize, map, of, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { NETWORK_ERROR_CODE, toApiError } from '@core/models/api-error.model';
-import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import {
+  DropdownMenuComponent,
+  MenuItemDirective,
+} from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { ClientsService } from '../../data-access/clients.service';
 import { ClientSmsService } from '../../data-access/client-sms.service';
-import { clientSmsErrorMessage, clientSmsOutcome, clientSmsPhoneOptions } from '../../data-access/client-sms.model';
+import {
+  clientSmsErrorMessage,
+  clientSmsOutcome,
+  clientSmsPhoneOptions,
+} from '../../data-access/client-sms.model';
 import { CustomerDetailResponse } from '../../data-access/clients.model';
 import {
   ClientSectionEditDialogComponent,
   SectionCatalogOption,
 } from '../../ui/client-section-edit-dialog/client-section-edit-dialog.component';
-import { ClientSmsDialogComponent, ClientSmsDraft } from '../../ui/client-sms-dialog/client-sms-dialog.component';
-import { ClientSectionId, ClientSectionPatch, buildSectionUpdateRequest } from '../../utils/client-section-update';
+import {
+  ClientSmsDialogComponent,
+  ClientSmsDraft,
+} from '../../ui/client-sms-dialog/client-sms-dialog.component';
+import {
+  ClientSectionId,
+  ClientSectionPatch,
+  buildSectionUpdateRequest,
+} from '../../utils/client-section-update';
 import {
   ClientDeepLink,
   composeEmailLink,
@@ -94,12 +109,17 @@ export const TAX_ID_REVEAL_TTL_MS = 30_000;
  * crear/enviar). Son las mismas claves que usa cada módulo; acá solo se consultan.
  */
 const ACTION_ACCESS = {
-  signature: { feature: 'signature', action: { module: 'signatures', anyOf: ['signature.request.create'] } },
+  signature: {
+    feature: 'signature',
+    action: { module: 'signatures', anyOf: ['signature.request.create'] },
+  },
   sms: { feature: 'sms', action: { module: null, anyOf: ['sms.send'] } },
-  meeting: { feature: 'meetings', action: { module: 'meetings', anyOf: ['communication.meeting.create'] } },
+  meeting: {
+    feature: 'meetings',
+    action: { module: 'meetings', anyOf: ['communication.meeting.create'] },
+  },
   email: { feature: 'email', action: { module: 'email', anyOf: ['correspondence.compose'] } },
 } as const satisfies Record<string, { feature: string; action: AccessRequirement }>;
-
 
 interface ClientProfileTab {
   id: ClientProfileTabId;
@@ -110,8 +130,7 @@ interface ClientProfileTab {
 
 /** Entrada del menú lateral: una pestaña suelta, o un grupo con título y sus pestañas debajo. */
 type ClientProfileNavEntry =
-  | ({ kind: 'tab' } & ClientProfileTab)
-  | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
+  ({ kind: 'tab' } & ClientProfileTab) | { kind: 'group'; label: string; tabs: ClientProfileTab[] };
 
 /**
  * Menú lateral del perfil: Info, Finance y Activity son secciones con título
@@ -156,7 +175,6 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   },
   { kind: 'tab', id: 'portal', label: 'Portal', icon: 'globe-outline' },
 ];
-
 
 /**
  * Shell del perfil de cliente: barra superior con botón de volver y las
@@ -208,6 +226,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
     ClientSmsWorkspaceComponent,
     ClientMeetingsWorkspaceComponent,
     ClientProfileRequestsComponent,
+    ClientProfileFormsComponent,
     ClientProfileNotesComponent,
     ClientChatCardComponent,
     ClientProfileCallsComponent,
@@ -230,11 +249,23 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
   // Entrada de las fotos del staff asignado (una tras otra, con un pequeño rebote).
   styles: `
     @keyframes assignee-pop {
-      from { opacity: 0; transform: scale(0.6); }
-      to { opacity: 1; transform: scale(1); }
+      from {
+        opacity: 0;
+        transform: scale(0.6);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
-    .assignee-avatar { animation: assignee-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
-    @media (prefers-reduced-motion: reduce) { .assignee-avatar { animation: none; } }
+    .assignee-avatar {
+      animation: assignee-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .assignee-avatar {
+        animation: none;
+      }
+    }
   `,
 })
 export class ClientProfilePageComponent implements OnDestroy {
@@ -255,10 +286,14 @@ export class ClientProfilePageComponent implements OnDestroy {
     if (!this.caps.canViewAssignees()) {
       return [];
     }
-    const byId = new Map(this.staff.members().map(m => [m.userId, m]));
+    const byId = new Map(this.staff.members().map((m) => [m.userId, m]));
     return [...(this.client()?.assignees ?? [])]
       .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
-      .map(a => ({ userId: a.userId, isPrimary: a.isPrimary, name: byId.get(a.userId)?.name ?? null }));
+      .map((a) => ({
+        userId: a.userId,
+        isPrimary: a.isPrimary,
+        name: byId.get(a.userId)?.name ?? null,
+      }));
   });
   readonly visibleAssigneeAvatars = computed(() =>
     this.assigneeAvatars().slice(0, ClientProfilePageComponent.MAX_ASSIGNEE_AVATARS),
@@ -269,7 +304,7 @@ export class ClientProfilePageComponent implements OnDestroy {
   /** "Ana López (primary), Luis Pérez" para el tooltip de la pila. */
   readonly assigneeNames = computed(() =>
     this.assigneeAvatars()
-      .map(a => `${a.name ?? 'Unknown user'}${a.isPrimary ? ' (primary)' : ''}`)
+      .map((a) => `${a.name ?? 'Unknown user'}${a.isPrimary ? ' (primary)' : ''}`)
       .join(', '),
   );
   private readonly router = inject(Router);
@@ -290,9 +325,11 @@ export class ClientProfilePageComponent implements OnDestroy {
    * ellas: una sección vacía es peor que no tener la sección.
    */
   readonly navItems = computed<ClientProfileNavEntry[]>(() =>
-    PROFILE_NAV.map(entry =>
-      entry.kind === 'tab' ? entry : { ...entry, tabs: entry.tabs.filter(tab => this.canOpen(tab.id)) },
-    ).filter(entry => (entry.kind === 'tab' ? this.canOpen(entry.id) : entry.tabs.length > 0)),
+    PROFILE_NAV.map((entry) =>
+      entry.kind === 'tab'
+        ? entry
+        : { ...entry, tabs: entry.tabs.filter((tab) => this.canOpen(tab.id)) },
+    ).filter((entry) => (entry.kind === 'tab' ? this.canOpen(entry.id) : entry.tabs.length > 0)),
   );
 
   private canOpen(id: ClientProfileTabId): boolean {
@@ -310,7 +347,11 @@ export class ClientProfilePageComponent implements OnDestroy {
   readonly canScheduleMeeting = computed(() => this.canDo('meeting'));
   readonly canComposeEmail = computed(() => this.canDo('email'));
   readonly hasActions = computed(
-    () => this.canRequestSignature() || this.canSendSms() || this.canScheduleMeeting() || this.canComposeEmail(),
+    () =>
+      this.canRequestSignature() ||
+      this.canSendSms() ||
+      this.canScheduleMeeting() ||
+      this.canComposeEmail(),
   );
 
   readonly activeTab = signal<ClientProfileTabId>('overview');
@@ -321,7 +362,12 @@ export class ClientProfilePageComponent implements OnDestroy {
    */
   private readonly injector = inject(Injector);
   private readonly profileNav = viewChild<ElementRef<HTMLElement>>('profileNav');
-  readonly navIndicator = signal<{ top: number; left: number; width: number; height: number } | null>(null);
+  readonly navIndicator = signal<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   /**
    * Signal reactiva sobre paramMap (no un snapshot leído una sola vez): con
@@ -329,11 +375,14 @@ export class ClientProfilePageComponent implements OnDestroy {
    * puede reutilizar esta misma instancia de componente en el lugar, así
    * que el id debe seguir actualizándose, no quedar congelado en el primero.
    */
-  private readonly paramMap = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
+  private readonly paramMap = toSignal(this.route.paramMap, {
+    initialValue: this.route.snapshot.paramMap,
+  });
   private readonly queryParamMap = toSignal(this.route.queryParamMap, {
     initialValue: this.route.snapshot.queryParamMap,
   });
   readonly focusedRequestId = computed(() => this.queryParamMap().get('requestId') ?? '');
+  readonly focusedFormRequestId = computed(() => this.queryParamMap().get('formRequestId') ?? '');
 
   readonly loading = signal(false);
   readonly loadError = signal<string | null>(null);
@@ -355,7 +404,7 @@ export class ClientProfilePageComponent implements OnDestroy {
     if (!c) {
       return null;
     }
-    const primary = c.addresses.find(a => a.isPrimary) ?? c.addresses[0];
+    const primary = c.addresses.find((a) => a.isPrimary) ?? c.addresses[0];
     return {
       id: c.id,
       type: c.type,
@@ -384,11 +433,15 @@ export class ClientProfilePageComponent implements OnDestroy {
 
   /** Catálogos para los typeahead del modal (arrow = `this` estable). */
   readonly searchOccupations = (q: string): Observable<SectionCatalogOption[]> =>
-    this.clientsService.listOccupations(q).pipe(map(list => list.map(o => ({ id: o.id, label: o.name }))));
+    this.clientsService
+      .listOccupations(q)
+      .pipe(map((list) => list.map((o) => ({ id: o.id, label: o.name }))));
   readonly searchBusinessActivities = (q: string): Observable<SectionCatalogOption[]> =>
     this.clientsService
       .listBusinessActivities(q)
-      .pipe(map(list => list.map(a => ({ id: a.id, label: a.description, hint: a.naicsCode }))));
+      .pipe(
+        map((list) => list.map((a) => ({ id: a.id, label: a.description, hint: a.naicsCode }))),
+      );
 
   // ---------- SMS directo ----------
   readonly isSmsOpen = signal(false);
@@ -405,7 +458,8 @@ export class ClientProfilePageComponent implements OnDestroy {
 
   /** Cónyuge en ficha: el formulario fiscal lo precarga con "Married filing jointly". */
   readonly spouseRelation = computed(
-    () => this.client()?.relations.find(relation => relation.relationshipKind === 'Spouse') ?? null,
+    () =>
+      this.client()?.relations.find((relation) => relation.relationshipKind === 'Spouse') ?? null,
   );
 
   readonly savingRelation = signal(false);
@@ -425,17 +479,23 @@ export class ClientProfilePageComponent implements OnDestroy {
       }
     });
     effect(() => {
-      const requested = this.queryParamMap().get('tab');
-      const tab = this.navItems().flatMap(entry =>
-        entry.kind === 'tab' ? [entry.id] : entry.tabs.map(item => item.id),
-      ).find(id => id === requested);
+      const params = this.queryParamMap();
+      const requested = params.get('tab');
+      const ids = this.navItems().flatMap((entry) =>
+        entry.kind === 'tab' ? [entry.id] : entry.tabs.map((item) => item.id),
+      );
+      const tab = ids.find((id) => id === requested);
       if (tab) {
         untracked(() => this.selectTab(tab));
+      }
+      // El enlace "asignar formulario" lo atiende la pestaña Work; si no existe, se limpia igual.
+      if (params.get('assignForm') && !ids.includes('work')) {
+        untracked(() => this.clearAssignFormLink());
       }
     });
 
     // Re-mide la píldora al cambiar de pestaña, cuando cambia el menú filtrado o el ancho del menú.
-    effect(onCleanup => {
+    effect((onCleanup) => {
       const nav = this.profileNav()?.nativeElement;
       const tab = this.activeTab();
       this.navItems();
@@ -446,10 +506,21 @@ export class ClientProfilePageComponent implements OnDestroy {
       afterNextRender(() => this.syncNavIndicator(nav, tab), { injector: this.injector });
 
       if (typeof ResizeObserver !== 'undefined') {
-        const observer = new ResizeObserver(() => this.syncNavIndicator(nav, untracked(this.activeTab)));
+        const observer = new ResizeObserver(() =>
+          this.syncNavIndicator(nav, untracked(this.activeTab)),
+        );
         observer.observe(nav);
         onCleanup(() => observer.disconnect());
       }
+    });
+  }
+
+  private clearAssignFormLink(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { assignForm: null, assignTemplateId: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 
@@ -457,7 +528,12 @@ export class ClientProfilePageComponent implements OnDestroy {
     const button = nav.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
     this.navIndicator.set(
       button
-        ? { top: button.offsetTop, left: button.offsetLeft, width: button.offsetWidth, height: button.offsetHeight }
+        ? {
+            top: button.offsetTop,
+            left: button.offsetLeft,
+            width: button.offsetWidth,
+            height: button.offsetHeight,
+          }
         : null,
     );
   }
@@ -474,18 +550,22 @@ export class ClientProfilePageComponent implements OnDestroy {
     this.hideTaxId();
     this.relationError.set(null);
     this.store.getById(id).subscribe({
-      next: customer => {
+      next: (customer) => {
         this.client.set(customerToClientProfile(customer));
         this.loading.set(false);
       },
-      error: err => {
+      error: (err) => {
         const apiError = toApiError(err);
         const status = err instanceof HttpErrorResponse ? err.status : -1;
         // 404/403 se tratan igual a propósito: el backend no revela si el cliente existe en otro
         // tenant (el filtro de tenant lo hace parecer un 404), así que el estado no distingue
         // "no existe" de "sin acceso" — cubre ambos sin filtrar la existencia.
         this.loadErrorKind.set(
-          status === 404 || status === 403 ? 'not-found' : apiError.code === NETWORK_ERROR_CODE ? 'network' : 'error',
+          status === 404 || status === 403
+            ? 'not-found'
+            : apiError.code === NETWORK_ERROR_CODE
+              ? 'network'
+              : 'error',
         );
         this.loadError.set(apiError.message);
         this.loading.set(false);
@@ -524,7 +604,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.savingRelation.set(false);
         this.loadClient(client.id);
       },
-      error: err => {
+      error: (err) => {
         this.savingRelation.set(false);
         this.relationError.set(toApiError(err).message);
       },
@@ -543,7 +623,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.savingRelation.set(false);
         this.loadClient(client.id);
       },
-      error: err => {
+      error: (err) => {
         this.savingRelation.set(false);
         this.relationError.set(toApiError(err).message);
       },
@@ -567,7 +647,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(client.id);
         this.toast.success(payload.id ? 'Address updated' : 'Address added');
       },
-      error: err => {
+      error: (err) => {
         this.savingContactDetails.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -586,7 +666,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(client.id);
         this.toast.success('Address removed');
       },
-      error: err => {
+      error: (err) => {
         this.savingContactDetails.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -608,7 +688,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(client.id);
         this.toast.success(payload.id ? 'Contact updated' : 'Contact added');
       },
-      error: err => {
+      error: (err) => {
         this.savingContactDetails.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -627,7 +707,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadClient(client.id);
         this.toast.success('Contact removed');
       },
-      error: err => {
+      error: (err) => {
         this.savingContactDetails.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -640,11 +720,11 @@ export class ClientProfilePageComponent implements OnDestroy {
     }
     this.revealingTaxId.set(true);
     this.store.revealTaxIdentifier(customerId).subscribe({
-      next: response => {
+      next: (response) => {
         this.revealingTaxId.set(false);
         this.showTaxId(response.taxIdentifier);
       },
-      error: err => {
+      error: (err) => {
         this.revealingTaxId.set(false);
         this.toast.error(toApiError(err).message);
       },
@@ -690,12 +770,12 @@ export class ClientProfilePageComponent implements OnDestroy {
     this.sectionDetail.set(null);
     this.sectionError.set(null);
     this.store.getById(client.id).subscribe({
-      next: detail => {
+      next: (detail) => {
         if (this.editingSection() === section) {
           this.sectionDetail.set(detail);
         }
       },
-      error: err => this.sectionError.set(toApiError(err).message),
+      error: (err) => this.sectionError.set(toApiError(err).message),
     });
   }
 
@@ -723,7 +803,7 @@ export class ClientProfilePageComponent implements OnDestroy {
     this.store
       .getById(client.id)
       .pipe(
-        switchMap(current =>
+        switchMap((current) =>
           this.store.updateClient(client.id, buildSectionUpdateRequest(current, patch), {
             taxIdentifier: '', // nunca se toca el perfil fiscal desde acá
             subjectKind: current.kind === 'Individual' ? 'Individual' : 'Business',
@@ -739,10 +819,12 @@ export class ClientProfilePageComponent implements OnDestroy {
           this.loadClient(client.id);
           this.toast.success('Client updated');
         },
-        error: err => {
+        error: (err) => {
           const e = toApiError(err);
           this.sectionError.set(
-            e.code === 'Customer.EmailAlreadyInUse' ? 'This email already belongs to another client.' : e.message,
+            e.code === 'Customer.EmailAlreadyInUse'
+              ? 'This email already belongs to another client.'
+              : e.message,
           );
         },
       });
@@ -790,7 +872,7 @@ export class ClientProfilePageComponent implements OnDestroy {
       .send(client.id, draft.to, draft.message, client.displayName)
       .pipe(finalize(() => this.sendingSms.set(false)))
       .subscribe({
-        next: response => {
+        next: (response) => {
           const outcome = clientSmsOutcome(response);
           if (outcome.ok) {
             this.isSmsOpen.set(false);
@@ -799,7 +881,7 @@ export class ClientProfilePageComponent implements OnDestroy {
             this.smsError.set(outcome.message);
           }
         },
-        error: err => this.smsError.set(clientSmsErrorMessage(err)),
+        error: (err) => this.smsError.set(clientSmsErrorMessage(err)),
       });
   }
 
@@ -838,14 +920,17 @@ export class ClientProfilePageComponent implements OnDestroy {
           this.loadClient(client.id);
           this.toast.success('Tax profile saved');
         },
-        error: err => {
+        error: (err) => {
           this.loadClient(client.id);
           this.toast.error(toApiError(err).message);
         },
       });
   }
 
-  private saveFiscalSpouse(customerId: string, spouse: FiscalSpouseDraft | null): Observable<unknown> {
+  private saveFiscalSpouse(
+    customerId: string,
+    spouse: FiscalSpouseDraft | null,
+  ): Observable<unknown> {
     if (!spouse) {
       return of(null);
     }
@@ -854,9 +939,9 @@ export class ClientProfilePageComponent implements OnDestroy {
       ? of(spouse.id)
       : spouse.id
         ? this.store.updateRelation(customerId, spouse.id, req).pipe(map(() => spouse.id))
-        : this.store.addRelation(customerId, req).pipe(map(created => created.id));
+        : this.store.addRelation(customerId, req).pipe(map((created) => created.id));
     return relationId$.pipe(
-      switchMap(relationId =>
+      switchMap((relationId) =>
         relationId && taxIdentifier
           ? this.store.setRelationFiscalProfile(customerId, relationId, {
               role: 'Spouse',
@@ -901,7 +986,7 @@ export class ClientProfilePageComponent implements OnDestroy {
    */
   handleClientSaved(updated: ClientItem): void {
     // Parche inmediato para feedback instantáneo…
-    this.client.update(current =>
+    this.client.update((current) =>
       current
         ? {
             ...current,
@@ -929,7 +1014,9 @@ export class ClientProfilePageComponent implements OnDestroy {
   }
 
   typeBadgeClass(client: ClientProfile): string {
-    return client.type === 'individual' ? 'border-indigo-100 text-indigo-600' : 'border-indigo-50 text-orange-600';
+    return client.type === 'individual'
+      ? 'border-indigo-100 text-indigo-600'
+      : 'border-indigo-50 text-orange-600';
   }
 
   statusLabel(client: ClientProfile): string {

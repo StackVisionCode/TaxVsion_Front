@@ -1,0 +1,30 @@
+<article class="space-y-7" [ngClass]="classes">
+  <header class="space-y-2">
+    <h1 tabindex="-1" data-dc-page-heading class="text-2xl font-semibold text-gray-900">
+      {{ page.title || 'Form details' }}
+    </h1>
+    @if (page.description) {
+      <div class="text-sm text-gray-600"><app-dc-markdown [document]="page.description" /></div>
+    }
+  </header>
+  @for (section of page.sections; track section.id) {
+    @if (visibility.isVisible(section.id)) {
+      <app-dc-section
+        [section]="section"
+        [definition]="definition"
+        [answers]="answers"
+        [visibility]="visibility"
+        [mode]="mode"
+        [issues]="issues"
+        [attachments]="attachments"
+        [prefilledIds]="prefilledIds"
+        (valueChange)="valueChange.emit($event)"
+        (repeaterChange)="repeaterChange.emit($event)"
+        (fileSelected)="fileSelected.emit($event)"
+        (fileRemoved)="fileRemoved.emit($event)"
+        (sensitiveEntered)="sensitiveEntered.emit($event)"
+        (consentRequested)="consentRequested.emit($event)"
+      />
+    }
+  }
+</article>

@@ -1,0 +1,50 @@
+@for (block of blocks(); track $index) {
+  @if (block.type === 'heading') {
+    @if (block.level === 3) {
+      <h3 class="text-lg font-semibold text-gray-900" [ngClass]="blockClasses(block)">
+        <ng-container *ngTemplateOutlet="inlines; context: { nodes: block.children ?? [] }" />
+      </h3>
+    } @else {
+      <h2 class="text-xl font-semibold text-gray-900" [ngClass]="blockClasses(block)">
+        <ng-container *ngTemplateOutlet="inlines; context: { nodes: block.children ?? [] }" />
+      </h2>
+    }
+  } @else if (block.type === 'bulletList' || block.type === 'orderedList') {
+    @if (block.type === 'orderedList') {
+      <ol class="list-decimal space-y-1 pl-5" [ngClass]="blockClasses(block)">
+        @for (item of block.items ?? []; track $index) {
+          <li><ng-container *ngTemplateOutlet="inlines; context: { nodes: item }" /></li>
+        }
+      </ol>
+    } @else {
+      <ul class="list-disc space-y-1 pl-5" [ngClass]="blockClasses(block)">
+        @for (item of block.items ?? []; track $index) {
+          <li><ng-container *ngTemplateOutlet="inlines; context: { nodes: item }" /></li>
+        }
+      </ul>
+    }
+  } @else {
+    <p class="leading-6" [ngClass]="blockClasses(block)">
+      <ng-container *ngTemplateOutlet="inlines; context: { nodes: block.children ?? [] }" />
+    </p>
+  }
+}
+
+<ng-template #inlines let-nodes="nodes">
+  @for (node of nodes; track $index) {
+    @if (node.type === 'link' && safeHref(node.href); as href) {
+      <a
+        [href]="href"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-brand-bold underline underline-offset-2"
+      >
+        @for (child of node.children ?? []; track $index) {
+          <span [ngClass]="inlineClasses(child)">{{ child.text }}</span>
+        }
+      </a>
+    } @else if (node.type === 'text') {
+      <span [ngClass]="inlineClasses(node)">{{ node.text }}</span>
+    }
+  }
+</ng-template>

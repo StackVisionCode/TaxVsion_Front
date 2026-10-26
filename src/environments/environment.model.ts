@@ -47,4 +47,18 @@ export interface Environment {
    * false = sólo guardado explícito con el botón "Save as draft" (comportamiento previo).
    */
   signatureAutosaveEnabled?: boolean;
+  /** Configuracion publica del proyecto Firebase Web. No contiene secretos. */
+  firebase: FirebaseWebEnvironment;
+}
+
+export interface FirebaseWebEnvironment {
+  config: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+  };
+  vapidKey: string;
 }

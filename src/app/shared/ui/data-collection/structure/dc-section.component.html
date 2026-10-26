@@ -1,0 +1,61 @@
+<fieldset class="space-y-5" [ngClass]="classes">
+  @if (section.title) {
+    <legend class="mb-2 text-lg font-semibold text-gray-900">{{ section.title }}</legend>
+  } @else {
+    <legend class="sr-only">Form section</legend>
+  }
+  @if (section.description) {
+    <div class="text-sm text-gray-600"><app-dc-markdown [document]="section.description" /></div>
+  }
+  @if (section.repeat) {
+    <app-dc-repeater
+      [section]="section"
+      [definition]="definition"
+      [answers]="answers"
+      [rows]="rows"
+      [visibility]="visibility"
+      [mode]="mode"
+      [issues]="issues"
+      [attachments]="attachments"
+      [prefilledIds]="prefilledIds"
+      (rowsChange)="repeaterChange.emit({ sectionId: section.id, value: $event })"
+      (fileSelected)="fileSelected.emit($event)"
+      (fileRemoved)="fileRemoved.emit($event)"
+      (sensitiveEntered)="sensitiveEntered.emit($event)"
+      (consentRequested)="consentRequested.emit($event)"
+    />
+  } @else {
+    <div class="grid gap-5 sm:grid-cols-2">
+      @for (component of section.components; track component.id) {
+        @if (visibility.isVisible(component.id)) {
+          <app-dc-field
+            class="block"
+            [component]="component"
+            [value]="answers.values[component.id]"
+            [mode]="mode"
+            [required]="required(component)"
+            [issues]="componentIssues(component.id)"
+            [attachments]="componentAttachments(component.id)"
+            [prefilled]="prefilledIds.includes(component.id)"
+            (valueChange)="
+              valueChange.emit({ componentId: component.id, rowId: null, value: $event })
+            "
+            (fileSelected)="
+              fileSelected.emit({ componentId: component.id, rowId: null, files: $event })
+            "
+            (fileRemoved)="fileRemoved.emit($event)"
+            (sensitiveEntered)="
+              sensitiveEntered.emit({
+                componentId: component.id,
+                rowId: null,
+                kind: $event.kind,
+                value: $event.value,
+              })
+            "
+            (consentRequested)="consentRequested.emit({ componentId: component.id, rowId: null })"
+          />
+        }
+      }
+    </div>
+  }
+</fieldset>

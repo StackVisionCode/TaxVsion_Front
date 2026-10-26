@@ -1,0 +1,42 @@
+<section class="space-y-5" aria-labelledby="dc-review-title">
+  <header>
+    @if (audience === 'staff') {
+      <h3 id="dc-review-title" class="text-lg font-bold text-gray-900">Submitted answers</h3>
+    } @else {
+      <h1
+        id="dc-review-title"
+        tabindex="-1"
+        data-dc-page-heading
+        class="text-2xl font-semibold text-gray-900"
+      >
+        Review your answers
+      </h1>
+      <p class="mt-2 text-sm text-gray-600">Check each answer before submitting.</p>
+    }
+  </header>
+  <dl class="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+    @for (entry of entries(); track entry.component.id + (entry.rowId ?? '')) {
+      <div class="grid gap-2 px-4 py-4 sm:grid-cols-[minmax(10rem,0.7fr)_1.3fr] sm:gap-5">
+        <dt class="text-sm font-semibold text-gray-700">
+          @if (entry.rowLabel) {
+            <span class="mb-1 block text-xs uppercase text-gray-600">{{ entry.rowLabel }}</span>
+          }
+          {{ entry.component.label || 'Untitled field' }}
+        </dt>
+        <dd class="min-w-0 text-sm text-gray-900">
+          <p class="break-words">{{ format(entry) }}</p>
+          @for (comment of commentsFor(entry); track $index) {
+            <p class="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {{ comment.comment }}
+            </p>
+          }
+          @if (fieldActionsTemplate) {
+            <ng-container *ngTemplateOutlet="fieldActionsTemplate; context: { $implicit: entry }" />
+          }
+        </dd>
+      </div>
+    } @empty {
+      <div class="px-4 py-8 text-center text-sm text-gray-600">No answers to review yet.</div>
+    }
+  </dl>
+</section>

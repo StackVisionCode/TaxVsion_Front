@@ -1,0 +1,100 @@
+label {
+  display: block;
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+:is(.text-input, .otp-input) {
+  min-height: 48px;
+  border: 1px solid rgb(176 201 223);
+  border-radius: 0.75rem;
+  color: rgb(19 44 67);
+  outline: none;
+}
+
+.text-input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.otp-input {
+  width: 100%;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+:is(.text-input, .otp-input):focus {
+  border-color: rgb(30 70 107);
+  box-shadow: 0 0 0 3px rgb(30 70 107 / 0.16);
+}
+
+:is(.primary-button, .secondary-button, .text-button) {
+  min-height: 44px;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+:is(.primary-button, .secondary-button) {
+  padding: 0.75rem 1.25rem;
+}
+
+.primary-button {
+  border: 1px solid rgb(30 70 107);
+  background: rgb(30 70 107);
+  color: white;
+}
+
+.secondary-button {
+  border: 1px solid rgb(176 201 223);
+  background: white;
+  color: rgb(30 70 107);
+}
+
+.text-button {
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: rgb(30 70 107);
+}
+
+:is(button, a):focus-visible {
+  outline: 3px solid rgb(55 164 241);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  opacity: 0.58;
+}
+
+:is(.auth-panel, .entry-copy) > .primary-button {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.language-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.language-choice legend {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.language-choice label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 600;
+}

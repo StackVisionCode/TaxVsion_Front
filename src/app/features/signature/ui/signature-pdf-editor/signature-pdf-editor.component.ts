@@ -117,7 +117,7 @@ import {
   resetGhost,
   setGhostPosition,
   startPaletteDrag,
-} from '../../utils/palette-drag.util';
+} from '@shared/utils/palette-drag.util';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
