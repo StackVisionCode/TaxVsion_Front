@@ -6,6 +6,7 @@ import {
   OnChanges,
   Output,
   SimpleChanges,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -18,6 +19,8 @@ import {
 } from '../../data-access/mail.model';
 import { avatarColorFor } from '@shared/utils/avatar.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { BytesPipe } from '@shared/pipes/bytes.pipe';
 import {
   MessageAttachmentsView,
@@ -45,6 +48,7 @@ import {
   styleUrl: './mail-reading-pane.component.css',
 })
 export class MailReadingPaneComponent implements OnChanges {
+  private readonly avatarUrls = inject(AvatarUrlService);
   @Input() thread: ThreadSummary | null = null;
   @Input() messages: MessageSummary[] = [];
   @Input() bodies: ReadonlyMap<string, MessageBodyView> = new Map();
@@ -57,6 +61,8 @@ export class MailReadingPaneComponent implements OnChanges {
   @Input() archiving = false;
   /** Sin cuenta de buzón activa no se puede crear el draft de respuesta. */
   @Input() canReply = false;
+  /** Cliente del buzón: si el remitente es su email, se muestra su foto (los externos quedan con iniciales). */
+  @Input() customer: Pick<CustomerSummary, 'id' | 'primaryEmail' | 'avatarFileId'> | null = null;
 
   @Output() messageToggled = new EventEmitter<string>();
   @Output() bodyRetryRequested = new EventEmitter<string>();
@@ -122,7 +128,20 @@ export class MailReadingPaneComponent implements OnChanges {
   }
 
   avatarColorFor(message: MessageSummary): string {
-    return avatarColorFor(this.senderLabel(message));
+    const customer = this.senderCustomer(message);
+    return avatarColorFor(customer ? customer.id : this.senderLabel(message));
+  }
+
+  /** Foto del remitente cuando es el cliente del buzón; null = iniciales. */
+  senderAvatarUrl(message: MessageSummary): string | null {
+    return this.avatarUrls.url(this.senderCustomer(message)?.avatarFileId);
+  }
+
+  /** El remitente entrante es el cliente identificado (mismo email que su ficha). */
+  private senderCustomer(message: MessageSummary): Pick<CustomerSummary, 'id' | 'avatarFileId'> | null {
+    const email = this.customer?.primaryEmail?.trim().toLowerCase();
+    const from = message.from?.trim().toLowerCase();
+    return message.direction !== 'Outbound' && !!email && email === from ? this.customer : null;
   }
 
   timeFor(iso: string): string {

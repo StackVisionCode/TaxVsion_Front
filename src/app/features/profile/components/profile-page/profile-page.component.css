@@ -15,6 +15,24 @@
   }
 }
 
+/* ---- Foto de perfil: aro al arrastrar una imagen encima + giro mientras se procesa ---- */
+.pf-photo {
+  border-radius: 9999px;
+  transition: box-shadow 160ms ease;
+}
+.pf-photo--dragging {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgb(var(--color-indigo-600-rgb, 30 70 107));
+}
+.pf-photo__spinner {
+  animation: pf-spin 1s linear infinite;
+}
+
+@keyframes pf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---- Medidor de fuerza de la contraseña ---- */
 .pf-meter {
   background: rgb(229 231 235);
@@ -83,6 +101,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pf-avatar,
+  .pf-photo__spinner,
   .pf-live-dot::after {
     animation: none;
   }

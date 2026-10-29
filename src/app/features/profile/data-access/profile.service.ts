@@ -3,12 +3,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
+  AvatarState,
   ChangePasswordRequest,
   ConfirmEmailChangeRequest,
-  ConfirmPhoneRequest,
   RequestEmailChangeRequest,
-  RequestPhoneVerificationRequest,
+  UpdateMyPhoneRequest,
   UpdateMyProfileRequest,
+  UploadAvatarResponse,
   UserSession,
   toUtcIso,
 } from './profile.model';
@@ -74,15 +75,31 @@ export class ProfileService {
     return this.http.post<void>(`${this.base}/me/email/confirm`, body);
   }
 
-  /** POST /auth/me/phone/change-request — manda un OTP por SMS al número nuevo. 202. */
-  requestPhoneChange(phoneNumber: string): Observable<void> {
-    const body: RequestPhoneVerificationRequest = { phoneNumber };
-    return this.http.post<void>(`${this.base}/me/phone/change-request`, body);
+  /** PUT /auth/me/phone — guarda el número directo (sin OTP); `null` lo quita. 204. */
+  updateMyPhone(phoneNumber: string | null): Observable<void> {
+    const body: UpdateMyPhoneRequest = { phoneNumber };
+    return this.http.put<void>(`${this.base}/me/phone`, body);
   }
 
-  /** POST /auth/me/phone/confirm — confirma el número con el OTP. 204. */
-  confirmPhone(code: string): Observable<void> {
-    const body: ConfirmPhoneRequest = { code };
-    return this.http.post<void>(`${this.base}/me/phone/confirm`, body);
+  /** PUT /auth/me/avatar (multipart, campo `file`) — 202: la foto queda pendiente del antivirus. */
+  uploadMyAvatar(file: File): Observable<UploadAvatarResponse> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.put<UploadAvatarResponse>(`${this.base}/me/avatar`, form);
+  }
+
+  /** DELETE /auth/me/avatar — 204. */
+  deleteMyAvatar(): Observable<void> {
+    return this.http.delete<void>(`${this.base}/me/avatar`);
+  }
+
+  /**
+   * GET /auth/me solo para el sondeo de la foto. No pasa por `AuthService.me()` porque ese además
+   * re-sincroniza el push en cada llamada; al terminar, el store sí rehidrata la sesión con él.
+   */
+  getMyAvatarState(): Observable<AvatarState> {
+    return this.http
+      .get<AvatarState>(`${this.base}/me`)
+      .pipe(map(me => ({ avatarFileId: me.avatarFileId ?? null, avatarPending: !!me.avatarPending })));
   }
 }

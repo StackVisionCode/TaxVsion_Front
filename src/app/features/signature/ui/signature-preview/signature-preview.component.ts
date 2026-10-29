@@ -9,6 +9,7 @@ import {
 import { SignatureStore } from '../../data-access/signature.store';
 import { SIGNATURE_STATUS_PILL, SignatureStatusPill, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { SignatureDownloadKind } from '../../utils/download-filename.util';
 
@@ -24,7 +25,7 @@ import { SignatureDownloadKind } from '../../utils/download-filename.util';
  */
 @Component({
   selector: 'app-signature-preview',
-  imports: [CommonModule, AvatarComponent, StatusPillComponent],
+  imports: [AvatarUrlPipe, CommonModule, AvatarComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-preview.component.html',
 })

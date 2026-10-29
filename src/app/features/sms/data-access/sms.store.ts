@@ -40,7 +40,8 @@ export interface SmsSendRecipient {
 /**
  * Store del módulo SMS (Sms.Api vía /sms). `providedIn: 'root'`.
  *
- * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&term&from&to&page&size`),
+ * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&from&to&page&size`; con
+ * término, POST /sms/messages/search — ver SmsService),
  * mismo patrón que ClientsStore: señales de query → una canalización con `switchMap` que cancela la
  * petición anterior. Las bajas (opt-outs) tienen su propia canalización.
  * Tras un envío o un cambio de consentimiento se re-sincroniza la vista sin recargar el navegador.
@@ -75,6 +76,9 @@ export class SmsStore {
   /** Mapa customerId → nombre, resuelto vía el directorio compartido solo para los ids del listado. */
   private readonly _names = signal<Map<string, string>>(new Map());
   readonly contactsById = this._names.asReadonly();
+  /** customerId → foto (fileId) del mismo lote del directorio; null = sin foto. */
+  private readonly _avatars = signal<Map<string, string | null>>(new Map());
+  readonly avatarsById = this._avatars.asReadonly();
   readonly totalCount = this._totalCount.asReadonly();
   readonly totalPages = this._totalPages.asReadonly();
   readonly listLoading = this._listLoading.asReadonly();
@@ -309,8 +313,13 @@ export class SmsStore {
     }
     this.directory.byId(ids).subscribe(resolved => {
       const merged = new Map(this._names());
-      resolved.forEach((customer, id) => merged.set(id, customer.displayName));
+      const avatars = new Map(this._avatars());
+      resolved.forEach((customer, id) => {
+        merged.set(id, customer.displayName);
+        avatars.set(id, customer.avatarFileId ?? null);
+      });
       this._names.set(merged);
+      this._avatars.set(avatars);
     });
   }
 

@@ -52,7 +52,7 @@
         <!-- Assignee (desktop) -->
         <div class="hidden items-center gap-2 sm:flex">
           @if (task.assigneeUserId) {
-            <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" size="xs" />
+            <app-avatar [name]="task.assigneeName" [seed]="task.assigneeUserId" [imageUrl]="staff.avatarUrlFor(task.assigneeUserId)" size="xs" />
           } @else {
             <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[0.625rem] font-semibold text-white">—</span>
           }

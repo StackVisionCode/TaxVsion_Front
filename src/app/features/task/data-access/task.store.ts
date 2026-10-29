@@ -6,6 +6,7 @@ import { Observable, concatMap, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { TaskService } from './task.service';
 import {
   ApiTaskStatus,
@@ -34,7 +35,7 @@ function isClosed(status: ApiTaskStatus): boolean {
  * Store del módulo Task (Tasks.Api vía /tasks). providedIn: 'root' — una sola instancia
  * para la ruta del módulo. Guarda los TaskResponse crudos y deriva las tarjetas con
  * computed(): así los nombres de cliente/asignado se re-resuelven solos cuando llegan
- * los catálogos (GET /customers, GET /auth/users best-effort, directorio de Communication).
+ * los catálogos (GET /customers, directorio de staff compartido, directorio de Communication).
  *
  * Modo embebido (`injectEmbeddedCustomer()`): `ClientTaskWorkspaceComponent` provee su PROPIA
  * instancia con el cliente del perfil. Ese cliente queda "fijo" (`lockedCustomerId`): se suma con
@@ -46,6 +47,7 @@ export class TaskStore {
   private readonly service = inject(TaskService);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly auth = inject(AuthService);
+  private readonly staff = inject(StaffDirectoryStore);
   private readonly embeddedCustomer = injectEmbeddedCustomer();
 
   // ---------- Estado crudo ----------
@@ -74,7 +76,19 @@ export class TaskStore {
 
   // ---------- Catálogos para nombres/pickers ----------
   private readonly _clients = signal<CustomerSummary[]>([]);
+  /** Nombres que no vienen del directorio de staff (yo, resultados del type-ahead). */
   private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
+  /**
+   * userId → nombre: el directorio de staff compartido (GET /auth/users, también da las fotos) más
+   * los nombres sueltos. Sin users.view el directorio queda vacío y las tarjetas dicen "Team member".
+   */
+  private readonly userNameById = computed<ReadonlyMap<string, string>>(() => {
+    const names = new Map(this._userNames());
+    for (const member of this.staff.members()) {
+      names.set(member.userId, member.name);
+    }
+    return names;
+  });
   /** Ficha real del cliente embebido (CustomerDirectoryStore.byId); hasta que llega se usa un stub. */
   private readonly _lockedSummary = signal<CustomerSummary | null>(null);
 
@@ -131,7 +145,7 @@ export class TaskStore {
 
   /** Opciones de asignado para el picker de filtro (de los nombres ya resueltos). */
   readonly assigneeOptions = computed(() =>
-    [...this._userNames().entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+    [...this.userNameById().entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
   );
 
   private readonly clientNameById = computed<ReadonlyMap<string, string>>(
@@ -141,7 +155,7 @@ export class TaskStore {
   /** Tarjetas del tablero (las Cancelled quedan fuera: no tienen columna). */
   readonly tasks = computed<TaskItem[]>(() => {
     const clients = this.clientNameById();
-    const users = this._userNames();
+    const users = this.userNameById();
     return this._raw()
       .map(response => toTaskItem(response, clients, users))
       .filter((item): item is TaskItem => item !== null);
@@ -164,7 +178,7 @@ export class TaskStore {
     } else {
       this.loadClients();
     }
-    this.loadUserNames();
+    this.staff.ensureLoaded();
     this.loadTaxonomies();
     this.refresh();
   }
@@ -219,7 +233,7 @@ export class TaskStore {
             : [response, ...list];
         });
       }),
-      map(response => toTaskItem(response, this.clientNameById(), this._userNames())),
+      map(response => toTaskItem(response, this.clientNameById(), this.userNameById())),
     );
   }
 
@@ -349,16 +363,6 @@ export class TaskStore {
       error: () => {
         /* best-effort: el stub con el nombre del perfil alcanza */
       },
-    });
-  }
-
-  /** Nombres de asignados vía GET /auth/users. Best-effort: sin users.view (403) las tarjetas caen a "Team member". */
-  private loadUserNames(): void {
-    this.service.listUsers().subscribe({
-      next: result =>
-        this.mergeUserNames(result.items.map(user => [user.id, `${user.name} ${user.lastName}`.trim()])),
-      error: err =>
-        console.warn('Tasks: no se pudieron resolver nombres de usuarios:', toApiError(err).message),
     });
   }
 

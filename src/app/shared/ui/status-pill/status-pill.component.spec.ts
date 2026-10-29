@@ -41,4 +41,17 @@ describe('StatusPillComponent', () => {
     expect(pill().className).toContain('text-[0.625rem]');
     expect(pill().querySelector('.rounded-full')).toBeNull();
   });
+
+  it('los tonos soft warning y muted usan un texto con contraste AA', () => {
+    const { fixture, host, pill } = setup();
+    host.soft.set(true);
+    host.tone.set('warning');
+    fixture.detectChanges();
+    expect(pill().className).toContain('text-brand-ink');
+    expect(pill().className).not.toContain('text-orange-600');
+    host.tone.set('muted');
+    fixture.detectChanges();
+    expect(pill().className).toContain('text-gray-500');
+    expect(pill().className).not.toContain('text-gray-400');
+  });
 });

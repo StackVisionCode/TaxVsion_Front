@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
   CustomerDirectoryOverview,
   CustomerSearchParams,
@@ -20,11 +21,25 @@ export class CustomerDirectoryService {
     return this.api.tenantUrl('/customers');
   }
 
+  /**
+   * Con término → POST /customers/search (el término, a menudo un email, va en el cuerpo: la URL
+   * acaba en los logs del Gateway). Sin término → GET /customers, que conserva la revalidación 304.
+   */
   search(params: CustomerSearchParams): Observable<PagedResult<CustomerSummary>> {
-    let query = new HttpParams();
-    if (params.term?.trim()) {
-      query = query.set('term', params.term.trim());
+    const term = params.term?.trim();
+    if (term) {
+      return this.http.post<PagedResult<CustomerSummary>>(
+        `${this.base}/search`,
+        {
+          term,
+          status: params.status || undefined,
+          page: params.page || undefined,
+          size: params.size || undefined,
+        },
+        { context: readOnlyRequestContext() },
+      );
     }
+    let query = new HttpParams();
     if (params.status) {
       query = query.set('status', params.status);
     }

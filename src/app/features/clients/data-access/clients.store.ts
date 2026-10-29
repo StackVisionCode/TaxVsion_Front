@@ -15,6 +15,7 @@ import {
   ContactPointResponse,
   CreateCustomerRequest,
   Customer,
+  CustomerAvatarUploadResponse,
   CustomerDetailResponse,
   CustomerExistsResponse,
   CustomerKindFilter,
@@ -62,7 +63,8 @@ export interface ClientSaveOptions {
  * Store de clientes (Customer.Api vía /customers), compartido por directorio y perfil
  * (`providedIn: 'root'`).
  *
- * El LISTADO es paginación server-side real: `GET /customers?term&status&kind&sort&dir&page&size`.
+ * El LISTADO es paginación server-side real: `GET /customers?status&kind&sort&dir&page&size`
+ * (con término de búsqueda, `POST /customers/search` con los mismos filtros en el cuerpo).
  * Las señales de query (`term/status/page/size`) alimentan una única canalización con
  * `switchMap`, que cancela la petición anterior cuando el usuario cambia algo (evita
  * respuestas fuera de orden). Tras una mutación (crear/editar/estado/bulk) se re-pide la
@@ -242,6 +244,25 @@ export class ClientsStore {
 
   getById(id: string): Observable<CustomerDetailResponse> {
     return this.service.getById(id);
+  }
+
+  // ---------- Foto del cliente (la orquesta ClientPhotoStore) ----------
+
+  uploadAvatar(id: string, file: File): Observable<CustomerAvatarUploadResponse> {
+    return this.service.uploadAvatar(id, file);
+  }
+
+  deleteAvatar(id: string): Observable<void> {
+    return this.service.deleteAvatar(id).pipe(tap(() => this.afterPhotoChange(id)));
+  }
+
+  /**
+   * La foto del cliente cambió (confirmada o quitada): se desaloja del cache compartido para que
+   * pickers y listados la pidan de nuevo, y se re-pide la página visible del directorio.
+   */
+  afterPhotoChange(id: string): void {
+    this.directory.evict(id);
+    this.reloadList();
   }
 
   /** Preflight de duplicados por email / tax id (GET /customers/check-exists). */

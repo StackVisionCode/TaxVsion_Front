@@ -95,7 +95,7 @@
             <p class="px-4 pt-2.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Team</p>
             <button *ngFor="let entry of inviteeResults().employees" type="button" (click)="addEmployee(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <app-avatar [name]="entry.displayName" [seed]="entry.userId" size="xs" />
+              <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" size="xs" />
               <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
               <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
             </button>
@@ -105,7 +105,7 @@
             <p class="px-4 pt-2.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
             <button *ngFor="let entry of inviteeResults().customers" type="button" (click)="addCustomer(entry)"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              <app-avatar [name]="entry.displayName" [seed]="entry.customerId" size="xs" />
+              <app-avatar [name]="entry.displayName" [seed]="entry.customerId" [imageUrl]="entry.avatarFileId | avatarUrl" size="xs" />
               <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
               <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
             </button>
@@ -128,7 +128,8 @@
       <div *ngIf="invitees().length > 0" class="flex flex-wrap gap-2">
         <span *ngFor="let invitee of invitees(); let i = index"
           class="flex items-center gap-2 rounded-full border border-gray-200 pl-1 pr-3 py-1 text-xs font-medium text-gray-700">
-          <app-avatar [name]="invitee.name" [seed]="invitee.userId || invitee.email || invitee.name" size="xs" />
+          <app-avatar [name]="invitee.name" [seed]="invitee.userId || invitee.customerId || invitee.email || invitee.name"
+            [imageUrl]="invitee.avatarFileId | avatarUrl" size="xs" />
           {{ invitee.name }}
           <span class="text-[0.625rem] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
           <button type="button" (click)="removeInvitee(i)" class="text-gray-400 hover:text-gray-700"

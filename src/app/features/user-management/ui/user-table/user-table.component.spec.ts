@@ -64,6 +64,13 @@ describe('UserTableComponent — slot column', () => {
     expect(slotCell.querySelector('[data-testid="gated-badge"]')).toBeTruthy();
   });
 
+  it('pinta la foto del usuario cuando trae avatarFileId', () => {
+    const fixture = render([member({ avatarFileId: 'f-ada' })], false);
+    const img = fixture.nativeElement.querySelector('app-avatar img') as HTMLImageElement | null;
+
+    expect(img?.getAttribute('src')).toContain('/storage/avatars/f-ada');
+  });
+
   it('sin slotIndex muestra el guión y no el badge', () => {
     const fixture = render([member({ slotIndex: null, isGated: false })], false);
     const slotCell = fixture.nativeElement.querySelector('[data-testid="slot-cell"]');
@@ -82,15 +89,17 @@ describe('UserTableComponent — slot column', () => {
       fixture.detectChanges();
     };
 
+    // El panel del menú se porta al body: se consulta en `document`.
     const fixtureFalse = render([member()], false);
     openMenu(fixtureFalse);
-    expect(fixtureFalse.nativeElement.querySelector('[data-testid="slot-move-up"]')).toBeFalsy();
-    expect(fixtureFalse.nativeElement.querySelector('[data-testid="slot-set-end"]')).toBeFalsy();
+    expect(fixtureFalse.nativeElement.querySelector('[aria-label="Member actions"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-move-up"]')).toBeFalsy();
+    expect(document.querySelector('[data-testid="slot-set-end"]')).toBeFalsy();
     TestBed.resetTestingModule();
 
     const fixtureTrue = render([member()], true);
     openMenu(fixtureTrue);
-    expect(fixtureTrue.nativeElement.querySelector('[data-testid="slot-move-up"]')).toBeTruthy();
-    expect(fixtureTrue.nativeElement.querySelector('[data-testid="slot-set-end"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-move-up"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-set-end"]')).toBeTruthy();
   });
 });

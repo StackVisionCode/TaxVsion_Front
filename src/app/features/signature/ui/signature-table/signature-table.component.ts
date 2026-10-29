@@ -16,6 +16,7 @@ import {
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { SIGNATURE_STATUS_PILL, signatureStatusLabel } from '../../utils/signature-status.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import {
   DropdownMenuComponent,
   MenuItemDirective,
@@ -38,6 +39,10 @@ export interface Signer {
   signedAt: string | null;
   /** Canal de verificación preferido (wizard); opcional en los seeds antiguos. */
   channel?: VerificationChannel;
+  /** Cliente al que está mapeado el firmante (su foto sale de la ficha). */
+  customerId?: string | null;
+  /** Foto del cliente mapeado (`/storage/avatars/{id}`); null/ausente = iniciales con `color`. */
+  avatarFileId?: string | null;
   // F7 — estado de la copia inmediata que recibe este firmante al firmar.
   partialCopyRequestedAtUtc?: string | null;
   partialCopySentAtUtc?: string | null;
@@ -159,7 +164,7 @@ export function isActionableStatus(status: SignatureStatus): boolean {
  */
 @Component({
   selector: 'app-signature-table',
-  imports: [
+  imports: [AvatarUrlPipe, 
     CommonModule,
     AvatarComponent,
     DropdownMenuComponent,

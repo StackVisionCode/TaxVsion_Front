@@ -18,6 +18,7 @@ import { CustomerDirectoryStore } from '@core/customers/customer-directory.store
 import { CustomerStatusFilter, CustomerSummary } from '@core/customers/customer-summary.model';
 import { TypeaheadComponent } from '../typeahead/typeahead.component';
 import { AvatarComponent } from '../avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 
 export type CustomerPickerVariant = 'field' | 'inline';
 
@@ -56,13 +57,13 @@ export type CustomerPickerVariant = 'field' | 'inline';
  */
 @Component({
   selector: 'app-customer-picker',
-  imports: [TypeaheadComponent, AvatarComponent],
+  imports: [TypeaheadComponent, AvatarComponent, AvatarUrlPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   host: { class: 'block' },
   template: `
     @if (variant === 'field' && current(); as picked) {
       <div class="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
-        <app-avatar [name]="picked.displayName" [seed]="picked.id" sizeClass="h-9 w-9 text-xs" />
+        <app-avatar [name]="picked.displayName" [seed]="picked.id" [imageUrl]="picked.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" />
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-medium text-gray-900">{{ picked.displayName }}</span>
           <span class="block truncate text-xs text-gray-400">{{ picked.primaryEmail || 'No email on file' }}</span>
@@ -78,7 +79,7 @@ export type CustomerPickerVariant = 'field' | 'inline';
         [displayWith]="nameOf" [trackBy]="idOf" [disabled]="disabled" emptyText="No clients match your search"
         ariaLabel="Search a client" (picked)="pick($event)">
         <ng-template #option let-customer>
-          <app-avatar [name]="customer.displayName" [seed]="customer.id" size="sm" />
+          <app-avatar [name]="customer.displayName" [seed]="customer.id" [imageUrl]="customer.avatarFileId | avatarUrl" size="sm" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm"
               [class]="customer.id === current()?.id ? 'font-semibold text-brand-bold' : 'text-gray-800'">

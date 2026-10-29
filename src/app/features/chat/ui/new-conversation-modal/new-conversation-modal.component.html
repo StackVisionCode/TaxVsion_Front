@@ -32,7 +32,7 @@
       <!-- Chateable: cliente con cuenta de portal activa -->
       <button *ngIf="isChatable(entry)" type="button" (click)="selectCustomer(entry)" [disabled]="creating"
         class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
-        <app-avatar [name]="entry.displayName" sizeClass="h-9 w-9 text-xs" colorClass="bg-brand-bold"></app-avatar>
+        <app-avatar [name]="entry.displayName" [seed]="entry.customerId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs"></app-avatar>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
           <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
@@ -42,7 +42,7 @@
       <!-- No chateable: cliente sin portal — se muestra pero deshabilitado -->
       <div *ngIf="!isChatable(entry)" class="flex items-center gap-3 rounded-2xl px-3 py-2.5 opacity-60"
         title="This client hasn't activated their portal yet, so they can't be messaged.">
-        <app-avatar [name]="entry.displayName" sizeClass="h-9 w-9 text-xs" colorClass="bg-gray-300"></app-avatar>
+        <app-avatar [name]="entry.displayName" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" colorClass="bg-gray-300"></app-avatar>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-medium text-gray-700">{{ entry.displayName }}</span>
           <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
@@ -64,7 +64,7 @@
     <button *ngFor="let entry of employees" type="button" (click)="selectEmployee(entry)"
       [disabled]="creating"
       class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
-      <app-avatar [name]="entry.displayName" sizeClass="h-9 w-9 text-xs" colorClass="bg-brand-bold"></app-avatar>
+      <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs"></app-avatar>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
         <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>

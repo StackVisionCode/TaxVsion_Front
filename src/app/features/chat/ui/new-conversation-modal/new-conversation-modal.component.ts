@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from '../../data-access/chat.model';
@@ -39,7 +40,7 @@ export interface GroupCreateRequest {
  */
 @Component({
   selector: 'app-new-conversation-modal',
-  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, SearchInputComponent, SegmentedComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, AvatarUrlPipe, SearchInputComponent, SegmentedComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './new-conversation-modal.component.html',
 })

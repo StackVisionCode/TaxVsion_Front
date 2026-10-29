@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { READ_ONLY_REQUEST } from '@core/http/read-only-request';
 import { ClientsStore } from './clients.store';
 import { ClientsService } from './clients.service';
 import { CustomerSummary, PagedResult } from './clients.model';
@@ -115,14 +116,53 @@ describe('ClientsStore · tipo, orden y paginación', () => {
     expect(store.items().length).toBe(1);
   });
 
+  it('con término busca por POST /customers/search: el término va en el cuerpo, nunca en la URL', () => {
+    const { store, http } = setup();
+
+    store.initList({ term: ' ana@example.com ', status: 'Archived', kind: 'Business', sort: { field: 'Created', dir: 'Desc' }, page: 2 });
+
+    const req = http.expectOne(`${BASE}/search`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.urlWithParams).not.toContain('ana');
+    expect(req.request.params.keys()).toEqual([]);
+    expect(req.request.body).toEqual({
+      term: 'ana@example.com',
+      status: 'Archived',
+      page: 2,
+      size: 25,
+      kind: 'Business',
+      sort: 'Created',
+      dir: 'Desc',
+    });
+    expect(req.request.context.get(READ_ONLY_REQUEST)).toBe(true);
+    req.flush(page(2, 30, [ROW]));
+    expect(store.items().length).toBe(1);
+    http.verify();
+  });
+
+  it('cambiar de página con término sigue por POST y manda la página nueva en el cuerpo', () => {
+    const { store, http } = setup();
+    store.initList({ term: 'anchor' });
+    http.expectOne(`${BASE}/search`).flush(page(1, 60, [ROW]));
+
+    store.goToPage(2);
+
+    const req = http.expectOne(`${BASE}/search`);
+    expect(req.request.body.page).toBe(2);
+    expect(req.request.body.term).toBe('anchor');
+    req.flush(page(2, 60, [ROW]));
+    http.verify();
+  });
+
   it('limpiar filtros quita búsqueda, estado y tipo en una sola petición, sin tocar el orden', () => {
     const { store, http } = setup();
     store.initList({ term: 'anchor', status: 'Archived', kind: 'Business', sort: { field: 'Created', dir: 'Desc' } });
-    http.expectOne(r => r.url === BASE).flush(page(1, 0));
+    http.expectOne(`${BASE}/search`).flush(page(1, 0));
 
     store.resetFilters();
 
     const req = http.expectOne(r => r.url === BASE);
+    expect(req.request.method).toBe('GET');
     expect(req.request.params.has('term')).toBe(false);
     expect(req.request.params.get('status')).toBe('NotArchived');
     expect(req.request.params.has('kind')).toBe(false);

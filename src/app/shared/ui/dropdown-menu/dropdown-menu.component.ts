@@ -2,17 +2,55 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   Directive,
+  ElementRef,
   EventEmitter,
   HostListener,
+  Injector,
   Input,
+  OnDestroy,
   Output,
+  afterNextRender,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { ClickOutsideDirective } from '../../directives/click-outside.directive';
+import { portalToBody } from '../../utils/overlay.util';
 
 export type DropdownAlign = 'right' | 'left';
+
+export interface PanelPosition {
+  top: number;
+  left: number;
+  /** Abre hacia arriba porque abajo no cabe. */
+  up: boolean;
+}
+
+/** Separación entre disparador y panel, y margen mínimo contra los bordes de la ventana. */
+const GAP_PX = 8;
+const EDGE_PX = 8;
+
+/**
+ * Posición del panel: abajo si cabe; si no y arriba hay más sitio, arriba. Siempre dentro de la
+ * ventana (con `EDGE_PX` de margen). Pura para poder probarla sin layout.
+ */
+export function computeMenuPosition(
+  trigger: Pick<DOMRect, 'top' | 'bottom' | 'left' | 'right'>,
+  panel: { width: number; height: number },
+  viewport: { width: number; height: number },
+  align: DropdownAlign,
+): PanelPosition {
+  const spaceBelow = viewport.height - trigger.bottom - GAP_PX - EDGE_PX;
+  const spaceAbove = trigger.top - GAP_PX - EDGE_PX;
+  const up = panel.height > spaceBelow && spaceAbove > spaceBelow;
+
+  const rawTop = up ? trigger.top - GAP_PX - panel.height : trigger.bottom + GAP_PX;
+  const top = clamp(rawTop, EDGE_PX, viewport.height - panel.height - EDGE_PX);
+  const rawLeft = align === 'left' ? trigger.left : trigger.right - panel.width;
+  const left = clamp(rawLeft, EDGE_PX, viewport.width - panel.width - EDGE_PX);
+  return { top, left, up };
+}
 
 /**
  * Menú desplegable de acciones (el "⋯" de las filas de tabla) con contenido proyectado.
@@ -33,13 +71,14 @@ export type DropdownAlign = 'right' | 'left';
  *   panel tampoco.
  * - Cierra al pulsar un `appMenuItem`, al pulsar fuera y con Escape. Contenido que no es
  *   `appMenuItem` (p. ej. el stepper de stock de inventory) no cierra el menú.
- * - `align`: 'right' (default, `right-0`) | 'left' (`left-0`). `panelClass` sustituye el ancho
- *   mínimo (`min-w-[11.25rem]`) si hace falta, p. ej. 'w-52'.
+ * - `align`: 'right' (default, borde derecho con el disparador) | 'left'. `panelClass` sustituye el
+ *   ancho mínimo (`min-w-[11.25rem]`) si hace falta, p. ej. 'w-52'.
  * - `(openChange)` avisa de cada apertura/cierre.
  *
- * Normalizado respecto a las copias (client-table, product-table, invoice-table, user-table): cada
- * una fijaba un ancho (`w-48`/`w-52`) y un `data-dropdown` + HostListener propios; aquí el panel
- * usa `min-w-[11.25rem]` y la animación `menu-pop` de client-table (sin movimiento con reduced-motion).
+ * El panel se porta al `<body>` con `position: fixed` calculado desde el disparador: así ningún
+ * contenedor con `overflow` (tablas con scroll horizontal) ni ancestro con `transform` lo recorta.
+ * Si abajo no cabe abre hacia arriba, nunca se sale de la ventana y sigue al disparador al hacer
+ * scroll o cambiar el tamaño.
  */
 @Component({
   selector: 'app-dropdown-menu',
@@ -47,7 +86,8 @@ export type DropdownAlign = 'right' | 'left';
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   host: { class: 'relative inline-block' },
   template: `
-    <div class="relative" appClickOutside [clickOutsideEnabled]="open()" (appClickOutside)="close()">
+    <div #wrap class="relative" appClickOutside [clickOutsideEnabled]="open()" [clickOutsideIgnore]="panelEl()"
+      (appClickOutside)="close()">
       <span class="dm-custom-trigger contents" (click)="onTriggerClick($event)"><ng-content select="[menuTrigger]"></ng-content></span>
       <button type="button" (click)="onTriggerClick($event)" [disabled]="disabled"
         class="dm-default-trigger flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
@@ -56,9 +96,11 @@ export type DropdownAlign = 'right' | 'left';
       </button>
 
       @if (open()) {
-        <div role="menu" (click)="$event.stopPropagation()"
-          class="menu-pop absolute top-full z-20 mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg"
-          [ngClass]="[align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right', panelClass || 'min-w-[11.25rem]']">
+        <div #panel role="menu" (click)="$event.stopPropagation()"
+          class="dm-panel menu-pop fixed z-[85] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg"
+          [style.top.px]="position()?.top ?? 0" [style.left.px]="position()?.left ?? 0"
+          [style.visibility]="position() ? 'visible' : 'hidden'"
+          [ngClass]="[origin(), panelClass || 'min-w-[11.25rem]']">
           <ng-content></ng-content>
         </div>
       }
@@ -91,7 +133,7 @@ export type DropdownAlign = 'right' | 'left';
     }
   `,
 })
-export class DropdownMenuComponent {
+export class DropdownMenuComponent implements OnDestroy {
   @Input() align: DropdownAlign = 'right';
   @Input() triggerIcon = 'ellipsis-horizontal-outline';
   @Input() ariaLabel = 'More actions';
@@ -101,6 +143,13 @@ export class DropdownMenuComponent {
   @Output() readonly openChange = new EventEmitter<boolean>();
 
   readonly open = signal(false);
+  readonly position = signal<PanelPosition | null>(null);
+  readonly panelEl = signal<HTMLElement | null>(null);
+
+  private readonly wrap = viewChild.required<ElementRef<HTMLElement>>('wrap');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly injector = inject(Injector);
+  private readonly reposition = (): void => this.place();
 
   onTriggerClick(event: Event): void {
     event.stopPropagation();
@@ -114,13 +163,73 @@ export class DropdownMenuComponent {
     this.setOpen(false);
   }
 
+  origin(): string {
+    const vertical = this.position()?.up ? 'bottom' : 'top';
+    return `origin-${vertical}-${this.align === 'left' ? 'left' : 'right'}`;
+  }
+
+  ngOnDestroy(): void {
+    // Si el anfitrión muere con el menú abierto, Angular solo quita el host: el panel portado se va a mano.
+    const panel = this.panelEl();
+    this.detach();
+    panel?.remove();
+  }
+
   private setOpen(next: boolean): void {
     if (this.open() === next) {
       return;
     }
     this.open.set(next);
     this.openChange.emit(next);
+    if (next) {
+      afterNextRender(() => this.attach(), { injector: this.injector });
+    } else {
+      this.detach();
+    }
   }
+
+  private attach(): void {
+    const panel = this.panel()?.nativeElement;
+    if (!panel || !this.open()) {
+      return;
+    }
+    this.panelEl.set(portalToBody(panel));
+    this.place();
+    window.addEventListener('scroll', this.reposition, { capture: true, passive: true });
+    window.addEventListener('resize', this.reposition, { passive: true });
+  }
+
+  private detach(): void {
+    window.removeEventListener('scroll', this.reposition, { capture: true });
+    window.removeEventListener('resize', this.reposition);
+    this.position.set(null);
+    this.panelEl.set(null);
+  }
+
+  private place(): void {
+    const panel = this.panelEl();
+    if (!panel) {
+      return;
+    }
+    const trigger = this.wrap().nativeElement.getBoundingClientRect();
+    if (trigger.bottom < 0 || trigger.top > window.innerHeight) {
+      // El disparador salió de la pantalla con el scroll: el menú ya no tiene a qué anclarse.
+      this.close();
+      return;
+    }
+    this.position.set(
+      computeMenuPosition(
+        trigger,
+        { width: panel.offsetWidth, height: panel.offsetHeight },
+        { width: window.innerWidth, height: window.innerHeight },
+        this.align,
+      ),
+    );
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
 /**

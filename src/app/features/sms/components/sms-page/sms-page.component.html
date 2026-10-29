@@ -66,7 +66,7 @@
             @for (c of store.convItems(); track c.customerId) {
               <button type="button" (click)="openThread(c)"
                 class="flex w-full items-center gap-3 rounded-2xl border border-gray-100 p-3.5 text-left transition hover:bg-gray-50">
-                <app-avatar [name]="clientName(c.recipientName, c.customerId, c.to)" [seed]="c.customerId" size="sm"></app-avatar>
+                <app-avatar [name]="clientName(c.recipientName, c.customerId, c.to)" [seed]="c.customerId" [imageUrl]="store.avatarsById().get(c.customerId) | avatarUrl" size="sm"></app-avatar>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <span class="truncate font-semibold text-gray-800">{{ clientName(c.recipientName, c.customerId, c.to) }}</span>

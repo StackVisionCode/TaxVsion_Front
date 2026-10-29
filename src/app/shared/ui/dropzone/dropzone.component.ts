@@ -50,11 +50,13 @@ export interface DropzoneRejection {
         <p class="mt-1 text-sm text-gray-500">{{ hint }}</p>
       }
       <label
-        class="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+        class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors focus-within:ring-2 focus-within:ring-brand-bold focus-within:ring-offset-2 hover:bg-brand-ink"
         [ngClass]="disabled ? 'pointer-events-none opacity-60' : 'cursor-pointer'">
-        <ion-icon name="folder-open-outline" class="text-base"></ion-icon>
+        <ion-icon name="folder-open-outline" class="text-base" aria-hidden="true"></ion-icon>
         {{ browseLabel }}
-        <input #fileInput type="file" class="hidden" [attr.accept]="accept || null" [multiple]="multiple" [disabled]="disabled"
+        <!-- sr-only y no hidden: con display:none el selector no se alcanza con teclado (2.1.1). -->
+        <input #fileInput type="file" class="sr-only" [attr.accept]="accept || null" [multiple]="multiple" [disabled]="disabled"
+          [attr.aria-label]="inputLabel || null"
           (change)="onInputChange($event)" />
       </label>
       <ng-content></ng-content>
@@ -70,6 +72,8 @@ export class DropzoneComponent {
   @Input() hint = '';
   @Input() browseLabel = 'Browse files';
   @Input() icon = 'cloud-upload-outline';
+  /** Nombre accesible del input de archivos cuando "Browse files" no basta (p. ej. qué pregunta). */
+  @Input() inputLabel = '';
   @Input() disabled = false;
   /** Clic en cualquier parte de la zona abre el selector de archivos (no solo el botón). */
   @Input() clickable = true;

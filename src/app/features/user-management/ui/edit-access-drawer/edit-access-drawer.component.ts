@@ -1,6 +1,7 @@
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -31,7 +32,7 @@ import { AccessStore } from '@core/access/access.store';
  */
 @Component({
   selector: 'app-edit-access-drawer',
-  imports: [SwitchComponent, DrawerComponent, AvatarComponent, CommonModule, FormsModule],
+  imports: [SwitchComponent, DrawerComponent, AvatarComponent, AvatarUrlPipe, CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [EditAccessStore],
   templateUrl: './edit-access-drawer.component.html',

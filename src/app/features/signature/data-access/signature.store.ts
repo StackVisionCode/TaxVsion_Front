@@ -398,6 +398,7 @@ export class SignatureStore {
           this._requests.set(details.map((d) => detailToUiRequest(d, uid)));
           this._totalCount.set(result.totalCount);
           this._loading.set(false);
+          this.resolveSignerPhotos(token);
         },
         error: (err) => {
           if (token !== this.refreshToken) {
@@ -407,6 +408,43 @@ export class SignatureStore {
           this._loading.set(false);
         },
       });
+  }
+
+  /** Tras el refresh, pinta las fotos de los firmantes sin bloquear la tabla. */
+  private resolveSignerPhotos(token: number): void {
+    this.withSignerPhotos(this._requests()).subscribe((patched) => {
+      if (token === this.refreshToken) {
+        this._requests.set(patched);
+      }
+    });
+  }
+
+  /**
+   * Fotos de los firmantes mapeados a un cliente: el detalle solo trae `mappedCustomerId`, así que se
+   * resuelven con el directorio de clientes (cacheado). Best-effort: si falla quedan las iniciales.
+   */
+  private withSignerPhotos(requests: SignatureRequest[]): Observable<SignatureRequest[]> {
+    const ids = [
+      ...new Set(
+        requests.flatMap((r) => r.signers.map((s) => s.customerId).filter((id): id is string => !!id)),
+      ),
+    ];
+    if (ids.length === 0) {
+      return of(requests);
+    }
+    return this.directory.byId(ids).pipe(
+      map((found) =>
+        requests.map((request) => ({
+          ...request,
+          signers: request.signers.map((signer) =>
+            signer.customerId && found.has(signer.customerId)
+              ? { ...signer, avatarFileId: found.get(signer.customerId)?.avatarFileId ?? null }
+              : signer,
+          ),
+        })),
+      ),
+      catchError(() => of(requests)),
+    );
   }
 
   // ==================================================================
@@ -592,7 +630,10 @@ export class SignatureStore {
   /** Detalle de una solicitud mapeado al shape de UI (para refrescar el preview tras una acción). */
   getRequestUi(requestId: string): Observable<SignatureRequest> {
     const uid = this.auth.currentUser()?.id ?? null;
-    return this.service.getById(requestId).pipe(map((d) => detailToUiRequest(d, uid)));
+    return this.service.getById(requestId).pipe(
+      map((d) => detailToUiRequest(d, uid)),
+      switchMap((request) => this.withSignerPhotos([request]).pipe(map(([withPhotos]) => withPhotos))),
+    );
   }
 
   /** Detalle crudo del backend (para rehidratar el wizard al continuar un borrador). */

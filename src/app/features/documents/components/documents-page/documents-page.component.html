@@ -183,7 +183,7 @@
                   [class]="client.id === context().clientId
                     ? 'border-brand-bold bg-brand-surface'
                     : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
-                  <app-avatar [name]="client.displayName" [seed]="client.id" sizeClass="h-10 w-10 text-xs" />
+                  <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-10 w-10 text-xs" />
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-sm font-semibold text-gray-900">{{ client.displayName }}</span>
                     <span class="block truncate text-xs text-gray-500">{{ client.primaryEmail }}</span>
@@ -512,6 +512,22 @@
     <button type="button" (click)="storageOpen.set(false)"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">Close</button>
   </div>
+</app-modal>
+
+<app-modal [isOpen]="!!copyTarget()" heading="Copy to Documents" size="sm" (closed)="copyTarget.set(null)">
+  @if (copyTarget(); as file) {
+    <p class="mt-4 text-sm text-gray-600">Create an independent, scanned copy of <strong>{{ file.originalName }}</strong>.</p>
+    <label class="mt-5 block text-xs font-bold uppercase tracking-wider text-gray-500" for="copy-tax-year">Tax year</label>
+    <select id="copy-tax-year" [value]="copyTaxYear()" (change)="updateCopyTaxYear($event)" class="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-500">
+      @for (year of copyTaxYears; track year) {
+        <option [value]="year">{{ year }}</option>
+      }
+    </select>
+    <div class="mt-6 flex justify-end gap-2">
+      <button type="button" (click)="copyTarget.set(null)" class="rounded-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">Cancel</button>
+      <button type="button" (click)="confirmCopyToDocuments()" class="inline-flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink"><ion-icon name="copy-outline"></ion-icon> Copy file</button>
+    </div>
+  }
 </app-modal>
 
 <!-- Drawer de reglas deny per-item (solo en modo embebido en un cliente) -->

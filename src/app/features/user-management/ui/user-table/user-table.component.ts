@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
@@ -21,6 +22,8 @@ export interface TeamMember {
   name: string;
   initials: string;
   avatarColor: string;
+  /** Foto del usuario (las invitaciones no tienen). */
+  avatarFileId?: string | null;
   email: string;
   roleNames: string[];
   actorType: string;
@@ -50,7 +53,7 @@ const ROLE_CHIP_PALETTE = [
  */
 @Component({
   selector: 'app-user-table',
-  imports: [CommonModule, AvatarComponent, DropdownMenuComponent, MenuItemDirective, StateBlockComponent, StatusPillComponent],
+  imports: [CommonModule, AvatarComponent, AvatarUrlPipe, DropdownMenuComponent, MenuItemDirective, StateBlockComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './user-table.component.html',
 })

@@ -808,6 +808,7 @@ function signerToUi(signer: SignerResponse, index: number): Signer {
     initials: initialsOf(signer.fullName),
     email: signer.email,
     color: AVATAR_PALETTE[index % AVATAR_PALETTE.length],
+    customerId: signer.mappedCustomerId,
     status: apiSignerStatusToUi(signer.status),
     signedAt: signer.signedAtUtc,
     partialCopyRequestedAtUtc: signer.partialCopyRequestedAtUtc,
@@ -872,6 +873,7 @@ export function customerToWizardClient(summary: CustomerSummary): WizardClient {
     type: summary.kind === 'Business' ? 'company' : 'individual',
     isActive: summary.status === 'Active',
     createdAt: summary.createdAtUtc.slice(0, 10),
+    avatarFileId: summary.avatarFileId ?? null,
   };
 }
 

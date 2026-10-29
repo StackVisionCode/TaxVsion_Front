@@ -58,7 +58,7 @@
     <div class="mt-2 flex flex-col">
       <div *ngFor="let client of recentClients(); let last = last; trackBy: trackByClientId"
         class="flex items-center gap-3 py-2.5" [class.border-b]="!last" [class.border-gray-100]="!last">
-        <app-avatar [name]="client.displayName" [seed]="client.id" size="sm" />
+        <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" size="sm" />
         <div class="min-w-0 flex-1 flex items-center gap-2">
           <p class="truncate text-sm font-medium text-gray-900">{{ client.displayName }}</p>
           <span class="shrink-0 rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"

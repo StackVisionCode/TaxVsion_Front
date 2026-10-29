@@ -14,7 +14,7 @@ type ChatCardState = 'loading' | 'chattable' | 'not-activated' | 'no-access';
 /**
  * Tarjeta "Chat" del tab Communication del perfil. Complementa el log de email (solo lectura) con
  * la mensajería en vivo del CRM: dice si el cliente es chateable — lo determina la ÚNICA fuente real,
- * `GET /communication/directory/customers` (trae `portalUserId`) — y abre el chat con deep-link.
+ * `POST /communication/directory/customers/search` (trae `portalUserId`) — y abre el chat con deep-link.
  *
  * "Open chat" navega a `/chat` con `?startCustomer&startUser&name`; la página de chat, una vez
  * conectado el socket, inicia (o reabre) el 1:1 con ese cliente. Si el cliente no tiene portal, no

@@ -71,7 +71,7 @@
               [class.invisible]="!main.videoEnabled || !streamFor(main.userId)"></video>
             @if (!main.videoEnabled || !streamFor(main.userId)) {
               <div class="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <app-avatar [name]="main.displayName" [seed]="main.userId" size="xl" />
+                <app-avatar [name]="main.displayName" [seed]="main.userId" [imageUrl]="main.avatarFileId | avatarUrl" size="xl" />
               </div>
             }
             <div class="absolute bottom-2 left-2 flex max-w-[55%] items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[0.6875rem] font-medium backdrop-blur-sm">
@@ -135,7 +135,7 @@
                   <video [srcObject]="streamFor(p.userId)" autoplay playsinline muted class="h-full w-full object-cover"></video>
                 } @else {
                   <div class="flex h-full w-full items-center justify-center">
-                    <app-avatar [name]="p.displayName" [seed]="p.userId" size="xs" />
+                    <app-avatar [name]="p.displayName" [seed]="p.userId" [imageUrl]="p.avatarFileId | avatarUrl" size="xs" />
                   </div>
                 }
                 @if (!p.audioEnabled) {

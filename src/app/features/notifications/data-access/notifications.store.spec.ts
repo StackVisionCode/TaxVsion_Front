@@ -22,6 +22,7 @@ function notification(id: string, createdAtUtc = T1): NotificationDto {
     category: 'Clients',
     actorUserId: null,
     actorDisplayName: null,
+    actorType: null,
     resourceType: 'customer',
     resourceId: id,
     resourceContext: {},
@@ -44,13 +45,14 @@ function page(
   unreadCount = items.length,
   asOfUtc = T1,
 ): NotificationListResult {
-  return { items, page: 1, size: 8, unreadCount, asOfUtc };
+  return { items, page: 1, size: 8, total: items.length, unreadCount, asOfUtc };
 }
 
 describe('NotificationsStore', () => {
   let store: NotificationsStore;
   let service: {
     list: ReturnType<typeof vi.fn>;
+    since: ReturnType<typeof vi.fn>;
     unreadCount: ReturnType<typeof vi.fn>;
     markRead: ReturnType<typeof vi.fn>;
     markAllRead: ReturnType<typeof vi.fn>;
@@ -69,6 +71,9 @@ describe('NotificationsStore', () => {
     reconnected$ = new Subject();
     service = {
       list: vi.fn().mockReturnValue(of(page([notification('n1')]))),
+      since: vi.fn().mockReturnValue(
+        of({ items: [], unreadCount: 1, asOfUtc: T1, nextCursorUtc: null }),
+      ),
       unreadCount: vi.fn().mockReturnValue(of({ count: 1, asOfUtc: T1 })),
       markRead: vi.fn().mockReturnValue(of({ notificationId: 'n1', unreadCount: 0, asOfUtc: T2 })),
       markAllRead: vi
@@ -115,15 +120,16 @@ describe('NotificationsStore', () => {
     expect(store.recent()[0].isRead).toBe(true);
   });
 
-  it('resynchronizes the count and bell feed after reconnecting', () => {
+  it('resynchronizes incrementally after reconnecting', () => {
     store.startRealtime();
     expect(service.list).toHaveBeenCalledTimes(1);
     expect(service.unreadCount).toHaveBeenCalledTimes(1);
 
     reconnected$.next();
 
-    expect(service.list).toHaveBeenCalledTimes(2);
-    expect(service.unreadCount).toHaveBeenCalledTimes(2);
+    expect(service.since).toHaveBeenCalledTimes(1);
+    expect(service.list).toHaveBeenCalledTimes(1);
+    expect(service.unreadCount).toHaveBeenCalledTimes(1);
   });
 
   it('ignores an unread count older than the latest applied snapshot', () => {

@@ -1,8 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
+import { USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import {
   AttachmentFlaggedDto,
+  ConversationParticipantAddedDto,
   DeliveryReceiptDto,
   MessageDeletedDto,
   MessageDto,
@@ -54,6 +56,10 @@ export class ChatSocketService {
    * SIN participants ni unreadCount, así que sirve solo de señal para re-leer la lista completa.
    */
   readonly conversationCreated$ = this.realtime.on<{ id: string }>('chat.conversation.created');
+  /** Alguien sumó un miembro a una conversación (trae su foto, F5). */
+  readonly participantAdded$ = this.realtime.on<ConversationParticipantAddedDto>('chat.conversation.participant_added');
+  /** Un miembro del staff cambió su nombre o su foto (`user.profile.changed`). */
+  readonly userProfileChanged$ = this.realtime.on<UserProfileChangedEvent>(USER_PROFILE_CHANGED_EVENT);
   readonly typingStarted$ = this.realtime.on<TypingDto>('chat.typing.started');
   readonly typingStopped$ = this.realtime.on<TypingDto>('chat.typing.stopped');
   readonly recordingStarted$ = this.realtime.on<TypingDto>('chat.recording.started');

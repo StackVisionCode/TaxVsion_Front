@@ -1,0 +1,545 @@
+<div class="grid min-h-dvh grid-rows-[auto_1fr_auto]">
+  <header
+    class="flex min-h-[72px] items-center justify-between gap-4 border-b border-indigo-100 bg-white px-4 sm:px-8 lg:px-12"
+  >
+    <a class="inline-flex min-h-11 items-center" href="/" aria-label="TaxProffice home">
+      @if (officeLogoUrl(); as logo) {
+        <img class="h-10 max-w-[11rem] object-contain" [src]="logo" alt="Office logo" />
+      } @else {
+        <strong class="text-xl text-brand-ink">TaxProffice</strong>
+      }
+    </a>
+    <div class="secure-label inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
+      <span aria-hidden="true">&#128274;</span>
+      <span class="secure-text">Secure form</span>
+    </div>
+  </header>
+
+  <main class="public-form-content" [class.public-form-content--wide]="step() === 'form'">
+    @if (step() === 'loading') {
+      <div class="state-panel" role="status" aria-live="polite">
+        <span class="loading-ring" aria-hidden="true"></span>
+        <h1 tabindex="-1">Opening your secure form</h1>
+        <p>We are checking the link and preparing the office branding.</p>
+      </div>
+    }
+
+    @if (step() === 'unavailable') {
+      <div class="state-panel" role="alert">
+        <span class="state-icon" aria-hidden="true">!</span>
+        <p class="eyebrow">Link unavailable</p>
+        <h1 tabindex="-1">This form cannot be opened</h1>
+        <p>
+          The link may have expired, been replaced, or already completed. Ask the office for a new
+          link.
+        </p>
+      </div>
+    }
+
+    @if (step() === 'welcome') {
+      <div class="entry-layout">
+        <section class="entry-copy" aria-labelledby="entry-title">
+          <p class="eyebrow">From {{ officeName() }}</p>
+          <h1 tabindex="-1" id="entry-title">{{ entryNotice()?.title || title() }}</h1>
+          @for (paragraph of noticeParagraphs(); track $index) {
+            <p>{{ paragraph }}</p>
+          }
+          @if (directedAccess(); as directed) {
+            <div class="delivery-note">
+              <span aria-hidden="true">&#9993;</span>
+              <span
+                >A verification code will be sent to <strong>{{ directed.maskedEmail }}</strong
+                >.</span
+              >
+            </div>
+          }
+          <fieldset class="language-choice">
+            <legend>Language for our emails</legend>
+            <label
+              ><input
+                type="radio"
+                name="public-form-language"
+                value="En"
+                [checked]="language() === 'En'"
+                (change)="setLanguage('En')"
+              />
+              English</label
+            >
+            <label lang="es"
+              ><input
+                type="radio"
+                name="public-form-language"
+                value="Es"
+                [checked]="language() === 'Es'"
+                (change)="setLanguage('Es')"
+              />
+              Español</label
+            >
+          </fieldset>
+          @if (error()) {
+            <p class="error-message" role="alert">{{ error() }}</p>
+          }
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="busy()"
+            (click)="continueFromNotice()"
+          >
+            {{
+              busy()
+                ? 'Sending…'
+                : kind === 'intake'
+                  ? 'Continue securely'
+                  : 'Send verification code'
+            }}
+          </button>
+        </section>
+        <aside class="trust-panel" aria-label="Privacy information">
+          <p class="eyebrow">Private by design</p>
+          <h2>Your information stays protected</h2>
+          <ul>
+            <li>Identity verification before the form opens</li>
+            <li>Encrypted transfer and protected file uploads</li>
+            <li>Automatic saving while you work</li>
+          </ul>
+        </aside>
+      </div>
+    }
+
+    @if (step() === 'identify' && intakeAccess(); as intake) {
+      <section class="auth-panel" aria-labelledby="identify-title">
+        <p class="eyebrow">Identity verification</p>
+        <h1 tabindex="-1" id="identify-title">Where should we send your code?</h1>
+        <p>Use an email address you can access now. We only use it to secure this form.</p>
+        <label for="public-form-email">Email address</label>
+        <input
+          id="public-form-email"
+          class="text-input"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          aria-required="true"
+          [attr.aria-invalid]="emailInvalid() || null"
+          [attr.aria-describedby]="error() ? 'identify-error' : null"
+          [value]="email()"
+          (input)="setEmail($any($event.target).value)"
+        />
+        <app-turnstile-widget
+          [siteKey]="intake.botProtection.siteKey"
+          [action]="intake.botProtection.action"
+          (tokenChange)="captchaToken.set($event)"
+          (unavailable)="captchaUnavailable.set(true)"
+        />
+        @if (captchaUnavailable()) {
+          <p class="error-message" role="alert">
+            The security check is unavailable. Please try again shortly.
+          </p>
+        }
+        @if (error()) {
+          <p id="identify-error" class="error-message" role="alert">{{ error() }}</p>
+        }
+        <button
+          class="primary-button"
+          type="button"
+          [disabled]="busy() || captchaUnavailable()"
+          (click)="requestCode()"
+        >
+          {{ busy() ? 'Sending…' : 'Send verification code' }}
+        </button>
+      </section>
+    }
+
+    @if (step() === 'otp') {
+      <section class="auth-panel" aria-labelledby="otp-title">
+        <p class="eyebrow">Check your email</p>
+        <h1 tabindex="-1" id="otp-title">Enter the 6-digit code</h1>
+        <p>
+          For your privacy, the message looks the same whether or not an account already exists.
+        </p>
+        <fieldset class="otp-fieldset">
+          <legend class="sr-only">Six-digit verification code</legend>
+          <div class="otp-grid" (paste)="pasteOtp($event)">
+            @for (digit of otpValues(); track $index) {
+              <!-- Solo la primera casilla acepta el autocompletado del código completo (iOS/Android). -->
+              <input
+                #otpDigit
+                class="otp-input"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                [attr.autocomplete]="$index === 0 ? 'one-time-code' : 'off'"
+                [attr.maxlength]="$index === 0 ? 6 : 1"
+                [attr.aria-label]="'Digit ' + ($index + 1) + ' of 6'"
+                [attr.aria-invalid]="error() ? true : null"
+                [attr.aria-describedby]="error() ? 'otp-error' : null"
+                [value]="digit"
+                (input)="setOtpDigit($index, $event)"
+                (keydown)="handleOtpKey($index, $event)"
+              />
+            }
+          </div>
+        </fieldset>
+        @if (error()) {
+          <p id="otp-error" class="error-message" role="alert">{{ error() }}</p>
+        }
+        <button class="primary-button" type="button" [disabled]="busy()" (click)="verifyCode()">
+          {{ busy() ? 'Verifying…' : 'Verify and open form' }}
+        </button>
+        <button
+          class="text-button"
+          type="button"
+          [disabled]="busy() || resendSeconds() > 0"
+          (click)="resendCode()"
+        >
+          {{
+            resendSeconds() > 0
+              ? 'Send another code in ' + resendSeconds() + 's'
+              : 'Send another code'
+          }}
+        </button>
+        @if (codeLimitPerHour(); as limit) {
+          <p class="code-limit-hint" data-testid="code-limit-hint">
+            You can request up to {{ limit }} codes per hour. If no code arrives, wait a bit before
+            trying again.
+          </p>
+        }
+      </section>
+    }
+
+    @if (step() === 'consent' && activeConsent(); as consent) {
+      <section class="consent-panel" aria-labelledby="consent-title">
+        <p class="eyebrow">Your choice matters</p>
+        <h1 tabindex="-1" id="consent-title">{{ consent.noticeKey }}</h1>
+        <div class="notice-copy">
+          @for (paragraph of consentParagraphs(); track $index) {
+            <p>{{ paragraph }}</p>
+          }
+        </div>
+        @if (error()) {
+          <p class="error-message" role="alert">{{ error() }}</p>
+        }
+        <div class="button-row">
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="busy()"
+            (click)="declineConsent()"
+          >
+            Decline and exit
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="busy()"
+            (click)="acceptConsent()"
+          >
+            {{ busy() ? 'Recording…' : consent.acceptanceText || 'I agree and continue' }}
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (step() === 'form' && request(); as current) {
+      <div class="form-heading">
+        <div>
+          <p class="eyebrow">{{ officeName() }}</p>
+          <h1 tabindex="-1">{{ current.title }}</h1>
+          @if (current.messageToClient) {
+            <p>{{ current.messageToClient }}</p>
+          }
+        </div>
+        <button
+          class="secondary-button compact-button"
+          type="button"
+          [disabled]="busy()"
+          (click)="saveAndExit()"
+        >
+          Save and exit
+        </button>
+      </div>
+
+      @if (sessionExpired()) {
+        <div class="save-strip save-strip--error" role="alert">
+          <span>Your secure session expired. Your answers are still here.</span>
+          <button type="button" (click)="reauthDialogOpen.set(true)">Verify again</button>
+        </div>
+      }
+
+      <app-modal
+        [isOpen]="sessionExpired() && reauthDialogOpen()"
+        heading="Your secure session expired"
+        subheading="Verify your email again to keep working. Nothing you wrote on this page is lost."
+        size="md"
+        (closed)="reauthDialogOpen.set(false)"
+      >
+        <div class="mt-4">
+          @if (reauthStage() === 'start') {
+            @if (intakeAccess(); as intake) {
+              <label for="reauth-email">Email address</label>
+              <input
+                id="reauth-email"
+                class="text-input"
+                type="email"
+                inputmode="email"
+                autocomplete="email"
+                [value]="email()"
+                (input)="setEmail($any($event.target).value)"
+              />
+              <app-turnstile-widget
+                [siteKey]="intake.botProtection.siteKey"
+                [action]="intake.botProtection.action"
+                (tokenChange)="captchaToken.set($event)"
+                (unavailable)="captchaUnavailable.set(true)"
+              />
+            } @else if (directedAccess(); as directed) {
+              <p class="text-sm text-gray-700">
+                We will send a new code to <strong>{{ directed.maskedEmail }}</strong>.
+              </p>
+            }
+            @if (error()) {
+              <p class="error-message" role="alert">{{ error() }}</p>
+            }
+            <div class="button-row">
+              <button
+                class="primary-button"
+                type="button"
+                [disabled]="busy()"
+                (click)="requestReauthCode()"
+              >
+                {{ busy() ? 'Sending…' : 'Send a new code' }}
+              </button>
+            </div>
+          } @else {
+            <label for="reauth-code">6-digit verification code</label>
+            <input
+              id="reauth-code"
+              class="text-input"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              [value]="code()"
+              (input)="setCode($any($event.target).value)"
+            />
+            @if (error()) {
+              <p class="error-message" role="alert">{{ error() }}</p>
+            }
+            <div class="button-row">
+              <button
+                class="secondary-button"
+                type="button"
+                [disabled]="busy() || resendSeconds() > 0"
+                (click)="requestReauthCode()"
+              >
+                {{ resendSeconds() > 0 ? 'Resend in ' + resendSeconds() + 's' : 'Send another code' }}
+              </button>
+              <button class="primary-button" type="button" [disabled]="busy()" (click)="verifyCode()">
+                {{ busy() ? 'Verifying…' : 'Verify and continue' }}
+              </button>
+            </div>
+            @if (codeLimitPerHour(); as limit) {
+              <p class="code-limit-hint" data-testid="code-limit-hint">
+                You can request up to {{ limit }} codes per hour. If no code arrives, wait a bit
+                before trying again.
+              </p>
+            }
+          }
+        </div>
+      </app-modal>
+
+      @if (saveState(); as save) {
+        <div
+          class="save-strip"
+          [class.save-strip--error]="save.status === 'error'"
+          aria-live="polite"
+        >
+          @if (save.readOnly) {
+            <span>This form is open in another tab.</span>
+            <button type="button" (click)="takeControl()">Use it here</button>
+          } @else if (save.conflicts.length > 0) {
+            <span>Some answers changed in another tab or device.</span>
+            <button type="button" (click)="openConflictDialog()">Review answers</button>
+          } @else if (save.status === 'saving') {
+            <span>Saving your changes…</span>
+          } @else if (save.status === 'queued') {
+            <span>Changes waiting to save</span>
+          } @else if (save.status === 'error') {
+            <span>We could not save your latest changes.</span>
+          } @else {
+            <span>All changes saved</span>
+          }
+        </div>
+      }
+
+      <app-modal
+        [isOpen]="conflictDialogOpen() && conflictRows().length > 0"
+        heading="Choose which answers to keep"
+        subheading="These answers were changed in another tab or device. Nothing is saved until you choose."
+        size="xl"
+        (closed)="closeConflictDialog()"
+      >
+        <div class="mt-5 space-y-4">
+          @for (row of conflictRows(); track row.conflict.id) {
+            <fieldset class="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <legend class="px-1 text-sm font-bold text-gray-900">{{ row.label }}</legend>
+              <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                <label
+                  class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-3"
+                >
+                  <input
+                    type="radio"
+                    class="mt-1"
+                    [name]="'conflict-' + $index"
+                    [checked]="conflictChoices()[row.conflict.id] === 'local'"
+                    (change)="chooseConflict(row.conflict.id, 'local')"
+                  />
+                  <span class="min-w-0">
+                    <span class="block text-xs font-semibold uppercase text-gray-600"
+                      >On this device</span
+                    >
+                    <span class="block break-words text-sm text-gray-900">{{ row.local }}</span>
+                    <span class="mt-1 block text-xs font-semibold text-brand-bold">Keep this one</span>
+                  </span>
+                </label>
+                <label
+                  class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-3"
+                >
+                  <input
+                    type="radio"
+                    class="mt-1"
+                    [name]="'conflict-' + $index"
+                    [checked]="conflictChoices()[row.conflict.id] === 'remote'"
+                    (change)="chooseConflict(row.conflict.id, 'remote')"
+                  />
+                  <span class="min-w-0">
+                    <span class="block text-xs font-semibold uppercase text-gray-600"
+                      >Saved from another tab or device</span
+                    >
+                    <span class="block break-words text-sm text-gray-900">{{ row.remote }}</span>
+                    <span class="mt-1 block text-xs font-semibold text-brand-bold">Keep this one</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          }
+          @if (error()) {
+            <p class="error-message" role="alert">{{ error() }}</p>
+          }
+          <div class="button-row">
+            <button
+              class="primary-button"
+              type="button"
+              [disabled]="!allConflictsChosen() || resolvingConflicts()"
+              (click)="resolveConflicts()"
+            >
+              {{ resolvingConflicts() ? 'Saving…' : 'Save my choices' }}
+            </button>
+          </div>
+        </div>
+      </app-modal>
+
+      @if (error() && !(conflictDialogOpen() && conflictRows().length > 0) && !reauthDialogOpen()) {
+        <p class="error-message form-error" role="alert">{{ error() }}</p>
+      }
+
+      @if (scanPending()) {
+        <div class="save-strip" role="status" aria-live="polite">
+          @if (scanStalled()) {
+            <span>Still scanning. This can take a few minutes.</span>
+            <button type="button" (click)="checkScansAgain()">Check again</button>
+          } @else {
+            <span>Scanning your files… You can send the form when the scan finishes.</span>
+          }
+        </div>
+      }
+
+      <div (focusout)="saveOnBlur()">
+        <app-dc-form-renderer
+          [definition]="current.definition"
+          [answers]="answers()"
+          [issues]="issues()"
+          [attachments]="attachments()"
+          [fieldComments]="fieldComments()"
+          [mode]="rendererMode()"
+          [beforePageChange]="saveBeforePageChange"
+          [controlsDocumentTitle]="true"
+          submitLabel="Send information"
+          [submitting]="busy() || uploading()"
+          [submitDisabled]="scanPending()"
+          (answersChange)="updateAnswers($event)"
+          (pageIndexChange)="onPageIndexChange()"
+          (fileSelected)="uploadFiles($event)"
+          (fileRemoved)="removeFile($event)"
+          (sensitiveEntered)="captureSensitive($event)"
+          (consentRequested)="showConsent($event)"
+          (submitRequested)="submit()"
+        />
+      </div>
+
+      <app-modal
+        [isOpen]="activeConsent() != null"
+        heading="Please review before continuing"
+        size="xl"
+        (closed)="dismissConsent()"
+      >
+        <div class="notice-copy mt-4">
+          @for (paragraph of consentParagraphs(); track $index) {
+            <p class="mb-3 text-sm text-gray-700">{{ paragraph }}</p>
+          }
+        </div>
+        <div class="button-row">
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="busy()"
+            (click)="declineConsent()"
+          >
+            Decline and exit
+          </button>
+          <button class="primary-button" type="button" [disabled]="busy()" (click)="acceptConsent()">
+            {{ activeConsent()?.acceptanceText || 'I agree' }}
+          </button>
+        </div>
+      </app-modal>
+    }
+
+    @if (step() === 'done') {
+      <div class="state-panel state-panel--success" role="status" aria-live="polite">
+        <span class="state-icon state-icon--success" aria-hidden="true">&#10003;</span>
+        <p class="eyebrow">All set</p>
+        <h1 tabindex="-1">Your information was sent to {{ officeName() }}</h1>
+        <p>You can close this page. The office will contact you if anything else is needed.</p>
+      </div>
+    }
+
+    @if (step() === 'alreadySubmitted') {
+      <div
+        class="state-panel state-panel--success"
+        role="status"
+        aria-live="polite"
+        data-testid="already-submitted"
+      >
+        <span class="state-icon state-icon--success" aria-hidden="true">&#10003;</span>
+        <p class="eyebrow">Already received</p>
+        <h1 tabindex="-1">You already sent this form</h1>
+        <p>Your office is reviewing it. You'll hear from them by email.</p>
+      </div>
+    }
+
+    @if (step() === 'declined') {
+      <div class="state-panel" role="status">
+        <span class="state-icon" aria-hidden="true">&#215;</span>
+        <p class="eyebrow">Form closed</p>
+        <h1 tabindex="-1">Your choice was recorded</h1>
+        <p>No form information was submitted. Contact the office if you need help.</p>
+      </div>
+    }
+  </main>
+
+  <footer
+    class="public-form-footer flex min-h-14 items-center justify-between gap-4 border-t border-indigo-100 bg-white px-4 text-xs text-gray-600 sm:px-8 lg:px-12"
+  >
+    <span>Powered by TaxProffice</span>
+    <span>Secure data collection</span>
+  </footer>
+</div>

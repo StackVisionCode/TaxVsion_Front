@@ -8,7 +8,8 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CustomerAssignee } from '../../data-access/clients.model';
 import { ClientsStore } from '../../data-access/clients.store';
-import { StaffDirectoryStore, StaffMember } from '../../data-access/staff-directory.store';
+import { StaffDirectoryStore, StaffMember } from '@core/staff/staff-directory.store';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 
 /** Cliente objetivo del diálogo en modo single (solo lo que se necesita para el encabezado + las llamadas). */
 export interface AssignDialogClient {
@@ -30,7 +31,7 @@ interface AssigneeRow {
  */
 @Component({
   selector: 'app-client-assign-dialog',
-  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, AvatarUrlPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-assign-dialog.component.html',
 })

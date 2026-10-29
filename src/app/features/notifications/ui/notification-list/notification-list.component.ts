@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { notificationIcon } from '../../data-access/notifications.model';
@@ -65,12 +67,13 @@ export interface AppNotification {
  */
 @Component({
   selector: 'app-notification-list',
-  imports: [CommonModule, DropdownMenuComponent, MenuItemDirective, StateBlockComponent],
+  imports: [CommonModule, AvatarComponent, DropdownMenuComponent, MenuItemDirective, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './notification-list.component.html',
 })
 export class NotificationListComponent {
   private readonly auth = inject(AuthService);
+  private readonly staff = inject(StaffDirectoryStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly now = signal(Date.now());
 
@@ -86,6 +89,8 @@ export class NotificationListComponent {
   @Output() toggleSelected = new EventEmitter<string>();
 
   constructor() {
+    // Fotos de los actores del staff (best-effort: sin users.view quedan las iniciales).
+    this.staff.ensureLoaded();
     timer(60_000, 60_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
@@ -110,6 +115,15 @@ export class NotificationListComponent {
   initialsFor(notification: AppNotification): string | null {
     if (notification.actorType === 'System') return null;
     return notificationActorInitials(notification.actorDisplayName);
+  }
+
+  /**
+   * Foto del actor cuando es alguien del staff con foto (directorio compartido). Null para
+   * `System`, sin `actorUserId` o sin foto: el template sigue con iniciales/icono por tipo.
+   */
+  actorPhotoFor(notification: AppNotification): string | null {
+    if (notification.actorType === 'System' || !notification.actorUserId) return null;
+    return this.staff.avatarUrlFor(notification.actorUserId);
   }
 
   /** Mapea el tipo a un color de círculo (paleta Aether: pasteles/sólidos). */

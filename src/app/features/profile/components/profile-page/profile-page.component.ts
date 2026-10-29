@@ -8,6 +8,7 @@ import {
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,13 +19,21 @@ import { StateBlockComponent } from '@shared/ui/state-block/state-block.componen
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { CheckRingComponent, CheckRingItem } from '@shared/ui/check-ring/check-ring.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.util';
+import { FileDropDirective } from '@shared/directives/file-drop.directive';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { PROFILE_PHOTO_ACCEPT } from '@core/profile-photo/profile-photo-image.util';
 import { ProfileStore } from '../../data-access/profile.store';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
 import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two-step-verification.component';
 import {
   PASSWORD_MIN_LENGTH,
+  PHOTO_FAILED_MESSAGE,
+  PHOTO_STILL_PROCESSING_MESSAGE,
+  PhotoStatus,
   UserSession,
+  isValidPhoneNumber,
   passwordStrength,
   roleDisplayName,
   sessionDeviceLabel,
@@ -32,7 +41,7 @@ import {
   sessionLocationLabel,
 } from '../../data-access/profile.model';
 
-/** Paso del flujo inline de cambio de email/teléfono. */
+/** Paso del flujo inline de cambio de email. */
 type ContactFlowStep = 'idle' | 'editing' | 'confirming';
 
 type ToastKind = 'success' | 'error';
@@ -46,17 +55,27 @@ interface ProfileSection {
 
 const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as const;
 
+const PHOTO_STATUS_LABELS: Record<PhotoStatus, string> = {
+  idle: '',
+  preparing: 'Preparing photo…',
+  uploading: 'Uploading photo…',
+  processing: 'Checking your photo…',
+  removing: 'Removing photo…',
+};
+
 /**
  * Página del usuario logueado, respaldada por el servicio Auth real:
  *
  * - Nombre/apellido: PUT /auth/users/me/profile (el timeZoneId actual se preserva).
  * - Contraseña: POST /auth/password/change (revoca las demás sesiones).
- * - Email/teléfono: flujos request → código → confirm de CredentialsController.
+ * - Email: flujo request → código → confirm de CredentialsController.
+ * - Teléfono: PUT /auth/me/phone directo (sin verificación por SMS).
  * - Sesiones: GET/DELETE /auth/sessions (revocar una o todas menos la actual).
  * - Verificación en dos pasos y dispositivos de confianza: `app-two-step-verification` (/auth/mfa/*).
+ * - Foto: PUT/DELETE /auth/me/avatar; visible cuando el antivirus la confirma (sondeo en el store).
  *
  * Cabecera con un chequeo de seguridad hecho solo con datos reales (email verificado, MFA, teléfono)
- * e índice lateral que sigue el scroll. No hay foto: el backend no tiene dónde guardarla.
+ * e índice lateral que sigue el scroll.
  */
 @Component({
   selector: 'app-profile-page',
@@ -68,6 +87,8 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
     StateBlockComponent,
     TimeAgoPipe,
     CheckRingComponent,
+    ConfirmDialogComponent,
+    FileDropDirective,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
@@ -80,11 +101,14 @@ export class ProfilePageComponent {
   private readonly toast = inject(ToastService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   // ---------------------------------------------------------------------------
   // Identidad
   // ---------------------------------------------------------------------------
   private readonly user = this.auth.currentUser;
+  /** Semilla del color de las iniciales: el id del usuario, igual que en el resto del CRM. */
+  readonly avatarSeed = computed(() => this.user()?.id ?? this.email());
   readonly roleLabel = computed(() => roleDisplayName(this.user()?.actorType));
   readonly isAdminRole = computed(() => {
     const actor = this.user()?.actorType;
@@ -97,13 +121,12 @@ export class ProfilePageComponent {
     return tz ? tz.replace(/_/g, ' ').replace('/', ' · ') : null;
   });
 
-  // Nombre/apellido: editables. Email y teléfono solo cambian vía sus flujos verificados.
+  // Nombre/apellido: editables. Email cambia con su flujo verificado; teléfono con su propio guardado.
   readonly firstName = signal('');
   readonly lastName = signal('');
   readonly email = computed(() => this.user()?.email ?? '');
   readonly phone = computed(() => this.user()?.phoneNumber ?? '');
   readonly emailVerified = computed(() => this.user()?.emailVerified ?? false);
-  readonly phoneVerified = computed(() => this.user()?.phoneVerified ?? false);
 
   /** Nombre guardado (para la cabecera y para saber si hay cambios sin guardar). */
   readonly savedFullName = computed(() => `${this.user()?.name ?? ''} ${this.user()?.lastName ?? ''}`.trim());
@@ -120,7 +143,7 @@ export class ProfilePageComponent {
   readonly securityChecks = computed<CheckRingItem[]>(() => [
     { id: 'email', label: 'Email verified', done: this.emailVerified(), target: 'personal' },
     { id: 'mfa', label: 'Two-step verification on', done: this.mfa.enabled(), target: 'two-step' },
-    { id: 'phone', label: 'Phone number verified', done: !!this.phone() && this.phoneVerified(), target: 'personal' },
+    { id: 'phone', label: 'Phone number added', done: !!this.phone(), target: 'personal' },
   ]);
   /** Hasta que llega el estado de MFA el puntaje sería falso: se muestra cargando. */
   readonly securityReady = this.mfa.loaded;
@@ -156,6 +179,7 @@ export class ProfilePageComponent {
       this.lastName.set(u.lastName ?? '');
     });
     this.store.loadSessions();
+    this.store.resumePendingPhoto();
 
     // La sección "activa" es la que cruza la franja superior de la ventana.
     afterNextRender(() => {
@@ -171,6 +195,78 @@ export class ProfilePageComponent {
   scrollTo(sectionId: string): void {
     scrollToSection(this.host.nativeElement as HTMLElement, sectionId);
     this.activeSection.set(sectionId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Foto de perfil (PUT/DELETE /auth/me/avatar)
+  // ---------------------------------------------------------------------------
+  readonly photoAccept = PROFILE_PHOTO_ACCEPT;
+  readonly avatarUrl = computed(() => this.avatarUrls.url(this.user()?.avatarFileId));
+  readonly hasPhoto = computed(() => !!this.user()?.avatarFileId);
+  readonly photoStatus = this.store.photoStatus;
+  readonly photoBusy = this.store.photoBusy;
+  readonly photoError = this.store.photoError;
+  readonly photoStatusLabel = computed(() => PHOTO_STATUS_LABELS[this.photoStatus()]);
+  readonly removePhotoOpen = signal(false);
+  private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
+  private readonly photoButton = viewChild<ElementRef<HTMLButtonElement>>('photoButton');
+
+  openPhotoPicker(): void {
+    if (!this.photoBusy()) {
+      this.photoInput()?.nativeElement.click();
+    }
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Se limpia para que elegir otra vez el mismo archivo vuelva a disparar `change`.
+    input.value = '';
+    if (file) {
+      this.uploadPhoto(file);
+    }
+  }
+
+  onPhotoDropped(files: File[]): void {
+    if (files[0]) {
+      this.uploadPhoto(files[0]);
+    }
+  }
+
+  private uploadPhoto(file: File): void {
+    this.store.uploadPhoto(file).subscribe({
+      next: outcome => {
+        if (outcome === 'updated') {
+          this.notify('Profile photo updated', 'success');
+        } else if (outcome === 'failed') {
+          this.notify(PHOTO_FAILED_MESSAGE, 'error');
+        } else {
+          this.toast.info(PHOTO_STILL_PROCESSING_MESSAGE);
+        }
+      },
+      // El motivo (400/413, preparación) ya queda junto al avatar en `photoError`.
+      error: () => this.focusPhotoButton(),
+    });
+  }
+
+  confirmRemovePhoto(): void {
+    this.store.removePhoto().subscribe({
+      next: () => {
+        this.closeRemovePhoto();
+        this.notify('Profile photo removed', 'success');
+      },
+      error: () => this.closeRemovePhoto(),
+    });
+  }
+
+  closeRemovePhoto(): void {
+    this.removePhotoOpen.set(false);
+    this.focusPhotoButton();
+  }
+
+  /** Devuelve el foco al control de la foto (tras el diálogo o un error), después del re-render. */
+  private focusPhotoButton(): void {
+    setTimeout(() => this.photoButton()?.nativeElement.focus());
   }
 
   // ---------------------------------------------------------------------------
@@ -271,40 +367,43 @@ export class ProfilePageComponent {
   }
 
   // ---------------------------------------------------------------------------
-  // Cambio/verificación de teléfono: request (OTP por SMS) → confirm con el código
+  // Teléfono: PUT /auth/me/phone en un solo paso (sin OTP); null lo quita
   // ---------------------------------------------------------------------------
-  readonly phoneStep = signal<ContactFlowStep>('idle');
+  readonly phoneEditing = signal(false);
   readonly newPhone = signal('');
-  readonly phoneCode = signal('');
   readonly phoneBusy = signal(false);
   readonly phoneError = signal<string | null>(null);
+  readonly removePhoneOpen = signal(false);
 
   startPhoneChange(): void {
     this.newPhone.set(this.phone());
-    this.phoneCode.set('');
     this.phoneError.set(null);
-    this.phoneStep.set('editing');
+    this.phoneEditing.set(true);
   }
 
   cancelPhoneChange(): void {
-    this.phoneStep.set('idle');
+    this.phoneEditing.set(false);
     this.phoneError.set(null);
     this.phoneBusy.set(false);
   }
 
-  sendPhoneChange(): void {
+  savePhone(): void {
     const phoneNumber = this.newPhone().trim();
-    // Mismas reglas que RequestPhoneVerificationHandler: 7-20 chars, dígitos/+/-/espacio.
-    if (phoneNumber.length < 7 || phoneNumber.length > 20 || !/^[\d+\- ]+$/.test(phoneNumber)) {
-      this.phoneError.set('Enter a valid phone number (digits, +, - and spaces)');
+    if (!isValidPhoneNumber(phoneNumber)) {
+      this.phoneError.set('Enter a valid phone number (7–20 characters: digits, +, - and spaces)');
+      return;
+    }
+    if (phoneNumber === this.phone()) {
+      this.cancelPhoneChange();
       return;
     }
     this.phoneError.set(null);
     this.phoneBusy.set(true);
-    this.store.requestPhoneChange(phoneNumber).subscribe({
+    this.store.updatePhone(phoneNumber).subscribe({
       next: () => {
         this.phoneBusy.set(false);
-        this.phoneStep.set('confirming');
+        this.phoneEditing.set(false);
+        this.notify('Phone number saved', 'success');
       },
       error: err => {
         this.phoneBusy.set(false);
@@ -313,23 +412,19 @@ export class ProfilePageComponent {
     });
   }
 
-  confirmPhoneChange(): void {
-    const code = this.phoneCode().trim();
-    if (!code) {
-      this.phoneError.set('Enter the code we texted you');
-      return;
-    }
-    this.phoneError.set(null);
+  confirmRemovePhone(): void {
     this.phoneBusy.set(true);
-    this.store.confirmPhone(code).subscribe({
+    this.store.updatePhone(null).subscribe({
       next: () => {
         this.phoneBusy.set(false);
-        this.phoneStep.set('idle');
-        this.notify('Phone number verified', 'success');
+        this.removePhoneOpen.set(false);
+        this.phoneEditing.set(false);
+        this.notify('Phone number removed', 'success');
       },
       error: err => {
         this.phoneBusy.set(false);
-        this.phoneError.set(toApiError(err).message);
+        this.removePhoneOpen.set(false);
+        this.notify(toApiError(err).message, 'error');
       },
     });
   }

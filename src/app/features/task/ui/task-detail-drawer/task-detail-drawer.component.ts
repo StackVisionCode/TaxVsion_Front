@@ -32,6 +32,7 @@ import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upl
 import { formatBytes } from '@shared/utils/format.util';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -67,6 +68,8 @@ interface BlockerRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskDetailDrawerComponent implements OnChanges {
+  /** Fotos del staff (directorio compartido; lo carga TaskStore.init). */
+  protected readonly staff = inject(StaffDirectoryStore);
   private readonly service = inject(TaskService);
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);

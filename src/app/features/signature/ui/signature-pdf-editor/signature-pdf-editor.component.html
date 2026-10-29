@@ -1046,7 +1046,7 @@
           <button *ngFor="let c of signerClientResults()" type="button" (click)="pickRegisteredClient(c)"
             class="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-gray-50 transition-colors"
             [class.bg-gray-50]="draftClientId() === c.id">
-            <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-9 w-9 text-xs" />
+            <app-avatar [name]="c.displayName" [seed]="c.id" [imageUrl]="c.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" />
             <span class="min-w-0 flex-1">
               <span class="flex items-center gap-1.5">
                 <span class="min-w-0 truncate text-sm font-medium text-gray-800">{{ c.displayName }}</span>

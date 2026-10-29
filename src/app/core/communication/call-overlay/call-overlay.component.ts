@@ -5,6 +5,8 @@ import { AuthService } from '@core/auth/auth.service';
 import { ActiveCallService } from '../active-call.service';
 import { SrcObjectDirective } from '../src-object.directive';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
 
 /**
  * Overlay global de la llamada 1:1 activa. Montado una vez en el shell autenticado
@@ -15,7 +17,7 @@ import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loa
  */
 @Component({
   selector: 'app-call-overlay',
-  imports: [InfinityLoaderComponent, CommonModule, SrcObjectDirective],
+  imports: [InfinityLoaderComponent, CommonModule, SrcObjectDirective, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './call-overlay.component.html',
 })
@@ -23,10 +25,14 @@ export class CallOverlayComponent implements OnDestroy {
   private readonly perms = inject(PermissionService);
   private readonly call = inject(ActiveCallService);
   private readonly auth = inject(AuthService);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   readonly phase = this.call.phase;
   readonly kind = this.call.kind;
   readonly peerDisplayName = this.call.peerDisplayName;
+  readonly peerUserId = this.call.peerUserId;
+  /** Foto del par (con iniciales de respaldo en `app-avatar`). */
+  readonly peerAvatarUrl = computed(() => this.avatarUrls.url(this.call.peerAvatarFileId()));
   readonly audioEnabled = this.call.audioEnabled;
   readonly videoEnabled = this.call.videoEnabled;
   readonly screenSharing = this.call.screenSharing;
@@ -150,16 +156,6 @@ export class CallOverlayComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.stopRingtone();
-  }
-
-  initials(name: string | null): string {
-    return (name ?? '?')
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase();
   }
 
   accept(): void {

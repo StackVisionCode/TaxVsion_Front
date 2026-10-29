@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, defer, finalize, map, of, shareReplay, tap, throwError, Subject } from 'rxjs';
+import { Observable, Subject, catchError, defer, finalize, from, map, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '@env/environment';
 import { TokenService } from './token.service';
 import { ApiConfigService } from '../config/api-config.service';
@@ -23,6 +23,7 @@ import {
 } from './auth.model';
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 import { AccountKind } from './central-login.model';
+import { WebPushRegistrationService } from '../notifications/web-push-registration.service';
 
 /** Desenlace del login, ya interpretado por el servicio (el componente solo enruta). */
 export type LoginOutcome =
@@ -49,6 +50,7 @@ export class AuthService {
   private readonly tokenService = inject(TokenService);
   private readonly api = inject(ApiConfigService);
   private readonly branding = inject(TenantBrandingService);
+  private readonly webPush = inject(WebPushRegistrationService);
   /**
    * Base de los endpoints de Auth: la oficina resuelta (`https://<slug>.baseDomain`).
    *
@@ -185,7 +187,12 @@ export class AuthService {
     }
     return this.http
       .get<MeResponse>(`${this.base}/auth/me`)
-      .pipe(tap(user => this._currentUser.set(user)));
+      .pipe(
+        tap(user => {
+          this._currentUser.set(user);
+          void this.webPush.syncForSession(user.id, user.tenant.id);
+        }),
+      );
   }
 
   logout(): Observable<void> {
@@ -195,8 +202,9 @@ export class AuthService {
         return of(void 0);
       });
     }
-    return this.http.post<void>(`${this.base}/auth/logout`, {}).pipe(
+    return defer(() => from(this.webPush.revokeCurrent())).pipe(
       catchError(() => of(void 0)),
+      switchMap(() => this.http.post<void>(`${this.base}/auth/logout`, {}).pipe(catchError(() => of(void 0)))),
       tap(() => this.logoutLocal()),
     );
   }

@@ -1,0 +1,18 @@
+export const ISSUE_CODES = {
+  definitionTooLarge: 'definition.too_large',
+  definitionInvalidJson: 'definition.invalid_json',
+  repeaterNested: 'repeater.nested',
+  answersTooLarge: 'answers.too_large',
+  answersInvalidJson: 'answers.invalid_json',
+  mappingInvalidTarget: 'mapping.invalid_target',
+  mappingUnknownTarget: 'mapping.unknown_target',
+  mappingDeprecatedTarget: 'mapping.deprecated_target',
+  mappingTypeMismatch: 'mapping.type_mismatch',
+  mappingLengthExceedsTarget: 'mapping.length_exceeds_target',
+  mappingOptionMapIncomplete: 'mapping.option_map_incomplete',
+  mappingSensitivityMismatch: 'mapping.sensitivity_mismatch',
+  mappingDuplicateTarget: 'mapping.duplicate_target',
+  mappingRequiredTargetMissing: 'mapping.required_target_missing',
+  mappingPermissionDenied: 'mapping.permission_denied',
+  mappingSourceNotRequired: 'mapping.source_not_required',
+} as const;

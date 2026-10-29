@@ -597,6 +597,20 @@ export class DocumentsStore {
     });
   }
 
+  copyToDocuments(file: FileResponse, taxYear: number): void {
+    this.service
+      .copyFile(file.id, {
+        ownerType: file.ownerType,
+        ownerId: file.ownerId,
+        folderType: 'Documents',
+        taxYear,
+      })
+      .subscribe({
+        next: () => this.toast.success(`Copied "${file.originalName}" to Documents`),
+        error: err => this.toast.error(toUserMessage(err)),
+      });
+  }
+
   deleteFile(fileId: string): void {
     const file = this._files().find(f => f.id === fileId);
     this.service.deleteFile(fileId).subscribe({
@@ -855,6 +869,9 @@ export class DocumentsStore {
   // ================= Multiselección + lote =================
 
   toggleFileSelection(fileId: string): void {
+    if (this._files().some(file => file.id === fileId && file.folderType === 'ClientForms')) {
+      return;
+    }
     this._selectedIds.update(ids => {
       const next = new Set(ids);
       if (next.has(fileId)) {
@@ -867,7 +884,7 @@ export class DocumentsStore {
   }
 
   toggleSelectAll(): void {
-    const visible = this.visibleFiles();
+    const visible = this.visibleFiles().filter(file => file.folderType !== 'ClientForms');
     this._selectedIds.update(ids => {
       const allSelected = visible.length > 0 && visible.every(f => ids.has(f.id));
       if (allSelected) {

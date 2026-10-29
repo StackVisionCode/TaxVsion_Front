@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ApiTaskStatus,
   TaskResponse,
-  avatarColorFor,
-  initialsFor,
   statusToColumn,
   toWorkTaskItem,
 } from './client-work.model';
@@ -98,25 +96,5 @@ describe('toWorkTaskItem', () => {
     const item = toWorkTaskItem(makeResponse({ status: 'WaitingOnClient', expectedItems: 'W-2 and 1099' }), new Map());
     expect(item.column).toBe('waiting');
     expect(item.expectedItems).toBe('W-2 and 1099');
-  });
-});
-
-describe('initialsFor', () => {
-  it('uses the first and last word', () => {
-    expect(initialsFor('Amanda B Martinez')).toBe('AM');
-  });
-
-  it('takes two letters of a single word', () => {
-    expect(initialsFor('Madonna')).toBe('MA');
-  });
-
-  it('falls back to ? for empty input', () => {
-    expect(initialsFor('   ')).toBe('?');
-  });
-});
-
-describe('avatarColorFor', () => {
-  it('is stable for the same id', () => {
-    expect(avatarColorFor('user-1')).toBe(avatarColorFor('user-1'));
   });
 });

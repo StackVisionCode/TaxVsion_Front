@@ -2,6 +2,8 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } f
 import { CommonModule } from '@angular/common';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { toApiError } from '@core/models/api-error.model';
+import { AuthService } from '@core/auth/auth.service';
+import { WebPushRegistrationService } from '@core/notifications/web-push-registration.service';
 import { NotificationPreferencesService } from '../../data-access/notification-preferences.service';
 import {
   NotificationCategory,
@@ -15,10 +17,8 @@ import {
  * silencioso en error). Security es `locked=true` por diseño del backend — el
  * toggle sale on + icono de candado deshabilitado.
  *
- * Nota de scope: solo se pintan los canales con delivery real hoy
- * (`InApp`, `Email`, `Sms`); `Push` lo expone el backend pero FASE 9 está
- * diferida hasta pedido explícito del usuario, así que la columna no se muestra
- * para no crear expectativa de que ya funciona.
+ * Push se muestra, pero el permiso del navegador solo se solicita desde la
+ * acción explícita de esta página.
  */
 const CATEGORY_LABELS: Readonly<Record<NotificationCategory, { label: string; description: string }>> = {
   AccountSecurity: {
@@ -55,7 +55,7 @@ const CATEGORY_LABELS: Readonly<Record<NotificationCategory, { label: string; de
   },
 };
 
-const DISPLAY_CHANNELS: readonly NotificationChannel[] = ['InApp', 'Email', 'Sms'];
+const DISPLAY_CHANNELS: readonly NotificationChannel[] = ['InApp', 'Email', 'Sms', 'Push'];
 const CHANNEL_LABELS: Readonly<Record<NotificationChannel, string>> = {
   InApp: 'In-app',
   Email: 'Email',
@@ -71,6 +71,8 @@ const CHANNEL_LABELS: Readonly<Record<NotificationChannel, string>> = {
 })
 export class NotificationPreferencesPageComponent implements OnInit {
   private readonly service = inject(NotificationPreferencesService);
+  private readonly auth = inject(AuthService);
+  readonly webPush = inject(WebPushRegistrationService);
 
   readonly loading = signal(true);
   readonly saving = signal<string | null>(null);
@@ -140,6 +142,12 @@ export class NotificationPreferencesPageComponent implements OnInit {
   retry(): void {
     this.error.set(null);
     this.load();
+  }
+
+  async enableWebPush(): Promise<void> {
+    const user = this.auth.currentUser();
+    if (!user) return;
+    await this.webPush.enable(user.id, user.tenant.id);
   }
 
   isSaving(category: NotificationCategory, channel: NotificationChannel): boolean {

@@ -9,7 +9,7 @@
  */
 
 /** Espejo de TaxVision.CloudStorage.Domain.Files.OwnerType. */
-export type OwnerType = 'Tenant' | 'Customer' | 'User' | 'Signature' | 'Invoice' | 'Communication';
+export type OwnerType = 'Tenant' | 'Customer' | 'User' | 'Signature' | 'Invoice' | 'Communication' | 'Onboarding' | 'SaaSPayment';
 
 /** Espejo de TaxVision.CloudStorage.Domain.Files.FolderType (bucket fiscal, no la carpeta navegable). */
 export type FolderType =
@@ -28,7 +28,9 @@ export type FolderType =
   | 'Templates'
   | 'Branding'
   | 'Other'
-  | 'VoiceNotes';
+  | 'VoiceNotes'
+  | 'SaaSReceipts'
+  | 'ClientForms';
 
 /** Espejo de TaxVision.CloudStorage.Domain.Files.FileStatus. */
 export type FileStatus =
@@ -98,6 +100,19 @@ export interface DownloadUrlResponse {
   fileId: string;
   downloadUrl: string;
   expiresAtUtc: string;
+}
+
+export interface CopyFileRequest {
+  ownerType: OwnerType;
+  ownerId: string | null;
+  folderType: FolderType;
+  taxYear: number | null;
+  folderId?: string | null;
+}
+
+export interface CopiedFileResponse {
+  fileId: string;
+  status: FileStatus;
 }
 
 /** Estados en los que el archivo todavía no está listo para descargar (escaneo en curso). */

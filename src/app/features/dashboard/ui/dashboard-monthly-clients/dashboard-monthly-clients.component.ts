@@ -21,6 +21,7 @@ import {
 } from '../../data-access/dashboard-clients.store';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 
 /** Color de la barra del mes en curso y de los meses anteriores (azul de marca). */
 const CURRENT_MONTH_COLOR = 'rgb(var(--color-indigo-600-rgb, 30 70 107))';
@@ -51,7 +52,7 @@ const PAST_MONTH_COLOR = 'rgb(var(--color-indigo-200-rgb, 176 201 223))';
  */
 @Component({
   selector: 'app-dashboard-monthly-clients',
-  imports: [CommonModule, StateBlockComponent, AvatarComponent],
+  imports: [CommonModule, StateBlockComponent, AvatarComponent, AvatarUrlPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-monthly-clients.component.html',
   styleUrl: './dashboard-monthly-clients.component.css',

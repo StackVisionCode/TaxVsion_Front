@@ -18,6 +18,8 @@ import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loa
 import { FormsModule } from '@angular/forms';
 import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
+import { ChatParticipant } from '../../data-access/chat.model';
 
 export interface ChatMessage {
   id: string;
@@ -34,6 +36,11 @@ export interface ChatMessage {
   isDeleted: boolean;
   /** createdAtUtc crudo (ISO) — cursor para avanzar cotejos por fecha. */
   createdAtUtc: string;
+  /** userId real del remitente (los ajenos): semilla del color y llave de su foto entre los participantes. */
+  senderUserId?: string;
+  senderName?: string;
+  /** Foto que trajo el historial; respaldo si el remitente ya no está entre los participantes. */
+  senderAvatarFileId?: string | null;
   /**
    * Cotejo de MI mensaje: 'sending' (reloj, aún sin ack) / 'failed' (no se envió, se puede reintentar) /
    * 'sent' (1 gris) / 'delivered' (2 grises) / 'read' (2 azules). undefined si es del otro.
@@ -63,7 +70,7 @@ const BOTTOM_STICK_THRESHOLD = 80;
  */
 @Component({
   selector: 'app-chat-thread',
-  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent, InfinityLoaderComponent],
+  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent, AvatarUrlPipe, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
   // El host debe llenar su contenedor acotado (`flex-1 min-h-0`); por defecto un
@@ -75,6 +82,8 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   @Input() messages: ChatMessage[] = [];
   @Input() otherName = '';
   @Input() otherAvatarColor = 'bg-brand-bold';
+  /** Participantes con su foto vigente (se actualiza en vivo con `user.profile.changed`). */
+  @Input() participants: ChatParticipant[] = [];
   /** id de la conversación activa — al cambiar, el hilo baja al fondo. */
   @Input() conversationId = '';
   /** displayName del otro escribiendo, o null — muestra el indicador "… is typing". */
@@ -310,7 +319,26 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   isContinuation(index: number): boolean {
     const prev = this.messages[index - 1];
     const current = this.messages[index];
-    return !!prev && !prev.isSystem && !current.isSystem && prev.senderId === current.senderId && prev.dateGroup === current.dateGroup;
+    return (
+      !!prev &&
+      !prev.isSystem &&
+      !current.isSystem &&
+      prev.senderId === current.senderId &&
+      // En grupo, dos ajenos seguidos de personas distintas no se agrupan (cada uno con su foto).
+      (prev.senderUserId ?? null) === (current.senderUserId ?? null) &&
+      prev.dateGroup === current.dateGroup
+    );
+  }
+
+  /** Foto del remitente: la vigente entre los participantes; si no se conoce, la que trajo el historial. */
+  senderAvatarFileId(message: ChatMessage): string | null {
+    const participant = message.senderUserId
+      ? this.participants.find(p => p.userId === message.senderUserId)
+      : undefined;
+    if (participant && participant.avatarFileId !== undefined) {
+      return participant.avatarFileId ?? null;
+    }
+    return message.senderAvatarFileId ?? null;
   }
 
   showDateSeparator(index: number): boolean {

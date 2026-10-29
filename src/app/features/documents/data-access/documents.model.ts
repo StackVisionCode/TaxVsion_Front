@@ -1,6 +1,6 @@
 import { FileResponse, FileStatus, FolderType, OwnerType } from '@core/cloud-storage/cloud-storage.model';
 
-export type { OwnerType, FolderType, FileStatus, FileResponse, InitiateUploadRequest, InitiatedUploadResponse, DownloadUrlResponse } from '@core/cloud-storage/cloud-storage.model';
+export type { OwnerType, FolderType, FileStatus, FileResponse, InitiateUploadRequest, InitiatedUploadResponse, DownloadUrlResponse, CopyFileRequest, CopiedFileResponse } from '@core/cloud-storage/cloud-storage.model';
 export { isFilePending } from '@core/cloud-storage/cloud-storage.model';
 
 /**
@@ -211,6 +211,8 @@ export const USER_FACING_FOLDER_TYPES: readonly FolderType[] = [
   'EmailOutgoing',
   'Tasks',
   'Signatures',
+  'VoiceNotes',
+  'ClientForms',
 ];
 
 const USER_FACING_FOLDER_TYPE_SET: ReadonlySet<FolderType> = new Set(USER_FACING_FOLDER_TYPES);

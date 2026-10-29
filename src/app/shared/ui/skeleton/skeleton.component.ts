@@ -10,6 +10,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
  * - `card`  → tarjeta de widget (barra de título + n líneas).
  * - `rows`  → n filas de tabla/lista.
  * - `block` → un solo bloque del alto indicado.
+ * - `feed`  → n tarjetas de feed (avatar + autor + líneas de texto), p. ej. notas o actividad.
  */
 @Component({
   selector: 'app-skeleton',
@@ -34,6 +35,25 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
             }
           </div>
         }
+        @case ('feed') {
+          <div class="space-y-3">
+            @for (row of rowList(); track $index) {
+              <div class="rounded-2xl border border-gray-100 bg-white p-4">
+                <div class="flex items-center gap-3">
+                  <div class="h-8 w-8 shrink-0 rounded-full bg-gray-200"></div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-3 w-32 rounded-full bg-gray-200"></div>
+                    <div class="h-2.5 w-20 rounded-full bg-gray-100"></div>
+                  </div>
+                </div>
+                <div class="mt-4 space-y-2">
+                  <div class="h-3 rounded-full bg-gray-100"></div>
+                  <div class="h-3 w-4/5 rounded-full bg-gray-100"></div>
+                </div>
+              </div>
+            }
+          </div>
+        }
         @default {
           <div class="h-full w-full rounded-[1.75rem] bg-gray-100"></div>
         }
@@ -51,7 +71,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
   `,
 })
 export class SkeletonComponent {
-  readonly variant = input<'card' | 'rows' | 'block'>('card');
+  readonly variant = input<'card' | 'rows' | 'block' | 'feed'>('card');
   readonly minHeight = input('10rem');
   readonly rows = input(3);
 

@@ -8,7 +8,7 @@ import {
   hitTestPages,
   startPaletteDrag,
   usesLongPress,
-} from './palette-drag.util';
+} from '@shared/utils/palette-drag.util';
 import { clampToPage, scaleSize } from './editor-fields.util';
 import { normalizeFieldRect } from './field-normalize.util';
 import { PlacedField } from '../ui/signature-request-panel/signature-wizard.model';

@@ -1,11 +1,14 @@
 import { PermissionService } from '@core/auth/permission.service';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, switchMap, tap } from 'rxjs';
+import { Observable, concatMap, from, last, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { ClientNotesService } from './client-notes.service';
 import {
@@ -42,16 +45,17 @@ export class ClientNotesStore {
   private readonly service = inject(ClientNotesService);
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);
+  private readonly toast = inject(ToastService);
+  private readonly staff = inject(StaffDirectoryStore);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   private clientId = '';
-  private userNamesLoaded = false;
 
   private readonly _raw = signal<NoteResponse[]>([]);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
   private readonly _actionError = signal<string | null>(null);
   private readonly _busyIds = signal<ReadonlySet<string>>(new Set());
-  private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
   /** Ids de notas creadas en esta sesión: propias con certeza, aunque `currentUser()` tarde. */
   private readonly _optimisticMineIds = signal<ReadonlySet<string>>(new Set());
 
@@ -63,15 +67,37 @@ export class ClientNotesStore {
   private readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   private readonly hasViewAll = computed(() => this.perms.has(NOTES_VIEW_ALL));
 
+  /** Mi foto sale de la sesión (/auth/me): está aunque no haya `users.view` para el directorio. */
+  private readonly myAvatarUrl = computed(() => this.avatarUrls.url(this.auth.currentUser()?.avatarFileId));
+
+  /** Nombres de autores: el directorio de staff compartido (GET /auth/users, best-effort). */
+  private readonly userNames = computed<ReadonlyMap<string, string>>(
+    () => new Map(this.staff.members().map(member => [member.userId, member.name])),
+  );
+
   readonly notes = computed<ClientNoteCard[]>(() => {
-    const names = this._userNames();
+    const names = this.userNames();
     const me = this.currentUserId();
     const viewAll = this.hasViewAll();
     const mine = this._optimisticMineIds();
-    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll, mine.has(note.id)));
+    const myAvatar = this.myAvatarUrl();
+    return this._raw().map(note => {
+      const card = toClientNoteCard(note, names, me, viewAll, mine.has(note.id));
+      card.authorAvatarUrl = card.isMine ? myAvatar : this.staff.avatarUrlFor(card.authorUserId);
+      return card;
+    });
   });
 
   readonly total = computed(() => this._raw().length);
+
+  /** Usuario logueado para el avatar del composer. */
+  readonly me = computed(() => {
+    const user = this.auth.currentUser();
+    const avatarUrl = this.myAvatarUrl();
+    return user
+      ? { id: user.id, name: `${user.name} ${user.lastName}`.trim() || 'You', avatarUrl }
+      : { id: '', name: 'You', avatarUrl: null };
+  });
 
   isBusy(id: string): boolean {
     return this._busyIds().has(id);
@@ -94,7 +120,7 @@ export class ClientNotesStore {
       this._raw.set([]);
       this._actionError.set(null);
     }
-    this.loadUserNamesOnce();
+    this.staff.ensureLoaded();
     if (this.gate.shouldFetch(clientId)) {
       this.doRefresh();
     }
@@ -114,9 +140,9 @@ export class ClientNotesStore {
     }
     this._loading.set(true);
     this._error.set(null);
-    this.service.listByClient(this.clientId).subscribe({
-      next: result => {
-        this._raw.set(result.items);
+    this.service.listAllByClient(this.clientId).subscribe({
+      next: items => {
+        this._raw.set(items);
         this._loading.set(false);
         this.gate.settle(true);
       },
@@ -130,7 +156,8 @@ export class ClientNotesStore {
 
   // ---------- Alta / edición (el componente muestra el error junto al editor) ----------
 
-  create(html: string, visibility: NoteVisibility, colorKind: NoteColorKind): Observable<void> {
+  /** Devuelve el id de la nota creada (el composer le enlaza después los adjuntos en cola). */
+  create(html: string, visibility: NoteVisibility, colorKind: NoteColorKind): Observable<string> {
     return this.service
       .create({
         html,
@@ -145,7 +172,7 @@ export class ClientNotesStore {
           this._optimisticMineIds.update(ids => new Set(ids).add(created.id));
           this._raw.update(list => [created, ...list]);
         }),
-        map(() => undefined),
+        map(created => created.id),
       );
   }
 
@@ -172,7 +199,11 @@ export class ClientNotesStore {
 
   /** Archivar es reversible (`Active ⇄ Archived`); la nota archivada sigue listándose, marcada. */
   toggleArchive(note: ClientNoteCard): void {
-    this.runAction(note.id, note.isArchived ? this.service.restore(note.id) : this.service.archive(note.id));
+    this.runAction(
+      note.id,
+      note.isArchived ? this.service.restore(note.id) : this.service.archive(note.id),
+      note.isArchived ? 'Note restored' : 'Note archived',
+    );
   }
 
   /** DELETE /notes/{id} — borrado lógico: responde 204 y la nota desaparece del listado. */
@@ -198,7 +229,33 @@ export class ClientNotesStore {
    * OwnerType=Customer/OwnerId=cliente para co-ubicarlo; la nota se enlaza por `fileId`.
    */
   attachFile(noteId: string, file: File): void {
+    this.attachFiles(noteId, [file]);
+  }
+
+  /** Varios archivos en serie (uno tras otro: el busy de la nota cubre toda la tanda). */
+  attachFiles(noteId: string, files: readonly File[]): void {
+    if (files.length === 0) {
+      return;
+    }
     this.markBusy(noteId, true);
+    from(files)
+      .pipe(
+        concatMap(file => this.upload(noteId, file).pipe(tap(updated => this.replace(updated)))),
+        last(),
+      )
+      .subscribe({
+        next: () => {
+          this.markBusy(noteId, false);
+          this.pollAttachments(ATTACH_POLLS);
+        },
+        error: err => {
+          this._actionError.set(toApiError(err).message);
+          this.markBusy(noteId, false);
+        },
+      });
+  }
+
+  private upload(noteId: string, file: File): Observable<NoteResponse> {
     const contentType = file.type || 'application/octet-stream';
     const request: InitiateUploadRequest = {
       originalName: file.name,
@@ -211,40 +268,27 @@ export class ClientNotesStore {
       folderType: 'Other',
       taxYear: null,
     };
-    this.cloud
-      .initiateUpload(request)
-      .pipe(
-        switchMap(initiated =>
-          this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
-            // Se crea el link (attach → NoteAttachment en Pending) ANTES de `complete`. `complete`
-            // dispara el escaneo → `cloudstorage.file.available` → el consumer de Notes busca la fila
-            // por CloudStorageFileId para marcarla Available. Si `complete` fuera primero, ese evento
-            // podía llegar (~100ms) antes de que la fila existiera y el adjunto quedaba atascado en
-            // "Scanning". Con attach primero la fila ya está cuando el evento llega (Notes no tiene
-            // client de CloudStorage para auto-sanarse en lectura, así que el orden es la garantía).
-            switchMap(() =>
-              this.service.attach(noteId, {
-                cloudStorageFileId: initiated.fileId,
-                displayName: file.name,
-                contentType,
-                sizeBytes: file.size,
-              }),
-            ),
-            switchMap(updated => this.cloud.completeUpload(initiated.fileId).pipe(map(() => updated))),
+    return this.cloud.initiateUpload(request).pipe(
+      switchMap(initiated =>
+        this.cloud.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
+          // Se crea el link (attach → NoteAttachment en Pending) ANTES de `complete`. `complete`
+          // dispara el escaneo → `cloudstorage.file.available` → el consumer de Notes busca la fila
+          // por CloudStorageFileId para marcarla Available. Si `complete` fuera primero, ese evento
+          // podía llegar (~100ms) antes de que la fila existiera y el adjunto quedaba atascado en
+          // "Scanning". Con attach primero la fila ya está cuando el evento llega (Notes no tiene
+          // client de CloudStorage para auto-sanarse en lectura, así que el orden es la garantía).
+          switchMap(() =>
+            this.service.attach(noteId, {
+              cloudStorageFileId: initiated.fileId,
+              displayName: file.name,
+              contentType,
+              sizeBytes: file.size,
+            }),
           ),
+          switchMap(updated => this.cloud.completeUpload(initiated.fileId).pipe(map(() => updated))),
         ),
-      )
-      .subscribe({
-        next: updated => {
-          this.replace(updated);
-          this.markBusy(noteId, false);
-          this.pollAttachments(ATTACH_POLLS);
-        },
-        error: err => {
-          this._actionError.set(toApiError(err).message);
-          this.markBusy(noteId, false);
-        },
-      });
+      ),
+    );
   }
 
   /** DELETE del adjunto (204) + recarga para reflejar el cambio. */
@@ -312,12 +356,15 @@ export class ClientNotesStore {
 
   // ---------- Internos ----------
 
-  private runAction(id: string, action: Observable<NoteResponse>): void {
+  private runAction(id: string, action: Observable<NoteResponse>, successMessage?: string): void {
     this.markBusy(id, true);
     action.subscribe({
       next: updated => {
         this.replace(updated);
         this.markBusy(id, false);
+        if (successMessage) {
+          this.toast.success(successMessage);
+        }
       },
       error: err => {
         this._actionError.set(toApiError(err).message);
@@ -337,44 +384,6 @@ export class ClientNotesStore {
         next.add(id);
       } else {
         next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  /**
-   * Nombres de autores: el usuario logueado (siempre disponible) + GET /auth/users
-   * best-effort. Sin `users.view` el listado responde 403 y las notas ajenas quedan como
-   * "Team member" — no hay otra fuente de nombres en el contrato de Notes.
-   */
-  private loadUserNamesOnce(): void {
-    if (this.userNamesLoaded) {
-      return;
-    }
-    this.userNamesLoaded = true;
-
-    const me = this.auth.currentUser();
-    if (me) {
-      this.mergeUserNames([[me.id, `${me.name} ${me.lastName}`.trim()]]);
-    }
-
-    this.service.listUsers().subscribe({
-      next: result => this.mergeUserNames(result.items.map(user => [user.id, `${user.name} ${user.lastName}`.trim()])),
-      error: err =>
-        console.warn('Client notes: no se pudieron resolver nombres de autores:', toApiError(err).message),
-    });
-  }
-
-  private mergeUserNames(entries: Array<[string, string]>): void {
-    if (entries.length === 0) {
-      return;
-    }
-    this._userNames.update(current => {
-      const next = new Map(current);
-      for (const [id, name] of entries) {
-        if (name) {
-          next.set(id, name);
-        }
       }
       return next;
     });

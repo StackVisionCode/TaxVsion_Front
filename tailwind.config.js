@@ -134,6 +134,10 @@ module.exports = {
         /** Sombra cálida mínima de las tarjetas sobre el canvas crema. */
         card: '0 1px 2px rgb(60 45 20 / 0.04), 0 8px 24px -12px rgb(60 45 20 / 0.10)',
       },
+      fontFamily: {
+        script1: ['Dancing Script', 'cursive'],
+        script2: ['Caveat', 'cursive'],
+      },
     },
   },
   plugins: [],

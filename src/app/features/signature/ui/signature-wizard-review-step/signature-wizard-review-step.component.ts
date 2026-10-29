@@ -23,6 +23,7 @@ import {
 import { SignatureCategory } from '../../data-access/signature.model';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import {
   ToggleableRule,
@@ -56,7 +57,7 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
  */
 @Component({
   selector: 'app-signature-wizard-review-step',
-  imports: [
+  imports: [AvatarUrlPipe, 
     CommonModule,
     FormsModule,
     SignatureCategoryPickerComponent,

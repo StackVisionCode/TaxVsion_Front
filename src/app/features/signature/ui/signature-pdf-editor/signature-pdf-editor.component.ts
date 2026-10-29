@@ -60,6 +60,7 @@ import {
 } from '../signature-request-panel/signature-wizard.presenter';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import {
   DropdownMenuComponent,
   MenuItemDirective,
@@ -117,7 +118,7 @@ import {
   resetGhost,
   setGhostPosition,
   startPaletteDrag,
-} from '../../utils/palette-drag.util';
+} from '@shared/utils/palette-drag.util';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -242,7 +243,7 @@ export interface NormalizedPlacedField {
  */
 @Component({
   selector: 'app-signature-pdf-editor',
-  imports: [InfinityLoaderComponent, 
+  imports: [AvatarUrlPipe, InfinityLoaderComponent, 
     CommonModule,
     FormsModule,
     ModalComponent,

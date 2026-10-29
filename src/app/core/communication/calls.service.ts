@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
-import { SocketAck } from '@core/realtime/realtime.model';
+import { SocketAck, USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import {
   CallKind,
   CallMediaStatusDto,
@@ -129,6 +129,10 @@ export class CallsService {
   }
   onStateChanged(): Observable<CallStateDto> {
     return this.realtime.on<CallStateDto>('call.state_changed');
+  }
+  /** Un miembro del staff cambió su foto o nombre (refresca al par de la llamada en vivo). */
+  onUserProfileChanged(): Observable<UserProfileChangedEvent> {
+    return this.realtime.on<UserProfileChangedEvent>(USER_PROFILE_CHANGED_EVENT);
   }
   onPeerJoined(): Observable<CallPeerDto> {
     return this.realtime.on<CallPeerDto>('call.peer_joined');

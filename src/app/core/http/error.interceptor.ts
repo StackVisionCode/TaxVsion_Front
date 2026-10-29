@@ -9,6 +9,7 @@ import { SubscriptionStatusStore } from '@core/billing/subscription-status.store
 import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { readThrottle } from '@core/errors/throttling';
 import { isModuleUnavailable, missingModule, toApiError } from '@core/models/api-error.model';
+import { READ_ONLY_REQUEST } from './read-only-request';
 
 /**
  * Endpoints anónimos: un 401 aquí es un fallo legítimo, no dispara refresh. Los de token por correo (reset,
@@ -24,7 +25,7 @@ const ANON_AUTH_ENDPOINTS = [
   '/auth/invitations/accept',
 ];
 
-/** Un GET rechazado por rate limit/load shedding con una espera corta se reintenta una vez, sin avisar. */
+/** Un GET (o POST de solo lectura) rechazado por rate limit/load shedding con espera corta se reintenta una vez, sin avisar. */
 const MAX_AUTO_RETRY_SECONDS = 5;
 const THROTTLE_RETRIED = new HttpContextToken<boolean>(() => false);
 
@@ -62,7 +63,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     const throttle = readThrottle(err);
     if (throttle) {
       const canRetry =
-        request.method === 'GET' &&
+        (request.method === 'GET' || request.context.get(READ_ONLY_REQUEST)) &&
         !request.context.get(THROTTLE_RETRIED) &&
         throttle.retryAfterSeconds !== null &&
         throttle.retryAfterSeconds <= MAX_AUTO_RETRY_SECONDS;

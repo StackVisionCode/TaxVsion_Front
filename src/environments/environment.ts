@@ -21,4 +21,16 @@ export const environment: Environment = {
   // login central cliente end-to-end. En prod se ignora.
   portalDevUrl: 'http://localhost:4300',
   signatureAutosaveEnabled: true,
+  firebase: {
+    config: {
+      apiKey: 'AIzaSyAF71h1RYTK7lflut3J7VHQiJ_LRgWKL9k',
+      authDomain: 'taxproffice-8a46a.firebaseapp.com',
+      projectId: 'taxproffice-8a46a',
+      storageBucket: 'taxproffice-8a46a.firebasestorage.app',
+      messagingSenderId: '724612976273',
+      appId: '1:724612976273:web:73346447648f1b1cd2f930',
+    },
+    vapidKey:
+      'BCUQGRcewtVXeeTAupuqVhB9S9_IV3ao0IQqHlg-b1hRKqknIk8IktmRG-z65MFgOCMP3R_jBdAmEnuG8fOnNSY',
+  },
 };

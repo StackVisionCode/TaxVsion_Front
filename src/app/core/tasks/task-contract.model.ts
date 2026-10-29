@@ -369,40 +369,6 @@ export interface EmployeeDirectoryEntry {
   email: string;
   isActive: boolean;
   actorType: string;
-}
-
-// ---------- Helpers de presentación (avatar estable por usuario) ----------
-
-const AVATAR_COLORS = [
-  'bg-brand-bold',
-  'bg-sky-700',
-  'bg-brand-ink',
-  'bg-slate-500',
-  'bg-indigo-400',
-  'bg-cyan-800',
-  'bg-slate-700',
-  'bg-indigo-600',
-];
-
-/** Color estable por usuario: hash simple del userId sobre la paleta de avatares. */
-export function avatarColorFor(userId: string): string {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-export function initialsFor(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(part => part.length > 0);
-  if (parts.length === 0) {
-    return '?';
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  /** Foto (Communication F5). Ausente = no se sabe; null = sin foto. */
+  avatarFileId?: string | null;
 }

@@ -18,6 +18,7 @@ import { IceServer } from './call.model';
 import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
 
 import { ActiveMeetingPhase, MeetingSessionState } from './meeting-session-state';
+import { applyProfileChangeToRoster, mergeMeetingParticipant, mergeMeetingRoster } from './meeting-participants.util';
 
 // Re-export: el tipo vive en meeting-session-state (liviano, usado por el shell).
 export type { ActiveMeetingPhase };
@@ -176,6 +177,11 @@ export class ActiveMeetingService {
     // ack del join → lo aplica `join()`); este evento solo se emite al ADMITIR desde la sala de
     // espera. Se deja suscrito para esa transición waiting→joined y como fallback idempotente.
     this.rtc.onSnapshot().subscribe(snap => this.applySnapshot(snap));
+
+    // Foto/nombre del staff en vivo: se parchea el roster por userId.
+    this.rtc.onUserProfileChanged().subscribe(change =>
+      this.participants.update(list => applyProfileChangeToRoster(list, change)),
+    );
 
     // Reconnect transparente del socket (churn del tunnel): si seguimos dentro de un meeting, re-unir
     // la room `m:` para no perder participantes/controles/señalización. La media mesh sigue viva; solo
@@ -351,7 +357,7 @@ export class ActiveMeetingService {
     }
     this.yourRole.set(snap.yourRole);
     this.isLocked.set(snap.isLocked);
-    this.participants.set(snap.participants);
+    this.participants.set(mergeMeetingRoster(this.participants(), snap.participants));
     if (this.phase() !== 'joined') {
       this.sounds.play('join');
     }
@@ -397,7 +403,9 @@ export class ActiveMeetingService {
       if (participant.status === 'Left' || participant.status === 'Removed') {
         return rest;
       }
-      return [...rest, participant].sort((a, b) => a.joinOrder - b.joinOrder);
+      // Los cambios de media/mano llegan sin foto: se conserva la que ya se tenía.
+      const merged = mergeMeetingParticipant(list.find(p => p.userId === participant.userId), participant);
+      return [...rest, merged].sort((a, b) => a.joinOrder - b.joinOrder);
     });
   }
 
@@ -523,7 +531,7 @@ export class ActiveMeetingService {
       }
       this.yourRole.set(snapshot.yourRole);
       this.isLocked.set(snapshot.isLocked);
-      this.participants.set(snapshot.participants);
+      this.participants.set(mergeMeetingRoster(this.participants(), snapshot.participants));
       this.reconcileMeshPeers(snapshot.participants);
     } catch {
       // Best-effort: si el rejoin falla (ya no sos participante / meeting terminó), no rompemos el

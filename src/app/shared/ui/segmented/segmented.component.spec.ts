@@ -21,4 +21,71 @@ describe('SegmentedComponent', () => {
     buttons[1].click();
     expect(emitted).toEqual(['contacts']);
   });
+
+  it('apila las opciones en rejilla con columns para no desbordar', () => {
+    TestBed.configureTestingModule({ imports: [SegmentedComponent] });
+    const fixture = TestBed.createComponent(SegmentedComponent<string>);
+    fixture.componentRef.setInput('options', [
+      { id: 'a', label: 'Caption' },
+      { id: 'b', label: 'UI' },
+      { id: 'c', label: 'Body' },
+      { id: 'd', label: 'H3' },
+    ]);
+    fixture.componentRef.setInput('columns', 3);
+    fixture.detectChanges();
+    const track = fixture.nativeElement.querySelector('[role="tablist"]') as HTMLElement;
+    expect(track.classList.contains('grid')).toBe(true);
+    expect(track.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
+    expect((fixture.nativeElement as HTMLElement).classList.contains('w-full')).toBe(true);
+  });
+});
+
+describe('SegmentedComponent keyboard', () => {
+  it('moves the selection with the arrow keys and keeps a roving tabindex', () => {
+    TestBed.configureTestingModule({ imports: [SegmentedComponent] });
+    const fixture = TestBed.createComponent(SegmentedComponent<string>);
+    fixture.componentRef.setInput('options', [
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B' },
+      { id: 'c', label: 'C' },
+    ]);
+    fixture.componentRef.setInput('value', 'a');
+    fixture.componentRef.setInput('controls', 'panel-1');
+    fixture.detectChanges();
+    const emitted: string[] = [];
+    fixture.componentInstance.valueChange.subscribe((value) => emitted.push(value));
+    const track = fixture.nativeElement.querySelector('[role="tablist"]') as HTMLElement;
+    const tabs = Array.from(track.querySelectorAll('button')) as HTMLButtonElement[];
+    expect(tabs.map((tab) => tab.getAttribute('tabindex'))).toEqual(['0', '-1', '-1']);
+    expect(tabs[0].getAttribute('aria-controls')).toBe('panel-1');
+
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'End' }));
+    track.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    expect(emitted).toEqual(['b', 'c', 'c']);
+  });
+});
+
+describe('SegmentedComponent radio mode', () => {
+  it('uses radiogroup/radio semantics with aria-checked and renders option icons', () => {
+    TestBed.configureTestingModule({ imports: [SegmentedComponent] });
+    const fixture = TestBed.createComponent(SegmentedComponent<string>);
+    fixture.componentRef.setInput('options', [
+      { id: 'team', label: 'Team', icon: 'people-outline' },
+      { id: 'client', label: 'Visible to client', icon: 'eye-outline' },
+    ]);
+    fixture.componentRef.setInput('value', 'team');
+    fixture.componentRef.setInput('mode', 'radio');
+    fixture.detectChanges();
+    const group = fixture.nativeElement.querySelector('[role="radiogroup"]') as HTMLElement;
+    const radios = Array.from(group.querySelectorAll('[role="radio"]')) as HTMLButtonElement[];
+    expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    expect(radios[0].hasAttribute('aria-selected')).toBe(false);
+    expect((radios[1].querySelector('ion-icon') as unknown as { name: string }).name).toBe('eye-outline');
+
+    const emitted: string[] = [];
+    fixture.componentInstance.valueChange.subscribe((value) => emitted.push(value));
+    group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    expect(emitted).toEqual(['client']);
+  });
 });

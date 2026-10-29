@@ -5,9 +5,10 @@
     <div *ngIf="client as c" class="mt-3 flex items-center gap-3">
       <app-avatar
         [name]="c.displayName"
+        [seed]="c.id"
+        [imageUrl]="c.avatarFileId | avatarUrl"
         size="lg"
         sizeClass="h-12 w-12 text-sm"
-        colorClass="bg-brand-bold"
       />
       <div class="min-w-0">
         <p class="flex items-center gap-2">

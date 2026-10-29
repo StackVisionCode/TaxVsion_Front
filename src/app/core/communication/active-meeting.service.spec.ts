@@ -50,6 +50,7 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     join: vi.fn().mockResolvedValue(joinAck),
     onSnapshot: noop,
     onParticipantChanged: noop,
+    onUserProfileChanged: noop,
     onSignalFrom: noop,
     onMutedByHost: noop,
     onChatMessageNew: noop,
@@ -166,5 +167,28 @@ describe('ActiveMeetingService (mini-player support)', () => {
     service.closeEnded();
     expect(service.phase()).toBe('idle');
     expect(service.pinnedUserId()).toBeNull();
+  });
+
+  it('keeps participant photos across media-only changes and applies user.profile.changed', async () => {
+    const changed = new Subject<unknown>();
+    const profile = new Subject<unknown>();
+    const snapshot = soloSnapshot();
+    snapshot.participants[0] = { ...snapshot.participants[0], avatarFileId: 'f-me' };
+    const rtc = {
+      ...fakeRtc({ requiresAdmission: false, snapshot }),
+      onParticipantChanged: () => changed,
+      onUserProfileChanged: () => profile,
+    };
+    const { service } = configureWith(rtc);
+    await service.join('m1', 'Consulta');
+    expect(service.participants()[0].avatarFileId).toBe('f-me');
+
+    // participant.changed de media llega sin foto: se conserva.
+    const { avatarFileId: _omit, ...withoutPhoto } = snapshot.participants[0];
+    changed.next({ meetingId: 'm1', participant: { ...withoutPhoto, audioEnabled: false } });
+    expect(service.participants()[0]).toMatchObject({ audioEnabled: false, avatarFileId: 'f-me' });
+
+    profile.next({ userId: 'me', displayName: 'Me', avatarFileId: 'f-me-2' });
+    expect(service.participants()[0].avatarFileId).toBe('f-me-2');
   });
 });

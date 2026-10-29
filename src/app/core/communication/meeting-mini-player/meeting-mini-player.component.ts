@@ -14,6 +14,7 @@ import { NgClass } from '@angular/common';
 import { Router } from '@angular/router';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { ActiveMeetingService } from '../active-meeting.service';
 import { MeetingActiveSpeakerService } from '../meeting-active-speaker.service';
@@ -48,7 +49,7 @@ const DESKTOP_MIN_WIDTH = 640;
  */
 @Component({
   selector: 'app-meeting-mini-player',
-  imports: [InfinityLoaderComponent, NgClass, SrcObjectDirective, AvatarComponent, ConfirmDialogComponent],
+  imports: [InfinityLoaderComponent, NgClass, SrcObjectDirective, AvatarComponent, AvatarUrlPipe, ConfirmDialogComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-mini-player.component.html',
 })

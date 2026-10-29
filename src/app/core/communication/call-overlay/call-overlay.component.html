@@ -44,9 +44,8 @@
 
       <!-- Placeholder cuando el par no envía video (conectando, o audio-only) -->
       <div *ngIf="showRemotePlaceholder()" class="absolute inset-0 flex flex-col items-center justify-center gap-2">
-        <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-lg font-bold">
-          {{ initials(peerDisplayName()) }}
-        </span>
+        <app-avatar class="rounded-full ring-2 ring-white/20" [name]="peerDisplayName() || 'Contact'" [seed]="peerUserId()"
+          [imageUrl]="peerAvatarUrl()" sizeClass="h-14 w-14 text-lg" />
         <span class="text-xs text-white/70">{{ isConnecting() ? 'Connecting…' : (peerDisplayName() || 'Contact') }}</span>
       </div>
 
@@ -122,9 +121,8 @@
   role="dialog" aria-live="polite" [attr.aria-label]="statusLabel() + ' with ' + (peerDisplayName() || 'contact')">
   <div class="rounded-3xl bg-brand-bold p-5 text-white shadow-2xl">
     <div class="flex items-center gap-3">
-      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 text-base font-bold">
-        {{ initials(peerDisplayName()) }}
-      </span>
+      <app-avatar class="rounded-full ring-2 ring-white/20" [name]="peerDisplayName() || 'Contact'" [seed]="peerUserId()"
+        [imageUrl]="peerAvatarUrl()" sizeClass="h-12 w-12 text-base" />
       <div class="min-w-0 flex-1">
         <p class="truncate text-base font-semibold">{{ peerDisplayName() || 'Contact' }}</p>
         <p class="flex items-center gap-1.5 text-xs text-white/70">

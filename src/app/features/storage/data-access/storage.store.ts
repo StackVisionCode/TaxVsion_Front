@@ -338,6 +338,7 @@ export class StorageStore {
       status: link.status,
       sharedByName,
       sharedById: link.createdByUserId,
+      sharedByAvatarFileId: sharer?.avatarFileId ?? null,
       sharedAtUtc: link.createdAtUtc,
       sizeBytes: file?.sizeBytes ?? null,
       canDownload:

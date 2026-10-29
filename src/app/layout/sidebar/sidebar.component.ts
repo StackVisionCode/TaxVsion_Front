@@ -75,6 +75,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
   private readonly access = inject(AccessStore);
   private readonly destroy$ = new Subject<void>();
+  private readonly clientFormsAvailable = signal(false);
 
   /** Refleja los no-leídos del chat en el badge del item Chat (en vivo). */
   private readonly chatBadgeEffect = effect(() => {
@@ -151,6 +152,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     { label: 'Dashboard', icon: 'speedometer-outline', route: '/dashboard', featureId: 'dashboard', isActive: false },
     { label: 'Mail', icon: 'mail-outline', route: '/email', featureId: 'email' },
     { label: 'Task', icon: 'checkmark-done-outline', route: '/task', featureId: 'task' },
+    { label: 'Client Forms', icon: 'layers-outline', route: '/client-forms', featureId: 'client-forms' },
     { label: 'Clients', icon: 'people-outline', route: '/clients', featureId: 'clients' },
     { label: 'Documents', icon: 'document-text-outline', route: '/documents', featureId: 'documents' },
     { label: 'Billing', icon: 'receipt-outline', route: '/billing', featureId: 'billing' },
@@ -180,6 +182,19 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly visibleItems = computed(() => this.menuItems().filter(item => this.canShowItem(item)));
 
   ngOnInit(): void {
+    if (this.access.canUseId('client-forms')) {
+      void import('@features/client-forms/data-access/form-templates.service').then(({ FormTemplatesService }) => {
+        if (this.destroyRef.destroyed) return;
+        this.injector
+          .get(FormTemplatesService)
+          .availability()
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
+            next: availability => this.clientFormsAvailable.set(availability.enabled),
+            error: () => this.clientFormsAvailable.set(false),
+          });
+      });
+    }
     // La sidebar arranca YA en su estado final. Antes se expandía en un setTimeout DESPUÉS
     // del primer render, así que en cada carga se veía colapsada y "saltaba" a ancha.
     // `isMobile` es un @Input, y los inputs ya están resueltos cuando corre ngOnInit.
@@ -280,6 +295,7 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canShowItem(item: MenuItem): boolean {
+    if (item.featureId === 'client-forms' && !this.clientFormsAvailable()) return false;
     return this.access.canUseId(item.featureId);
   }
 

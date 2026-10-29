@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnChanges, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   CdkDragDrop,
@@ -9,6 +9,7 @@ import {
 import { ApiTaskPriority, TASK_COLUMNS, TaskItem, TaskStatus } from '../../data-access/task.model';
 import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 
 /**
  * Tablero Kanban del módulo Task (estilo "Aether"): 4 columnas fijas (Not
@@ -31,6 +32,8 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
   styleUrl: './task-board.component.css',
 })
 export class TaskBoardComponent implements OnChanges {
+  /** Fotos del staff (directorio compartido; lo carga TaskStore.init). */
+  protected readonly staff = inject(StaffDirectoryStore);
   @Input() tasks: TaskItem[] = [];
   /** Renombres de columna por tenant (label del catálogo). null = nombres por defecto. */
   @Input() labelOverrides: ReadonlyMap<TaskStatus, string> | null = null;

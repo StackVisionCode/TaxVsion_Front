@@ -59,4 +59,13 @@ describe('DropzoneComponent', () => {
     button.click();
     expect(opened).toHaveBeenCalledTimes(1);
   });
+
+  it('deja el input de archivos alcanzable con teclado y con nombre propio si se le pasa', () => {
+    const { el } = setup({ inputLabel: 'Browse files for W-2' });
+    const input = el.querySelector('input[type=file]') as HTMLInputElement;
+    expect(input.classList.contains('hidden')).toBe(false);
+    expect(input.classList.contains('sr-only')).toBe(true);
+    expect(input.getAttribute('aria-label')).toBe('Browse files for W-2');
+    expect((input.closest('label') as HTMLElement).className).toContain('focus-within:ring-2');
+  });
 });

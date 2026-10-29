@@ -1,0 +1,76 @@
+<div class="space-y-4">
+  @for (row of rows; track row.rowId; let rowIndex = $index) {
+    <fieldset
+      class="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+      [attr.data-dc-row-id]="row.rowId"
+    >
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <legend class="px-1 text-sm font-semibold text-gray-900">
+          {{ section.repeat?.rowLabel || 'Row' }} {{ rowIndex + 1 }}
+        </legend>
+        @if (!readonly && rows.length > (section.repeat?.minRows ?? 0)) {
+          <button
+            type="button"
+            class="min-h-11 rounded-full px-2 text-sm font-semibold text-red-700"
+            (click)="requestRemove(row.rowId, rowIndex)"
+          >
+            Remove
+          </button>
+        }
+      </div>
+      <div class="grid gap-5 sm:grid-cols-2">
+        @for (component of section.components; track component.id) {
+          @if (visibility.isRowVisible(component.id, row.rowId)) {
+            <app-dc-field
+              class="block"
+              [component]="component"
+              [value]="row.values[component.id]"
+              [rowId]="row.rowId"
+              [mode]="mode"
+              [required]="required(component, row)"
+              [issues]="componentIssues(component.id, row.rowId)"
+              [attachments]="componentAttachments(component.id, row.rowId)"
+              [prefilled]="prefilledIds.includes(component.id)"
+              (valueChange)="updateRow(row.rowId, component.id, $event)"
+              (fileSelected)="
+                fileSelected.emit({ componentId: component.id, rowId: row.rowId, files: $event })
+              "
+              (fileRemoved)="fileRemoved.emit($event)"
+              (sensitiveEntered)="
+                sensitiveEntered.emit({
+                  componentId: component.id,
+                  rowId: row.rowId,
+                  kind: $event.kind,
+                  value: $event.value,
+                })
+              "
+              (consentRequested)="
+                consentRequested.emit({ componentId: component.id, rowId: row.rowId })
+              "
+            />
+          }
+        }
+      </div>
+    </fieldset>
+  }
+  @if (canAdd) {
+    <button
+      #addButton
+      type="button"
+      class="min-h-11 rounded-full border border-brand-bold px-4 py-2 text-sm font-semibold text-brand-bold hover:bg-brand-surface"
+      (click)="addRow()"
+    >
+      + {{ section.repeat?.addLabel || 'Add row' }}
+    </button>
+  }
+  <p class="sr-only" aria-live="polite">{{ announcement }}</p>
+</div>
+
+<app-confirm-dialog
+  [isOpen]="pendingRemoval !== null"
+  heading="Remove this row?"
+  message="The answers in this row will be removed."
+  confirmLabel="Remove row"
+  (confirmed)="confirmRemove()"
+  (cancelled)="cancelRemove()"
+/>

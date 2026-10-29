@@ -46,7 +46,7 @@
         <td class="px-4 py-3.5 transition-colors group-hover:bg-gray-50" [class.bg-indigo-50]="isSelected(client)"
           [class.border-b]="!last" [class.border-gray-100]="!last">
           <span class="flex items-center gap-3">
-            <app-avatar [name]="client.displayName" [seed]="client.id" sizeClass="h-9 w-9 text-xs" />
+            <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" />
             <span class="font-medium text-gray-900 group-hover:text-brand-bold transition-colors">{{ client.displayName }}</span>
           </span>
         </td>
@@ -58,7 +58,7 @@
               <span class="flex items-center">
                 @for (m of a.shown; track m.userId) {
                   <app-avatar class="-ml-1.5 rounded-full ring-2 ring-white first:ml-0" [name]="m.name" [seed]="m.userId"
-                    sizeClass="h-7 w-7 text-[0.625rem]" [attr.title]="m.name" />
+                    [imageUrl]="m.avatarFileId | avatarUrl" sizeClass="h-7 w-7 text-[0.625rem]" [attr.title]="m.name" />
                 }
                 @if (a.extra > 0) {
                   <span class="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-[0.625rem] font-semibold text-gray-600 ring-2 ring-white">+{{ a.extra }}</span>
@@ -124,7 +124,7 @@
       <input type="checkbox" class="h-4 w-4 flex-none accent-brand-bold" [checked]="isSelected(client)"
         (change)="onSelectRow(client, $event)" [attr.aria-label]="'Select ' + client.displayName" />
       <a [routerLink]="['/clients', client.id]" class="flex min-w-0 flex-1 items-center gap-3">
-        <app-avatar [name]="client.displayName" [seed]="client.id" size="md" />
+        <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" size="md" />
         <span class="min-w-0">
           <span class="block truncate font-medium text-gray-900">{{ client.displayName }}</span>
           <span class="block truncate text-xs text-gray-500">{{ client.email }}</span>

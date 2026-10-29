@@ -1,0 +1,54 @@
+<div class="flex items-center gap-4">
+  @if (canEdit()) {
+    <!-- Foto: clic en la cámara o soltar una imagen encima -->
+    <div class="cpe-photo relative shrink-0" (appFileDrop)="onDropped($event)" [multiple]="false"
+      [fileDropDisabled]="busy()" #photoDrop="appFileDrop" [class.cpe-photo--dragging]="photoDrop.dragging()">
+      <app-avatar [name]="client().displayName" [seed]="client().id" [imageUrl]="imageUrl()" sizeClass="h-14 w-14 text-lg" />
+      @if (busy()) {
+        <span class="absolute inset-0 flex items-center justify-center rounded-full bg-gray-900/55 text-white" aria-hidden="true">
+          <ion-icon name="sync-outline" class="cpe-spinner text-lg"></ion-icon>
+        </span>
+      }
+      <button #photoButton type="button" (click)="openPicker()" [disabled]="busy()"
+        [attr.aria-label]="hasPhoto() ? 'Change client photo' : 'Upload client photo'"
+        [attr.title]="hasPhoto() ? 'Change photo' : 'Upload photo'"
+        class="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-brand-bold text-white shadow-sm transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold disabled:cursor-not-allowed disabled:opacity-60">
+        <ion-icon name="camera" class="text-xs" aria-hidden="true"></ion-icon>
+      </button>
+      <input #photoInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" [accept]="accept"
+        (change)="onSelected($event)" />
+    </div>
+  } @else {
+    <app-avatar [name]="client().displayName" [seed]="client().id" [imageUrl]="imageUrl()" sizeClass="h-14 w-14 text-lg" />
+  }
+  <ng-content />
+</div>
+
+@if (canEdit()) {
+  <!-- Acciones de la foto + estado anunciado a lectores de pantalla -->
+  <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+    <button type="button" (click)="openPicker()" [disabled]="busy()"
+      class="inline-flex items-center gap-1 font-medium text-brand-bold hover:underline disabled:cursor-not-allowed disabled:opacity-60">
+      <ion-icon name="cloud-upload-outline" aria-hidden="true"></ion-icon>
+      {{ hasPhoto() ? 'Change photo' : 'Upload photo' }}
+    </button>
+    @if (hasPhoto()) {
+      <button type="button" (click)="removeOpen.set(true)" [disabled]="busy()"
+        class="inline-flex items-center gap-1 font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60">
+        <ion-icon name="trash-outline" aria-hidden="true"></ion-icon>
+        Remove photo
+      </button>
+    }
+    <span class="text-gray-500" role="status" aria-live="polite">{{ statusLabel() }}</span>
+  </div>
+  @if (error(); as err) {
+    <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
+      <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>{{ err }}
+    </p>
+  }
+
+  <app-confirm-dialog [isOpen]="removeOpen()" heading="Remove client photo?"
+    message="The client's photo will be removed and their initials will be shown instead. The client will see this change in their portal too."
+    confirmLabel="Remove" busyLabel="Removing…" [busy]="status() === 'removing'" icon="trash-outline"
+    (confirmed)="confirmRemove()" (cancelled)="closeRemove()" />
+}

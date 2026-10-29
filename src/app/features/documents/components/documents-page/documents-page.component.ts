@@ -7,6 +7,7 @@ import { ClickOutsideDirective } from '@shared/directives/click-outside.directiv
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { ClipboardService } from '@shared/services/clipboard.service';
@@ -66,6 +67,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
     StateBlockComponent,
     PaginationComponent,
     AvatarComponent,
+    AvatarUrlPipe,
     SearchInputComponent,
     FilterChipsComponent,
     ConfirmDialogComponent,
@@ -165,6 +167,9 @@ export class DocumentsPageComponent implements OnInit {
   readonly newFolderOpen = signal(false);
   readonly renameTarget = signal<FolderResponse | null>(null);
   readonly moveTarget = signal<MoveTarget | null>(null);
+  readonly copyTarget = signal<FileResponse | null>(null);
+  readonly copyTaxYear = signal(new Date().getFullYear());
+  readonly copyTaxYears = Array.from({ length: 8 }, (_, index) => new Date().getFullYear() - index);
   readonly shareTarget = signal<FileResponse | null>(null);
   readonly shareFolderTarget = signal<FolderResponse | null>(null);
   /** Link pendiente de revocar; abre el confirm-dialog compartido (id del share). */
@@ -360,6 +365,10 @@ export class DocumentsPageComponent implements OnInit {
       case 'move-file':
         this.openMove({ file: action.file });
         break;
+      case 'copy-to-documents':
+        this.copyTarget.set(action.file);
+        this.copyTaxYear.set(new Date().getFullYear());
+        break;
       case 'delete-file':
         this.store.deleteFile(action.file.id);
         break;
@@ -372,6 +381,19 @@ export class DocumentsPageComponent implements OnInit {
         });
         break;
     }
+  }
+
+  updateCopyTaxYear(event: Event): void {
+    this.copyTaxYear.set(Number((event.target as HTMLSelectElement).value));
+  }
+
+  confirmCopyToDocuments(): void {
+    const file = this.copyTarget();
+    if (!file) {
+      return;
+    }
+    this.store.copyToDocuments(file, this.copyTaxYear());
+    this.copyTarget.set(null);
   }
 
   // ---------- Toolbar: filtros / orden / vista ----------

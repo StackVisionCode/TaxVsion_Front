@@ -5,6 +5,7 @@ import { PaginationComponent } from '@shared/ui/pagination/pagination.component'
 import { UsedStorageCardComponent } from '@shared/ui/used-storage-card/used-storage-card.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { formatBytes } from '@shared/utils/format.util';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -49,6 +50,7 @@ export interface CategoryFileRow {
     UsedStorageCardComponent,
     StateBlockComponent,
     AvatarComponent,
+    AvatarUrlPipe,
     FileViewerComponent,
     CloudProviderConnectionsComponent,
     StorageUsagePolicyComponent,

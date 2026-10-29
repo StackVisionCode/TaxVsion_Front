@@ -16,7 +16,7 @@
         <td class="px-4 py-3.5 group-hover:bg-gray-50 transition-colors rounded-l-2xl" [class.border-b]="!last"
           [class.border-gray-100]="!last">
           <span class="flex items-center gap-3">
-            <app-avatar [name]="member.name" [colorClass]="member.avatarColor" sizeClass="h-9 w-9 text-xs" />
+            <app-avatar [name]="member.name" [colorClass]="member.avatarColor" [imageUrl]="member.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" />
             <span class="flex flex-col items-start gap-1">
               <span class="font-medium text-gray-900">{{ member.name }}</span>
               <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold"

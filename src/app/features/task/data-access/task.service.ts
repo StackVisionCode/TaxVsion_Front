@@ -32,7 +32,6 @@ import {
   TaskTaxonomiesResponse,
   UpsertTaskLabelRequest,
   TaskTimerResponse,
-  TaskUserSummary,
   StartTimerRequest,
   UpdateTaskDetailsRequest,
   WaitOnClientRequest,
@@ -54,7 +53,6 @@ interface SearchTasksParams {
  * documents-clients / chat-directory, sin imports cross-feature):
  *  - GET /communication/directory/employees → picker de asignado (q obligatorio, limit ≤ 25).
  *  - GET /customers → picker de cliente y resolución de nombres en tarjetas.
- *  - GET /auth/users → best-effort para nombres de asignados (requiere permiso users.view).
  */
 @Injectable({ providedIn: 'root' })
 export class TaskService {
@@ -330,13 +328,5 @@ export class TaskService {
       `${this.api.tenantUrl('/communication/directory')}/employees`,
       { params },
     );
-  }
-
-
-  /** GET /auth/users — nombres de asignados. Best-effort: sin permiso users.view devuelve 403.
-   *  size topado en 100: el backend valida `size between 1 and 100` y devolvía 400 con 200. */
-  listUsers(size = 100): Observable<PagedResult<TaskUserSummary>> {
-    const params = new HttpParams().set('page', 1).set('size', size);
-    return this.http.get<PagedResult<TaskUserSummary>>(this.api.tenantUrl('/auth/users'), { params });
   }
 }

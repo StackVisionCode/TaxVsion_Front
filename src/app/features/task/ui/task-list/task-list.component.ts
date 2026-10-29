@@ -7,11 +7,13 @@ import {
   Output,
   computed,
   signal,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiTaskPriority, TaskItem, TaskStatus } from '../../data-access/task.model';
 import { formatRelativeDue, priorityChipClass } from '@core/tasks/task-format';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 
 type SortKey = 'due' | 'priority' | 'title';
 
@@ -30,6 +32,8 @@ type SortKey = 'due' | 'priority' | 'title';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TaskListComponent {
+  /** Fotos del staff (directorio compartido; lo carga TaskStore.init). */
+  protected readonly staff = inject(StaffDirectoryStore);
   @Input() tasks: TaskItem[] = [];
   /** Línea del cliente en la fila; se oculta embebido en el perfil (todas son del mismo cliente). */
   @Input() showClient = true;

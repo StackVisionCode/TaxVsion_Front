@@ -15,6 +15,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { TaskStore } from '../../data-access/task.store';
@@ -48,7 +50,7 @@ interface AssigneeOption {
  */
 @Component({
   selector: 'app-task-create-panel',
-  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, CustomerPickerComponent, ClickOutsideDirective],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent, AvatarUrlPipe, CustomerPickerComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './task-create-panel.component.html',
 })
@@ -65,6 +67,8 @@ export class TaskCreatePanelComponent implements OnChanges {
   @Output() taskCancelled = new EventEmitter<{ task: TaskItem; reason: string }>();
 
   private readonly store = inject(TaskStore);
+  /** Foto del asignado elegido (directorio de staff compartido). */
+  protected readonly staff = inject(StaffDirectoryStore);
 
   /** Cliente fijado por el perfil (modo embebido): preselecciona y oculta el picker. */
   readonly lockedClient = this.store.lockedClient;

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { EMPTY, Observable, expand, reduce } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { PagedResult } from './clients.model';
 import {
@@ -8,7 +8,6 @@ import {
   ChangeNoteVisibilityRequest,
   CLIENT_NOTE_TARGET_TYPE,
   CreateNoteRequest,
-  NoteAuthorSummary,
   NoteColorKind,
   NoteResponse,
   NOTES_PAGE_SIZE,
@@ -42,6 +41,19 @@ export class ClientNotesService {
       .set('page', page)
       .set('size', size);
     return this.http.get<PagedResult<NoteResponse>>(this.base, { params });
+  }
+
+  /**
+   * Todas las páginas del cliente: la vista ordena fijadas, agrupa por día y filtra en el cliente,
+   * así que necesita el total (antes solo llegaba la primera página de 100).
+   */
+  listAllByClient(clientId: string, maxPages = 20): Observable<NoteResponse[]> {
+    return this.listByClient(clientId, 1).pipe(
+      expand(result =>
+        result.hasMore && result.page < maxPages ? this.listByClient(clientId, result.page + 1) : EMPTY,
+      ),
+      reduce((all, result) => [...all, ...result.items], [] as NoteResponse[]),
+    );
   }
 
   create(req: CreateNoteRequest): Observable<NoteResponse> {
@@ -95,15 +107,5 @@ export class ClientNotesService {
   /** DELETE /notes/{id}/attachments/{fileId} — desvincula un adjunto (autor + `notes.manage`). */
   detach(noteId: string, cloudStorageFileId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${noteId}/attachments/${cloudStorageFileId}`);
-  }
-
-  /**
-   * GET /auth/users — nombres de los autores. Best-effort exactamente igual que en Task:
-   * `NoteResponse` solo trae `createdByUserId` y sin el permiso `users.view` esto devuelve
-   * 403, en cuyo caso las tarjetas caen a "Team member".
-   */
-  listUsers(size = 200): Observable<PagedResult<NoteAuthorSummary>> {
-    const params = new HttpParams().set('page', 1).set('size', size);
-    return this.http.get<PagedResult<NoteAuthorSummary>>(this.api.tenantUrl('/auth/users'), { params });
   }
 }
