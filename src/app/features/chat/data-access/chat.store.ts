@@ -17,9 +17,25 @@ import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { MeetingSoundsService } from '@core/communication/meeting-sounds.service';
-import { ConversationSummary, CustomerDirectoryEntry, EmployeeDirectoryEntry, MessageDto, TypingDto } from './chat.model';
+import {
+  ChatParticipant,
+  ConversationSummary,
+  CustomerDirectoryEntry,
+  EmployeeDirectoryEntry,
+  MessageDto,
+  TypingDto,
+} from './chat.model';
+import type { UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
-import { avatarColorFor } from '@shared/utils/avatar.util';
+import {
+  addParticipant,
+  applyProfileChangeToConversation,
+  conversationAvatarColor,
+  peerOf,
+  seedAvatarsFromHistory,
+  toChatParticipants,
+  withParticipants,
+} from './chat-participants';
 import { chatStartErrorMessage } from './chat-start-error';
 
 /** Corta el "typing" saliente tras esta inactividad (además el server auto-expira). */
@@ -260,7 +276,11 @@ export class ChatStore {
         const ordered = [...page.items].reverse();
         const messages = ordered.map(dto => this.toMessage(dto, currentUserId));
         this._conversations.update(list =>
-          list.map(c => (c.id === id ? { ...c, messages, hasMoreHistory: page.nextBeforeUtc !== null } : c)),
+          list.map(c =>
+            c.id === id
+              ? seedAvatarsFromHistory({ ...c, messages, hasMoreHistory: page.nextBeforeUtc !== null }, page.items, currentUserId)
+              : c,
+          ),
         );
         this.historyCursorByConversation.set(id, page.nextBeforeUtc);
         const last = ordered[ordered.length - 1]; // más reciente
@@ -631,7 +651,11 @@ export class ChatStore {
             }
             const existing = new Set(c.messages.map(m => m.id));
             const deduped = older.filter(m => !existing.has(m.id));
-            return { ...c, messages: [...deduped, ...c.messages], hasMoreHistory: page.nextBeforeUtc !== null };
+            return seedAvatarsFromHistory(
+              { ...c, messages: [...deduped, ...c.messages], hasMoreHistory: page.nextBeforeUtc !== null },
+              page.items,
+              currentUserId,
+            );
           }),
         );
         this.historyCursorByConversation.set(id, page.nextBeforeUtc);
@@ -703,7 +727,7 @@ export class ChatStore {
   }
 
   async startDirectConversation(entry: EmployeeDirectoryEntry): Promise<boolean> {
-    return this.startDirectWith(entry.userId, entry.displayName);
+    return this.startDirectWith(entry.userId, entry.displayName, entry.avatarFileId);
   }
 
   /**
@@ -715,11 +739,15 @@ export class ChatStore {
     if (!entry.portalUserId) {
       return false;
     }
-    return this.startDirectWith(entry.portalUserId, entry.displayName);
+    return this.startDirectWith(entry.portalUserId, entry.displayName, entry.avatarFileId);
   }
 
   /** Núcleo compartido de start_direct (empleado o cliente): mismo comando, mismo optimismo/navegación. */
-  private async startDirectWith(recipientUserId: string, displayName: string): Promise<boolean> {
+  private async startDirectWith(
+    recipientUserId: string,
+    displayName: string,
+    avatarFileId?: string | null,
+  ): Promise<boolean> {
     this._creatingConversation.set(true);
     this._newConversationError.set(null);
     const ack = await this.socket.startDirectConversation(recipientUserId);
@@ -728,7 +756,11 @@ export class ChatStore {
       this._newConversationError.set(chatStartErrorMessage(ack.code, ack.message));
       return false;
     }
-    this.ensureOptimisticConversation(ack.value.conversationId, displayName);
+    this.ensureOptimisticConversation(ack.value.conversationId, displayName, {
+      userId: recipientUserId,
+      displayName,
+      ...(avatarFileId !== undefined ? { avatarFileId } : {}),
+    });
     this.selectConversation(ack.value.conversationId);
     return true;
   }
@@ -751,16 +783,19 @@ export class ChatStore {
   }
 
   /** El ack de start_direct/start_group no trae title/participants — se arma la fila con lo que ya elegimos en el picker. */
-  private ensureOptimisticConversation(id: string, name: string): void {
+  private ensureOptimisticConversation(id: string, name: string, peer?: ChatParticipant): void {
     if (this._conversations().some(c => c.id === id)) {
       return;
     }
+    // Con el par elegido en el picker ya hay foto y color correctos antes de re-leer la lista.
     const conversation: ChatConversation = {
       id,
       name,
       kind: 'Direct',
       peerUserId: null,
-      avatarColor: avatarColorFor(id),
+      avatarColor: conversationAvatarColor(id, peer?.userId),
+      avatarFileId: peer?.avatarFileId ?? null,
+      participants: peer ? [peer] : [],
       presence: 'Offline',
       busyReason: null,
       typingName: null,
@@ -779,13 +814,18 @@ export class ChatStore {
   ): ChatConversation {
     const others = summary.participants.filter(p => p.userId !== currentUserId);
     const other = others[0];
+    const participants = toChatParticipants(summary.participants);
+    const peer = peerOf(participants, currentUserId);
     return {
       id: summary.id,
       name: summary.title ?? other?.displayName ?? 'Conversation',
       kind: summary.kind,
       // Solo hay "par" en un 1:1 real (2 participantes) — en grupo no aplica llamar.
       peerUserId: others.length === 1 ? others[0].userId : null,
-      avatarColor: avatarColorFor(summary.id),
+      avatarColor: conversationAvatarColor(summary.id, peer?.userId),
+      // Foto del par en un 1:1; los grupos van con iniciales.
+      avatarFileId: peer?.avatarFileId ?? null,
+      participants,
       // Sin estado inicial confiable del backend (la lista no lo trae) — se actualiza en vivo vía chat.presence.changed.
       presence: 'Offline',
       busyReason: null,
@@ -809,6 +849,14 @@ export class ChatStore {
     return {
       id: dto.id,
       senderId: isMine ? 'me' : 'them',
+      // Remitente real de los ajenos: color por userId y foto (la vigente sale de los participantes).
+      ...(isMine
+        ? {}
+        : {
+            senderUserId: dto.senderId,
+            senderName: dto.senderDisplayName,
+            ...(dto.senderAvatarFileId !== undefined ? { senderAvatarFileId: dto.senderAvatarFileId } : {}),
+          }),
       // System = evento del sistema en el hilo (p.ej. "Missed call", "Call ended 2:34") → se pinta centrado.
       isSystem: !dto.isDeleted && dto.kind === 'System',
       text:
@@ -979,6 +1027,29 @@ export class ChatStore {
       }
     });
 
+    // Alguien sumó un miembro: si ya tengo la conversación entra con su foto; si me sumaron a mí, re-leo la lista.
+    this.socket.participantAdded$.subscribe(added => {
+      if (!added?.conversationId) {
+        return;
+      }
+      if (!this._conversations().some(c => c.id === added.conversationId)) {
+        this.refreshConversationList();
+        return;
+      }
+      const currentUserId = this.auth.currentUser()?.id ?? null;
+      const participant: ChatParticipant = {
+        userId: added.newParticipantUserId,
+        displayName: added.newParticipantDisplayName,
+        ...(added.newParticipantAvatarFileId !== undefined ? { avatarFileId: added.newParticipantAvatarFileId } : {}),
+      };
+      this._conversations.update(list =>
+        list.map(c => (c.id === added.conversationId ? addParticipant(c, participant, currentUserId) : c)),
+      );
+    });
+
+    // Un miembro del staff cambió su foto/nombre: se actualiza en todas las conversaciones donde participa.
+    this.socket.userProfileChanged$.subscribe(change => this.applyProfileChange(change));
+
     this.socket.messageEdited$.subscribe(edit => {
       this._conversations.update(list =>
         list.map(c =>
@@ -1067,6 +1138,19 @@ export class ChatStore {
     this.socket.reconnected$.subscribe(() => this.resync());
   }
 
+  /** Aplica `user.profile.changed` (match por userId; campo ausente = se conserva, null = sin foto). */
+  applyProfileChange(change: UserProfileChangedEvent | null | undefined): void {
+    if (!change?.userId) {
+      return;
+    }
+    const currentUserId = this.auth.currentUser()?.id ?? null;
+    const list = this._conversations();
+    const next = list.map(c => applyProfileChangeToConversation(c, change, currentUserId));
+    if (next.some((c, i) => c !== list[i])) {
+      this._conversations.set(next);
+    }
+  }
+
   /** Tras reconectar: refresca la lista y rellena el hilo activo con lo perdido durante el corte. */
   private resync(): void {
     this.refreshConversationList();
@@ -1109,7 +1193,13 @@ export class ChatStore {
           const prev = existing.get(summary.id);
           if (prev) {
             // Conserva mensajes/estado local; el hilo activo se mantiene en 0 (se marca leído aparte).
-            return { ...prev, unread: activeId === summary.id ? 0 : summary.unreadCount };
+            // Los participantes sí se refrescan (fotos nuevas), sin perder una foto si el DTO no la trae.
+            const participants = toChatParticipants(summary.participants, prev.participants);
+            return withParticipants(
+              { ...prev, unread: activeId === summary.id ? 0 : summary.unreadCount },
+              participants,
+              currentUserId,
+            );
           }
           return this.toConversation(summary, currentUserId, []);
         });

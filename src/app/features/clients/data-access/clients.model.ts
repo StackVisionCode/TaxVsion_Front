@@ -89,6 +89,8 @@ export interface CustomerSummary {
   /** userIds del staff asignado (M:N) — para los avatares del directorio. Opcional: el detalle (Customer)
    * comparte este shape pero no lo trae; el backend del listado sí lo envía siempre. */
   assigneeUserIds?: string[];
+  /** Foto del cliente (`/storage/avatars/{id}`). Ausente = backend anterior; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /** Un miembro del staff asignado a un cliente (IsPrimary = responsable). Viene en el detalle. */
@@ -128,6 +130,8 @@ export interface Customer {
    */
   emailEnabled: boolean;
   smsEnabled: boolean;
+  /** Foto confirmada del cliente; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 export interface AddressResponse {
@@ -220,6 +224,19 @@ export interface CustomerDetailResponse extends Customer {
   fiscalProfile?: CustomerFiscalProfileResponse | null;
   /** Staff asignado (M:N) con su rol — para el diálogo de asignación. */
   assignees?: CustomerAssignee[];
+  /** Foto nueva esperando el antivirus (la confirmada sigue en `avatarFileId`). */
+  pendingAvatarFileId?: string | null;
+  /** Estado de la última subida: "processing" mientras se revisa, "failed" si se descartó. */
+  avatarUploadStatus?: CustomerAvatarUploadStatus | null;
+}
+
+/** `avatarUploadStatus` del detalle del cliente. */
+export type CustomerAvatarUploadStatus = 'processing' | 'failed';
+
+/** 202 de PUT /customers/{id}/avatar: la foto queda pendiente del antivirus. */
+export interface CustomerAvatarUploadResponse {
+  fileId: string;
+  status: string;
 }
 
 export interface AddAddressRequest {
@@ -333,7 +350,6 @@ export interface UpdateCustomerRequest {
   language: CustomerLanguage;
   preferredChannel: PreferredChannel;
   occupationId?: string | null;
-  profilePictureFileId?: string | null;
   primaryEmail: string;
   primaryPhone?: string | null;
   firstName?: string | null;
@@ -417,6 +433,7 @@ export function summaryToClientItem(summary: CustomerSummary): ClientItem {
     isActive: summary.status === 'Active',
     createdAt: summary.createdAtUtc.slice(0, 10),
     assigneeUserIds: summary.assigneeUserIds ?? [],
+    avatarFileId: summary.avatarFileId ?? null,
   };
 }
 
@@ -466,9 +483,13 @@ export function customerToClientProfile(customer: CustomerDetailResponse): Clien
     emailEnabled: customer.emailEnabled ?? true,
     smsEnabled: customer.smsEnabled ?? true,
     isActive: base.isActive,
+    status: customer.status,
     createdAt: base.createdAt,
     individual: base.individual,
     company: base.company,
+    avatarFileId: customer.avatarFileId ?? null,
+    pendingAvatarFileId: customer.pendingAvatarFileId ?? null,
+    avatarUploadStatus: customer.avatarUploadStatus ?? null,
     addresses: customer.addresses ?? [],
     contactPoints: customer.contactPoints ?? [],
     relations,

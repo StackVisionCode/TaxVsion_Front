@@ -189,6 +189,8 @@ export class AppShellComponent implements OnInit, OnDestroy {
     // token. Sin esto, quitarle un permiso a alguien exigía pedirle que recargara la página.
     this.accessSync.start(this.destroyRef);
     void import('@features/chat/data-access/chat.store').then(m => this.injector.get(m.ChatStore).primeForBadge());
+    // Fotos y nombres del staff en vivo (`user.profile.changed`): directorio compartido, fuera del bundle inicial.
+    void import('@core/staff/staff-directory.store').then(m => this.injector.get(m.StaffDirectoryStore).startRealtime());
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((revokedSid) => {

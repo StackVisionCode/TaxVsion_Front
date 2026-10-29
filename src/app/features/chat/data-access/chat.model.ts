@@ -4,6 +4,27 @@ export interface ConversationParticipant {
   userId: string;
   displayName: string;
   isPrimaryPreparer: boolean;
+  /** Foto (`/storage/avatars/{id}`). Ausente = no se resolvió (conservar la conocida); null = sin foto. */
+  avatarFileId?: string | null;
+}
+
+/** Participante tal como lo guarda la vista (nombre + foto, actualizable en vivo). */
+export interface ChatParticipant {
+  userId: string;
+  displayName: string;
+  /** undefined = desconocida todavía; null = sin foto. */
+  avatarFileId?: string | null;
+}
+
+/** Payload de `chat.conversation.participant_added` (alguien sumó un miembro a un grupo). */
+export interface ConversationParticipantAddedDto {
+  conversationId: string;
+  addedByUserId: string;
+  newParticipantUserId: string;
+  newParticipantDisplayName: string;
+  /** Ausente si no se pudo resolver; null = sin foto. */
+  newParticipantAvatarFileId?: string | null;
+  addedAtUtc: string;
 }
 
 /** Fila de GET /communication/conversations. Sin preview de último mensaje — el backend no lo incluye. */
@@ -32,6 +53,8 @@ export interface MessageDto {
   conversationId: string;
   senderId: string;
   senderDisplayName: string;
+  /** Foto del remitente: solo en el historial (en `chat.message.new` no viene → se toma de los participantes). */
+  senderAvatarFileId?: string | null;
   kind: MessageKind;
   body: string | null;
   attachmentFileId: string | null;
@@ -129,6 +152,8 @@ export interface EmployeeDirectoryEntry {
   email: string;
   isActive: boolean;
   actorType: string;
+  /** Foto del empleado; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /**
@@ -143,6 +168,8 @@ export interface CustomerDirectoryEntry {
   email: string;
   isActive: boolean;
   portalUserId: string | null;
+  /** Foto de la ficha del cliente; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /** Payload de chat.message.attachment_flagged — CloudStorage marcó el adjunto como no disponible. */

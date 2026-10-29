@@ -45,6 +45,7 @@ import { ClientProfileFamilyComponent } from '../../ui/client-profile-family/cli
 import { ClientProfileRemindersComponent } from '../../ui/client-profile-reminders/client-profile-reminders.component';
 import { ClientProfileMileageComponent } from '../../ui/client-profile-mileage/client-profile-mileage.component';
 import { ClientProfilePortalComponent } from '../../ui/client-profile-portal/client-profile-portal.component';
+import { ClientPhotoEditorComponent } from '../../ui/client-photo-editor/client-photo-editor.component';
 import { ClientProfile } from '../../models/client-profile.model';
 import { ClientFormPanelComponent } from '../../ui/client-form-panel/client-form-panel.component';
 import { ClientItem } from '../../ui/client-table/client-table.component';
@@ -62,7 +63,7 @@ import {
   SaveFiscalPayload,
 } from '../../ui/client-fiscal-form/client-fiscal-form.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
-import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, finalize, map, of, switchMap } from 'rxjs';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -235,6 +236,7 @@ const PROFILE_NAV: ClientProfileNavEntry[] = [
     ClientProfileRemindersComponent,
     ClientProfileMileageComponent,
     ClientProfilePortalComponent,
+    ClientPhotoEditorComponent,
     ClientProfileContactDetailsComponent,
     ClientFiscalFormComponent,
     ClientFormPanelComponent,
@@ -293,6 +295,7 @@ export class ClientProfilePageComponent implements OnDestroy {
         userId: a.userId,
         isPrimary: a.isPrimary,
         name: byId.get(a.userId)?.name ?? null,
+        avatarUrl: this.staff.avatarUrlFor(a.userId),
       }));
   });
   readonly visibleAssigneeAvatars = computed(() =>
@@ -317,6 +320,11 @@ export class ClientProfilePageComponent implements OnDestroy {
   readonly canManage = this.caps.canManage;
   /** Destapar SSN/EIN. Permiso propio: poder editar al cliente NO alcanza. */
   readonly canReveal = this.caps.canRevealFiscal;
+
+  /** Poner o quitar la foto del cliente (decisión 2): customers.manage y cliente no archivado. */
+  readonly canEditPhoto = computed(
+    () => this.canManage() && !!this.client() && this.client()?.status !== 'Archived',
+  );
 
   private readonly access = inject(AccessStore);
 
@@ -570,6 +578,25 @@ export class ClientProfilePageComponent implements OnDestroy {
         this.loadError.set(apiError.message);
         this.loading.set(false);
       },
+    });
+  }
+
+  /**
+   * La foto cambió (o terminó una revisión pendiente): se re-lee el detalle en silencio, sin el
+   * esqueleto de carga. El cache compartido ya lo desalojó ClientPhotoStore.
+   */
+  handlePhotoChanged(): void {
+    const id = this.client()?.id;
+    if (!id) {
+      return;
+    }
+    this.store.getById(id).subscribe({
+      next: (customer) => {
+        if (this.client()?.id === id) {
+          this.client.set(customerToClientProfile(customer));
+        }
+      },
+      error: () => {},
     });
   }
 

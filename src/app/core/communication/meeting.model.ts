@@ -13,6 +13,11 @@ export type MeetingStatus = 'Scheduled' | 'Live' | 'Ended' | 'Cancelled';
 export interface MeetingParticipantDto {
   userId: string;
   displayName: string;
+  /**
+   * Foto (`/storage/avatars/{id}`): llega en el snapshot y al entrar; ausente en los cambios de
+   * media/mano/salida (conservar la conocida). null = sin foto.
+   */
+  avatarFileId?: string | null;
   role: MeetingRole;
   status: MeetingParticipantStatus;
   joinOrder: number;

@@ -42,6 +42,8 @@ import { AccountHandoffStore } from '@core/billing/account-handoff.store';
 import type { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import type { CustomerSummary } from '@core/customers/customer-summary.model';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 
 /** Cuántos clientes muestra el buscador del navbar (el listado completo vive en /clients). */
 const NAVBAR_SEARCH_SIZE = 8;
@@ -71,7 +73,7 @@ interface NavbarUser {
 
 @Component({
   selector: 'app-navbar',
-  imports: [InfinityLoaderComponent, CommonModule, RouterModule, SidebarComponent, AvatarComponent],
+  imports: [InfinityLoaderComponent, CommonModule, RouterModule, SidebarComponent, AvatarComponent, AvatarUrlPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.css',
@@ -89,6 +91,7 @@ export class NavbarComponent {
     );
   });
   private readonly access = inject(AccessStore);
+  private readonly avatarUrls = inject(AvatarUrlService);
   readonly handoff = inject(AccountHandoffStore);
 
   // Pill de saldo del monedero (siempre visible en el header, 00_Plan §10). Comparte el WalletStore
@@ -133,7 +136,7 @@ export class NavbarComponent {
       fullName: `${me.name} ${me.lastName}`.trim(),
       companyName: me.tenant?.name ?? '',
       email: me.email,
-      avatarUrl: null,
+      avatarUrl: this.avatarUrls.url(me.avatarFileId),
       isOwner: me.actorType === 'TenantAdmin',
       role: me.roles[0] ?? me.actorType,
     };
@@ -329,41 +332,12 @@ export class NavbarComponent {
     return this.user().companyName;
   }
 
-  getUserInitials(): string {
-    const u = this.user();
-    if (u.name && u.lastName) {
-      return `${u.name.charAt(0)}${u.lastName.charAt(0)}`.toUpperCase();
-    }
-    if (u.name) {
-      return u.name.substring(0, 2).toUpperCase();
-    }
-    if (u.fullName) {
-      const words = u.fullName.trim().split(/\s+/);
-      if (words.length >= 2) {
-        return `${words[0].charAt(0)}${words[words.length - 1].charAt(0)}`.toUpperCase();
-      }
-      return u.fullName.substring(0, 2).toUpperCase();
-    }
-    return u.email.substring(0, 2).toUpperCase();
-  }
-
   getUserRole(): string {
     return this.user().role;
   }
 
   getUserEmail(): string {
     return this.user().email;
-  }
-
-  getUserImageSrc(): string | null {
-    return this.user().avatarUrl;
-  }
-
-  onImageError(event: Event): void {
-    const img = event.target as HTMLImageElement;
-    if (img) {
-      img.style.display = 'none';
-    }
   }
 
   /** Si una entrada del menu de usuario se muestra, segun el registro de features. */

@@ -18,6 +18,7 @@ import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thr
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { ActiveCallService } from '@core/communication/active-call.service';
@@ -62,6 +63,7 @@ const MIN_CHAT_HEIGHT = 360;
     ModalComponent,
     NewConversationModalComponent,
     AvatarComponent,
+    AvatarUrlPipe,
     SearchInputComponent,
     SegmentedComponent,
     ConfirmDialogComponent,
@@ -227,7 +229,7 @@ export class ChatPageComponent {
     if (!conv.peerUserId) {
       return;
     }
-    void this.activeCall.startCall(conv.peerUserId, conv.name, kind, conv.id);
+    void this.activeCall.startCall(conv.peerUserId, conv.name, kind, conv.id, conv.avatarFileId);
   }
 
   get activeConversation() {

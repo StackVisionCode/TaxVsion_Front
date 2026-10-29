@@ -6,6 +6,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
@@ -76,6 +77,7 @@ const TERM_STATE_KEY = 'smsConvTerm';
   selector: 'app-sms-page',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   imports: [
+    AvatarUrlPipe,
     CommonModule,
     FormsModule,
     ModalComponent,

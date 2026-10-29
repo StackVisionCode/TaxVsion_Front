@@ -14,6 +14,9 @@
 
     <!-- Icon / avatar circle: iniciales del actor cuando el backend las mandó, ion-icon si no.
          Mantiene el fondo gris/rojo del tipo para preservar el canal visual de "attention". -->
+    <app-avatar *ngIf="actorPhotoFor(notification) as photo; else circleTpl" [name]="notification.actorDisplayName"
+      [seed]="notification.actorUserId" [imageUrl]="photo" size="md" [attr.title]="notification.actorDisplayName || null" />
+    <ng-template #circleTpl>
     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
       [ngClass]="[iconBgFor(notification.type), iconTextFor(notification.type)]"
       [attr.aria-label]="notification.actorDisplayName || null"
@@ -25,6 +28,7 @@
         <ion-icon [name]="iconFor(notification.type)" class="text-lg"></ion-icon>
       </ng-template>
     </span>
+    </ng-template>
 
     <!-- Info -->
     <div class="min-w-0 flex-1">

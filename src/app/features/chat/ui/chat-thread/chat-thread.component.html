@@ -33,8 +33,9 @@
         [ngClass]="{ '-mt-1.5': isContinuation(i) }">
         <!-- Their message -->
         <div *ngIf="message.senderId === 'them'" class="flex max-w-[85%] items-end gap-2 sm:max-w-lg">
-          <app-avatar [name]="otherName" size="sm" [colorClass]="otherAvatarColor" [class.invisible]="isContinuation(i)"
-            aria-hidden="true"></app-avatar>
+          <app-avatar [name]="message.senderName || otherName" [seed]="message.senderUserId ?? null" size="sm"
+            [colorClass]="message.senderUserId ? null : otherAvatarColor" [imageUrl]="senderAvatarFileId(message) | avatarUrl"
+            [class.invisible]="isContinuation(i)" aria-hidden="true"></app-avatar>
           <div>
             <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3"
               [class.italic]="message.isDeleted" [class.text-gray-400]="message.isDeleted">

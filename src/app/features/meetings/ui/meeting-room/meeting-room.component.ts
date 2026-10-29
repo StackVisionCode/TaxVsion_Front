@@ -20,6 +20,7 @@ import { MeetingActiveSpeakerService } from '@core/communication/meeting-active-
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { MeetingParticipantDto } from '@core/communication/meeting.model';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 
 /**
@@ -34,6 +35,7 @@ import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-me
     FormsModule,
     SrcObjectDirective,
     AvatarComponent,
+    AvatarUrlPipe,
     DropdownMenuComponent,
     MenuItemDirective,
     ConfirmDialogComponent,

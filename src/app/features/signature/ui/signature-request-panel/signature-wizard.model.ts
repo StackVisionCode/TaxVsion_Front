@@ -120,6 +120,8 @@ export interface WizardClient {
   isActive: boolean;
   /** Fecha de alta (YYYY-MM-DD). */
   createdAt: string;
+  /** Foto del cliente; null/ausente = iniciales. */
+  avatarFileId?: string | null;
 }
 
 export type WizardDocKind = 'pdf' | 'doc' | 'img' | 'xlsx';

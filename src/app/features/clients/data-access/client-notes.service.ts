@@ -8,7 +8,6 @@ import {
   ChangeNoteVisibilityRequest,
   CLIENT_NOTE_TARGET_TYPE,
   CreateNoteRequest,
-  NoteAuthorSummary,
   NoteColorKind,
   NoteResponse,
   NOTES_PAGE_SIZE,
@@ -108,15 +107,5 @@ export class ClientNotesService {
   /** DELETE /notes/{id}/attachments/{fileId} — desvincula un adjunto (autor + `notes.manage`). */
   detach(noteId: string, cloudStorageFileId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${noteId}/attachments/${cloudStorageFileId}`);
-  }
-
-  /**
-   * GET /auth/users — nombres de los autores. Best-effort exactamente igual que en Task:
-   * `NoteResponse` solo trae `createdByUserId` y sin el permiso `users.view` esto devuelve
-   * 403, en cuyo caso las tarjetas caen a "Team member".
-   */
-  listUsers(size = 200): Observable<PagedResult<NoteAuthorSummary>> {
-    const params = new HttpParams().set('page', 1).set('size', size);
-    return this.http.get<PagedResult<NoteAuthorSummary>>(this.api.tenantUrl('/auth/users'), { params });
   }
 }

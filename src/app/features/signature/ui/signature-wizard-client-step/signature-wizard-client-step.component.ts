@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, OnChanges, Output, SimpleChanges, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
@@ -18,7 +19,7 @@ type TypeFilter = 'all' | 'individual' | 'company';
  */
 @Component({
   selector: 'app-signature-wizard-client-step',
-  imports: [CommonModule, AvatarComponent, CustomerPickerComponent, FilterChipsComponent, StatusPillComponent],
+  imports: [AvatarUrlPipe, CommonModule, AvatarComponent, CustomerPickerComponent, FilterChipsComponent, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-wizard-client-step.component.html',
   styleUrl: './signature-wizard-client-step.component.css',

@@ -376,7 +376,7 @@
           [messages]="store.messages()" [bodies]="store.bodies()" [attachments]="store.attachments()"
           [expandedId]="store.expandedMessageId()" [reply]="store.reply()" [loading]="store.messagesLoading()"
           [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
-          [canReply]="!!store.activeAccountId()" (messageToggled)="toggleMessage($event)"
+          [canReply]="!!store.activeAccountId()" [customer]="store.selectedCustomer()" (messageToggled)="toggleMessage($event)"
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
           (attachmentDownloadRequested)="downloadAttachment($event)" (attachmentPreviewRequested)="previewAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"

@@ -199,7 +199,7 @@
                 [class.border-gray-100]="!last">
                 <span class="flex items-center gap-2">
                   <app-avatar class="rounded-full ring-2 ring-white" [name]="item.sharedByName" [seed]="item.sharedById"
-                    sizeClass="h-7 w-7 text-[0.625rem]"></app-avatar>
+                    [imageUrl]="item.sharedByAvatarFileId | avatarUrl" sizeClass="h-7 w-7 text-[0.625rem]"></app-avatar>
                   <span class="truncate text-sm text-gray-700">{{ item.sharedByName }}</span>
                 </span>
               </td>

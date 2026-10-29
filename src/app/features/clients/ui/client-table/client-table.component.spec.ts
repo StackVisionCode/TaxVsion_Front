@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { ClientItem, ClientTableComponent } from './client-table.component';
 
 /** Encabezados ordenables: dicen el orden vigente (aria-sort) y piden el cambio al padre. */

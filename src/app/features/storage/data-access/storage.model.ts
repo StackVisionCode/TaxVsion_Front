@@ -64,6 +64,8 @@ export interface SharerSummary {
   name: string;
   lastName: string;
   email: string;
+  /** Foto confirmada; ausente en un backend anterior. */
+  avatarFileId?: string | null;
 }
 
 /** Fila mínima de GET /storage/recycle-bin, usada solo para el grupo "Trash". */
@@ -176,6 +178,8 @@ export interface SharedWithMeItem {
   sharedByName: string;
   /** userId de quien compartió: semilla estable del color del avatar. */
   sharedById: string;
+  /** Foto de quien compartió (`/storage/avatars/{id}`); null = iniciales. */
+  sharedByAvatarFileId: string | null;
   sharedAtUtc: string;
   /** null cuando no se pudo resolver la metadata del archivo (o es carpeta). */
   sizeBytes: number | null;

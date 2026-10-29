@@ -2,7 +2,25 @@
   <!-- ================= Cabecera: identidad + chequeo de seguridad (mismo patrón que el resto de módulos) ================= -->
   <section class="pf-reveal rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm" style="--i: 0" aria-label="Your account">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center lg:pr-[var(--shell-notch-width)]">
-      <app-avatar class="pf-avatar inline-block shrink-0" [name]="savedFullName()" [seed]="email()" sizeClass="h-16 w-16 text-xl sm:h-[4.5rem] sm:w-[4.5rem]" />
+      <!-- Foto: clic en la cámara o soltar una imagen encima -->
+      <div class="pf-photo relative shrink-0 self-start sm:self-auto" (appFileDrop)="onPhotoDropped($event)" [multiple]="false"
+        [fileDropDisabled]="photoBusy()" #photoDrop="appFileDrop" [class.pf-photo--dragging]="photoDrop.dragging()">
+        <app-avatar class="pf-avatar inline-block" [name]="savedFullName()" [seed]="avatarSeed()" [imageUrl]="avatarUrl()"
+          sizeClass="h-16 w-16 text-xl sm:h-[4.5rem] sm:w-[4.5rem]" />
+        @if (photoBusy()) {
+          <span class="absolute inset-0 flex items-center justify-center rounded-full bg-gray-900/55 text-white" aria-hidden="true">
+            <ion-icon name="sync-outline" class="pf-photo__spinner text-xl"></ion-icon>
+          </span>
+        }
+        <button #photoButton type="button" (click)="openPhotoPicker()" [disabled]="photoBusy()"
+          [attr.aria-label]="hasPhoto() ? 'Change profile photo' : 'Upload profile photo'"
+          [attr.title]="hasPhoto() ? 'Change photo' : 'Upload photo'"
+          class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-bold text-white shadow-sm transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-bold disabled:cursor-not-allowed disabled:opacity-60">
+          <ion-icon name="camera" class="text-sm" aria-hidden="true"></ion-icon>
+        </button>
+        <input #photoInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" [accept]="photoAccept"
+          (change)="onPhotoSelected($event)" />
+      </div>
       <div class="min-w-0">
         <h2 class="truncate text-xl font-bold text-gray-900">{{ savedFullName() || 'Your profile' }}</h2>
         <div class="mt-1.5 flex flex-wrap items-center gap-2">
@@ -29,8 +47,33 @@
             </span>
           }
         </div>
+        <!-- Acciones de la foto + estado anunciado a lectores de pantalla -->
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" (click)="openPhotoPicker()" [disabled]="photoBusy()" class="pf-btn pf-btn--ghost pf-btn--sm">
+            <ion-icon name="cloud-upload-outline" aria-hidden="true"></ion-icon>
+            {{ hasPhoto() ? 'Change photo' : 'Upload photo' }}
+          </button>
+          @if (hasPhoto()) {
+            <button type="button" (click)="removePhotoOpen.set(true)" [disabled]="photoBusy()"
+              class="pf-btn pf-btn--ghost pf-btn--danger pf-btn--sm">
+              <ion-icon name="trash-outline" aria-hidden="true"></ion-icon>
+              Remove photo
+            </button>
+          }
+          <span class="text-xs text-gray-500" role="status" aria-live="polite">{{ photoStatusLabel() }}</span>
+        </div>
+        @if (photoError(); as err) {
+          <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
+            <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>{{ err }}
+          </p>
+        }
       </div>
     </div>
+
+    <app-confirm-dialog [isOpen]="removePhotoOpen()" heading="Remove profile photo?"
+      message="Your photo will be removed and your initials will be shown instead. You can upload a new one at any time."
+      confirmLabel="Remove" busyLabel="Removing…" [busy]="photoStatus() === 'removing'" icon="trash-outline"
+      (confirmed)="confirmRemovePhoto()" (cancelled)="closeRemovePhoto()" />
 
     <!-- Chequeo de seguridad: solo datos reales -->
     <app-check-ring class="mt-5 border-t border-gray-100 pt-5" title="Account security" [status]="securityLabel()"

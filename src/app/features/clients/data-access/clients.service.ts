@@ -16,6 +16,7 @@ import {
   ContactPointResponse,
   CreateCustomerRequest,
   Customer,
+  CustomerAvatarUploadResponse,
   CustomerDetailResponse,
   CustomerExistsResponse,
   CustomerKind,
@@ -132,6 +133,21 @@ export class ClientsService {
 
   update(id: string, req: UpdateCustomerRequest): Observable<Customer> {
     return this.http.patch<Customer>(`${this.base}/${id}`, req);
+  }
+
+  /**
+   * PUT /customers/{id}/avatar (multipart, campo `file`; `customers.manage`) — 202 `{fileId,status}`:
+   * la foto queda pendiente del antivirus hasta que el detalle la devuelva en `avatarFileId`.
+   */
+  uploadAvatar(id: string, file: File): Observable<CustomerAvatarUploadResponse> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.put<CustomerAvatarUploadResponse>(`${this.base}/${id}/avatar`, form);
+  }
+
+  /** DELETE /customers/{id}/avatar — 204. */
+  deleteAvatar(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}/avatar`);
   }
 
   /** archive/reactivate/activate/deactivate — todas 204 No Content, requieren rol TenantAdmin en el backend. */

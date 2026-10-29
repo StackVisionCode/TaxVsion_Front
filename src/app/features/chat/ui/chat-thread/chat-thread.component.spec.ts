@@ -89,3 +89,37 @@ describe('ChatThreadComponent — scroll', () => {
     expect(retried).toEqual(['tmp-1']);
   });
 });
+
+describe('ChatThreadComponent — avatar del remitente', () => {
+  it('usa la foto vigente del participante y, si no la conoce, la del historial', () => {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'g1');
+    fixture.componentRef.setInput('participants', [{ userId: 'u-ana', displayName: 'Ana', avatarFileId: 'f-live' }]);
+    fixture.componentRef.setInput('messages', [
+      msg('1', 'them', { senderUserId: 'u-ana', senderName: 'Ana', senderAvatarFileId: 'f-old' }),
+      msg('2', 'them', { senderUserId: 'u-bob', senderName: 'Bob', senderAvatarFileId: 'f-bob' }),
+      msg('3', 'them', { senderUserId: 'u-eve', senderName: 'Eve' }),
+    ]);
+    fixture.detectChanges();
+
+    const avatars = Array.from(fixture.nativeElement.querySelectorAll('app-avatar')) as HTMLElement[];
+    const srcs = avatars.map(a => a.querySelector('img')?.getAttribute('src') ?? null);
+    expect(srcs[0]).toMatch(/\/storage\/avatars\/f-live$/);
+    expect(srcs[1]).toMatch(/\/storage\/avatars\/f-bob$/);
+    expect(srcs[2]).toBeNull(); // sin foto: iniciales
+    expect(avatars[2].textContent).toContain('EV');
+  });
+
+  it('dos ajenos seguidos de personas distintas no se agrupan', () => {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('messages', [
+      msg('1', 'them', { senderUserId: 'a' }),
+      msg('2', 'them', { senderUserId: 'b' }),
+      msg('3', 'them', { senderUserId: 'b' }),
+    ]);
+    fixture.detectChanges();
+    const thread = fixture.componentInstance;
+    expect(thread.isContinuation(1)).toBe(false);
+    expect(thread.isContinuation(2)).toBe(true);
+  });
+});

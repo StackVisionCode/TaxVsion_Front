@@ -2,9 +2,10 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, inject 
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
-import { StaffDirectoryStore, StaffMember } from '../../data-access/staff-directory.store';
+import { StaffDirectoryStore, StaffMember } from '@core/staff/staff-directory.store';
 import { CustomerListSort, CustomerSortField } from '../../data-access/clients.model';
 
 export type ClientType = 'individual' | 'company';
@@ -40,6 +41,8 @@ export interface ClientItem {
   createdAt: string;
   /** userIds del staff asignado (M:N) — para los avatares de la fila. Opcional: solo el listado los trae. */
   assigneeUserIds?: string[];
+  /** Foto del cliente; null = iniciales. */
+  avatarFileId?: string | null;
   individual?: ClientIndividualDetails;
   company?: ClientCompanyDetails;
 }
@@ -56,7 +59,7 @@ export interface ClientItem {
  */
 @Component({
   selector: 'app-client-table',
-  imports: [CommonModule, RouterModule, AvatarComponent, StatusPillComponent, DropdownMenuComponent, MenuItemDirective],
+  imports: [CommonModule, RouterModule, AvatarComponent, AvatarUrlPipe, StatusPillComponent, DropdownMenuComponent, MenuItemDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-table.component.html',
   styleUrl: './client-table.component.css',

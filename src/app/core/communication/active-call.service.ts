@@ -38,6 +38,8 @@ export class ActiveCallService {
   readonly kind = signal<CallKind>('Audio');
   readonly peerUserId = signal<string | null>(null);
   readonly peerDisplayName = signal<string | null>(null);
+  /** Foto del par (`/storage/avatars/{id}`); null = iniciales. */
+  readonly peerAvatarFileId = signal<string | null>(null);
   readonly conversationId = signal<string | null>(null);
 
   readonly localStream = signal<MediaStream | null>(null);
@@ -139,6 +141,7 @@ export class ActiveCallService {
       this.videoEnabled.set(dto.kind === 'Video'); // audio entrante = sin video propio
       this.peerUserId.set(dto.callerUserId);
       this.peerDisplayName.set(dto.callerDisplayName);
+      this.peerAvatarFileId.set(dto.callerAvatarFileId ?? null);
       this.conversationId.set(dto.conversationId);
       this.isPolite = true; // el callee es polite
       this.isCaller = false; // el callee responde, no oferta
@@ -157,7 +160,24 @@ export class ActiveCallService {
         return;
       }
       this.isPolite = dto.isPolite;
+      // Al aceptar llega la foto del par (ausente = se conserva la que ya había).
+      if (dto.avatarFileId !== undefined) {
+        this.peerAvatarFileId.set(dto.avatarFileId ?? null);
+      }
       void this.ensurePeerConnection();
+    });
+
+    // Si el par cambia su foto/nombre durante la llamada, se refleja al instante.
+    this.calls.onUserProfileChanged().subscribe(change => {
+      if (!change?.userId || change.userId !== this.peerUserId()) {
+        return;
+      }
+      if (change.avatarFileId !== undefined) {
+        this.peerAvatarFileId.set(change.avatarFileId ?? null);
+      }
+      if (change.displayName) {
+        this.peerDisplayName.set(change.displayName);
+      }
     });
 
     this.calls.onSignalFrom().subscribe(dto => {
@@ -243,13 +263,20 @@ export class ActiveCallService {
     });
   }
 
-  async startCall(peerUserId: string, peerDisplayName: string, kind: CallKind, conversationId?: string): Promise<void> {
+  async startCall(
+    peerUserId: string,
+    peerDisplayName: string,
+    kind: CallKind,
+    conversationId?: string,
+    peerAvatarFileId?: string | null,
+  ): Promise<void> {
     if (this.phase() !== 'idle') {
       return;
     }
     this.errorMessage.set(null);
     this.peerUserId.set(peerUserId);
     this.peerDisplayName.set(peerDisplayName);
+    this.peerAvatarFileId.set(peerAvatarFileId ?? null);
     this.kind.set(kind);
     this.conversationId.set(conversationId ?? null);
     this.audioEnabled.set(true);
@@ -953,6 +980,7 @@ export class ActiveCallService {
     this.callId.set(null);
     this.peerUserId.set(null);
     this.peerDisplayName.set(null);
+    this.peerAvatarFileId.set(null);
     this.conversationId.set(null);
     this.audioEnabled.set(true);
     this.videoEnabled.set(true);

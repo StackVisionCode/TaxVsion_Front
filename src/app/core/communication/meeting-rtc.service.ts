@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { types as MsTypes } from 'mediasoup-client';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
-import { SocketAck } from '@core/realtime/realtime.model';
+import { SocketAck, USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import { SfuNewProducerDto, SfuProducerClosedDto, SfuRemoteProducer } from './meeting.model';
 
 /** Parámetros de transporte SFU que devuelve create_transport (mediasoup + iceServers cliente). */
@@ -167,6 +167,10 @@ export class MeetingRtcService {
   /** El host me silenció (mute_all) → debo bajar mi audio. */
   onMutedByHost(): Observable<{ meetingId: string }> {
     return this.realtime.on<{ meetingId: string }>('meeting.you.muted');
+  }
+  /** Un miembro del staff cambió su foto o nombre (actualiza el roster en vivo). */
+  onUserProfileChanged(): Observable<UserProfileChangedEvent> {
+    return this.realtime.on<UserProfileChangedEvent>(USER_PROFILE_CHANGED_EVENT);
   }
   onChatMessageNew(): Observable<MeetingChatMessageDto> {
     return this.realtime.on<MeetingChatMessageDto>('meeting.chat.message.new');

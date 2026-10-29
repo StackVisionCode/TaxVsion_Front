@@ -22,6 +22,7 @@ import { Observable } from 'rxjs';
 import { portalToBody, setBodyScrollLock } from '@shared/utils/overlay.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import {
   CatalogItemPickerComponent,
   CatalogQuickCreate,
@@ -75,7 +76,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'MXN', 'DOP'];
  */
 @Component({
   selector: 'app-invoice-form-panel',
-  imports: [CommonModule, FormsModule, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent, InfinityLoaderComponent],
+  imports: [CommonModule, FormsModule, CatalogItemPickerComponent, CustomerPickerComponent, AvatarComponent, AvatarUrlPipe, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './invoice-form-panel.component.html',
 })

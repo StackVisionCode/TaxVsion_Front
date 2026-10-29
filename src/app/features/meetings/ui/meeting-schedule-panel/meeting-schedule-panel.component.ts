@@ -15,6 +15,7 @@ import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loa
 import { FormsModule } from '@angular/forms';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import { ClipboardService } from '@shared/services/clipboard.service';
@@ -51,7 +52,7 @@ type InvitationState = 'active' | 'used' | 'revoked' | 'expired';
  */
 @Component({
   selector: 'app-meeting-schedule-panel',
-  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, AvatarComponent, StatusPillComponent, ClickOutsideDirective],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, AvatarComponent, AvatarUrlPipe, StatusPillComponent, ClickOutsideDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-schedule-panel.component.html',
 })
@@ -159,14 +160,27 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     }, INVITEE_SEARCH_DEBOUNCE_MS);
   }
 
-  addEmployee(entry: { userId: string; displayName: string; email: string }): void {
-    this.addInvitee({ kind: 'employee', userId: entry.userId, email: entry.email || null, name: entry.displayName });
+  addEmployee(entry: { userId: string; displayName: string; email: string; avatarFileId?: string | null }): void {
+    this.addInvitee({
+      kind: 'employee',
+      userId: entry.userId,
+      email: entry.email || null,
+      name: entry.displayName,
+      avatarFileId: entry.avatarFileId ?? null,
+    });
   }
 
   /** Customers: su customerId no es un userId de Auth, pero el backend lo resuelve a su userId de
    * portal para que el meeting aparezca en su lista y le llegue el aviso realtime. */
-  addCustomer(entry: { customerId: string; displayName: string; email: string }): void {
-    this.addInvitee({ kind: 'customer', userId: null, customerId: entry.customerId, email: entry.email, name: entry.displayName });
+  addCustomer(entry: { customerId: string; displayName: string; email: string; avatarFileId?: string | null }): void {
+    this.addInvitee({
+      kind: 'customer',
+      userId: null,
+      customerId: entry.customerId,
+      email: entry.email,
+      name: entry.displayName,
+      avatarFileId: entry.avatarFileId ?? null,
+    });
   }
 
   addExternal(): void {

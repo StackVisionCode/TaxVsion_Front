@@ -27,7 +27,7 @@
           [class.border-gray-100]="!last">
           <div class="flex -space-x-2">
             <app-avatar *ngFor="let signer of visibleSigners(request)" [name]="signer.name" [colorClass]="signer.color"
-              [title]="signer.name" sizeClass="h-8 w-8 border-2 border-white text-[0.625rem]" />
+              [imageUrl]="signer.avatarFileId | avatarUrl" [title]="signer.name" sizeClass="h-8 w-8 border-2 border-white text-[0.625rem]" />
             <span *ngIf="extraSignersCount(request) > 0"
               class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-[0.625rem] font-semibold text-gray-600">
               +{{ extraSignersCount(request) }}

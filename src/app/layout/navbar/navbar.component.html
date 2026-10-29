@@ -123,6 +123,7 @@
                       <app-avatar
                         [name]="customer.displayName"
                         [seed]="customer.id"
+                        [imageUrl]="customer.avatarFileId | avatarUrl"
                         sizeClass="h-8 w-8 text-xs"
                       />
                       <span class="min-w-0 flex-1">
@@ -341,17 +342,19 @@
       <!-- User menu (avatar only, reference style) -->
       <div class="relative" data-dropdown="user">
         <button
+          type="button"
           (click)="toggleUserMenu()"
-          class="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-1 ring-gray-200 hover:ring-gray-300 transition-shadow duration-200 bg-indigo-600 text-white"
+          [attr.aria-expanded]="isUserMenuOpen()"
+          class="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-1 ring-gray-200 hover:ring-gray-300 transition-shadow duration-200"
         >
-          <img
-            *ngIf="getUserImageSrc()"
-            [src]="getUserImageSrc()"
-            [alt]="getTaxUserFullName()"
-            class="w-full h-full object-cover"
-            (error)="onImageError($event)"
+          <!-- app-avatar cae a las iniciales si no hay foto o la imagen falla -->
+          <app-avatar
+            [name]="user().fullName || user().email"
+            [imageUrl]="user().avatarUrl"
+            colorClass="bg-indigo-600"
+            sizeClass="h-10 w-10 text-xs"
+            aria-hidden="true"
           />
-          <span *ngIf="!getUserImageSrc()" class="text-xs font-bold">{{ getUserInitials() }}</span>
           <span class="sr-only">Open user menu</span>
         </button>
 
@@ -455,18 +458,12 @@
       <!-- Mobile user header -->
       <div class="flex items-center gap-3 pt-2 pb-4 border-b border-gray-200">
         <!-- TaxUser Avatar -->
-        <div
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white flex-shrink-0 overflow-hidden"
-        >
-          <img
-            *ngIf="getUserImageSrc()"
-            [src]="getUserImageSrc()"
-            [alt]="getTaxUserFullName()"
-            class="w-full h-full object-cover"
-            (error)="onImageError($event)"
-          />
-          <span *ngIf="!getUserImageSrc()" class="text-lg font-bold">{{ getUserInitials() }}</span>
-        </div>
+        <app-avatar
+          [name]="user().fullName || user().email"
+          [imageUrl]="user().avatarUrl"
+          colorClass="bg-indigo-600"
+          sizeClass="h-12 w-12 text-lg"
+        />
 
         <div class="flex-1 min-w-0">
           <!-- TaxUser Name -->

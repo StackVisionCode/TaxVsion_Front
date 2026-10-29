@@ -147,6 +147,8 @@ export interface MeetingEmployeeEntry {
   displayName: string;
   email: string;
   isActive: boolean;
+  /** Foto del empleado; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /** POST /communication/directory/customers/search ({ q, limit }) — devuelve customerId, NO userId. */
@@ -155,6 +157,8 @@ export interface MeetingCustomerEntry {
   displayName: string;
   email: string;
   isActive: boolean;
+  /** Foto de la ficha del cliente; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 // ---------- Modelos de UI ----------
@@ -168,6 +172,8 @@ export interface MeetingInviteeDraft {
   customerId?: string | null;
   email: string | null;
   name: string;
+  /** Solo para el chip (no viaja al backend). */
+  avatarFileId?: string | null;
 }
 
 /** Valor que emite el panel de creación; el store orquesta las llamadas. */

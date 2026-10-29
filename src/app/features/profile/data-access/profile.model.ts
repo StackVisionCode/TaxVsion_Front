@@ -48,6 +48,41 @@ export interface UpdateMyPhoneRequest {
   phoneNumber: string | null;
 }
 
+/** Respuesta 202 de PUT /auth/me/avatar: la foto queda pendiente del antivirus. */
+export interface UploadAvatarResponse {
+  fileId: string;
+  status: string;
+}
+
+/** Lo que mira el sondeo de la foto en GET /auth/me. */
+export interface AvatarState {
+  avatarFileId?: string | null;
+  avatarPending?: boolean;
+}
+
+/** Fase y desenlace de la foto: tipos comunes con la foto del cliente (Client 360). */
+export type { PhotoStatus, PhotoUploadOutcome } from '@core/profile-photo/profile-photo-upload';
+
+export const PHOTO_FAILED_MESSAGE = "We couldn't use that photo. Try another image.";
+export const PHOTO_STILL_PROCESSING_MESSAGE = 'Your photo is still being checked. It will appear shortly.';
+
+/**
+ * Un tick del sondeo: `updated` si ya es la foto confirmada, `failed` si dejó de estar pendiente sin
+ * serlo (infectada, bloqueada o vencida) y `pending` mientras tanto (o si /auth/me falló).
+ */
+export function classifyAvatarPoll(
+  state: AvatarState | null,
+  fileId: string,
+): 'updated' | 'failed' | 'pending' {
+  if (!state) {
+    return 'pending';
+  }
+  if (state.avatarFileId === fileId) {
+    return 'updated';
+  }
+  return state.avatarPending ? 'pending' : 'failed';
+}
+
 /** Misma regla que el backend (User.Phone): 7-20 caracteres, solo dígitos, +, - y espacios, tras trim. */
 export function isValidPhoneNumber(value: string): boolean {
   const phone = value.trim();

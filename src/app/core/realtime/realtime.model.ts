@@ -14,3 +14,16 @@ export interface SocketEnvelope<T> {
   sequence?: number;
   payload: T;
 }
+
+/**
+ * `user.profile.changed` (Communication F5): un miembro del staff cambió su nombre o su foto.
+ * Llega al cuarto del staff y al del propio usuario (nunca a los clientes del portal).
+ * `avatarFileId` null = se quitó la foto.
+ */
+export interface UserProfileChangedEvent {
+  userId: string;
+  displayName?: string | null;
+  avatarFileId?: string | null;
+}
+
+export const USER_PROFILE_CHANGED_EVENT = 'user.profile.changed';

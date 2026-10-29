@@ -1,7 +1,7 @@
 <!-- Cliente elegido: tarjeta de resumen -->
 <div *ngIf="selected as client"
   class="client-detail flex flex-col gap-4 rounded-2xl border border-gray-100 bg-brand-white p-5 sm:flex-row sm:items-center">
-  <app-avatar [name]="client.displayName" [seed]="client.id" sizeClass="h-14 w-14 text-base" />
+  <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-14 w-14 text-base" />
 
   <div class="min-w-0 flex-1">
     <div class="flex flex-wrap items-center gap-2">
@@ -58,7 +58,7 @@
     <div class="flex flex-wrap justify-center gap-2">
       <button *ngFor="let customer of visibleRecent(); trackBy: trackCustomer" type="button" (click)="onPicked(customer)"
         class="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <app-avatar [name]="customer.displayName" [seed]="customer.id" sizeClass="h-7 w-7 text-[0.625rem]" />
+        <app-avatar [name]="customer.displayName" [seed]="customer.id" [imageUrl]="customer.avatarFileId | avatarUrl" sizeClass="h-7 w-7 text-[0.625rem]" />
         <span class="max-w-[10rem] truncate">{{ customer.displayName }}</span>
       </button>
     </div>

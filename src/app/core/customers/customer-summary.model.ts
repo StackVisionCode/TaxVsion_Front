@@ -17,6 +17,8 @@ export interface CustomerSummary {
   primaryEmail: string;
   primaryPhone: string | null;
   createdAtUtc: string;
+  /** Foto del cliente (`/storage/avatars/{id}`). Ausente = backend anterior; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /** Espejo de BuildingBlocks.Common.PagedResult<T> (campo `size`, no `pageSize`). */

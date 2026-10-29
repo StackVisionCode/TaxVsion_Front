@@ -19,10 +19,11 @@ import { ApiTaskPriority, ApiTaskStatus } from '../../data-access/client-work.mo
 import { ClientOverviewStore, OverviewSection } from '../../data-access/client-overview.store';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientsStore } from '../../data-access/clients.store';
-import { StaffDirectoryStore } from '../../data-access/staff-directory.store';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { ClientAssignDialogComponent } from '../client-assign-dialog/client-assign-dialog.component';
 import { CountUpDirective } from '@shared/directives/count-up.directive';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { formatPhoneForDisplay } from '@shared/utils/phone.util';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -157,6 +158,7 @@ const TASK_STATUS_LABELS: Partial<Record<ApiTaskStatus, string>> = {
     CountUpDirective,
     ClientAssignDialogComponent,
     AvatarComponent,
+    AvatarUrlPipe,
     TimeAgoPipe,
     BytesPipe,
     FileViewerComponent,
@@ -435,6 +437,11 @@ export class ClientProfileOverviewComponent implements OnChanges {
   readonly assignOpen = signal(false);
 
   /** Asignados resueltos a staff (reactivo al directorio: los avatares se rellenan al cargar). */
+  /** Foto de un miembro del staff (directorio compartido); null = iniciales. */
+  staffAvatarUrl(userId: string | null | undefined): string | null {
+    return this.staff.avatarUrlFor(userId);
+  }
+
   readonly assigneeRows = computed(() => {
     const byId = new Map(this.staff.members().map(m => [m.userId, m]));
     return this._assignees().map(a => ({ userId: a.userId, isPrimary: a.isPrimary, member: byId.get(a.userId) }));

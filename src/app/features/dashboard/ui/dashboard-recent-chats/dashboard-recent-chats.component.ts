@@ -1,7 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
+import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
+import { USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import { toApiError } from '@core/models/api-error.model';
 import { ChatService } from '../../../chat/data-access/chat.service';
 import { ConversationSummary } from '../../../chat/data-access/chat.model';
@@ -16,6 +20,10 @@ const MAX_ROWS = 5;
 interface RecentChatRow {
   id: string;
   name: string;
+  /** Semilla del color: el userId del par en un 1:1 (como en el resto del CRM); en grupo, la conversación. */
+  seed: string;
+  /** Foto del par en un 1:1; null = iniciales. */
+  avatarFileId: string | null;
   /** Metadato real de la conversación ("Direct message" / "4 participants"). */
   subtitle: string;
   time: string;
@@ -43,13 +51,21 @@ interface RecentChatRow {
  */
 @Component({
   selector: 'app-dashboard-recent-chats',
-  imports: [CommonModule, RouterLink, StateBlockComponent, AvatarComponent],
+  imports: [CommonModule, RouterLink, StateBlockComponent, AvatarComponent, AvatarUrlPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './dashboard-recent-chats.component.html',
 })
 export class DashboardRecentChatsComponent implements OnInit {
   private readonly service = inject(ChatService);
   private readonly auth = inject(AuthService);
+
+  constructor() {
+    // Foto/nombre del staff en vivo: se parchea el participante por userId (ausente = se conserva).
+    inject(CommunicationRealtimeService)
+      .on<UserProfileChangedEvent>(USER_PROFILE_CHANGED_EVENT)
+      .pipe(takeUntilDestroyed())
+      .subscribe(change => this.applyProfileChange(change));
+  }
 
   private readonly conversations = signal<ConversationSummary[]>([]);
   readonly loading = signal(false);
@@ -66,11 +82,15 @@ export class DashboardRecentChatsComponent implements OnInit {
       .sort((a, b) => this.activityMs(b) - this.activityMs(a))
       .slice(0, MAX_ROWS)
       .map(conversation => {
-        const other = conversation.participants.find(p => p.userId !== currentUserId);
+        const others = conversation.participants.filter(p => p.userId !== currentUserId);
+        const other = others[0];
+        const peer = others.length === 1 ? others[0] : undefined;
         const name = conversation.title ?? other?.displayName ?? 'Conversation';
         return {
           id: conversation.id,
           name,
+          seed: peer?.userId ?? conversation.id,
+          avatarFileId: peer?.avatarFileId ?? null,
           subtitle:
             conversation.kind === 'Direct'
               ? 'Direct message'
@@ -98,6 +118,24 @@ export class DashboardRecentChatsComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  applyProfileChange(change: UserProfileChangedEvent | null | undefined): void {
+    if (!change?.userId || change.avatarFileId === undefined) {
+      return;
+    }
+    this.conversations.update(list =>
+      list.map(c =>
+        c.participants.some(p => p.userId === change.userId)
+          ? {
+              ...c,
+              participants: c.participants.map(p =>
+                p.userId === change.userId ? { ...p, avatarFileId: change.avatarFileId ?? null } : p,
+              ),
+            }
+          : c,
+      ),
+    );
   }
 
   trackByChatId(_index: number, chat: RecentChatRow): string {

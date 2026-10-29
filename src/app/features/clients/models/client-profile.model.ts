@@ -2,8 +2,10 @@ import type {
   AddressResponse,
   ContactPointResponse,
   CustomerAssignee,
+  CustomerAvatarUploadStatus,
   CustomerFiscalProfileResponse,
   CustomerLanguage,
+  CustomerStatus,
   PreferredChannel,
   RelationResponse,
 } from '../data-access/clients.model';
@@ -72,8 +74,15 @@ export interface ClientProfile {
   emailEnabled: boolean;
   smsEnabled: boolean;
   isActive: boolean;
+  /** Estado real (Archived bloquea la foto y la edición). Opcional: los fixtures viejos no lo traen. */
+  status?: CustomerStatus;
   /** ISO date string (YYYY-MM-DD). */
   createdAt: string;
+  /** Foto confirmada (`/storage/avatars/{id}`); null = iniciales. */
+  avatarFileId?: string | null;
+  /** Foto subida que todavía revisa el antivirus. */
+  pendingAvatarFileId?: string | null;
+  avatarUploadStatus?: CustomerAvatarUploadStatus | null;
   individual?: ClientProfileIndividualDetails;
   company?: ClientProfileCompanyDetails;
   /** Direcciones reales de GET /customers/{id} (companion doc §3.2). */

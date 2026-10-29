@@ -109,19 +109,14 @@ export interface SetNoteColorRequest {
   colorKind: NoteColorKind | null;
 }
 
-/** Fila mínima de GET /auth/users — solo para resolver el nombre del autor. */
-export interface NoteAuthorSummary {
-  id: string;
-  name: string;
-  lastName: string;
-}
-
 // ---------- View-model de la pestaña ----------
 
 export interface ClientNoteCard {
   id: string;
   authorUserId: string;
   authorName: string;
+  /** Foto del autor (la pone el store desde el directorio de staff); null = iniciales. */
+  authorAvatarUrl: string | null;
   /** true si la escribió el usuario logueado: habilita editar/pin/color (solo el autor puede). */
   isMine: boolean;
   createdAtUtc: string;
@@ -233,7 +228,7 @@ function visibilityLabelOf(visibility: NoteVisibility): string {
 
 /**
  * `NoteResponse` → tarjeta. El backend solo devuelve `createdByUserId`, así que el nombre
- * se resuelve con el mapa best-effort de GET /auth/users (fallback "Team member": sin el
+ * se resuelve con el directorio de staff compartido (fallback "Team member": sin el
  * permiso `users.view` ese listado responde 403 y no hay otra fuente de nombres).
  */
 export function toClientNoteCard(
@@ -254,6 +249,7 @@ export function toClientNoteCard(
     id: note.id,
     authorUserId: note.createdByUserId,
     authorName,
+    authorAvatarUrl: null,
     isMine,
     createdAtUtc: note.createdAtUtc,
     timestamp: formatNoteTimestamp(note.createdAtUtc),

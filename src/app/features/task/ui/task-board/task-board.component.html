@@ -41,7 +41,7 @@
 
           <!-- Assignee avatar -->
           @if (task.assigneeUserId) {
-            <app-avatar [name]="task.assigneeName" [colorClass]="task.assigneeColor" sizeClass="h-7 w-7 text-[0.6875rem]"
+            <app-avatar [name]="task.assigneeName" [seed]="task.assigneeUserId" [imageUrl]="staff.avatarUrlFor(task.assigneeUserId)" sizeClass="h-7 w-7 text-[0.6875rem]"
               [title]="task.assigneeName" />
           } @else {
             <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-300 text-[0.6875rem] font-semibold text-white"

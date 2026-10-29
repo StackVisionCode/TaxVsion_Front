@@ -64,6 +64,13 @@ describe('UserTableComponent — slot column', () => {
     expect(slotCell.querySelector('[data-testid="gated-badge"]')).toBeTruthy();
   });
 
+  it('pinta la foto del usuario cuando trae avatarFileId', () => {
+    const fixture = render([member({ avatarFileId: 'f-ada' })], false);
+    const img = fixture.nativeElement.querySelector('app-avatar img') as HTMLImageElement | null;
+
+    expect(img?.getAttribute('src')).toContain('/storage/avatars/f-ada');
+  });
+
   it('sin slotIndex muestra el guión y no el badge', () => {
     const fixture = render([member({ slotIndex: null, isGated: false })], false);
     const slotCell = fixture.nativeElement.querySelector('[data-testid="slot-cell"]');

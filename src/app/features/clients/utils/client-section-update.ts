@@ -56,8 +56,7 @@ export type ClientSectionPatch = ContactSectionPatch | PersonalSectionPatch | Bu
  * Así que se parte SIEMPRE del cliente actual y solo se pisa lo que edita la sección; lo demás
  * viaja con su valor vigente para que nada se borre.
  *
- * Límite conocido: `profilePictureFileId` no viene en el detalle, así que no se puede reenviar;
- * el formulario completo tiene el mismo límite (hoy la UI no maneja foto de cliente).
+ * La foto del cliente NO viaja en este PATCH: tiene su propio endpoint (`/customers/{id}/avatar`).
  */
 export function buildSectionUpdateRequest(
   current: CustomerDetailResponse,

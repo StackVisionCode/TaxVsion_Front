@@ -34,6 +34,8 @@ export class ClientProfileCallsComponent implements OnChanges {
 
   @Input() clientId = '';
   @Input() clientName = '';
+  /** Foto del cliente, para la tarjeta de la llamada mientras suena. */
+  @Input() clientAvatarFileId: string | null = null;
 
   readonly loading = signal(false);
   readonly errored = signal(false);
@@ -74,7 +76,13 @@ export class ClientProfileCallsComponent implements OnChanges {
     if (!this.clientUserId || this.callInProgress) {
       return;
     }
-    void this.activeCall.startCall(this.clientUserId, this.clientName || 'Client', kind);
+    void this.activeCall.startCall(
+      this.clientUserId,
+      this.clientName || 'Client',
+      kind,
+      undefined,
+      this.clientAvatarFileId,
+    );
   }
 
   /** "m:ss" o "—" si no hay duración. */

@@ -1,9 +1,11 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { ChatMessage } from '../chat-thread/chat-thread.component';
 import {
+  ChatParticipant,
   ConversationKind,
   PresenceBusyReason,
   PresenceStatus,
@@ -17,7 +19,12 @@ export interface ChatConversation {
   kind: ConversationKind;
   /** userId del par en un 1:1 (Direct/Support con 2 participantes), o null (grupo/desconocido). Para llamar. */
   peerUserId: string | null;
+  /** Color de las iniciales: sembrado con el userId del par en un 1:1 (mismo color que en el resto del CRM). */
   avatarColor: string;
+  /** Foto del par en un 1:1; null/undefined = iniciales (grupos siempre iniciales). */
+  avatarFileId?: string | null;
+  /** Participantes (incluido yo) con nombre y foto — para el avatar de cada mensaje. */
+  participants?: ChatParticipant[];
   presence: PresenceStatus;
   busyReason: PresenceBusyReason;
   /** displayName del otro participante que está escribiendo (1:1), o null. */
@@ -38,7 +45,7 @@ export interface ChatConversation {
  */
 @Component({
   selector: 'app-chat-conversation-list',
-  imports: [CommonModule, AvatarComponent, SearchInputComponent],
+  imports: [CommonModule, AvatarComponent, AvatarUrlPipe, SearchInputComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-conversation-list.component.html',
 })

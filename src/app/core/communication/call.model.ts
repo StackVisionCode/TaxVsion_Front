@@ -34,6 +34,8 @@ export interface IncomingCallDto {
   callId: string;
   callerUserId: string;
   callerDisplayName: string;
+  /** Foto de quien llama; ausente si no se pudo resolver, null = sin foto. */
+  callerAvatarFileId?: string | null;
   calleeUserId: string;
   kind: CallKind;
   conversationId: string | null;
@@ -52,6 +54,8 @@ export interface CallPeerDto {
   callId: string;
   peerUserId: string;
   displayName: string;
+  /** Foto del par (llega al aceptar); ausente si no se pudo resolver, null = sin foto. */
+  avatarFileId?: string | null;
   role: 'Caller' | 'Callee';
   joinOrder: number;
   isPolite: boolean;

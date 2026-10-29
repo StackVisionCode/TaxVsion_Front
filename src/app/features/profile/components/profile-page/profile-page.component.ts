@@ -8,6 +8,7 @@ import {
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -20,11 +21,17 @@ import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { CheckRingComponent, CheckRingItem } from '@shared/ui/check-ring/check-ring.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.util';
+import { FileDropDirective } from '@shared/directives/file-drop.directive';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { PROFILE_PHOTO_ACCEPT } from '@core/profile-photo/profile-photo-image.util';
 import { ProfileStore } from '../../data-access/profile.store';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
 import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two-step-verification.component';
 import {
   PASSWORD_MIN_LENGTH,
+  PHOTO_FAILED_MESSAGE,
+  PHOTO_STILL_PROCESSING_MESSAGE,
+  PhotoStatus,
   UserSession,
   isValidPhoneNumber,
   passwordStrength,
@@ -48,6 +55,14 @@ interface ProfileSection {
 
 const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as const;
 
+const PHOTO_STATUS_LABELS: Record<PhotoStatus, string> = {
+  idle: '',
+  preparing: 'Preparing photo…',
+  uploading: 'Uploading photo…',
+  processing: 'Checking your photo…',
+  removing: 'Removing photo…',
+};
+
 /**
  * Página del usuario logueado, respaldada por el servicio Auth real:
  *
@@ -57,9 +72,10 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
  * - Teléfono: PUT /auth/me/phone directo (sin verificación por SMS).
  * - Sesiones: GET/DELETE /auth/sessions (revocar una o todas menos la actual).
  * - Verificación en dos pasos y dispositivos de confianza: `app-two-step-verification` (/auth/mfa/*).
+ * - Foto: PUT/DELETE /auth/me/avatar; visible cuando el antivirus la confirma (sondeo en el store).
  *
  * Cabecera con un chequeo de seguridad hecho solo con datos reales (email verificado, MFA, teléfono)
- * e índice lateral que sigue el scroll. No hay foto: el backend no tiene dónde guardarla.
+ * e índice lateral que sigue el scroll.
  */
 @Component({
   selector: 'app-profile-page',
@@ -72,6 +88,7 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
     TimeAgoPipe,
     CheckRingComponent,
     ConfirmDialogComponent,
+    FileDropDirective,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
@@ -84,11 +101,14 @@ export class ProfilePageComponent {
   private readonly toast = inject(ToastService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   // ---------------------------------------------------------------------------
   // Identidad
   // ---------------------------------------------------------------------------
   private readonly user = this.auth.currentUser;
+  /** Semilla del color de las iniciales: el id del usuario, igual que en el resto del CRM. */
+  readonly avatarSeed = computed(() => this.user()?.id ?? this.email());
   readonly roleLabel = computed(() => roleDisplayName(this.user()?.actorType));
   readonly isAdminRole = computed(() => {
     const actor = this.user()?.actorType;
@@ -159,6 +179,7 @@ export class ProfilePageComponent {
       this.lastName.set(u.lastName ?? '');
     });
     this.store.loadSessions();
+    this.store.resumePendingPhoto();
 
     // La sección "activa" es la que cruza la franja superior de la ventana.
     afterNextRender(() => {
@@ -174,6 +195,78 @@ export class ProfilePageComponent {
   scrollTo(sectionId: string): void {
     scrollToSection(this.host.nativeElement as HTMLElement, sectionId);
     this.activeSection.set(sectionId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Foto de perfil (PUT/DELETE /auth/me/avatar)
+  // ---------------------------------------------------------------------------
+  readonly photoAccept = PROFILE_PHOTO_ACCEPT;
+  readonly avatarUrl = computed(() => this.avatarUrls.url(this.user()?.avatarFileId));
+  readonly hasPhoto = computed(() => !!this.user()?.avatarFileId);
+  readonly photoStatus = this.store.photoStatus;
+  readonly photoBusy = this.store.photoBusy;
+  readonly photoError = this.store.photoError;
+  readonly photoStatusLabel = computed(() => PHOTO_STATUS_LABELS[this.photoStatus()]);
+  readonly removePhotoOpen = signal(false);
+  private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
+  private readonly photoButton = viewChild<ElementRef<HTMLButtonElement>>('photoButton');
+
+  openPhotoPicker(): void {
+    if (!this.photoBusy()) {
+      this.photoInput()?.nativeElement.click();
+    }
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Se limpia para que elegir otra vez el mismo archivo vuelva a disparar `change`.
+    input.value = '';
+    if (file) {
+      this.uploadPhoto(file);
+    }
+  }
+
+  onPhotoDropped(files: File[]): void {
+    if (files[0]) {
+      this.uploadPhoto(files[0]);
+    }
+  }
+
+  private uploadPhoto(file: File): void {
+    this.store.uploadPhoto(file).subscribe({
+      next: outcome => {
+        if (outcome === 'updated') {
+          this.notify('Profile photo updated', 'success');
+        } else if (outcome === 'failed') {
+          this.notify(PHOTO_FAILED_MESSAGE, 'error');
+        } else {
+          this.toast.info(PHOTO_STILL_PROCESSING_MESSAGE);
+        }
+      },
+      // El motivo (400/413, preparación) ya queda junto al avatar en `photoError`.
+      error: () => this.focusPhotoButton(),
+    });
+  }
+
+  confirmRemovePhoto(): void {
+    this.store.removePhoto().subscribe({
+      next: () => {
+        this.closeRemovePhoto();
+        this.notify('Profile photo removed', 'success');
+      },
+      error: () => this.closeRemovePhoto(),
+    });
+  }
+
+  closeRemovePhoto(): void {
+    this.removePhotoOpen.set(false);
+    this.focusPhotoButton();
+  }
+
+  /** Devuelve el foco al control de la foto (tras el diálogo o un error), después del re-render. */
+  private focusPhotoButton(): void {
+    setTimeout(() => this.photoButton()?.nativeElement.focus());
   }
 
   // ---------------------------------------------------------------------------

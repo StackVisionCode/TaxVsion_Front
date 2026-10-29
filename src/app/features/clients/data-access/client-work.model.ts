@@ -1,8 +1,8 @@
 /**
  * View-model de la pestaña "Work" del perfil de cliente + re-export del contrato HTTP compartido.
  *
- * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry,
- * avatarColorFor/initialsFor) vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
+ * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry)
+ * vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
  * acá para no tocar a los consumidores de la pestaña. Lo que queda es SOLO lo específico de Work
  * (la lista por secciones, `WorkTaskItem` con `overdue`/`clientDueAtUtc`, y su mapeo).
  */
@@ -13,15 +13,6 @@ import {
   ApiTaskStatus,
   TaskResponse,
 } from '@core/tasks/task-contract.model';
-
-/** Fila mínima de GET /auth/users — solo para resolver nombres de asignados (best-effort, requiere users.view). */
-export interface WorkUserSummary {
-  id: string;
-  name: string;
-  lastName: string;
-  email: string;
-  isActive: boolean;
-}
 
 // ---------- View-model de la pestaña ----------
 

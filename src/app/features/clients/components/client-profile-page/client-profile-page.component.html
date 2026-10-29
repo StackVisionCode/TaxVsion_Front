@@ -109,8 +109,8 @@
       <aside
         class="min-h-0 w-full flex-1 overflow-y-auto no-scrollbar bg-white rounded-[1.5rem] p-5 border border-gray-100 shadow-sm"
       >
-        <div class="flex items-center gap-4">
-          <app-avatar [name]="c.displayName" [seed]="c.id" sizeClass="h-14 w-14 text-lg" />
+        <!-- Cabecera con la foto del cliente (cámara/Change/Remove solo con customers.manage y no archivado) -->
+        <app-client-photo-editor [client]="c" [canEdit]="canEditPhoto()" (changed)="handlePhotoChanged()">
           <div class="min-w-0">
             <h2 class="text-lg font-bold leading-tight text-gray-900 break-words">
               {{ c.displayName }}
@@ -127,7 +127,7 @@
               }}</app-status-pill>
             </div>
           </div>
-        </div>
+        </app-client-photo-editor>
 
         <div
           *ngIf="c.email || c.phone"
@@ -235,6 +235,7 @@
                   <app-avatar
                     [name]="person.name"
                     [seed]="person.userId"
+                    [imageUrl]="person.avatarUrl"
                     sizeClass="h-11 w-11 text-sm"
                   />
                   @if (person.isPrimary) {
@@ -511,6 +512,7 @@
           <app-client-profile-calls
             [clientId]="c.id"
             [clientName]="c.displayName"
+            [clientAvatarFileId]="c.avatarFileId ?? null"
           ></app-client-profile-calls>
         }
       } @placeholder {

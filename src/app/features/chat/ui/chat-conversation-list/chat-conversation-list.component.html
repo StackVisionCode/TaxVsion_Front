@@ -9,7 +9,7 @@
       class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors"
       [ngClass]="conv.id === selectedId ? 'bg-brand-bold text-white' : 'hover:bg-gray-50 text-gray-700'">
       <div class="relative shrink-0">
-        <app-avatar [name]="conv.name" size="md" [colorClass]="conv.avatarColor"></app-avatar>
+        <app-avatar [name]="conv.name" size="md" [colorClass]="conv.avatarColor" [imageUrl]="conv.avatarFileId | avatarUrl"></app-avatar>
         <span *ngIf="showPresenceDot(conv)" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2"
           [ngClass]="[presenceDotClass(conv), conv.id === selectedId ? 'ring-gray-900' : 'ring-white']"
           [attr.aria-label]="presenceLabel(conv)" [attr.title]="presenceLabel(conv)"></span>

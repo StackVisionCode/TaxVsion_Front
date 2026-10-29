@@ -6,7 +6,9 @@ import { AuthService } from '@core/auth/auth.service';
 import { toApiError } from '@core/models/api-error.model';
 import { UserManagementService } from '../../../user-management/data-access/user-management.service';
 import { UserSummary } from '../../../user-management/data-access/user-management.model';
-import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { WorkflowStore } from '../../data-access/workflow.store';
 import { WorkflowCollaborator, WorkflowCollaboratorRole } from '../../data-access/workflow.model';
 
@@ -26,7 +28,7 @@ const ROLES: WorkflowCollaboratorRole[] = ['owner', 'editor', 'viewer'];
  */
 @Component({
   selector: 'app-workflow-share-modal',
-  imports: [CommonModule, FormsModule, ModalComponent],
+  imports: [CommonModule, FormsModule, ModalComponent, AvatarComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './workflow-share-modal.component.html',
   styleUrl: './workflow-share-modal.component.css',
@@ -35,6 +37,8 @@ export class WorkflowShareModalComponent {
   readonly store = inject(WorkflowStore);
   private readonly users = inject(UserManagementService);
   private readonly auth = inject(AuthService);
+  private readonly staff = inject(StaffDirectoryStore);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   private opened = false;
 
@@ -136,12 +140,20 @@ export class WorkflowShareModalComponent {
     );
   }
 
-  initials(name: string): string {
-    return initialsOf(name);
-  }
-
-  color(seed: string): string {
-    return avatarColorFor(seed);
+  /**
+   * Foto de una persona del modal: la mía sale de la sesión; las demás, de la lista de usuarios
+   * que ya trajo el modal o, si no está ahí, del directorio de staff compartido.
+   */
+  photoFor(userId: string): string | null {
+    const me = this.auth.currentUser();
+    if (me?.id === userId) {
+      return this.avatarUrls.url(me.avatarFileId);
+    }
+    const row = this.tenantUsers().find(user => user.id === userId);
+    if (row && row.avatarFileId !== undefined) {
+      return this.avatarUrls.url(row.avatarFileId);
+    }
+    return this.staff.avatarUrlFor(userId);
   }
 
   @Output() closed = new EventEmitter<void>();

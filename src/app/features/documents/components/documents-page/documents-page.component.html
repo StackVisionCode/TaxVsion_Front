@@ -183,7 +183,7 @@
                   [class]="client.id === context().clientId
                     ? 'border-brand-bold bg-brand-surface'
                     : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'">
-                  <app-avatar [name]="client.displayName" [seed]="client.id" sizeClass="h-10 w-10 text-xs" />
+                  <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-10 w-10 text-xs" />
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-sm font-semibold text-gray-900">{{ client.displayName }}</span>
                     <span class="block truncate text-xs text-gray-500">{{ client.primaryEmail }}</span>

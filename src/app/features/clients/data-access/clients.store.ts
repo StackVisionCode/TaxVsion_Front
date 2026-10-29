@@ -15,6 +15,7 @@ import {
   ContactPointResponse,
   CreateCustomerRequest,
   Customer,
+  CustomerAvatarUploadResponse,
   CustomerDetailResponse,
   CustomerExistsResponse,
   CustomerKindFilter,
@@ -243,6 +244,25 @@ export class ClientsStore {
 
   getById(id: string): Observable<CustomerDetailResponse> {
     return this.service.getById(id);
+  }
+
+  // ---------- Foto del cliente (la orquesta ClientPhotoStore) ----------
+
+  uploadAvatar(id: string, file: File): Observable<CustomerAvatarUploadResponse> {
+    return this.service.uploadAvatar(id, file);
+  }
+
+  deleteAvatar(id: string): Observable<void> {
+    return this.service.deleteAvatar(id).pipe(tap(() => this.afterPhotoChange(id)));
+  }
+
+  /**
+   * La foto del cliente cambió (confirmada o quitada): se desaloja del cache compartido para que
+   * pickers y listados la pidan de nuevo, y se re-pide la página visible del directorio.
+   */
+  afterPhotoChange(id: string): void {
+    this.directory.evict(id);
+    this.reloadList();
   }
 
   /** Preflight de duplicados por email / tax id (GET /customers/check-exists). */

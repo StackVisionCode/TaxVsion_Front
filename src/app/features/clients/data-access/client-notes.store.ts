@@ -5,6 +5,8 @@ import { Observable, concatMap, from, last, map, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
+import { AvatarUrlService } from '@core/profile-photo/avatar-url';
+import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
@@ -44,16 +46,16 @@ export class ClientNotesStore {
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);
   private readonly toast = inject(ToastService);
+  private readonly staff = inject(StaffDirectoryStore);
+  private readonly avatarUrls = inject(AvatarUrlService);
 
   private clientId = '';
-  private userNamesLoaded = false;
 
   private readonly _raw = signal<NoteResponse[]>([]);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
   private readonly _actionError = signal<string | null>(null);
   private readonly _busyIds = signal<ReadonlySet<string>>(new Set());
-  private readonly _userNames = signal<ReadonlyMap<string, string>>(new Map());
   /** Ids de notas creadas en esta sesión: propias con certeza, aunque `currentUser()` tarde. */
   private readonly _optimisticMineIds = signal<ReadonlySet<string>>(new Set());
 
@@ -65,12 +67,25 @@ export class ClientNotesStore {
   private readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   private readonly hasViewAll = computed(() => this.perms.has(NOTES_VIEW_ALL));
 
+  /** Mi foto sale de la sesión (/auth/me): está aunque no haya `users.view` para el directorio. */
+  private readonly myAvatarUrl = computed(() => this.avatarUrls.url(this.auth.currentUser()?.avatarFileId));
+
+  /** Nombres de autores: el directorio de staff compartido (GET /auth/users, best-effort). */
+  private readonly userNames = computed<ReadonlyMap<string, string>>(
+    () => new Map(this.staff.members().map(member => [member.userId, member.name])),
+  );
+
   readonly notes = computed<ClientNoteCard[]>(() => {
-    const names = this._userNames();
+    const names = this.userNames();
     const me = this.currentUserId();
     const viewAll = this.hasViewAll();
     const mine = this._optimisticMineIds();
-    return this._raw().map(note => toClientNoteCard(note, names, me, viewAll, mine.has(note.id)));
+    const myAvatar = this.myAvatarUrl();
+    return this._raw().map(note => {
+      const card = toClientNoteCard(note, names, me, viewAll, mine.has(note.id));
+      card.authorAvatarUrl = card.isMine ? myAvatar : this.staff.avatarUrlFor(card.authorUserId);
+      return card;
+    });
   });
 
   readonly total = computed(() => this._raw().length);
@@ -78,7 +93,10 @@ export class ClientNotesStore {
   /** Usuario logueado para el avatar del composer. */
   readonly me = computed(() => {
     const user = this.auth.currentUser();
-    return user ? { id: user.id, name: `${user.name} ${user.lastName}`.trim() || 'You' } : { id: '', name: 'You' };
+    const avatarUrl = this.myAvatarUrl();
+    return user
+      ? { id: user.id, name: `${user.name} ${user.lastName}`.trim() || 'You', avatarUrl }
+      : { id: '', name: 'You', avatarUrl: null };
   });
 
   isBusy(id: string): boolean {
@@ -102,7 +120,7 @@ export class ClientNotesStore {
       this._raw.set([]);
       this._actionError.set(null);
     }
-    this.loadUserNamesOnce();
+    this.staff.ensureLoaded();
     if (this.gate.shouldFetch(clientId)) {
       this.doRefresh();
     }
@@ -366,44 +384,6 @@ export class ClientNotesStore {
         next.add(id);
       } else {
         next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  /**
-   * Nombres de autores: el usuario logueado (siempre disponible) + GET /auth/users
-   * best-effort. Sin `users.view` el listado responde 403 y las notas ajenas quedan como
-   * "Team member" — no hay otra fuente de nombres en el contrato de Notes.
-   */
-  private loadUserNamesOnce(): void {
-    if (this.userNamesLoaded) {
-      return;
-    }
-    this.userNamesLoaded = true;
-
-    const me = this.auth.currentUser();
-    if (me) {
-      this.mergeUserNames([[me.id, `${me.name} ${me.lastName}`.trim()]]);
-    }
-
-    this.service.listUsers().subscribe({
-      next: result => this.mergeUserNames(result.items.map(user => [user.id, `${user.name} ${user.lastName}`.trim()])),
-      error: err =>
-        console.warn('Client notes: no se pudieron resolver nombres de autores:', toApiError(err).message),
-    });
-  }
-
-  private mergeUserNames(entries: Array<[string, string]>): void {
-    if (entries.length === 0) {
-      return;
-    }
-    this._userNames.update(current => {
-      const next = new Map(current);
-      for (const [id, name] of entries) {
-        if (name) {
-          next.set(id, name);
-        }
       }
       return next;
     });

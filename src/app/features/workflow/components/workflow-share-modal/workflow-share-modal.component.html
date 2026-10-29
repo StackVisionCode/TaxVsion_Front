@@ -12,8 +12,7 @@
 
     <!-- Dueño implícito: se muestra sin persistirse hasta el primer añadido real. -->
     <div *ngIf="implicitOwner() as me" class="wf-share-row flex items-center gap-3 py-2.5">
-      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-semibold text-white"
-        [ngClass]="color(me.email)">{{ initials(me.name) }}</span>
+      <app-avatar [name]="me.name" [seed]="me.userId" [imageUrl]="photoFor(me.userId)" sizeClass="h-8 w-8 text-[0.6875rem]" />
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-medium text-gray-900">{{ me.name }} <span class="text-gray-400">(you)</span></span>
         <span class="block truncate text-xs text-gray-400">{{ me.email }}</span>
@@ -22,8 +21,7 @@
     </div>
 
     <div *ngFor="let person of store.collaborators()" class="wf-share-row flex items-center gap-3 py-2.5">
-      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-semibold text-white"
-        [ngClass]="color(person.email)">{{ initials(person.name) }}</span>
+      <app-avatar [name]="person.name" [seed]="person.userId" [imageUrl]="photoFor(person.userId)" sizeClass="h-8 w-8 text-[0.6875rem]" />
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-medium text-gray-900">{{ person.name }}</span>
         <span class="block truncate text-xs text-gray-400">{{ person.email }}</span>
@@ -63,8 +61,7 @@
     <div *ngIf="!usersLoading() && !usersError()" class="mt-2 max-h-48 overflow-y-auto">
       <button *ngFor="let user of candidates()" type="button" (click)="add(user)"
         class="wf-share-row flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition-colors">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-semibold text-white"
-          [ngClass]="color(user.email)">{{ initials(user.name + ' ' + user.lastName) }}</span>
+        <app-avatar [name]="user.name + ' ' + user.lastName" [seed]="user.id" [imageUrl]="photoFor(user.id)" sizeClass="h-8 w-8 text-[0.6875rem]" />
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm text-gray-800">{{ user.name }} {{ user.lastName }}</span>
           <span class="block truncate text-xs text-gray-400">{{ user.email }}</span>

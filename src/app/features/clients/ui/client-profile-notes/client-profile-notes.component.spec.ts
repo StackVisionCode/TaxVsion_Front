@@ -43,7 +43,7 @@ function createStore(notes: ClientNoteCard[]) {
     loading: signal(false),
     error: signal<string | null>(null),
     actionError: signal<string | null>(null),
-    me: signal({ id: ME, name: 'Carla Gómez' }),
+    me: signal({ id: ME, name: 'Carla Gómez', avatarUrl: 'https://api.test/storage/avatars/f-me' as string | null }),
     isBusy: () => false,
     load: vi.fn(),
     refresh: vi.fn(),
@@ -188,6 +188,17 @@ describe('ClientProfileNotesComponent', () => {
       expect(todayBodies).toEqual(['Body of newest', 'Body of older-today']);
       // La anclada no se repite en el feed.
       expect(days.some(day => day.textContent?.includes('Body of pinned'))).toBe(false);
+    });
+
+    it('pinta la foto del autor y la mía en el composer', () => {
+      const note = card({ id: 'n1', createdByUserId: 'other' });
+      note.authorAvatarUrl = 'https://api.test/storage/avatars/f-ana';
+      const { el } = setup([note]);
+
+      const article = el.querySelector('article') as HTMLElement;
+      expect(article.querySelector('img')?.getAttribute('src')).toBe('https://api.test/storage/avatars/f-ana');
+      const sources = Array.from(el.querySelectorAll('img')).map(img => img.getAttribute('src'));
+      expect(sources).toContain('https://api.test/storage/avatars/f-me');
     });
 
     it('muestra badge de visibilidad, etiqueta y tiempo con fecha absoluta en el title', () => {

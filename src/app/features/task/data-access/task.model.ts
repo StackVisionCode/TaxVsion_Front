@@ -1,8 +1,8 @@
 /**
  * View-model del tablero Kanban + re-export del contrato HTTP compartido.
  *
- * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry,
- * avatarColorFor/initialsFor) vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
+ * El contrato del backend (enums, TaskResponse, PagedResult, request DTOs, EmployeeDirectoryEntry)
+ * vive UNA sola vez en `@core/tasks/task-contract.model` y se re-exporta
  * acá para no romper a los consumidores que importan desde `./task.model`. Lo que queda en este
  * archivo es SOLO lo específico de la superficie tablero.
  */
@@ -12,9 +12,8 @@ import {
   ApiTaskPriority,
   ApiTaskStatus,
   TaskResponse,
-  avatarColorFor,
-  initialsFor,
 } from '@core/tasks/task-contract.model';
+import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
 
 // ---------- Respuestas específicas del tablero ----------
 
@@ -27,15 +26,6 @@ export interface TaskBoardColumnResponse {
 export interface TaskBoardApiResponse {
   columns: TaskBoardColumnResponse[];
   totalCount: number;
-}
-
-/** Fila mínima de GET /auth/users — solo para resolver nombre del asignado en las tarjetas (best-effort). */
-export interface TaskUserSummary {
-  id: string;
-  name: string;
-  lastName: string;
-  email: string;
-  isActive: boolean;
 }
 
 // ---------- View-model del tablero ----------
@@ -149,7 +139,7 @@ export function toTaskItem(
     apiStatus: response.status,
     assigneeUserId: response.assigneeUserId,
     assigneeName,
-    assigneeInitials: response.assigneeUserId ? initialsFor(assigneeName) : '—',
+    assigneeInitials: response.assigneeUserId ? initialsOf(assigneeName) : '—',
     assigneeColor: response.assigneeUserId ? avatarColorFor(response.assigneeUserId) : 'bg-gray-300',
     isBlocked: response.isBlocked,
     taxYear: response.taxYear,

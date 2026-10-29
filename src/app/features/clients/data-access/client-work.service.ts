@@ -13,7 +13,6 @@ import {
   TaskResponse,
   UpdateTaskDetailsRequest,
   WaitOnClientRequest,
-  WorkUserSummary,
 } from './client-work.model';
 
 /**
@@ -21,8 +20,8 @@ import {
  * pestaña "Work" del perfil. Autocontenido (no importa `features/task`): el listado es el
  * endpoint REAL por cliente `GET /tasks/by-customer/{customerId}`, y cada transición usa su
  * verbo/ruta dedicada (no hay un "set status" genérico). Incluye además la llamada replicada
- * a GET /communication/directory/employees (picker de asignado) y GET /auth/users
- * (best-effort para nombres), igual que el módulo Task.
+ * a GET /communication/directory/employees (picker de asignado), igual que el módulo Task.
+ * Los nombres y fotos del staff salen del directorio compartido (`@core/staff`).
  */
 @Injectable({ providedIn: 'root' })
 export class ClientWorkService {
@@ -102,11 +101,5 @@ export class ClientWorkService {
       `${this.api.tenantUrl('/communication/directory')}/employees`,
       { params },
     );
-  }
-
-  /** GET /auth/users — nombres de asignados. Best-effort: sin permiso users.view devuelve 403. */
-  listUsers(size = 200): Observable<PagedResult<WorkUserSummary>> {
-    const params = new HttpParams().set('page', 1).set('size', size);
-    return this.http.get<PagedResult<WorkUserSummary>>(this.api.tenantUrl('/auth/users'), { params });
   }
 }

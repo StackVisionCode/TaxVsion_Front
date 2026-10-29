@@ -7,6 +7,7 @@ import { ClickOutsideDirective } from '@shared/directives/click-outside.directiv
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
 import { ClipboardService } from '@shared/services/clipboard.service';
@@ -66,6 +67,7 @@ type MoveTarget = { file: FileResponse; folder?: undefined } | { folder: FolderR
     StateBlockComponent,
     PaginationComponent,
     AvatarComponent,
+    AvatarUrlPipe,
     SearchInputComponent,
     FilterChipsComponent,
     ConfirmDialogComponent,

@@ -1,11 +1,9 @@
 <button type="button" (click)="open.emit()" class="flex items-center"
   [attr.aria-label]="'Manage the ' + collaborators.length + ' people on this workflow'">
   <span class="flex -space-x-2">
-    <span *ngFor="let person of visible; let i = index"
-      class="wf-avatar flex h-[1.875rem] w-[1.875rem] items-center justify-center rounded-full text-[0.625rem] font-bold ring-2 ring-white"
-      [ngClass]="tone(i)" [title]="title(person)">
-      {{ initials(person) }}
-    </span>
+    <app-avatar *ngFor="let person of visible" class="wf-avatar rounded-full ring-2 ring-white"
+      [name]="person.name || person.email" [seed]="person.userId" [imageUrl]="staff.avatarUrlFor(person.userId)"
+      sizeClass="h-[1.875rem] w-[1.875rem] text-[0.625rem]" [title]="title(person)" />
     <span *ngIf="overflow > 0"
       class="wf-avatar flex h-[1.875rem] w-[1.875rem] items-center justify-center rounded-full bg-[#F4EDE4] text-[0.625rem] font-bold text-[#083645] ring-2 ring-white">
       +{{ overflow }}

@@ -39,6 +39,8 @@ export interface UserSummary {
   slotIndex?: number | null;
   /** SG-8 — `true` si este empleado está por encima del cap efectivo (asiento add-on impago). */
   isGated?: boolean;
+  /** Foto confirmada (`/storage/avatars/{id}`). Ausente = backend anterior; null = sin foto. */
+  avatarFileId?: string | null;
 }
 
 /** Fila de GET /auth/invitations (InvitationResponse). El backend no expone los roleIds de la invitación. */
@@ -299,7 +301,9 @@ export function userToTeamMember(user: UserSummary): TeamMember {
     kind: 'user',
     name,
     initials: initialsOf(name, { fallback: 'NM' }),
-    avatarColor: avatarColorFor(user.email),
+    // Color por userId: la misma persona sale igual en todo el CRM.
+    avatarColor: avatarColorFor(user.id),
+    avatarFileId: user.avatarFileId ?? null,
     email: user.email,
     roleNames: user.roles,
     actorType: user.actorType,

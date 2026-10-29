@@ -159,4 +159,8 @@ export interface MeResponse {
   phoneVerified: boolean;
   phoneNumber: string | null;
   plan: Plan | null;
+  /** Foto de perfil confirmada (se sirve en `/storage/avatars/{id}`). Opcional: un backend anterior no la manda. */
+  avatarFileId?: string | null;
+  /** Hay una foto nueva esperando el antivirus. */
+  avatarPending?: boolean;
 }
