@@ -82,15 +82,17 @@ describe('UserTableComponent — slot column', () => {
       fixture.detectChanges();
     };
 
+    // El panel del menú se porta al body: se consulta en `document`.
     const fixtureFalse = render([member()], false);
     openMenu(fixtureFalse);
-    expect(fixtureFalse.nativeElement.querySelector('[data-testid="slot-move-up"]')).toBeFalsy();
-    expect(fixtureFalse.nativeElement.querySelector('[data-testid="slot-set-end"]')).toBeFalsy();
+    expect(fixtureFalse.nativeElement.querySelector('[aria-label="Member actions"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-move-up"]')).toBeFalsy();
+    expect(document.querySelector('[data-testid="slot-set-end"]')).toBeFalsy();
     TestBed.resetTestingModule();
 
     const fixtureTrue = render([member()], true);
     openMenu(fixtureTrue);
-    expect(fixtureTrue.nativeElement.querySelector('[data-testid="slot-move-up"]')).toBeTruthy();
-    expect(fixtureTrue.nativeElement.querySelector('[data-testid="slot-set-end"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-move-up"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="slot-set-end"]')).toBeTruthy();
   });
 });

@@ -128,4 +128,41 @@ describe('FormRequestsService (external participants)', () => {
     const staff = await result;
     expect(staff.map((member) => member.userId)).toEqual(['u1', 'u2']);
   });
+
+  it('gets the profile-update fields checklist', async () => {
+    const result = firstValueFrom(service.profileUpdateFields('request-1'));
+    const request = http.expectOne({
+      method: 'GET',
+      url: `${base}/requests/request-1/profile-update/fields`,
+    });
+    request.flush({
+      status: 'None',
+      fields: [
+        {
+          componentId: 'c1',
+          label: 'Phone',
+          targetKey: 'customer.primary_phone',
+          targetDisplayName: 'Primary phone',
+          dataType: 'Phone',
+          requiresAdmin: false,
+          isTaxId: false,
+        },
+      ],
+      outcomes: [],
+    });
+    const response = await result;
+    expect(response.fields[0].targetKey).toBe('customer.primary_phone');
+  });
+
+  it('posts the profile-update with selected components and the tax identifier flag', async () => {
+    const input = { componentIds: ['c1', 'c2'], includeTaxIdentifier: true };
+    const result = firstValueFrom(service.applyProfileUpdate('request-1', input));
+    const request = http.expectOne({
+      method: 'POST',
+      url: `${base}/requests/request-1/profile-update`,
+    });
+    expect(request.request.body).toEqual(input);
+    request.flush({ id: 'request-1', status: 'Completed', profileUpdateStatus: 'Processing' });
+    await result;
+  });
 });

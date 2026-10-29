@@ -1,10 +1,15 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { NgClass } from '@angular/common';
 
 export interface SegmentedOption<T extends string | number = string> {
   id: T;
   label: string;
+  /** Icono ionicons opcional delante de la etiqueta. */
+  icon?: string;
 }
+
+/** 'tabs' (default): sub-pestañas. 'radio': elegir un valor (p. ej. visibilidad) → radiogroup/radio. */
+export type SegmentedMode = 'tabs' | 'radio';
 
 /**
  * Control segmentado (sub-pestañas en píldora), extraído de campaigns-page (Lists/Contacts).
@@ -17,20 +22,28 @@ export interface SegmentedOption<T extends string | number = string> {
  * Pulsar el segmento activo no emite. `fill` reparte el ancho; `columns` apila en rejilla.
  * Teclado (patrón tabs): foco itinerante, flechas/Inicio/Fin mueven y seleccionan. `controls` enlaza
  * cada pestaña con su `tabpanel`.
+ * Extensiones: `icon` por opción; `mode="radio"` cambia la semántica a `radiogroup`/`radio` +
+ * `aria-checked` (mismo aspecto y teclado) para controles de valor que no son pestañas.
  */
 @Component({
   selector: 'app-segmented',
   imports: [NgClass],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   host: { '[class.inline-flex]': '!fill && !columns', '[class.flex]': 'fill || !!columns', '[class.w-full]': 'fill || !!columns' },
   template: `
-    <div role="tablist" [ngClass]="trackClass()" [style.grid-template-columns]="columns ? 'repeat(' + columns + ', minmax(0, 1fr))' : null"
+    <div [attr.role]="mode === 'radio' ? 'radiogroup' : 'tablist'" [ngClass]="trackClass()" [style.grid-template-columns]="columns ? 'repeat(' + columns + ', minmax(0, 1fr))' : null"
       [attr.aria-label]="ariaLabel" (keydown)="onKeydown($event)">
       @for (option of options; track option.id; let index = $index) {
-        <button type="button" role="tab" [attr.aria-selected]="option.id === value" (click)="select(option.id)"
-          [attr.tabindex]="index === focusIndex() ? 0 : -1" [attr.aria-controls]="controls"
+        <button type="button" [attr.role]="mode === 'radio' ? 'radio' : 'tab'" (click)="select(option.id)"
+          [attr.aria-selected]="mode === 'radio' ? null : option.id === value"
+          [attr.aria-checked]="mode === 'radio' ? option.id === value : null"
+          [attr.tabindex]="index === focusIndex() ? 0 : -1" [attr.aria-controls]="mode === 'radio' ? null : controls"
           class="rounded-full py-1.5 text-xs font-semibold transition-colors"
           [ngClass]="segmentClass(option.id === value)"
           [attr.title]="fill || columns ? option.label : null">
+          @if (option.icon) {
+            <ion-icon [name]="option.icon" class="-ml-0.5 mr-1 align-[-0.125em] text-sm" aria-hidden="true"></ion-icon>
+          }
           {{ option.label }}
         </button>
       }
@@ -47,6 +60,7 @@ export class SegmentedComponent<T extends string | number = string> {
   /** Id del `tabpanel` que controlan las pestañas (opcional). */
   @Input() controls: string | null = null;
   @Input() ariaLabel: string | null = null;
+  @Input() mode: SegmentedMode = 'tabs';
   @Output() readonly valueChange = new EventEmitter<T>();
 
   segmentClass(active: boolean): string {
@@ -83,7 +97,7 @@ export class SegmentedComponent<T extends string | number = string> {
     if (next === undefined) return;
     event.preventDefault();
     this.select(this.options[next].id);
-    const tabs = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    const tabs = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
     tabs[next]?.focus();
   }
 

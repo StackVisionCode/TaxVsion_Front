@@ -26,7 +26,12 @@ import type {
   AssignableFormTemplate,
   ActiveConsentNotice,
 } from '../../data-access/client-forms.model';
-import { isValidEmail } from '../../utils/external-forms';
+import { isValidEmail, type CustomerEmailConflict } from '../../utils/external-forms';
+
+export interface SendExternalFormPrefill {
+  email: string;
+  fullName: string | null;
+}
 
 /** Envío de una plantilla a un email que no es cliente (P-14 flujo A). Solo presenta y valida. */
 @Component({
@@ -174,45 +179,53 @@ import { isValidEmail } from '../../utils/external-forms';
           </label>
         </div>
 
+        <!-- El backend rechaza emails de clientes (409): aquí solo se anticipa, no se puede saltar. -->
         @if (matchedClient(); as client) {
-          @if (!clientAcknowledged()) {
-            <div
-              class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-              role="status"
-              data-testid="existing-client-warning"
-            >
-              @if (canAssignToClient) {
-                <p>
-                  This email belongs to client <strong>{{ client.displayName }}</strong>. Assign the
-                  form to the client instead.
-                </p>
-              } @else {
-                <p>
-                  This email belongs to client <strong>{{ client.displayName }}</strong>. Assign the
-                  form from the client's profile, or ask someone who can assign forms to clients.
-                </p>
-              }
+          <div
+            class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+            role="status"
+            data-testid="existing-client-warning"
+          >
+            @if (canAssignToClient) {
+              <p>
+                This email belongs to client <strong>{{ client.displayName }}</strong>. Assign the
+                form to the client instead.
+              </p>
               <div class="mt-3 flex flex-wrap gap-2">
-                @if (canAssignToClient) {
-                  <button
-                    type="button"
-                    class="min-h-9 rounded-full bg-brand-bold px-4 text-sm font-bold text-white hover:bg-brand-ink"
-                    (click)="assignToClient.emit({ customerId: client.id, templateId: templateId() || null })"
-                  >
-                    Assign to client
-                  </button>
-                }
                 <button
                   type="button"
-                  class="min-h-9 rounded-full border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 disabled:opacity-50"
-                  [disabled]="!ready() || busy"
-                  (click)="sendAnyway()"
+                  class="min-h-9 rounded-full bg-brand-bold px-4 text-sm font-bold text-white hover:bg-brand-ink"
+                  (click)="assignToClient.emit({ customerId: client.id, templateId: templateId() || null })"
                 >
-                  Send anyway
+                  Assign to client
                 </button>
               </div>
-            </div>
-          }
+            } @else {
+              <p>
+                This email belongs to client <strong>{{ client.displayName }}</strong>. Assign the
+                form from the client's profile, or ask someone who can assign forms to clients.
+              </p>
+            }
+          </div>
+        } @else if (activeConflict(); as conflict) {
+          <div
+            class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+            role="alert"
+            data-testid="customer-email-conflict"
+          >
+            <p>{{ conflict.message }}</p>
+            @if (conflict.customerId && canAssignToClient) {
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="min-h-9 rounded-full bg-brand-bold px-4 text-sm font-bold text-white hover:bg-brand-ink"
+                  (click)="assignToClient.emit({ customerId: conflict.customerId, templateId: templateId() || null })"
+                >
+                  Assign to client
+                </button>
+              </div>
+            }
+          </div>
         }
         @if (error) {
           <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -230,9 +243,10 @@ import { isValidEmail } from '../../utils/external-forms';
           <button
             type="submit"
             class="min-h-10 rounded-full bg-brand-bold px-4 text-sm font-bold text-white disabled:opacity-50"
-            [disabled]="!ready() || busy || checkingClient() || (matchedClient() != null && !clientAcknowledged())"
+            [disabled]="!ready() || busy || checkingClient() || matchedClient() != null || activeConflict() != null"
           >
-            {{ busy ? 'Sending…' : 'Send form' }}
+            <!-- Mientras se busca si el email ya es de un cliente el botón está apagado: que se vea por qué. -->
+            {{ busy ? 'Sending…' : checkingClient() ? 'Checking email…' : 'Send form' }}
           </button>
         </div>
       </form>
@@ -256,6 +270,16 @@ export class SendExternalFormDialogComponent {
     // Con un único aviso válido se preselecciona.
     if (!this.noticeKey() && value?.length === 1) this.noticeKey.set(value[0].key);
   }
+  /** Datos con que abrir el diálogo (p. ej. "Send another form" desde Prospects). */
+  @Input() set prefill(value: SendExternalFormPrefill | null) {
+    this._prefill = value;
+    if (this.open && value) this.applyPrefill(value);
+  }
+  /** 409 `FormParticipant.EmailBelongsToCustomer` del último envío; se oculta al cambiar el email. */
+  @Input() set conflict(value: CustomerEmailConflict | null) {
+    this._conflict.set(value);
+    this.conflictEmail.set(value ? this.lastSentEmail : null);
+  }
   /** Asignar a un cliente exige `tasks.form_requests.manage`; sin él no se ofrece el atajo. */
   @Input() canAssignToClient = false;
   @Input() noticesLoading = false;
@@ -273,8 +297,11 @@ export class SendExternalFormDialogComponent {
   // Email ya consultado contra el directorio (normalizado) y su resultado.
   private checkedEmail: string | null = null;
   readonly matchedClient = signal<CustomerSummary | null>(null);
-  readonly clientAcknowledged = signal(false);
   readonly checkingClient = signal(false);
+  private readonly _conflict = signal<CustomerEmailConflict | null>(null);
+  private readonly conflictEmail = signal<string | null>(null);
+  private lastSentEmail: string | null = null;
+  private _prefill: SendExternalFormPrefill | null = null;
 
   private open = false;
   private readonly _templates = signal<readonly AssignableFormTemplate[]>([]);
@@ -303,6 +330,10 @@ export class SendExternalFormDialogComponent {
       label: `${item.title} · v${item.versionNumber}`,
     })),
   );
+  readonly activeConflict = computed(() => {
+    const conflict = this._conflict();
+    return conflict && this.conflictEmail() === this.email().trim().toLowerCase() ? conflict : null;
+  });
   readonly emailInvalid = computed(() => this.emailTouched() && !isValidEmail(this.email()));
   readonly dueDatePreview = computed(() => formatDueDate(dueDateToUtc(this.dueDate())));
   readonly ready = computed(
@@ -342,7 +373,6 @@ export class SendExternalFormDialogComponent {
         null;
       this.checkedEmail = email;
       this.matchedClient.set(match);
-      this.clientAcknowledged.set(false);
       return match;
     } catch {
       this.checkedEmail = email;
@@ -353,23 +383,18 @@ export class SendExternalFormDialogComponent {
     }
   }
 
-  sendAnyway(): void {
-    this.clientAcknowledged.set(true);
-    this.emit();
-  }
-
   async submit(event: Event): Promise<void> {
     event.preventDefault();
     this.emailTouched.set(true);
     if (!this.ready() || this.busy) return;
     // Antes de enviar se comprueba el email si el blur no llegó a hacerlo.
-    const match = await this.checkExistingClient();
-    if (match && !this.clientAcknowledged()) return;
+    if (await this.checkExistingClient()) return;
     this.emit();
   }
 
   private emit(): void {
-    if (!this.ready() || this.busy) return;
+    if (!this.ready() || this.busy || this.activeConflict()) return;
+    this.lastSentEmail = this.email().trim().toLowerCase();
     const year = Number(this.taxYear());
     this.sent.emit({
       email: this.email().trim(),
@@ -390,10 +415,7 @@ export class SendExternalFormDialogComponent {
   changeEmail(value: string): void {
     this.email.set(value);
     // Otro email invalida el aviso anterior.
-    if (value.trim().toLowerCase() !== this.checkedEmail) {
-      this.matchedClient.set(null);
-      this.clientAcknowledged.set(false);
-    }
+    if (value.trim().toLowerCase() !== this.checkedEmail) this.matchedClient.set(null);
   }
 
   private reset(): void {
@@ -401,7 +423,9 @@ export class SendExternalFormDialogComponent {
     this.emailTouched.set(false);
     this.checkedEmail = null;
     this.matchedClient.set(null);
-    this.clientAcknowledged.set(false);
+    this._conflict.set(null);
+    this.conflictEmail.set(null);
+    this.lastSentEmail = null;
     this.fullName.set('');
     this.templateId.set('');
     this.noticeKey.set(this._notices().length === 1 ? this._notices()[0].key : '');
@@ -409,5 +433,11 @@ export class SendExternalFormDialogComponent {
     this.message.set('');
     this.dueDate.set('');
     this.taxYear.set('');
+    if (this._prefill) this.applyPrefill(this._prefill);
+  }
+
+  private applyPrefill(value: SendExternalFormPrefill): void {
+    this.changeEmail(value.email);
+    this.fullName.set(value.fullName ?? '');
   }
 }

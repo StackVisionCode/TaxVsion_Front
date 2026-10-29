@@ -51,19 +51,22 @@ const HEADINGS: Record<FormReviewAction, string> = {
             <input
               type="date"
               class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 px-3"
+              aria-describedby="form-review-due-hint"
               [min]="minDueDate"
               [value]="text()"
               (input)="text.set(value($event))"
             />
           </label>
-          <p class="text-xs text-gray-500">Leave it empty to remove the due date.</p>
+          <p id="form-review-due-hint" class="text-xs text-gray-500">
+            Leave it empty to remove the due date.
+          </p>
         } @else {
           <label class="block text-sm font-semibold text-gray-700">
             {{ kind() === 'return' ? 'Message to client' : 'Note' }}
             @if (kind() === 'return') {
               <span class="font-normal text-gray-500">Required</span>
             } @else {
-              <span class="font-normal text-gray-400">Optional</span>
+              <span class="font-normal text-gray-500">Optional</span>
             }
             <textarea
               class="mt-1 w-full rounded-xl border p-3"
@@ -79,7 +82,7 @@ const HEADINGS: Record<FormReviewAction, string> = {
             ></textarea>
           </label>
           @if (messageMissing()) {
-            <p id="form-review-message-error" class="text-xs font-semibold text-red-700">
+            <p id="form-review-message-error" class="text-xs font-semibold text-red-700" role="alert">
               Write a message so the client knows what to change.
             </p>
           }

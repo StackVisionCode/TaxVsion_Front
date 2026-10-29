@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import type { FormAction, FormDefinition } from '@shared/utils/data-collection/form-definition.model';
 import type { MappingCatalog } from '../../data-access/mapping-catalog.model';
+import type { CoverageFix } from '../../utils/mapping-coverage';
 import type { MappingRemoval } from '../../utils/mapping-mutations';
 import { AfterSubmissionPanelComponent } from '../after-submission-panel/after-submission-panel.component';
 import { MappingCoveragePanelComponent } from '../mapping-coverage-panel/mapping-coverage-panel.component';
@@ -22,7 +23,6 @@ import { MappingCoveragePanelComponent } from '../mapping-coverage-panel/mapping
           [catalogLoading]="catalogLoading()"
           [modules]="modules()"
           [autoCustomerCreationEnabled]="autoCustomerCreationEnabled()"
-          [signatureStepEnabled]="signatureStepEnabled()"
           [disabled]="disabled()"
           (actionsChange)="actionsChange.emit($event)"
           (coverageRequested)="coverageRequested.emit($event)"
@@ -41,6 +41,7 @@ import { MappingCoveragePanelComponent } from '../mapping-coverage-panel/mapping
           [focusActionKey]="focusActionKey()"
           (componentSelected)="componentSelected.emit($event)"
           (mappingRemoved)="mappingRemoved.emit($event)"
+          (fixApplied)="fixApplied.emit($event)"
           (actionSelected)="actionSelected.emit($event)"
           (retry)="retry.emit()"
         />
@@ -58,7 +59,6 @@ export class TemplateSettingsPanelComponent {
   readonly catalogError = input('');
   readonly modules = input<ReadonlySet<string> | null>(null);
   readonly autoCustomerCreationEnabled = input<boolean | null>(null);
-  readonly signatureStepEnabled = input<boolean | null>(null);
   readonly disabled = input(false);
   readonly focusActionKey = input<string | null>(null);
 
@@ -66,6 +66,7 @@ export class TemplateSettingsPanelComponent {
   readonly coverageRequested = output<string>();
   readonly componentSelected = output<string>();
   readonly mappingRemoved = output<MappingRemoval>();
+  readonly fixApplied = output<CoverageFix>();
   readonly actionSelected = output<string>();
   readonly retry = output<void>();
 }

@@ -57,6 +57,47 @@ export interface FormTemplateDetail extends FormTemplateSummary {
   latestVersionId: string | null;
   draftUpdatedByUserId: string;
   versions: FormTemplateVersionSummary[];
+  // P-9 Biblioteca: presentes solo cuando la plantilla proviene de la biblioteca o la integra.
+  libraryOrigin?: LibraryOrigin | null;
+  libraryKey?: string | null;
+  isLibraryListed?: boolean;
+}
+
+/** Procedencia de un clon de la biblioteca TaxVision (P-9). */
+export interface LibraryOrigin {
+  libraryKey: string;
+  sourceTemplateId: string;
+  sourceVersionNumber: number;
+}
+
+/** Tarjeta de la biblioteca; `latestVersionNumber` es la última versión revisada. */
+export interface LibraryTemplateSummary {
+  key: string;
+  name: string;
+  description: string | null;
+  purpose: FormPurpose;
+  latestVersionNumber: number;
+}
+
+export interface LibraryTemplatePreview {
+  key: string;
+  name: string;
+  description: string | null;
+  purpose: FormPurpose;
+  versionNumber: number;
+  /** Definición JSON de la última versión revisada, para preview en solo lectura. */
+  definition: string;
+}
+
+export interface RecordLibraryReviewInput {
+  reviewedVersionNumber: number;
+  reviewerRole: string;
+  note: string | null;
+}
+
+export interface SetLibraryListingInput {
+  libraryKey: string;
+  isListed: boolean;
 }
 
 export interface FormTemplateVersion {
@@ -120,6 +161,18 @@ export type FormActionRunStatus = 'Requested' | 'Completed' | 'Rejected' | 'Fail
 export type CustomerLinkStatus = 'None' | 'Linked' | 'Blocked';
 export type FormRevisionOutcome = 'Pending' | 'Returned' | 'Completed';
 export type FormAttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+// P-18 — estado de la firma opcional (Signature service). Serializado PascalCase como el resto de enums.
+export type FormSignatureStatus =
+  | 'None'
+  | 'Requesting'
+  | 'Sent'
+  | 'Signed'
+  | 'Completed'
+  | 'Sealed'
+  | 'Declined'
+  | 'Canceled'
+  | 'Expired'
+  | 'Failed';
 
 export interface FormRequestParticipant {
   kind: FormParticipantKind;
@@ -167,6 +220,8 @@ export interface FormRequestListItem {
   requestedByUserId: string;
   requestedAtUtc: string;
   actionRuns: FormActionRun[];
+  // P-18 — firma más reciente de la request; opcional para no romper fixtures previas (el backend siempre lo envía).
+  latestSignatureStatus?: FormSignatureStatus;
 }
 
 export interface FormRequestFilters {
@@ -200,7 +255,49 @@ export interface FormRequest {
   progressPercent: number;
   currentRevisionNumber: number;
   lastSubmittedAtUtc: string | null;
+  // Opcionales en el tipo para no romper fixtures previas; el backend siempre los envía.
+  reminderCount?: number;
+  lastReminderAtUtc?: string | null;
+  isOverdue?: boolean;
+  // P-13 — estado de "apply to client profile" y motivos.
+  profileUpdateStatus?: FormProfileUpdateStatus;
+  profileUpdateOutcomes?: FormProfileUpdateOutcome[];
   rowVersion: string;
+}
+
+// P-13 — aplicar respuestas aprobadas al perfil del cliente.
+export type FormProfileUpdateStatus =
+  | 'None'
+  | 'Processing'
+  | 'Applied'
+  | 'PartiallyApplied'
+  | 'Rejected';
+
+export interface FormProfileUpdateOutcome {
+  target: string;
+  applied: boolean;
+  failureCode: string | null;
+}
+
+export interface ProfileUpdateField {
+  componentId: string;
+  label: string;
+  targetKey: string;
+  targetDisplayName: string;
+  dataType: string;
+  requiresAdmin: boolean;
+  isTaxId: boolean;
+}
+
+export interface ProfileUpdateFieldsResponse {
+  status: FormProfileUpdateStatus;
+  fields: ProfileUpdateField[];
+  outcomes: FormProfileUpdateOutcome[];
+}
+
+export interface ApplyProfileUpdateInput {
+  componentIds: string[] | null;
+  includeTaxIdentifier: boolean;
 }
 
 export interface FormFieldComment {
@@ -217,6 +314,8 @@ export interface FormRequestRevisionSummary {
   fieldComments: FormFieldComment[];
   pdfStatus: 'None' | 'Requested' | 'Ready' | 'Failed';
   pdfFileId: string | null;
+  // P-18 — firma de esta revisión; opcional para no romper fixtures previas (el backend siempre lo envía).
+  signatureStatus?: FormSignatureStatus;
 }
 
 export interface FormRequestRevision extends FormRequestRevisionSummary {
@@ -359,3 +458,98 @@ export interface CreateFormIntakeLinkInput {
 }
 
 export type FormIntakeLinkAction = 'pause' | 'resume' | 'revoke' | 'regenerate-token';
+
+// --- P-12 Reporting ---
+
+/** `FormReportableKey`: una clave reportable del template, para el filtro y las columnas del CSV. */
+export interface FormReportableKey {
+  key: string;
+  label: string;
+  type: string;
+  repeatable: boolean;
+}
+
+export interface FormReportKeysResponse {
+  templateId: string;
+  keys: FormReportableKey[];
+}
+
+/** `FormReportAnswerRow`: una fila de resultado del reporte de respuestas. */
+export interface FormReportAnswerRow {
+  formRequestId: string;
+  customerId: string | null;
+  participantId: string | null;
+  displayName: string;
+  title: string;
+  revisionNumber: number;
+  completedAtUtc: string;
+  key: string;
+  rowIndex: number | null;
+  valueText: string;
+  valueNumber: number | null;
+  valueDate: string | null;
+}
+
+export interface FormReportSummaryBucket {
+  value: string;
+  count: number;
+}
+
+export interface FormReportSummaryResponse {
+  templateId: string;
+  key: string;
+  total: number;
+  buckets: FormReportSummaryBucket[];
+}
+
+export interface FormReportAnswersFilters {
+  templateId: string;
+  key: string;
+  value?: string | null;
+  from?: string | null;
+  to?: string | null;
+  page?: number;
+}
+
+// Prospects ("leads-lite"): participantes externos sin pipeline de ventas (`tasks/forms/prospects`).
+export type FormProspectStatus =
+  | 'Invited'
+  | 'Verified'
+  | 'Submitted'
+  | 'Converted'
+  | 'Duplicate'
+  | 'Lost';
+export type FormProspectSource = 'DirectedRequest' | 'IntakeLink';
+
+export interface FormProspectLatestRequest {
+  id: string;
+  title: string;
+  status: FormRequestStatus;
+  templateName: string;
+}
+
+export interface FormProspect {
+  participantId: string;
+  email: string;
+  fullName: string | null;
+  phoneE164: string | null;
+  status: FormProspectStatus;
+  source: FormProspectSource;
+  createdAtUtc: string;
+  lastActivityAtUtc: string;
+  requestCount: number;
+  latestRequest: FormProspectLatestRequest | null;
+  customerId: string | null;
+  duplicateOfCustomerId: string | null;
+  lostReason: string | null;
+  canCreateClient: boolean;
+  /** Request para `actions/create-customer`; null cuando `canCreateClient` es false. */
+  createClientRequestId: string | null;
+}
+
+export interface FormProspectFilters {
+  status?: FormProspectStatus | null;
+  search?: string | null;
+  page: number;
+  size: number;
+}

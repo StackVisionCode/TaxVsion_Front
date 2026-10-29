@@ -31,6 +31,12 @@ label {
   box-shadow: 0 0 0 3px rgb(30 70 107 / 0.16);
 }
 
+/* Foco por teclado con contraste ≥3:1 (WCAG 1.4.11 / 2.4.7). */
+:is(.text-input, .otp-input):focus-visible {
+  outline: 2px solid rgb(30 70 107);
+  outline-offset: 2px;
+}
+
 :is(.primary-button, .secondary-button, .text-button) {
   min-height: 44px;
   border-radius: 9999px;
@@ -61,8 +67,8 @@ label {
   color: rgb(30 70 107);
 }
 
-:is(button, a):focus-visible {
-  outline: 3px solid rgb(55 164 241);
+:is(button, a, input[type='radio']):focus-visible {
+  outline: 3px solid rgb(30 70 107);
   outline-offset: 3px;
 }
 

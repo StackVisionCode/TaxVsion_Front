@@ -33,9 +33,12 @@ describe('form action catalog', () => {
       expect(descriptor.triggers).toContain(descriptor.defaultTrigger);
   });
 
-  it('marks signature as coming soon and keeps implicit actions out of configuration', () => {
+  it('marks the H4 flows as automatic and keeps implicit actions out of configuration', () => {
     const byType = new Map(FORM_ACTION_CATALOG.map((item) => [item.type, item]));
-    expect(byType.get('requestSignature')?.availability).toBe('comingSoon');
+    for (const type of ['updateCustomerProfile', 'generateSummary', 'requestSignature', 'applyRetentionClass'] as const) {
+      expect(byType.get(type)?.availability).toBe('automatic');
+      expect(byType.get(type)?.automatic?.note).toBeTruthy();
+    }
     expect(byType.get('createCustomer')?.availability).toBe('available');
     expect(byType.get('notifyStaff')?.implicit).toBe(true);
     expect(byType.get('routeToReview')?.implicit).toBe(true);

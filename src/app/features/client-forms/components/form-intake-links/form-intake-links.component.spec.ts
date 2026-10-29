@@ -101,7 +101,8 @@ describe('FormIntakeLinksComponent', () => {
   function openMenu(fixture: ReturnType<typeof render>): string[] {
     (fixture.nativeElement.querySelector('app-dropdown-menu button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    return Array.from(fixture.nativeElement.querySelectorAll('[role="menu"] button')).map(
+    // El panel del menú se porta al <body>: se busca en el documento.
+    return Array.from(document.querySelectorAll('[role="menu"] button')).map(
       (button) => (button as HTMLElement).textContent?.trim() ?? '',
     );
   }
@@ -304,7 +305,7 @@ describe('FormIntakeLinksComponent with intake links turned off', () => {
     expect(element.querySelectorAll('tbody tr').length).toBe(2);
     (element.querySelector('app-dropdown-menu button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    const items = Array.from(element.querySelectorAll('[role="menu"] button')).map(
+    const items = Array.from(document.querySelectorAll('[role="menu"] button')).map(
       (button) => button.textContent?.trim(),
     );
     expect(items).toEqual(['Pause', 'Revoke']);

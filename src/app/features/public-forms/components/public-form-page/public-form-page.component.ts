@@ -9,9 +9,12 @@ import {
   ViewChild,
   ViewChildren,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
@@ -75,6 +78,7 @@ type PageStep =
   | 'consent'
   | 'form'
   | 'done'
+  | 'alreadySubmitted'
   | 'declined'
   | 'unavailable';
 
@@ -91,6 +95,7 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
   private readonly sessions = inject(PublicFormSessionStorageService);
   private readonly branding = inject(TenantBrandingService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly document = inject(DOCUMENT);
   private readonly engine = new FormEngine();
   private coordinator: DraftSaveCoordinator | null = null;
   private unsubscribeCoordinator: (() => void) | null = null;
@@ -115,6 +120,8 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
   readonly captchaToken = signal<string | null>(null);
   readonly captchaUnavailable = signal(false);
   readonly resendSeconds = signal(0);
+  /** Tope de códigos por hora que informa el challenge; null hasta pedir el primero. */
+  readonly codeLimitPerHour = signal<number | null>(null);
   readonly activeConsent = signal<PublicFormConsent | null>(null);
   readonly resumeDraft = signal<ResumeDraft | null>(null);
   readonly conflictChoices = signal<Readonly<Record<string, ConflictChoice>>>({});
@@ -195,6 +202,17 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
   });
   /** Se pasa al renderer: Next y Back esperan el guardado (regla 4 de P-5.3-bis). */
   readonly saveBeforePageChange = (): Promise<boolean> => this.saveBeforeNavigation();
+  /** El error visible es del email (para aria-invalid del campo). */
+  readonly emailInvalid = computed(() => this.error() === INVALID_EMAIL_MESSAGE);
+  private previousStep: PageStep | null = null;
+
+  constructor() {
+    // WCAG 2.4.3/2.4.2: al cambiar de paso el foco va al h1 nuevo y la pestaña dice dónde está.
+    effect(() => {
+      const step = this.step();
+      untracked(() => this.onStepChanged(step));
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     if (!this.accessToken) {
@@ -248,14 +266,19 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
 
   private async sendChallenge(): Promise<boolean> {
     const email = this.email().trim();
-    if (this.kind === 'intake' && (!isEmail(email) || !this.captchaToken())) {
-      this.error.set('Enter a valid email and complete the security check.');
+    // Un mensaje por causa: antes uno solo mezclaba el email con el check de seguridad.
+    if (this.kind === 'intake' && !isEmail(email)) {
+      this.error.set(INVALID_EMAIL_MESSAGE);
+      return false;
+    }
+    if (this.kind === 'intake' && !this.captchaToken()) {
+      this.error.set('Wait for the security check below to finish, then try again.');
       return false;
     }
     this.busy.set(true);
     this.error.set(null);
     try {
-      await firstValueFrom(
+      const response = await firstValueFrom(
         this.service.requestChallenge(
           this.kind,
           this.accessToken,
@@ -263,6 +286,10 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
           this.kind === 'intake' ? this.captchaToken()! : undefined,
           this.language(),
         ),
+      );
+      const limit = response?.codeLimitPerHour;
+      this.codeLimitPerHour.set(
+        typeof limit === 'number' && limit > 0 ? limit : DEFAULT_CODE_LIMIT_PER_HOUR,
       );
       return true;
     } catch {
@@ -314,8 +341,9 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
       this.sessionExpired.set(false);
       this.reauthDialogOpen.set(false);
       this.reauthStage.set('start');
-    } catch {
-      this.error.set('The verification code is invalid or expired.');
+    } catch (error) {
+      if (isAlreadySubmitted(error)) this.showAlreadySubmitted();
+      else this.error.set('The verification code is invalid or expired.');
     } finally {
       this.busy.set(false);
     }
@@ -327,7 +355,21 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
 
   setOtpDigit(index: number, event: Event): void {
     const input = event.target as HTMLInputElement;
-    const digit = input.value.replace(/\D/g, '').slice(-1);
+    const digits = input.value.replace(/\D/g, '');
+    // Autocompletado del código (one-time-code): llega entero en una casilla y se reparte.
+    if (digits.length > 2) {
+      const values = this.otpValues();
+      digits
+        .slice(0, 6 - index)
+        .split('')
+        .forEach((digit, offset) => (values[index + offset] = digit));
+      this.code.set(values.join(''));
+      input.value = values[index];
+      const last = Math.min(index + digits.length, 6) - 1;
+      queueMicrotask(() => this.otpDigits?.get(last)?.nativeElement.focus());
+      return;
+    }
+    const digit = digits.slice(-1);
     const values = this.otpValues();
     values[index] = digit;
     this.code.set(values.join(''));
@@ -382,6 +424,19 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
         .querySelector<HTMLElement>('app-dc-form-renderer [data-dc-page-heading]')
         ?.focus(),
     );
+  }
+
+  private onStepChanged(step: PageStep): void {
+    const previous = this.previousStep;
+    this.previousStep = step;
+    // Tras el render: así el título no lo pisa el renderer al destruirse; en 'form' lo pone él.
+    setTimeout(() => {
+      if (this.step() !== step) return;
+      if (step !== 'form')
+        this.document.title = `${STEP_TITLES[step] ?? this.title()} - ${this.officeName()}`;
+      if (previous == null || previous === 'loading' || previous === step) return;
+      this.host.nativeElement.querySelector<HTMLElement>('.public-form-content h1')?.focus();
+    });
   }
 
   chooseConflict(conflictId: string, choice: ConflictChoice): void {
@@ -656,7 +711,9 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
       this.activeConsent.set(beforeCollection ?? null);
       this.step.set(beforeCollection ? 'consent' : 'form');
     } catch (error) {
-      if (isUnauthorized(error)) {
+      if (isAlreadySubmitted(error)) {
+        this.showAlreadySubmitted();
+      } else if (isUnauthorized(error)) {
         this.sessions.clear(this.kind, this.accessToken);
         this.step.set('welcome');
       } else {
@@ -664,6 +721,16 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
         this.step.set('unavailable');
       }
     }
+  }
+
+  // Intake ya enviado desde este enlace (409): estado final, sin sesión que reanudar.
+  private showAlreadySubmitted(): void {
+    this.sessions.clear(this.kind, this.accessToken);
+    this.clearResendTimer();
+    this.error.set(null);
+    this.sessionExpired.set(false);
+    this.reauthDialogOpen.set(false);
+    this.step.set('alreadySubmitted');
   }
 
   private createCoordinator(
@@ -966,10 +1033,32 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
 }
 
 const SCAN_POLL_INTERVAL_MS = 3_000;
+const INVALID_EMAIL_MESSAGE = 'Enter a valid email address.';
+// Título de la pestaña por paso; el del formulario lo pone el renderer ("Step N of M").
+const STEP_TITLES: Partial<Record<PageStep, string>> = {
+  loading: 'Opening your secure form',
+  identify: 'Verify your email',
+  otp: 'Enter your verification code',
+  consent: 'Review and consent',
+  done: 'Information sent',
+  alreadySubmitted: 'Form already sent',
+  declined: 'Form closed',
+  unavailable: 'Form unavailable',
+};
+// Tope por defecto del backend cuando el 202 no lo informa.
+const DEFAULT_CODE_LIMIT_PER_HOUR = 5;
 const SCAN_POLL_TIMEOUT_MS = 120_000;
 
 function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isAlreadySubmitted(error: unknown): boolean {
+  return (
+    error instanceof HttpErrorResponse &&
+    error.status === 409 &&
+    (error.error as { code?: string } | null)?.code === 'PublicForm.AlreadySubmitted'
+  );
 }
 
 function isUnauthorized(error: unknown): boolean {

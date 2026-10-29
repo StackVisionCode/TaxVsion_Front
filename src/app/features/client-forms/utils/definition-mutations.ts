@@ -122,10 +122,22 @@ export function removeComponent(
   }));
   return {
     definition:
-      removed?.type === 'signatureStep'
-        ? { ...next, actions: next.actions?.filter((action) => action.type !== 'requestSignature') }
-        : next,
+      removed?.type === 'signatureStep' ? withoutSignatureActions(next) : next,
     blockedBy: [],
+  };
+}
+
+// Sin paso de firma no hay firma que pedir ni que esperar.
+function withoutSignatureActions(definition: FormDefinition): FormDefinition {
+  return {
+    ...definition,
+    actions: definition.actions
+      ?.filter((action) => action.type !== 'requestSignature')
+      .map((action) =>
+        action.config?.['waitFor'] === 'signatureCompleted'
+          ? { ...action, config: { ...action.config, waitFor: 'none' } }
+          : action,
+      ),
   };
 }
 
@@ -283,13 +295,14 @@ export function normalizeLegacyEmptyDefinition(definition: FormDefinition): Form
 function defaultComponent(type: string): FormComponent {
   const descriptor = getComponentType(type);
   if (!descriptor) throw new Error(`Unknown component type: ${type}`);
-  const layout = descriptor.kind === 'layout';
+  // Solo los inputs llevan label/dataClass/required; layout y compliance (consent, signatureStep) no.
+  const input = descriptor.kind === 'input';
   return {
     id: createDefinitionId('fd'),
     type,
-    ...(layout
-      ? {}
-      : { label: humanize(type), dataClass: descriptor.minimumDataClass, required: false }),
+    ...(input
+      ? { label: humanize(type), dataClass: descriptor.minimumDataClass, required: false }
+      : {}),
     props: defaultProps(type),
   };
 }

@@ -30,7 +30,7 @@ export interface PagedResult<T> {
   hasPrevious: boolean;
 }
 
-/** Parámetros de GET /customers. */
+/** Parámetros de la búsqueda (GET /customers, o POST /customers/search si hay término). */
 export interface CustomerSearchParams {
   term?: string;
   status?: CustomerStatusFilter;

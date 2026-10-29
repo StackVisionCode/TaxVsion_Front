@@ -1,4 +1,4 @@
-<main class="grid min-h-dvh grid-rows-[auto_1fr_auto]">
+<div class="grid min-h-dvh grid-rows-[auto_1fr_auto]">
   <header
     class="flex min-h-[72px] items-center justify-between gap-4 border-b border-indigo-100 bg-white px-4 sm:px-8 lg:px-12"
   >
@@ -9,20 +9,17 @@
         <strong class="text-xl text-brand-ink">TaxProffice</strong>
       }
     </a>
-    <div
-      class="secure-label inline-flex items-center gap-2 text-sm font-bold text-emerald-700"
-      aria-label="Secure form"
-    >
+    <div class="secure-label inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
       <span aria-hidden="true">&#128274;</span>
-      Secure form
+      <span class="secure-text">Secure form</span>
     </div>
   </header>
 
-  <section class="public-form-content" [class.public-form-content--wide]="step() === 'form'">
+  <main class="public-form-content" [class.public-form-content--wide]="step() === 'form'">
     @if (step() === 'loading') {
       <div class="state-panel" role="status" aria-live="polite">
         <span class="loading-ring" aria-hidden="true"></span>
-        <h1>Opening your secure form</h1>
+        <h1 tabindex="-1">Opening your secure form</h1>
         <p>We are checking the link and preparing the office branding.</p>
       </div>
     }
@@ -31,7 +28,7 @@
       <div class="state-panel" role="alert">
         <span class="state-icon" aria-hidden="true">!</span>
         <p class="eyebrow">Link unavailable</p>
-        <h1>This form cannot be opened</h1>
+        <h1 tabindex="-1">This form cannot be opened</h1>
         <p>
           The link may have expired, been replaced, or already completed. Ask the office for a new
           link.
@@ -43,7 +40,7 @@
       <div class="entry-layout">
         <section class="entry-copy" aria-labelledby="entry-title">
           <p class="eyebrow">From {{ officeName() }}</p>
-          <h1 id="entry-title">{{ entryNotice()?.title || title() }}</h1>
+          <h1 tabindex="-1" id="entry-title">{{ entryNotice()?.title || title() }}</h1>
           @for (paragraph of noticeParagraphs(); track $index) {
             <p>{{ paragraph }}</p>
           }
@@ -112,7 +109,7 @@
     @if (step() === 'identify' && intakeAccess(); as intake) {
       <section class="auth-panel" aria-labelledby="identify-title">
         <p class="eyebrow">Identity verification</p>
-        <h1 id="identify-title">Where should we send your code?</h1>
+        <h1 tabindex="-1" id="identify-title">Where should we send your code?</h1>
         <p>Use an email address you can access now. We only use it to secure this form.</p>
         <label for="public-form-email">Email address</label>
         <input
@@ -121,6 +118,9 @@
           type="email"
           inputmode="email"
           autocomplete="email"
+          aria-required="true"
+          [attr.aria-invalid]="emailInvalid() || null"
+          [attr.aria-describedby]="error() ? 'identify-error' : null"
           [value]="email()"
           (input)="setEmail($any($event.target).value)"
         />
@@ -136,7 +136,7 @@
           </p>
         }
         @if (error()) {
-          <p class="error-message" role="alert">{{ error() }}</p>
+          <p id="identify-error" class="error-message" role="alert">{{ error() }}</p>
         }
         <button
           class="primary-button"
@@ -152,7 +152,7 @@
     @if (step() === 'otp') {
       <section class="auth-panel" aria-labelledby="otp-title">
         <p class="eyebrow">Check your email</p>
-        <h1 id="otp-title">Enter the 6-digit code</h1>
+        <h1 tabindex="-1" id="otp-title">Enter the 6-digit code</h1>
         <p>
           For your privacy, the message looks the same whether or not an account already exists.
         </p>
@@ -160,14 +160,18 @@
           <legend class="sr-only">Six-digit verification code</legend>
           <div class="otp-grid" (paste)="pasteOtp($event)">
             @for (digit of otpValues(); track $index) {
+              <!-- Solo la primera casilla acepta el autocompletado del código completo (iOS/Android). -->
               <input
                 #otpDigit
                 class="otp-input"
                 type="text"
                 inputmode="numeric"
-                autocomplete="one-time-code"
-                maxlength="1"
+                pattern="[0-9]*"
+                [attr.autocomplete]="$index === 0 ? 'one-time-code' : 'off'"
+                [attr.maxlength]="$index === 0 ? 6 : 1"
                 [attr.aria-label]="'Digit ' + ($index + 1) + ' of 6'"
+                [attr.aria-invalid]="error() ? true : null"
+                [attr.aria-describedby]="error() ? 'otp-error' : null"
                 [value]="digit"
                 (input)="setOtpDigit($index, $event)"
                 (keydown)="handleOtpKey($index, $event)"
@@ -176,7 +180,7 @@
           </div>
         </fieldset>
         @if (error()) {
-          <p class="error-message" role="alert">{{ error() }}</p>
+          <p id="otp-error" class="error-message" role="alert">{{ error() }}</p>
         }
         <button class="primary-button" type="button" [disabled]="busy()" (click)="verifyCode()">
           {{ busy() ? 'Verifying…' : 'Verify and open form' }}
@@ -193,13 +197,19 @@
               : 'Send another code'
           }}
         </button>
+        @if (codeLimitPerHour(); as limit) {
+          <p class="code-limit-hint" data-testid="code-limit-hint">
+            You can request up to {{ limit }} codes per hour. If no code arrives, wait a bit before
+            trying again.
+          </p>
+        }
       </section>
     }
 
     @if (step() === 'consent' && activeConsent(); as consent) {
       <section class="consent-panel" aria-labelledby="consent-title">
         <p class="eyebrow">Your choice matters</p>
-        <h1 id="consent-title">{{ consent.noticeKey }}</h1>
+        <h1 tabindex="-1" id="consent-title">{{ consent.noticeKey }}</h1>
         <div class="notice-copy">
           @for (paragraph of consentParagraphs(); track $index) {
             <p>{{ paragraph }}</p>
@@ -233,7 +243,7 @@
       <div class="form-heading">
         <div>
           <p class="eyebrow">{{ officeName() }}</p>
-          <h1>{{ current.title }}</h1>
+          <h1 tabindex="-1">{{ current.title }}</h1>
           @if (current.messageToClient) {
             <p>{{ current.messageToClient }}</p>
           }
@@ -327,6 +337,12 @@
                 {{ busy() ? 'Verifying…' : 'Verify and continue' }}
               </button>
             </div>
+            @if (codeLimitPerHour(); as limit) {
+              <p class="code-limit-hint" data-testid="code-limit-hint">
+                You can request up to {{ limit }} codes per hour. If no code arrives, wait a bit
+                before trying again.
+              </p>
+            }
           }
         </div>
       </app-modal>
@@ -491,8 +507,22 @@
       <div class="state-panel state-panel--success" role="status" aria-live="polite">
         <span class="state-icon state-icon--success" aria-hidden="true">&#10003;</span>
         <p class="eyebrow">All set</p>
-        <h1>Your information was sent to {{ officeName() }}</h1>
+        <h1 tabindex="-1">Your information was sent to {{ officeName() }}</h1>
         <p>You can close this page. The office will contact you if anything else is needed.</p>
+      </div>
+    }
+
+    @if (step() === 'alreadySubmitted') {
+      <div
+        class="state-panel state-panel--success"
+        role="status"
+        aria-live="polite"
+        data-testid="already-submitted"
+      >
+        <span class="state-icon state-icon--success" aria-hidden="true">&#10003;</span>
+        <p class="eyebrow">Already received</p>
+        <h1 tabindex="-1">You already sent this form</h1>
+        <p>Your office is reviewing it. You'll hear from them by email.</p>
       </div>
     }
 
@@ -500,11 +530,11 @@
       <div class="state-panel" role="status">
         <span class="state-icon" aria-hidden="true">&#215;</span>
         <p class="eyebrow">Form closed</p>
-        <h1>Your choice was recorded</h1>
+        <h1 tabindex="-1">Your choice was recorded</h1>
         <p>No form information was submitted. Contact the office if you need help.</p>
       </div>
     }
-  </section>
+  </main>
 
   <footer
     class="public-form-footer flex min-h-14 items-center justify-between gap-4 border-t border-indigo-100 bg-white px-4 text-xs text-gray-600 sm:px-8 lg:px-12"
@@ -512,4 +542,4 @@
     <span>Powered by TaxProffice</span>
     <span>Secure data collection</span>
   </footer>
-</main>
+</div>

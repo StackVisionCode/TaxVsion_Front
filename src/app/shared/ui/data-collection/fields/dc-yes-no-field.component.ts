@@ -16,7 +16,7 @@ import { DcFieldBase } from './dc-field-base';
     <legend class="text-sm font-semibold text-gray-900">
       {{ component.label || 'Choose yes or no' }}
       @if (component.required) {
-        <span class="text-red-600" aria-hidden="true">*</span>
+        <span class="text-red-600" aria-hidden="true">*</span><span class="sr-only"> (required)</span>
       }
     </legend>
     @if (component.help) {

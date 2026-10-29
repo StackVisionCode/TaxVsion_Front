@@ -1,6 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import type { ActiveConsentNotice } from '../data-access/client-forms.model';
-import { externalErrorMessage, intakeLinkUrl, isEntryNotice, isValidEmail } from './external-forms';
+import {
+  customerEmailConflict,
+  externalErrorMessage,
+  intakeLinkUrl,
+  isEntryNotice,
+  isValidEmail,
+} from './external-forms';
 
 const notice = (patch: Partial<ActiveConsentNotice>): ActiveConsentNotice => ({
   id: 'n',
@@ -48,5 +54,18 @@ describe('external forms utils', () => {
     expect(externalErrorMessage(error('Something.Else', 'Plain backend text'))).toBe(
       'Plain backend text',
     );
+  });
+  it('reads the existing-client conflict with the customerId only when it comes back', () => {
+    const conflict = (body: Record<string, unknown>, status = 409) =>
+      customerEmailConflict(new HttpErrorResponse({ status, error: body }));
+    const message = 'This email belongs to an existing client. Assign the form to the client instead.';
+
+    expect(conflict({ code: 'FormParticipant.EmailBelongsToCustomer', message, customerId: 'c-1' })).toEqual({
+      message,
+      customerId: 'c-1',
+    });
+    expect(conflict({ code: 'FormParticipant.EmailBelongsToCustomer', message })).toEqual({ message, customerId: null });
+    expect(conflict({ code: 'FormRequest.AlreadyOpenForTemplate', message })).toBeNull();
+    expect(conflict({ code: 'FormParticipant.EmailBelongsToCustomer', message }, 400)).toBeNull();
   });
 });

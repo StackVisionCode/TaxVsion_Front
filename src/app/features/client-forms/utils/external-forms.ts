@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { toApiError } from '@core/models/api-error.model';
 import type { ActiveConsentNotice } from '../data-access/client-forms.model';
 
@@ -69,4 +70,24 @@ export function resendErrorMessage(error: unknown): string {
 
 export function externalErrorCode(error: unknown): string {
   return toApiError(error).code;
+}
+
+/** 409 de envío externo a un email de cliente; `customerId` solo llega si el usuario ve al cliente. */
+export interface CustomerEmailConflict {
+  message: string;
+  customerId: string | null;
+}
+
+export const EMAIL_BELONGS_TO_CUSTOMER = 'FormParticipant.EmailBelongsToCustomer';
+
+export function customerEmailConflict(error: unknown): CustomerEmailConflict | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 409) return null;
+  const apiError = toApiError(error);
+  if (apiError.code !== EMAIL_BELONGS_TO_CUSTOMER) return null;
+  const body = (error.error ?? {}) as { customerId?: unknown; metadata?: { customerId?: unknown } };
+  const customerId = body.customerId ?? body.metadata?.customerId;
+  return {
+    message: apiError.message,
+    customerId: typeof customerId === 'string' && customerId ? customerId : null,
+  };
 }

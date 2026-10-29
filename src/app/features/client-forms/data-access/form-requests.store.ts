@@ -3,12 +3,14 @@ import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
 import { toApiError } from '@core/models/api-error.model';
 import { Observable, firstValueFrom, forkJoin } from 'rxjs';
 import type {
+  ApplyProfileUpdateInput,
   FormFieldComment,
   FormRequestFilters,
   FormRequestInboxView,
   FormRequestListItem,
   FormRequestRevision,
   FormRequestStatus,
+  ProfileUpdateField,
   StaffFormRequestDetail,
 } from './client-forms.model';
 import { FormRequestsService } from './form-requests.service';
@@ -39,6 +41,8 @@ export class FormRequestsStore implements OnDestroy {
   private readonly _revision = signal<FormRequestRevision | null>(null);
   private readonly _previousRevision = signal<FormRequestRevision | null>(null);
   private readonly _processingTimedOut = signal(false);
+  private readonly _profileFields = signal<ProfileUpdateField[]>([]);
+  private readonly _profileFieldsLoading = signal(false);
   private readonly _statusCounts = signal<Record<FormRequestStatus, number>>({
     Pending: 0,
     Submitted: 0,
@@ -63,6 +67,12 @@ export class FormRequestsStore implements OnDestroy {
   readonly statusCounts = this._statusCounts.asReadonly();
   readonly hasRequestedActions = computed(
     () => this._detail()?.actionRuns.some((run) => run.status === 'Requested') ?? false,
+  );
+  readonly profileFields = this._profileFields.asReadonly();
+  readonly profileFieldsLoading = this._profileFieldsLoading.asReadonly();
+  // P-13 — sigue "procesando" mientras el perfil no resuelve; dispara el polling igual que un action run.
+  private readonly profileProcessing = computed(
+    () => this._detail()?.request.profileUpdateStatus === 'Processing',
   );
 
   async load(patch: Partial<FormRequestFilters> = {}): Promise<void> {
@@ -198,6 +208,10 @@ export class FormRequestsStore implements OnDestroy {
     );
   }
 
+  sendReminder(): Promise<boolean> {
+    return this.mutate((detail) => this.service.sendReminder(detail.request.id));
+  }
+
   linkCustomer(customerId: string): Promise<boolean> {
     return this.mutate((detail) =>
       this.service.linkCustomer(detail.request.id, customerId, detail.request.rowVersion),
@@ -220,6 +234,29 @@ export class FormRequestsStore implements OnDestroy {
 
   retryCustomerLink(): Promise<boolean> {
     return this.mutate((detail) => this.service.retryCustomerLink(detail.request.id));
+  }
+
+  retrySummary(): Promise<boolean> {
+    return this.mutate((detail) => this.service.retrySummary(detail.request.id));
+  }
+
+  // P-13 — carga el checklist de campos mapeables al perfil para la request abierta.
+  async loadProfileFields(): Promise<void> {
+    const detail = this._detail();
+    if (!detail) return;
+    this._profileFieldsLoading.set(true);
+    try {
+      const response = await firstValueFrom(this.service.profileUpdateFields(detail.request.id));
+      this._profileFields.set(response.fields);
+    } catch {
+      this._profileFields.set([]);
+    } finally {
+      this._profileFieldsLoading.set(false);
+    }
+  }
+
+  applyProfileUpdate(input: ApplyProfileUpdateInput): Promise<boolean> {
+    return this.mutate((detail) => this.service.applyProfileUpdate(detail.request.id, input));
   }
 
   async reveal(sensitiveAnswerId: string): Promise<string | null> {
@@ -266,9 +303,9 @@ export class FormRequestsStore implements OnDestroy {
   }
 
   private startPollingIfNeeded(): void {
-    if (!this.hasRequestedActions() || this.pollAttempts >= POLL_LIMIT) {
-      if (this.hasRequestedActions() && this.pollAttempts >= POLL_LIMIT)
-        this._processingTimedOut.set(true);
+    const pending = this.hasRequestedActions() || this.profileProcessing();
+    if (!pending || this.pollAttempts >= POLL_LIMIT) {
+      if (pending && this.pollAttempts >= POLL_LIMIT) this._processingTimedOut.set(true);
       return;
     }
     this.pollTimer = setTimeout(async () => {

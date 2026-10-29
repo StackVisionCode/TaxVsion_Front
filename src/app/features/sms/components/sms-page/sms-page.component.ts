@@ -60,6 +60,9 @@ const GSM_STATUS_FILTERS: FilterChipOption<SmsStatusFilter>[] = [
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Clave del término de búsqueda en `history.state` (puede ser nombre/teléfono/email: no va en la URL). */
+const TERM_STATE_KEY = 'smsConvTerm';
+
 /**
  * Página del módulo SMS (Sms.Api vía /sms). Historial server-paginado, stats, bajas (opt-outs) y
  * compose. Todo en lenguaje simple: nada de proveedor, ids técnicos ni códigos de error crudos. Los
@@ -198,12 +201,15 @@ export class SmsPageComponent implements OnInit {
       return;
     }
     // Tenant-wide: la pestaña Messages muestra CONVERSACIONES (una fila por cliente); el hilo completo
-    // se abre en un drawer. Solo se persisten en la URL el término y la página.
+    // se abre en un drawer. La página va en la URL; el término en `history.state` (refresh/volver lo conservan).
     const q = this.route.snapshot.queryParamMap;
-    const term = q.get('term') ?? '';
+    const legacyTerm = q.get('term');
+    const term = this.termFromHistory() ?? legacyTerm ?? '';
     const page = Number(q.get('page')) || 1;
     this.searchText.set(term);
     this.store.initConversations({ term, page });
+    // `?term=` solo llega de enlaces viejos: se lee una vez y se quita de la barra.
+    if (legacyTerm !== null) this.syncUrl();
   }
 
   // ---------- Tabs ----------
@@ -240,17 +246,29 @@ export class SmsPageComponent implements OnInit {
     this.syncUrl();
   }
 
+  private termFromHistory(): string | null {
+    const value = (globalThis.history?.state as Record<string, unknown> | null)?.[TERM_STATE_KEY];
+    return typeof value === 'string' ? value : null;
+  }
+
+  /** Página en la URL (reemplazando, sin apilar historial); el término va en el state de la entrada actual. */
   private syncUrl(): void {
     if (this.embedded()) return; // embebido: no se escribe en la URL del perfil
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: {
-        term: this.store.convTerm() || null,
-        page: this.store.convPage() > 1 ? this.store.convPage() : null,
-      },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    const term = this.store.convTerm().trim();
+    // Con la misma URL el router ignora la navegación (y su `state`): se escribe en la entrada actual.
+    const keepTerm = () =>
+      globalThis.history?.replaceState({ ...(globalThis.history.state ?? {}), [TERM_STATE_KEY]: term }, '');
+    void this.router
+      .navigate([], {
+        relativeTo: this.route,
+        queryParams: {
+          term: null,
+          page: this.store.convPage() > 1 ? this.store.convPage() : null,
+        },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      })
+      .then(keepTerm, keepTerm);
   }
 
   // ---------- Conversación (hilo) ----------

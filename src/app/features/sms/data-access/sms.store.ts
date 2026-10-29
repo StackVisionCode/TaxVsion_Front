@@ -40,7 +40,8 @@ export interface SmsSendRecipient {
 /**
  * Store del módulo SMS (Sms.Api vía /sms). `providedIn: 'root'`.
  *
- * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&term&from&to&page&size`),
+ * LISTADO = paginación server-side real (`GET /sms/messages?customerId&status&from&to&page&size`; con
+ * término, POST /sms/messages/search — ver SmsService),
  * mismo patrón que ClientsStore: señales de query → una canalización con `switchMap` que cancela la
  * petición anterior. Las bajas (opt-outs) tienen su propia canalización.
  * Tras un envío o un cambio de consentimiento se re-sincroniza la vista sin recargar el navegador.

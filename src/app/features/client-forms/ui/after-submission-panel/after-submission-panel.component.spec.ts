@@ -44,13 +44,16 @@ describe('AfterSubmissionPanelComponent', () => {
     fixture.componentInstance.actionsChange.subscribe((actions) => emitted.push(actions));
   });
 
-  it('renders the closed catalog with implicit and coming soon actions', () => {
+  it('renders the closed catalog with implicit and automatic actions (no switch, no "Coming soon")', () => {
     render(onboardingDefinition());
     expect(card('notifyStaff').textContent).toContain('Always on');
     expect(card('notifyStaff').querySelector('[role="switch"]')).toBeNull();
-    expect(card('requestSignature').textContent).toContain('Coming soon');
-    expect(toggle('requestSignature').disabled).toBe(true);
-    expect(toggle('generateSummary').disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).not.toContain('Coming soon');
+    for (const type of ['updateCustomerProfile', 'generateSummary', 'requestSignature', 'applyRetentionClass'])
+      expect(card(type).querySelector('[role="switch"]')).toBeNull();
+    expect(card('generateSummary').textContent).toContain('Always on');
+    expect(card('updateCustomerProfile').textContent).toContain('Apply to profile');
+    expect(card('applyRetentionClass').textContent).toContain('Office policy');
     expect(toggle('createCustomer').disabled).toBe(false);
     expect(toggle('createCustomer').getAttribute('aria-label')).toBe('Turn on Create client');
   });
@@ -133,9 +136,43 @@ describe('AfterSubmissionPanelComponent', () => {
 
     const wait = card('createCustomer').querySelector<HTMLInputElement>('#action-config-create_client-wait')!;
     expect(wait.disabled).toBe(true);
+    expect(card('createCustomer').querySelector('[data-testid="wait-hint"]')?.textContent).toContain(
+      'Add a Signature step to use this.',
+    );
   });
 
-  it('lets existing unavailable actions be turned off, except the one tied to the signature step', () => {
+  it('waits for the signature only when the form has a signature step', () => {
+    const definition = onboardingDefinition({ actions: [CREATE] });
+    definition.pages[0].sections[0].components.push({ id: 'fd_sign00001', type: 'signatureStep' });
+    render(definition);
+    const wait = () => card('createCustomer').querySelector<HTMLInputElement>('#action-config-create_client-wait')!;
+    expect(wait().disabled).toBe(false);
+    expect(card('createCustomer').querySelector('[data-testid="wait-hint"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Coming soon');
+
+    wait().click();
+    expect(emitted.at(-1)?.[0].config?.['waitFor']).toBe('signatureCompleted');
+
+    const waiting = { ...CREATE, config: { ...CREATE.config, waitFor: 'signatureCompleted' } };
+    const signed = onboardingDefinition({ actions: [waiting] });
+    signed.pages[0].sections[0].components.push({ id: 'fd_sign00001', type: 'signatureStep' });
+    render(signed);
+    expect(wait().checked).toBe(true);
+    wait().click();
+    expect(emitted.at(-1)?.[0].config?.['waitFor']).toBe('none');
+  });
+
+  it('lets a draft that lost its signature step turn the wait off', () => {
+    const waiting = { ...CREATE, config: { ...CREATE.config, waitFor: 'signatureCompleted' } };
+    render(onboardingDefinition({ actions: [waiting] }));
+    const wait = card('createCustomer').querySelector<HTMLInputElement>('#action-config-create_client-wait')!;
+    expect(wait.checked).toBe(true);
+    expect(wait.disabled).toBe(false);
+    wait.click();
+    expect(emitted.at(-1)?.[0].config?.['waitFor']).toBe('none');
+  });
+
+  it('lets old drafts drop a stale automatic setting, but keeps the one tied to the signature step', () => {
     const definition = onboardingDefinition({
       actions: [
         { key: 'summary', type: 'generateSummary', trigger: 'onComplete' },
@@ -144,17 +181,21 @@ describe('AfterSubmissionPanelComponent', () => {
     });
     definition.pages[0].sections[0].components.push({ id: 'fd_sign00001', type: 'signatureStep' });
     render(definition);
-    expect(toggle('requestSignature').disabled).toBe(true);
-    expect(card('requestSignature').textContent).toContain('Added with the signature step');
+    expect(card('requestSignature').querySelector('[data-testid="automatic-entry"]')).toBeNull();
 
-    toggle('generateSummary').click();
+    card('generateSummary').querySelector<HTMLButtonElement>('[data-testid="automatic-entry"] button')!.click();
     expect(emitted).toEqual([[{ key: 'sign', type: 'requestSignature', trigger: 'onSubmit' }]]);
   });
 
-  it('explains when the office turned signature steps off', () => {
-    render(onboardingDefinition(), { signatureStepEnabled: false });
-    expect(card('requestSignature').querySelector('[data-testid="signature-off"]')).not.toBeNull();
-    expect(toggle('requestSignature').disabled).toBe(true);
+  it('shows signature as automatic with a signature step and off without one', () => {
+    render(onboardingDefinition());
+    expect(card('requestSignature').textContent).toContain('Add a Signature step');
+
+    const definition = onboardingDefinition({ actions: [{ key: 'sign', type: 'requestSignature', trigger: 'onSubmit' }] });
+    definition.pages[0].sections[0].components.push({ id: 'fd_sign00001', type: 'signatureStep' });
+    render(definition);
+    expect(card('requestSignature').textContent).toContain('Automatic');
+    expect(card('requestSignature').textContent).toContain('the client gets the PDF copy to sign');
   });
 
   it('turns off Create client and respects the disabled input', () => {

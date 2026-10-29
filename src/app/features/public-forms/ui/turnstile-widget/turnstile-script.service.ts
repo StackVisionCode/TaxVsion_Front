@@ -9,6 +9,7 @@ export interface TurnstileApi {
       action: string;
       theme: 'light';
       appearance: 'always';
+      retry: 'never';
       callback: (token: string) => void;
       'expired-callback': () => void;
       'error-callback': () => void;

@@ -196,7 +196,28 @@ export function componentOptions(component: FormComponent): ComponentOption[] {
     }));
 }
 
-/** Conserva lo válido y propone coincidencias exactas (sin distinguir mayúsculas) por valor o etiqueta. */
+// El catálogo trae códigos (Es, En…) sin etiquetas: nombres con los que el preparador suele escribir la
+// opción, en inglés y en español, para que "Spanish" o "Español" encuentren `Es`.
+const ENUM_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  es: ['spanish', 'espanol'],
+  en: ['english', 'ingles'],
+  pt: ['portuguese', 'portugues'],
+  fr: ['french', 'frances', 'francais'],
+};
+
+// Minúsculas y sin acentos: "Español" y "espanol" valen lo mismo.
+function normalizeLabel(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+
+function matchesEnum(enumValue: string, option: ComponentOption): boolean {
+  const value = normalizeLabel(enumValue);
+  const candidates = [normalizeLabel(option.value), normalizeLabel(option.label)];
+  if (candidates.includes(value)) return true;
+  return (ENUM_ALIASES[value] ?? []).some((alias) => candidates.includes(alias));
+}
+
+/** Conserva lo válido y propone coincidencias por valor, etiqueta o nombre conocido del código (Spanish → Es). */
 export function suggestOptionMap(
   options: readonly ComponentOption[],
   enumValues: readonly string[],
@@ -209,11 +230,7 @@ export function suggestOptionMap(
       result[option.value] = kept;
       continue;
     }
-    const match = enumValues.find(
-      (value) =>
-        value.toLowerCase() === option.value.toLowerCase() ||
-        value.toLowerCase() === option.label.toLowerCase(),
-    );
+    const match = enumValues.find((value) => matchesEnum(value, option));
     if (match) result[option.value] = match;
   }
   return result;

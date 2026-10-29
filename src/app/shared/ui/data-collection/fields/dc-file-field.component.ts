@@ -25,6 +25,7 @@ import { DcFieldShellComponent } from './dc-field-shell.component';
         [disabled]="readonly"
         label="Add supporting files"
         [hint]="instructions"
+        [inputLabel]="uploadLabel"
         (files)="selected.emit($event)"
       />
     }
@@ -43,7 +44,8 @@ import { DcFieldShellComponent } from './dc-field-shell.component';
             @if (!readonly) {
               <button
                 type="button"
-                class="text-sm font-semibold text-red-700"
+                class="min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                [attr.aria-label]="'Remove ' + attachment.displayName"
                 (click)="removed.emit(attachment.id)"
               >
                 Remove
@@ -70,6 +72,11 @@ export class DcFileFieldComponent extends DcFieldBase<unknown[]> {
     return Array.isArray(types)
       ? types.filter((value): value is string => typeof value === 'string').join(',')
       : '';
+  }
+  /** Nombre del selector de archivos para lectores: el label de la página no lo alcanza. */
+  get uploadLabel(): string {
+    const label = this.component.label || 'this question';
+    return `Browse files for ${label}${this.component.required ? ' (required)' : ''}`;
   }
   get instructions(): string {
     return stringProp(this.component.props, 'instructions') ?? `Up to ${this.maxFiles} files`;

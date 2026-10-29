@@ -87,12 +87,9 @@ export class ProfileStore {
     return this.service.confirmEmailChange(token).pipe(switchMap(() => this.refreshUser()));
   }
 
-  requestPhoneChange(phoneNumber: string): Observable<void> {
-    return this.service.requestPhoneChange(phoneNumber);
-  }
-
-  confirmPhone(code: string): Observable<void> {
-    return this.service.confirmPhone(code).pipe(switchMap(() => this.refreshUser()));
+  /** PUT /auth/me/phone y rehidrata currentUser; `null` quita el teléfono. */
+  updatePhone(phoneNumber: string | null): Observable<void> {
+    return this.service.updateMyPhone(phoneNumber).pipe(switchMap(() => this.refreshUser()));
   }
 
   /** Rehidrata AuthService.currentUser tras un cambio; nunca convierte el éxito en error. */

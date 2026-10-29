@@ -23,6 +23,7 @@ import {
   FORM_DEFINITION_SCHEMA,
   FORM_MAPPINGS_SCHEMA,
   readStrictJson,
+  STRICT_JSON_MAX_DEPTH,
   type StrictJsonSchema,
 } from './strict-json';
 import { validateForDraft, validateForPublish } from './structure-validator';
@@ -38,16 +39,25 @@ export type ParseResult<T> =
   { isSuccess: true; value: T } | { isSuccess: false; error: EngineError };
 
 export class FormEngine {
-  constructor(readonly limits: DataCollectionLimits = DEFAULT_DATA_COLLECTION_LIMITS) {}
+  // El reloj decide "today" en las fechas, igual que el TimeProvider de .NET; los tests pasan uno fijo.
+  constructor(
+    readonly limits: DataCollectionLimits = DEFAULT_DATA_COLLECTION_LIMITS,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   parseDefinition(json: string): ParseResult<FormDefinition> {
-    return this.parse<FormDefinition>(
+    const result = this.parse<FormDefinition>(
       json,
       FORM_DEFINITION_SCHEMA,
       this.limits.maxDefinitionBytes,
       ISSUE_CODES.definitionTooLarge,
       ISSUE_CODES.definitionInvalidJson,
     );
+    return !result.isSuccess &&
+      result.error.code === ISSUE_CODES.definitionInvalidJson &&
+      hasNestedRepeater(json)
+      ? failure(ISSUE_CODES.repeaterNested, 'Repeaters cannot be nested inside another repeater.')
+      : result;
   }
 
   validateForDraft(definition: FormDefinition): ValidationReport {
@@ -84,7 +94,7 @@ export class FormEngine {
       this.evaluateVisibility(definition, answers),
       mode,
       this.limits,
-      options,
+      { ...options, now: this.now },
     );
   }
 
@@ -185,4 +195,37 @@ export class FormEngine {
 
 function failure<T>(code: string, message: string): ParseResult<T> {
   return { isSuccess: false, error: { code, message } };
+}
+
+// Espejo de NestedRepeaterDetector (.NET): un componente con `repeat` es un repeater anidado (P-1.6).
+function hasNestedRepeater(json: string): boolean {
+  let root: unknown;
+  try {
+    root = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  if (exceedsDepth(root, STRICT_JSON_MAX_DEPTH)) return false;
+  return children(root, 'pages')
+    .flatMap((page) => children(page, 'sections'))
+    .flatMap((section) => children(section, 'components'))
+    .some((component) => Object.prototype.hasOwnProperty.call(component, 'repeat'));
+}
+
+function children(parent: unknown, name: string): Record<string, unknown>[] {
+  if (!isPlainObject(parent)) return [];
+  const value = Object.prototype.hasOwnProperty.call(parent, name) ? parent[name] : undefined;
+  return Array.isArray(value) ? value.filter(isPlainObject) : [];
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Igual que JsonDocument con MaxDepth: más de `max` contenedores anidados es JSON inválido.
+function exceedsDepth(value: unknown, max: number): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  if (max === 0) return true;
+  const items = Array.isArray(value) ? value : Object.values(value);
+  return items.some((item) => exceedsDepth(item, max - 1));
 }

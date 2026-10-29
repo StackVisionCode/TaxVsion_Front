@@ -149,7 +149,7 @@ export interface MeetingEmployeeEntry {
   isActive: boolean;
 }
 
-/** GET /communication/directory/customers?q=&limit= — devuelve customerId, NO userId. */
+/** POST /communication/directory/customers/search ({ q, limit }) — devuelve customerId, NO userId. */
 export interface MeetingCustomerEntry {
   customerId: string;
   displayName: string;

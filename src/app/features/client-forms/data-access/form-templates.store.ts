@@ -17,7 +17,9 @@ export class FormTemplatesStore {
   readonly error = signal('');
   readonly page = signal(1);
   readonly totalPages = signal(1);
-  readonly filters = signal<TemplateFilters>({ page: 1, pageSize: 25 });
+  readonly totalCount = signal(0);
+  readonly pageSize = 25;
+  readonly filters = signal<TemplateFilters>({ page: 1, pageSize: this.pageSize });
 
   async load(update: Partial<TemplateFilters> = {}): Promise<void> {
     const filters = { ...this.filters(), ...update };
@@ -28,6 +30,7 @@ export class FormTemplatesStore {
       const result = await firstValueFrom(this.service.list(filters));
       this.items.set(result.items);
       this.page.set(result.page);
+      this.totalCount.set(result.totalCount);
       this.totalPages.set(Math.max(1, Math.ceil(result.totalCount / result.size)));
     } catch {
       this.error.set('Templates could not be loaded.');
@@ -36,11 +39,16 @@ export class FormTemplatesStore {
     }
   }
 
+  goToPage(page: number): Promise<void> {
+    return this.load({ page });
+  }
+
+  // Crear y duplicar navegan al builder: recargar la lista antes solo demoraba la navegación
+  // (el home la vuelve a cargar al regresar).
   async create(input: CreateFormTemplateInput): Promise<string | null> {
     this.error.set('');
     try {
       const created = await firstValueFrom(this.service.create(input));
-      await this.load();
       return created.id;
     } catch {
       this.error.set('The template could not be created.');
@@ -51,7 +59,6 @@ export class FormTemplatesStore {
   async duplicate(id: string): Promise<string | null> {
     try {
       const created = await firstValueFrom(this.service.duplicate(id));
-      await this.load();
       return created.id;
     } catch {
       this.error.set('The template could not be duplicated.');

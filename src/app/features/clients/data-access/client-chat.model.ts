@@ -1,5 +1,5 @@
 /**
- * Contrato mínimo de `GET /communication/directory/customers?q=&limit=` (Communication.Api vía
+ * Contrato mínimo de `POST /communication/directory/customers/search` (Communication.Api vía
  * Gateway) para la tarjeta "Chat" del tab Communication del perfil.
  *
  * El shape se replica acá a propósito (en vez de importar de `features/chat`) para no acoplar dos

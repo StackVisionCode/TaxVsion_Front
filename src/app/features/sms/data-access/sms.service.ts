@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
   PagedResult,
   SendSmsBatchResponse,
@@ -68,21 +69,44 @@ export class SmsService {
 
 
 
-  /** GET /sms/conversations — una fila por cliente (último mensaje + total del hilo), paginado (`sms.read`). */
+  /**
+   * Una fila por cliente (último mensaje + total del hilo), paginado (`sms.read`). Con término →
+   * POST /sms/conversations/search (nombre/teléfono/email del cliente en el cuerpo, no en la URL que
+   * acaba en los logs del Gateway); sin término → GET /sms/conversations.
+   */
   listConversations(query: SmsConversationQuery): Observable<PagedResult<SmsConversationSummary>> {
+    const term = query.term?.trim();
+    if (term) {
+      return this.searchByBody<SmsConversationSummary>('/sms/conversations/search', {
+        term,
+        page: query.page || undefined,
+        size: query.size || undefined,
+      });
+    }
     let params = new HttpParams();
-    if (query.term) params = params.set('term', query.term);
     if (query.page) params = params.set('page', query.page);
     if (query.size) params = params.set('size', query.size);
     return this.http.get<PagedResult<SmsConversationSummary>>(this.api.tenantUrl('/sms/conversations'), { params });
   }
 
-  /** GET /sms/messages — historial paginado + filtros (requiere `sms.read`). */
+  /** Historial paginado + filtros (`sms.read`). Con término → POST /sms/messages/search; sin él → GET /sms/messages. */
   listMessages(query: SmsMessageQuery): Observable<PagedResult<SmsMessageSummary>> {
+    const status = query.status && query.status !== 'All' ? query.status : undefined;
+    const term = query.term?.trim();
+    if (term) {
+      return this.searchByBody<SmsMessageSummary>('/sms/messages/search', {
+        customerId: query.customerId || undefined,
+        status,
+        term,
+        from: query.from || undefined,
+        to: query.to || undefined,
+        page: query.page || undefined,
+        size: query.size || undefined,
+      });
+    }
     let params = new HttpParams();
     if (query.customerId) params = params.set('customerId', query.customerId);
-    if (query.status && query.status !== 'All') params = params.set('status', query.status);
-    if (query.term) params = params.set('term', query.term);
+    if (status) params = params.set('status', status);
     if (query.from) params = params.set('from', query.from);
     if (query.to) params = params.set('to', query.to);
     if (query.page) params = params.set('page', query.page);
@@ -103,11 +127,20 @@ export class SmsService {
     return this.http.get<SmsStats>(this.api.tenantUrl('/sms/messages/stats'), { params });
   }
 
-  /** GET /sms/optouts — bajas paginadas + filtros. */
+  /** Bajas paginadas + filtros. Con término → POST /sms/optouts/search; sin él → GET /sms/optouts. */
   listOptOuts(query: SmsOptOutQuery): Observable<PagedResult<SmsOptOutSummary>> {
+    const status = query.status && query.status !== 'All' ? query.status : undefined;
+    const term = query.term?.trim();
+    if (term) {
+      return this.searchByBody<SmsOptOutSummary>('/sms/optouts/search', {
+        status,
+        term,
+        page: query.page || undefined,
+        size: query.size || undefined,
+      });
+    }
     let params = new HttpParams();
-    if (query.status && query.status !== 'All') params = params.set('status', query.status);
-    if (query.term) params = params.set('term', query.term);
+    if (status) params = params.set('status', status);
     if (query.page) params = params.set('page', query.page);
     if (query.size) params = params.set('size', query.size);
     return this.http.get<PagedResult<SmsOptOutSummary>>(this.api.tenantUrl('/sms/optouts'), { params });
@@ -116,5 +149,10 @@ export class SmsService {
   /** POST /sms/optouts — gestión manual del consentimiento (admin, `sms.manage`). */
   setConsent(req: SetSmsConsentRequest): Observable<SmsOptOutSummary> {
     return this.http.post<SmsOptOutSummary>(this.api.tenantUrl('/sms/optouts'), req);
+  }
+
+  /** POST de solo lectura: conserva el reintento silencioso ante 429/503 del errorInterceptor. */
+  private searchByBody<T>(path: string, body: object): Observable<PagedResult<T>> {
+    return this.http.post<PagedResult<T>>(this.api.tenantUrl(path), body, { context: readOnlyRequestContext() });
   }
 }

@@ -483,3 +483,109 @@ describe('FormTemplateBuilderComponent mapping and actions (P-16/P-17)', () => {
     expect(fixture.componentInstance.activeTemplateTab()).toBe('structure');
   });
 });
+
+describe('FormTemplateBuilderComponent publish and validate feedback', () => {
+  function feedbackSetup(publishResult: number | null = 2) {
+    freshRoute();
+    const issues = signal<unknown[]>([]);
+    const actionError = signal('');
+    const store = {
+      trySave: vi.fn(async () => true),
+      load: vi.fn(),
+      dispose: vi.fn(),
+      lockRuleSets: vi.fn(),
+      template: signal({ id: 'template-1', latestVersionNumber: 1 }),
+      issues,
+      actionError,
+      validate: vi.fn(async () => undefined),
+      publish: vi.fn(async () => publishResult),
+    };
+    const toast = { success: vi.fn(), info: vi.fn(), error: vi.fn() };
+    const router = { navigate: vi.fn(async () => true) };
+    TestBed.configureTestingModule({
+      imports: [FormTemplateBuilderComponent],
+      providers: [
+        { provide: ActivatedRoute, useValue: route },
+        { provide: Router, useValue: router },
+        { provide: AccessStore, useValue: accessStub() },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ToastService, useValue: toast },
+      ],
+    });
+    TestBed.overrideComponent(FormTemplateBuilderComponent, {
+      set: {
+        template: '',
+        imports: [],
+        providers: [MappingCatalogStore, { provide: FormTemplateBuilderStore, useValue: store }],
+      },
+    });
+    const component = TestBed.createComponent(FormTemplateBuilderComponent).componentInstance;
+    return { component, store, toast, issues, router };
+  }
+
+  it('confirms a clean validation instead of doing nothing', async () => {
+    const { component, toast } = feedbackSetup();
+
+    await component.validate();
+
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('No issues found'));
+  });
+
+  it('summarises how many issues validation found', async () => {
+    const { component, toast, issues } = feedbackSetup();
+    issues.set([{}, {}]);
+
+    await component.validate();
+
+    expect(toast.info).toHaveBeenCalledWith('2 issues to fix before publishing.');
+  });
+
+  it('publishes with the choreography and returns to the templates list with the row highlighted', async () => {
+    vi.useFakeTimers();
+    const { component, store, router } = feedbackSetup(2);
+    component.publishOpen.set(true);
+
+    const run = component.publish();
+    await vi.runAllTimersAsync();
+    await run;
+
+    expect(store.publish).toHaveBeenCalled();
+    expect(component.publishingVersion()).toBe(2);
+    expect(component.publishOpen()).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/client-forms'], {
+      queryParams: { tab: 'templates', published: 'template-1' },
+    });
+    // El sello se queda hasta que el builder se destruye al navegar.
+    expect(component.launch()).toBe('done');
+    vi.useRealTimers();
+  });
+
+  it('drops the overlay when the navigation back to the list is cancelled', async () => {
+    vi.useFakeTimers();
+    const { component, router } = feedbackSetup(2);
+    router.navigate.mockResolvedValueOnce(false);
+
+    const run = component.publish();
+    await vi.runAllTimersAsync();
+    await run;
+
+    expect(component.launch()).toBe('idle');
+    vi.useRealTimers();
+  });
+
+  it('closes the confirmation and points at the issues when publishing is rejected', async () => {
+    const { component, toast, issues, store } = feedbackSetup(null);
+    store.publish.mockImplementationOnce(async () => {
+      issues.set([{}, {}, {}]);
+      return null;
+    });
+    component.publishOpen.set(true);
+
+    await component.publish();
+
+    expect(component.publishOpen()).toBe(false);
+    expect(component.launch()).toBe('idle');
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Fix 3 issues'));
+  });
+});

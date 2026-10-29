@@ -252,7 +252,7 @@ const REVEAL_MS = 30_000;
         }
         @if (requestChangesMode()) {
           <label class="block text-xs font-semibold text-gray-600"
-            >Comment
+            >Comment<span class="sr-only"> on {{ entry.component.label || 'this field' }}</span>
             <textarea
               class="mt-1 w-full rounded-2xl border border-gray-300 p-2 text-sm"
               rows="2"

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from './chat.model';
 
 /**
@@ -24,8 +25,12 @@ export class ChatDirectoryService {
     return this.http.get<EmployeeDirectoryEntry[]>(`${this.base}/employees`, { params });
   }
 
+  /** POST .../customers/search: el término (a menudo un email) va en el cuerpo, no en la URL. */
   searchCustomers(term: string, limit = 10): Observable<CustomerDirectoryEntry[]> {
-    const params = new HttpParams().set('q', term).set('limit', limit);
-    return this.http.get<CustomerDirectoryEntry[]>(`${this.base}/customers`, { params });
+    return this.http.post<CustomerDirectoryEntry[]>(
+      `${this.base}/customers/search`,
+      { q: term, limit },
+      { context: readOnlyRequestContext() },
+    );
   }
 }

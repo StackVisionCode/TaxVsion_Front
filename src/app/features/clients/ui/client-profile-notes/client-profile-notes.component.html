@@ -1,198 +1,181 @@
 <div>
-  <div class="flex flex-wrap items-start justify-between gap-4">
+  <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h3 class="text-lg font-bold text-gray-900">Notes</h3>
-      <p class="mt-1 text-sm text-gray-500">Notes linked to this client</p>
+      <p class="mt-1 text-sm text-gray-500">Calls, decisions and next steps for this client.</p>
     </div>
+    @if (store.notes().length > 0) {
+      <p class="text-xs font-medium text-gray-400">{{ counts().all }} {{ counts().all === 1 ? 'note' : 'notes' }}</p>
+    }
   </div>
 
-  <!-- Composer: texto + visibilidad + color (los tres campos que acepta POST /notes) -->
-  <div class="mt-4 flex flex-wrap items-center gap-2">
-    <div class="h-10 flex-1 min-w-[12.5rem] bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-      <input type="text" placeholder="Write a note about this client..." [ngModel]="draftText()"
-        (ngModelChange)="draftText.set($event)" (keydown.enter)="addNote()" [disabled]="saving()"
-        class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
+  <!-- Composer -->
+  <form class="mt-4 rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow focus-within:border-brand-bold/40 focus-within:ring-4 focus-within:ring-brand-bold/10"
+    (submit)="$event.preventDefault(); addNote()" aria-label="New note">
+    <div class="flex gap-3 px-4 pt-4">
+      <app-avatar [name]="store.me().name" [seed]="store.me().id" size="sm" colorClass="bg-brand-bold" class="mt-0.5" />
+      <textarea #composerBox rows="2" [value]="draftText()" (input)="onDraftInput($event)" (keydown)="onComposerKeydown($event)"
+        [disabled]="saving()" placeholder="Write a note about this client…" aria-label="Note text"
+        class="composer-input block min-h-[3.5rem] w-full resize-none overflow-hidden bg-transparent py-1.5 text-sm leading-relaxed text-gray-800 placeholder-gray-400 focus:outline-none disabled:opacity-60"></textarea>
     </div>
 
-    <select [ngModel]="draftVisibility()" (ngModelChange)="draftVisibility.set($event)"
-      class="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"
-      aria-label="Note visibility">
-      <option *ngFor="let option of visibilityOptions" [value]="option.value">{{ option.label }}</option>
-    </select>
+    <!-- Adjuntos en cola: se enlazan al crear la nota -->
+    @if (draftFiles().length > 0) {
+      <ul class="flex flex-wrap gap-2 pb-1 pl-[3.75rem] pr-4 pt-2" aria-label="Files to attach">
+        @for (file of draftFiles(); track $index) {
+          <li class="flex max-w-full items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 py-1 pl-2.5 pr-1 text-xs">
+            <ion-icon [name]="fileIcon(file)" class="shrink-0 text-base text-gray-400" aria-hidden="true"></ion-icon>
+            <span class="min-w-0 max-w-[12rem] truncate font-medium text-gray-700" [title]="file.name">{{ file.name }}</span>
+            <span class="shrink-0 text-gray-400">{{ fileSize(file) }}</span>
+            <button type="button" (click)="removeDraftFile($index)" [disabled]="saving()" [attr.aria-label]="'Remove ' + file.name"
+              appTooltip="Remove file"
+              class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-white hover:text-gray-700">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          </li>
+        }
+      </ul>
+    }
 
-    <select [ngModel]="draftColor()" (ngModelChange)="draftColor.set($event)"
-      class="h-10 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"
-      aria-label="Note color">
-      <option *ngFor="let option of colorOptions" [value]="option.value">{{ option.label }}</option>
-    </select>
+    <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-gray-100 px-3 py-2.5 sm:px-4">
+      <app-segmented mode="radio" ariaLabel="Who can see this note" [options]="visibilitySegments"
+        [value]="draftVisibility()" (valueChange)="draftVisibility.set($event)" />
 
-    <button type="button" (click)="addNote()" [disabled]="saving() || !draftText().trim()"
-      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-      @if (saving()) {
-        <app-infinity-loader size="xs" tone="light" />
-      } @else {
-        <ion-icon name="add-outline" class="text-base"></ion-icon>
-      }
-      Add note
-    </button>
-  </div>
+      <app-dropdown-menu align="left" panelClass="w-48">
+        <button menuTrigger type="button" aria-haspopup="menu" [attr.aria-label]="'Label: ' + draftColorOption().label"
+          appTooltip="Label"
+          class="composer-label inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
+          <span class="h-2 w-2 rounded-full" [class]="draftColorOption().dotClass" aria-hidden="true"></span>
+          {{ draftColorOption().label }}
+          <ion-icon name="chevron-down-outline" class="text-xs text-gray-400" aria-hidden="true"></ion-icon>
+        </button>
+        @for (option of colorOptions; track option.value) {
+          <button appMenuItem type="button" (click)="draftColor.set(option.value)">
+            <span class="h-2.5 w-2.5 rounded-full" [class]="option.dotClass" aria-hidden="true"></span>
+            <span class="flex-1">{{ option.label }}</span>
+            @if (option.value === draftColor()) {
+              <ion-icon name="checkmark-outline" class="text-base text-brand-bold" aria-hidden="true"></ion-icon>
+            }
+          </button>
+        }
+      </app-dropdown-menu>
 
-  <p *ngIf="composerError() as composerErr" class="mt-2 text-sm text-red-600">{{ composerErr }}</p>
+      <button type="button" (click)="composerFiles.click()" [disabled]="saving()" aria-label="Attach files" appTooltip="Attach files"
+        class="grid h-8 w-8 place-items-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-40">
+        <ion-icon name="attach-outline" class="text-lg"></ion-icon>
+      </button>
+      <input #composerFiles type="file" multiple class="hidden" tabindex="-1" aria-hidden="true" (change)="onComposerFilesPicked($event)" />
+
+      <div class="ml-auto flex items-center gap-3">
+        @if (showCounter()) {
+          <span class="text-xs tabular-nums" [class.text-red-600]="overLimit()" [class.text-gray-400]="!overLimit()" aria-live="polite">
+            {{ draftHtmlLength() }} / {{ maxLength }}
+          </span>
+        }
+        <span class="hidden text-xs text-gray-400 md:inline">
+          <kbd class="rounded border border-gray-200 bg-gray-50 px-1 font-sans">{{ shortcut }}</kbd>
+        </span>
+        <button type="submit" [disabled]="!canSubmit()"
+          class="composer-submit inline-flex h-9 items-center gap-2 rounded-full bg-brand-bold px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold">
+          @if (saving()) {
+            <app-infinity-loader size="xs" tone="light" />
+            Saving…
+          } @else {
+            <ion-icon name="send-outline" class="text-sm" aria-hidden="true"></ion-icon>
+            Add note
+          }
+        </button>
+      </div>
+    </div>
+
+    <!-- Pista de visibilidad: resalta cuando la nota sale de la oficina -->
+    <p class="flex items-center gap-1.5 rounded-b-2xl px-4 py-2 text-xs"
+      [class.bg-amber-50]="draftVisibility() === 'ClientVisible'" [class.text-amber-800]="draftVisibility() === 'ClientVisible'"
+      [class.bg-gray-50]="draftVisibility() !== 'ClientVisible'" [class.text-gray-500]="draftVisibility() !== 'ClientVisible'">
+      <ion-icon [name]="draftVisibility() === 'ClientVisible' ? 'eye-outline' : 'information-circle-outline'" class="shrink-0 text-sm" aria-hidden="true"></ion-icon>
+      <span class="composer-hint">{{ draftVisibilityHint() }}</span>
+    </p>
+  </form>
+
+  @if (composerError(); as err) {
+    <p class="mt-2 flex items-center gap-1.5 text-sm text-red-600" role="alert">
+      <ion-icon name="alert-circle-outline" class="shrink-0 text-base" aria-hidden="true"></ion-icon>
+      {{ err }} Your draft was kept — try again.
+    </p>
+  }
 
   <!-- Error transitorio de una acción (pin, color, archivar…) -->
-  <div *ngIf="store.actionError() as actionErr"
-    class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-    <p class="text-sm text-amber-800">{{ actionErr }}</p>
-    <button type="button" (click)="dismissActionError()"
-      class="shrink-0 text-sm font-medium text-amber-800 hover:text-amber-950 transition-colors">
-      Dismiss
-    </button>
-  </div>
-
-  <!-- Estados de carga / error / vacío del listado -->
-  <app-state-block class="mt-5 block" variant="inline" loadingText="Loading notes…" icon="chatbubble-ellipses-outline"
-    emptyTitle="No notes yet for this client" [loading]="store.loading()" [error]="store.error()"
-    [empty]="store.notes().length === 0" (retry)="retry()">
-  <div class="flex flex-col gap-3">
-    <div *ngFor="let note of store.notes()" class="rounded-2xl border p-4 transition-opacity" [ngClass]="note.cardClass"
-      [class.opacity-50]="store.isBusy(note.id)">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-3">
-          <app-avatar [name]="note.authorName" [seed]="note.authorUserId" size="sm"
-            [colorClass]="note.isMine ? 'bg-brand-bold' : null" />
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-gray-900">{{ note.authorName }}</p>
-            <p class="text-xs text-gray-400">
-              {{ note.timestamp }}<span *ngIf="note.edited"> · edited</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <span *ngIf="note.isPinned"
-            class="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-            <ion-icon name="bookmark" class="text-xs"></ion-icon>
-            Pinned
-          </span>
-          <span *ngIf="note.isArchived"
-            class="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-            Archived
-          </span>
-
-          <!-- Visibilidad: editable solo por el autor (el backend rechaza el resto) -->
-          <select *ngIf="note.canEdit" [ngModel]="note.visibility" (ngModelChange)="changeVisibility(note, $event)"
-            [disabled]="store.isBusy(note.id)"
-            class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-500 focus:outline-none focus:border-gray-300 transition-colors"
-            aria-label="Change visibility">
-            <option *ngFor="let option of visibilityOptions" [value]="option.value">{{ option.label }}</option>
-          </select>
-          <span *ngIf="!note.canEdit"
-            class="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-            {{ note.visibilityLabel }}
-          </span>
-
-          <!-- Acciones de autor: pin, color, editar -->
-          <ng-container *ngIf="note.canEdit">
-            <button type="button" (click)="togglePin(note)" [disabled]="store.isBusy(note.id)"
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              [attr.aria-label]="note.isPinned ? 'Unpin note' : 'Pin note'">
-              <ion-icon [name]="note.isPinned ? 'bookmark' : 'bookmark-outline'" class="text-sm"></ion-icon>
-            </button>
-
-            <app-dropdown-menu panelClass="w-44" [disabled]="store.isBusy(note.id)">
-              <button menuTrigger type="button" [disabled]="store.isBusy(note.id)"
-                class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-                aria-label="Change note color" aria-haspopup="menu">
-                <ion-icon name="color-palette-outline" class="text-sm"></ion-icon>
-              </button>
-              <button *ngFor="let option of colorOptions" appMenuItem type="button" (click)="pickColor(note, option.value)">
-                <span class="h-2.5 w-2.5 rounded-full" [ngClass]="option.dotClass"></span>
-                {{ option.label }}
-                <ion-icon *ngIf="option.value === note.colorKind" name="checkmark-outline"
-                  class="ml-auto text-sm text-gray-900"></ion-icon>
-              </button>
-            </app-dropdown-menu>
-
-            <button type="button" (click)="startEdit(note)" [disabled]="store.isBusy(note.id)"
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              aria-label="Edit note">
-              <ion-icon name="create-outline" class="text-sm"></ion-icon>
-            </button>
-            <label
-              class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              [class.pointer-events-none]="store.isBusy(note.id)" [class.opacity-50]="store.isBusy(note.id)"
-              title="Attach file" aria-label="Attach file to note">
-              <ion-icon name="attach-outline" class="text-sm"></ion-icon>
-              <input type="file" class="hidden" (change)="onAttachPicked(note, $event)"
-                [disabled]="store.isBusy(note.id)" />
-            </label>
-          </ng-container>
-
-          <!-- Ciclo de vida: autor o notes.view_all -->
-          <ng-container *ngIf="note.canManage">
-            <button type="button" (click)="toggleArchive(note)" [disabled]="store.isBusy(note.id)"
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              [attr.aria-label]="note.isArchived ? 'Restore note' : 'Archive note'">
-              <ion-icon [name]="note.isArchived ? 'arrow-undo-outline' : 'archive-outline'" class="text-sm"></ion-icon>
-            </button>
-            <button type="button" (click)="requestDelete(note)" [disabled]="store.isBusy(note.id)"
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors"
-              aria-label="Delete note">
-              <ion-icon name="trash-outline" class="text-sm"></ion-icon>
-            </button>
-          </ng-container>
-        </div>
-      </div>
-
-      <!-- Cuerpo: lectura o edición en línea (PUT /notes/{id}/content) -->
-      <ng-container *ngIf="editingId() === note.id; else noteBody">
-        <textarea rows="3" [ngModel]="editText()" (ngModelChange)="editText.set($event)" [disabled]="editSaving()"
-          class="mt-3 w-full resize-none rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300 transition-colors"></textarea>
-        <p *ngIf="editError() as editErr" class="mt-2 text-sm text-red-600">{{ editErr }}</p>
-        <div class="mt-2 flex items-center justify-end gap-2">
-          <button type="button" (click)="cancelEdit()"
-            class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-            Cancel
-          </button>
-          <button type="button" (click)="saveEdit()" [disabled]="editSaving() || !editText().trim()"
-            class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-            Save changes
-          </button>
-        </div>
-      </ng-container>
-      <ng-template #noteBody>
-        <div class="mt-3 text-sm leading-relaxed text-gray-700 break-words" [innerHTML]="note.html"></div>
-      </ng-template>
-
-      <!-- Adjuntos: subida presignada a CloudStorage + enlace a la nota (solo el autor) -->
-      <div *ngIf="visibleAttachments(note).length > 0" class="mt-3 flex flex-col gap-1.5">
-        <div *ngFor="let attachment of visibleAttachments(note)"
-          class="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-1.5 text-xs">
-          <ion-icon name="document-attach-outline" class="shrink-0 text-sm text-gray-400"></ion-icon>
-          <button *ngIf="attachment.status === 'Available'; else attachmentName" type="button"
-            (click)="previewAttachment(note, attachment)" [attr.aria-label]="'Preview ' + attachment.displayName"
-            class="min-w-0 flex-1 truncate text-left text-gray-700 hover:text-brand-bold hover:underline">{{ attachment.displayName }}</button>
-          <ng-template #attachmentName><span class="min-w-0 flex-1 truncate text-gray-700">{{ attachment.displayName }}</span></ng-template>
-          <span class="shrink-0 text-gray-400">{{ attachmentSize(attachment.sizeBytes) }}</span>
-          <span class="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"
-            [ngClass]="attachmentStatusClass(attachment.status)">{{ attachmentStatusLabel(attachment.status) }}</span>
-          <button *ngIf="attachment.status === 'Available'" type="button" (click)="downloadAttachment(attachment)"
-            class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-            [attr.aria-label]="'Download ' + attachment.displayName">
-            <ion-icon name="download-outline" class="text-sm"></ion-icon>
-          </button>
-          <button *ngIf="note.canEdit" type="button" (click)="requestDetach(note, attachment)"
-            [disabled]="store.isBusy(note.id)"
-            class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 transition-colors"
-            [attr.aria-label]="'Remove ' + attachment.displayName">
-            <ion-icon name="close-outline" class="text-sm"></ion-icon>
-          </button>
-        </div>
-      </div>
+  @if (store.actionError(); as actionErr) {
+    <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3" role="alert">
+      <p class="text-sm text-amber-800">{{ actionErr }}</p>
+      <button type="button" (click)="dismissActionError()"
+        class="shrink-0 text-sm font-medium text-amber-800 transition-colors hover:text-amber-950">
+        Dismiss
+      </button>
     </div>
+  }
 
+  <!-- Listado -->
+  <div class="mt-6">
+    @if (store.loading() && store.notes().length === 0) {
+      <app-skeleton variant="feed" [rows]="3" minHeight="12rem" />
+    } @else if (store.error() && store.notes().length === 0) {
+      <app-state-block [error]="store.error()" (retry)="retry()" />
+    } @else if (store.notes().length === 0) {
+      <app-state-block [empty]="true" icon="chatbubble-ellipses-outline" emptyTitle="No notes yet"
+        emptyMessage="Capture calls, decisions and next steps. Pin the important ones so they stay on top." />
+    } @else {
+      @if (showToolbar()) {
+        <div class="mb-5 flex flex-wrap items-center gap-3">
+          <app-filter-chips size="sm" ariaLabel="Filter notes" [collapseAfter]="null" [options]="filterOptions()"
+            [value]="filter()" (valueChange)="filter.set($event)" />
+          <app-search-input class="w-full sm:ml-auto sm:w-64" widthClass="w-full" placeholder="Search notes"
+            [value]="search()" [debounceMs]="150" (valueChange)="search.set($event)" />
+        </div>
+      }
+
+      @if (filteredEmpty()) {
+        <div class="flex flex-col items-center rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center">
+          <ion-icon name="search-outline" class="text-2xl text-gray-300" aria-hidden="true"></ion-icon>
+          <p class="mt-2 text-sm text-gray-500">No notes match these filters.</p>
+          <button type="button" (click)="clearFilters()" class="mt-2 text-sm font-semibold text-brand-bold hover:underline">
+            Clear filters
+          </button>
+        </div>
+      }
+
+      @if (pinnedNotes().length > 0) {
+        <section class="notes-pinned mb-6" aria-labelledby="notes-pinned-heading">
+          <h4 id="notes-pinned-heading" class="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <ion-icon name="bookmark" class="text-sm text-brand-bold" aria-hidden="true"></ion-icon>
+            Pinned
+            <span class="font-medium text-gray-400">{{ pinnedNotes().length }}</span>
+          </h4>
+          <div class="flex flex-col gap-3">
+            @for (note of pinnedNotes(); track note.id) {
+              <app-client-note-card [note]="note" [now]="now()" (deleteRequested)="requestDelete($event)"
+                (detachRequested)="requestDetach($event)" (previewRequested)="previewAttachment($event)" />
+            }
+          </div>
+        </section>
+      }
+
+      @for (group of feedGroups(); track group.key) {
+        <section class="notes-day mb-6 last:mb-0" [attr.aria-label]="group.label">
+          <div class="mb-2.5 flex items-center gap-3">
+            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.label }}</h4>
+            <span class="h-px flex-1 bg-gray-100" aria-hidden="true"></span>
+          </div>
+          <div class="flex flex-col gap-3">
+            @for (note of group.notes; track note.id) {
+              <app-client-note-card [note]="note" [now]="now()" (deleteRequested)="requestDelete($event)"
+                (detachRequested)="requestDetach($event)" (previewRequested)="previewAttachment($event)" />
+            }
+          </div>
+        </section>
+      }
+    }
   </div>
-  </app-state-block>
 </div>
 
 <!-- Visor global de adjuntos -->

@@ -1,6 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { CountUpDirective } from '../../directives/count-up.directive';
+import { TooltipDirective } from '../tooltip/tooltip.directive';
 
 /**
  * Tintes de la paleta armónica (mismos que los tiles del dashboard): sky, arena, salvia, y `navy`
@@ -8,6 +9,16 @@ import { CountUpDirective } from '../../directives/count-up.directive';
  * sand-100 directo sobre el canvas crema casi no se distingue.
  */
 export type StatCardTone = 'sky' | 'sand' | 'sage' | 'navy' | 'white';
+
+/**
+ * Variación contra un período anterior. La dirección pinta la flecha; el sentimiento, el color (una
+ * subida puede ser mala, p. ej. más vencidas). El texto lleva el dato: el color nunca va solo.
+ */
+export interface StatCardDelta {
+  label: string;
+  direction: 'up' | 'down' | 'flat';
+  sentiment: 'positive' | 'negative' | 'neutral';
+}
 
 export interface StatCardItem {
   label: string;
@@ -21,6 +32,10 @@ export interface StatCardItem {
   icon?: string;
   /** Anima la cifra con `appCountUp` (solo si `value` es número). */
   countUp?: boolean;
+  /** Variación opcional bajo la cifra (flecha + texto). */
+  delta?: StatCardDelta | null;
+  /** Definición de la métrica: botón (i) con tooltip y el mismo texto para lectores de pantalla. */
+  info?: string | null;
 }
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
@@ -33,6 +48,18 @@ const TONE_CLASSES: Record<StatCardTone, string> = {
 
 /** Rotación por defecto: sky → arena → salvia → arena. */
 const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
+
+const DELTA_ICONS: Record<StatCardDelta['direction'], string> = {
+  up: 'trending-up-outline',
+  down: 'trending-down-outline',
+  flat: 'remove-outline',
+};
+
+const DELTA_CLASSES: Record<StatCardDelta['sentiment'], string> = {
+  positive: 'bg-emerald-50 text-emerald-700',
+  negative: 'bg-red-50 text-red-700',
+  neutral: 'bg-gray-100 text-gray-600',
+};
 
 /**
  * Fila de tarjetas de métricas de la cabecera de las páginas (inventory, task, meetings, signature…).
@@ -47,7 +74,7 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
  */
 @Component({
   selector: 'app-stat-cards',
-  imports: [NgClass, CountUpDirective],
+  imports: [NgClass, CountUpDirective, TooltipDirective],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
@@ -55,7 +82,17 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
         @let dark = isDark(item);
         <div class="rounded-[1.5rem] p-5" [ngClass]="toneClass(item, i)">
           <div class="flex items-start justify-between gap-2">
-            <p class="text-sm" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">{{ item.label }}</p>
+            <p class="text-sm" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">
+              {{ item.label }}
+              @if (item.info) {
+                <button type="button" class="-my-1 ml-0.5 inline-grid h-6 w-6 place-items-center rounded-full align-middle transition-colors"
+                  [ngClass]="dark ? 'text-white/70 hover:bg-white/10' : 'text-gray-400 hover:bg-black/5 hover:text-gray-600'"
+                  [appTooltip]="item.info" [attr.aria-label]="'About ' + item.label">
+                  <ion-icon name="information-circle-outline" class="text-sm" aria-hidden="true"></ion-icon>
+                </button>
+                <span class="sr-only">{{ item.info }}</span>
+              }
+            </p>
             @if (item.icon) {
               <ion-icon [name]="item.icon" class="shrink-0 text-lg" [ngClass]="dark ? 'text-white/75' : 'text-gray-500'"
                 aria-hidden="true"></ion-icon>
@@ -66,6 +103,13 @@ const DEFAULT_TONE_CYCLE: StatCardTone[] = ['sky', 'sand', 'sage', 'sand'];
               [appCountUp]="$any(item.value)">0</p>
           } @else {
             <p class="mt-2 text-3xl font-bold" [ngClass]="dark ? 'text-white' : 'text-gray-900'">{{ display(item) }}</p>
+          }
+          @if (!loading && item.delta) {
+            <p class="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
+              [ngClass]="deltaClass(item.delta)">
+              <ion-icon [name]="deltaIcon(item.delta)" class="text-sm" aria-hidden="true"></ion-icon>
+              {{ item.delta.label }}
+            </p>
           }
           @if (item.hint) {
             <p class="mt-1 text-xs" [ngClass]="dark ? 'text-white/75' : 'text-gray-600'">{{ item.hint }}</p>
@@ -83,6 +127,14 @@ export class StatCardsComponent {
   toneClass(item: StatCardItem, index: number): string {
     const tone = item.tone ?? DEFAULT_TONE_CYCLE[index % DEFAULT_TONE_CYCLE.length];
     return TONE_CLASSES[tone];
+  }
+
+  deltaIcon(delta: StatCardDelta): string {
+    return DELTA_ICONS[delta.direction];
+  }
+
+  deltaClass(delta: StatCardDelta): string {
+    return DELTA_CLASSES[delta.sentiment];
   }
 
   /** El tono navy no entra en la rotación por defecto: solo aplica cuando se pide explícito. */

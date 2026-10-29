@@ -14,12 +14,15 @@ import { Directive, ElementRef, EventEmitter, HostListener, Input, Output, injec
  * - `clickOutsideEnabled` (default true): pásale el estado "abierto" para no emitir de más y no
  *   pisar el Escape de otros overlays (p. ej. un modal) cuando el menú está cerrado.
  * - Emite el `Event` original (PointerEvent o KeyboardEvent).
+ * - `clickOutsideIgnore`: nodo extra que cuenta como "dentro" aunque viva en otro lugar del DOM
+ *   (p. ej. el panel de `app-dropdown-menu`, que se porta al `<body>`).
  */
 @Directive({
   selector: '[appClickOutside]',
 })
 export class ClickOutsideDirective {
   @Input() clickOutsideEnabled = true;
+  @Input() clickOutsideIgnore: HTMLElement | null = null;
   @Output() readonly appClickOutside = new EventEmitter<Event>();
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -30,7 +33,7 @@ export class ClickOutsideDirective {
       return;
     }
     const target = event.target as Node | null;
-    if (target && this.host.contains(target)) {
+    if (target && (this.host.contains(target) || this.clickOutsideIgnore?.contains(target))) {
       return;
     }
     this.appClickOutside.emit(event);

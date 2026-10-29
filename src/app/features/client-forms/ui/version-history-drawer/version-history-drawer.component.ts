@@ -2,10 +2,11 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import type { FormTemplateVersionSummary } from '../../data-access/client-forms.model';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 
 @Component({
   selector: 'app-version-history-drawer',
-  imports: [DatePipe, DrawerComponent],
+  imports: [DatePipe, DrawerComponent, StatusPillComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-drawer
@@ -25,10 +26,7 @@ import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
                   {{ version.publishedAtUtc | date: 'medium' }}
                 </p>
               </div>
-              <span
-                class="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700"
-                >Published</span
-              >
+              <app-status-pill class="shrink-0" tone="success" [soft]="true" size="xs">Published</app-status-pill>
             </div>
             <!-- Acciones en fila que baja de línea si el drawer es angosto. -->
             <div class="mt-4 flex flex-wrap gap-2">

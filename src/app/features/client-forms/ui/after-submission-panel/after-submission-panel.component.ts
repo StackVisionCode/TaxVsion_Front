@@ -31,8 +31,8 @@ interface ActionRow {
   action: FormAction | null;
   /** Por qué no se puede activar; null si se puede. */
   blocked: string | null;
-  /** La quitaría el validador de firma: va atada al componente signatureStep. */
-  lockedBySignature: boolean;
+  /** La ejecuta un flujo automático: sin switch, solo estado y explicación. */
+  automatic: { pill: string; note: string; on: boolean } | null;
   coverage: ActionCoverage | null;
 }
 
@@ -72,15 +72,20 @@ interface ConfigField {
                 </h4>
                 @if (row.descriptor.implicit) {
                   <app-status-pill tone="success" [soft]="true" [dot]="false" size="xs">Always on</app-status-pill>
-                } @else if (row.descriptor.availability === 'comingSoon') {
-                  <app-status-pill tone="muted" [soft]="true" [dot]="false" size="xs">Coming soon</app-status-pill>
+                } @else if (row.automatic) {
+                  <app-status-pill [tone]="row.automatic.on ? 'success' : 'muted'" [soft]="true" [dot]="false" size="xs">
+                    {{ row.automatic.pill }}
+                  </app-status-pill>
                 }
               </div>
               <p [id]="'action-desc-' + row.descriptor.type" class="mt-1 text-xs text-gray-500">
                 {{ row.descriptor.description }}
               </p>
+              @if (row.automatic) {
+                <p class="mt-1.5 text-xs text-gray-600" data-testid="action-automatic">{{ row.automatic.note }}</p>
+              }
             </div>
-            @if (!row.descriptor.implicit) {
+            @if (!row.descriptor.implicit && !row.automatic) {
               <app-switch
                 size="sm"
                 [checked]="row.action !== null"
@@ -91,13 +96,8 @@ interface ConfigField {
             }
           </div>
 
-          @if (row.blocked && row.descriptor.availability !== 'comingSoon') {
+          @if (row.blocked) {
             <p class="mt-2 text-xs text-gray-600" data-testid="action-blocked">{{ row.blocked }}</p>
-          }
-          @if (row.descriptor.type === 'requestSignature' && signatureStepEnabled() === false) {
-            <p class="mt-2 text-xs text-gray-600" data-testid="signature-off">
-              Signature steps are turned off for this office.
-            </p>
           }
           @if (row.descriptor.implicit && row.action) {
             <div class="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="legacy-action">
@@ -112,14 +112,25 @@ interface ConfigField {
               </button>
             </div>
           }
-          @if (row.lockedBySignature) {
-            <p class="mt-2 text-xs text-gray-600">Added with the signature step. Remove the step to remove it.</p>
+          @if (row.automatic && row.action && row.descriptor.type !== 'requestSignature') {
+            <!-- Borradores de antes de H4: la entrada no hace nada (lo hace el flujo automático). -->
+            <div class="mt-2 rounded-2xl bg-gray-50 px-3 py-2 text-xs text-gray-700" data-testid="automatic-entry">
+              <p>This draft has an old “{{ row.descriptor.label }}” setting that no longer does anything.</p>
+              <button
+                type="button"
+                class="mt-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 font-semibold hover:bg-gray-100 disabled:opacity-50"
+                [disabled]="disabled()"
+                (click)="removeLegacy(row.action)"
+              >
+                Remove setting
+              </button>
+            </div>
           }
 
-          @if (row.action && !row.descriptor.implicit) {
+          @if (row.action && !row.descriptor.implicit && !row.automatic) {
             <div class="mt-3 space-y-3 border-t border-gray-100 pt-3">
               @if (row.descriptor.triggers.length > 1) {
-                <fieldset [disabled]="disabled() || row.descriptor.availability === 'comingSoon'">
+                <fieldset [disabled]="disabled()">
                   <legend class="mb-1 text-xs font-semibold text-gray-600">
                     {{ row.descriptor.type === 'createCustomer' ? 'How the client is created' : 'When it runs' }}
                   </legend>
@@ -185,14 +196,26 @@ interface ConfigField {
                     Map an address field to use this.
                   </p>
                 }
-                <app-form-checkbox-control [id]="'action-config-' + row.action.key + '-wait'" [checked]="false" [disabled]="true">
-                  Wait for the client's signature first <span class="text-gray-500">· Coming soon</span>
+                <!-- Ya marcado sin paso de firma se deja desmarcar; activarlo exige el paso. -->
+                <app-form-checkbox-control
+                  [id]="'action-config-' + row.action.key + '-wait'"
+                  [checked]="waitsForSignature(row.action)"
+                  [disabled]="disabled() || (!signatureStep() && !waitsForSignature(row.action))"
+                  [describedBy]="signatureStep() ? null : 'action-wait-hint-' + row.action.key"
+                  (checkedChange)="setWaitFor(row.action, $event)"
+                >
+                  Wait for the client's signature first
                 </app-form-checkbox-control>
+                @if (!signatureStep()) {
+                  <p [id]="'action-wait-hint-' + row.action.key" class="-mt-2 text-xs text-gray-500" data-testid="wait-hint">
+                    Add a Signature step to use this.
+                  </p>
+                }
               }
             </div>
           }
 
-          @if (!row.descriptor.implicit && (row.descriptor.requirements.length > 0 || row.coverage)) {
+          @if (!row.descriptor.implicit && !row.automatic && (row.descriptor.requirements.length > 0 || row.coverage)) {
             <div class="mt-3 space-y-1.5" [attr.aria-label]="row.descriptor.label + ' requirements'">
               @for (requirement of row.descriptor.requirements; track requirement) {
                 <p class="text-xs text-gray-500">· {{ requirement }}</p>
@@ -234,8 +257,6 @@ export class AfterSubmissionPanelComponent {
   readonly modules = input<ReadonlySet<string> | null>(null);
   /** Flag de la oficina para crear clientes al enviar; null = el backend no lo informó. */
   readonly autoCustomerCreationEnabled = input<boolean | null>(null);
-  /** Flag de la oficina para el paso de firma; null = sin datos. */
-  readonly signatureStepEnabled = input<boolean | null>(null);
   readonly disabled = input(false);
 
   readonly actionsChange = output<FormAction[]>();
@@ -258,11 +279,19 @@ export class AfterSubmissionPanelComponent {
         descriptor,
         action,
         blocked: this.blockedReason(descriptor),
-        lockedBySignature: descriptor.type === 'requestSignature' && action !== null && signatureStep,
+        automatic: this.automaticState(descriptor, signatureStep),
         coverage,
       };
     });
   });
+
+  // La acción de firma la añade y quita el propio signatureStep (el validador exige ambos juntos).
+  private automaticState(descriptor: FormActionDescriptor, signatureStep: boolean): ActionRow['automatic'] {
+    if (!descriptor.automatic) return null;
+    if (descriptor.type === 'requestSignature' && !signatureStep)
+      return { pill: 'Off', note: 'Add a Signature step to the form to turn this on.', on: false };
+    return { ...descriptor.automatic, on: descriptor.type !== 'applyRetentionClass' };
+  }
 
   protected readonly configFields = computed<ConfigField[]>(() => {
     const catalog = this.catalog();
@@ -287,19 +316,18 @@ export class AfterSubmissionPanelComponent {
     return fields;
   });
 
+  protected readonly signatureStep = computed(() => hasSignatureStep(this.definition()));
+
   protected readonly addressMapped = computed(() =>
     (this.definition().mappings ?? []).some((mapping) => ADDRESS_TARGETS.includes(mapping.targetKey)),
   );
 
   private blockedReason(descriptor: FormActionDescriptor): string | null {
     if (descriptor.implicit) return null;
-    if (descriptor.availability === 'comingSoon') return 'Coming soon';
     const modules = this.modules();
     if (descriptor.module && modules && !modules.has(descriptor.module))
       return "Your office plan doesn't include this feature.";
-    if (descriptor.type === 'requestSignature' && this.signatureStepEnabled() === false)
-      return 'Signature steps are turned off for this office.';
-    if (!descriptor.mappingOperation) return null;
+    if (descriptor.automatic || !descriptor.mappingOperation) return null;
     const catalog = this.catalog();
     if (!catalog) return this.catalogLoading() ? 'Loading client properties…' : 'Client properties are unavailable.';
     return catalog.operations.some((item) => item.name === descriptor.mappingOperation)
@@ -308,7 +336,7 @@ export class AfterSubmissionPanelComponent {
   }
 
   protected switchDisabled(row: ActionRow): boolean {
-    if (this.disabled() || row.lockedBySignature) return true;
+    if (this.disabled()) return true;
     // Una acción ya presente siempre se puede apagar, aunque hoy no se pueda activar.
     return row.action === null && row.blocked !== null;
   }
@@ -400,6 +428,17 @@ export class AfterSubmissionPanelComponent {
     if (on) config['postCreate'] = ['primaryAddress'];
     else delete config['postCreate'];
     this.replace({ ...action, config });
+  }
+
+  protected waitsForSignature(action: FormAction): boolean {
+    return action.config?.['waitFor'] === 'signatureCompleted';
+  }
+
+  protected setWaitFor(action: FormAction, on: boolean): void {
+    this.replace({
+      ...action,
+      config: { ...(action.config ?? {}), waitFor: on ? 'signatureCompleted' : 'none' },
+    });
   }
 
   protected missingNames(coverage: ActionCoverage): string {

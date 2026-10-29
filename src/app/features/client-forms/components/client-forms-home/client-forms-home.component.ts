@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AccessStore } from '@core/access/access.store';
 import type {
   FormPresentation,
@@ -14,13 +14,32 @@ import type {
 } from '@shared/utils/data-collection/form-definition.model';
 import { FormTemplatesStore } from '../../data-access/form-templates.store';
 import { FormTemplatesListComponent } from '../form-templates-list/form-templates-list.component';
-import type { FormTemplateSummary } from '../../data-access/client-forms.model';
+import type { FormTemplateStatus, FormTemplateSummary } from '../../data-access/client-forms.model';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import {
+  FilterChipsComponent,
+  type FilterChipOption,
+} from '@shared/ui/filter-chips/filter-chips.component';
+import { FormSelectControlComponent } from '@shared/ui/form-controls/form-select-control.component';
+import { FormTextControlComponent } from '@shared/ui/form-controls/form-text-control.component';
+import { FormTextareaControlComponent } from '@shared/ui/form-controls/form-textarea-control.component';
+import { LaunchOverlayComponent } from '@shared/ui/launch-overlay/launch-overlay.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
+import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
+import { runWithLaunch, type LaunchPhase } from '@shared/utils/launch.util';
 import { FormRequestsInboxComponent } from '../form-requests-inbox/form-requests-inbox.component';
 import { FormIntakeLinksComponent } from '../form-intake-links/form-intake-links.component';
+import { ClientFormsLibraryComponent } from '../client-forms-library/client-forms-library.component';
+import { FormReportsComponent } from '../form-reports/form-reports.component';
 import { ClientFormsAvailabilityStore } from '../../data-access/client-forms-availability.store';
+import { FormProspectsComponent } from '../form-prospects/form-prospects.component';
+import { FormInsightsComponent } from '../form-insights/form-insights.component';
+import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 
-type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports';
+type ClientFormsTab = 'requests' | 'insights' | 'prospects' | 'templates' | 'library' | 'intake' | 'reports';
+type StatusFilter = 'all' | FormTemplateStatus;
 
 @Component({
   selector: 'app-client-forms-home',
@@ -28,10 +47,47 @@ type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports
     FormTemplatesListComponent,
     FormRequestsInboxComponent,
     FormIntakeLinksComponent,
+    ClientFormsLibraryComponent,
+    FormReportsComponent,
+    // Solo dentro de @defer: quedan en su propio chunk.
+    FormProspectsComponent,
+    FormInsightsComponent,
+    SkeletonComponent,
     ConfirmDialogComponent,
+    FilterChipsComponent,
+    FormSelectControlComponent,
+    FormTextControlComponent,
+    FormTextareaControlComponent,
+    LaunchOverlayComponent,
+    ModalComponent,
+    PaginationComponent,
+    SearchInputComponent,
+    StateBlockComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: `
+    /* Entrada suave de cada pestaña (mismo idioma que el step-in del wizard de Signature). */
+    .tab-panel {
+      animation: tab-in 240ms cubic-bezier(0.2, 0, 0, 1) both;
+    }
+    @keyframes tab-in {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        /* "none" y no translateY(0): un transform activo encerraría los fixed de los hijos. */
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tab-panel {
+        animation: none;
+      }
+    }
+  `,
   template: `
     <section class="min-h-full rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm">
       <div class="mx-auto max-w-7xl">
@@ -48,17 +104,17 @@ type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports
           @if (activeTab() === 'templates' && canManage) {
             <button
               type="button"
-              class="inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-bold px-5 text-sm font-bold text-white hover:bg-brand-ink"
-              (click)="createOpen.set(true)"
+              class="inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-bold px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink"
+              (click)="openCreate()"
             >
-              <ion-icon name="add-outline"></ion-icon>New template
+              <ion-icon name="add-outline" class="text-base"></ion-icon>New template
             </button>
           }
         </header>
 
         @if (availabilityLoading()) {
-          <div class="mt-8 rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-500">
-            Checking availability…
+          <div class="mt-8">
+            <app-state-block [loading]="true" loadingText="Checking availability…" minHeight="12rem" />
           </div>
         } @else if (!available()) {
           <div class="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
@@ -83,127 +139,193 @@ type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports
               </button>
             }
           </nav>
-          @if (activeTab() === 'requests') {
-            <app-form-requests-inbox />
-          } @else if (activeTab() === 'intake') {
-            <app-form-intake-links />
-          } @else if (activeTab() === 'templates') {
-            <div class="my-5 flex flex-wrap items-center gap-3">
-              <label class="relative min-w-72 flex-1"
-                ><span class="sr-only">Search templates</span
-                ><ion-icon
-                  name="search-outline"
-                  class="absolute left-3 top-3 text-gray-400"
-                ></ion-icon
-                ><input
-                  class="min-h-11 w-full rounded-full border border-gray-300 bg-white pl-10 pr-3 text-sm"
-                  placeholder="Search templates"
-                  (input)="search($event)" /></label
-              ><select
-                class="min-h-11 rounded-full border border-gray-300 bg-white px-3 text-sm"
-                (change)="statusChanged($event)"
-              >
-                <option value="">All statuses</option>
-                <option value="Active">Active</option>
-                <option value="Archived">Archived</option>
-              </select>
-            </div>
-            @if (store.error()) {
-              <p class="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                {{ store.error() }}
-              </p>
+          <!-- Un solo elemento con track por pestaña: se recrea en cada cambio y la entrada vuelve a correr. -->
+          @for (current of [activeTab()]; track current) {
+          <div class="tab-panel">
+            @switch (current) {
+              @case ('requests') {
+                <app-form-requests-inbox />
+              }
+              @case ('insights') {
+                @defer {
+                  <app-form-insights (openRequests)="activeTab.set('requests')" />
+                } @placeholder (minimum 200ms) {
+                  <div class="grid grid-cols-2 gap-4 py-5 lg:grid-cols-4">
+                    @for (item of [1, 2, 3, 4]; track item) {
+                      <app-skeleton variant="block" minHeight="8rem" />
+                    }
+                  </div>
+                }
+              }
+              @case ('prospects') {
+                @defer {
+                  <app-form-prospects />
+                } @placeholder (minimum 200ms) {
+                  <div class="py-5"><app-skeleton variant="rows" [rows]="6" minHeight="18rem" /></div>
+                }
+              }
+              @case ('intake') {
+                <app-form-intake-links />
+              }
+              @case ('library') {
+                <app-client-forms-library />
+              }
+              @case ('reports') {
+                <app-form-reports />
+              }
+              @case ('templates') {
+                <div class="my-5 flex flex-wrap items-center justify-between gap-3">
+                  <app-search-input
+                    class="min-w-64 flex-1"
+                    widthClass="w-full"
+                    placeholder="Search templates"
+                    ariaLabel="Search templates"
+                    [debounceMs]="250"
+                    (valueChange)="search($event)"
+                  />
+                  <app-filter-chips
+                    ariaLabel="Template status"
+                    [options]="statusOptions"
+                    [value]="statusFilter()"
+                    (valueChange)="statusChanged($event)"
+                  />
+                </div>
+                @if (store.items().length === 0 || store.error()) {
+                  <app-state-block
+                    [loading]="store.loading()"
+                    loadingText="Loading templates…"
+                    [error]="store.error() || null"
+                    [empty]="store.items().length === 0"
+                    icon="document-text-outline"
+                    [emptyTitle]="hasFilters() ? 'No templates match' : 'No templates yet'"
+                    [emptyMessage]="
+                      hasFilters()
+                        ? 'Try another search or status.'
+                        : 'Create your first form template to start collecting client information.'
+                    "
+                    minHeight="16rem"
+                    (retry)="store.load()"
+                  />
+                } @else {
+                  <!-- Recargas posteriores (página, filtro) atenúan la tabla en vez de reemplazarla. -->
+                  <div class="transition-opacity" [class.opacity-60]="store.loading()">
+                    <app-form-templates-list
+                      [templates]="store.items()"
+                      [highlightId]="publishedId()"
+                      (opened)="open($event)"
+                      (duplicated)="duplicate($event)"
+                      (statusChanged)="requestStatusChange($event)"
+                    />
+                  </div>
+                  <app-pagination
+                    [currentPage]="store.page()"
+                    [totalItems]="store.totalCount()"
+                    [pageSize]="store.pageSize"
+                    (pageChange)="store.goToPage($event)"
+                  />
+                }
+              }
             }
-            @if (store.loading()) {
-              <div class="rounded-2xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-500">
-                Loading templates…
-              </div>
-            } @else {
-              <app-form-templates-list
-                [templates]="store.items()"
-                (opened)="open($event)"
-                (duplicated)="duplicate($event)"
-                (statusChanged)="requestStatusChange($event)"
-              />
-            }
-          } @else {
-            <div class="mt-5 rounded-2xl border border-gray-200 bg-white p-10 text-center">
-              <h2 class="text-lg font-bold text-gray-900">{{ currentTabLabel() }}</h2>
-              <p class="mt-2 text-sm text-gray-500">
-                This workspace arrives in the next Client Forms phase.
-              </p>
-            </div>
+          </div>
           }
         }
       </div>
     </section>
 
-    @if (createOpen()) {
-      <div
-        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-template-title"
-      >
-        <form class="w-full max-w-lg rounded-[1.75rem] bg-white p-6 shadow-2xl" (submit)="create($event)">
-          <h2 id="new-template-title" class="text-xl font-bold text-gray-900">New form template</h2>
-          <div class="mt-5 space-y-4">
-            <label class="block text-sm font-semibold text-gray-700"
-              >Name<input
-                class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 px-3"
-                required
-                maxlength="160"
-                [value]="name()"
-                (input)="name.set(value($event))" /></label
-            ><label class="block text-sm font-semibold text-gray-700"
-              >Description<textarea
-                class="mt-1 w-full rounded-2xl border border-gray-300 p-3"
-                rows="3"
-                maxlength="500"
-                [value]="description()"
-                (input)="description.set(value($event))"
-              ></textarea>
-            </label>
-            <div class="grid grid-cols-2 gap-4">
-              <label class="text-sm font-semibold text-gray-700"
-                >Purpose<select
-                  class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3"
-                  [value]="purpose()"
-                  (change)="setPurpose($event)"
-                >
-                  @for (item of purposes; track item) {
-                    <option [value]="item" [selected]="item === purpose()">{{ label(item) }}</option>
-                  }
-                </select></label
-              ><label class="text-sm font-semibold text-gray-700"
-                >Presentation<select
-                  class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3"
-                  [value]="presentation()"
-                  (change)="setPresentation($event)"
-                >
-                  <option value="wizard" [selected]="presentation() === 'wizard'">Wizard</option>
-                  <option value="singlePage" [selected]="presentation() === 'singlePage'">Single page</option>
-                </select></label
+    <app-modal
+      [isOpen]="createOpen()"
+      heading="New form template"
+      subheading="Name it and pick how clients will move through it. You can change everything later."
+      size="md"
+      (closed)="closeCreate()"
+    >
+      <form class="mt-6 space-y-5" (submit)="create($event)">
+        <label class="block text-sm font-semibold text-gray-700" for="new-template-name">Name</label>
+        <app-form-text-control
+          id="new-template-name"
+          class="-mt-3 block"
+          [value]="name()"
+          [required]="true"
+          [maxLength]="160"
+          (valueChange)="name.set($event)"
+        />
+        <label class="block text-sm font-semibold text-gray-700" for="new-template-description">
+          Description <span class="font-normal text-gray-400">Optional</span>
+        </label>
+        <app-form-textarea-control
+          id="new-template-description"
+          class="-mt-3 block"
+          [rows]="3"
+          [maxLength]="500"
+          [value]="description()"
+          (valueChange)="description.set($event)"
+        />
+        <label class="block text-sm font-semibold text-gray-700" for="new-template-purpose">Purpose</label>
+        <app-form-select-control
+          id="new-template-purpose"
+          class="-mt-3 block"
+          [options]="purposeOptions"
+          [value]="purpose()"
+          (valueChange)="purpose.set($any($event))"
+        />
+        <fieldset>
+          <legend class="text-sm font-semibold text-gray-700">Presentation</legend>
+          <div class="mt-2 grid gap-3 sm:grid-cols-2">
+            @for (option of presentationOptions; track option.id) {
+              <button
+                type="button"
+                class="flex items-start gap-3 rounded-2xl border p-4 text-left transition-all"
+                [class]="presentation() === option.id ? cardSelected : cardIdle"
+                [attr.aria-pressed]="presentation() === option.id"
+                (click)="presentation.set(option.id)"
               >
-            </div>
+                <span
+                  class="grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors"
+                  [class]="presentation() === option.id ? iconSelected : iconIdle"
+                >
+                  <ion-icon [name]="option.icon" class="text-lg"></ion-icon>
+                </span>
+                <span>
+                  <span class="block text-sm font-semibold text-gray-900">{{ option.label }}</span>
+                  <span class="mt-0.5 block text-xs text-gray-500">{{ option.hint }}</span>
+                </span>
+              </button>
+            }
           </div>
-          <div class="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              class="min-h-10 rounded-full border border-gray-300 px-4 text-sm font-semibold"
-              (click)="createOpen.set(false)"
-            >
-              Cancel</button
-            ><button
-              type="submit"
-              class="min-h-10 rounded-full bg-brand-bold px-4 text-sm font-bold text-white"
-              [disabled]="!name().trim()"
-            >
-              Create template
-            </button>
-          </div>
-        </form>
-      </div>
-    }
+        </fieldset>
+
+        @if (createError()) {
+          <p class="rounded-2xl border border-red-100 bg-red-50 p-3 text-sm text-red-700" role="alert">
+            {{ createError() }}
+          </p>
+        }
+
+        <div class="flex justify-end gap-3 pt-1">
+          <button
+            type="button"
+            class="min-h-10 rounded-full border border-gray-300 px-5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            (click)="closeCreate()"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-bold px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50"
+            [disabled]="!name().trim() || launch() !== 'idle'"
+          >
+            <ion-icon name="sparkles-outline" class="text-base"></ion-icon>Create template
+          </button>
+        </div>
+      </form>
+    </app-modal>
+
+    <app-launch-overlay
+      variant="create"
+      exit="hold"
+      [phase]="launch()"
+      [workingCaption]="'Creating ' + (name().trim() || 'your template') + '…'"
+      doneCaption="Opening the builder…"
+    />
 
     <app-confirm-dialog
       [isOpen]="statusTarget() != null"
@@ -215,6 +337,7 @@ type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports
       "
       [confirmLabel]="statusTarget()?.status === 'Active' ? 'Archive' : 'Restore'"
       [tone]="statusTarget()?.status === 'Active' ? 'danger' : 'primary'"
+      [busy]="changingStatus()"
       (cancelled)="statusTarget.set(null)"
       (confirmed)="changeStatus()"
     />
@@ -223,6 +346,7 @@ type ClientFormsTab = 'requests' | 'templates' | 'library' | 'intake' | 'reports
 export class ClientFormsHomeComponent implements OnInit {
   readonly store = inject(FormTemplatesStore);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly access = inject(AccessStore);
   private readonly availabilityStore = inject(ClientFormsAvailabilityStore);
   readonly activeTab = signal<ClientFormsTab>('requests');
@@ -230,7 +354,14 @@ export class ClientFormsHomeComponent implements OnInit {
   readonly available = signal(false);
   readonly availabilityReason = signal<string | null>(null);
   readonly createOpen = signal(false);
+  readonly createError = signal<string | null>(null);
+  readonly launch = signal<LaunchPhase>('idle');
+  /** Plantilla recién publicada desde el builder: su fila destella una vez. */
+  readonly publishedId = signal<string | null>(null);
   readonly statusTarget = signal<FormTemplateSummary | null>(null);
+  readonly changingStatus = signal(false);
+  readonly statusFilter = signal<StatusFilter>('all');
+  readonly searchTerm = signal('');
   readonly name = signal('');
   readonly description = signal('');
   readonly purpose = signal<FormPurpose>('clientIntake');
@@ -245,11 +376,35 @@ export class ClientFormsHomeComponent implements OnInit {
     'documentRequest',
     'assessment',
   ];
+  readonly purposeOptions = this.purposes.map(value => ({ value, label: this.label(value) }));
+  readonly presentationOptions: readonly {
+    id: FormPresentation;
+    label: string;
+    hint: string;
+    icon: string;
+  }[] = [
+    { id: 'wizard', label: 'Wizard', hint: 'One step at a time, with progress.', icon: 'layers-outline' },
+    { id: 'singlePage', label: 'Single page', hint: 'Every question on one screen.', icon: 'reader-outline' },
+  ];
+  readonly statusOptions: readonly FilterChipOption<StatusFilter>[] = [
+    { id: 'all', label: 'All' },
+    { id: 'Active', label: 'Active' },
+    { id: 'Archived', label: 'Archived' },
+  ];
+  // Tarjetas de "Presentation": clases enteras (llevan "/" y ":" que no valen en [class.x]).
+  readonly cardSelected = 'border-brand-bold bg-brand-bold/5 ring-2 ring-brand-bold/15';
+  readonly cardIdle = 'border-gray-200 hover:border-gray-300 hover:bg-gray-50';
+  readonly iconSelected = 'bg-brand-bold text-white';
+  readonly iconIdle = 'bg-gray-100 text-gray-500';
 
   tabs(): { id: ClientFormsTab; label: string }[] {
     const tabs: { id: ClientFormsTab; label: string }[] = [];
     if (this.access.can('tasks.form_requests.read'))
-      tabs.push({ id: 'requests', label: 'Requests' });
+      tabs.push(
+        { id: 'requests', label: 'Requests' },
+        { id: 'insights', label: 'Insights' },
+        { id: 'prospects', label: 'Prospects' },
+      );
     if (this.access.can('tasks.form_templates.read'))
       tabs.push({ id: 'templates', label: 'Templates' }, { id: 'library', label: 'Library' });
     // Solo admins (el controller admite TenantAdmin/PlatformAdmin, P-14.3 B.1). Se muestra aunque
@@ -280,62 +435,96 @@ export class ClientFormsHomeComponent implements OnInit {
     try {
       if (availability.enabled) {
         const first = this.tabs()[0]?.id;
-        if (first) this.activeTab.set(first);
+        const requested = this.takeTabLink();
+        const tab = this.tabs().some(item => item.id === requested) ? requested : first;
+        if (tab) this.activeTab.set(tab);
         if (this.access.can('tasks.form_templates.read')) await this.store.load();
       }
     } finally {
       this.availabilityLoading.set(false);
     }
   }
-  value(event: Event): string {
-    return (event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value;
-  }
-  setPurpose(event: Event): void {
-    this.purpose.set(this.value(event) as FormPurpose);
-  }
-  setPresentation(event: Event): void {
-    this.presentation.set(this.value(event) as FormPresentation);
+  // `?tab=templates&published=<id>` (al publicar desde el builder) se consume una vez y se limpia.
+  private takeTabLink(): ClientFormsTab | null {
+    const params = this.route.snapshot.queryParamMap;
+    if (!params.has('tab') && !params.has('published')) return null;
+    this.publishedId.set(params.get('published'));
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: null, published: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    return params.get('tab') as ClientFormsTab | null;
   }
   label(value: string): string {
     return value.replace(/([A-Z])/g, ' $1').replace(/^./, (item) => item.toUpperCase());
   }
-  currentTabLabel(): string {
-    return this.tabs().find((tab) => tab.id === this.activeTab())?.label ?? 'Client Forms';
+  hasFilters(): boolean {
+    return this.searchTerm().trim() !== '' || this.statusFilter() !== 'all';
   }
-  search(event: Event): void {
-    void this.store.load({ search: this.value(event), page: 1 });
+  search(term: string): void {
+    this.searchTerm.set(term);
+    void this.store.load({ search: term, page: 1 });
   }
-  statusChanged(event: Event): void {
-    const value = this.value(event);
-    void this.store.setStatus(value ? (value as 'Active' | 'Archived') : undefined);
+  statusChanged(value: StatusFilter): void {
+    this.statusFilter.set(value);
+    void this.store.setStatus(value === 'all' ? undefined : value);
   }
-  open(id: string): void {
-    void this.router.navigate(['/client-forms/templates', id]);
+  open(id: string): Promise<boolean> {
+    return this.router.navigate(['/client-forms/templates', id]);
+  }
+  openCreate(): void {
+    this.name.set('');
+    this.description.set('');
+    this.purpose.set('clientIntake');
+    this.presentation.set('wizard');
+    this.createError.set(null);
+    this.createOpen.set(true);
+  }
+  closeCreate(): void {
+    if (this.launch() !== 'idle') return;
+    this.createOpen.set(false);
   }
   async duplicate(id: string): Promise<void> {
     const created = await this.store.duplicate(id);
-    if (created) this.open(created);
+    if (created) void this.open(created);
   }
   requestStatusChange(template: FormTemplateSummary): void {
     this.statusTarget.set(template);
   }
   async changeStatus(): Promise<void> {
     const template = this.statusTarget();
-    if (!template) return;
-    const changed = await this.store.setArchived(template.id, template.status === 'Active');
-    if (changed) this.statusTarget.set(null);
+    if (!template || this.changingStatus()) return;
+    this.changingStatus.set(true);
+    try {
+      const changed = await this.store.setArchived(template.id, template.status === 'Active');
+      if (changed) this.statusTarget.set(null);
+    } finally {
+      this.changingStatus.set(false);
+    }
   }
   async create(event: Event): Promise<void> {
     event.preventDefault();
-    const id = await this.store.create({
-      name: this.name().trim(),
-      description: this.description().trim() || null,
-      purpose: this.purpose(),
-      presentation: this.presentation(),
-    });
-    if (id) {
-      this.createOpen.set(false);
-      this.open(id);
+    if (!this.name().trim() || this.launch() !== 'idle') return;
+    this.createError.set(null);
+    // La hoja se arma, el modal se cierra por debajo al sellar y se navega con la pantalla cubierta:
+    // el builder hace su propia entrada y reemplaza al overlay sin parpadeo.
+    const id = await runWithLaunch(
+      this.launch,
+      () =>
+        this.store.create({
+          name: this.name().trim(),
+          description: this.description().trim() || null,
+          purpose: this.purpose(),
+          presentation: this.presentation(),
+        }),
+      { onDone: () => this.createOpen.set(false), keepOnDone: true },
+    );
+    if (!id) {
+      this.createError.set(this.store.error() || 'The template could not be created.');
+      return;
     }
+    if (!(await this.open(id))) this.launch.set('idle');
   }
 }

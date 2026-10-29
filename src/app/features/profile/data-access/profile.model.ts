@@ -43,14 +43,15 @@ export interface ConfirmEmailChangeRequest {
   token: string;
 }
 
-/** Body de POST /auth/me/phone/change-request (RequestPhoneVerificationRequest) — 202 (OTP por SMS, 10 min). */
-export interface RequestPhoneVerificationRequest {
-  phoneNumber: string;
+/** Body de PUT /auth/me/phone — 204. `null` (o vacío) quita el teléfono; no hay verificación por SMS. */
+export interface UpdateMyPhoneRequest {
+  phoneNumber: string | null;
 }
 
-/** Body de POST /auth/me/phone/confirm (ConfirmPhoneRequest). `code` es el OTP numérico del SMS. */
-export interface ConfirmPhoneRequest {
-  code: string;
+/** Misma regla que el backend (User.Phone): 7-20 caracteres, solo dígitos, +, - y espacios, tras trim. */
+export function isValidPhoneNumber(value: string): boolean {
+  const phone = value.trim();
+  return phone.length >= 7 && phone.length <= 20 && /^[\d+\- ]+$/.test(phone);
 }
 
 /**

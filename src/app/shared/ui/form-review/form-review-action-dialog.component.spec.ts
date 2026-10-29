@@ -62,4 +62,22 @@ describe('FormReviewActionDialogComponent', () => {
     );
     fixture.destroy();
   });
+
+  it('announces the missing message and links the due date hint to its input', () => {
+    const { fixture } = setup('return');
+    confirmButton().click();
+    fixture.detectChanges();
+    expect(document.querySelector('#form-review-message-error')?.getAttribute('role')).toBe('alert');
+    fixture.destroy();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [FormReviewActionDialogComponent] });
+    const dueDate = TestBed.createComponent(FormReviewActionDialogComponent);
+    dueDate.componentRef.setInput('kind', 'dueDate');
+    dueDate.detectChanges();
+    const input = document.querySelector('input[type="date"]') as HTMLInputElement;
+    const hint = document.getElementById(input.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toContain('Leave it empty to remove the due date.');
+    dueDate.destroy();
+  });
 });

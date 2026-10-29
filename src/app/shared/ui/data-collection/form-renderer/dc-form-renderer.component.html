@@ -5,12 +5,14 @@
         <p class="text-xs font-semibold uppercase text-brand-bold">Secure form</p>
         <h2 class="mt-1 text-xl font-semibold text-gray-900">{{ definition.title }}</h2>
         @if (definition.settings?.showProgress !== false && modeValue() !== 'readonly') {
-          <div class="mt-4" aria-label="Form progress">
+          <!-- "Step N of M" se anuncia al cambiar (región viva); % y barra son solo visuales. -->
+          <div class="mt-4" role="group" aria-label="Form progress">
             <div class="mb-1 flex justify-between text-xs font-medium text-gray-600">
-              <span>Step {{ pageIndexValue() + 1 }} of {{ totalSteps() }}</span
-              ><span>{{ progressPercent() }}%</span>
+              <span aria-live="polite" aria-atomic="true" data-testid="dc-progress-step"
+                >Step {{ pageIndexValue() + 1 }} of {{ totalSteps() }}</span
+              ><span aria-hidden="true">{{ progressPercent() }}%</span>
             </div>
-            <div class="h-2 overflow-hidden rounded-full bg-gray-200">
+            <div class="h-2 overflow-hidden rounded-full bg-gray-200" aria-hidden="true">
               <div
                 class="h-full rounded-full bg-brand-bold transition-[width]"
                 [style.width.%]="progressPercent()"

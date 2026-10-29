@@ -34,6 +34,12 @@ export interface PublicIntakeFormAccess {
   botProtection: PublicFormBotProtection;
 }
 
+/** 202 del challenge; backends previos responden sin cuerpo. */
+export interface PublicFormChallengeResponse {
+  codeLimitPerHour?: number | null;
+  retryAfterSeconds?: number | null;
+}
+
 export interface PublicFormSessionGrant {
   sessionToken: string;
   expiresAtUtc: string;

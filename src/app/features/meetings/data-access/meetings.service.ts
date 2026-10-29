@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
   CreateMeetingInvitationsResponse,
   CreateMeetingRequest,
@@ -110,8 +111,12 @@ export class MeetingsService {
     return this.http.get<MeetingEmployeeEntry[]>(`${this.base}/directory/employees`, { params });
   }
 
+  /** POST: el término (a menudo un email) va en el cuerpo, no en la URL. */
   searchCustomers(term: string, limit = 8): Observable<MeetingCustomerEntry[]> {
-    const params = new HttpParams().set('q', term).set('limit', limit);
-    return this.http.get<MeetingCustomerEntry[]>(`${this.base}/directory/customers`, { params });
+    return this.http.post<MeetingCustomerEntry[]>(
+      `${this.base}/directory/customers/search`,
+      { q: term, limit },
+      { context: readOnlyRequestContext() },
+    );
   }
 }

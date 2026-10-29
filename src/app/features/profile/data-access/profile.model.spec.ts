@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { daysUntil, passwordStrength, roleDisplayName, sessionLocationLabel } from './profile.model';
+import { daysUntil, isValidPhoneNumber, passwordStrength, roleDisplayName, sessionLocationLabel } from './profile.model';
+
+describe('profile.model · teléfono', () => {
+  it('acepta 7-20 caracteres de dígitos, +, - y espacios (tras trim)', () => {
+    expect(isValidPhoneNumber('+1 202-555-0112')).toBe(true);
+    expect(isValidPhoneNumber('  5550112  ')).toBe(true);
+    expect(isValidPhoneNumber('12345678901234567890')).toBe(true);
+  });
+
+  it('rechaza cortos, largos y caracteres fuera de la regla del backend', () => {
+    expect(isValidPhoneNumber('555011')).toBe(false);
+    expect(isValidPhoneNumber('123456789012345678901')).toBe(false);
+    expect(isValidPhoneNumber('(202) 555-0112')).toBe(false);
+    expect(isValidPhoneNumber('202.555.0112')).toBe(false);
+    expect(isValidPhoneNumber('   ')).toBe(false);
+  });
+});
 
 describe('profile.model · presentación', () => {
   it('traduce el actorType a un rol que se entiende', () => {

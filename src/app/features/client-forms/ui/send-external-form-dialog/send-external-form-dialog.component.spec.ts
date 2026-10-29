@@ -158,17 +158,84 @@ describe('SendExternalFormDialogComponent', () => {
     fixture.destroy();
   });
 
-  it('still sends to the external email with Send anyway', async () => {
+  it('never sends to an email that belongs to a client (no Send anyway)', async () => {
     customers.search.mockReturnValue(of(page([client])));
-    const { component } = render();
+    const { fixture, component } = render();
     const sent = vi.fn();
     component.sent.subscribe(sent);
     fill(component, 'grace@example.com');
 
-    await component.checkExistingClient();
-    component.sendAnyway();
+    await component.submit(new Event('submit'));
+    await component.submit(new Event('submit'));
+    fixture.detectChanges();
 
-    expect(sent).toHaveBeenCalledWith(expect.objectContaining({ email: 'grace@example.com' }));
+    expect(sent).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain('Send anyway');
+    const submit = document.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    fixture.destroy();
+  });
+
+  it('shows the server conflict inline and offers Assign to client when a customerId comes back', async () => {
+    const { fixture, component } = render();
+    const sent = vi.fn();
+    const assign = vi.fn();
+    component.sent.subscribe(sent);
+    component.assignToClient.subscribe(assign);
+    fill(component, 'grace@example.com');
+    await component.submit(new Event('submit'));
+    expect(sent).toHaveBeenCalledTimes(1);
+
+    fixture.componentRef.setInput('conflict', {
+      message: 'This email belongs to an existing client. Assign the form to the client instead.',
+      customerId: 'customer-7',
+    });
+    fixture.detectChanges();
+
+    const conflict = document.querySelector('[data-testid="customer-email-conflict"]');
+    expect(conflict?.textContent).toContain('This email belongs to an existing client.');
+    (conflict?.querySelector('button') as HTMLButtonElement).click();
+    expect(assign).toHaveBeenCalledWith({ customerId: 'customer-7', templateId: 'template-1' });
+
+    // Mismo email: no se reenvía; otro email limpia el conflicto.
+    await component.submit(new Event('submit'));
+    expect(sent).toHaveBeenCalledTimes(1);
+    component.changeEmail('other@example.com');
+    fixture.detectChanges();
+    expect(document.querySelector('[data-testid="customer-email-conflict"]')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('shows the server conflict without a shortcut when no customerId comes back or the user cannot assign', async () => {
+    const { fixture, component } = render([notice], false);
+    fill(component, 'grace@example.com');
+    await component.submit(new Event('submit'));
+
+    fixture.componentRef.setInput('conflict', { message: 'This email belongs to an existing client.', customerId: 'customer-7' });
+    fixture.detectChanges();
+    let conflict = document.querySelector('[data-testid="customer-email-conflict"]');
+    expect(conflict?.textContent).toContain('This email belongs to an existing client.');
+    expect(conflict?.querySelector('button')).toBeNull();
+
+    fixture.componentRef.setInput('canAssignToClient', true);
+    fixture.componentRef.setInput('conflict', { message: 'This email belongs to an existing client.', customerId: null });
+    fixture.detectChanges();
+    conflict = document.querySelector('[data-testid="customer-email-conflict"]');
+    expect(conflict?.querySelector('button')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('opens prefilled with the prospect email and name', () => {
+    const fixture = TestBed.createComponent(SendExternalFormDialogComponent);
+    const component = fixture.componentInstance;
+    fixture.componentRef.setInput('notices', [notice]);
+    fixture.componentRef.setInput('prefill', { email: 'pat@example.com', fullName: 'Pat Prospect' });
+    fixture.componentRef.setInput('isOpen', true);
+    fixture.detectChanges();
+
+    expect(component.email()).toBe('pat@example.com');
+    expect(component.fullName()).toBe('Pat Prospect');
+    fixture.destroy();
   });
 
   it('checks the directory when leaving the email field', async () => {
@@ -222,8 +289,7 @@ describe('SendExternalFormDialogComponent', () => {
 
     const warning = document.querySelector('[data-testid="existing-client-warning"]');
     expect(warning?.textContent).toContain("Assign the form from the client's profile");
-    const labels = Array.from(warning?.querySelectorAll('button') ?? []).map((b) => b.textContent?.trim());
-    expect(labels).toEqual(['Send anyway']);
+    expect(warning?.querySelectorAll('button').length).toBe(0);
     fixture.destroy();
   });
 

@@ -30,9 +30,11 @@ export function validateAnswers(
   visibility: VisibilityMap,
   mode: AnswersValidationMode,
   limits: DataCollectionLimits,
-  options: { pageId?: string } = {},
+  options: { pageId?: string; now?: () => Date } = {},
 ): ValidationReport {
   const issues: ValidationIssue[] = [];
+  // "today" = fecha UTC del reloj inyectado al validar (P-1.4).
+  const today = (options.now ?? (() => new Date()))().toISOString().slice(0, 10);
   if (answers.schemaVersion !== 1)
     issues.push(issue('definition.unsupported_schema_version', '/schemaVersion'));
   const index = createDefinitionIndex(definition);
@@ -51,9 +53,21 @@ export function validateAnswers(
           visibility,
           mode,
           limits,
+          today,
           issues,
         );
-      else validateRepeater(section, definition, answers, index, visibility, mode, limits, issues);
+      else
+        validateRepeater(
+          section,
+          definition,
+          answers,
+          index,
+          visibility,
+          mode,
+          limits,
+          today,
+          issues,
+        );
     }
   }
   return report(issues);
@@ -87,6 +101,7 @@ function validateRegularSection(
   visibility: VisibilityMap,
   mode: AnswersValidationMode,
   limits: DataCollectionLimits,
+  today: string,
   issues: ValidationIssue[],
 ): void {
   for (const component of section.components ?? []) {
@@ -107,6 +122,7 @@ function validateRegularSection(
       null,
       null,
       limits,
+      today,
       issues,
     );
   }
@@ -120,6 +136,7 @@ function validateRepeater(
   visibility: VisibilityMap,
   mode: AnswersValidationMode,
   limits: DataCollectionLimits,
+  today: string,
   issues: ValidationIssue[],
 ): void {
   const raw = answers.values?.[section.id];
@@ -174,6 +191,7 @@ function validateRepeater(
         row.rowId,
         row.values,
         limits,
+        today,
         issues,
       );
     }
@@ -192,6 +210,7 @@ function validateComponent(
   rowId: string | null,
   rowValues: Record<string, unknown> | null,
   limits: DataCollectionLimits,
+  today: string,
   issues: ValidationIssue[],
 ): void {
   if (value != null && !hasCompatibleShape(component.type, value)) {
@@ -224,7 +243,7 @@ function validateComponent(
       validateNumber(component, value, path, rowId, true, issues);
       break;
     case 'date':
-      validateDate(component, value, path, rowId, issues);
+      validateDate(component, value, path, rowId, today, issues);
       break;
     case 'email':
       if (typeof value !== 'string' || !isValidEmail(value.trim().toLowerCase()))
@@ -337,13 +356,13 @@ function validateDate(
   value: unknown,
   path: string,
   rowId: string | null,
+  today: string,
   issues: ValidationIssue[],
 ): void {
   if (!isValidIsoDate(value)) {
     issues.push(issue('answer.invalid_date', path, component.id, rowId));
     return;
   }
-  const today = new Date().toISOString().slice(0, 10);
   const min = readDateBound(component, 'min', today);
   const max = readDateBound(component, 'max', today);
   if ((min != null && value < min) || (max != null && value > max))

@@ -6,6 +6,7 @@ import {
   OnInit,
   Output,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -16,6 +17,7 @@ import type { CustomerSummary } from '@core/customers/customer-summary.model';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
+import { FormCheckboxControlComponent } from '@shared/ui/form-controls/form-checkbox-control.component';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import {
   FormReviewActionDialogComponent,
@@ -38,15 +40,27 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent, type StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
-import type { StaffMemberOption } from '../../data-access/client-forms.model';
+import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
+import type {
+  FormProfileUpdateStatus,
+  FormRequestRevisionSummary,
+  FormSignatureStatus,
+  StaffMemberOption,
+} from '../../data-access/client-forms.model';
 import { ClientFormsAvailabilityStore } from '../../data-access/client-forms-availability.store';
 import { FormRequestsService } from '../../data-access/form-requests.service';
 import { FormRequestsStore } from '../../data-access/form-requests.store';
 import { FormActionChipComponent } from '../../ui/form-action-chip/form-action-chip.component';
 import { resendErrorMessage } from '../../utils/external-forms';
+import { signatureStatusLabel, signatureStatusTone } from '../../utils/signature-status';
 import { firstValueFrom } from 'rxjs';
 
 type StaffDialog = 'responsible' | 'link' | null;
+
+// Tope de recordatorios (O-5). Solo rotula el contador; el backend es la fuente de verdad del límite.
+const MAX_REMINDERS = 5;
+// Firma que ya no se completará: el backend deja el alta en Skipped.
+const SIGNATURE_ENDED: FormSignatureStatus[] = ['Declined', 'Canceled', 'Expired', 'Failed'];
 
 const ACTION_MESSAGES: Record<FormReviewAction, string> = {
   return: 'Changes requested',
@@ -62,6 +76,7 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
     ConfirmDialogComponent,
     CustomerPickerComponent,
     DrawerComponent,
+    FormCheckboxControlComponent,
     FormActionChipComponent,
     FormReviewActionDialogComponent,
     FormReviewPanelComponent,
@@ -88,9 +103,22 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
             <app-status-pill [tone]="statusTone(detail.request.status)" [soft]="true">
               {{ statusLabel(detail.request.status) }}
             </app-status-pill>
+            @if (isOverdue()) {
+              <app-status-pill tone="danger" [soft]="true" data-testid="overdue-pill">
+                Overdue
+              </app-status-pill>
+            }
             <span class="text-xs font-semibold text-gray-500"
               >Revision {{ selectedRevisionNumber() }}</span
             >
+            @if (signatureLabel(); as label) {
+              <app-status-pill
+                [tone]="signatureTone()"
+                [soft]="true"
+                data-testid="signature-status"
+                >{{ label }}</app-status-pill
+              >
+            }
             <span class="ml-auto text-xs text-gray-500"
               >{{ detail.progressPercent }}% complete</span
             >
@@ -98,15 +126,24 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
           @if (store.actionError() && !modalOpen()) {
             <div
               class="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+              role="alert"
             >
               <span>{{ store.actionError() }}</span>
-              <button type="button" aria-label="Dismiss error" (click)="store.dismissActionError()">
-                <ion-icon name="close-outline"></ion-icon>
+              <button
+                type="button"
+                class="-m-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-red-100"
+                aria-label="Dismiss error"
+                (click)="store.dismissActionError()"
+              >
+                <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
               </button>
             </div>
           }
           @if (store.processingTimedOut()) {
-            <p class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p
+              class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+              role="status"
+            >
               Still processing. You can close this panel and check again later.
             </p>
           }
@@ -123,20 +160,36 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
               <p class="mt-1 font-semibold text-gray-900">
                 {{ dueDate(detail.request.dueAtUtc) || 'No due date' }}
               </p>
-              @if (canManage() && canChangeDueDate(detail.request.status)) {
-                <button
-                  type="button"
-                  class="mt-1 text-xs font-bold text-brand-bold"
-                  (click)="openDialog('dueDate')"
-                >
-                  Change
-                </button>
-              }
+              <p class="mt-2 text-xs font-semibold text-gray-500" data-testid="reminder-count">
+                Reminders sent: {{ detail.request.reminderCount ?? 0 }}/{{ maxReminders }}
+              </p>
+              <div class="mt-1 flex items-center gap-3">
+                @if (canManage() && canChangeDueDate(detail.request.status)) {
+                  <button
+                    type="button"
+                    class="text-xs font-bold text-brand-bold"
+                    (click)="openDialog('dueDate')"
+                  >
+                    Change
+                  </button>
+                }
+                @if (canSendReminder()) {
+                  <button
+                    type="button"
+                    class="text-xs font-bold text-brand-bold disabled:opacity-50"
+                    data-testid="send-reminder"
+                    [disabled]="store.actionBusy()"
+                    (click)="openReminder()"
+                  >
+                    Send reminder
+                  </button>
+                }
+              </div>
             </div>
           </div>
         </div>
 
-        @if (detail.actionRuns.length || detail.customerLink.status === 'Blocked') {
+        @if (detail.actionRuns.length || detail.customerLink.status === 'Blocked' || waitsForSignature()) {
           <section
             class="border-b border-gray-200 bg-gray-50 px-6 py-4"
             aria-labelledby="automation-heading"
@@ -146,7 +199,8 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
               @if (
                 canStartOnboarding() &&
                 detail.customerLink.status === 'None' &&
-                !hasCustomerAction()
+                !hasCustomerAction() &&
+                !waitsForSignature()
               ) {
                 <button
                   type="button"
@@ -159,6 +213,12 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
               }
             </div>
             <div class="mt-3 flex flex-wrap gap-2">
+              @if (waitsForSignature()) {
+                <p class="flex items-center gap-2 text-xs text-gray-600" data-testid="waiting-signature">
+                  <app-status-pill tone="warning" [soft]="true" size="xs">Waiting for signature</app-status-pill>
+                  Create client runs after the participant signs.
+                </p>
+              }
               @for (run of detail.actionRuns; track run.id) {
                 <app-form-action-chip [run]="run" (retried)="retryAction($event)" />
                 @if (run.existingCustomerId && canReview()) {
@@ -182,6 +242,127 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
                 </button>
               }
             </div>
+          </section>
+        }
+
+        @if (summaryRevision(); as summary) {
+          <section class="border-b border-gray-200 bg-gray-50 px-6 py-4" aria-labelledby="summary-heading">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h3 id="summary-heading" class="text-sm font-bold text-gray-900">Submission summary</h3>
+                <p class="mt-0.5 text-xs text-gray-600">
+                  @switch (summary.pdfStatus) {
+                    @case ('Ready') { A PDF copy of the submitted information. }
+                    @case ('Failed') { The summary could not be generated. }
+                    @default { The summary is being generated… }
+                  }
+                </p>
+              </div>
+              @if (summary.pdfStatus === 'Ready' && summary.pdfFileId) {
+                <button
+                  type="button"
+                  class="min-h-10 rounded-full border border-gray-300 px-3 text-sm font-semibold"
+                  data-testid="download-summary"
+                  (click)="downloadSummary()"
+                >
+                  Download summary
+                </button>
+              } @else if (summary.pdfStatus === 'Failed' && canReview()) {
+                <button
+                  type="button"
+                  class="min-h-10 rounded-full border border-red-200 px-3 text-sm font-semibold text-red-700"
+                  data-testid="retry-summary"
+                  [disabled]="store.actionBusy()"
+                  (click)="retrySummary()"
+                >
+                  Retry
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @if (showApplyProfile()) {
+          <section
+            class="border-b border-gray-200 bg-gray-50 px-6 py-4"
+            aria-labelledby="apply-profile-heading"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <h3 id="apply-profile-heading" class="text-sm font-bold text-gray-900">
+                Apply to client profile
+              </h3>
+              @if (profileStatus() !== 'None') {
+                <app-status-pill [tone]="profileStatusTone()" [soft]="true">
+                  {{ profileStatusLabel() }}
+                </app-status-pill>
+              }
+            </div>
+
+            @if (profileStatus() === 'Processing') {
+              <p class="mt-2 text-xs text-gray-600">
+                The approved answers are being applied to the client profile…
+              </p>
+            } @else {
+              <p class="mt-1 text-xs text-gray-600">
+                Choose which answers to copy to the client's profile. Nothing is applied until you
+                select fields and confirm.
+              </p>
+              @if (store.profileFieldsLoading()) {
+                <p class="mt-2 text-xs text-gray-500">Loading fields…</p>
+              } @else if (store.profileFields().length === 0) {
+                <p class="mt-2 text-xs text-gray-500">This form has no fields mapped to the profile.</p>
+              } @else {
+                <div class="mt-3 space-y-2">
+                  @for (field of nonTaxProfileFields(); track field.componentId) {
+                    <app-form-checkbox-control
+                      [id]="'apply-' + field.componentId"
+                      [checked]="isFieldSelected(field.componentId)"
+                      [disabled]="store.actionBusy() || (field.requiresAdmin && !isAdmin())"
+                      (checkedChange)="toggleField(field.componentId, $event)"
+                    >
+                      {{ field.label }} → {{ field.targetDisplayName }}
+                      @if (field.requiresAdmin && !isAdmin()) {
+                        <span class="text-xs text-gray-500"> (admin only)</span>
+                      }
+                    </app-form-checkbox-control>
+                  }
+                  @if (taxProfileField(); as taxField) {
+                    @if (isAdmin()) {
+                      <app-form-checkbox-control
+                        [id]="'apply-tax-identifier'"
+                        [checked]="includeTaxIdentifier()"
+                        [disabled]="store.actionBusy()"
+                        (checkedChange)="includeTaxIdentifier.set($event)"
+                      >
+                        {{ taxField.label }} → {{ taxField.targetDisplayName }} (masked)
+                      </app-form-checkbox-control>
+                    }
+                  }
+                </div>
+                <div class="mt-3">
+                  <button
+                    type="button"
+                    class="min-h-10 rounded-full bg-brand-bold px-4 text-sm font-semibold text-white disabled:opacity-50"
+                    data-testid="apply-profile"
+                    [disabled]="store.actionBusy() || !hasProfileSelection()"
+                    (click)="applyProfile()"
+                  >
+                    Apply to profile
+                  </button>
+                </div>
+              }
+            }
+
+            @if (profileOutcomes().length) {
+              <ul class="mt-3 space-y-1 text-xs">
+                @for (outcome of profileOutcomes(); track outcome.target) {
+                  <li [class.text-green-700]="outcome.applied" [class.text-red-700]="!outcome.applied">
+                    {{ outcome.target }} —
+                    {{ outcome.applied ? 'applied' : (outcome.failureCode || 'not applied') }}
+                  </li>
+                }
+              </ul>
+            }
           </section>
         }
 
@@ -311,6 +492,25 @@ const ACTION_MESSAGES: Record<FormReviewAction, string> = {
       }
     </app-confirm-dialog>
 
+    <app-confirm-dialog
+      [isOpen]="reminderOpen()"
+      heading="Send a reminder?"
+      [message]="reminderMessage()"
+      confirmLabel="Send reminder"
+      tone="primary"
+      icon="notifications-outline"
+      [busy]="store.actionBusy()"
+      busyLabel="Sending…"
+      (cancelled)="closeReminder()"
+      (confirmed)="sendReminder()"
+    >
+      @if (store.actionError()) {
+        <p role="alert" class="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {{ store.actionError() }}
+        </p>
+      }
+    </app-confirm-dialog>
+
     <app-modal
       [isOpen]="dialog() != null"
       [heading]="dialog() === 'link' ? 'Link to existing client' : 'Assign responsible'"
@@ -392,6 +592,23 @@ export class FormRequestReviewDrawerComponent implements OnInit {
   readonly resendOpen = signal(false);
   readonly resending = signal(false);
   readonly resendError = signal<string | null>(null);
+  readonly reminderOpen = signal(false);
+  readonly maxReminders = MAX_REMINDERS;
+
+  // P-13 — selección del checklist "apply to client profile".
+  readonly selectedProfileFields = signal<string[]>([]);
+  readonly includeTaxIdentifier = signal(false);
+  private loadedProfileFor: string | null = null;
+  // Carga el checklist y reinicia la selección al abrir una request Completed distinta.
+  private readonly profileFieldsEffect = effect(() => {
+    const detail = this.store.detail();
+    if (!detail || detail.request.status !== 'Completed' || !this.canApplyProfile()) return;
+    if (detail.request.id === this.loadedProfileFor) return;
+    this.loadedProfileFor = detail.request.id;
+    this.selectedProfileFields.set([]);
+    this.includeTaxIdentifier.set(false);
+    void this.store.loadProfileFields();
+  });
 
   // Computed sobre AccessStore: reaccionan si los permisos cambian en vivo.
   readonly canReview = computed(() => this.access.can('tasks.form_requests.review'));
@@ -403,6 +620,36 @@ export class FormRequestReviewDrawerComponent implements OnInit {
       this.access.can('customers.manage') &&
       this.store.detail()?.request.participant.kind === 'External',
   );
+
+  // P-13 — aplicar al perfil: requiere apply_profile + manage; el SSN y lo fiscal solo si es admin.
+  readonly isAdmin = this.access.isAdmin;
+  readonly canApplyProfile = computed(
+    () => this.canManage() && this.access.can('tasks.form_requests.apply_profile'),
+  );
+  readonly profileStatus = computed<FormProfileUpdateStatus>(
+    () => this.store.detail()?.request.profileUpdateStatus ?? 'None',
+  );
+  readonly profileOutcomes = computed(
+    () => this.store.detail()?.request.profileUpdateOutcomes ?? [],
+  );
+  readonly nonTaxProfileFields = computed(() =>
+    this.store.profileFields().filter((field) => !field.isTaxId),
+  );
+  readonly taxProfileField = computed(
+    () => this.store.profileFields().find((field) => field.isTaxId) ?? null,
+  );
+  readonly hasProfileSelection = computed(
+    () => this.selectedProfileFields().length > 0 || this.includeTaxIdentifier(),
+  );
+  readonly showApplyProfile = computed(() => {
+    const detail = this.store.detail();
+    return (
+      !!detail &&
+      detail.request.status === 'Completed' &&
+      this.canApplyProfile() &&
+      (this.store.profileFields().length > 0 || this.profileStatus() !== 'None')
+    );
+  });
 
   // Solo requests dirigidas a un externo (las de captación no tienen enlace personal) y editables
   // por él: Pending o Returned. Un backend previo sin `origin` cuenta como dirigida. Máximo 5 emisiones.
@@ -418,6 +665,20 @@ export class FormRequestReviewDrawerComponent implements OnInit {
     );
   });
 
+  // Recordatorio manual: solo quien gestiona, y mientras la request sigue abierta (Pending o Returned).
+  readonly canSendReminder = computed(() => {
+    const status = this.store.detail()?.request.status;
+    return this.canManage() && (status === 'Pending' || status === 'Returned');
+  });
+
+  // Vencida: fecha límite pasada y request abierta. Se parsea como UTC para no correr la fecha.
+  readonly isOverdue = computed(() => {
+    const request = this.store.detail()?.request;
+    if (!request || !this.isOpen(request.status)) return false;
+    const due = parseUtcDateOrNull(request.dueAtUtc);
+    return due != null && due.getTime() < Date.now();
+  });
+
   readonly revealValue = (sensitiveAnswerId: string) => this.store.reveal(sensitiveAnswerId);
   readonly viewerFiles = computed<FileViewerItem[]>(() =>
     (this.store.detail()?.attachments ?? [])
@@ -427,6 +688,42 @@ export class FormRequestReviewDrawerComponent implements OnInit {
   readonly selectedRevisionNumber = computed(
     () => this.store.revision()?.number ?? this.store.detail()?.request.currentRevisionNumber ?? 0,
   );
+  // Submission summary (P-11): la revisión completada y el estado de su PDF para el drawer.
+  readonly summaryRevision = computed<FormRequestRevisionSummary | null>(() => {
+    const detail = this.store.detail();
+    if (!detail || detail.request.status !== 'Completed') return null;
+    return detail.revisions.find((r) => r.number === detail.request.currentRevisionNumber) ?? null;
+  });
+  // P-18 — firma de la revisión seleccionada; `None`/ausente se ocultan.
+  readonly signatureStatus = computed<FormSignatureStatus>(() => {
+    const detail = this.store.detail();
+    if (!detail) return 'None';
+    const number = this.selectedRevisionNumber();
+    return (
+      detail.revisions.find((r) => r.number === number)?.signatureStatus ??
+      this.store.revision()?.signatureStatus ??
+      'None'
+    );
+  });
+  // Alta de cliente configurada para esperar la firma y aún sin run: se avisa en vez de ofrecer el arranque manual.
+  readonly waitsForSignature = computed(() => {
+    const detail = this.store.detail();
+    if (
+      !detail ||
+      detail.request.participant.kind !== 'External' ||
+      detail.customerLink.status !== 'None' ||
+      this.hasCustomerAction()
+    )
+      return false;
+    const current = detail.revisions.find((r) => r.number === detail.request.currentRevisionNumber);
+    if (current?.signatureStatus && SIGNATURE_ENDED.includes(current.signatureStatus)) return false;
+    return (detail.definition.actions ?? []).some(
+      (action) =>
+        action.type === 'createCustomer' &&
+        action.trigger === 'onSubmit' &&
+        action.config?.['waitFor'] === 'signatureCompleted',
+    );
+  });
   readonly commentCount = computed(() => fieldCommentsFrom(this.comments()).length);
   // Con un modal abierto el error se pinta dentro de él, no detrás.
   readonly modalOpen = computed(() => this.action() != null || this.dialog() != null);
@@ -484,6 +781,14 @@ export class FormRequestReviewDrawerComponent implements OnInit {
 
   dueDate(value: string | null): string {
     return formatDueDate(value);
+  }
+
+  signatureLabel(): string | null {
+    return signatureStatusLabel(this.signatureStatus());
+  }
+
+  signatureTone(): StatusTone {
+    return signatureStatusTone(this.signatureStatus());
   }
 
   async changeRevision(number: number): Promise<void> {
@@ -595,6 +900,30 @@ export class FormRequestReviewDrawerComponent implements OnInit {
     }
   }
 
+  reminderMessage(): string {
+    const count = this.store.detail()?.request.reminderCount ?? 0;
+    return `We'll email the client a reminder. Reminders sent so far: ${count}/${this.maxReminders}.`;
+  }
+
+  openReminder(): void {
+    this.store.dismissActionError();
+    this.reminderOpen.set(true);
+  }
+
+  closeReminder(): void {
+    if (this.store.actionBusy()) return;
+    this.store.dismissActionError();
+    this.reminderOpen.set(false);
+  }
+
+  async sendReminder(): Promise<void> {
+    if (await this.store.sendReminder()) {
+      this.reminderOpen.set(false);
+      this.toast.success('Reminder sent');
+    }
+    // En 409 (tope alcanzado) el store deja el mensaje y el diálogo lo muestra.
+  }
+
   hasCustomerAction(): boolean {
     return (
       this.store.detail()?.actionRuns.some((run) => run.actionType === 'CreateCustomer') ?? false
@@ -611,6 +940,75 @@ export class FormRequestReviewDrawerComponent implements OnInit {
 
   async retryCustomerLink(): Promise<void> {
     if (await this.store.retryCustomerLink()) this.toast.info('Client link retry requested');
+  }
+
+  async downloadSummary(): Promise<void> {
+    const fileId = this.summaryRevision()?.pdfFileId;
+    if (!fileId) return;
+    try {
+      const res = await firstValueFrom(this.cloud.getDownloadUrl(fileId));
+      window.open(res.downloadUrl, '_blank', 'noopener');
+    } catch {
+      this.toast.error('Could not open the summary');
+    }
+  }
+
+  async retrySummary(): Promise<void> {
+    if (await this.store.retrySummary()) this.toast.info('Summary retry requested');
+  }
+
+  isFieldSelected(componentId: string): boolean {
+    return this.selectedProfileFields().includes(componentId);
+  }
+
+  toggleField(componentId: string, checked: boolean): void {
+    const current = this.selectedProfileFields();
+    this.selectedProfileFields.set(
+      checked ? [...current, componentId] : current.filter((id) => id !== componentId),
+    );
+  }
+
+  async applyProfile(): Promise<void> {
+    const ids = new Set(this.selectedProfileFields());
+    // El taxId se aplica solo con su checkbox, pero su componentId debe ir para que el backend lo arme.
+    if (this.includeTaxIdentifier()) {
+      const tax = this.taxProfileField();
+      if (tax) ids.add(tax.componentId);
+    }
+    if (ids.size === 0 && !this.includeTaxIdentifier()) return;
+    const applied = await this.store.applyProfileUpdate({
+      componentIds: [...ids],
+      includeTaxIdentifier: this.includeTaxIdentifier(),
+    });
+    if (applied) this.toast.info('Profile update requested');
+  }
+
+  profileStatusLabel(): string {
+    switch (this.profileStatus()) {
+      case 'Processing':
+        return 'Processing';
+      case 'Applied':
+        return 'Applied';
+      case 'PartiallyApplied':
+        return 'Partially applied';
+      case 'Rejected':
+        return 'Rejected';
+      default:
+        return '';
+    }
+  }
+
+  profileStatusTone(): StatusTone {
+    switch (this.profileStatus()) {
+      case 'Applied':
+        return 'success';
+      case 'PartiallyApplied':
+        return 'warning';
+      case 'Rejected':
+        return 'danger';
+      default:
+        return 'info';
+    }
   }
 
   prepareExistingCustomer(customerId: string): void {

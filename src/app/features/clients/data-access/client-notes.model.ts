@@ -53,6 +53,9 @@ export const CLIENT_NOTE_TARGET_TYPE: NoteTargetType = 'Customer';
 /** `size` máximo que acepta el controller (NormalizeSize: fuera de 1..100 cae a 20). */
 export const NOTES_PAGE_SIZE = 100;
 
+/** Espejo de `NoteContent.MaxHtmlLength` (100 KB de HTML ya escapado). */
+export const NOTE_MAX_HTML_LENGTH = 102_400;
+
 // ---------- DTOs de la API ----------
 
 export interface NoteAttachmentResponse {
@@ -121,17 +124,29 @@ export interface ClientNoteCard {
   authorName: string;
   /** true si la escribió el usuario logueado: habilita editar/pin/color (solo el autor puede). */
   isMine: boolean;
+  createdAtUtc: string;
+  /** Fecha absoluta de creación ("Oct 28, 2026, 3:45 PM") para el `title` del tiempo relativo. */
   timestamp: string;
-  /** Marca "edited" solo cuando updatedAtUtc se separó de createdAtUtc. */
-  edited: boolean;
+  /**
+   * `updatedAtUtc` se separó de `createdAtUtc`. OJO: el backend lo toca en CUALQUIER cambio (pin,
+   * color, visibilidad, adjuntos, archivo), no solo al editar el texto: por eso se rotula "Updated".
+   */
+  wasUpdated: boolean;
+  /** Fecha absoluta de la última modificación. */
+  updatedTimestamp: string;
   html: string;
+  /** Texto plano del HTML (búsqueda y "Show more"). */
+  plainText: string;
   isPinned: boolean;
   isArchived: boolean;
   visibility: NoteVisibility;
   visibilityLabel: string;
   colorKind: NoteColorKind;
-  /** Clases del borde/fondo de la tarjeta según el color semántico. */
-  cardClass: string;
+  colorLabel: string;
+  /** Barra de acento izquierda según el color semántico ('' sin color). */
+  accentClass: string;
+  /** Punto del color semántico. */
+  dotClass: string;
   /** Contenido, visibilidad, pin y color: SOLO el autor (`NoteVisibilityPolicy.CanEditContent`). */
   canEdit: boolean;
   /** Archivar/restaurar/borrar: autor o `notes.view_all` (`NoteVisibilityPolicy.CanManage`). */
@@ -139,29 +154,68 @@ export interface ClientNoteCard {
   attachments: NoteAttachmentResponse[];
 }
 
-export const NOTE_VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; hint: string }[] = [
-  { value: 'Team', label: 'Team', hint: 'Visible for everyone in the office' },
-  { value: 'Private', label: 'Private', hint: 'Only you can read it' },
-  { value: 'ClientVisible', label: 'Client visible', hint: 'The client sees it in their portal' },
+export interface NoteVisibilityOption {
+  value: NoteVisibility;
+  label: string;
+  hint: string;
+  icon: string;
+  /** Clases de la insignia de la tarjeta. */
+  badgeClass: string;
+}
+
+/** Orden del selector: lo habitual primero, lo que sale de la oficina al final. */
+export const NOTE_VISIBILITY_OPTIONS: NoteVisibilityOption[] = [
+  {
+    value: 'Team',
+    label: 'Team',
+    hint: 'Everyone in your office can read this note.',
+    icon: 'people-outline',
+    badgeClass: 'border-gray-200 bg-gray-50 text-gray-600',
+  },
+  {
+    value: 'Private',
+    label: 'Only me',
+    hint: 'Only you can read this note.',
+    icon: 'lock-closed-outline',
+    badgeClass: 'border-gray-200 bg-gray-50 text-gray-600',
+  },
+  {
+    value: 'ClientVisible',
+    label: 'Visible to client',
+    hint: 'The client will be able to read this note in their portal.',
+    icon: 'eye-outline',
+    badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
+  },
 ];
 
-export const NOTE_COLOR_OPTIONS: { value: NoteColorKind; label: string; dotClass: string }[] = [
-  { value: 'Default', label: 'None', dotClass: 'bg-gray-300' },
-  { value: 'Important', label: 'Important', dotClass: 'bg-red-500' },
-  { value: 'FollowUp', label: 'Follow up', dotClass: 'bg-amber-500' },
-  { value: 'Idea', label: 'Idea', dotClass: 'bg-violet-500' },
-  { value: 'Warning', label: 'Warning', dotClass: 'bg-orange-500' },
-  { value: 'Info', label: 'Info', dotClass: 'bg-sky-500' },
+export interface NoteColorOption {
+  value: NoteColorKind;
+  label: string;
+  dotClass: string;
+  accentClass: string;
+}
+
+export const NOTE_COLOR_OPTIONS: NoteColorOption[] = [
+  { value: 'Default', label: 'No label', dotClass: 'bg-gray-300', accentClass: '' },
+  { value: 'Important', label: 'Important', dotClass: 'bg-red-500', accentClass: 'bg-red-400' },
+  { value: 'FollowUp', label: 'Follow up', dotClass: 'bg-amber-500', accentClass: 'bg-amber-400' },
+  { value: 'Idea', label: 'Idea', dotClass: 'bg-violet-500', accentClass: 'bg-violet-400' },
+  { value: 'Warning', label: 'Warning', dotClass: 'bg-orange-500', accentClass: 'bg-orange-400' },
+  { value: 'Info', label: 'Info', dotClass: 'bg-sky-500', accentClass: 'bg-sky-400' },
 ];
 
-const NOTE_COLOR_CARD_CLASS: Record<NoteColorKind, string> = {
-  Default: 'border-gray-100',
-  Important: 'border-red-200 bg-red-50/50',
-  FollowUp: 'border-amber-200 bg-amber-50/50',
-  Idea: 'border-violet-200 bg-violet-50/50',
-  Warning: 'border-orange-200 bg-orange-50/50',
-  Info: 'border-sky-200 bg-sky-50/50',
-};
+const HTML_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' };
+
+/** HTML saneado del servidor → texto plano (sin DOM: puro y barato para ≤100 notas). */
+export function noteHtmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, entity: string) => HTML_ENTITIES[entity] ?? '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export function formatNoteTimestamp(value: string): string {
   return parseUtcDate(value).toLocaleString('en-US', {
@@ -195,20 +249,26 @@ export function toClientNoteCard(
   const isMine = forceMine || (currentUserId !== null && note.createdByUserId === currentUserId);
   const authorName = isMine ? 'You' : userNames.get(note.createdByUserId) ?? 'Team member';
   const colorKind = note.colorKind ?? 'Default';
+  const color = NOTE_COLOR_OPTIONS.find(option => option.value === colorKind) ?? NOTE_COLOR_OPTIONS[0];
   return {
     id: note.id,
     authorUserId: note.createdByUserId,
     authorName,
     isMine,
+    createdAtUtc: note.createdAtUtc,
     timestamp: formatNoteTimestamp(note.createdAtUtc),
-    edited: note.updatedAtUtc !== note.createdAtUtc,
+    wasUpdated: note.updatedAtUtc !== note.createdAtUtc,
+    updatedTimestamp: formatNoteTimestamp(note.updatedAtUtc),
     html: note.contentHtml,
+    plainText: noteHtmlToPlainText(note.contentHtml),
     isPinned: note.isPinned,
     isArchived: note.status === 'Archived',
     visibility: note.visibility,
     visibilityLabel: visibilityLabelOf(note.visibility),
     colorKind,
-    cardClass: NOTE_COLOR_CARD_CLASS[colorKind],
+    colorLabel: color.label,
+    accentClass: color.accentClass,
+    dotClass: color.dotClass,
     canEdit: isMine,
     canManage: isMine || hasViewAll,
     attachments: note.attachments,

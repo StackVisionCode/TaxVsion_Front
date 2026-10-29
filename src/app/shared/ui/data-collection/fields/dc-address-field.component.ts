@@ -15,7 +15,7 @@ type AddressValue = Record<string, string>;
     <legend class="text-sm font-semibold text-gray-900">
       {{ component.label || 'Address' }}
       @if (component.required) {
-        <span class="text-red-600" aria-hidden="true">*</span>
+        <span class="text-red-600" aria-hidden="true">*</span><span class="sr-only"> (required)</span>
       }
     </legend>
     @if (component.help) {

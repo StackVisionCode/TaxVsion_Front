@@ -18,6 +18,7 @@ import { StateBlockComponent } from '@shared/ui/state-block/state-block.componen
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { CheckRingComponent, CheckRingItem } from '@shared/ui/check-ring/check-ring.component';
+import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.util';
 import { ProfileStore } from '../../data-access/profile.store';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
@@ -25,6 +26,7 @@ import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two
 import {
   PASSWORD_MIN_LENGTH,
   UserSession,
+  isValidPhoneNumber,
   passwordStrength,
   roleDisplayName,
   sessionDeviceLabel,
@@ -32,7 +34,7 @@ import {
   sessionLocationLabel,
 } from '../../data-access/profile.model';
 
-/** Paso del flujo inline de cambio de email/teléfono. */
+/** Paso del flujo inline de cambio de email. */
 type ContactFlowStep = 'idle' | 'editing' | 'confirming';
 
 type ToastKind = 'success' | 'error';
@@ -51,7 +53,8 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
  *
  * - Nombre/apellido: PUT /auth/users/me/profile (el timeZoneId actual se preserva).
  * - Contraseña: POST /auth/password/change (revoca las demás sesiones).
- * - Email/teléfono: flujos request → código → confirm de CredentialsController.
+ * - Email: flujo request → código → confirm de CredentialsController.
+ * - Teléfono: PUT /auth/me/phone directo (sin verificación por SMS).
  * - Sesiones: GET/DELETE /auth/sessions (revocar una o todas menos la actual).
  * - Verificación en dos pasos y dispositivos de confianza: `app-two-step-verification` (/auth/mfa/*).
  *
@@ -68,6 +71,7 @@ const STRENGTH_LABELS = ['Too short', 'Fair', 'Good', 'Strong', 'Excellent'] as 
     StateBlockComponent,
     TimeAgoPipe,
     CheckRingComponent,
+    ConfirmDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './profile-page.component.html',
@@ -97,13 +101,12 @@ export class ProfilePageComponent {
     return tz ? tz.replace(/_/g, ' ').replace('/', ' · ') : null;
   });
 
-  // Nombre/apellido: editables. Email y teléfono solo cambian vía sus flujos verificados.
+  // Nombre/apellido: editables. Email cambia con su flujo verificado; teléfono con su propio guardado.
   readonly firstName = signal('');
   readonly lastName = signal('');
   readonly email = computed(() => this.user()?.email ?? '');
   readonly phone = computed(() => this.user()?.phoneNumber ?? '');
   readonly emailVerified = computed(() => this.user()?.emailVerified ?? false);
-  readonly phoneVerified = computed(() => this.user()?.phoneVerified ?? false);
 
   /** Nombre guardado (para la cabecera y para saber si hay cambios sin guardar). */
   readonly savedFullName = computed(() => `${this.user()?.name ?? ''} ${this.user()?.lastName ?? ''}`.trim());
@@ -120,7 +123,7 @@ export class ProfilePageComponent {
   readonly securityChecks = computed<CheckRingItem[]>(() => [
     { id: 'email', label: 'Email verified', done: this.emailVerified(), target: 'personal' },
     { id: 'mfa', label: 'Two-step verification on', done: this.mfa.enabled(), target: 'two-step' },
-    { id: 'phone', label: 'Phone number verified', done: !!this.phone() && this.phoneVerified(), target: 'personal' },
+    { id: 'phone', label: 'Phone number added', done: !!this.phone(), target: 'personal' },
   ]);
   /** Hasta que llega el estado de MFA el puntaje sería falso: se muestra cargando. */
   readonly securityReady = this.mfa.loaded;
@@ -271,40 +274,43 @@ export class ProfilePageComponent {
   }
 
   // ---------------------------------------------------------------------------
-  // Cambio/verificación de teléfono: request (OTP por SMS) → confirm con el código
+  // Teléfono: PUT /auth/me/phone en un solo paso (sin OTP); null lo quita
   // ---------------------------------------------------------------------------
-  readonly phoneStep = signal<ContactFlowStep>('idle');
+  readonly phoneEditing = signal(false);
   readonly newPhone = signal('');
-  readonly phoneCode = signal('');
   readonly phoneBusy = signal(false);
   readonly phoneError = signal<string | null>(null);
+  readonly removePhoneOpen = signal(false);
 
   startPhoneChange(): void {
     this.newPhone.set(this.phone());
-    this.phoneCode.set('');
     this.phoneError.set(null);
-    this.phoneStep.set('editing');
+    this.phoneEditing.set(true);
   }
 
   cancelPhoneChange(): void {
-    this.phoneStep.set('idle');
+    this.phoneEditing.set(false);
     this.phoneError.set(null);
     this.phoneBusy.set(false);
   }
 
-  sendPhoneChange(): void {
+  savePhone(): void {
     const phoneNumber = this.newPhone().trim();
-    // Mismas reglas que RequestPhoneVerificationHandler: 7-20 chars, dígitos/+/-/espacio.
-    if (phoneNumber.length < 7 || phoneNumber.length > 20 || !/^[\d+\- ]+$/.test(phoneNumber)) {
-      this.phoneError.set('Enter a valid phone number (digits, +, - and spaces)');
+    if (!isValidPhoneNumber(phoneNumber)) {
+      this.phoneError.set('Enter a valid phone number (7–20 characters: digits, +, - and spaces)');
+      return;
+    }
+    if (phoneNumber === this.phone()) {
+      this.cancelPhoneChange();
       return;
     }
     this.phoneError.set(null);
     this.phoneBusy.set(true);
-    this.store.requestPhoneChange(phoneNumber).subscribe({
+    this.store.updatePhone(phoneNumber).subscribe({
       next: () => {
         this.phoneBusy.set(false);
-        this.phoneStep.set('confirming');
+        this.phoneEditing.set(false);
+        this.notify('Phone number saved', 'success');
       },
       error: err => {
         this.phoneBusy.set(false);
@@ -313,23 +319,19 @@ export class ProfilePageComponent {
     });
   }
 
-  confirmPhoneChange(): void {
-    const code = this.phoneCode().trim();
-    if (!code) {
-      this.phoneError.set('Enter the code we texted you');
-      return;
-    }
-    this.phoneError.set(null);
+  confirmRemovePhone(): void {
     this.phoneBusy.set(true);
-    this.store.confirmPhone(code).subscribe({
+    this.store.updatePhone(null).subscribe({
       next: () => {
         this.phoneBusy.set(false);
-        this.phoneStep.set('idle');
-        this.notify('Phone number verified', 'success');
+        this.removePhoneOpen.set(false);
+        this.phoneEditing.set(false);
+        this.notify('Phone number removed', 'success');
       },
       error: err => {
         this.phoneBusy.set(false);
-        this.phoneError.set(toApiError(err).message);
+        this.removePhoneOpen.set(false);
+        this.notify(toApiError(err).message, 'error');
       },
     });
   }

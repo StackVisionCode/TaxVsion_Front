@@ -5,9 +5,8 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import {
   ChangePasswordRequest,
   ConfirmEmailChangeRequest,
-  ConfirmPhoneRequest,
   RequestEmailChangeRequest,
-  RequestPhoneVerificationRequest,
+  UpdateMyPhoneRequest,
   UpdateMyProfileRequest,
   UserSession,
   toUtcIso,
@@ -74,15 +73,9 @@ export class ProfileService {
     return this.http.post<void>(`${this.base}/me/email/confirm`, body);
   }
 
-  /** POST /auth/me/phone/change-request — manda un OTP por SMS al número nuevo. 202. */
-  requestPhoneChange(phoneNumber: string): Observable<void> {
-    const body: RequestPhoneVerificationRequest = { phoneNumber };
-    return this.http.post<void>(`${this.base}/me/phone/change-request`, body);
-  }
-
-  /** POST /auth/me/phone/confirm — confirma el número con el OTP. 204. */
-  confirmPhone(code: string): Observable<void> {
-    const body: ConfirmPhoneRequest = { code };
-    return this.http.post<void>(`${this.base}/me/phone/confirm`, body);
+  /** PUT /auth/me/phone — guarda el número directo (sin OTP); `null` lo quita. 204. */
+  updateMyPhone(phoneNumber: string | null): Observable<void> {
+    const body: UpdateMyPhoneRequest = { phoneNumber };
+    return this.http.put<void>(`${this.base}/me/phone`, body);
   }
 }

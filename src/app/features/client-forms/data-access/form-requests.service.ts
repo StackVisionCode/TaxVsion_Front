@@ -14,6 +14,8 @@ import type {
   FormRequestListItem,
   FormRequestRevision,
   PagedResult,
+  ApplyProfileUpdateInput,
+  ProfileUpdateFieldsResponse,
   StaffFormRequestDetail,
   StaffMemberOption,
 } from './client-forms.model';
@@ -123,6 +125,11 @@ export class FormRequestsService {
     });
   }
 
+  /** Recordatorio manual. 409 si ya se alcanzó el tope de envíos. */
+  sendReminder(id: string): Observable<FormRequest> {
+    return this.http.post<FormRequest>(`${this.base}/requests/${id}/reminders`, {});
+  }
+
   linkCustomer(id: string, customerId: string, rowVersion: string): Observable<FormRequest> {
     return this.http.post<FormRequest>(`${this.base}/requests/${id}/link-customer`, {
       customerId,
@@ -152,8 +159,24 @@ export class FormRequestsService {
     return this.http.post<FormActionRun>(`${this.base}/requests/${id}/actions/${runId}/retry`, {});
   }
 
+  // P-13 — campos mapeables al perfil (checklist) + estado/motivos del último intento.
+  profileUpdateFields(id: string): Observable<ProfileUpdateFieldsResponse> {
+    return this.http.get<ProfileUpdateFieldsResponse>(
+      `${this.base}/requests/${id}/profile-update/fields`,
+    );
+  }
+
+  // P-13 — aplicar al perfil; responde 202 con el FormRequest (estado Processing).
+  applyProfileUpdate(id: string, input: ApplyProfileUpdateInput): Observable<FormRequest> {
+    return this.http.post<FormRequest>(`${this.base}/requests/${id}/profile-update`, input);
+  }
+
   retryCustomerLink(id: string): Observable<FormRequest> {
     return this.http.post<FormRequest>(`${this.base}/requests/${id}/customer-link/retry`, {});
+  }
+
+  retrySummary(id: string): Observable<FormRequest> {
+    return this.http.post<FormRequest>(`${this.base}/requests/${id}/summary/retry`, {});
   }
 
   assignableTemplates(search = ''): Observable<AssignableFormTemplate[]> {

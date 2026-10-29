@@ -9,6 +9,7 @@ import { ClientFormsAvailabilityStore } from '../../data-access/client-forms-ava
 import type {
   FormRequestListItem,
   FormRequestStatus,
+  ProfileUpdateField,
   StaffFormRequestDetail,
 } from '../../data-access/client-forms.model';
 import { FormRequestsService } from '../../data-access/form-requests.service';
@@ -59,6 +60,7 @@ function detail(status: FormRequestStatus = 'Submitted'): StaffFormRequestDetail
 
 describe('FormRequestReviewDrawerComponent', () => {
   const permissions = signal(new Set<string>());
+  const profileFields = signal<ProfileUpdateField[]>([]);
   const state = {
     detail: signal<StaffFormRequestDetail | null>(null),
     selectedItem: signal<FormRequestListItem | null>(null),
@@ -73,8 +75,13 @@ describe('FormRequestReviewDrawerComponent', () => {
     processingTimedOut: () => false,
     revision: () => null,
     previousRevision: () => null,
+    profileFields: profileFields.asReadonly(),
+    profileFieldsLoading: () => false,
+    loadProfileFields: vi.fn(async () => {}),
+    applyProfileUpdate: vi.fn(async () => true),
     reveal: vi.fn(async () => '123-45-6789'),
     changeDueDate: vi.fn(async () => true),
+    sendReminder: vi.fn(async () => true),
     archive: vi.fn(async () => {
       state.actionError.set('This request can no longer be changed.');
       return false;
@@ -102,6 +109,7 @@ describe('FormRequestReviewDrawerComponent', () => {
     state.detail.set(null);
     state.selectedItem.set(null);
     state.actionError.set(null);
+    profileFields.set([]);
     vi.clearAllMocks();
     TestBed.configureTestingModule({
       providers: [
@@ -113,7 +121,10 @@ describe('FormRequestReviewDrawerComponent', () => {
         },
         {
           provide: AccessStore,
-          useValue: { can: (permission: string) => permissions().has(permission) },
+          useValue: {
+            can: (permission: string) => permissions().has(permission),
+            isAdmin: signal(true),
+          },
         },
         { provide: CloudStorageUploadService, useValue: { viewerItemForId: vi.fn() } },
         { provide: ToastService, useValue: toast },
@@ -169,6 +180,82 @@ describe('FormRequestReviewDrawerComponent', () => {
     fixture.detectChanges();
     expect(component.requestChangesMode()).toBe(false);
     expect(component.comments()).toEqual({});
+    fixture.destroy();
+  });
+
+  it('sends a reminder from the confirm dialog on an open request', async () => {
+    const fixture = render('Pending');
+    const component = fixture.componentInstance;
+    expect(component.canSendReminder()).toBe(true);
+    expect(document.querySelector('[data-testid="send-reminder"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="reminder-count"]')?.textContent).toContain('0/5');
+
+    component.openReminder();
+    fixture.detectChanges();
+    await component.sendReminder();
+    expect(store.sendReminder).toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith('Reminder sent');
+    expect(component.reminderOpen()).toBe(false);
+    fixture.destroy();
+  });
+
+  describe('client creation waiting for the signature', () => {
+    const waiting = () => {
+      const value = detail('Completed');
+      value.definition.actions = [
+        { key: 'create_client', type: 'createCustomer', trigger: 'onSubmit', config: { waitFor: 'signatureCompleted' } },
+      ];
+      value.revisions = [
+        {
+          number: 1,
+          submittedAtUtc: '2026-10-24T10:00:00',
+          outcome: 'Completed',
+          reviewMessage: null,
+          fieldComments: [],
+          pdfStatus: 'Ready',
+          pdfFileId: null,
+          signatureStatus: 'Sent',
+        },
+      ];
+      return value;
+    };
+
+    beforeEach(() => permissions.update((set) => new Set([...set, 'customers.manage'])));
+
+    it('says it waits and hides Start onboarding until there is a run', () => {
+      state.detail.set(waiting());
+      const fixture = TestBed.createComponent(FormRequestReviewDrawerComponent);
+      fixture.detectChanges();
+
+      expect(document.querySelector('[data-testid="waiting-signature"]')?.textContent).toContain(
+        'Waiting for signature',
+      );
+      expect(drawerButtons()).not.toContain('Start onboarding');
+      fixture.destroy();
+    });
+
+    it('stops waiting once the signature ended or the run exists', () => {
+      const declined = waiting();
+      declined.revisions[0].signatureStatus = 'Declined';
+      state.detail.set(declined);
+      expect(create().waitsForSignature()).toBe(false);
+
+      const ran = waiting();
+      ran.actionRuns = [{ actionType: 'CreateCustomer' } as StaffFormRequestDetail['actionRuns'][number]];
+      state.detail.set(ran);
+      expect(create().waitsForSignature()).toBe(false);
+
+      const noWait = waiting();
+      noWait.definition.actions = [{ key: 'create_client', type: 'createCustomer', trigger: 'onSubmit' }];
+      state.detail.set(noWait);
+      expect(create().waitsForSignature()).toBe(false);
+    });
+  });
+
+  it('hides Send reminder once the request is completed', () => {
+    const fixture = render('Completed');
+    expect(fixture.componentInstance.canSendReminder()).toBe(false);
+    expect(document.querySelector('[data-testid="send-reminder"]')).toBeNull();
     fixture.destroy();
   });
 
@@ -426,5 +513,61 @@ describe('FormRequestReviewDrawerComponent', () => {
     expect(component.resendOpen()).toBe(true);
     expect(component.resendError()).toContain('maximum number of times');
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('applies selected fields and the tax identifier to the client profile', async () => {
+    permissions.set(
+      new Set([
+        'tasks.form_requests.manage',
+        'tasks.form_requests.review',
+        'tasks.form_requests.apply_profile',
+      ]),
+    );
+    profileFields.set([
+      {
+        componentId: 'c1',
+        label: 'Phone',
+        targetKey: 'customer.primary_phone',
+        targetDisplayName: 'Primary phone',
+        dataType: 'Phone',
+        requiresAdmin: false,
+        isTaxId: false,
+      },
+      {
+        componentId: 'c2',
+        label: 'SSN',
+        targetKey: 'customer.fiscal.tax_identifier',
+        targetDisplayName: 'Tax identifier',
+        dataType: 'TaxId',
+        requiresAdmin: true,
+        isTaxId: true,
+      },
+    ]);
+    const component = create();
+    state.detail.set(detail('Completed'));
+
+    component.toggleField('c1', true);
+    component.includeTaxIdentifier.set(true);
+    await component.applyProfile();
+
+    expect(store.applyProfileUpdate).toHaveBeenCalledWith({
+      componentIds: ['c1', 'c2'],
+      includeTaxIdentifier: true,
+    });
+    expect(toast.info).toHaveBeenCalledWith('Profile update requested');
+  });
+
+  it('announces an action error at the top of the drawer and offers a sized dismiss button', () => {
+    const fixture = render('Submitted');
+    state.actionError.set('This request can no longer be changed.');
+    fixture.detectChanges();
+
+    const alert = Array.from(document.querySelectorAll('aside [role="alert"]')).find((node) =>
+      node.textContent?.includes('This request can no longer be changed.'),
+    );
+    expect(alert).toBeTruthy();
+    const dismiss = alert?.querySelector('button[aria-label="Dismiss error"]') as HTMLButtonElement;
+    expect(dismiss.className).toContain('h-8 w-8');
+    fixture.destroy();
   });
 });

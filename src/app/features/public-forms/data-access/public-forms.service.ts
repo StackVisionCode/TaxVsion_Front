@@ -10,6 +10,7 @@ import type {
   AttachmentUploadResponse,
   DraftSaveResponse,
   PublicDirectedFormAccess,
+  PublicFormChallengeResponse,
   PublicFormKind,
   PublicFormLanguage,
   PublicFormRequest,
@@ -42,7 +43,10 @@ export class PublicFormsService {
     language: PublicFormLanguage = 'En',
   ) {
     const body = kind === 'intake' ? { email, captchaToken, language } : {};
-    return this.http.post<void>(`${this.accessUrl(kind, token)}/challenge`, body);
+    return this.http.post<PublicFormChallengeResponse | null>(
+      `${this.accessUrl(kind, token)}/challenge`,
+      body,
+    );
   }
 
   verify(

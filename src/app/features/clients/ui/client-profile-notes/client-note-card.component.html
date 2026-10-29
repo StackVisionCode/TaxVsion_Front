@@ -1,0 +1,202 @@
+@let n = note();
+<article class="note-in relative overflow-hidden rounded-2xl border border-gray-100 py-4 pr-4 shadow-sm transition-[box-shadow,opacity] duration-200 hover:shadow-md"
+  [class]="cardClass()" [class.opacity-60]="busy()" [attr.aria-busy]="busy()" [attr.aria-label]="'Note by ' + n.authorName">
+  <!-- Etiqueta de color: barra de acento, no fondo completo -->
+  @if (n.accentClass) {
+    <span class="absolute inset-y-0 left-0 w-1" [class]="n.accentClass" aria-hidden="true"></span>
+  }
+
+  <header class="flex items-start gap-3">
+    <app-avatar [name]="n.authorName" [seed]="n.authorUserId" size="sm" [colorClass]="n.isMine ? 'bg-brand-bold' : null" />
+
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="truncate text-sm font-semibold text-gray-900">{{ n.authorName }}</span>
+        <span class="text-xs text-gray-400">
+          <time [attr.datetime]="n.createdAtUtc" [title]="n.timestamp">{{ relativeTime() }}</time>
+          @if (n.wasUpdated) {
+            <span aria-hidden="true"> · </span><span [title]="'Last updated ' + n.updatedTimestamp">Updated</span>
+          }
+        </span>
+      </div>
+
+      <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6875rem] font-medium"
+          [class]="visibility().badgeClass" [appTooltip]="visibility().hint">
+          <ion-icon [name]="visibility().icon" class="text-xs" aria-hidden="true"></ion-icon>
+          {{ visibility().label }}
+        </span>
+        @if (n.colorKind !== 'Default') {
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600">
+            <span class="h-1.5 w-1.5 rounded-full" [class]="n.dotClass" aria-hidden="true"></span>
+            {{ n.colorLabel }}
+          </span>
+        }
+        @if (n.isPinned) {
+          <span class="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[0.6875rem] font-medium text-brand-bold">
+            <ion-icon name="bookmark" class="text-xs" aria-hidden="true"></ion-icon>
+            Pinned
+          </span>
+        }
+        @if (n.isArchived) {
+          <app-status-pill tone="muted" size="xs" [dot]="false">Archived</app-status-pill>
+        }
+      </div>
+    </div>
+
+    <!-- Acciones rápidas (siempre con tooltip + aria-label) y menú ⋯ con el resto -->
+    <div class="-mr-1 -mt-1 flex shrink-0 items-center gap-0.5">
+      @if (busy()) {
+        <app-infinity-loader size="xs" class="mr-1" />
+      }
+      @if (n.canEdit) {
+        <button type="button" (click)="togglePin()" [disabled]="busy()" [attr.aria-pressed]="n.isPinned"
+          [attr.aria-label]="n.isPinned ? 'Unpin note' : 'Pin note'" [appTooltip]="n.isPinned ? 'Unpin note' : 'Pin to top'"
+          class="note-action grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold/30 disabled:opacity-40"
+          [class.text-brand-bold]="n.isPinned">
+          <ion-icon [name]="n.isPinned ? 'bookmark' : 'bookmark-outline'" class="text-base"></ion-icon>
+        </button>
+        <button type="button" (click)="startEdit()" [disabled]="busy() || editing()" aria-label="Edit note" appTooltip="Edit note"
+          class="note-action grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold/30 disabled:opacity-40">
+          <ion-icon name="create-outline" class="text-base"></ion-icon>
+        </button>
+        <button type="button" (click)="filePicker.click()" [disabled]="busy()" aria-label="Attach files" appTooltip="Attach files"
+          class="note-action grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold/30 disabled:opacity-40">
+          <ion-icon name="attach-outline" class="text-base"></ion-icon>
+        </button>
+        <input #filePicker type="file" multiple class="hidden" tabindex="-1" aria-hidden="true" (change)="onAttachPicked($event)" />
+      }
+
+      @if (hasMenu()) {
+        <app-dropdown-menu #menu panelClass="w-60" [disabled]="busy()">
+          <button menuTrigger type="button" [disabled]="busy()" aria-label="More actions" aria-haspopup="menu"
+            appTooltip="More actions"
+            class="note-menu-trigger grid h-8 w-8 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold/30 disabled:opacity-40">
+            <ion-icon name="ellipsis-horizontal" class="text-base"></ion-icon>
+          </button>
+
+          @if (n.canEdit) {
+            <p class="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Visibility</p>
+            @for (option of visibilityOptions; track option.value) {
+              <button appMenuItem type="button" class="note-visibility-item" (click)="changeVisibility(option.value)">
+                <ion-icon [name]="option.icon" class="text-base text-gray-400" aria-hidden="true"></ion-icon>
+                <span class="flex-1">{{ option.label }}</span>
+                @if (option.value === n.visibility) {
+                  <ion-icon name="checkmark-outline" class="text-base text-brand-bold" aria-hidden="true"></ion-icon>
+                  <span class="sr-only">(current)</span>
+                }
+              </button>
+            }
+
+            <p class="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Label</p>
+            <div class="flex flex-wrap items-center gap-1 px-3 pb-2.5" role="group" aria-label="Label">
+              @for (color of colorOptions; track color.value) {
+                <button type="button" class="note-color-swatch grid h-8 w-8 place-items-center rounded-full transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold/30"
+                  [class.bg-gray-100]="color.value === n.colorKind" [attr.aria-pressed]="color.value === n.colorKind"
+                  [attr.aria-label]="'Label: ' + color.label" [appTooltip]="color.label" (click)="pickColor(color.value, menu)">
+                  <span class="grid h-4 w-4 place-items-center rounded-full" [class]="color.dotClass">
+                    @if (color.value === n.colorKind) {
+                      <ion-icon name="checkmark" class="text-[0.625rem] text-white" aria-hidden="true"></ion-icon>
+                    }
+                  </span>
+                </button>
+              }
+            </div>
+            @if (n.canManage) {
+              <div class="my-1 h-px bg-gray-100" role="separator"></div>
+            }
+          }
+
+          @if (n.canManage) {
+            <button appMenuItem type="button" class="note-archive-item" (click)="toggleArchive()">
+              <ion-icon [name]="n.isArchived ? 'arrow-undo-outline' : 'archive-outline'" class="text-base text-gray-400" aria-hidden="true"></ion-icon>
+              {{ n.isArchived ? 'Restore note' : 'Archive note' }}
+            </button>
+            <button appMenuItem type="button" class="note-delete-item" [danger]="true" (click)="deleteRequested.emit(n)">
+              <ion-icon name="trash-outline" class="text-base" aria-hidden="true"></ion-icon>
+              Delete note
+            </button>
+          }
+        </app-dropdown-menu>
+      }
+    </div>
+  </header>
+
+  <!-- Cuerpo: lectura o edición en línea -->
+  @if (editing()) {
+    <div class="mt-3 pl-11">
+      <textarea #editBox rows="3" [value]="editText()" (input)="onEditInput($event)" (keydown)="onEditKeydown($event)"
+        [disabled]="editSaving()" aria-label="Edit note"
+        class="block w-full resize-none rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-sm leading-relaxed text-gray-800 transition-shadow focus:border-brand-bold/40 focus:outline-none focus:ring-4 focus:ring-brand-bold/10"></textarea>
+      @if (editError(); as err) {
+        <p class="mt-2 text-sm text-red-600" role="alert">{{ err }}</p>
+      }
+      <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
+        <span class="mr-auto hidden text-xs text-gray-400 sm:inline">
+          <kbd class="rounded border border-gray-200 bg-gray-50 px-1 font-sans">Esc</kbd> to cancel ·
+          <kbd class="rounded border border-gray-200 bg-gray-50 px-1 font-sans">{{ shortcut }}</kbd> to save
+        </span>
+        <button type="button" (click)="cancelEdit()" [disabled]="editSaving()"
+          class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900">
+          Cancel
+        </button>
+        <button type="button" class="note-save inline-flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold"
+          (click)="saveEdit()" [disabled]="editSaving() || !editText().trim()">
+          @if (editSaving()) {
+            <app-infinity-loader size="xs" tone="light" />
+          }
+          Save
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div class="pl-11">
+      <div class="note-body mt-2 break-words text-sm leading-relaxed text-gray-700 [&_a]:text-brand-bold [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5"
+        [class.line-clamp-6]="long() && !expanded()" [class.text-gray-500]="n.isArchived" [innerHTML]="n.html"></div>
+      @if (long()) {
+        <button type="button" class="note-more mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-bold hover:underline"
+          (click)="expanded.update(v => !v)" [attr.aria-expanded]="expanded()">
+          {{ expanded() ? 'Show less' : 'Show more' }}
+          <ion-icon [name]="expanded() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-xs" aria-hidden="true"></ion-icon>
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Adjuntos: chips con tipo, nombre, tamaño, estado del escaneo y acciones -->
+  @if (attachments().length > 0) {
+    <ul class="mt-3 flex flex-wrap gap-2 pl-11" aria-label="Attachments">
+      @for (attachment of attachments(); track attachment.id) {
+        <li class="note-attachment flex max-w-full items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 py-1.5 pl-2.5 pr-1.5 text-xs">
+          <ion-icon [name]="iconFor(attachment)" class="shrink-0 text-base text-gray-400" aria-hidden="true"></ion-icon>
+          @if (attachment.status === 'Available') {
+            <button type="button" (click)="preview(attachment)" [attr.aria-label]="'Preview ' + attachment.displayName"
+              [appTooltip]="'Preview ' + attachment.displayName"
+              class="min-w-0 max-w-[14rem] truncate text-left font-medium text-gray-700 hover:text-brand-bold hover:underline">{{ attachment.displayName }}</button>
+          } @else {
+            <span class="min-w-0 max-w-[14rem] truncate font-medium text-gray-700" [title]="attachment.displayName">{{ attachment.displayName }}</span>
+          }
+          <span class="shrink-0 text-gray-400">{{ sizeOf(attachment) }}</span>
+          @if (attachment.status !== 'Available') {
+            <app-status-pill [tone]="statusTone(attachment.status)" size="xs" [soft]="true"
+              [appTooltip]="attachment.status === 'Rejected' ? (attachment.rejectionReason || 'Blocked by the security scan') : 'Checking the file for threats'">
+              {{ statusLabel(attachment.status) }}
+            </app-status-pill>
+          } @else {
+            <button type="button" (click)="download(attachment)" [attr.aria-label]="'Download ' + attachment.displayName" appTooltip="Download"
+              class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-white hover:text-gray-700">
+              <ion-icon name="download-outline" class="text-sm"></ion-icon>
+            </button>
+          }
+          @if (n.canEdit) {
+            <button type="button" (click)="requestDetach(attachment)" [disabled]="busy()"
+              [attr.aria-label]="'Remove ' + attachment.displayName" appTooltip="Remove attachment"
+              class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</article>

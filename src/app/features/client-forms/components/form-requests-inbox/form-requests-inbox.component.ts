@@ -11,7 +11,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AccessStore } from '@core/access/access.store';
-import { ToastService } from '@shared/ui/toast/toast.service';
+import { LaunchOverlayComponent } from '@shared/ui/launch-overlay/launch-overlay.component';
+import { runWithLaunch, type LaunchPhase } from '@shared/utils/launch.util';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import {
   FilterChipsComponent,
@@ -29,19 +30,27 @@ import type {
   FormRequestInboxView,
   FormRequestListItem,
   FormRequestStatus,
+  FormSignatureStatus,
 } from '../../data-access/client-forms.model';
 import { ClientFormsAvailabilityStore } from '../../data-access/client-forms-availability.store';
 import { FormRequestsService } from '../../data-access/form-requests.service';
 import { FormRequestsStore } from '../../data-access/form-requests.store';
 import { FormActionChipComponent } from '../../ui/form-action-chip/form-action-chip.component';
 import { SendExternalFormDialogComponent } from '../../ui/send-external-form-dialog/send-external-form-dialog.component';
-import { externalErrorMessage, isEntryNotice } from '../../utils/external-forms';
+import {
+  customerEmailConflict,
+  externalErrorMessage,
+  isEntryNotice,
+  type CustomerEmailConflict,
+} from '../../utils/external-forms';
+import { signatureStatusLabel, signatureStatusTone } from '../../utils/signature-status';
 import { FormRequestReviewDrawerComponent } from '../form-request-review-drawer/form-request-review-drawer.component';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-form-requests-inbox',
   imports: [
+    LaunchOverlayComponent,
     FilterChipsComponent,
     FormActionChipComponent,
     FormRequestReviewDrawerComponent,
@@ -71,7 +80,7 @@ import { firstValueFrom } from 'rxjs';
               class="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-bold px-4 text-sm font-bold text-white hover:bg-brand-ink"
               (click)="openSendExternal()"
             >
-              <ion-icon name="paper-plane-outline"></ion-icon>Send to external email
+              <ion-icon name="paper-plane-outline" aria-hidden="true"></ion-icon>Send to external email
             </button>
           }
         </div>
@@ -176,18 +185,38 @@ import { firstValueFrom } from 'rxjs';
                       @if (item.isOverdue) {
                         <span class="ml-2 text-xs font-bold text-red-700">Overdue</span>
                       }
+                      @if (signatureLabel(item.latestSignatureStatus); as label) {
+                        <div class="mt-1.5">
+                          <app-status-pill
+                            [tone]="signatureTone(item.latestSignatureStatus)"
+                            [soft]="true"
+                            size="xs"
+                            data-testid="signature-status"
+                            >{{ label }}</app-status-pill
+                          >
+                        </div>
+                      }
                     </td>
                     <td class="px-5 py-4" (click)="$event.stopPropagation()">
                       <div class="flex max-w-sm flex-wrap gap-2">
                         @for (run of item.actionRuns; track run.id) {
                           <app-form-action-chip [run]="run" (retried)="retry(item, $event)" />
                         } @empty {
-                          <span class="text-xs text-gray-400">No actions</span>
+                          <span class="text-xs text-gray-500">No actions</span>
                         }
                       </div>
                     </td>
+                    <!-- La fila se abre con clic; este botón da el mismo acceso con teclado y lector (2.1.1). -->
                     <td class="px-3 py-4 text-right">
-                      <ion-icon name="chevron-forward-outline" class="text-gray-400"></ion-icon>
+                      <button
+                        type="button"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                        [attr.aria-label]="'Open ' + item.templateName + ' from ' + item.displayName"
+                        data-testid="open-request"
+                        (click)="$event.stopPropagation(); open(item)"
+                      >
+                        <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+                      </button>
                     </td>
                   </tr>
                 }
@@ -216,10 +245,18 @@ import { firstValueFrom } from 'rxjs';
       [noticesError]="noticesError()"
       [busy]="sendingExternal()"
       [error]="sendExternalError()"
+      [conflict]="sendExternalConflict()"
       [canAssignToClient]="canAssignToClient()"
       (closed)="closeSendExternal()"
       (sent)="sendExternal($event)"
       (assignToClient)="assignToClient($event)"
+    />
+
+    <app-launch-overlay
+      variant="send"
+      [phase]="launch()"
+      [workingCaption]="'Sending to ' + sendTarget() + '…'"
+      [doneCaption]="'Sent to ' + sendTarget()"
     />
   `,
 })
@@ -230,7 +267,6 @@ export class FormRequestsInboxComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly access = inject(AccessStore);
   private readonly availability = inject(ClientFormsAvailabilityStore);
-  private readonly toast = inject(ToastService);
 
   readonly views: readonly SegmentedOption<FormRequestInboxView>[] = [
     { id: 'NeedsAction', label: 'Needs action' },
@@ -246,6 +282,9 @@ export class FormRequestsInboxComponent implements OnInit {
   readonly sendExternalOpen = signal(false);
   readonly sendingExternal = signal(false);
   readonly sendExternalError = signal<string | null>(null);
+  readonly sendExternalConflict = signal<CustomerEmailConflict | null>(null);
+  readonly launch = signal<LaunchPhase>('idle');
+  readonly sendTarget = signal('');
   readonly notices = signal<ActiveConsentNotice[]>([]);
   readonly noticesLoading = signal(false);
   readonly noticesError = signal<string | null>(null);
@@ -338,6 +377,7 @@ export class FormRequestsInboxComponent implements OnInit {
 
   async openSendExternal(): Promise<void> {
     this.sendExternalError.set(null);
+    this.sendExternalConflict.set(null);
     this.sendExternalOpen.set(true);
     if (this.notices().length) return;
     this.noticesLoading.set(true);
@@ -359,38 +399,62 @@ export class FormRequestsInboxComponent implements OnInit {
     if (this.sendingExternal()) return;
     this.sendExternalOpen.set(false);
     this.sendExternalError.set(null);
+    this.sendExternalConflict.set(null);
   }
 
   async sendExternal(input: AssignExternalFormRequestInput): Promise<void> {
     if (this.sendingExternal()) return;
     this.sendingExternal.set(true);
     this.sendExternalError.set(null);
+    this.sendExternalConflict.set(null);
+    this.sendTarget.set(input.email);
     try {
-      await firstValueFrom(this.service.assignExternal(input));
-      this.sendExternalOpen.set(false);
-      this.toast.success(`Form sent to ${input.email}`);
-      // La request nueva queda en External; sin filtros para que se vea seguro.
-      this.activeView.set('External');
-      this.activeStatus.set('All');
-      this.search.set('');
-      this.overdue.set(false);
-      this.templateFilter.set('');
-      await Promise.all([
-        this.store.load({
-          view: 'External',
-          page: 1,
-          statuses: undefined,
-          templateId: undefined,
-          search: undefined,
-          overdue: undefined,
-        }),
-        this.store.loadStatusCounts(),
-      ]);
-    } catch (error) {
-      this.sendExternalError.set(externalErrorMessage(error));
+      await runWithLaunch(
+        this.launch,
+        async () => {
+          try {
+            await firstValueFrom(this.service.assignExternal(input));
+            return true;
+          } catch (error) {
+            // Email de un cliente (409): el diálogo muestra el mensaje del backend y el atajo.
+            const conflict = customerEmailConflict(error);
+            if (conflict) this.sendExternalConflict.set(conflict);
+            else this.sendExternalError.set(externalErrorMessage(error));
+            return false;
+          }
+        },
+        {
+          // Al sellar: el diálogo se cierra por debajo y la vista External ya se recarga, así al
+          // desvanecerse el overlay la request nueva está en la lista.
+          onDone: () => {
+            this.sendExternalOpen.set(false);
+            void this.showExternalRequests();
+          },
+        },
+      );
     } finally {
       this.sendingExternal.set(false);
     }
+  }
+
+  // La request nueva queda en External; sin filtros para que se vea seguro.
+  private async showExternalRequests(): Promise<void> {
+    this.activeView.set('External');
+    this.activeStatus.set('All');
+    this.search.set('');
+    this.overdue.set(false);
+    this.templateFilter.set('');
+    await Promise.all([
+      this.store.load({
+        view: 'External',
+        page: 1,
+        statuses: undefined,
+        templateId: undefined,
+        search: undefined,
+        overdue: undefined,
+      }),
+      this.store.loadStatusCounts(),
+    ]);
   }
 
   /** Abre el perfil del cliente con el diálogo de asignar (contrato por query params del perfil). */
@@ -429,6 +493,14 @@ export class FormRequestsInboxComponent implements OnInit {
     if (status === 'Returned') return 'info';
     if (status === 'Cancelled') return 'muted';
     return 'neutral';
+  }
+
+  signatureLabel(status: FormSignatureStatus | undefined): string | null {
+    return signatureStatusLabel(status);
+  }
+
+  signatureTone(status: FormSignatureStatus | undefined): StatusTone {
+    return signatureStatusTone(status);
   }
 
   dateTime(value: string): string {

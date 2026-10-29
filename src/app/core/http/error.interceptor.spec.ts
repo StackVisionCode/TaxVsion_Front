@@ -9,6 +9,7 @@ import { SubscriptionStatusStore } from '@core/billing/subscription-status.store
 import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { EntitlementsNoticeService } from '@core/access/entitlements-notice.service';
 import { errorInterceptor } from './error.interceptor';
+import { readOnlyRequestContext } from './read-only-request';
 
 describe('errorInterceptor — throttling', () => {
   let http: HttpClient;
@@ -64,6 +65,22 @@ describe('errorInterceptor — throttling', () => {
       .flush({ code: 'LoadShedding.Active', retryAfterSeconds: 2 }, { status: 503, statusText: 'Service Unavailable' });
     vi.advanceTimersByTime(2000);
     httpMock.expectOne('/customers').flush({ items: [] });
+
+    expect(body).toEqual({ items: [] });
+    expect(notice.notify).not.toHaveBeenCalled();
+  });
+
+  it('a read-only POST (search with the term in the body) shed with a short wait is retried once in silence', () => {
+    let body: unknown;
+    http.post('/customers/search', { term: 'ana' }, { context: readOnlyRequestContext() }).subscribe(res => (body = res));
+
+    httpMock
+      .expectOne('/customers/search')
+      .flush({ code: 'LoadShedding.Active', retryAfterSeconds: 2 }, { status: 503, statusText: 'Service Unavailable' });
+    vi.advanceTimersByTime(2000);
+    const retry = httpMock.expectOne('/customers/search');
+    expect(retry.request.body).toEqual({ term: 'ana' });
+    retry.flush({ items: [] });
 
     expect(body).toEqual({ items: [] });
     expect(notice.notify).not.toHaveBeenCalled();

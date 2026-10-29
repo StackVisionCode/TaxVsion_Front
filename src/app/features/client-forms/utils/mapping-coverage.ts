@@ -1,6 +1,7 @@
 import type {
   FormAction,
   FormActionType,
+  FormComponent,
   FormDefinition,
 } from '@shared/utils/data-collection/form-definition.model';
 import { ISSUE_CODES } from '@shared/utils/data-collection/issue-codes';
@@ -43,6 +44,14 @@ export interface CoverageFieldProblem {
   exists: boolean;
   /** Cómo quitar el mapeo (o la fila de `rowFields`) que causa el problema. */
   removal: MappingRemoval | null;
+  /** Arreglo de un clic sobre el campo, cuando lo hay (p. ej. "Limit to 80"). */
+  fix: CoverageFix | null;
+}
+
+export interface CoverageFix {
+  label: string;
+  componentId: string;
+  patch: Partial<FormComponent>;
 }
 
 export interface ActionCoverage {
@@ -90,6 +99,7 @@ export function computeCoverage(definition: FormDefinition, catalog: MappingCata
   const fieldProblems = toFieldProblems(
     definition,
     validateMappings({ ...definition, actions: [] }, catalog, OPEN_CAPABILITIES).issues,
+    catalog,
   );
   const actions = (definition.actions ?? []).map((action) => actionCoverage(definition, catalog, action));
   return {
@@ -126,6 +136,7 @@ export function actionCoverage(
   const fieldProblems = toFieldProblems(
     definition,
     issues.filter((item) => item.code === ISSUE_CODES.mappingSourceNotRequired),
+    catalog,
   );
   const configProblems = [
     ...new Set(
@@ -220,7 +231,11 @@ function candidatesFor(definition: FormDefinition, target: CatalogTarget): Cover
     .map((source) => ({ componentId: source.component.id, label: componentLabel(source.component) }));
 }
 
-function toFieldProblems(definition: FormDefinition, issues: ValidationIssue[]): CoverageFieldProblem[] {
+function toFieldProblems(
+  definition: FormDefinition,
+  issues: ValidationIssue[],
+  catalog: MappingCatalog,
+): CoverageFieldProblem[] {
   const seen = new Set<string>();
   const result: CoverageFieldProblem[] = [];
   for (const item of issues) {
@@ -239,9 +254,29 @@ function toFieldProblems(definition: FormDefinition, issues: ValidationIssue[]):
       message: FIELD_MESSAGES[item.code] ?? 'This mapping is not valid.',
       exists: context != null || section != null,
       removal: removalFor(definition, item.path),
+      fix: item.code === ISSUE_CODES.mappingLengthExceedsTarget ? lengthFix(definition, catalog, item.path) : null,
     });
   }
   return result;
+}
+
+// El arreglo útil para un campo más largo que el destino es acortarlo, no quitar el mapeo.
+function lengthFix(definition: FormDefinition, catalog: MappingCatalog, path: string): CoverageFix | null {
+  const match = /^\/mappings\/(\d+)(?:\/rowFields\/([^/]+))?/.exec(path);
+  const mapping = match ? (definition.mappings ?? [])[Number(match[1])] : undefined;
+  const target = mapping ? catalog.targets.find((item) => item.targetKey === mapping.targetKey) : undefined;
+  if (!match || !mapping || !target) return null;
+  const componentId = match[2] ?? mapping.componentId;
+  const max = match[2]
+    ? target.fields.find((field) => field.name === mapping.rowFields?.[componentId])?.maxLength
+    : target.maxLength;
+  const component = findComponentContext(definition, componentId)?.component;
+  if (max == null || !component) return null;
+  return {
+    label: `Limit to ${max}`,
+    componentId,
+    patch: { props: { ...(component.props ?? {}), maxLength: max } },
+  };
 }
 
 // "/mappings/3/rowFields/fd_x" → quita esa fila; "/mappings/3/..." → quita el mapeo entero.

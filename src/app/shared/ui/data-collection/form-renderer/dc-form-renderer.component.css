@@ -15,6 +15,14 @@
   border-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
   box-shadow: 0 0 0 3px rgb(var(--color-indigo-600-rgb, 30 70 107) / 0.18);
 }
+/* Foco por teclado visible en todos los controles (2.4.7) y sin quedar bajo el footer fijo (2.4.11). */
+:host ::ng-deep :is(input, select, textarea):focus-visible {
+  outline: 2px solid rgb(var(--color-indigo-600-rgb, 30 70 107));
+  outline-offset: 2px;
+}
+:host ::ng-deep :is(input, select, textarea, button, [tabindex]) {
+  scroll-margin-bottom: 6rem;
+}
 :host ::ng-deep .dc-input[aria-invalid='true'] {
   border-color: rgb(185 28 28);
 }

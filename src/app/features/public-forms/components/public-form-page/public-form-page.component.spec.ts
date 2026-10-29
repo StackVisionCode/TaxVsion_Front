@@ -363,6 +363,94 @@ describe('PublicFormPageComponent', () => {
 
     expect(service['verify']).toHaveBeenCalledWith('directed', 'token-1', '123456', undefined, 'Es');
   });
+  it('shows the code limit from the challenge response after requesting a code', async () => {
+    stored = null;
+    service['requestChallenge'].mockReturnValue(of({ codeLimitPerHour: 3, retryAfterSeconds: 60 }));
+    TestBed.configureTestingModule({ imports: [PublicFormPageComponent], providers: providers() });
+    const fixture = TestBed.createComponent(PublicFormPageComponent);
+    fixture.detectChanges();
+    await settle(fixture);
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="code-limit-hint"]')).toBeNull();
+
+    button(root, 'Send verification code').click();
+    await settle(fixture);
+
+    expect(fixture.componentInstance.step()).toBe('otp');
+    expect(root.querySelector('[data-testid="code-limit-hint"]')?.textContent).toContain(
+      'You can request up to 3 codes per hour.',
+    );
+  });
+
+  it('falls back to 5 codes per hour when the challenge response has no body', async () => {
+    stored = null;
+    TestBed.configureTestingModule({ imports: [PublicFormPageComponent], providers: providers() });
+    const fixture = TestBed.createComponent(PublicFormPageComponent);
+    fixture.detectChanges();
+    await settle(fixture);
+    const root = fixture.nativeElement as HTMLElement;
+
+    button(root, 'Send verification code').click();
+    await settle(fixture);
+
+    expect(root.querySelector('[data-testid="code-limit-hint"]')?.textContent).toContain(
+      'You can request up to 5 codes per hour. If no code arrives, wait a bit before trying again.',
+    );
+  });
+
+  it('shows a final state when the intake link was already submitted by this visitor', async () => {
+    stored = null;
+    service['verify'].mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: {
+              code: 'PublicForm.AlreadySubmitted',
+              message: 'You already sent this form. Your office is reviewing it.',
+            },
+          }),
+      ),
+    );
+    TestBed.configureTestingModule({ imports: [PublicFormPageComponent], providers: providers() });
+    const fixture = TestBed.createComponent(PublicFormPageComponent);
+    fixture.detectChanges();
+    await settle(fixture);
+    const page = fixture.componentInstance;
+    const root = fixture.nativeElement as HTMLElement;
+
+    button(root, 'Send verification code').click();
+    await settle(fixture);
+    page.setCode('123456');
+    await page.verifyCode();
+    await settle(fixture);
+
+    expect(page.step()).toBe('alreadySubmitted');
+    expect(page.error()).toBeNull();
+    const panel = root.querySelector('[data-testid="already-submitted"]');
+    expect(panel?.querySelector('h1')?.textContent).toContain('You already sent this form');
+    expect(panel?.textContent).toContain("Your office is reviewing it. You'll hear from them by email.");
+    expect(root.querySelector('.error-message')).toBeNull();
+  });
+
+  it('keeps the generic message for other verification failures', async () => {
+    stored = null;
+    service['verify'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
+    TestBed.configureTestingModule({ imports: [PublicFormPageComponent], providers: providers() });
+    const fixture = TestBed.createComponent(PublicFormPageComponent);
+    fixture.detectChanges();
+    await settle(fixture);
+    const page = fixture.componentInstance;
+
+    button(fixture.nativeElement as HTMLElement, 'Send verification code').click();
+    await settle(fixture);
+    page.setCode('123456');
+    await page.verifyCode();
+
+    expect(page.step()).toBe('otp');
+    expect(page.error()).toBe('The verification code is invalid or expired.');
+  });
+
   it('does not require a consent hidden by a condition', async () => {
     const withConsent = request({ name: 'Ana' });
     withConsent.definition = structuredClone(definition);
@@ -484,5 +572,80 @@ describe('PublicFormPageComponent', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('accessibility', () => {
+    async function open(): Promise<ComponentFixture<PublicFormPageComponent>> {
+      TestBed.configureTestingModule({ imports: [PublicFormPageComponent], providers: providers() });
+      const fixture = TestBed.createComponent(PublicFormPageComponent);
+      fixture.detectChanges();
+      await settle(fixture);
+      return fixture;
+    }
+
+    it('keeps the page header and footer outside the single main landmark', async () => {
+      const fixture = await setup();
+      const root = fixture.nativeElement as HTMLElement;
+      const main = root.querySelectorAll('main');
+      expect(main.length).toBe(1);
+      expect(main[0].contains(root.querySelector('a[aria-label="TaxProffice home"]'))).toBe(false);
+      expect(main[0].contains(root.querySelector('.public-form-footer'))).toBe(false);
+      expect(root.querySelector('.secure-label')?.hasAttribute('aria-label')).toBe(false);
+      expect(root.querySelector('.secure-text')?.textContent?.trim()).toBe('Secure form');
+    });
+
+    it('labels each code box, autofills the whole code from the first box and announces the error', async () => {
+      stored = null;
+      const fixture = await open();
+      const page = fixture.componentInstance;
+      const root = fixture.nativeElement as HTMLElement;
+      expect(page.step()).toBe('welcome');
+
+      button(root, 'Send verification code').click();
+      await settle(fixture);
+
+      expect(page.step()).toBe('otp');
+      expect(document.activeElement).toBe(root.querySelector('#otp-title'));
+      expect(document.title).toBe('Enter your verification code - Acme');
+      const boxes = Array.from(root.querySelectorAll('.otp-input')) as HTMLInputElement[];
+      expect(root.querySelector('.otp-fieldset legend')?.textContent?.trim()).toBe(
+        'Six-digit verification code',
+      );
+      expect(boxes.map((box) => box.getAttribute('aria-label'))).toEqual(
+        [1, 2, 3, 4, 5, 6].map((n) => `Digit ${n} of 6`),
+      );
+      expect(boxes.map((box) => box.getAttribute('autocomplete'))).toEqual([
+        'one-time-code',
+        'off',
+        'off',
+        'off',
+        'off',
+        'off',
+      ]);
+      expect(boxes.every((box) => box.getAttribute('inputmode') === 'numeric')).toBe(true);
+
+      // El teclado del móvil pega el código entero en la primera casilla.
+      boxes[0].value = '123456';
+      boxes[0].dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      expect(page.code()).toBe('123456');
+
+      page.setCode('12');
+      await page.verifyCode();
+      fixture.detectChanges();
+      const first = root.querySelector('.otp-input') as HTMLInputElement;
+      expect(first.getAttribute('aria-invalid')).toBe('true');
+      expect(first.getAttribute('aria-describedby')).toBe('otp-error');
+      expect(root.querySelector('#otp-error')?.getAttribute('role')).toBe('alert');
+    });
+
+    it('flags the email field as invalid only for the email error', async () => {
+      const fixture = await setup();
+      const page = fixture.componentInstance;
+      page.error.set('Enter a valid email address.');
+      expect(page.emailInvalid()).toBe(true);
+      page.error.set('We could not send a verification code. Please try again.');
+      expect(page.emailInvalid()).toBe(false);
+    });
   });
 });

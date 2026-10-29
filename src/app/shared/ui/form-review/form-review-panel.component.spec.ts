@@ -152,4 +152,16 @@ describe('FormReviewPanelComponent', () => {
     fixture.destroy();
     expect(component.revealed()).toBeNull();
   });
+
+  it('names each request-changes comment box after its field', async () => {
+    const { fixture } = await setup();
+    fixture.componentRef.setInput('requestChangesMode', true);
+    fixture.detectChanges();
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('label'),
+    ).filter((label) => label.querySelector('textarea'));
+    expect(labels.map((label) => label.textContent?.replace(/\s+/g, ' ').trim())).toEqual(
+      expect.arrayContaining(['Comment on SSN', 'Comment on Married']),
+    );
+  });
 });

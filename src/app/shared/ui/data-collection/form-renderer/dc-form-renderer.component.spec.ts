@@ -283,4 +283,64 @@ describe('DcFormRendererComponent', () => {
     ).map((option) => (option as HTMLOptionElement).value);
     expect(options).toEqual(['ssn', 'itin']);
   });
+
+  it('anuncia "Step N of M" en una región viva y deja el % y la barra fuera del árbol accesible', () => {
+    const fixture = setup(definition([{ id: 'name', type: 'text', label: 'Name' }]));
+    const root = fixture.nativeElement as HTMLElement;
+    const group = root.querySelector('[role="group"][aria-label="Form progress"]') as HTMLElement;
+    const step = group.querySelector('[data-testid="dc-progress-step"]') as HTMLElement;
+    expect(step.getAttribute('aria-live')).toBe('polite');
+    expect(step.textContent?.trim()).toBe('Step 1 of 2');
+    expect(group.querySelectorAll('[aria-hidden="true"]').length).toBe(2);
+  });
+
+  it('marca como obligatorios para lectores los grupos con legend, no solo con el asterisco', () => {
+    const options = { options: [{ value: 'a', label: 'A' }] };
+    const fixture = setup(
+      definition([
+        { id: 'radio', type: 'radio', label: 'Choice', required: true, props: options },
+        { id: 'group', type: 'checkboxGroup', label: 'Choices', required: true, props: options },
+        { id: 'yesno', type: 'yesNo', label: 'Confirm', required: true },
+        { id: 'address', type: 'address', label: 'Address', required: true },
+        { id: 'optional', type: 'radio', label: 'Optional', props: options },
+      ]),
+    );
+    const legends = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('app-dc-field legend'),
+    ) as HTMLElement[];
+    expect(legends.map((legend) => legend.querySelector('.sr-only')?.textContent?.trim())).toEqual([
+      '(required)',
+      '(required)',
+      '(required)',
+      '(required)',
+      undefined,
+    ]);
+  });
+
+  it('el taxId explica el formato fuera del placeholder y lo enlaza con aria-describedby', () => {
+    const fixture = setup(
+      definition([{ id: 'tax', type: 'taxId', label: 'Tax ID', required: true, props: { kinds: ['ssn'] } }]),
+    );
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector('#dc-field-tax-root') as HTMLInputElement;
+    const hintId = input.getAttribute('aria-describedby')?.split(' ')[0] ?? '';
+    expect(root.querySelector(`#${hintId}`)?.textContent).toContain('SSN: 9 digits');
+    expect(input.getAttribute('aria-required')).toBe('true');
+  });
+
+  it('el archivo dice a qué pregunta pertenece y cada Remove nombra su archivo', () => {
+    const fixture = setup(
+      definition([{ id: 'file', type: 'file', label: 'W-2 forms', required: true }]),
+      { schemaVersion: 1, values: { file: [{ fileId: 'f1' }] } },
+    );
+    fixture.componentRef.setInput('attachments', {
+      f1: { id: 'a1', fileId: 'f1', componentId: 'file', rowId: null, displayName: 'w2.pdf', status: 'Ready' },
+    });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const picker = root.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(picker.getAttribute('aria-label')).toBe('Browse files for W-2 forms (required)');
+    expect(picker.classList.contains('hidden')).toBe(false);
+    expect(root.querySelector('button[aria-label="Remove w2.pdf"]')).toBeTruthy();
+  });
 });

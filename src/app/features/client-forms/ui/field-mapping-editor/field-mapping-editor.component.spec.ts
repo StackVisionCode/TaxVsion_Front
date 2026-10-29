@@ -132,7 +132,8 @@ describe('FieldMappingEditorComponent', () => {
 
     const autoMatch = [...editor.querySelectorAll('button')].find((button) => button.textContent?.includes('Auto-match'))!;
     autoMatch.click();
-    expect(emitted.at(-1)?.optionMap).toEqual({ en: 'En' });
+    // "Spanish" encuentra `Es` por nombre (antes quedaba sin emparejar).
+    expect(emitted.at(-1)?.optionMap).toEqual({ spanish: 'Es', en: 'En' });
   });
 
   it('removes the mapping and respects the disabled state', () => {

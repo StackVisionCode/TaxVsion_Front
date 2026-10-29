@@ -162,7 +162,11 @@
 }
 
 .save-strip button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 0.75rem;
   border: 0;
+  border-radius: 9999px;
   background: transparent;
   color: rgb(var(--brand));
   font-weight: 700;
@@ -209,6 +213,12 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* El h1 recibe el foco al cambiar de paso; sin anillo si no fue por teclado. */
+h1[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
 }
 
 @keyframes rotate {
@@ -218,11 +228,14 @@
 }
 
 @media (max-width: 760px) {
-  .secure-label {
-    font-size: 0;
-  }
-  .secure-label span {
-    font-size: 1rem;
+  /* En móvil solo se ve el candado; el texto sigue para lectores de pantalla. */
+  .secure-label .secure-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
   .entry-layout {
     grid-template-columns: 1fr;
@@ -251,4 +264,12 @@
   .loading-ring {
     animation-duration: 1.8s;
   }
+}
+
+/* Aviso discreto del tope de códigos por hora. */
+.code-limit-hint {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: rgb(var(--muted));
 }

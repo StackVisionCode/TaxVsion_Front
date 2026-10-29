@@ -1,7 +1,5 @@
-<!-- overflow-x-auto fuerza overflow-y:auto: sin reservar espacio, el menú "..." absoluto de una fila cercana
-     al fondo desborda y el contenedor lo recorta con un scrollbar. Al abrir un menú reservamos hueco
-     inferior para que quepa completo (evita position:fixed, que rompe bajo ancestros con transform). -->
-<div class="overflow-x-auto" [ngClass]="{ 'pb-[22rem]': openMenuId() !== null }">
+<!-- El menú "..." de cada fila se porta al body (app-dropdown-menu): el overflow-x-auto ya no lo recorta. -->
+<div class="overflow-x-auto">
   <table class="w-full min-w-[53.75rem] border-separate border-spacing-0 text-sm">
     <thead>
       <tr>

@@ -63,7 +63,7 @@
           <span class="pf-icon-tile"><ion-icon name="person-outline"></ion-icon></span>
           <div>
             <h2 id="personal-title" class="text-lg font-bold text-gray-900">Personal information</h2>
-            <p class="mt-0.5 text-sm text-gray-500">How you appear to your team. Email and phone changes are verified with a code.</p>
+            <p class="mt-0.5 text-sm text-gray-500">How you appear to your team. Email changes are verified with a code.</p>
           </div>
         </header>
 
@@ -168,16 +168,16 @@
                 @if (phone()) {
                   <p class="truncate text-sm font-semibold text-gray-900">{{ phone() }}</p>
                 } @else {
-                  <p class="text-sm text-gray-500">Add a phone for account recovery and text alerts</p>
+                  <p class="text-sm text-gray-500">Not added</p>
                 }
               </div>
               @if (phone()) {
-                <span class="pf-badge" [ngClass]="phoneVerified() ? 'pf-badge--ok' : 'pf-badge--warn'">
-                  <ion-icon [name]="phoneVerified() ? 'checkmark-circle' : 'alert-circle-outline'"></ion-icon>
-                  {{ phoneVerified() ? 'Verified' : 'Unverified' }}
+                <span class="pf-badge pf-badge--ok">
+                  <ion-icon name="checkmark-circle"></ion-icon>
+                  Added
                 </span>
               }
-              @if (phoneStep() === 'idle') {
+              @if (!phoneEditing()) {
                 <button type="button" (click)="startPhoneChange()" class="pf-btn pf-btn--sm"
                   [ngClass]="phone() ? 'pf-btn--ghost' : 'pf-btn--primary'">
                   {{ phone() ? 'Change' : 'Add phone' }}
@@ -185,49 +185,43 @@
               }
             </div>
 
-            @if (phoneStep() !== 'idle') {
+            @if (phoneEditing()) {
               <div class="pf-flow mt-4 rounded-2xl bg-brand-white p-4">
                 <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500">
-                  Step {{ phoneStep() === 'editing' ? 1 : 2 }} of 2 ·
-                  {{ phoneStep() === 'editing' ? 'Phone number' : 'Confirm it' }}
+                  {{ phone() ? 'Change phone number' : 'Add phone number' }}
                 </p>
-                @if (phoneStep() === 'editing') {
-                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <input type="tel" autocomplete="tel" placeholder="+1 202 555 0112" [ngModel]="newPhone()" name="newPhone"
-                      (ngModelChange)="newPhone.set($event)" (keydown.enter)="sendPhoneChange()" class="pf-input flex-1" />
-                    <div class="flex gap-2">
-                      <button type="button" (click)="cancelPhoneChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
-                      <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
-                        {{ phoneBusy() ? 'Sending…' : 'Text me a code' }}
-                      </button>
-                    </div>
+                <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <input type="tel" autocomplete="tel" placeholder="+1 202 555 0112" [ngModel]="newPhone()" name="newPhone"
+                    (ngModelChange)="newPhone.set($event); phoneError.set(null)" (keydown.enter)="savePhone()"
+                    [attr.aria-invalid]="phoneError() ? 'true' : null" class="pf-input flex-1" />
+                  <div class="flex gap-2">
+                    <button type="button" (click)="cancelPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
+                    <button type="button" (click)="savePhone()" [disabled]="phoneBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
+                      {{ phoneBusy() ? 'Saving…' : 'Save' }}
+                    </button>
                   </div>
-                } @else {
-                  <p class="mt-2 text-sm text-gray-600">
-                    We texted a code to <span class="font-semibold text-gray-900">{{ newPhone() }}</span>. It expires in 10 minutes.
-                  </p>
-                  <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <input type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"
-                      [ngModel]="phoneCode()" name="phoneCode" (ngModelChange)="phoneCode.set($event)"
-                      (keydown.enter)="confirmPhoneChange()" class="pf-input pf-input--code flex-1" />
-                    <div class="flex gap-2">
-                      <button type="button" (click)="sendPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Resend</button>
-                      <button type="button" (click)="cancelPhoneChange()" class="pf-btn pf-btn--ghost flex-1 sm:flex-none">Cancel</button>
-                      <button type="button" (click)="confirmPhoneChange()" [disabled]="phoneBusy()" class="pf-btn pf-btn--primary flex-1 sm:flex-none">
-                        {{ phoneBusy() ? 'Confirming…' : 'Confirm' }}
-                      </button>
-                    </div>
-                  </div>
-                }
+                </div>
                 @if (phoneError(); as err) {
                   <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
                     <ion-icon name="alert-circle-outline"></ion-icon>{{ err }}
                   </p>
                 }
+                @if (phone()) {
+                  <button type="button" (click)="removePhoneOpen.set(true)" [disabled]="phoneBusy()"
+                    class="pf-btn pf-btn--ghost pf-btn--danger pf-btn--sm mt-3">
+                    <ion-icon name="trash-outline"></ion-icon>
+                    Remove phone
+                  </button>
+                }
               </div>
             }
           </div>
         </div>
+
+        <app-confirm-dialog [isOpen]="removePhoneOpen()" heading="Remove phone number?"
+          message="Your phone number will be removed from your account. You can add it again at any time."
+          confirmLabel="Remove" busyLabel="Removing…" [busy]="phoneBusy()" icon="trash-outline"
+          (confirmed)="confirmRemovePhone()" (cancelled)="removePhoneOpen.set(false)" />
       </section>
 
       <!-- ================= Contraseña ================= -->

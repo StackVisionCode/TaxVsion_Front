@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
   AddAddressRequest,
   AddContactPointRequest,
@@ -68,11 +69,28 @@ export class ClientsService {
     return this.http.get<BusinessActivityOption[]>(`${this.base}/business-activities`, { params });
   }
 
+  /**
+   * Con término → POST /customers/search (el término, a menudo un email, va en el cuerpo: la URL
+   * acaba en los logs del Gateway). Sin término → GET /customers, que conserva la revalidación 304.
+   * Mismos filtros, orden y paginación en ambos casos.
+   */
   search(params: SearchParams): Observable<PagedResult<CustomerSummary>> {
-    let query = new HttpParams();
     if (params.term) {
-      query = query.set('term', params.term);
+      return this.http.post<PagedResult<CustomerSummary>>(
+        `${this.base}/search`,
+        {
+          term: params.term,
+          status: params.status || undefined,
+          page: params.page || undefined,
+          size: params.size || undefined,
+          kind: params.kind || undefined,
+          sort: params.sort?.field,
+          dir: params.sort?.dir,
+        },
+        { context: readOnlyRequestContext() },
+      );
     }
+    let query = new HttpParams();
     if (params.status) {
       query = query.set('status', params.status);
     }

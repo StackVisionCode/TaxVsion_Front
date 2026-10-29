@@ -62,7 +62,8 @@ export interface ClientSaveOptions {
  * Store de clientes (Customer.Api vía /customers), compartido por directorio y perfil
  * (`providedIn: 'root'`).
  *
- * El LISTADO es paginación server-side real: `GET /customers?term&status&kind&sort&dir&page&size`.
+ * El LISTADO es paginación server-side real: `GET /customers?status&kind&sort&dir&page&size`
+ * (con término de búsqueda, `POST /customers/search` con los mismos filtros en el cuerpo).
  * Las señales de query (`term/status/page/size`) alimentan una única canalización con
  * `switchMap`, que cancela la petición anterior cuando el usuario cambia algo (evita
  * respuestas fuera de orden). Tras una mutación (crear/editar/estado/bulk) se re-pide la

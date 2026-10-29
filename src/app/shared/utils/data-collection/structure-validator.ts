@@ -48,6 +48,38 @@ const autocompleteValues = new Set([
   'tel',
   'off',
 ]);
+// PrefillSource cerrado (P-13.1).
+const prefillSources = new Set(['previousRequest', 'customer.displayName']);
+const textColors: readonly string[] = [
+  'ink',
+  'secondary',
+  'muted',
+  'brand',
+  'accent',
+  'success',
+  'warning',
+  'danger',
+  'info',
+];
+const backgrounds: readonly string[] = [
+  'none',
+  'surface',
+  'sunken',
+  'brandSubtle',
+  'accentSubtle',
+  'sand',
+  'sage',
+];
+// Matriz aprobada (P-20.1): fondo → colores de texto permitidos; lo que no está, se rechaza.
+const approvedContrast: Readonly<Record<string, readonly string[]>> = {
+  none: ['ink', 'secondary', 'muted', 'brand', 'accent', 'success', 'warning', 'danger', 'info'],
+  surface: ['ink', 'secondary', 'muted', 'brand', 'accent', 'success', 'warning', 'danger', 'info'],
+  sunken: ['ink', 'secondary', 'brand', 'accent', 'success', 'warning', 'danger', 'info'],
+  brandSubtle: ['ink', 'secondary', 'muted', 'accent', 'success', 'warning', 'danger', 'info'],
+  accentSubtle: ['ink', 'secondary', 'muted', 'brand', 'success', 'warning', 'danger', 'info'],
+  sand: ['ink', 'secondary', 'muted', 'brand', 'accent', 'success', 'danger', 'info'],
+  sage: ['ink', 'secondary', 'muted', 'brand', 'accent', 'warning', 'danger', 'info'],
+};
 const taxIdWords = /\b(ssn|social security|itin|ein|tax id)\b/i;
 const unsupportedWords = /\b(bank account|routing number|card number|cvv|pin|password)\b/i;
 
@@ -83,7 +115,8 @@ function validateStructure(
   issues.push(...validateRichText(definition.description, '/description', 2_000));
   if (!Array.isArray(definition.pages)) return report(issues);
   if (publish) {
-    if (definition.pages.length < 1 || definition.pages.length > limits.maxPages)
+    if (definition.pages.length < 1) issues.push(issue('page.required', '/pages'));
+    if (definition.pages.length > limits.maxPages)
       issues.push(issue('limits.too_many_pages', '/pages'));
     if (definition.presentation === 'singlePage' && definition.pages.length !== 1)
       issues.push(issue('page.single_page_violation', '/pages'));
@@ -121,8 +154,8 @@ function validateStructure(
         issues,
       );
     if (!Array.isArray(page.sections)) return;
-    if (publish && page.sections.length < 1)
-      issues.push(issue('limits.too_many_sections', `${pagePath}/sections`));
+    // Vacío no es "demasiados": código propio, como page.required.
+    if (publish && page.sections.length < 1) issues.push(issue('section.required', `${pagePath}/sections`));
     if (page.sections.length > limits.maxSectionsPerPage)
       issues.push(issue('limits.too_many_sections', `${pagePath}/sections`));
 
@@ -210,8 +243,7 @@ function validateSection(
     }
   }
   if (!Array.isArray(section.components)) return;
-  if (publish && section.components.length < 1)
-    issues.push(issue('limits.too_many_components', `${path}/components`));
+  if (publish && section.components.length < 1) issues.push(issue('component.required', `${path}/components`));
   if (section.components.length > limits.maxComponentsPerSection)
     issues.push(issue('limits.too_many_components', `${path}/components`));
 }
@@ -245,6 +277,7 @@ function validateComponent(
   }
   if (!publish) return;
   validateComponentProperties(component, type, path, limits, issues);
+  validateStyleAgainstSection(component.style, section.style, `${path}/style`, issues);
   validateCondition(
     component.visibleWhen,
     `${path}/visibleWhen`,
@@ -349,6 +382,7 @@ function validateComponentProperties(
       break;
     case 'select':
       validateChoice(component, path, limits, 1, issues);
+      if ('placeholder' in props) validatePlain(component, 'placeholder', 0, 60, path, issues);
       break;
     case 'radio':
       validateChoice(component, path, limits, 2, issues);
@@ -432,6 +466,8 @@ function validateCommon(
       issues.push(issue('reportable.not_allowed', `${path}/reportable`, component.id));
     if (component.prefill != null && (component.type === 'taxId' || component.type === 'file'))
       issues.push(issue('prefill.not_allowed', `${path}/prefill`, component.id));
+    else if (component.prefill != null && !prefillSources.has(component.prefill.source ?? ''))
+      issues.push(issue('prefill.invalid_source', `${path}/prefill/source`, component.id));
   } else {
     if (component.label != null)
       issues.push(issue('component.label_not_allowed', `${path}/label`, component.id));
@@ -704,37 +740,38 @@ function validateStyle(
     [style.width, ['full', 'half', 'third', 'twoThirds'], 'width'],
     [style.align, ['left', 'center', 'right'], 'align'],
     [style.textSize, ['caption', 'ui', 'body', 'h3', 'h2', 'h1'], 'textSize'],
-    [
-      style.textColor,
-      ['ink', 'secondary', 'muted', 'brand', 'accent', 'success', 'warning', 'danger', 'info'],
-      'textColor',
-    ],
-    [
-      style.background,
-      ['none', 'surface', 'sunken', 'brandSubtle', 'accentSubtle', 'sand', 'sage'],
-      'background',
-    ],
+    [style.textColor, textColors, 'textColor'],
+    [style.background, backgrounds, 'background'],
     [style.spacingTop, [0, 2, 4, 6, 8], 'spacingTop'],
     [style.spacingBottom, [0, 2, 4, 6, 8], 'spacingBottom'],
   ];
   for (const [value, allowed, name] of checks)
     if (value != null && !allowed.includes(value))
       issues.push(issue('style.token_invalid', `${path}/${name}`));
-  const denied = new Set([
-    'sunken|muted',
-    'brandSubtle|brand',
-    'accentSubtle|accent',
-    'sand|warning',
-    'sage|success',
-  ]);
-  if (
-    style.textColor != null &&
-    style.background != null &&
-    style.background !== 'none' &&
-    style.background !== 'surface' &&
-    denied.has(`${style.background}|${style.textColor}`)
-  )
+  if (!contrastAllowed(style.textColor, style.background))
     issues.push(issue('style.contrast_not_allowed', path));
+}
+
+// Un componente sin fondo propio (o `none`) pinta su texto sobre el fondo de la sección padre.
+function validateStyleAgainstSection(
+  style: FormStyle | null | undefined,
+  sectionStyle: FormStyle | null | undefined,
+  path: string,
+  issues: ValidationIssue[],
+): void {
+  if (style?.textColor == null || (style.background != null && style.background !== 'none')) return;
+  if (!contrastAllowed(style.textColor, sectionStyle?.background))
+    issues.push(issue('style.contrast_not_allowed', path));
+}
+
+function contrastAllowed(
+  color: string | null | undefined,
+  background: string | null | undefined,
+): boolean {
+  // Un token inválido ya se reporta como style.token_invalid.
+  if (color == null || background == null) return true;
+  if (!textColors.includes(color) || !backgrounds.includes(background)) return true;
+  return approvedContrast[background]?.includes(color) === true;
 }
 
 function validateMappingShape(
@@ -773,6 +810,8 @@ function validateActions(
     if (action.type === 'notifyStaff' || action.type === 'routeToReview')
       issues.push(issue('props.out_of_range', `${path}/type`));
     validateActionConfig(action, path, issues);
+    if (signatureSteps === 0 && waitsForSignature(action))
+      issues.push(issue('signature.step_missing', `${path}/config/waitFor`));
     validateCondition(
       action.condition,
       `${path}/condition`,
@@ -787,6 +826,14 @@ function validateActions(
   if (signatureSteps > 1) issues.push(issue('props.out_of_range', '/pages'));
   if ((signatureSteps === 1) !== hasSignature)
     issues.push(issue('signature.action_missing', '/actions'));
+}
+
+function waitsForSignature(action: FormAction): boolean {
+  return (
+    action.type === 'createCustomer' &&
+    isRecord(action.config) &&
+    action.config['waitFor'] === 'signatureCompleted'
+  );
 }
 
 function validateActionConfig(action: FormAction, path: string, issues: ValidationIssue[]): void {

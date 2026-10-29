@@ -65,3 +65,27 @@ describe('SegmentedComponent keyboard', () => {
     expect(emitted).toEqual(['b', 'c', 'c']);
   });
 });
+
+describe('SegmentedComponent radio mode', () => {
+  it('uses radiogroup/radio semantics with aria-checked and renders option icons', () => {
+    TestBed.configureTestingModule({ imports: [SegmentedComponent] });
+    const fixture = TestBed.createComponent(SegmentedComponent<string>);
+    fixture.componentRef.setInput('options', [
+      { id: 'team', label: 'Team', icon: 'people-outline' },
+      { id: 'client', label: 'Visible to client', icon: 'eye-outline' },
+    ]);
+    fixture.componentRef.setInput('value', 'team');
+    fixture.componentRef.setInput('mode', 'radio');
+    fixture.detectChanges();
+    const group = fixture.nativeElement.querySelector('[role="radiogroup"]') as HTMLElement;
+    const radios = Array.from(group.querySelectorAll('[role="radio"]')) as HTMLButtonElement[];
+    expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    expect(radios[0].hasAttribute('aria-selected')).toBe(false);
+    expect((radios[1].querySelector('ion-icon') as unknown as { name: string }).name).toBe('eye-outline');
+
+    const emitted: string[] = [];
+    fixture.componentInstance.valueChange.subscribe((value) => emitted.push(value));
+    group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    expect(emitted).toEqual(['client']);
+  });
+});

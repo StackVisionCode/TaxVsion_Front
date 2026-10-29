@@ -92,6 +92,25 @@ describe('computeCoverage', () => {
     expect(coverage.actions[0].configProblems).toEqual(["A fixed value isn't accepted by the client record."]);
   });
 
+  // Antes solo ofrecía "Remove mapping"; el arreglo útil es acortar el campo al largo del destino.
+  it('offers "Limit to 80" for a field longer than the client property', () => {
+    const definition = onboardingDefinition({
+      mappings: [{ componentId: 'fd_first0001', targetKey: 'customer.person.first_name', transform: 'trim' }],
+    });
+    const first = definition.pages[0].sections[0].components.find((item) => item.id === 'fd_first0001')!;
+    first.props = { ...first.props, maxLength: 200 };
+
+    const problem = computeCoverage(definition, testCatalog()).fieldProblems.find(
+      (item) => item.code === 'mapping.length_exceeds_target',
+    );
+
+    expect(problem?.fix).toEqual({
+      label: 'Limit to 80',
+      componentId: 'fd_first0001',
+      patch: { props: { maxLength: 80 } },
+    });
+  });
+
   it('reports orphan and incomplete mappings as field problems', () => {
     const coverage = computeCoverage(
       onboardingDefinition({

@@ -1,6 +1,7 @@
 export const ISSUE_CODES = {
   definitionTooLarge: 'definition.too_large',
   definitionInvalidJson: 'definition.invalid_json',
+  repeaterNested: 'repeater.nested',
   answersTooLarge: 'answers.too_large',
   answersInvalidJson: 'answers.invalid_json',
   mappingInvalidTarget: 'mapping.invalid_target',

@@ -14,7 +14,7 @@ import { StatusPillComponent, type StatusTone } from '@shared/ui/status-pill/sta
 import type { FormDefinition } from '@shared/utils/data-collection/form-definition.model';
 import type { MappingCatalog } from '../../data-access/mapping-catalog.model';
 import { operationLabel } from '../../utils/form-action-catalog';
-import { type ActionCoverage, computeCoverage } from '../../utils/mapping-coverage';
+import { type ActionCoverage, type CoverageFix, computeCoverage } from '../../utils/mapping-coverage';
 import type { MappingRemoval } from '../../utils/mapping-mutations';
 
 /**
@@ -147,6 +147,16 @@ import type { MappingRemoval } from '../../utils/mapping-mutations';
                     <span class="font-semibold">{{ problem.label }}</span>
                   }
                   <span>: {{ problem.message }}</span>
+                  @if (problem.fix; as fix) {
+                    <button
+                      type="button"
+                      class="ml-1 rounded-full bg-amber-900 px-2.5 py-0.5 font-semibold text-white hover:bg-amber-950 disabled:opacity-50"
+                      [disabled]="disabled()"
+                      (click)="fixApplied.emit(fix)"
+                    >
+                      {{ fix.label }}
+                    </button>
+                  }
                   <!-- Siempre hay salida: un mapeo inválido se puede quitar aunque el campo ya no encaje. -->
                   @if (problem.removal; as removal) {
                     <button
@@ -182,6 +192,8 @@ export class MappingCoveragePanelComponent {
   readonly componentSelected = output<string>();
   /** Quita el mapeo inválido (o la fila de `rowFields`) que causa un problema. */
   readonly mappingRemoved = output<MappingRemoval>();
+  /** Arreglo de un clic sobre un campo (p. ej. acortarlo al largo del destino). */
+  readonly fixApplied = output<CoverageFix>();
   /** Abre la configuración de la acción en "After submission". */
   readonly actionSelected = output<string>();
   readonly retry = output<void>();

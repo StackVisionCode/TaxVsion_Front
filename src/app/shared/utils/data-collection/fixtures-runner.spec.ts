@@ -42,7 +42,7 @@ const cases = [
 ].flat() as unknown as FixtureCase[];
 
 describe('data collection engine fixture contract v1', () => {
-  it('loads the exact fixture manifest and all 142 cases', () => {
+  it('loads the exact fixture manifest and all 155 cases', () => {
     expect(manifest.fixtureSetVersion).toBe(1);
     expect(manifest.files).toEqual([
       'structure/cases.json',
@@ -51,7 +51,7 @@ describe('data collection engine fixture contract v1', () => {
       'progress/cases.json',
       'mappings/cases.json',
     ]);
-    expect(cases).toHaveLength(142);
+    expect(cases).toHaveLength(155);
   });
 
   it.each(cases)('$name', (fixture) => {

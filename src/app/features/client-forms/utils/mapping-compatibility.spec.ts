@@ -112,6 +112,19 @@ describe('mapping compatibility', () => {
     expect(isOptionMapComplete(options, { spanish: 'Es', en: 'Xx' }, values)).toBe(false);
   });
 
+  // Antes "Spanish" no encontraba `Es` porque el catálogo solo trae códigos.
+  it('auto-matches language names in English and Spanish to their codes', () => {
+    const values = ['Es', 'En', 'Pt', 'Fr'];
+    const options = [
+      { value: 'option1', label: 'Spanish' },
+      { value: 'option2', label: 'Inglés' },
+      { value: 'option3', label: 'Português' },
+      { value: 'option4', label: 'Klingon' },
+    ];
+
+    expect(suggestOptionMap(options, values, null)).toEqual({ option1: 'Es', option2: 'En', option3: 'Pt' });
+  });
+
   it('creates a mapping with trim for text and a suggested option map for enums', () => {
     expect(createMapping(context('fd_first0001').component, target('customer.person.first_name'))).toEqual({
       componentId: 'fd_first0001',
@@ -122,7 +135,7 @@ describe('mapping compatibility', () => {
       componentId: 'fd_lang00001',
       targetKey: 'customer.language',
       transform: 'none',
-      optionMap: { en: 'En' },
+      optionMap: { spanish: 'Es', en: 'En' },
     });
   });
 });

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { EMPTY, Observable, expand, reduce } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { PagedResult } from './clients.model';
 import {
@@ -42,6 +42,19 @@ export class ClientNotesService {
       .set('page', page)
       .set('size', size);
     return this.http.get<PagedResult<NoteResponse>>(this.base, { params });
+  }
+
+  /**
+   * Todas las páginas del cliente: la vista ordena fijadas, agrupa por día y filtra en el cliente,
+   * así que necesita el total (antes solo llegaba la primera página de 100).
+   */
+  listAllByClient(clientId: string, maxPages = 20): Observable<NoteResponse[]> {
+    return this.listByClient(clientId, 1).pipe(
+      expand(result =>
+        result.hasMore && result.page < maxPages ? this.listByClient(clientId, result.page + 1) : EMPTY,
+      ),
+      reduce((all, result) => [...all, ...result.items], [] as NoteResponse[]),
+    );
   }
 
   create(req: CreateNoteRequest): Observable<NoteResponse> {

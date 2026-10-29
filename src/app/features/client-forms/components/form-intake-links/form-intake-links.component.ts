@@ -20,6 +20,7 @@ import {
 } from '@shared/ui/form-controls/form-select-control.component';
 import { earliestDueDate, formatDueDate } from '@shared/ui/form-review/form-review.format';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent, type StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -48,6 +49,7 @@ function expirationToUtc(date: string): string | null {
     FormSelectControlComponent,
     MenuItemDirective,
     ModalComponent,
+    PaginationComponent,
     StateBlockComponent,
     StatusPillComponent,
   ],
@@ -115,7 +117,7 @@ function expirationToUtc(date: string): string | null {
         >
           <div class="overflow-x-auto">
             <table class="w-full min-w-[56rem] text-left">
-              <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+              <thead class="bg-gray-50/70 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th class="px-5 py-3 font-semibold">Link</th>
                   <th class="px-5 py-3 font-semibold">Form</th>
@@ -127,7 +129,7 @@ function expirationToUtc(date: string): string | null {
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                @for (link of store.links(); track link.id) {
+                @for (link of pagedLinks(); track link.id) {
                   <tr>
                     <td class="px-5 py-4">
                       <p class="font-semibold text-gray-900">{{ link.name }}</p>
@@ -215,6 +217,15 @@ function expirationToUtc(date: string): string | null {
                 }
               </tbody>
             </table>
+          </div>
+          <div class="px-5 pb-4">
+            <!-- El endpoint devuelve todos los enlaces: se paginan en cliente. -->
+            <app-pagination
+              [currentPage]="currentPage()"
+              [totalItems]="store.links().length"
+              [pageSize]="pageSize"
+              (pageChange)="page.set($event)"
+            />
           </div>
         </app-state-block>
       </div>
@@ -510,6 +521,16 @@ function expirationToUtc(date: string): string | null {
 })
 export class FormIntakeLinksComponent implements OnInit, OnDestroy {
   readonly store = inject(FormIntakeLinksStore);
+  readonly pageSize = 10;
+  readonly page = signal(1);
+  // Si una acción deja menos enlaces que la página actual (revocar el último), se vuelve a la última.
+  readonly currentPage = computed(() =>
+    Math.min(this.page(), Math.max(1, Math.ceil(this.store.links().length / this.pageSize))),
+  );
+  readonly pagedLinks = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize;
+    return this.store.links().slice(start, start + this.pageSize);
+  });
   private readonly availability = inject(ClientFormsAvailabilityStore);
   private readonly clipboard = inject(ClipboardService);
   private readonly toast = inject(ToastService);

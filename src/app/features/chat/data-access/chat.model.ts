@@ -132,7 +132,7 @@ export interface EmployeeDirectoryEntry {
 }
 
 /**
- * Fila de GET /communication/directory/customers?q=&limit=.
+ * Fila de POST /communication/directory/customers/search ({ q, limit }).
  * `portalUserId` es el userId de Auth de la cuenta de portal activa del cliente
  * (el id que pide `chat.conversation.start_direct`), o null si el cliente todavía
  * no activó el portal — en ese caso NO es chateable.

@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { readOnlyRequestContext } from '@core/http/read-only-request';
 import { ClientChatDirectoryEntry } from './client-chat.model';
 
 /**
@@ -15,12 +16,15 @@ export class ClientChatService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
 
-  /** GET /communication/directory/customers?q=&limit= — `q` obligatorio (min 1 char), `limit` máx 25. */
+  /**
+   * POST /communication/directory/customers/search — `q` obligatorio (1-100), `limit` máx 25. El
+   * término (el email del cliente) va en el cuerpo para no dejarlo en los logs de la URL.
+   */
   searchCustomers(term: string, limit = 10): Observable<ClientChatDirectoryEntry[]> {
-    const params = new HttpParams().set('q', term).set('limit', limit);
-    return this.http.get<ClientChatDirectoryEntry[]>(
-      `${this.api.tenantUrl('/communication/directory')}/customers`,
-      { params },
+    return this.http.post<ClientChatDirectoryEntry[]>(
+      `${this.api.tenantUrl('/communication/directory')}/customers/search`,
+      { q: term, limit },
+      { context: readOnlyRequestContext() },
     );
   }
 }

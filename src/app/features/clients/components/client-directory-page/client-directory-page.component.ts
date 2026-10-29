@@ -47,9 +47,12 @@ const SORT_OPTIONS: readonly SortOption[] = [
   { field: 'Created', dir: 'Asc', param: 'oldest', label: 'Oldest first' },
 ];
 
+const TERM_STATE_KEY = 'clientsTerm';
+
 /**
- * Directorio de clientes con paginación server-side real (GET /customers?term&status&kind&sort&dir&page&size).
- * El estado navegable (term/status/kind/sort/page/size) vive en los query params → refrescar o volver
+ * Directorio de clientes con paginación server-side real (GET /customers, o POST /customers/search con término).
+ * El estado navegable (status/kind/sort/page/size) vive en los query params y el término en
+ * `history.state` (puede ser un email: no debe quedar en la URL ni en logs) → refrescar o volver
  * atrás conserva la vista. Selección múltiple + acciones de estado masivas con fallos parciales.
  */
 @Component({
@@ -180,7 +183,8 @@ export class ClientDirectoryPageComponent {
   constructor() {
     // Estado inicial desde la URL (refresh / volver atrás lo conserva).
     const map = this.route.snapshot.queryParamMap;
-    const term = map.get('term') ?? '';
+    // `?term=` solo llega de enlaces viejos; syncUrl lo quita de la barra.
+    const term = this.termFromHistory() ?? map.get('term') ?? '';
     const statusParam = map.get('status');
     const status = statusParam && VALID_STATUSES.includes(statusParam as CustomerStatusFilter)
       ? (statusParam as CustomerStatusFilter)
@@ -206,12 +210,21 @@ export class ClientDirectoryPageComponent {
     return Number.isInteger(n) && n > 0 ? n : undefined;
   }
 
-  /** Escribe el estado del listado en la URL (reemplazando, sin apilar historial). */
+  private termFromHistory(): string | null {
+    const value = (globalThis.history?.state as Record<string, unknown> | null)?.[TERM_STATE_KEY];
+    return typeof value === 'string' ? value : null;
+  }
+
+  /** Escribe el estado del listado en la URL (reemplazando, sin apilar historial); el término va en el state. */
   private syncUrl(): void {
-    this.router.navigate([], {
+    const term = this.store.term().trim();
+    // Con la misma URL el router ignora la navegación (y su `state`): se escribe en la entrada actual.
+    const keepTerm = () =>
+      globalThis.history?.replaceState({ ...(globalThis.history.state ?? {}), [TERM_STATE_KEY]: term }, '');
+    void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: {
-        term: this.store.term().trim() || null,
+        term: null,
         status: this.store.status() === 'NotArchived' ? null : this.store.status(),
         kind: this.store.kind() === 'All' ? null : this.store.kind().toLowerCase(),
         sort: this.isCustomSort() ? (this.sortOptionFor(this.store.sort())?.param ?? null) : null,
@@ -220,7 +233,7 @@ export class ClientDirectoryPageComponent {
       },
       queryParamsHandling: 'merge',
       replaceUrl: true,
-    });
+    }).then(keepTerm, keepTerm);
   }
 
   /** Llega ya con debounce (`SEARCH_DEBOUNCE_MS`) desde `app-search-input`. */

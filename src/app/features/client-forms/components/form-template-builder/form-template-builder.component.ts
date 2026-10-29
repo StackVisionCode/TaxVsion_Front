@@ -69,7 +69,9 @@ import {
   withoutStaleRowFields,
   type MappingRemoval,
 } from '../../utils/mapping-mutations';
+import type { CoverageFix } from '../../utils/mapping-coverage';
 import { PreviewPanelComponent } from '../../ui/preview-panel/preview-panel.component';
+import { LibraryUpdateBannerComponent } from '../../ui/library-update-banner/library-update-banner.component';
 import { IssuesPanelComponent } from '../../ui/issues-panel/issues-panel.component';
 import { VersionHistoryDrawerComponent } from '../../ui/version-history-drawer/version-history-drawer.component';
 import { BuilderOutlineComponent } from '../../ui/builder-outline/builder-outline.component';
@@ -77,6 +79,11 @@ import { StructureInspectorComponent } from '../../ui/structure-inspector/struct
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { LaunchOverlayComponent } from '@shared/ui/launch-overlay/launch-overlay.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
+import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
+import { runWithLaunch, type LaunchPhase } from '@shared/utils/launch.util';
 import { SegmentedComponent, type SegmentedOption } from '@shared/ui/segmented/segmented.component';
 import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
 import {
@@ -89,12 +96,17 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
 @Component({
   selector: 'app-form-template-builder',
   imports: [
+    LaunchOverlayComponent,
+    ModalComponent,
+    SkeletonComponent,
+    StatusPillComponent,
     BuilderPaletteComponent,
     BuilderCanvasComponent,
     BuilderOutlineComponent,
     ComponentInspectorComponent,
     StructureInspectorComponent,
     PreviewPanelComponent,
+    LibraryUpdateBannerComponent,
     IssuesPanelComponent,
     VersionHistoryDrawerComponent,
     ConfirmDialogComponent,
@@ -131,13 +143,16 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
               {{ store.template()?.name || 'Form template' }}
             </h1>
             <div class="mt-0.5 flex min-w-0 items-center gap-2 text-xs">
-              <span
-                class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700"
+              <app-status-pill
+                class="shrink-0"
+                [tone]="store.template()?.latestVersionNumber ? 'success' : 'neutral'"
+                [soft]="true"
+                size="xs"
                 >{{
                   store.template()?.latestVersionNumber
                     ? 'Published v' + store.template()!.latestVersionNumber
                     : 'Draft'
-                }}</span
+                }}</app-status-pill
               >
               <span
                 class="flex min-w-0 items-center gap-1 truncate"
@@ -229,6 +244,8 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
         </div>
       </header>
 
+      <app-library-update-banner [origin]="store.template()?.libraryOrigin ?? null" />
+
       @if (store.readOnly()) {
         <div
           class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-900"
@@ -242,8 +259,15 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       }
 
       @if (store.loading()) {
-        <div class="flex flex-1 items-center justify-center text-sm text-gray-500">
-          Loading builder…
+        <!-- Esqueleto con la forma del builder (paleta · lienzo · inspector): nada salta al cargar. -->
+        <div
+          class="grid flex-1 gap-4 p-5 lg:grid-cols-[14rem_minmax(0,1fr)_16rem]"
+          role="status"
+          aria-label="Loading builder"
+        >
+          <app-skeleton class="hidden lg:block" variant="rows" [rows]="9" minHeight="24rem" />
+          <app-skeleton variant="card" [rows]="7" minHeight="24rem" />
+          <app-skeleton class="hidden lg:block" variant="rows" [rows]="6" minHeight="24rem" />
         </div>
       } @else if (store.error()) {
         <div class="m-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -268,7 +292,7 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
             </button>
           </div>
         }
-        <div class="flex flex-1 min-h-0 flex-col">
+        <div class="builder-enter flex flex-1 min-h-0 flex-col">
           <div class="flex flex-1 items-center justify-center p-8 text-center lg:hidden">
             <div>
               <ion-icon name="desktop-outline" class="text-4xl text-brand-bold"></ion-icon>
@@ -435,13 +459,13 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
                         [catalogError]="catalogStore.error()"
                         [modules]="modules()"
                         [autoCustomerCreationEnabled]="capabilities()?.autoCustomerCreationEnabled ?? null"
-                        [signatureStepEnabled]="capabilities()?.signatureStepEnabled ?? null"
                         [disabled]="editingLocked()"
                         [focusActionKey]="coverageFocus()"
                         (actionsChange)="updateActions($event)"
                         (coverageRequested)="showCoverage($event)"
                         (componentSelected)="selectElement($event, true)"
                         (mappingRemoved)="removeMappingEntry($event)"
+                        (fixApplied)="applyCoverageFix($event)"
                         (actionSelected)="openTemplateTab('actions')"
                         (retry)="catalogStore.reload()"
                       />
@@ -481,6 +505,15 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       }
     </section>
 
+    <app-launch-overlay
+      variant="publish"
+      exit="hold"
+      [phase]="launch()"
+      [badge]="'v' + publishingVersion()"
+      [workingCaption]="'Publishing version ' + publishingVersion() + '…'"
+      [doneCaption]="'Version ' + publishingVersion() + ' is live'"
+    />
+
     <app-confirm-dialog
       [isOpen]="publishOpen()"
       [heading]="'Publish version ' + ((store.template()?.latestVersionNumber || 0) + 1)"
@@ -491,7 +524,7 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       (cancelled)="publishOpen.set(false)"
       (confirmed)="publish()"
       ><p class="mt-4 text-sm font-semibold text-gray-900">
-        {{ componentCount() }} components
+        {{ componentCount() }} {{ componentCount() === 1 ? 'component' : 'components' }}
       </p></app-confirm-dialog
     >
 
@@ -573,43 +606,39 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       (confirmed)="answerLeave(true)"
     />
 
-    @if (mappingNotice(); as notice) {
-      <div
-        class="fixed inset-0 z-[82] flex items-center justify-center bg-black/40 p-4"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="builder-mapping-notice-title"
-      >
-        <div class="w-full max-w-md rounded-[1.75rem] bg-white p-6">
-          <h2 id="builder-mapping-notice-title" class="text-lg font-bold text-gray-900">This change needs Configure actions</h2>
-          <p class="mt-2 text-sm text-gray-600" data-testid="builder-mapping-notice">{{ notice }}</p>
-          <button type="button" class="action-secondary mt-5" (click)="mappingNotice.set(null)">Close</button>
-        </div>
+    <!-- Avisos con app-modal: animación, Escape, focus-trap y bloqueo de scroll como el resto. -->
+    <app-modal
+      [isOpen]="mappingNotice() !== null"
+      heading="This change needs Configure actions"
+      size="sm"
+      (closed)="mappingNotice.set(null)"
+    >
+      <p class="mt-3 text-sm text-gray-600" data-testid="builder-mapping-notice">{{ mappingNotice() }}</p>
+      <div class="mt-6 flex justify-end">
+        <button type="button" class="action-secondary" (click)="mappingNotice.set(null)">Got it</button>
       </div>
-    }
+    </app-modal>
 
-    @if (blockedRemoval()) {
-      <div
-        class="fixed inset-0 z-[82] flex items-center justify-center bg-black/40 p-4"
-        role="alertdialog"
-        aria-modal="true"
-      >
-        <div class="w-full max-w-md rounded-[1.75rem] bg-white p-6">
-          <h2 class="text-lg font-bold text-gray-900">This field is used by conditions</h2>
-          <p class="mt-2 text-sm text-gray-600">
-            Remove those conditions before deleting the field.
-          </p>
-          <ul class="mt-4 list-disc pl-5 text-sm text-gray-700">
-            @for (item of blockedRemoval(); track item.ownerId + item.property) {
-              <li>{{ item.ownerLabel }} · {{ item.property }}</li>
-            }
-          </ul>
-          <button type="button" class="action-secondary mt-5" (click)="blockedRemoval.set(null)">
-            Close
-          </button>
-        </div>
+    <app-modal
+      [isOpen]="blockedRemoval() !== null"
+      heading="This field is used by conditions"
+      subheading="Remove those conditions before deleting the field."
+      size="sm"
+      (closed)="blockedRemoval.set(null)"
+    >
+      <ul class="mt-4 space-y-2">
+        @for (item of blockedRemoval() ?? []; track item.ownerId + item.property) {
+          <li class="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <ion-icon name="git-branch-outline" class="shrink-0 text-gray-400"></ion-icon>
+            <span class="font-medium text-gray-900">{{ item.ownerLabel }}</span>
+            <span class="text-gray-400">· {{ item.property }}</span>
+          </li>
+        }
+      </ul>
+      <div class="mt-6 flex justify-end">
+        <button type="button" class="action-secondary" (click)="blockedRemoval.set(null)">Got it</button>
       </div>
-    }
+    </app-modal>
   `,
   styles: [
     `
@@ -643,6 +672,26 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       .action-primary {
         background: #1e466b;
         color: white;
+      }
+      /* Entrada del editor al terminar de cargar (o al llegar desde "New template"). */
+      .builder-enter {
+        animation: builder-in 360ms cubic-bezier(0.2, 0, 0, 1) both;
+      }
+      @keyframes builder-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          /* "none": un transform activo encerraría el panel flotante y los fixed del builder. */
+          transform: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .builder-enter {
+          animation: none;
+        }
       }
       .action-primary:hover {
         background: #132c43;
@@ -768,6 +817,9 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
   private readonly access = inject(AccessStore);
   private readonly toast = inject(ToastService);
   readonly publishOpen = signal(false);
+  readonly launch = signal<LaunchPhase>('idle');
+  // Se fija al iniciar el publish: el detalle se refresca a mitad de la coreografía y cambiaría el número.
+  readonly publishingVersion = signal(1);
   readonly archiveOpen = signal(false);
   readonly blockedRemoval = signal<ReturnType<typeof removeComponent>['blockedBy'] | null>(null);
   readonly conflictChoices = signal<Record<string, BuilderConflictChoice>>({});
@@ -1014,6 +1066,10 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
     if (selected)
       this.store.change((definition) => updateComponent(definition, selected.id, update));
   }
+  // "Limit to 80" desde la cobertura: el mismo arreglo que ofrece el editor de mapeo del campo.
+  applyCoverageFix(fix: CoverageFix): void {
+    this.store.change((definition) => updateComponent(definition, fix.componentId, fix.patch));
+  }
   updateSelectedPage(update: Partial<FormPage>): void {
     const selected = this.selectedPage();
     if (selected) this.store.change((definition) => updatePage(definition, selected.id, update));
@@ -1057,16 +1113,38 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
   }
   async validate(): Promise<void> {
     await this.store.validate();
+    if (this.store.actionError()) return;
+    // Sin issues el panel no se pinta: sin este aviso, "Validate" parecía no hacer nada.
+    const count = this.store.issues().length;
+    if (count === 0) this.toast.success('No issues found. This template is ready to publish.');
+    else this.toast.info(`${count} ${count === 1 ? 'issue' : 'issues'} to fix before publishing.`);
   }
   requestPublish(): void {
     if (this.canPublish() && !this.editingLocked()) this.publishOpen.set(true);
   }
   async publish(): Promise<void> {
-    const version = await this.store.publish();
+    if (this.launch() !== 'idle') return;
+    this.publishingVersion.set((this.store.template()?.latestVersionNumber || 0) + 1);
+    const templateId = this.store.template()?.id;
+    // La confirmación se va al entrar el overlay (se transparentaba detrás). Como al crear: el sello
+    // se queda y se vuelve a la lista, donde la fila publicada destella.
+    this.publishOpen.set(false);
+    const version = await runWithLaunch(this.launch, () => this.store.publish(), {
+      keepOnDone: true,
+    });
     if (version) {
-      this.publishOpen.set(false);
-      this.toast.success(`Version ${version} published`);
+      const navigated = await this.router.navigate(['/client-forms'], {
+        queryParams: { tab: 'templates', published: templateId },
+      });
+      if (!navigated) this.launch.set('idle');
+      return;
     }
+    // Los issues quedan a la vista en el panel y el error general en el banner del builder.
+    const count = this.store.issues().length;
+    if (count > 0)
+      this.toast.error(
+        `Fix ${count} ${count === 1 ? 'issue' : 'issues'} before publishing. They're listed below the canvas.`,
+      );
   }
   async openVersions(): Promise<void> {
     await this.store.loadVersions();

@@ -266,7 +266,7 @@ const DATA_CLASSES = ['general', 'financial', 'personal', 'restricted'] as const
                 component.dataClass === 'personal' || component.dataClass === 'restricted'
               "
               [checked]="component.reportable === true"
-              (checkedChange)="patch({ reportable: $event })"
+              (checkedChange)="reportableChanged($event)"
               >Reportable</app-form-checkbox-control
             >
           }
@@ -759,6 +759,13 @@ export class ComponentInspectorComponent {
       dataClass: value as FormComponent['dataClass'],
       ...(['personal', 'restricted'].includes(value) ? { reportable: false } : {}),
     });
+  }
+  // Reportable exige un key único; si el campo no tiene, se deriva del id (válido y único). El CRM y el
+  // CSV muestran el Label, así que el key no necesita ser legible.
+  reportableChanged(reportable: boolean): void {
+    const component = this.component;
+    const needsKey = reportable && component != null && !component.key;
+    this.patch({ reportable, ...(needsKey ? { key: component!.id } : {}) });
   }
   style(key: keyof FormStyle, value: string): void {
     this.patch({ style: { ...(this.component?.style ?? {}), [key]: value } });

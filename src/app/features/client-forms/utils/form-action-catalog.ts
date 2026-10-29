@@ -24,8 +24,12 @@ export interface FormActionDescriptor {
   mappingOperation: string | null;
   /** Módulo del plan de la oficina del que depende; null si no depende de ninguno. */
   module: string | null;
-  /** `comingSoon`: el backend todavía no la ejecuta (la planifica como Skipped). */
-  availability: 'available' | 'comingSoon';
+  /**
+   * `automatic`: la ejecuta un flujo propio del backend (H4), no este switch; el panel la muestra con
+   * `automatic.pill` y `automatic.note` en vez de configurarla.
+   */
+  availability: 'available' | 'automatic';
+  automatic?: { pill: string; note: string };
   requirements: readonly string[];
   key: string;
 }
@@ -82,7 +86,11 @@ export const FORM_ACTION_CATALOG: readonly FormActionDescriptor[] = [
     implicit: false,
     mappingOperation: 'UpdateCustomerProfile',
     module: 'customers',
-    availability: 'comingSoon',
+    availability: 'automatic',
+    automatic: {
+      pill: 'From the review',
+      note: 'After you complete the request, use “Apply to profile” in the review. Fields mapped to the client profile are offered there.',
+    },
     requirements: ['The request must be sent to an existing client.'],
     key: 'update_profile',
   },
@@ -95,7 +103,11 @@ export const FORM_ACTION_CATALOG: readonly FormActionDescriptor[] = [
     implicit: false,
     mappingOperation: null,
     module: 'documents',
-    availability: 'comingSoon',
+    availability: 'automatic',
+    automatic: {
+      pill: 'Always on',
+      note: 'Saved to the client documents every time you complete a request.',
+    },
     requirements: [],
     key: 'summary',
   },
@@ -108,8 +120,13 @@ export const FORM_ACTION_CATALOG: readonly FormActionDescriptor[] = [
     implicit: false,
     mappingOperation: null,
     module: 'signatures',
-    availability: 'comingSoon',
-    requirements: ['Needs a signature step in the form.', 'Needs a PDF summary first.'],
+    availability: 'automatic',
+    // El panel cambia pill y nota según haya o no un signatureStep en el formulario.
+    automatic: {
+      pill: 'Automatic',
+      note: 'After you complete the request, the client gets the PDF copy to sign.',
+    },
+    requirements: [],
     key: 'sign',
   },
   {
@@ -121,7 +138,11 @@ export const FORM_ACTION_CATALOG: readonly FormActionDescriptor[] = [
     implicit: false,
     mappingOperation: null,
     module: null,
-    availability: 'comingSoon',
+    availability: 'automatic',
+    automatic: {
+      pill: 'Office policy',
+      note: "Completed requests follow your office's retention policy. It isn't set per template.",
+    },
     requirements: [],
     key: 'retention',
   },

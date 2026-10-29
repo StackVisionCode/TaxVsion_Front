@@ -50,4 +50,29 @@ describe('StatCardsComponent', () => {
     const { cards } = create([{ label: 'Total', value: 7, countUp: true }]);
     expect(cards[0].querySelector('.inline-block.text-3xl')).toBeTruthy();
   });
+  it('delta pinta flecha y texto con el color del sentimiento', () => {
+    const { cards } = create([
+      { label: 'Sent', value: 12, delta: { label: '+20% vs prior', direction: 'up', sentiment: 'positive' } },
+      { label: 'Overdue', value: 3, delta: { label: '+1', direction: 'up', sentiment: 'negative' } },
+    ]);
+    const good = cards[0].querySelector('.bg-emerald-50')!;
+    expect(good.textContent).toContain('+20% vs prior');
+    expect((good.querySelector('ion-icon') as unknown as { name: string }).name).toBe('trending-up-outline');
+    expect(cards[1].querySelector('.bg-red-50')).toBeTruthy();
+  });
+
+  it('sin delta o cargando no pinta la pastilla', () => {
+    const { cards } = create(
+      [{ label: 'Sent', value: 12, delta: { label: '+1', direction: 'up', sentiment: 'positive' } }],
+      true,
+    );
+    expect(cards[0].querySelector('.bg-emerald-50')).toBeNull();
+  });
+
+  it('info agrega un botón con nombre accesible y el texto para lectores de pantalla', () => {
+    const { cards } = create([{ label: 'Completion rate', value: '40%', info: 'Completed ÷ sent.' }]);
+    const button = cards[0].querySelector('button')!;
+    expect(button.getAttribute('aria-label')).toBe('About Completion rate');
+    expect(cards[0].querySelector('.sr-only')!.textContent).toContain('Completed ÷ sent.');
+  });
 });

@@ -30,7 +30,8 @@ export const STATUS_TONES: Record<StatusTone, ToneClasses> = {
   },
   warning: {
     chip: 'border-orange-200 text-orange-500',
-    soft: 'border-orange-200 bg-orange-50 text-orange-600',
+    // orange es el acento claro de marca: como texto no llega a 4.5:1, se usa el azul oscuro.
+    soft: 'border-orange-200 bg-orange-50 text-brand-ink',
     dot: 'bg-orange-500',
   },
   danger: {
@@ -50,7 +51,7 @@ export const STATUS_TONES: Record<StatusTone, ToneClasses> = {
   },
   muted: {
     chip: 'border-gray-200 text-gray-400',
-    soft: 'border-gray-200 bg-gray-50 text-gray-400',
+    soft: 'border-gray-200 bg-gray-50 text-gray-500',
     dot: 'bg-gray-300',
   },
   brand: {

@@ -66,6 +66,25 @@ describe('definition mutations', () => {
     expect(engine.validateForDraft(definition).issues).toEqual([]);
   });
 
+  it('stops waiting for the signature when the signature step goes away', () => {
+    let definition = addComponent(emptyDefinition(), 'sc_abcdefghij', 'signatureStep');
+    const signatureId = definition.pages[0].sections[0].components[0].id;
+    definition = {
+      ...definition,
+      actions: [
+        ...(definition.actions ?? []),
+        { key: 'create_client', type: 'createCustomer', trigger: 'onSubmit', config: { waitFor: 'signatureCompleted' } },
+      ],
+    };
+
+    definition = removeComponent(definition, signatureId).definition;
+
+    expect(definition.actions).toEqual([
+      { key: 'create_client', type: 'createCustomer', trigger: 'onSubmit', config: { waitFor: 'none' } },
+    ]);
+    expect(engine.validateForDraft(definition).issues).toEqual([]);
+  });
+
   it('finds earlier fields for an empty later section', () => {
     let definition = addComponent(emptyDefinition(), 'sc_abcdefghij', 'text');
     definition = addSection(definition, 'pg_abcdefghij');

@@ -29,7 +29,11 @@ const DEFAULT_KINDS: readonly TaxIdentifierKind[] = ['ssn', 'itin'];
       >
         <span class="font-mono text-sm text-gray-800">{{ masked }}</span>
         @if (!readonly) {
-          <button type="button" class="text-sm font-semibold text-brand-bold" (click)="replace()">
+          <button
+            type="button"
+            class="min-h-11 rounded-full px-3 text-sm font-semibold text-brand-bold"
+            (click)="replace()"
+          >
             Replace
           </button>
         }
@@ -60,11 +64,16 @@ const DEFAULT_KINDS: readonly TaxIdentifierKind[] = ['ssn', 'itin'];
           [placeholder]="kindLabel(selectedKind) + ' (9 digits)'"
           maxlength="11"
           [readOnly]="readonly"
-          [attr.aria-describedby]="describedBy"
+          [attr.aria-required]="component.required === true || null"
+          [attr.aria-describedby]="formatDescribedBy"
           [attr.aria-invalid]="!!errorMessage"
           (change)="entered.emit({ kind: selectedKind, value: $any($event.target).value })"
         />
       </div>
+      <!-- El formato no puede vivir solo en el placeholder (3.3.2): desaparece al escribir. -->
+      <p [id]="formatHintId" class="text-xs text-gray-600">
+        {{ kindLabel(selectedKind) }}: 9 digits. Dashes are optional.
+      </p>
     }
   </app-dc-field-shell>`,
 })
@@ -87,6 +96,14 @@ export class DcTaxIdFieldComponent extends DcFieldBase<TaxIdValue> {
 
   kindLabel(kind: TaxIdentifierKind): string {
     return kind.toUpperCase();
+  }
+
+  get formatHintId(): string {
+    return `${this.inputId}-format`;
+  }
+
+  get formatDescribedBy(): string {
+    return [this.formatHintId, this.describedBy].filter(Boolean).join(' ');
   }
 
   get masked(): string {
