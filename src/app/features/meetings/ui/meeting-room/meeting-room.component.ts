@@ -2,43 +2,85 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   DestroyRef,
+  ElementRef,
   EventEmitter,
+  Input,
   Output,
   computed,
   effect,
   inject,
   signal,
+  untracked,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { PermissionService } from '@core/auth/permission.service';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '@core/auth/auth.service';
-import { ActiveMeetingService } from '@core/communication/active-meeting.service';
+import { ActiveMeetingService, MeetingHostTileAction } from '@core/communication/active-meeting.service';
 import { SrcObjectDirective } from '@core/communication/src-object.directive';
-import { MeetingActiveSpeakerService } from '@core/communication/meeting-active-speaker.service';
+import { MeetingActiveSpeakerService, SELF_LEVEL_KEY } from '@core/communication/meeting-active-speaker.service';
+import { MeetingPipService } from '@core/communication/meeting-pip.service';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
+import { MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { MeetingParticipantDto } from '@core/communication/meeting.model';
-import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
-import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
-import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
+import { durationWarningLabel } from '@core/communication/meeting-clock.util';
+import { MediaControlsComponent, ScreenShareRequest } from '@core/communication/ui/media-controls/media-controls.component';
+import { DevicePanelComponent } from '@core/communication/ui/device-panel/device-panel.component';
+import { RecordingConsentComponent } from '@core/communication/ui/recording-consent/recording-consent.component';
+import { LobbyJoinOptions, MediaLobbyComponent } from '@core/communication/ui/media-lobby/media-lobby.component';
+import { MeetingParticipantTileComponent, ParticipantTileHostAction } from '@core/communication/ui/participant-tile/participant-tile.component';
+import { MeetingParticipantsPanelComponent } from '@core/communication/ui/participants-panel/participants-panel.component';
+import { ReactionPickerComponent } from '@core/communication/ui/reaction-picker/reaction-picker.component';
+import { computeGalleryLayout } from '@core/communication/ui/participant-tile/gallery-layout.util';
+import { MediaDevicesService } from '@core/communication/media/media-devices.service';
+import { MediaPolicyService } from '@core/communication/media/media-policy.service';
+import type { MeetingReaction } from '@core/communication/meeting-reactions.util';
+
+/** Reunión a la que se va a entrar: la sala muestra el lobby (pre-join) antes de `join()`. */
+export interface MeetingLobbyTarget {
+  meetingId: string;
+  title: string;
+}
+
+/** actorTypes de staff: ven las cifras del badge de calidad (D-39). */
+const STAFF_ACTORS = ['TenantEmployee', 'TenantAdmin', 'PlatformAdmin'] as const;
+/** Galería: a partir de aquí los demás se resumen en "+N" (T-57). */
+const MAX_GALLERY_TILES = 12;
+/** Separación entre tiles de la galería (px, = gap-3). */
+const GALLERY_GAP_PX = 12;
 
 /**
- * Sala de meeting real (mesh ≤4). Reflejo del ActiveMeetingService:
- * joining / sala de espera / no-soportado (SFU) / dentro (tiles de video mesh:
- * local + un peer por participante) / terminado.
+ * Sala de meeting real (mesh ≤4 / SFU). Reflejo del ActiveMeetingService:
+ * lobby (pre-join, `@defer`) / joining / sala de espera / passcode / dentro / terminado.
+ * F4: controles comunes (`app-media-controls`), banner de red, panel Devices y consentimiento común.
+ * F5: tile único (`app-meeting-participant-tile`) en galería, escenario (pantalla o fijado) y filmstrip;
+ * galería por espacio medido (ResizeObserver, 16:9, "+N"); panel Participants (manos) y picker de
+ * reacciones diferidos; burbujas flotantes + `aria-live`; chat como sheet en `< lg`; "More" en `< sm`;
+ * "Pop out" (PiP) cuando el navegador lo soporta.
+ * F6: "Invite" (host/cohost; cabecera, "More" y panel Participants) emite `inviteRequested` — el panel
+ * de invitaciones lo monta la página (la sala no conoce el store). `guestMode` (página pública
+ * `/meet/:token`): sin Invite ni grabación, pantalla solo si la política lo permite a clientes/guests,
+ * pantalla de fin sin "Start a new meeting" y con "Close".
  */
 @Component({
   selector: 'app-meeting-room',
-  imports: [InfinityLoaderComponent, 
+  imports: [
+    InfinityLoaderComponent,
     CommonModule,
     FormsModule,
     SrcObjectDirective,
-    AvatarComponent,
-    AvatarUrlPipe,
-    DropdownMenuComponent,
-    MenuItemDirective,
     ConfirmDialogComponent,
+    TooltipDirective,
+    MenuItemDirective,
+    MediaControlsComponent,
+    DevicePanelComponent,
+    RecordingConsentComponent,
+    MediaLobbyComponent,
+    MeetingParticipantTileComponent,
+    MeetingParticipantsPanelComponent,
+    ReactionPickerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-room.component.html',
@@ -46,10 +88,23 @@ import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-me
 export class MeetingRoomComponent {
   private readonly perms = inject(PermissionService);
   private readonly meeting = inject(ActiveMeetingService);
-  private readonly auth = inject(AuthService);
   private readonly speaker = inject(MeetingActiveSpeakerService);
+  private readonly devices = inject(MediaDevicesService);
+  private readonly mediaPolicy = inject(MediaPolicyService);
+  private readonly pip = inject(MeetingPipService);
 
+  /** Con la fase en 'idle', muestra el lobby para esta reunión; null = sin lobby. */
+  @Input() lobby: MeetingLobbyTarget | null = null;
+  /** F6 — sala de invitado externo (sin JWT): ver cabecera. */
+  @Input() guestMode = false;
   @Output() left = new EventEmitter<void>();
+  /** El lobby terminó (entró o canceló): el padre limpia su `lobby`. */
+  @Output() lobbyClosed = new EventEmitter<void>();
+  /** F6 — el host quiere invitar: la página abre `app-meeting-invite-panel`. */
+  @Output() inviteRequested = new EventEmitter<void>();
+
+  /** Área de video (galería / escenario), medida para la galería por espacio. */
+  private readonly stageArea = viewChild<ElementRef<HTMLElement>>('stageArea');
 
   readonly phase = this.meeting.phase;
   readonly title = this.meeting.meetingTitle;
@@ -58,9 +113,26 @@ export class MeetingRoomComponent {
   readonly waitingParticipants = this.meeting.waitingParticipants;
   readonly isLocked = this.meeting.isLocked;
   readonly isHost = this.meeting.isHost;
+  readonly isPrimaryHost = this.meeting.isPrimaryHost;
   readonly canEndForAll = this.meeting.canEndForAll;
-  /** Remotos hablando ahora (borde verde en su tile). El audio lo reproduce el mini-player global. */
+  /** F3 — reloj "transcurrido / restante", aviso de tiempo y pantalla de fin con motivo. */
+  readonly clockLabel = this.meeting.clockLabel;
+  readonly remainingSeconds = this.meeting.remainingSeconds;
+  readonly durationWarning = this.meeting.durationWarning;
+  readonly durationWarningText = computed(() => {
+    const w = this.durationWarning();
+    return w ? `This meeting ends in ${durationWarningLabel(w.remainingSeconds)}` : null;
+  });
+  readonly endedTitle = this.meeting.endedTitle;
+  /** "Start a new meeting" (D-34): solo host/cohost y solo cuando la reunión terminó de verdad (no si expiró sin arrancar). */
+  readonly canStartContinuation = computed(
+    () => this.meeting.meetingEnded() && this.canEndForAll() && this.meeting.endReason() !== 'Expired',
+  );
+  readonly continuationBusy = signal(false);
+  /** Remotos hablando ahora (anillo en su tile). El audio lo reproduce el mini-player global. */
   readonly speakingIds = this.speaker.speakingIds;
+  readonly selfSpeaking = this.speaker.selfSpeaking;
+  readonly audioSuspended = this.speaker.audioSuspended;
   readonly errorMessage = this.meeting.errorMessage;
   readonly localStream = this.meeting.localStream;
   readonly localScreenStream = this.meeting.localScreenStream;
@@ -74,15 +146,153 @@ export class MeetingRoomComponent {
   readonly recordingElapsedLabel = this.meeting.recordingElapsedLabel;
   readonly recordingConsentFrom = this.meeting.recordingConsentFrom;
   readonly isRecordingRequester = this.meeting.isRecordingRequester;
+  /** F5 — mi fila del roster con mi estado local encima (tile "You"). */
+  readonly self = this.meeting.selfParticipant;
+  readonly nowMs = this.meeting.nowMs;
+  /** F1 — enlace de media (ok / reconnecting / failed) y aviso de "Resume sharing" tras un re-join. */
+  readonly mediaState = this.meeting.mediaState;
+  readonly screenShareInterrupted = this.meeting.screenShareInterrupted;
   private readonly peers = this.meeting.peers;
 
-  /** getDisplayMedia solo existe en escritorio. */
-  readonly canScreenShare = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+  // ---------- F4: calidad, motivo de mute, dispositivos ----------
+  readonly muteReason = this.meeting.muteReason;
+  readonly videoPausedByNetwork = this.meeting.videoPausedByNetwork;
+  readonly connectionQuality = this.meeting.connectionQuality;
+  readonly connectionMetrics = this.meeting.connectionMetrics;
+  readonly hasMicrophone = computed(() => !this.meeting.microphoneError());
+  readonly waitingForPermission = this.devices.waitingForPermission;
+  /** Cifras del badge (RTT/pérdida/jitter) solo para staff (D-39). */
+  readonly showMetrics = computed(() => this.perms.isActor(...STAFF_ACTORS));
+  readonly screenAudioAllowed = computed(() => this.mediaPolicy.policy()?.screenShare.audioAllowed ?? false);
+  /** F6 (D-42) — el guest solo comparte pantalla si la política lo permite a clientes/guests. */
+  readonly canShareScreen = computed(() => !this.guestMode || (this.mediaPolicy.policy()?.screenShare.clientsCanShare ?? false));
+  /** F6 — "Invite" solo para host/cohost con sesión (nunca en la sala de invitado). */
+  readonly canInvite = computed(() => this.isHost() && !this.guestMode);
 
-  /** Grabar: soporte MediaRecorder + permiso communication.meeting.record. */
+  /** F6 — Invite desde la cabecera, "More" o el panel Participants. */
+  requestInvite(): void {
+    this.participantsOpen.set(false);
+    this.inviteRequested.emit();
+  }
+  /** Banner no intrusivo de red: solo audio (D-40) o Poor. */
+  readonly networkBanner = computed(() => {
+    if (this.videoPausedByNetwork()) {
+      return 'Video paused to protect audio';
+    }
+    return this.connectionQuality() === 'Poor' ? 'Your connection is unstable. Video quality reduced' : null;
+  });
+  readonly devicesOpen = signal(false);
+  /** Audio de las pantallas compartidas (para el control de volumen del escenario). */
+  readonly remoteScreenAudio = this.speaker.remoteScreenAudio;
+  readonly activeShareHasAudio = computed(() => {
+    const share = this.activeShare();
+    return !!share && !share.isMine && this.remoteScreenAudio().some(s => s.userId === share.userId);
+  });
+
+  // ---------- F5: manos, reacciones, participantes, PiP ----------
+  readonly raisedHandCount = this.meeting.raisedHandCount;
+  readonly participantsOpen = signal(false);
+  readonly reactionsEnabled = this.meeting.reactionsEnabled;
+  readonly reactionCatalog = computed(() => this.meeting.reactionsPolicy()?.catalog ?? []);
+  readonly reactionPickerOpen = signal(false);
+  /** Reacciones vivas para la capa flotante del escenario. */
+  readonly floatingReactions = this.meeting.reactions;
+  readonly reactionAnnouncement = this.meeting.reactionAnnouncement;
+  readonly pipSupported = this.pip.supported;
+  readonly pipActive = this.pip.active;
+
+  reactionFor(userId: string): MeetingReaction | null {
+    return this.meeting.reactionByUser().get(userId) ?? null;
+  }
+
+  barsOf(userId: string): number {
+    return this.speaker.barsOf(userId);
+  }
+
+  selfBars(): number {
+    return this.speaker.barsOf(SELF_LEVEL_KEY);
+  }
+
+  reactionMs(r: MeetingReaction): string {
+    return `${Math.max(0, r.expiresAtMs - r.shownAtMs)}ms`;
+  }
+
+  toggleReactionPicker(): void {
+    this.reactionPickerOpen.update(open => !open);
+  }
+
+  react(emoji: string): void {
+    void this.meeting.react(emoji);
+  }
+
+  popOut(): void {
+    void this.pip.toggle();
+  }
+
+  /** Reintento del gesto cuando el navegador dejó el AudioContext suspendido. */
+  enableAudio(): void {
+    void this.speaker.primeAudioContext();
+  }
+
+  onTileHostAction(event: ParticipantTileHostAction): void {
+    this.meeting.performHostAction(event.action as MeetingHostTileAction, event.userId);
+  }
+
+  screenAudioVolume(userId: string): number {
+    return this.speaker.screenAudioVolume(userId);
+  }
+
+  setScreenAudioVolume(userId: string, value: string | number): void {
+    this.speaker.setScreenAudioVolume(userId, Number(value));
+  }
+
+  shareScreen(request: ScreenShareRequest): void {
+    void this.meeting.startScreenShare(request.withAudio);
+  }
+
+  stopScreenShare(): void {
+    void this.meeting.stopScreenShare();
+  }
+
+  swapMicrophone(deviceId: string): void {
+    void this.meeting.swapMicrophone(deviceId);
+  }
+
+  swapCamera(deviceId: string): void {
+    void this.meeting.swapCamera(deviceId);
+  }
+
+  /** El lobby decidió: entrar con sus opciones (mic/cámara). El clic es el gesto que desbloquea el AudioContext. */
+  joinFromLobby(options: LobbyJoinOptions): void {
+    const target = this.lobby;
+    if (!target) {
+      return;
+    }
+    void this.speaker.primeAudioContext();
+    void this.meeting.join(target.meetingId, target.title, options);
+    this.lobbyClosed.emit();
+  }
+
+  cancelLobby(): void {
+    this.lobbyClosed.emit();
+    this.left.emit();
+  }
+
+  retryMedia(): void {
+    void this.meeting.retryMedia();
+  }
+  resumeSharing(): void {
+    void this.meeting.resumeSharing();
+  }
+  dismissResumeSharing(): void {
+    this.meeting.dismissResumeSharing();
+  }
+
+  /** Grabar: soporte MediaRecorder + permiso communication.meeting.record (nunca el guest, F6). */
   readonly canRecord = computed(
     () =>
       typeof MediaRecorder !== 'undefined' &&
+      !this.guestMode &&
       (this.perms.has('communication.meeting.record')),
   );
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
@@ -117,9 +327,13 @@ export class MeetingRoomComponent {
 
   // ---------- Chat del meeting ----------
   readonly chatOpen = signal(false);
-  readonly chatUnread = signal(0);
+  /** No leídos: los cuenta el service (también los ve el mini-player). */
+  readonly chatUnread = this.meeting.chatUnread;
   readonly chatDraft = signal('');
-  private prevChatLen = 0;
+
+  // ---------- Galería por espacio (T-57) ----------
+  private readonly stageSize = signal({ width: 0, height: 0 });
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
     // Con la sala montada se oculta el mini-player global; al salir de /meetings (sin dejar el meeting)
@@ -128,21 +342,15 @@ export class MeetingRoomComponent {
     inject(DestroyRef).onDestroy(() => {
       this.meeting.roomViewAttached.set(false);
       this.meeting.chatPanelOpen.set(false); // sala desmontada (mini-player): ya no hay chat a la vista
+      this.resizeObserver?.disconnect();
     });
     // El service decide el sonido del mensaje entrante según si el chat está abierto.
     effect(() => this.meeting.chatPanelOpen.set(this.chatOpen()));
 
-    // Badge de no-leídos: cuenta mensajes ajenos nuevos mientras el panel está cerrado.
+    // Área de video medida → filas × columnas de la galería.
     effect(() => {
-      const msgs = this.chatMessages();
-      const added = msgs.slice(this.prevChatLen);
-      this.prevChatLen = msgs.length;
-      if (!this.chatOpen()) {
-        const fromOthers = added.filter(m => !m.isMine).length;
-        if (fromOthers) {
-          this.chatUnread.update(u => u + fromOthers);
-        }
-      }
+      const el = this.stageArea()?.nativeElement;
+      untracked(() => this.observeStage(el ?? null));
     });
 
     // Driver de spotlight → capas de simulcast (solo SFU): el destacado pide capa alta (spatial 2), los
@@ -160,7 +368,7 @@ export class MeetingRoomComponent {
         const want = spot === null || p.userId === spot ? 2 : 0;
         const prev = this.lastLayerByUser.has(p.userId) ? this.lastLayerByUser.get(p.userId)! : 2;
         if (prev !== want) {
-          this.meeting.setPeerPreferredLayers(p.userId, want, want === 2 ? 2 : 1);
+          this.meeting.setPeerPreferredLayers(p.userId, 'camera', want, want === 2 ? 2 : 1);
         }
         this.lastLayerByUser.set(p.userId, want);
       }
@@ -172,11 +380,44 @@ export class MeetingRoomComponent {
     });
   }
 
+  private observeStage(el: HTMLElement | null): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    this.resizeObserver = new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect;
+      if (rect) {
+        this.stageSize.set({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+      }
+    });
+    this.resizeObserver.observe(el);
+  }
+
+  /** Galería: yo + remotos, con el layout medido. */
+  readonly galleryParticipants = computed<MeetingParticipantDto[]>(() => [this.self(), ...this.remoteParticipants()]);
+  readonly galleryLayout = computed(() => {
+    const { width, height } = this.stageSize();
+    return computeGalleryLayout(this.galleryParticipants().length, width, height, { gap: GALLERY_GAP_PX, maxTiles: MAX_GALLERY_TILES });
+  });
+  readonly visibleGallery = computed(() => this.galleryParticipants().slice(0, this.galleryLayout().visible));
+  readonly galleryOverflow = computed(() => this.galleryLayout().overflow);
+  /** Sin medida todavía (o sin ResizeObserver): columnas por conteo, como antes. */
+  readonly galleryColsClass = computed(() => {
+    const n = this.galleryParticipants().length;
+    if (n <= 1) return 'grid-cols-1';
+    if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
+    if (n <= 4) return 'grid-cols-2';
+    if (n <= 6) return 'grid-cols-2 sm:grid-cols-3';
+    return 'grid-cols-2 sm:grid-cols-4';
+  });
+
   toggleChat(): void {
     const open = !this.chatOpen();
     this.chatOpen.set(open);
     if (open) {
-      this.chatUnread.set(0);
+      this.meeting.markChatRead();
     }
   }
 
@@ -189,22 +430,19 @@ export class MeetingRoomComponent {
     this.chatDraft.set('');
   }
 
-  /** Stream de CÁMARA de un peer (para su tile). */
+  /** Stream de CÁMARA de un participante (la mía para `self`). */
   cameraStreamFor(userId: string): MediaStream | null {
+    if (userId === this.myUserId()) {
+      return this.localStream();
+    }
     return this.peers().get(userId)?.cameraStream ?? null;
   }
 
-  readonly myUserId = this.meeting.myUserId;
+  isSelf(p: MeetingParticipantDto): boolean {
+    return p.userId === this.myUserId();
+  }
 
-  /** Columnas de la galería (sin nadie compartiendo) calculadas por conteo — bien distribuidas. */
-  readonly galleryColsClass = computed(() => {
-    const n = 1 + this.remoteParticipants().length; // yo + remotos
-    if (n <= 1) return 'grid-cols-1';
-    if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
-    if (n <= 4) return 'grid-cols-2';
-    if (n <= 6) return 'grid-cols-2 sm:grid-cols-3';
-    return 'grid-cols-2 sm:grid-cols-4';
-  });
+  readonly myUserId = this.meeting.myUserId;
 
   /** Todas las pantallas que se están compartiendo (remotos + la mía), para el escenario y el selector. */
   readonly screenShares = computed<{ userId: string; displayName: string; isMine: boolean; stream: MediaStream | null }[]>(() => {
@@ -231,6 +469,19 @@ export class MeetingRoomComponent {
     return shares.find(s => s.userId === this.selectedShareUserId()) ?? shares[shares.length - 1];
   });
 
+  /** Participante fijado (spotlight) presente; null si se fue o no hay. */
+  readonly spotlightParticipant = computed(() => {
+    const id = this.spotlightUserId();
+    return id ? (this.galleryParticipants().find(p => p.userId === id) ?? null) : null;
+  });
+  /** Escenario: alguien comparte o hay un fijado. */
+  readonly stageMode = computed(() => this.isSharing() || !!this.spotlightParticipant());
+  /** Filmstrip del escenario: todos menos el fijado (si el principal es una pantalla, todos). */
+  readonly filmstrip = computed(() => {
+    const pinned = this.isSharing() ? null : this.spotlightParticipant();
+    return this.galleryParticipants().filter(p => p.userId !== pinned?.userId);
+  });
+
   selectShare(userId: string): void {
     this.selectedShareUserId.set(userId);
   }
@@ -242,23 +493,11 @@ export class MeetingRoomComponent {
   deny(userId: string): void {
     this.meeting.deny(userId);
   }
-  remove(userId: string): void {
-    this.meeting.removeParticipant(userId);
-  }
   toggleLock(): void {
     this.meeting.toggleLock();
   }
   muteAll(): void {
     this.meeting.muteAll();
-  }
-  makeHost(userId: string): void {
-    this.meeting.transferHost(userId);
-  }
-  promote(userId: string): void {
-    this.meeting.promoteCohost(userId);
-  }
-  demote(userId: string): void {
-    this.meeting.demoteCohost(userId);
   }
 
   leave(): void {
@@ -266,7 +505,26 @@ export class MeetingRoomComponent {
     this.left.emit();
   }
 
-  // ---------- Terminar para todos (solo host principal) ----------
+  /** Pantalla de fin: vuelve a la lista sin avisar `meeting.leave` (ya no hay sala). */
+  backToMeetings(): void {
+    this.meeting.closeEnded();
+    this.left.emit();
+  }
+
+  /** Pantalla de fin (host/cohost): crea la continuación, la inicia y entra. */
+  async startNewMeeting(): Promise<void> {
+    if (this.continuationBusy()) {
+      return;
+    }
+    this.continuationBusy.set(true);
+    try {
+      await this.meeting.startContinuation();
+    } finally {
+      this.continuationBusy.set(false);
+    }
+  }
+
+  // ---------- Terminar para todos (host y cohost, D-07) ----------
   readonly endConfirmOpen = signal(false);
   readonly endBusy = signal(false);
 
@@ -284,7 +542,7 @@ export class MeetingRoomComponent {
   }
 
   isSpeaking(userId: string): boolean {
-    return this.speakingIds().has(userId);
+    return userId === this.myUserId() ? this.selfSpeaking() : this.speakingIds().has(userId);
   }
 
   toggleAudio(): void {
@@ -294,14 +552,7 @@ export class MeetingRoomComponent {
     this.meeting.toggleVideo();
   }
   toggleHand(): void {
-    this.meeting.toggleHandRaise();
-  }
-  toggleScreenShare(): void {
-    if (this.screenSharing()) {
-      void this.meeting.stopScreenShare();
-    } else {
-      void this.meeting.startScreenShare();
-    }
+    void this.meeting.toggleHandRaise();
   }
 
   toggleRecording(): void {
@@ -316,9 +567,5 @@ export class MeetingRoomComponent {
   }
   declineRecording(): void {
     this.meeting.respondRecordingConsent(false);
-  }
-
-  roleLabel(p: MeetingParticipantDto): string | null {
-    return p.role === 'Host' ? 'Host' : p.role === 'Cohost' ? 'Co-host' : null;
   }
 }

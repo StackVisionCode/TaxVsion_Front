@@ -26,6 +26,8 @@
           <span *ngIf="meeting.durationMinutes !== null" class="flex items-center gap-1">
             <ion-icon name="time-outline" class="text-sm"></ion-icon>
             {{ formatDuration(meeting.durationMinutes) }}
+            <!-- F3: motivo corto del fin ("Time limit") -->
+            <span *ngIf="meeting.endReasonLabel" class="text-gray-400">· {{ meeting.endReasonLabel }}</span>
           </span>
           <span *ngIf="meeting.joinedCount > 0" class="flex items-center gap-1">
             <ion-icon name="people-outline" class="text-sm"></ion-icon>

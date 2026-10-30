@@ -70,6 +70,16 @@ export const routes: Routes = [
     title: 'Confirm email',
   },
   {
+    // F6 (D-47) — invitado EXTERNO de una reunión: llega por el enlace del correo
+    // (`https://<oficina>.taxoffix.io/meet/<token>`), sin cuenta ni JWT. Fuera del shell/authGuard;
+    // el token del enlace es la única credencial (404 uniforme si no vale). Chunk propio, sin precarga.
+    path: 'meet/:token',
+    data: { preload: false },
+    loadComponent: () =>
+      import('./features/guest-meeting/guest-meeting-page.component').then(m => m.GuestMeetingPageComponent),
+    title: 'Join meeting',
+  },
+  {
     // Página pública de firma: el cliente llega por enlace, sin sesión (fuera del authGuard).
     path: 'sign/:token',
     data: { preload: false },

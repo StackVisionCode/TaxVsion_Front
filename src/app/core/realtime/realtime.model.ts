@@ -27,3 +27,54 @@ export interface UserProfileChangedEvent {
 }
 
 export const USER_PROFILE_CHANGED_EVENT = 'user.profile.changed';
+
+/**
+ * `session.expiring` (F3, INV-09): el servidor cierra el socket al `exp` del JWT y avisa ~60 s antes.
+ * El cliente renueva el access token y manda `auth.refresh` con el nuevo; si falla, acepta el corte.
+ */
+export interface SessionExpiringEvent {
+  expiresAtUtc: string;
+  secondsLeft: number;
+}
+
+export const SESSION_EXPIRING_EVENT = 'session.expiring';
+
+/** Ack de `auth.refresh`. */
+export interface AuthRefreshResult {
+  expiresAtUtc: string;
+}
+
+/**
+ * F4 — `settings.changed`: cambió la configuración de Communication (plataforma u oficina). El front
+ * refresca la política de media (`GET /communication/media-policy`) si la versión difiere.
+ */
+export interface SettingsChangedEvent {
+  scope: 'platform' | 'tenant' | 'user' | string;
+  version: number;
+}
+
+export const SETTINGS_CHANGED_EVENT = 'settings.changed';
+
+/**
+ * F6 — `meeting.invited` (room de usuario): me invitaron a una reunión. Con `status === 'Live'` el
+ * CRM muestra "X invited you to a meeting in progress" con "Join"; en cualquier caso refresca la agenda.
+ */
+export interface MeetingInvitedEvent {
+  meetingId: string;
+  title: string;
+  status: 'Scheduled' | 'Live';
+  invitedByUserId: string;
+  invitedByDisplayName: string;
+}
+
+export const MEETING_INVITED_EVENT = 'meeting.invited';
+
+/** F6 (T-64) — `meeting.reminder` (room de usuario): la reunión agendada empieza en `minutesBefore` minutos. */
+export interface MeetingReminderEvent {
+  meetingId: string;
+  title: string;
+  scheduledForUtc: string;
+  minutesBefore: number;
+}
+
+export const MEETING_REMINDER_EVENT = 'meeting.reminder';

@@ -1,0 +1,139 @@
+<!-- Audio remoto de la reunión: aquí no hay shell ni mini-player, así que lo reproduce la página. -->
+<app-meeting-remote-audio />
+
+@if (state() === 'room') {
+  <!-- Sala en modo guest a pantalla completa (sala de espera / dentro / fin los pinta ella). -->
+  <main class="min-h-screen bg-gray-50 p-3 sm:p-6" data-state="room">
+    <app-meeting-room [guestMode]="true" (left)="onLeft()" />
+  </main>
+} @else {
+  <main class="flex min-h-screen w-full items-center justify-center bg-gray-50 px-4 py-10" [attr.data-state]="state()">
+    <div class="w-full rounded-3xl bg-white p-7 shadow-xl ring-1 ring-gray-100 sm:p-9" [class.max-w-md]="state() !== 'lobby'" [class.max-w-4xl]="state() === 'lobby'">
+      <!-- Marca de la oficina (cascada al sistema) -->
+      <div class="mb-7 flex items-center justify-center">
+        <app-brand-logo logoClass="h-10 max-w-[11.875rem] object-contain" fallbackClass="text-brand-bold text-3xl font-bold leading-none" />
+      </div>
+
+      @switch (state()) {
+        @case ('loading') {
+          <div class="flex flex-col items-center gap-3 py-8 text-gray-400">
+            <app-infinity-loader size="md" />
+            <p class="text-sm">Opening your invitation…</p>
+          </div>
+        }
+
+        @case ('invalid') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+              <ion-icon name="link-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">This invitation link is not valid</h1>
+            <p class="text-sm text-gray-500">It may have expired or been revoked. Ask the person who invited you for a new link.</p>
+          </div>
+        }
+
+        @case ('guests-off') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <ion-icon name="ban-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">This office doesn't allow external guests</h1>
+            <p class="text-sm text-gray-500">Ask the person who invited you to join another way.</p>
+          </div>
+        }
+
+        @case ('ended') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+              <ion-icon name="videocam-off-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">This meeting has ended</h1>
+            <p class="text-sm text-gray-500">{{ meetingTitle() }}</p>
+          </div>
+        }
+
+        @case ('name') {
+          <form (ngSubmit)="continueToLobby()" class="flex flex-col gap-4">
+            <div class="text-center">
+              <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">You're invited to</p>
+              <h1 class="mt-1 text-lg font-bold text-gray-900">{{ meetingTitle() }}</h1>
+              @if (meetingMeta(); as meta) {
+                <p class="mt-1 text-sm text-gray-500">{{ meta }}</p>
+              }
+              @if (isLive()) {
+                <p class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> In progress
+                </p>
+              }
+            </div>
+            <label class="flex flex-col gap-1.5">
+              <span class="text-xs font-semibold text-gray-700">Your name</span>
+              <input type="text" name="displayName" [ngModel]="displayName()" (ngModelChange)="displayName.set($event)" [maxlength]="maxNameLength"
+                placeholder="How should we show you?" autocomplete="name" required data-role="name-input"
+                class="h-11 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+            </label>
+            @if (context()?.waitingRoom) {
+              <p class="text-xs text-gray-400">The host will let you in from the waiting room.</p>
+            }
+            <button type="submit" [disabled]="!canContinue()" data-role="continue"
+              class="flex items-center justify-center gap-1.5 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+              <ion-icon name="videocam-outline" class="text-base"></ion-icon> Continue
+            </button>
+          </form>
+        }
+
+        @case ('lobby') {
+          <!-- Lobby común (F4): política primada del contexto, sin guardar preferencias (no hay JWT) -->
+          <div class="flex min-h-[28rem] flex-col">
+            <app-media-lobby [meetingTitle]="meetingTitle()" [savePreferences]="false" (join)="joinFromLobby($event)" (cancel)="backToName()" />
+          </div>
+        }
+
+        @case ('connecting') {
+          <div class="flex flex-col items-center gap-3 py-8 text-gray-400">
+            <app-infinity-loader size="md" />
+            <p class="text-sm">Joining {{ meetingTitle() }}…</p>
+          </div>
+        }
+
+        @case ('left') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+              <ion-icon name="log-out-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">You left the meeting</h1>
+            <p class="text-sm text-gray-500">{{ meetingTitle() }}</p>
+            <button type="button" (click)="rejoin()" data-role="rejoin"
+              class="mt-2 flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+              <ion-icon name="refresh-outline" class="text-base"></ion-icon> Rejoin
+            </button>
+          </div>
+        }
+
+        @case ('revoked') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+              <ion-icon name="close-circle-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">Your invitation was revoked</h1>
+            <p class="text-sm text-gray-500">The host removed your access to this meeting.</p>
+          </div>
+        }
+
+        @case ('failed') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
+              <ion-icon name="alert-circle-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">Couldn't join the meeting</h1>
+            <p class="text-sm text-gray-500" data-role="failure">{{ failure() }}</p>
+            <button type="button" (click)="retry()" data-role="retry"
+              class="mt-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+              Try again
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </main>
+}

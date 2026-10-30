@@ -6,7 +6,13 @@
 
 export type CallKind = 'Audio' | 'Video';
 
-export type CallConnectionQuality = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Disconnected';
+import type { ConnectionQuality } from './media/media-policy.model';
+
+/** Alias del dominio compartido (F4): mismos 5 niveles que las reuniones. */
+export type CallConnectionQuality = ConnectionQuality;
+
+/** F4 — por qué terminó la llamada; `MaxDurationReached` = tope de minutos de la oficina. */
+export type CallEndReason = 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | 'MaxDurationReached';
 
 export type CallStatus =
   | 'Ringing'
@@ -45,7 +51,7 @@ export interface IncomingCallDto {
 export interface CallStateDto {
   callId: string;
   status: CallStatus;
-  endReason: 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | null;
+  endReason: CallEndReason | null;
   durationSeconds: number | null;
   updatedAtUtc: string;
 }
@@ -74,6 +80,39 @@ export interface CallMediaStatusDto {
   audioEnabled: boolean;
   videoEnabled: boolean;
   screenSharing: boolean;
+}
+
+/** F4 — `call.peer_quality_changed`: la calidad del PAR (además de persistirla). */
+export interface CallPeerQualityChangedDto {
+  callId: string;
+  peerUserId: string;
+  quality: ConnectionQuality;
+}
+
+/** F4 — `call.duration.warning`: queda poco del tope de minutos de la oficina. */
+export interface CallDurationWarningDto {
+  callId: string;
+  remainingSeconds: number;
+  endsAtUtc: string;
+}
+
+/**
+ * F4 — copy legible para los acks de `call.initiate` (`Calls.Disabled`, `Calls.VideoDisabled`,
+ * `Call.LimitReached` con `message` "concurrent"/"monthly"). Null = no es un código conocido.
+ */
+export function callInitiateErrorMessage(code: string | null | undefined, message?: string | null): string | null {
+  switch (code) {
+    case 'Calls.Disabled':
+      return 'Calls are disabled for this office.';
+    case 'Calls.VideoDisabled':
+      return 'Video calls are disabled for this office. Start an audio call instead.';
+    case 'Call.LimitReached':
+      return /monthly/i.test(message ?? '')
+        ? 'This office has used its monthly call minutes.'
+        : 'This office has reached its limit of calls in progress. Try again in a few minutes.';
+    default:
+      return null;
+  }
 }
 
 export interface CallUpgradedToVideoDto {

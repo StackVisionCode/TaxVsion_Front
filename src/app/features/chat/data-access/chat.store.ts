@@ -16,7 +16,7 @@ import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
-import { MeetingSoundsService } from '@core/communication/meeting-sounds.service';
+import { SoundsService } from '@core/communication/media/sounds.service';
 import {
   ChatParticipant,
   ConversationSummary,
@@ -91,7 +91,7 @@ export class ChatStore {
   private readonly attachments = inject(ChatAttachmentsService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly toast = inject(ToastService);
-  private readonly sounds = inject(MeetingSoundsService);
+  private readonly sounds = inject(SoundsService);
 
   private readonly _conversations = signal<ChatConversation[]>([]);
   private readonly _loading = signal(false);

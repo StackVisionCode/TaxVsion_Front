@@ -76,6 +76,8 @@ export class MeetingListComponent {
         return 'Ended';
       case 'cancelled':
         return 'Cancelled';
+      case 'expired':
+        return 'Expired';
     }
   }
 
@@ -87,6 +89,8 @@ export class MeetingListComponent {
         return 'success';
       case 'cancelled':
         return 'danger';
+      case 'expired':
+        return 'muted';
       default:
         return 'neutral';
     }

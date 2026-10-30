@@ -38,3 +38,30 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* F5 — Communication: burbujas de reacción (tile + escenario) y anillo del hablante. Terminan en
+   `transform: none` (regla R8) y se apagan con prefers-reduced-motion. */
+@keyframes tv-reaction-pop {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  80% { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+  99% { opacity: 0; transform: translate(-50%, -90%) scale(0.9); }
+  100% { opacity: 0; transform: none; }
+}
+.tv-reaction-pop { animation: tv-reaction-pop var(--tv-reaction-ms, 4000ms) ease-out forwards; }
+@keyframes tv-reaction-float {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  10% { opacity: 1; transform: translateY(-1rem) scale(1); }
+  99% { opacity: 0; transform: translateY(-10rem) scale(1.1); }
+  100% { opacity: 0; transform: none; }
+}
+.tv-reaction-float { animation: tv-reaction-float var(--tv-reaction-ms, 4000ms) ease-out forwards; }
+@keyframes tv-speaking-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(52 211 153 / 0.45); }
+  50% { box-shadow: 0 0 0 6px rgb(52 211 153 / 0); }
+}
+.tv-speaking-ring { animation: tv-speaking-ring 1.4s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tv-reaction-pop, .tv-reaction-float { animation: none; opacity: 1; }
+  .tv-speaking-ring { animation: none; }
+}

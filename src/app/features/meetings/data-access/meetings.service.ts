@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
+  ContinueMeetingResponse,
   CreateMeetingInvitationsResponse,
   CreateMeetingRequest,
   CreateMeetingResponse,
@@ -12,6 +13,7 @@ import {
   MeetingCustomerEntry,
   MeetingEmployeeEntry,
   MeetingInviteeInput,
+  MeetingLimits,
   MeetingsPageResponse,
   MeetingsScope,
   MeetingStatsResponse,
@@ -59,6 +61,11 @@ export class MeetingsService {
     return this.http.get<MeetingStatsResponse>(`${this.base}/meetings/stats`);
   }
 
+  /** GET /communication/meetings/limits — duración por defecto/máxima y cupo efectivos de la oficina (F3). */
+  limits(): Observable<MeetingLimits> {
+    return this.http.get<MeetingLimits>(`${this.base}/meetings/limits`);
+  }
+
   /** POST /communication/meetings — requiere permiso `communication.meeting.create`. */
   create(req: CreateMeetingRequest): Observable<CreateMeetingResponse> {
     return this.http.post<CreateMeetingResponse>(`${this.base}/meetings`, req);
@@ -72,6 +79,15 @@ export class MeetingsService {
   /** POST /communication/meetings/{id}/end — termina el meeting para todos. */
   end(id: string): Observable<EndMeetingResponse> {
     return this.http.post<EndMeetingResponse>(`${this.base}/meetings/${id}/end`, {});
+  }
+
+  /**
+   * F3 — POST /communication/meetings/{id}/continue: "Start a new meeting" tras un fin por tiempo (D-34,
+   * sin prórroga). Host/cohost de una terminada + `communication.meeting.create`; crea "X (cont.)" con los
+   * mismos invitados. Después se inicia con `start` y se entra con el join normal.
+   */
+  continueMeeting(id: string): Observable<ContinueMeetingResponse> {
+    return this.http.post<ContinueMeetingResponse>(`${this.base}/meetings/${id}/continue`, {});
   }
 
   /** POST /communication/meetings/{id}/cancel — host-only, solo desde Scheduled. 204. */

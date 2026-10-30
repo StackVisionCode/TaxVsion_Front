@@ -50,9 +50,15 @@
   </ng-container>
 
   <ng-template #roomView>
-    <app-meeting-room></app-meeting-room>
+    <app-meeting-room [lobby]="pendingJoin()" (lobbyClosed)="pendingJoin.set(null)" (inviteRequested)="openInvitePanel()"></app-meeting-room>
   </ng-template>
 </div>
+
+<!-- F6: invitar desde la sala (host/cohost); el drawer se porta al body -->
+@defer (when inviteOpen()) {
+  <app-meeting-invite-panel [isOpen]="inviteOpen()" [meetingId]="activeMeetingId()" [shortCode]="activeShortCode()"
+    (closed)="inviteOpen.set(false)" />
+}
 
 <!-- Agendar (create + invitaciones) / gestionar (re-agendar + invitaciones) -->
 <app-meeting-schedule-panel [isOpen]="isPanelOpen()" [meeting]="managingMeeting()" [busy]="panelBusy()"

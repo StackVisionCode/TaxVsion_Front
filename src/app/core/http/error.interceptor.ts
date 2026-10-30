@@ -10,6 +10,7 @@ import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { readThrottle } from '@core/errors/throttling';
 import { isModuleUnavailable, missingModule, toApiError } from '@core/models/api-error.model';
 import { READ_ONLY_REQUEST } from './read-only-request';
+import { ANONYMOUS_REQUEST } from './anonymous-request';
 
 /**
  * Endpoints anónimos: un 401 aquí es un fallo legítimo, no dispara refresh. Los de token por correo (reset,
@@ -78,7 +79,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       );
     }
 
-    const isAnonAuthEndpoint = ANON_AUTH_ENDPOINTS.some(path => request.url.includes(path));
+    // Pública (p. ej. invitado sin sesión en /meet/:token): un 401 es un fallo legítimo, nunca refresh ni login.
+    const isAnonAuthEndpoint =
+      request.context.get(ANONYMOUS_REQUEST) || ANON_AUTH_ENDPOINTS.some(path => request.url.includes(path));
     const is401 = err instanceof HttpErrorResponse && err.status === 401;
     if (!is401 || isAnonAuthEndpoint || !tokenService.getRefreshToken()) {
       return throwError(() => err);

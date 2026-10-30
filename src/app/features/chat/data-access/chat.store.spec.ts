@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { SoundsService } from '@core/communication/media/sounds.service';
 import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
@@ -40,6 +41,7 @@ describe('ChatStore — búsqueda de directorio', () => {
         { provide: ChatAttachmentsService, useValue: {} },
         { provide: CloudStorageUploadService, useValue: {} },
         { provide: ToastService, useValue: {} },
+        { provide: SoundsService, useValue: { play: vi.fn() } },
       ],
     });
     store = TestBed.inject(ChatStore);
@@ -151,6 +153,7 @@ describe('ChatStore — fotos de los participantes', () => {
         { provide: ChatAttachmentsService, useValue: {} },
         { provide: CloudStorageUploadService, useValue: {} },
         { provide: ToastService, useValue: { error: vi.fn() } },
+        { provide: SoundsService, useValue: { play: vi.fn() } },
       ],
     });
     store = TestBed.inject(ChatStore);
