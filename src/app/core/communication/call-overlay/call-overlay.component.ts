@@ -12,6 +12,8 @@ import { MediaControlsComponent, ScreenShareRequest } from '../ui/media-controls
 import { QualityBadgeComponent } from '../ui/quality-badge/quality-badge.component';
 import { DevicePanelComponent } from '../ui/device-panel/device-panel.component';
 import { RecordingConsentComponent } from '../ui/recording-consent/recording-consent.component';
+import { RecordingBadgeComponent } from '../ui/recording-badge/recording-badge.component';
+import { isRecordingBusy } from '../recording-status';
 import { MediaDevicesService } from '../media/media-devices.service';
 import { MediaPolicyService } from '../media/media-policy.service';
 import { durationWarningLabel } from '../meeting-clock.util';
@@ -41,6 +43,7 @@ const STAFF_ACTORS = ['TenantEmployee', 'TenantAdmin', 'PlatformAdmin'] as const
     QualityBadgeComponent,
     DevicePanelComponent,
     RecordingConsentComponent,
+    RecordingBadgeComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './call-overlay.component.html',
@@ -77,6 +80,8 @@ export class CallOverlayComponent implements OnDestroy {
   readonly peerVideoActive = computed(() => this.peerCameraOn() || this.peerScreenSharing());
   readonly recordingState = this.call.recordingState;
   readonly recordingElapsedLabel = this.call.recordingElapsedLabel;
+  /** F7 — restante hasta el tope de la grabación; null sin tope. */
+  readonly recordingRemainingLabel = this.call.recordingRemainingLabel;
   readonly recordingConsentFrom = this.call.recordingConsentFrom;
   readonly isRecordingRequester = this.call.isRecordingRequester;
   readonly connectionQuality = this.call.connectionQuality;
@@ -104,7 +109,7 @@ export class CallOverlayComponent implements OnDestroy {
   /** Grabar: requiere soporte de MediaRecorder + permiso communication.call.record. */
   readonly canRecord = computed(() => typeof MediaRecorder !== 'undefined' && this.perms.has('communication.call.record'));
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
-  readonly isRecordingBusy = computed(() => ['Requesting', 'Stopping', 'Processing'].includes(this.recordingState()));
+  readonly isRecordingBusy = computed(() => isRecordingBusy(this.recordingState()));
   readonly showRecordButton = computed(() => this.isActive() && this.canRecord() && this.recordingState() === 'Idle');
 
   readonly visible = computed(() => this.phase() !== 'idle');

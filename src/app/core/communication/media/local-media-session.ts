@@ -3,6 +3,9 @@ import { MediaAccessError } from './media-errors';
 import type { MediaDevicesService } from './media-devices.service';
 import { MediaPolicyDto } from './media-policy.model';
 
+/** Abrir el dispositivo preferido (entrar, encender): si no arranca, el servicio prueba los demás. */
+const PREFERRED_DEVICE = { fallbackWhenUnreadable: true } as const;
+
 /** Fuente de una pista local que el orquestador tiene que volver a aplicar (replaceTrack) en cada pc/producer. */
 export type LocalTrackSource = 'microphone' | 'camera' | 'screen' | 'screen-audio';
 /** Por qué está restringido el audio/video (C-11: un solo estado de UI con motivo). */
@@ -104,6 +107,7 @@ export class LocalMediaSession {
         stream = await this.devices.getUserMedia(
           { audio: opts.audio ? this.audioConstraints() : false, video: opts.video ? this.cameraConstraints() : false },
           opts.video ? 'camera' : 'microphone',
+          PREFERRED_DEVICE,
         );
       } catch (err) {
         if (opts.video) {
@@ -113,7 +117,7 @@ export class LocalMediaSession {
         }
         if (opts.audio && opts.video) {
           try {
-            stream = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone');
+            stream = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone', PREFERRED_DEVICE);
           } catch (err2) {
             result.audioError = err2 as MediaAccessError;
           }
@@ -226,10 +230,12 @@ export class LocalMediaSession {
     try {
       captured = await this.devices.getUserMedia({ audio: this.audioConstraints(deviceId), video: false }, 'microphone');
     } catch {
+      this.keepCurrentDevice('microphone');
       return false;
     }
     const track = captured.getAudioTracks()[0] ?? null;
     if (!track) {
+      this.keepCurrentDevice('microphone');
       return false;
     }
     this.devices.setPreferred('audioInputId', deviceId);
@@ -260,7 +266,7 @@ export class LocalMediaSession {
     }
     let captured: MediaStream;
     try {
-      captured = await this.devices.getUserMedia({ audio: false, video: this.cameraConstraints() }, 'camera');
+      captured = await this.devices.getUserMedia({ audio: false, video: this.cameraConstraints() }, 'camera', PREFERRED_DEVICE);
     } catch {
       this.videoEnabled.set(false);
       return false;
@@ -287,26 +293,38 @@ export class LocalMediaSession {
 
   /** Cambia la cámara en caliente (si está apagada, solo queda como preferida). */
   async swapCamera(deviceId: string): Promise<boolean> {
-    this.devices.setPreferred('videoInputId', deviceId);
     if (!this.videoEnabled()) {
+      this.devices.setPreferred('videoInputId', deviceId);
       return true;
     }
     let captured: MediaStream;
     try {
       captured = await this.devices.getUserMedia({ audio: false, video: this.cameraConstraints(deviceId) }, 'camera');
     } catch {
+      this.keepCurrentDevice('camera');
       return false;
     }
     const track = captured.getVideoTracks()[0] ?? null;
     if (!track) {
+      this.keepCurrentDevice('camera');
       return false;
     }
+    this.devices.setPreferred('videoInputId', deviceId);
     const previous = this.cameraTrack;
     this.adoptCameraTrack(track);
     this.swapStreamTrack(previous, track);
     this.stopTrack(previous);
     await this.handlers.onLocalTrackReplaced('camera', track);
     return true;
+  }
+
+  /** El dispositivo elegido no se pudo abrir: el selector vuelve al que sigue en uso (el panel ya había guardado el nuevo). */
+  private keepCurrentDevice(kind: 'microphone' | 'camera'): void {
+    if (kind === 'microphone') {
+      this.devices.setPreferred('audioInputId', this.devices.activeMicrophoneId());
+    } else {
+      this.devices.setPreferred('videoInputId', this.devices.activeCameraId());
+    }
   }
 
   /** Reajusta resolución/fps de la cámara viva (p. ej. mesh con ≥ 3 peers → `meshCamera`), sin re-adquirir. */
@@ -548,7 +566,7 @@ export class LocalMediaSession {
   private async reacquireMicrophone(): Promise<void> {
     let captured: MediaStream;
     try {
-      captured = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone');
+      captured = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone', PREFERRED_DEVICE);
     } catch {
       return;
     }

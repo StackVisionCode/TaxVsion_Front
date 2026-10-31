@@ -6,7 +6,10 @@ import { CommunicationRealtimeService } from '@core/realtime/communication-realt
 import { SocketAck, USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import { ConnectionQuality } from './media/media-policy.model';
 import { QualityMetrics } from './media/derive-quality';
+import type { types as MsTypes } from 'mediasoup-client';
 import {
+  CallCaptureRequestedDto,
+  CallCaptureStoppedDto,
   CallDurationWarningDto,
   CallKind,
   CallMediaStatusDto,
@@ -14,7 +17,9 @@ import {
   CallPeerDto,
   CallRecordingConsentRecordedDto,
   CallRecordingConsentRequestedDto,
+  CallRecordingLimitWarningDto,
   CallRecordingStateChangedDto,
+  CallSfuTransportParams,
   CallSignalDto,
   CallStateDto,
   CallTranscriptReadyDto,
@@ -38,6 +43,9 @@ export class CallsService {
   private get base(): string {
     return this.api.tenantUrl('/communication');
   }
+
+  /** F7 — desfase servidor−cliente (ms) para el reloj de la grabación. */
+  readonly serverOffsetMs = this.realtime.serverOffsetMs;
 
   getIceServers(ttlSeconds = 300): Observable<IceResponse> {
     const params = new HttpParams().set('ttl', ttlSeconds);
@@ -141,6 +149,27 @@ export class CallsService {
     return this.emitOrThrow('call.recording.attach', { clientKey: this.realtime.newClientKey(), callId, fileId });
   }
 
+  // ---------- F7 (D-56): captura de la grabación vía SFU (solo envío; la llamada sigue mesh) ----------
+
+  /** Transport de envío contra el router `call:{callId}`. */
+  sfuCreateTransport(callId: string): Promise<CallSfuTransportParams> {
+    return this.emitOrThrow('call.sfu.create_transport', { callId });
+  }
+
+  sfuConnectTransport(callId: string, transportId: string, dtlsParameters: MsTypes.DtlsParameters): Promise<unknown> {
+    return this.emitOrThrow('call.sfu.connect_transport', { callId, transportId, dtlsParameters });
+  }
+
+  sfuProduce(
+    callId: string,
+    transportId: string,
+    kind: MsTypes.MediaKind,
+    rtpParameters: MsTypes.RtpParameters,
+    source: 'camera' | 'screen' = 'camera',
+  ): Promise<{ producerId: string }> {
+    return this.emitOrThrow('call.sfu.produce', { callId, transportId, kind, rtpParameters, source });
+  }
+
   // ---------- Eventos ----------
 
   onIncoming(): Observable<IncomingCallDto> {
@@ -184,6 +213,18 @@ export class CallsService {
   }
   onTranscriptReady(): Observable<CallTranscriptReadyDto> {
     return this.realtime.on<CallTranscriptReadyDto>('call.transcript_ready');
+  }
+  /** F7 — aviso de tope de la grabación; al llegar al tope el servidor la para (la llamada sigue). */
+  onRecordingLimitWarning(): Observable<CallRecordingLimitWarningDto> {
+    return this.realtime.on<CallRecordingLimitWarningDto>('call.recording.limit_warning');
+  }
+  /** F7 (D-56) — el servidor pide publicar mi media al SFU de grabación. */
+  onCaptureRequested(): Observable<CallCaptureRequestedDto> {
+    return this.realtime.on<CallCaptureRequestedDto>('call.recording.capture_requested');
+  }
+  /** F7 (D-56) — fin de la captura: cerrar el transport. */
+  onCaptureStopped(): Observable<CallCaptureStoppedDto> {
+    return this.realtime.on<CallCaptureStoppedDto>('call.recording.capture_stopped');
   }
 
   /** emitAck no lanza (devuelve SocketAck); acá convertimos el fallo en excepción para el try/catch del state machine. */

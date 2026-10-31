@@ -45,8 +45,11 @@ describe('invitationState (F6, D-48)', () => {
   });
 
   it('etiqueta visible: nombre > email > userId > Guest', () => {
-    expect(invitationLabel({ inviteeName: 'Ana', inviteeEmail: 'a@x', inviteeUserId: 'u' })).toBe('Ana');
-    expect(invitationLabel({ inviteeName: null, inviteeEmail: 'a@x', inviteeUserId: 'u' })).toBe('a@x');
-    expect(invitationLabel({ inviteeName: null, inviteeEmail: null, inviteeUserId: null })).toBe('Guest');
+    expect(invitationLabel({ inviteeName: 'Ana', inviteeEmail: 'a@x', inviteeKind: 'Employee' })).toBe('Ana');
+    expect(invitationLabel({ inviteeName: null, inviteeEmail: 'a@x', inviteeKind: 'External' })).toBe('a@x');
+    expect(invitationLabel({ inviteeName: null, inviteeEmail: null, inviteeKind: 'External' })).toBe('Guest');
+    // Sin nombre resuelto nunca se muestra el userId (GUID).
+    expect(invitationLabel({ inviteeName: null, inviteeEmail: null, inviteeKind: 'Employee' })).toBe('Team member');
+    expect(invitationLabel({ inviteeName: null, inviteeEmail: null, inviteeKind: 'Customer' })).toBe('Client');
   });
 });

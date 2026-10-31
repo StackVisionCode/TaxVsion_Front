@@ -29,6 +29,8 @@ import { durationWarningLabel } from '@core/communication/meeting-clock.util';
 import { MediaControlsComponent, ScreenShareRequest } from '@core/communication/ui/media-controls/media-controls.component';
 import { DevicePanelComponent } from '@core/communication/ui/device-panel/device-panel.component';
 import { RecordingConsentComponent } from '@core/communication/ui/recording-consent/recording-consent.component';
+import { RecordingBadgeComponent } from '@core/communication/ui/recording-badge/recording-badge.component';
+import { isRecordingBusy } from '@core/communication/recording-status';
 import { LobbyJoinOptions, MediaLobbyComponent } from '@core/communication/ui/media-lobby/media-lobby.component';
 import { MeetingParticipantTileComponent, ParticipantTileHostAction } from '@core/communication/ui/participant-tile/participant-tile.component';
 import { MeetingParticipantsPanelComponent } from '@core/communication/ui/participants-panel/participants-panel.component';
@@ -77,6 +79,7 @@ const GALLERY_GAP_PX = 12;
     MediaControlsComponent,
     DevicePanelComponent,
     RecordingConsentComponent,
+    RecordingBadgeComponent,
     MediaLobbyComponent,
     MeetingParticipantTileComponent,
     MeetingParticipantsPanelComponent,
@@ -144,6 +147,8 @@ export class MeetingRoomComponent {
   readonly chatMessages = this.meeting.chatMessages;
   readonly recordingState = this.meeting.recordingState;
   readonly recordingElapsedLabel = this.meeting.recordingElapsedLabel;
+  /** F7 — restante hasta el tope de la grabación; null sin tope. */
+  readonly recordingRemainingLabel = this.meeting.recordingRemainingLabel;
   readonly recordingConsentFrom = this.meeting.recordingConsentFrom;
   readonly isRecordingRequester = this.meeting.isRecordingRequester;
   /** F5 — mi fila del roster con mi estado local encima (tile "You"). */
@@ -296,7 +301,7 @@ export class MeetingRoomComponent {
       (this.perms.has('communication.meeting.record')),
   );
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
-  readonly isRecordingBusy = computed(() => ['Requesting', 'Stopping', 'Processing'].includes(this.recordingState()));
+  readonly isRecordingBusy = computed(() => isRecordingBusy(this.recordingState()));
   readonly showRecordButton = computed(
     () => this.phase() === 'joined' && this.canRecord() && this.recordingState() === 'Idle',
   );

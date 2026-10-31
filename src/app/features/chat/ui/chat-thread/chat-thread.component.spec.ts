@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { ChatMessage, ChatThreadComponent } from './chat-thread.component';
 
 function msg(id: string, senderId: 'me' | 'them', extra: Partial<ChatMessage> = {}): ChatMessage {
@@ -121,5 +123,104 @@ describe('ChatThreadComponent — avatar del remitente', () => {
     const thread = fixture.componentInstance;
     expect(thread.isContinuation(1)).toBe(false);
     expect(thread.isContinuation(2)).toBe(true);
+  });
+});
+
+describe('ChatThreadComponent — F7: transcript de notas de voz, enlace al transcript y salto desde la búsqueda', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [{ provide: CloudStorageUploadService, useValue: {} }] });
+  });
+  afterEach(() => TestBed.resetTestingModule());
+
+  const voice = (
+    id: string,
+    senderId: 'me' | 'them',
+    transcriptState: 'NotRequested' | 'Processing' | 'Ready' | 'Failed' | 'Skipped' | null,
+    transcriptText: string | null = null,
+  ) =>
+    msg(id, senderId, { text: undefined, voiceNote: { fileId: `f-${id}`, durationMs: 4000, waveform: [], transcriptState, transcriptText } });
+
+  function render(messages: ChatMessage[]) {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'c1');
+    fixture.componentRef.setInput('messages', messages);
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('Processing → "Transcribing…", Failed → "Transcript unavailable", Skipped → nada, Ready → el texto', () => {
+    const { el } = render([
+      voice('1', 'them', 'Processing'),
+      voice('2', 'me', 'Failed'),
+      voice('3', 'them', 'Skipped'),
+      voice('4', 'them', 'Ready', 'Please send me the W-2 form.'),
+    ]);
+    expect(el.querySelectorAll('[data-role="voice-transcript-processing"]')).toHaveLength(1);
+    expect(el.querySelector('[data-role="voice-transcript-processing"]')?.textContent).toContain('Transcribing…');
+    expect(el.querySelector('[data-role="voice-transcript-failed"]')?.textContent).toContain('Transcript unavailable');
+    const ready = el.querySelectorAll('[data-role="voice-transcript"]');
+    expect(ready).toHaveLength(1);
+    expect(ready[0].textContent).toContain('Please send me the W-2 form.');
+    // Corto: sin "Show more".
+    expect(el.querySelector('[data-role="voice-transcript-toggle"]')).toBeNull();
+  });
+
+  it('a demanda: NotRequested muestra "Transcribe" y Failed "Try again"; ambos piden el transcript de ese mensaje', () => {
+    const { fixture, el } = render([voice('1', 'them', 'NotRequested'), voice('2', 'me', 'Failed'), voice('3', 'them', 'Skipped')]);
+    const requested: string[] = [];
+    fixture.componentInstance.voiceTranscriptRequested.subscribe(id => requested.push(id));
+
+    const buttons = el.querySelectorAll('[data-role="voice-transcript-request"]');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toContain('Transcribe');
+    (buttons[0] as HTMLButtonElement).click();
+    (el.querySelector('[data-role="voice-transcript-retry"]') as HTMLButtonElement).click();
+
+    expect(requested).toEqual(['1', '2']);
+  });
+
+  it('un transcript largo se colapsa a 3 líneas con "Show more" / "Show less"', () => {
+    const long = 'word '.repeat(80).trim();
+    const { fixture, el } = render([voice('1', 'them', 'Ready', long)]);
+    const text = () => el.querySelector('[data-role="voice-transcript"] p') as HTMLElement;
+    const toggle = () => el.querySelector('[data-role="voice-transcript-toggle"]') as HTMLButtonElement;
+    expect(text().classList).toContain('line-clamp-3');
+    expect(toggle().textContent).toContain('Show more');
+
+    toggle().click();
+    fixture.detectChanges();
+    expect(text().classList).not.toContain('line-clamp-3');
+    expect(toggle().textContent).toContain('Show less');
+  });
+
+  it('un mensaje del sistema con archivo ofrece "View transcript"', () => {
+    const { fixture, el } = render([msg('s1', 'them', { isSystem: true, text: 'Call transcript is ready', systemAttachmentFileId: 'f-txt' })]);
+    const requested: string[] = [];
+    fixture.componentInstance.transcriptRequested.subscribe(id => requested.push(id));
+    (el.querySelector('[data-role="view-transcript"]') as HTMLButtonElement).click();
+    expect(requested).toEqual(['f-txt']);
+  });
+
+  it('scrollToMessage salta y resalta un mensaje cargado; false si no está en el hilo', () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, el } = render([msg('1', 'them'), msg('2', 'them')]);
+      const target = el.querySelector('[data-message-id="1"]') as HTMLElement;
+      const scrollIntoView = vi.fn();
+      target.scrollIntoView = scrollIntoView;
+
+      expect(fixture.componentInstance.scrollToMessage('1')).toBe(true);
+      expect(scrollIntoView).toHaveBeenCalled();
+      fixture.detectChanges();
+      expect(target.classList).toContain('bg-amber-50');
+
+      vi.advanceTimersByTime(3000);
+      fixture.detectChanges();
+      expect(target.classList).not.toContain('bg-amber-50');
+
+      expect(fixture.componentInstance.scrollToMessage('nope')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

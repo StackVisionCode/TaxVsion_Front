@@ -17,6 +17,7 @@ import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upl
 import { HttpClient } from '@angular/common/http';
 import { MeetingJoinAck, MeetingSnapshotDto } from './meeting.model';
 import { SessionTeardownRegistry } from '@core/auth/session-teardown';
+import { ClientRecordingSession, RecordingUploadService } from './media/client-recording-session';
 
 /** Snapshot mesh con un solo participante (yo) → sin peers WebRTC (evita RTCPeerConnection en jsdom). */
 function soloSnapshot(overrides: Partial<MeetingSnapshotDto> = {}): MeetingSnapshotDto {
@@ -73,6 +74,7 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     onRecordingConsentRequested: noop,
     onRecordingConsentRecorded: noop,
     onRecordingStateChanged: noop,
+    onRecordingLimitWarning: noop, // F7
     onTranscriptReady: noop,
     onParticipantDenied: noop,
     onCancelled: noop,
@@ -664,10 +666,10 @@ describe('ActiveMeetingService (F5 — reacciones D-50 y hablante T-69)', () => 
 });
 
 describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
-  it('entra como guest:{invitationId} con el ICE del ack, sin pedir ICE por HTTP ni historial de chat', async () => {
+  it('entra como guest (userId = invitationId) con el ICE del ack, sin pedir ICE por HTTP ni historial de chat', async () => {
     const youRemoved = new Subject<unknown>();
     const snapshot = soloSnapshot({ hostUserId: 'host', conversationId: 'c1' });
-    snapshot.participants = [{ ...snapshot.participants[0], userId: 'guest:inv-1', role: 'Attendee', actorType: 'Guest' }];
+    snapshot.participants = [{ ...snapshot.participants[0], userId: 'inv-1', displayName: 'Externo Uno', role: 'Attendee', actorType: 'Guest' }];
     snapshot.yourRole = 'Attendee';
     const rtc = {
       ...fakeRtc({ requiresAdmission: false, snapshot, iceServers: { iceServers: [{ urls: 'turn:turn.example' }], expiresAtUtc: 'x' } }),
@@ -683,11 +685,12 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
 
     expect(service.phase()).toBe('joined');
     expect(service.isGuest()).toBe(true);
-    expect(service.myUserId()).toBe('guest:inv-1');
+    expect(service.myUserId()).toBe('inv-1');
     expect(service.isHost()).toBe(false);
     expect(rtc.join).toHaveBeenCalledWith('m1', { guestInvitationId: 'inv-1' });
     expect(iceSpy).not.toHaveBeenCalled(); // sin JWT: el ICE viene en el ack
     expect(httpGet).not.toHaveBeenCalled(); // sin historial de chat autenticado
+    expect(service.selfParticipant().displayName).toBe('Externo Uno');
 
     // El host revocó la invitación: salida local con el motivo disponible para la página pública.
     youRemoved.next({ meetingId: 'm1', reason: 'Revoked' });
@@ -695,6 +698,8 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
     expect(service.removedReason()).toBe('Revoked');
     expect(service.isGuest()).toBe(false);
     expect(rtc.leave).not.toHaveBeenCalled();
+    // Mi tile sigue con el nombre del guest, no con la sesión de staff que pueda haber en el navegador.
+    expect(service.selfParticipant().displayName).toBe('Externo Uno');
   });
 
   it('el guest respeta la sala de espera forzada por la oficina', async () => {
@@ -702,6 +707,113 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
     const { service } = configureWith(rtc);
     await service.joinAsGuest('m1', 'Consulta', 'inv-2');
     expect(service.phase()).toBe('waiting');
-    expect(service.myUserId()).toBe('guest:inv-2');
+    expect(service.myUserId()).toBe('inv-2');
+  });
+});
+
+describe('ActiveMeetingService (F7 — grabación en servidor, límites y errores)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function withRecording() {
+    const consent = new Subject<unknown>();
+    const state = new Subject<unknown>();
+    const limit = new Subject<unknown>();
+    const rtc = {
+      ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot() }),
+      leave: vi.fn().mockResolvedValue(undefined),
+      requestRecording: vi.fn().mockResolvedValue({}),
+      respondRecordingConsent: vi.fn().mockResolvedValue({}),
+      stopRecording: vi.fn().mockResolvedValue({}),
+      onRecordingConsentRequested: () => consent,
+      onRecordingStateChanged: () => state,
+      onRecordingLimitWarning: () => limit,
+    };
+    return { rtc, consent, state, limit };
+  }
+
+  it('Server: el navegador no mezcla ni sube; REC cuenta contra el servidor con restante; avisos de límite y Processing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-30T12:00:00Z'));
+    const start = vi.spyOn(ClientRecordingSession.prototype, 'start').mockResolvedValue(true);
+    const upload = vi.spyOn(RecordingUploadService.prototype, 'uploadAndAttach').mockResolvedValue(undefined);
+    const ev = withRecording();
+    const { service, toast } = configureWith(ev.rtc);
+    await service.join('m1', 'Consulta');
+
+    ev.consent.next({ meetingId: 'm1', requestedByUserId: 'me', requestedAtUtc: '' });
+    expect(service.isRecordingRequester()).toBe(true);
+    ev.state.next({
+      meetingId: 'm1',
+      state: 'Recording',
+      updatedAtUtc: '',
+      captureMode: 'Server',
+      startedAtUtc: '2026-10-30T11:59:00Z',
+      maxDurationSeconds: 3600,
+    });
+
+    expect(start).not.toHaveBeenCalled();
+    expect(service.recordingCaptureMode()).toBe('Server');
+    expect(service.recordingElapsedLabel()).toBe('1:00');
+    expect(service.recordingRemainingLabel()).toBe('59:00');
+    vi.advanceTimersByTime(5_000);
+    expect(service.recordingElapsedLabel()).toBe('1:05');
+
+    ev.limit.next({ meetingId: 'm1', remainingSeconds: 300, stopsAtUtc: '2026-10-30T12:59:00Z' });
+    expect(toast.info).toHaveBeenCalledWith('Recording stops in 5 min.');
+
+    ev.state.next({ meetingId: 'm1', state: 'Stopping', updatedAtUtc: '', captureMode: 'Server', reason: 'LimitReached' });
+    expect(toast.info).toHaveBeenCalledWith('Recording stopped (time limit reached).');
+    expect(service.recordingRemainingLabel()).toBeNull();
+
+    ev.state.next({ meetingId: 'm1', state: 'Composing', updatedAtUtc: '', captureMode: 'Server' });
+    expect(service.recordingProcessing()).toBe(true);
+
+    await service.leave();
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('el stop manual es silencioso y un Failed muestra el copy de su código', async () => {
+    const ev = withRecording();
+    const { service, toast } = configureWith(ev.rtc);
+    await service.join('m1', 'Consulta');
+
+    ev.state.next({ meetingId: 'm1', state: 'Stopping', updatedAtUtc: '', captureMode: 'Server', reason: 'User' });
+    expect(toast.info).not.toHaveBeenCalled();
+
+    ev.state.next({ meetingId: 'm1', state: 'Failed', updatedAtUtc: '', captureMode: 'Server', reason: 'RecorderUnavailable' });
+    expect(toast.error).toHaveBeenCalledWith('The recording service is unavailable. Try again later.');
+  });
+
+  it('Client (fallback) o sin captureMode: el que pidió grabar mezcla en el navegador', async () => {
+    const start = vi.spyOn(ClientRecordingSession.prototype, 'start').mockResolvedValue(true);
+    const ev = withRecording();
+    const { service } = configureWith(ev.rtc);
+    await service.join('m1', 'Consulta');
+
+    ev.consent.next({ meetingId: 'm1', requestedByUserId: 'me', requestedAtUtc: '' });
+    ev.state.next({ meetingId: 'm1', state: 'Recording', updatedAtUtc: '' });
+    expect(start).toHaveBeenCalledTimes(1);
+
+    ev.state.next({ meetingId: 'm1', state: 'Idle', updatedAtUtc: '' });
+    ev.consent.next({ meetingId: 'm1', requestedByUserId: 'me', requestedAtUtc: '' });
+    ev.state.next({ meetingId: 'm1', state: 'Recording', updatedAtUtc: '', captureMode: 'Client' });
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it('los errores de meeting.recording.start_request llegan con copy legible', async () => {
+    const ev = withRecording();
+    const { service, toast } = configureWith(ev.rtc);
+    await service.join('m1', 'Consulta');
+
+    ev.rtc.requestRecording.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'Meeting.RecordingRequiresSfu' }));
+    service.requestRecording();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("This meeting can't be recorded. Start a new meeting to record."));
+
+    ev.rtc.requestRecording.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'Plan.RecordingDisabled' }));
+    service.requestRecording();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Recording isn't included in your plan."));
   });
 });

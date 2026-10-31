@@ -22,14 +22,20 @@
       </div>
 
       <!-- Evento del sistema (p.ej. "Missed call", "Call ended 2:34"): centrado, con icono de teléfono. -->
-      <div *ngIf="message.isSystem" class="my-1 flex justify-center">
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500">
+      <div *ngIf="message.isSystem" class="my-1 flex justify-center" [attr.data-message-id]="message.id">
+        <span class="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500 transition-shadow"
+          [class.ring-2]="highlightedId() === message.id" [class.ring-amber-300]="highlightedId() === message.id">
           <ion-icon name="call-outline" class="text-xs"></ion-icon>{{ message.text }}
+          <!-- F7: transcript de la llamada (archivo adjunto al mensaje del sistema) -->
+          <button *ngIf="message.systemAttachmentFileId" type="button" data-role="view-transcript"
+            (click)="transcriptRequested.emit(message.systemAttachmentFileId)"
+            class="font-semibold text-indigo-600 hover:underline">View transcript</button>
         </span>
       </div>
 
       <!-- Mensajes seguidos del mismo autor se agrupan: menos aire entre ellos y el avatar no se repite. -->
-      <div *ngIf="!message.isSystem" class="group flex" [class.justify-end]="message.senderId === 'me'"
+      <div *ngIf="!message.isSystem" class="group flex rounded-2xl transition-colors" [class.justify-end]="message.senderId === 'me'"
+        [attr.data-message-id]="message.id" [class.bg-amber-50]="highlightedId() === message.id"
         [ngClass]="{ '-mt-1.5': isContinuation(i) }">
         <!-- Their message -->
         <div *ngIf="message.senderId === 'them'" class="flex max-w-[85%] items-end gap-2 sm:max-w-lg">
@@ -56,6 +62,7 @@
             <div *ngIf="message.voiceNote" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5">
               <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
                 [waveform]="message.voiceNote.waveform" [mine]="false"></app-voice-note-player>
+              <ng-container *ngTemplateOutlet="voiceTranscript; context: { $implicit: message, mine: false }"></ng-container>
             </div>
             <p class="mt-1 text-xs text-gray-400">
               {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
@@ -117,6 +124,7 @@
               <div *ngIf="message.voiceNote" class="inline-block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2.5 text-left">
                 <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
                   [waveform]="message.voiceNote.waveform" [mine]="true"></app-voice-note-player>
+                <ng-container *ngTemplateOutlet="voiceTranscript; context: { $implicit: message, mine: true }"></ng-container>
               </div>
               <p class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-400">
                 <span>{{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span></span>
@@ -169,6 +177,36 @@
     <div #scrollAnchor></div>
   </div>
 </div>
+
+<!-- F7 (D-27): transcript bajo el reproductor de la nota de voz, a demanda. NotRequested → "Transcribe",
+     Processing → "Transcribing…", Ready → texto (3 líneas + "Show more"), Failed → aviso + "Try again",
+     Skipped/sin estado → nada. -->
+<ng-template #voiceTranscript let-message let-mine="mine">
+  <ng-container *ngIf="message.voiceNote?.transcriptState as state">
+    <button *ngIf="state === 'NotRequested'" type="button" data-role="voice-transcript-request"
+      (click)="voiceTranscriptRequested.emit(message.id)"
+      class="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+      [ngClass]="mine ? 'text-white' : 'text-indigo-600'">
+      <ion-icon name="document-text-outline" aria-hidden="true"></ion-icon> Transcribe
+    </button>
+    <p *ngIf="state === 'Processing'" data-role="voice-transcript-processing"
+      class="mt-1.5 text-xs italic" [ngClass]="mine ? 'text-white/70' : 'text-gray-400'">Transcribing…</p>
+    <p *ngIf="state === 'Failed'" data-role="voice-transcript-failed"
+      class="mt-1.5 text-xs italic" [ngClass]="mine ? 'text-white/70' : 'text-gray-400'">Transcript unavailable
+      <button type="button" data-role="voice-transcript-retry" (click)="voiceTranscriptRequested.emit(message.id)"
+        class="ml-1 font-semibold not-italic hover:underline" [ngClass]="mine ? 'text-white' : 'text-indigo-600'">Try again</button>
+    </p>
+    <div *ngIf="state === 'Ready' && message.voiceNote.transcriptText" class="mt-1.5 max-w-xs" data-role="voice-transcript">
+      <p class="whitespace-pre-line text-xs leading-relaxed" [ngClass]="mine ? 'text-white/90' : 'text-gray-600'"
+        [class.line-clamp-3]="!isTranscriptExpanded(message.id)">{{ message.voiceNote.transcriptText }}</p>
+      <button *ngIf="isLongTranscript(message.voiceNote.transcriptText)" type="button" (click)="toggleTranscript(message.id)"
+        data-role="voice-transcript-toggle" [attr.aria-expanded]="isTranscriptExpanded(message.id)"
+        class="mt-0.5 text-xs font-semibold hover:underline" [ngClass]="mine ? 'text-white' : 'text-indigo-600'">
+        {{ isTranscriptExpanded(message.id) ? 'Show less' : 'Show more' }}
+      </button>
+    </div>
+  </ng-container>
+</ng-template>
 
 <!-- Llegaron mensajes mientras se leía más arriba: se avisa en vez de mover la vista. -->
 <button *ngIf="unseenCount() > 0" type="button" (click)="jumpToLatest()"

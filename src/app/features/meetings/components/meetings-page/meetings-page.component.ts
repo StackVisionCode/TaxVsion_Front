@@ -22,6 +22,7 @@ import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
 import { MeetingListComponent } from '../../ui/meeting-list/meeting-list.component';
 import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/meeting-schedule-panel.component';
 import { MeetingInvitePanelComponent } from '../../ui/meeting-invite-panel/meeting-invite-panel.component';
+import { MeetingDetailsPanelComponent } from '../../ui/meeting-details-panel/meeting-details-panel.component';
 import { MeetingLobbyTarget, MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
 import { ActiveCallService } from '@core/communication/active-call.service';
@@ -29,6 +30,7 @@ import { MeetingSessionState } from '@core/communication/meeting-session-state';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import { MeetingFormValue, MeetingInviteeDraft, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { RecordingViewerComponent } from '@core/communication/ui/recording-viewer/recording-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /**
@@ -58,12 +60,14 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
     MeetingListComponent,
     MeetingSchedulePanelComponent,
     MeetingInvitePanelComponent,
+    MeetingDetailsPanelComponent,
     MeetingRoomComponent,
     FilterChipsComponent,
     SearchInputComponent,
     StateBlockComponent,
     LoadMoreComponent,
     FileViewerComponent,
+    RecordingViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
@@ -115,7 +119,7 @@ export class MeetingsPageComponent implements OnInit {
     if (meeting) {
       untracked(() => {
         this.activeTab.set(upcoming ? 'upcoming' : 'past');
-        this.openManagePanel(meeting);
+        this.openFromLink(meeting);
         this.pendingMeetingId.set(null);
       });
       return;
@@ -196,7 +200,7 @@ export class MeetingsPageComponent implements OnInit {
         if (meeting.apiStatus === 'Live') {
           this.joinMeeting(meeting);
         } else {
-          this.openManagePanel(meeting);
+          if (meeting.isHost) this.openManagePanel(meeting);
           this.toast.info("This meeting hasn't started yet.");
         }
       });
@@ -317,6 +321,27 @@ export class MeetingsPageComponent implements OnInit {
     this.isPanelOpen.set(true);
   }
 
+  /** Ficha de una reunión que ya se hizo (fila de Past o enlace de una notificación). */
+  readonly detailsMeeting = signal<MeetingItem | null>(null);
+
+  openDetails(meeting: MeetingItem): void {
+    this.detailsMeeting.set(meeting);
+  }
+
+  /**
+   * Enlace `?meetingId=` (notificaciones de invitación y de grabación): si ya empezó o terminó se abre
+   * su ficha; si está agendada, "Manage" solo para el host (los demás no pueden re-agendar).
+   */
+  private openFromLink(meeting: MeetingItem): void {
+    if (meeting.startedAt) {
+      this.openDetails(meeting);
+    } else if (meeting.isHost && meeting.status === 'upcoming') {
+      this.openManagePanel(meeting);
+    } else {
+      this.toast.info("This meeting hasn't started yet.");
+    }
+  }
+
   openManagePanel(meeting: MeetingItem): void {
     this.managingMeeting.set(meeting);
     this.panelError.set(null);
@@ -410,6 +435,13 @@ export class MeetingsPageComponent implements OnInit {
     void this.clipboard.copy(meeting.shortCode).then(copied =>
       copied ? this.toast.success(`Code ${meeting.shortCode} copied`) : this.toast.error('Could not copy the code'),
     );
+  }
+
+  /** F7 — reunión cuya grabación se está viendo (null = cerrado). */
+  readonly recordingTarget = signal<MeetingItem | null>(null);
+
+  viewRecording(meeting: MeetingItem): void {
+    this.recordingTarget.set(meeting);
   }
 
   /** Visor global del transcript (antes se abría en otra pestaña). */

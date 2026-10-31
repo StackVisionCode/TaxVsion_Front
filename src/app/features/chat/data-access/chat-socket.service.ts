@@ -9,6 +9,7 @@ import {
   MessageDeletedDto,
   MessageDto,
   MessageEditedDto,
+  MessageTranscriptUpdatedDto,
   PresenceChangedDto,
   ReadReceiptDto,
   SocketAck,
@@ -66,6 +67,8 @@ export class ChatSocketService {
   readonly recordingStopped$ = this.realtime.on<TypingDto>('chat.recording.stopped');
   readonly presenceChanged$ = this.realtime.on<PresenceChangedDto>('chat.presence.changed');
   readonly attachmentFlagged$ = this.realtime.on<AttachmentFlaggedDto>('chat.message.attachment_flagged');
+  /** F7 — cambió el transcript de una nota de voz (Processing → Ready/Failed/Skipped). */
+  readonly messageTranscriptUpdated$ = this.realtime.on<MessageTranscriptUpdatedDto>('chat.message.transcript_updated');
   /**
    * Emite el sessionId (sid) de la sesión revocada; el consumidor lo compara con el suyo.
    * El evento va a la sala del usuario (todos sus sockets), así que el consumidor debe

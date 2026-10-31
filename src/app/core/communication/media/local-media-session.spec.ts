@@ -97,6 +97,7 @@ describe('LocalMediaSession', () => {
         video: { width: { ideal: 640, max: 640 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 24, max: 24 } },
       },
       'camera',
+      { fallbackWhenUnreadable: true },
     );
     expect(session.audioEnabled()).toBe(true);
     expect(session.videoEnabled()).toBe(true);
@@ -117,7 +118,7 @@ describe('LocalMediaSession', () => {
     expect(result.video).toBe(false);
     expect(result.videoError?.kind).toBe('NotReadable');
     expect(session.videoEnabled()).toBe(false);
-    expect(devices.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({ video: false }), 'microphone');
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({ video: false }), 'microphone', { fallbackWhenUnreadable: true });
   });
 
   it('mute libera el micrófono tras N minutos y lo re-adquiere al desmutear', async () => {
@@ -158,6 +159,21 @@ describe('LocalMediaSession', () => {
     await vi.advanceTimersByTimeAsync(60 * 60_000);
     expect(mic.stop).not.toHaveBeenCalled();
     expect(session.microphoneReleased()).toBe(false);
+  });
+
+  it('si la cámara elegida no se puede abrir, la sesión sigue con la actual y el selector vuelve a ella', async () => {
+    const mic = new FakeTrack('audio');
+    const cam = new FakeTrack('video');
+    devices.getUserMedia.mockResolvedValueOnce(new FakeStream([mic, cam]));
+    devices.activeCameraId.set('cam-live');
+    const session = build();
+    await session.acquire({ audio: true, video: true });
+
+    devices.getUserMedia.mockRejectedValueOnce(new Error('NotReadableError'));
+    await expect(session.swapCamera('cam-broken')).resolves.toBe(false);
+    expect(devices.setPreferred).toHaveBeenLastCalledWith('videoInputId', 'cam-live');
+    expect(cam.stop).not.toHaveBeenCalled();
+    expect(session.stream()?.getVideoTracks()).toEqual([cam]);
   });
 
   it('apagar la cámara la DETIENE (LED off) y avisa el reemplazo; encenderla la re-adquiere', async () => {

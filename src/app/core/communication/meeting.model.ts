@@ -6,6 +6,7 @@
  */
 
 import type { ConnectionQuality } from './media/media-policy.model';
+import type { RecordingLimitWarning, RecordingState, RecordingStateChange } from './recording-status';
 
 export type MeetingStrategy = 'Mesh' | 'Sfu';
 export type MeetingRole = 'Host' | 'Cohost' | 'Attendee';
@@ -210,14 +211,8 @@ export interface MeetingJoinOptions {
   videoDefault?: boolean;
 }
 
-export type MeetingRecordingState =
-  | 'Idle'
-  | 'Requesting'
-  | 'Recording'
-  | 'Stopping'
-  | 'Processing'
-  | 'Ready'
-  | 'Failed';
+/** F7 — mismo ciclo que las llamadas (incluye `Composing`, solo con captura en servidor). */
+export type MeetingRecordingState = RecordingState;
 
 export interface MeetingRecordingConsentRequestedDto {
   meetingId: string;
@@ -232,10 +227,24 @@ export interface MeetingRecordingConsentRecordedDto {
   respondedAtUtc: string;
 }
 
-export interface MeetingRecordingStateChangedDto {
+/** F7 — `meeting.recording.state_changed`: + `captureMode`, `startedAtUtc`, `maxDurationSeconds`, `reason`. */
+export interface MeetingRecordingStateChangedDto extends RecordingStateChange {
   meetingId: string;
-  state: MeetingRecordingState;
-  updatedAtUtc: string;
+}
+
+/** F7 — `meeting.recording.limit_warning`: queda poco del tope de la grabación (la reunión sigue). */
+export interface MeetingRecordingLimitWarningDto extends RecordingLimitWarning {
+  meetingId: string;
+}
+
+/** F7 — `meeting.transcript_ready` (v2: JSON con hablantes). */
+export interface MeetingTranscriptReadyDto {
+  meetingId: string;
+  transcriptFileId?: string | null;
+  transcriptJsonFileId?: string | null;
+  speakerCount?: number | null;
+  segmentCount?: number | null;
+  language?: string | null;
 }
 
 /** Mensaje del chat del meeting (`meeting.chat.message.new`) — mismo shape que MessageDto. */

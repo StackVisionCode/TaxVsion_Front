@@ -176,9 +176,9 @@
           <span *ngIf="isLocked()" class="ml-1 inline-flex items-center gap-1 text-gray-300">
             <ion-icon name="lock-closed-outline" class="text-xs"></ion-icon> Locked
           </span>
-          <span *ngIf="isRecording()" class="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums">
-            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
-          </span>
+          <app-recording-badge [state]="recordingState()" [elapsed]="recordingElapsedLabel()" [remaining]="recordingRemainingLabel()"
+            pillClass="ml-1 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums"
+            processingClass="ml-1 inline-flex items-center gap-1 text-[0.625rem] font-medium text-gray-300" />
         </p>
       </div>
 

@@ -180,6 +180,8 @@ export class MeetingPipService {
     this.watchNewStyles(win.document);
     this.placeholder = document.createComment('meeting-mini-player');
     panel.parentNode?.insertBefore(this.placeholder, panel);
+    // El botón "Pop out" sigue enfocado: al mudarlo de documento no habría `focusout` y su tooltip quedaría huérfano.
+    if (panel.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     win.document.body.append(panel);
     resumeVideos(panel);
     win.addEventListener('pagehide', () => this.onPipWindowClosed(win), { once: true });

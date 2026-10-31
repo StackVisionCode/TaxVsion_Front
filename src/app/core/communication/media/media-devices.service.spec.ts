@@ -114,4 +114,54 @@ describe('MediaDevicesService (T-59)', () => {
     service.notifyDeviceLost('microphone', false);
     expect(toast.info).toHaveBeenCalledWith('Your microphone was disconnected.');
   });
+
+  it('preferido ocupado o sin fuente (NotReadable) → abre otra cámara, la guarda y avisa', async () => {
+    enumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam-obs', label: 'OBS Virtual Camera', groupId: 'g-obs' },
+      { kind: 'videoinput', deviceId: 'cam-int', label: 'Integrated Camera', groupId: 'g-int' },
+    ] as MediaDeviceInfo[]);
+    service.setPreferred('videoInputId', 'cam-obs');
+    const stream = {} as MediaStream;
+    getUserMedia.mockRejectedValueOnce(domError('NotReadableError')).mockResolvedValueOnce(stream);
+
+    const result = await service.getUserMedia(
+      { audio: true, video: { deviceId: { exact: 'cam-obs' }, width: { ideal: 1280 } } },
+      'camera',
+      { fallbackWhenUnreadable: true },
+    );
+
+    expect(result).toBe(stream);
+    expect(getUserMedia.mock.calls[1][0]).toEqual({ audio: true, video: { deviceId: { exact: 'cam-int' }, width: { ideal: 1280 } } });
+    expect(service.preferred().videoInputId).toBe('cam-int');
+    expect(toast.info).toHaveBeenCalledWith("OBS Virtual Camera isn't available. Using Integrated Camera.");
+  });
+
+  it('una elección explícita que no abre NO cambia de dispositivo (sin la opción)', async () => {
+    enumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam-obs', label: 'OBS Virtual Camera', groupId: 'g-obs' },
+      { kind: 'videoinput', deviceId: 'cam-int', label: 'Integrated Camera', groupId: 'g-int' },
+    ] as MediaDeviceInfo[]);
+    getUserMedia.mockRejectedValueOnce(domError('NotReadableError'));
+
+    const err = await failure(service.getUserMedia({ video: { deviceId: { exact: 'cam-obs' } } }, 'camera'));
+
+    expect(err.kind).toBe('NotReadable');
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('el respaldo de micrófono ignora los alias del mismo hardware (default/communications)', async () => {
+    enumerateDevices.mockResolvedValue([
+      { kind: 'audioinput', deviceId: 'default', label: 'Default - Array', groupId: 'g-array' },
+      { kind: 'audioinput', deviceId: 'comms', label: 'Communications - Array', groupId: 'g-array' },
+      { kind: 'audioinput', deviceId: 'mic-array', label: 'Array', groupId: 'g-array' },
+      { kind: 'audioinput', deviceId: 'mic-usb', label: 'USB Mic', groupId: 'g-usb' },
+    ] as MediaDeviceInfo[]);
+    const stream = {} as MediaStream;
+    getUserMedia.mockRejectedValueOnce(domError('NotReadableError')).mockResolvedValueOnce(stream);
+
+    await service.getUserMedia({ audio: { deviceId: { exact: 'mic-array' } } }, 'microphone', { fallbackWhenUnreadable: true });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(getUserMedia.mock.calls[1][0].audio).toEqual({ deviceId: { exact: 'mic-usb' } });
+  });
 });

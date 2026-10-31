@@ -48,6 +48,8 @@ export interface MeetingListItemResponse {
   joinedParticipantsCount: number;
   /** FileId de CloudStorage del transcript (solo meetings pasadas que lo tengan). */
   transcriptFileId: string | null;
+  /** F7 — estado de la grabación (`Recording`/`Processing`/`Ready`/`Failed`…); null = no se grabó. */
+  recordingState?: string | null;
 }
 
 /** Página del listado — Communication devuelve items/page/size/totalCount (sin hasMore). */
@@ -262,6 +264,8 @@ export interface MeetingItem {
   endReasonLabel: string | null;
   joinedCount: number;
   transcriptFileId: string | null;
+  /** F7 — estado de la grabación; null/ausente = no se grabó. */
+  recordingState?: string | null;
   hostUserId: string;
   /** El usuario logueado es el host: habilita Start/End/Reschedule/Cancel/invitaciones. */
   isHost: boolean;
@@ -303,7 +307,70 @@ export function toMeetingItem(response: MeetingListItemResponse, currentUserId: 
     endReasonLabel,
     joinedCount: response.joinedParticipantsCount,
     transcriptFileId: response.transcriptFileId,
+    recordingState: response.recordingState ?? null,
     hostUserId: response.hostUserId,
     isHost: currentUserId !== null && response.hostUserId === currentUserId,
   };
+}
+
+// ---------- Ficha del meeting (GET /meetings/:id/summary y /events) ----------
+
+export interface MeetingSummaryParticipant {
+  userId: string;
+  displayName: string;
+  avatarFileId: string | null;
+  role: 'Host' | 'Cohost' | 'Attendee';
+  actorType: string;
+  firstJoinedAtUtc: string | null;
+  lastLeftAtUtc: string | null;
+  /** Suma de todas sus sesiones (sale y vuelve). */
+  attendedSeconds: number;
+  sessions: number;
+  speakingSeconds: number;
+  screenShares: number;
+  handsRaised: number;
+}
+
+export interface MeetingSummaryInvitee {
+  kind: 'Employee' | 'Customer' | 'External';
+  displayName: string;
+}
+
+export interface MeetingSummaryResponse {
+  meeting: {
+    id: string;
+    title: string;
+    description: string | null;
+    status: ApiMeetingStatus;
+    shortCode: string;
+    hostUserId: string;
+    hostName: string | null;
+    scheduledForUtc: string | null;
+    scheduledDurationMinutes: number | null;
+    startedAtUtc: string | null;
+    endedAtUtc: string | null;
+    durationSeconds: number | null;
+    endReason: MeetingEndReason | null;
+    maxParticipants: number;
+    transcriptFileId: string | null;
+    recordingState: string | null;
+  };
+  participants: MeetingSummaryParticipant[];
+  /** Solo host/cohost: invitados que no entraron. */
+  invitedNotJoined: MeetingSummaryInvitee[];
+  totals: { attendees: number; peakConcurrent: number; screenShares: number; handsRaised: number; reactions: number };
+}
+
+export interface MeetingEventItem {
+  seq: number;
+  at: string;
+  type: string;
+  actorUserId: string | null;
+  targetUserId: string | null;
+  payload: Record<string, unknown> | null;
+}
+
+export interface MeetingEventsPageResponse {
+  items: MeetingEventItem[];
+  nextAfterSeq: number | null;
 }

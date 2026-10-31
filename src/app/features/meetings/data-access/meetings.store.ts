@@ -316,6 +316,16 @@ export class MeetingsStore {
     this._past.set(EMPTY_SCOPE);
   }
 
+  // ---------- Ficha del meeting ----------
+
+  summary(meetingId: string) {
+    return this.service.summary(meetingId);
+  }
+
+  events(meetingId: string, afterSeq: number | null) {
+    return this.service.events(meetingId, afterSeq);
+  }
+
   // ---------- Invitaciones (panel de gestión) ----------
 
   listInvitations(meetingId: string) {

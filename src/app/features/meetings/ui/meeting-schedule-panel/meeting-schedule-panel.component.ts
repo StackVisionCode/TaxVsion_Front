@@ -214,9 +214,12 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   }
 
   private addInvitee(draft: MeetingInviteeDraft): void {
+    // El email solo deduplica externos: un empleado y un cliente pueden compartir correo (cuentas staff + portal).
     const duplicated = this.invitees().some(
       existing =>
-        (draft.userId && existing.userId === draft.userId) || (draft.email && existing.email === draft.email),
+        (draft.userId && existing.userId === draft.userId) ||
+        (draft.customerId && existing.customerId === draft.customerId) ||
+        (draft.kind === 'external' && existing.kind === 'external' && !!draft.email && existing.email === draft.email),
     );
     if (!duplicated) {
       this.invitees.update(list => [...list, draft]);

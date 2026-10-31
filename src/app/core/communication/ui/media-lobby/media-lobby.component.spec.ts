@@ -88,7 +88,7 @@ describe('MediaLobbyComponent', () => {
     const stream = new FakeStream([new FakeTrack('audio'), new FakeTrack('video')]);
     devices.getUserMedia.mockResolvedValue(stream);
     const { host, button } = await setup(mediaPolicyFixture(), devices);
-    expect(devices.getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: expect.objectContaining({ width: { ideal: 1280 } }) }), 'camera');
+    expect(devices.getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: expect.objectContaining({ width: { ideal: 1280 } }) }), 'camera', { fallbackWhenUnreadable: true });
 
     button('join').click();
     expect(stream.tracks.every(t => t.stop.mock.calls.length === 1)).toBe(true);
@@ -101,7 +101,7 @@ describe('MediaLobbyComponent', () => {
     const devices = fakeDevices();
     devices.getUserMedia.mockResolvedValue(new FakeStream([new FakeTrack('audio')]));
     const { host, button, el, updatePreferences } = await setup(policy, devices);
-    expect(devices.getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: false }), 'microphone');
+    expect(devices.getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: false }), 'microphone', { fallbackWhenUnreadable: true });
     expect(el.textContent).toContain('Camera off');
 
     button('join').click();

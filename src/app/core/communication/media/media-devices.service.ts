@@ -125,7 +125,11 @@ export class MediaDevicesService {
    * reintenta SIN deviceId y se olvida la preferencia. Marca `waitingForPermission` mientras el
    * navegador pregunta. Actualiza permisos e inventario al conceder.
    */
-  async getUserMedia(constraints: MediaStreamConstraints, device: Exclude<MediaDeviceKind, 'screen'>): Promise<MediaStream> {
+  async getUserMedia(
+    constraints: MediaStreamConstraints,
+    device: Exclude<MediaDeviceKind, 'screen'>,
+    options: UserMediaOptions = {},
+  ): Promise<MediaStream> {
     if (!this.isSupported()) {
       throw new MediaAccessError('Unsupported', device, `This browser cannot access the ${device}.`);
     }
@@ -138,7 +142,13 @@ export class MediaDevicesService {
       const typed = toMediaAccessError(err, device);
       if (typed.kind === 'Overconstrained' && hasDeviceId(constraints)) {
         this.forgetDevicePreference(constraints);
-        return this.getUserMedia(stripDeviceIds(constraints), device);
+        return this.getUserMedia(stripDeviceIds(constraints), device, options);
+      }
+      if (typed.kind === 'NotReadable' && options.fallbackWhenUnreadable) {
+        const recovered = await this.openAnotherDevice(constraints, device);
+        if (recovered) {
+          return recovered;
+        }
       }
       if (typed.kind === 'NotAllowed') {
         if (constraints.audio) {
@@ -279,6 +289,43 @@ export class MediaDevicesService {
     }
   }
 
+  /**
+   * El dispositivo preferido existe pero no arranca (ocupado por otra app o una cámara virtual sin
+   * fuente): se usa el primero de los demás que sí abra, queda como preferido y se avisa.
+   */
+  private async openAnotherDevice(
+    constraints: MediaStreamConstraints,
+    device: Exclude<MediaDeviceKind, 'screen'>,
+  ): Promise<MediaStream | null> {
+    const key = device === 'camera' ? 'video' : 'audio';
+    const current = constraints[key];
+    if (!current) {
+      return null;
+    }
+    await this.refreshInventory();
+    const list = device === 'camera' ? this.cameras() : this.microphones();
+    const failedId = exactDeviceId(current) ?? (device === 'camera' ? this.preferred().videoInputId : this.preferred().audioInputId);
+    const failed = list.find(d => d.deviceId === failedId) ?? null;
+    // "default"/"communications" son alias del mismo hardware (mismo groupId): no son otra opción.
+    const candidates = list.filter(
+      d => d.deviceId && d.deviceId !== 'default' && d.deviceId !== failedId && !(failed?.groupId && d.groupId === failed.groupId),
+    );
+    const base = typeof current === 'object' ? current : {};
+    for (const candidate of candidates) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ ...constraints, [key]: { ...base, deviceId: { exact: candidate.deviceId } } });
+        this.setPreferred(device === 'camera' ? 'videoInputId' : 'audioInputId', candidate.deviceId);
+        this.markGranted(constraints);
+        void this.refreshInventory();
+        this.toast.info(`${failed?.label || `Your ${device}`} isn't available. Using ${candidate.label || `another ${device}`}.`);
+        return stream;
+      } catch {
+        /* este tampoco abre: se prueba el siguiente */
+      }
+    }
+    return null;
+  }
+
   private forgetDevicePreference(constraints: MediaStreamConstraints): void {
     if (hasDeviceId(constraints.audio)) {
       this.setPreferred('audioInputId', null);
@@ -287,6 +334,27 @@ export class MediaDevicesService {
       this.setPreferred('videoInputId', null);
     }
   }
+}
+
+/** Opciones de `getUserMedia`. */
+export interface UserMediaOptions {
+  /** Se está abriendo el dispositivo PREFERIDO (no una elección explícita): si no arranca, probar los demás. */
+  readonly fallbackWhenUnreadable?: boolean;
+}
+
+function exactDeviceId(value: boolean | MediaTrackConstraints): string | null {
+  if (typeof value !== 'object') {
+    return null;
+  }
+  const id = value.deviceId;
+  if (typeof id === 'string') {
+    return id;
+  }
+  if (id && typeof id === 'object' && !Array.isArray(id)) {
+    const exact = (id as ConstrainDOMStringParameters).exact;
+    return typeof exact === 'string' ? exact : Array.isArray(exact) ? (exact[0] ?? null) : null;
+  }
+  return null;
 }
 
 function hasDeviceId(value: MediaStreamConstraints | boolean | MediaTrackConstraints | undefined): boolean {

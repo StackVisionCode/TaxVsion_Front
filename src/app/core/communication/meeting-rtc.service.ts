@@ -39,11 +39,13 @@ import {
   MeetingReactionReceivedDto,
   MeetingRecordingConsentRecordedDto,
   MeetingRecordingConsentRequestedDto,
+  MeetingRecordingLimitWarningDto,
   MeetingRecordingStateChangedDto,
   MeetingRejoinAck,
   MeetingSignalDto,
   MeetingSnapshotDto,
   MeetingStateDto,
+  MeetingTranscriptReadyDto,
   MeetingYouRemovedDto,
 } from './meeting.model';
 
@@ -248,8 +250,12 @@ export class MeetingRtcService {
   onRecordingStateChanged(): Observable<MeetingRecordingStateChangedDto> {
     return this.realtime.on<MeetingRecordingStateChangedDto>('meeting.recording.state_changed');
   }
-  onTranscriptReady(): Observable<{ meetingId: string }> {
-    return this.realtime.on<{ meetingId: string }>('meeting.transcript_ready');
+  /** F7 — aviso de tope de la grabación (`remainingSeconds`); al llegar al tope el servidor la para. */
+  onRecordingLimitWarning(): Observable<MeetingRecordingLimitWarningDto> {
+    return this.realtime.on<MeetingRecordingLimitWarningDto>('meeting.recording.limit_warning');
+  }
+  onTranscriptReady(): Observable<MeetingTranscriptReadyDto> {
+    return this.realtime.on<MeetingTranscriptReadyDto>('meeting.transcript_ready');
   }
 
   onSnapshot(): Observable<MeetingSnapshotDto> {

@@ -59,6 +59,7 @@ function fakeMeeting(remotes: MeetingParticipantDto[], waiting: MeetingParticipa
     waitingParticipants: signal(waiting),
     recordingConsentFrom: signal(null),
     recordingElapsedLabel: signal('0:00'),
+    recordingRemainingLabel: signal(null),
     recordingState: signal('Idle'),
     roomViewAttached: signal(false),
     chatPanelOpen: signal(false),

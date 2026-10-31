@@ -11,6 +11,7 @@ import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upl
 import { FileResponse, formatBytes } from '@core/cloud-storage/cloud-storage.model';
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatMessage } from '../ui/chat-thread/chat-thread.component';
+import { ChatSearchResult, MIN_CHAT_SEARCH_LENGTH } from '../ui/chat-message-search/chat-message-search.component';
 import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
@@ -23,7 +24,9 @@ import {
   CustomerDirectoryEntry,
   EmployeeDirectoryEntry,
   MessageDto,
+  MessageTranscriptUpdatedDto,
   TypingDto,
+  toVoiceNoteTranscriptState,
 } from './chat.model';
 import type { UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
@@ -46,6 +49,8 @@ const TYPING_EXPIRY_MS = 6000;
 const RECORDING_HEARTBEAT_MS = 12000;
 /** Red de seguridad del indicador "grabando…" entrante si no llega `recording.stopped`. */
 const RECORDING_EXPIRY_MS = 22000;
+/** Resultados por búsqueda de mensajes (el backend acepta hasta 200). */
+const MESSAGE_SEARCH_LIMIT = 30;
 
 /** Id local para mensajes optimistas (no viaja al backend: el socket usa su propio clientKey). */
 function newLocalId(): string {
@@ -174,6 +179,19 @@ export class ChatStore {
   private readonly _uploadingAttachment = signal(false);
   readonly uploadingAttachment = this._uploadingAttachment.asReadonly();
 
+  // ---------- F7: búsqueda de mensajes (texto + transcripts de notas de voz) ----------
+  private readonly _searchQuery = signal('');
+  private readonly _searchResults = signal<ChatSearchResult[]>([]);
+  private readonly _searchLoading = signal(false);
+  private readonly _searchError = signal<string | null>(null);
+  private readonly _searchTruncated = signal(false);
+  private messageSearchSub: Subscription | null = null;
+  readonly searchQuery = this._searchQuery.asReadonly();
+  readonly searchResults = this._searchResults.asReadonly();
+  readonly searchLoading = this._searchLoading.asReadonly();
+  readonly searchError = this._searchError.asReadonly();
+  readonly searchTruncated = this._searchTruncated.asReadonly();
+
   /** Metadata resuelta perezosamente para adjuntos ajenos/históricos (el MessageDto solo trae el fileId). */
   private readonly fileMetaCache = new Map<string, FileResponse>();
   private readonly pendingFileMetaLookups = new Set<string>();
@@ -257,6 +275,9 @@ export class ChatStore {
   }
 
   selectConversation(id: string): void {
+    if (this._activeConversationId() !== id) {
+      this.clearMessageSearch();
+    }
     this._activeConversationId.set(id);
     this._conversations.update(list => list.map(c => (c.id === id ? { ...c, unread: 0 } : c)));
 
@@ -430,6 +451,102 @@ export class ChatStore {
   /** Ítem del visor global para un adjunto (la URL presignada se pide al mostrarlo). */
   attachmentViewerItem(fileId: string, name: string): FileViewerItem {
     return this.cloudStorage.viewerItemForId(fileId, name);
+  }
+
+  // ---------- F7: búsqueda de mensajes ----------
+
+  /**
+   * Busca en la conversación activa (`GET …/messages/search`): texto y transcripts de notas de voz. Con
+   * menos de 2 caracteres limpia los resultados. Una búsqueda nueva cancela la que sigue en vuelo.
+   */
+  searchMessages(query: string): void {
+    const conversationId = this._activeConversationId();
+    const q = query.trim();
+    this._searchQuery.set(query);
+    this.messageSearchSub?.unsubscribe();
+    this.messageSearchSub = null;
+    this._searchError.set(null);
+    if (!conversationId || q.length < MIN_CHAT_SEARCH_LENGTH) {
+      this._searchResults.set([]);
+      this._searchTruncated.set(false);
+      this._searchLoading.set(false);
+      return;
+    }
+    this._searchLoading.set(true);
+    const currentUserId = this.auth.currentUser()?.id ?? null;
+    this.messageSearchSub = this.chatService.searchMessages(conversationId, q, MESSAGE_SEARCH_LIMIT).subscribe({
+      next: res => {
+        this._searchResults.set(res.items.filter(dto => !dto.isDeleted).map(dto => this.toSearchResult(dto, currentUserId)));
+        this._searchTruncated.set(res.truncated);
+        this._searchLoading.set(false);
+      },
+      error: err => {
+        this._searchResults.set([]);
+        this._searchError.set(toApiError(err).message);
+        this._searchLoading.set(false);
+      },
+    });
+  }
+
+  clearMessageSearch(): void {
+    this.messageSearchSub?.unsubscribe();
+    this.messageSearchSub = null;
+    this._searchQuery.set('');
+    this._searchResults.set([]);
+    this._searchLoading.set(false);
+    this._searchError.set(null);
+    this._searchTruncated.set(false);
+  }
+
+  private toSearchResult(dto: MessageDto, currentUserId: string | null): ChatSearchResult {
+    const isVoiceNote = dto.kind === 'Attachment' && (dto.audioDurationMs != null || !!dto.transcriptText);
+    return {
+      id: dto.id,
+      senderName: currentUserId && dto.senderId === currentUserId ? 'You' : dto.senderDisplayName,
+      text: (isVoiceNote ? dto.transcriptText : dto.body) ?? dto.body ?? dto.transcriptText ?? '',
+      time: formatTime(dto.createdAtUtc),
+      dateGroup: formatDateGroup(dto.createdAtUtc),
+      isVoiceNote,
+    };
+  }
+
+  /**
+   * F7 — botón "Transcribe" de una nota de voz: se marca "Transcribing…" al instante y se pide al servidor;
+   * si el pedido falla se vuelve al estado anterior y se avisa. El texto llega por `transcript_updated`.
+   */
+  requestVoiceNoteTranscript(messageId: string): void {
+    const conversationId = this._activeConversationId();
+    const message = this._conversations().find(c => c.id === conversationId)?.messages.find(m => m.id === messageId);
+    if (!conversationId || !message?.voiceNote) return;
+    const previous = message.voiceNote.transcriptState;
+    const previousText = message.voiceNote.transcriptText ?? null;
+    this.applyTranscriptUpdate({ conversationId, messageId, transcriptState: 'Processing', transcriptText: null });
+    this.chatService.requestVoiceNoteTranscript(conversationId, messageId).subscribe({
+      next: update => this.applyTranscriptUpdate(update),
+      error: () => {
+        this.applyTranscriptUpdate({ conversationId, messageId, transcriptState: previous ?? 'NotRequested', transcriptText: previousText });
+        this.toast.error("Couldn't start the transcription. Try again.");
+      },
+    });
+  }
+
+  /** F7 — llegó (o falló) el transcript de una nota de voz: se parchea el mensaje si está cargado. */
+  private applyTranscriptUpdate(update: MessageTranscriptUpdatedDto): void {
+    const state = toVoiceNoteTranscriptState(update.transcriptState ?? update.state);
+    this._conversations.update(list =>
+      list.map(c =>
+        c.id === update.conversationId && c.messages.some(m => m.id === update.messageId && m.voiceNote)
+          ? {
+              ...c,
+              messages: c.messages.map(m =>
+                m.id === update.messageId && m.voiceNote
+                  ? { ...m, voiceNote: { ...m.voiceNote, transcriptState: state, transcriptText: update.transcriptText ?? null } }
+                  : m,
+              ),
+            }
+          : c,
+      ),
+    );
   }
 
   // ---------- Typing ----------
@@ -859,6 +976,8 @@ export class ChatStore {
           }),
       // System = evento del sistema en el hilo (p.ej. "Missed call", "Call ended 2:34") → se pinta centrado.
       isSystem: !dto.isDeleted && dto.kind === 'System',
+      // F7 — System con archivo (transcript de la llamada): enlace "View transcript".
+      ...(!dto.isDeleted && dto.kind === 'System' && dto.attachmentFileId ? { systemAttachmentFileId: dto.attachmentFileId } : {}),
       text:
         dto.isDeleted
           ? '(message deleted)'
@@ -870,7 +989,14 @@ export class ChatStore {
           ? (knownAttachment ?? this.resolveAttachment(dto.attachmentFileId))
           : undefined,
       voiceNote: isVoice
-        ? { fileId: dto.attachmentFileId!, durationMs: dto.audioDurationMs ?? 0, waveform: dto.audioWaveform ?? [] }
+        ? {
+            fileId: dto.attachmentFileId!,
+            durationMs: dto.audioDurationMs ?? 0,
+            waveform: dto.audioWaveform ?? [],
+            // F7 (D-27) — transcript bajo el reproductor (Processing → Ready/Failed/Skipped por socket).
+            transcriptState: toVoiceNoteTranscriptState(dto.transcriptState),
+            transcriptText: dto.transcriptText ?? null,
+          }
         : undefined,
       time: formatTime(dto.createdAtUtc),
       dateGroup: formatDateGroup(dto.createdAtUtc),
@@ -1116,6 +1242,9 @@ export class ChatStore {
       }
       this.advanceOwnReceipts(receipt.conversationId, receipt.upToMessageId, 'delivered');
     });
+
+    // F7 — transcript de nota de voz listo / fallido / omitido.
+    this.socket.messageTranscriptUpdated$.subscribe(update => this.applyTranscriptUpdate(update));
 
     this.socket.attachmentFlagged$.subscribe(flag => {
       this._conversations.update(list =>

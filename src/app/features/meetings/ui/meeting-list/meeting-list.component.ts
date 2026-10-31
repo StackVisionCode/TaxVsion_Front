@@ -12,6 +12,7 @@ import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-p
  * estado. Acciones según contrato del backend:
  *  - Start/End: solo si el usuario es host (endpoints host-only).
  *  - Transcript: meetings terminadas con transcriptFileId.
+ *  - Recording (F7): meetings terminadas con `recordingState` (reproductor + transcript con hablantes).
  *  - Menú Manage/Cancel: solo host y solo Scheduled (reschedule/cancel
  *    rechazan cualquier otro estado).
  * "Join" a la sala no existe por REST (es Socket.IO + WebRTC) — no se ofrece.
@@ -27,11 +28,15 @@ export class MeetingListComponent {
   /** Id del meeting con una acción en curso: deshabilita sus botones. */
   @Input() busyId: string | null = null;
   @Output() manage = new EventEmitter<MeetingItem>();
+  /** Ficha de una reunión que ya se hizo. */
+  @Output() details = new EventEmitter<MeetingItem>();
   @Output() join = new EventEmitter<MeetingItem>();
   @Output() cancelMeeting = new EventEmitter<MeetingItem>();
   @Output() startMeeting = new EventEmitter<MeetingItem>();
   @Output() endMeeting = new EventEmitter<MeetingItem>();
   @Output() viewTranscript = new EventEmitter<MeetingItem>();
+  /** F7 — abrir el reproductor de la grabación. */
+  @Output() viewRecording = new EventEmitter<MeetingItem>();
   @Output() copyCode = new EventEmitter<MeetingItem>();
 
   trackByMeetingId(_index: number, meeting: MeetingItem): string {
@@ -99,7 +104,19 @@ export class MeetingListComponent {
   onRowClick(meeting: MeetingItem): void {
     if (this.canManage(meeting)) {
       this.manage.emit(meeting);
+    } else if (this.hasDetails(meeting)) {
+      this.details.emit(meeting);
     }
+  }
+
+  /** La ficha existe para reuniones que llegaron a hacerse. */
+  hasDetails(meeting: MeetingItem): boolean {
+    return meeting.status === 'ended' && meeting.startedAt !== null;
+  }
+
+  /** Terminada: cuándo se hizo; si no, cuándo está agendada. */
+  displayDate(meeting: MeetingItem): string | null {
+    return meeting.status === 'ended' ? (meeting.startedAt ?? meeting.scheduledAt) : meeting.scheduledAt;
   }
 
   onManageClick(meeting: MeetingItem, event: MouseEvent): void {
@@ -125,6 +142,16 @@ export class MeetingListComponent {
   onEndClick(meeting: MeetingItem, event: MouseEvent): void {
     event.stopPropagation();
     this.endMeeting.emit(meeting);
+  }
+
+  /** F7 — la reunión terminó y se grabó (cualquier estado salvo `Idle`: en curso, procesando, lista o fallida). */
+  hasRecording(meeting: MeetingItem): boolean {
+    return meeting.status === 'ended' && !!meeting.recordingState && meeting.recordingState !== 'Idle';
+  }
+
+  onRecordingClick(meeting: MeetingItem, event: MouseEvent): void {
+    event.stopPropagation();
+    this.viewRecording.emit(meeting);
   }
 
   onTranscriptClick(meeting: MeetingItem, event: MouseEvent): void {

@@ -5,6 +5,7 @@ import { CallsService } from '@core/communication/calls.service';
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { CallKind, CustomerCallItem } from '@core/communication/call.model';
 import { AccessStore } from '@core/access/access.store';
+import { RecordingViewerComponent } from '@core/communication/ui/recording-viewer/recording-viewer.component';
 
 /**
  * Pestaña "Calls" del perfil de cliente. El historial in-app se atribuye al cliente por su UserId de
@@ -14,7 +15,7 @@ import { AccessStore } from '@core/access/access.store';
  */
 @Component({
   selector: 'app-client-profile-calls',
-  imports: [CommonModule, StateBlockComponent],
+  imports: [CommonModule, StateBlockComponent, RecordingViewerComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './client-profile-calls.component.html',
 })
@@ -43,6 +44,17 @@ export class ClientProfileCallsComponent implements OnChanges {
   readonly hasPortalAccount = signal(false);
 
   private clientUserId: string | null = null;
+
+  /** F7 — llamada cuya grabación se está viendo (null = cerrado). */
+  readonly recordingCall = signal<CustomerCallItem | null>(null);
+  readonly recordingHeading = computed(() => {
+    const call = this.recordingCall();
+    return call ? `${call.kind === 'Video' ? 'Video call' : 'Call'} · ${this.formatWhen(call.ringingAtUtc)}` : 'Recording';
+  });
+
+  openRecording(item: CustomerCallItem): void {
+    this.recordingCall.set(item);
+  }
 
   /** Deshabilita los botones mientras yo esté en otra llamada. */
   get callInProgress(): boolean {

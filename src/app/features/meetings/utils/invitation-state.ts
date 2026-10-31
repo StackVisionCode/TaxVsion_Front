@@ -51,7 +51,13 @@ export function canRevokeInvitation(state: InvitationState): boolean {
   return state === 'active' || state === 'used';
 }
 
-/** Nombre visible: nombre > email > userId > "Guest". */
-export function invitationLabel(invitation: Pick<MeetingInvitationListItem, 'inviteeName' | 'inviteeEmail' | 'inviteeUserId'>): string {
-  return invitation.inviteeName || invitation.inviteeEmail || invitation.inviteeUserId || 'Guest';
+const KIND_FALLBACK: Record<MeetingInvitationListItem['inviteeKind'], string> = {
+  Employee: 'Team member',
+  Customer: 'Client',
+  External: 'Guest',
+};
+
+/** Nombre visible: nombre > email > tipo ("Team member", "Client", "Guest"); nunca el id. */
+export function invitationLabel(invitation: Pick<MeetingInvitationListItem, 'inviteeName' | 'inviteeEmail' | 'inviteeKind'>): string {
+  return invitation.inviteeName || invitation.inviteeEmail || KIND_FALLBACK[invitation.inviteeKind] || 'Guest';
 }

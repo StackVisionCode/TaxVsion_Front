@@ -12,18 +12,20 @@ import {
   ListMeetingInvitationsResponse,
   MeetingCustomerEntry,
   MeetingEmployeeEntry,
+  MeetingEventsPageResponse,
   MeetingInviteeInput,
   MeetingLimits,
   MeetingsPageResponse,
   MeetingsScope,
   MeetingStatsResponse,
+  MeetingSummaryResponse,
   StartMeetingResponse,
 } from './meeting.model';
 
 /**
  * Cliente HTTP de meetings sobre el servicio Communication (`/communication`
  * vía Gateway). El JWT lo pone el interceptor global — acá no se agregan
- * headers. Nota de contrato: NO existe GET /meetings/{id} (detalle) ni ningún
+ * headers. El detalle es la ficha (`/meetings/{id}/summary`, solo quien participó); no hay
  * endpoint de edición de título/descripción — solo reschedule de la fecha.
  * Unirse a la sala (WebRTC) es Socket.IO-only y queda fuera de este cliente.
  */
@@ -101,6 +103,22 @@ export class MeetingsService {
    */
   reschedule(id: string, newScheduledForUtc: string | null): Observable<void> {
     return this.http.post<void>(`${this.base}/meetings/${id}/reschedule`, { newScheduledForUtc });
+  }
+
+  // ---------- Ficha del meeting ----------
+
+  /** Ficha: resumen, asistencia por persona, invitados que no entraron y totales. */
+  summary(id: string): Observable<MeetingSummaryResponse> {
+    return this.http.get<MeetingSummaryResponse>(`${this.base}/meetings/${id}/summary`);
+  }
+
+  /** Actividad de la ficha (el servidor omite voz, calidad y media), paginada por `seq`. */
+  events(id: string, afterSeq: number | null, take = 100): Observable<MeetingEventsPageResponse> {
+    let params = new HttpParams().set('take', take).set('activity', 'true');
+    if (afterSeq !== null) {
+      params = params.set('after', afterSeq);
+    }
+    return this.http.get<MeetingEventsPageResponse>(`${this.base}/meetings/${id}/events`, { params });
   }
 
   // ---------- Invitaciones (host/cohost) ----------

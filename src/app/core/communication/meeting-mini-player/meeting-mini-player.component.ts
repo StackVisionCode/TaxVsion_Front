@@ -32,6 +32,7 @@ import { QualityBadgeComponent } from '../ui/quality-badge/quality-badge.compone
 import { DevicePanelComponent } from '../ui/device-panel/device-panel.component';
 import { MeetingParticipantTileComponent, ParticipantTileHostAction } from '../ui/participant-tile/participant-tile.component';
 import { ReactionPickerComponent } from '../ui/reaction-picker/reaction-picker.component';
+import { RecordingBadgeComponent } from '../ui/recording-badge/recording-badge.component';
 import { MeetingRemoteAudioComponent } from '../ui/remote-audio/meeting-remote-audio.component';
 import { MeetingSessionState } from '../meeting-session-state';
 import { MediaDevicesService } from '../media/media-devices.service';
@@ -91,6 +92,7 @@ const WAITING_ROWS = 3;
     MeetingParticipantTileComponent,
     ReactionPickerComponent,
     MeetingRemoteAudioComponent,
+    RecordingBadgeComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-mini-player.component.html',
@@ -123,6 +125,9 @@ export class MeetingMiniPlayerComponent {
   readonly waitingParticipants = this.meeting.waitingParticipants;
   readonly recordingConsentFrom = this.meeting.recordingConsentFrom;
   readonly recordingElapsedLabel = this.meeting.recordingElapsedLabel;
+  /** F7 — restante hasta el tope de la grabación y estado (REC / "Processing recording…"). */
+  readonly recordingRemainingLabel = this.meeting.recordingRemainingLabel;
+  readonly recordingState = this.meeting.recordingState;
   readonly isRecording = computed(() => this.meeting.recordingState() === 'Recording');
   /** F4 (D-41): audio de las pantallas compartidas, con volumen por participante (el control de volumen). */
   readonly remoteScreenAudio = this.speaker.remoteScreenAudio;

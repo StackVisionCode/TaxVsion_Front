@@ -5,7 +5,16 @@ import { AuthService } from '@core/auth/auth.service';
 import { SessionTeardownRegistry } from '@core/auth/session-teardown';
 import { CALLS_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { CallsService } from './calls.service';
-import { CallDurationWarningDto, CallKind, CallRecordingState, CallStateDto, IceServer, callInitiateErrorMessage } from './call.model';
+import {
+  CallCaptureRequestedDto,
+  CallDurationWarningDto,
+  CallKind,
+  CallRecordingState,
+  CallRecordingStateChangedDto,
+  CallStateDto,
+  IceServer,
+  callInitiateErrorMessage,
+} from './call.model';
 import { MediaPolicyService } from './media/media-policy.service';
 import { ConnectionQuality, MediaPolicyDto } from './media/media-policy.model';
 // Solo tipos: la capa de media (sesión, enlace, monitor, eco) se descarga al armar la PRIMERA llamada
@@ -15,9 +24,18 @@ import type { PeerLink, PeerSignalKind } from './media/peer-connection-factory';
 import type { QualityMonitor } from './media/quality-monitor';
 import type { QualityMetrics } from './media/derive-quality';
 import type { EchoDetector } from './media/echo-detector';
+import { SFU_CAPTURE_PUBLISHER_FACTORY, SfuCapturePublisherHandle } from './media/sfu-capture-publisher.factory';
 import { ClientRecordingSession, RecordingUploadService } from './media/client-recording-session';
 import { SoundsService } from './media/sounds.service';
-import { formatRecordingElapsed } from './meeting-clock.util';
+import {
+  RecordingCaptureMode,
+  RecordingClock,
+  isRecordingProcessing,
+  recordingLimitWarningMessage,
+  recordingStartErrorMessage,
+  recordingStateNotice,
+  usesClientCapture,
+} from './recording-status';
 import { MeetingSessionState } from './meeting-session-state';
 
 export type ActiveCallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'active' | 'ended';
@@ -56,6 +74,7 @@ export class ActiveCallService {
   private readonly recordingUpload = inject(RecordingUploadService);
   private readonly sounds = inject(SoundsService);
   private readonly meetingState = inject(MeetingSessionState);
+  private readonly createCapturePublisher = inject(SFU_CAPTURE_PUBLISHER_FACTORY);
 
   readonly phase = signal<ActiveCallPhase>('idle');
   /** T-58: hay una reunión en curso (cualquier fase viva). */
@@ -106,11 +125,17 @@ export class ActiveCallService {
 
   // ---------- Grabación ----------
   readonly recordingState = signal<CallRecordingState>('Idle');
+  /** F7 — `Server` (el recorder captura del SFU) o `Client` (mezcla local); null hasta el primer estado. */
+  readonly recordingCaptureMode = signal<RecordingCaptureMode | null>(null);
+  /** Reloj del badge REC contra el reloj del servidor (`startedAtUtc`), con restante si hay tope. */
+  private readonly recordingClock = new RecordingClock(() => this.calls.serverOffsetMs?.() ?? 0, RECORDING_TICK_MS);
   /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
-  readonly recordingElapsedMs = signal(0);
-  readonly recordingElapsedLabel = computed(() => formatRecordingElapsed(this.recordingElapsedMs()));
-  private recordingTimer: ReturnType<typeof setInterval> | null = null;
-  private recordingStartedAt = 0;
+  readonly recordingElapsedMs = this.recordingClock.elapsedMs;
+  readonly recordingElapsedLabel = this.recordingClock.elapsedLabel;
+  /** F7 — restante hasta el tope de la grabación ("4:37"); null sin tope. */
+  readonly recordingRemainingLabel = this.recordingClock.remainingLabel;
+  /** F7 — terminó de grabar y el servidor la compone/procesa ("Processing recording…"). */
+  readonly recordingProcessing = computed(() => isRecordingProcessing(this.recordingState()));
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
@@ -119,6 +144,12 @@ export class ActiveCallService {
     () => !!this._recordingRequesterId() && this._recordingRequesterId() === (this.auth.currentUser()?.id ?? null),
   );
   private readonly recording = new ClientRecordingSession();
+  /** F7 (D-56) — publicador SFU de solo envío mientras el servidor graba la llamada (null = sin captura). */
+  private capture: SfuCapturePublisherHandle | null = null;
+  /** Se graba también la cámara (`captureVideo` del `capture_requested`). */
+  private captureVideo = false;
+  /** Invalida un armado de captura en vuelo (otro `capture_requested`, un stop o el fin de la llamada). */
+  private captureSeq = 0;
 
   // ---------- Capa de media (F4) ----------
   private policy: MediaPolicyDto | null = null;
@@ -272,20 +303,25 @@ export class ActiveCallService {
       if (dto.callId !== this.callId()) {
         return;
       }
-      this.recordingState.set(dto.state);
-      if (dto.state === 'Recording') {
-        this.startRecordingTimer();
-        if (this.isRecordingRequester() && this.policy) {
-          void this.recording.start(
-            [this.localStream(), this.remoteCameraStream(), this.remoteScreenStream()],
-            this.policy.audio.clientRecordingKbps,
-          );
-        }
-      } else {
-        this.stopRecordingTimer();
-        if (dto.state === 'Failed') {
-          this.toast.error('The recording failed.');
-        }
+      this.applyRecordingState(dto);
+    });
+
+    // F7 — aviso de tope de la grabación; al llegar al tope el servidor la para (la llamada sigue).
+    this.calls.onRecordingLimitWarning().subscribe(dto => {
+      if (dto.callId === this.callId()) {
+        this.toast.info(recordingLimitWarningMessage(dto.remainingSeconds));
+      }
+    });
+
+    // F7 (D-56) — captura en servidor: publicar mi micro (y cámara) al SFU de grabación, solo envío.
+    this.calls.onCaptureRequested().subscribe(dto => {
+      if (dto.callId === this.callId()) {
+        void this.startCapture(dto);
+      }
+    });
+    this.calls.onCaptureStopped().subscribe(dto => {
+      if (dto.callId === this.callId()) {
+        this.stopCapture();
       }
     });
 
@@ -450,6 +486,7 @@ export class ActiveCallService {
   /** Cambio de micrófono en caliente (panel Devices). */
   async swapMicrophone(deviceId: string): Promise<boolean> {
     const ok = (await this.session?.swapMicrophone(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the microphone. Keeping the current one.');
     this.syncFromSession();
     return ok;
   }
@@ -457,6 +494,7 @@ export class ActiveCallService {
   /** Cambio de cámara en caliente (panel Devices). */
   async swapCamera(deviceId: string): Promise<boolean> {
     const ok = (await this.session?.swapCamera(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the camera. Keeping the current one.');
     this.syncFromSession();
     return ok;
   }
@@ -497,8 +535,11 @@ export class ActiveCallService {
     }
     try {
       await this.calls.requestRecording(callId);
-    } catch {
-      this.toast.error('Could not start recording.');
+    } catch (err) {
+      const code = socketErrorCode(err);
+      this.toast.error(
+        recordingStartErrorMessage(code) ?? (isSocketRateLimited(code) ? CALLS_RATE_LIMITED_MESSAGE : 'Could not start recording.'),
+      );
     }
   }
 
@@ -548,6 +589,85 @@ export class ActiveCallService {
 
   private uploadRecording(callId: string, blob: Blob): Promise<void> {
     return this.recordingUpload.uploadAndAttach(callId, 'call-recording', blob, fileId => this.calls.attachRecording(callId, fileId));
+  }
+
+  /**
+   * F7 — aplica `call.recording.state_changed`. Con `captureMode: 'Server'` el navegador NO mezcla ni
+   * sube (captura el recorder vía `capture_requested`); la mezcla local queda para `Client` o sin campo.
+   */
+  private applyRecordingState(dto: CallRecordingStateChangedDto): void {
+    this.recordingState.set(dto.state);
+    if (dto.captureMode !== undefined) {
+      this.recordingCaptureMode.set(dto.captureMode);
+    }
+    if (dto.state === 'Recording') {
+      this.recordingClock.start(dto.startedAtUtc, dto.maxDurationSeconds);
+      if (usesClientCapture(dto) && this.isRecordingRequester() && this.policy && !this.recording.active) {
+        void this.recording.start(
+          [this.localStream(), this.remoteCameraStream(), this.remoteScreenStream()],
+          this.policy.audio.clientRecordingKbps,
+        );
+      }
+      return;
+    }
+    this.recordingClock.stop();
+    const notice = recordingStateNotice(dto);
+    if (notice?.tone === 'error') {
+      this.toast.error(notice.message);
+    } else if (notice) {
+      this.toast.info(notice.message);
+    }
+    if (dto.state === 'Failed' || dto.state === 'Idle') {
+      this.stopCapture();
+    }
+  }
+
+  // ---------- F7 (D-56): captura vía SFU de solo envío ----------
+
+  /** Arma el publicador (carga perezosa) con mi micro y, si se graba video y la cámara está encendida, la cámara. */
+  private async startCapture(dto: CallCaptureRequestedDto): Promise<void> {
+    this.stopCapture();
+    const seq = ++this.captureSeq;
+    const session = this.session;
+    if (!session) {
+      return;
+    }
+    const callId = dto.callId;
+    const publisher = await this.createCapturePublisher({
+      signaling: {
+        createTransport: () => this.calls.sfuCreateTransport(callId),
+        connectTransport: (transportId, dtlsParameters) => this.calls.sfuConnectTransport(callId, transportId, dtlsParameters),
+        produce: (transportId, kind, rtpParameters, source) => this.calls.sfuProduce(callId, transportId, kind, rtpParameters, source),
+      },
+      iceServers: this.iceServers as RTCIceServer[],
+      policy: this.policy,
+    });
+    if (seq !== this.captureSeq || this.callId() !== callId || this.session !== session) {
+      publisher.close();
+      return;
+    }
+    this.capture = publisher;
+    this.captureVideo = dto.captureVideo ?? dto.video ?? false;
+    const ok = await publisher.start(dto.routerRtpCapabilities, {
+      audio: session.audioOutTrack(),
+      camera: this.captureCameraTrack(session.cameraOutTrack()),
+    });
+    if (!ok && this.capture === publisher) {
+      this.capture = null;
+    }
+  }
+
+  /** Cierra la captura (fin pedido por el servidor, fallo, fin de la llamada). La llamada mesh no se toca. */
+  private stopCapture(): void {
+    this.captureSeq++;
+    this.capture?.close();
+    this.capture = null;
+    this.captureVideo = false;
+  }
+
+  /** La cámara solo se publica si se graba video y está encendida (apagada = placeholder → no se envía). */
+  private captureCameraTrack(track: MediaStreamTrack | null): MediaStreamTrack | null {
+    return this.captureVideo && this.session?.videoEnabled() ? track : null;
   }
 
   // ---------- Estado / señalización ----------
@@ -735,6 +855,12 @@ export class ActiveCallService {
   /** Una pista local cambió (cámara, micro, pantalla): aplicarla al sender correspondiente. */
   private applyLocalTrack(source: LocalTrackSource, track: MediaStreamTrack | null): Promise<void> {
     this.syncFromSession();
+    // F7 — la captura de la grabación sigue al micro y a la cámara (cambio de dispositivo, on/off).
+    if (source === 'microphone') {
+      void this.capture?.setTrack('audio', track);
+    } else if (source === 'camera') {
+      void this.capture?.setTrack('camera', this.captureCameraTrack(track));
+    }
     return this.link?.replaceTrack(source, track) ?? Promise.resolve();
   }
 
@@ -810,6 +936,7 @@ export class ActiveCallService {
     const wasLive = this.phase() === 'active' || this.phase() === 'connecting';
     // Fin abrupto (el par colgó, ICE falló) mientras grababa: rescatar lo grabado antes de limpiar.
     this.finalizeRecordingBackground();
+    this.stopCapture();
     this.monitor?.stop();
     this.monitor = null;
     this.echo = null;
@@ -844,7 +971,8 @@ export class ActiveCallService {
     this.durationWarning.set(null);
     this.reconnecting.set(false);
     this.recordingState.set('Idle');
-    this.stopRecordingTimer();
+    this.recordingCaptureMode.set(null);
+    this.recordingClock.stop();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
     this.isCaller = false;
@@ -852,25 +980,5 @@ export class ActiveCallService {
     if (wasLive) {
       this.sounds.play('ended', { isHost: true });
     }
-  }
-
-  /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
-  private startRecordingTimer(): void {
-    if (this.recordingTimer) {
-      return;
-    }
-    this.recordingStartedAt = Date.now();
-    this.recordingElapsedMs.set(0);
-    this.recordingTimer = setInterval(() => {
-      this.recordingElapsedMs.set(Date.now() - this.recordingStartedAt);
-    }, RECORDING_TICK_MS);
-  }
-
-  private stopRecordingTimer(): void {
-    if (this.recordingTimer) {
-      clearInterval(this.recordingTimer);
-      this.recordingTimer = null;
-    }
-    this.recordingElapsedMs.set(0);
   }
 }

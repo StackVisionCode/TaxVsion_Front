@@ -73,6 +73,37 @@ export interface MessageDto {
   /** Nota de voz (adjunto de audio): duración en ms y waveform (picos 0-100). null en otros mensajes. */
   audioDurationMs?: number | null;
   audioWaveform?: number[] | null;
+  /** F7 (D-27) — transcript de la nota de voz (≤ 4000) y su estado; null en otros mensajes. */
+  transcriptText?: string | null;
+  transcriptState?: string | null;
+}
+
+/** F7 — estado del transcript de una nota de voz (`Skipped` = no se transcribe: apagado o muy larga). */
+/** NotRequested = se puede transcribir con el botón "Transcribe" (no se transcribe al enviar). */
+export type VoiceNoteTranscriptState = 'NotRequested' | 'Processing' | 'Ready' | 'Failed' | 'Skipped';
+
+/** F7 — `chat.message.transcript_updated` (a la sala de la conversación). */
+export interface MessageTranscriptUpdatedDto {
+  conversationId: string;
+  messageId: string;
+  transcriptState: VoiceNoteTranscriptState;
+  transcriptText: string | null;
+  /** Alias del borrador de la spec (§4.7); manda `transcriptState`. */
+  state?: VoiceNoteTranscriptState;
+}
+
+/** F7 — `GET /communication/conversations/{id}/messages/search?q&limit` (incluye transcripts de notas de voz). */
+export interface MessageSearchResponse {
+  items: MessageDto[];
+  limit: number;
+  truncated: boolean;
+}
+
+/** Normaliza el estado del transcript que trae el DTO (desconocido = sin transcript). */
+export function toVoiceNoteTranscriptState(value: string | null | undefined): VoiceNoteTranscriptState | null {
+  return value === 'NotRequested' || value === 'Processing' || value === 'Ready' || value === 'Failed' || value === 'Skipped'
+    ? value
+    : null;
 }
 
 /** Cotejo de entrega (2 grises): el otro recibió hasta `upToMessageId` (sin abrir el chat). */

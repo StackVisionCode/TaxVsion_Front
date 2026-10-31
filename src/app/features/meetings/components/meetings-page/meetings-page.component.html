@@ -37,9 +37,9 @@
       <app-state-block class="mt-5 block" [loading]="store.loading()" [error]="store.error()"
         [empty]="visibleMeetings().length === 0" loadingText="Loading meetings…" emptyTitle="No meetings found."
         icon="videocam-outline" (retry)="retryLoad()">
-        <app-meeting-list [meetings]="visibleMeetings()" [busyId]="busyId()" (manage)="openManagePanel($event)"
+        <app-meeting-list [meetings]="visibleMeetings()" [busyId]="busyId()" (manage)="openManagePanel($event)" (details)="openDetails($event)"
           (join)="joinMeeting($event)" (cancelMeeting)="cancelMeeting($event)" (startMeeting)="startMeeting($event)"
-          (endMeeting)="endMeeting($event)" (viewTranscript)="viewTranscript($event)"
+          (endMeeting)="endMeeting($event)" (viewTranscript)="viewTranscript($event)" (viewRecording)="viewRecording($event)"
           (copyCode)="copyCode($event)"></app-meeting-list>
       </app-state-block>
 
@@ -65,6 +65,18 @@
   [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" [initialInvitees]="initialInvitees()"
   (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
+
+<!-- Ficha de la reunión (diferida: solo se descarga al abrir una) -->
+@defer (when detailsMeeting()) {
+  <app-meeting-details-panel [isOpen]="!!detailsMeeting()" [meeting]="detailsMeeting()" (closed)="detailsMeeting.set(null)"
+    (viewRecording)="viewRecording($event)" (viewTranscript)="viewTranscript($event)" />
+}
+
+<!-- F7: reproductor de la grabación + transcript (diferido: no viaja en el chunk de la página) -->
+@defer (when recordingTarget()) {
+  <app-recording-viewer [isOpen]="!!recordingTarget()" scope="meeting" [targetId]="recordingTarget()?.id ?? null"
+    [heading]="recordingTarget()?.title || 'Recording'" (closed)="recordingTarget.set(null)" />
+}
 
 <!-- Visor global: transcript del meeting -->
 <app-file-viewer [isOpen]="transcriptViewerOpen()" [files]="transcriptViewerFiles()"

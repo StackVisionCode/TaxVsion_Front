@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { MeetingRtcService } from './meeting-rtc.service';
 import { DEFAULT_ICE_RECOVERY_POLICY, IceRecoveryPolicy, MediaLinkState, aggregateMediaState, decideIceRecovery } from './ice-recovery-policy';
 import { MediaPolicyDto } from './media/media-policy.model';
+import { SESSION_PRODUCER_OPTIONS } from './media/session-producer-options';
 
 export type SfuSource = 'camera' | 'screen';
 /** Mis producers: audio del micro, cámara, pantalla y audio de pantalla (D-41). */
@@ -302,7 +303,12 @@ export class MeetingSfuService {
         return;
       }
       const source: SfuSource = key === 'screen' ? 'screen' : 'camera';
-      const producer = await this.sendTransport.produce({ track, ...videoProduceOptions(source, this.policy), appData: { source } });
+      const producer = await this.sendTransport.produce({
+        track,
+        ...SESSION_PRODUCER_OPTIONS,
+        ...videoProduceOptions(source, this.policy),
+        appData: { source },
+      });
       this.producers.set(key, producer);
       if (key === 'camera' && this.audioOnly) {
         producer.pause();
@@ -312,6 +318,7 @@ export class MeetingSfuService {
     const source = key === 'screen-audio' ? 'screen' : 'microphone';
     const producer = await this.sendTransport.produce({
       track,
+      ...SESSION_PRODUCER_OPTIONS,
       codecOptions: audioProduceOptions(source, this.policy),
       appData: { source: source === 'screen' ? 'screen' : 'camera' },
     });

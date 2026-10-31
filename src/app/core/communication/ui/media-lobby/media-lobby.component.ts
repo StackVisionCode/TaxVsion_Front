@@ -188,12 +188,17 @@ export class MediaLobbyComponent implements OnInit {
     const wantVideo = !this.cameraOff();
     let stream: MediaStream | null = null;
     try {
-      stream = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: wantVideo ? this.cameraConstraints() : false }, wantVideo ? 'camera' : 'microphone');
+      // El lobby abre lo preferido: si esa cámara no arranca (ocupada, virtual sin fuente) prueba otra y avisa.
+      stream = await this.devices.getUserMedia(
+        { audio: this.audioConstraints(), video: wantVideo ? this.cameraConstraints() : false },
+        wantVideo ? 'camera' : 'microphone',
+        { fallbackWhenUnreadable: true },
+      );
     } catch (err) {
       if (wantVideo) {
         this.videoError.set(err as MediaAccessError);
         try {
-          stream = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone');
+          stream = await this.devices.getUserMedia({ audio: this.audioConstraints(), video: false }, 'microphone', { fallbackWhenUnreadable: true });
         } catch (err2) {
           this.audioError.set(err2 as MediaAccessError);
         }

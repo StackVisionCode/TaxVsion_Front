@@ -17,6 +17,7 @@ import {
   MeetingEndReason,
   MeetingParticipantDto,
   MeetingRecordingState,
+  MeetingRecordingStateChangedDto,
   MeetingRole,
   MeetingSnapshotDto,
   MeetingStrategy,
@@ -39,7 +40,6 @@ import { MediaLinkState, aggregateMediaState } from './ice-recovery-policy';
 import {
   MS_PER_SECOND,
   formatClock,
-  formatRecordingElapsed,
   hostActionErrorMessage,
   meetingEndedMessage,
   remainingSecondsAt,
@@ -57,6 +57,15 @@ import { QualityMetrics } from './media/derive-quality';
 import { EchoDetector } from './media/echo-detector';
 import { ClientRecordingSession, RecordingUploadService } from './media/client-recording-session';
 import { SoundsService } from './media/sounds.service';
+import {
+  RecordingCaptureMode,
+  RecordingClock,
+  isRecordingProcessing,
+  recordingLimitWarningMessage,
+  recordingStartErrorMessage,
+  recordingStateNotice,
+  usesClientCapture,
+} from './recording-status';
 
 /** Fases en las que seguimos "dentro" para el servidor (hay una room que abandonar). */
 const IN_MEETING_PHASES: readonly ActiveMeetingPhase[] = ['joining', 'waiting', 'passcode', 'joined'];
@@ -155,11 +164,13 @@ export class ActiveMeetingService {
   readonly errorMessage = signal<string | null>(null);
   readonly myUserId = signal<string | null>(null);
   /**
-   * F6 (D-47) — entré como INVITADO EXTERNO (`joinAsGuest`): sin JWT, userId `guest:{invitationId}`, sin
+   * F6 (D-47) — entré como INVITADO EXTERNO (`joinAsGuest`): sin JWT, userId = invitationId, sin
    * acciones de host ni grabación, chat solo texto; el ICE viene en el ack del join (no hay `GET /webrtc/ice`).
    */
   readonly isGuest = signal(false);
   private guestInvitationId: string | null = null;
+  /** Último nombre con el que el roster me mostró: el tile "You" lo conserva aunque mi fila ya no esté (expulsión). */
+  private readonly lastSelfDisplayName = signal<string | null>(null);
   /** F6 — motivo del último `meeting.you.removed` (p. ej. `Revoked` al guest); null hasta que ocurre. Se limpia al entrar. */
   readonly removedReason = signal<MeetingYouRemovedReason | null>(null);
 
@@ -249,11 +260,17 @@ export class ActiveMeetingService {
 
   // ---------- Grabación ----------
   readonly recordingState = signal<MeetingRecordingState>('Idle');
+  /** F7 — `Server` (el recorder captura del SFU) o `Client` (mezcla local); null hasta el primer estado. */
+  readonly recordingCaptureMode = signal<RecordingCaptureMode | null>(null);
+  /** Reloj del badge REC contra el reloj del servidor (`startedAtUtc`), con restante si hay tope. */
+  private readonly recordingClock = new RecordingClock(() => this.rtc.serverOffsetMs(), RECORDING_TICK_MS);
   /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
-  readonly recordingElapsedMs = signal(0);
-  readonly recordingElapsedLabel = computed(() => formatRecordingElapsed(this.recordingElapsedMs()));
-  private recordingTimer: ReturnType<typeof setInterval> | null = null;
-  private recordingStartedAt = 0;
+  readonly recordingElapsedMs = this.recordingClock.elapsedMs;
+  readonly recordingElapsedLabel = this.recordingClock.elapsedLabel;
+  /** F7 — restante hasta el tope de la grabación ("4:37"); null sin tope. */
+  readonly recordingRemainingLabel = this.recordingClock.remainingLabel;
+  /** F7 — terminó de grabar y el servidor la compone/procesa ("Processing recording…"). */
+  readonly recordingProcessing = computed(() => isRecordingProcessing(this.recordingState()));
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
@@ -295,10 +312,11 @@ export class ActiveMeetingService {
   readonly selfParticipant = computed<MeetingParticipantDto>(() => {
     const me = this.myUserId();
     const fromRoster = this.participants().find(p => p.userId === me);
-    const user = this.auth.currentUser();
+    // El guest nunca cae en la sesión de staff que pueda haber en este navegador.
+    const user = this.isGuest() ? null : this.auth.currentUser();
     return {
       userId: me ?? 'me',
-      displayName: fromRoster?.displayName ?? (user ? `${user.name} ${user.lastName}`.trim() || 'You' : 'You'),
+      displayName: fromRoster?.displayName ?? this.lastSelfDisplayName() ?? (user ? `${user.name} ${user.lastName}`.trim() || 'You' : 'You'),
       actorType: fromRoster?.actorType,
       avatarFileId: fromRoster?.avatarFileId ?? user?.avatarFileId ?? null,
       role: fromRoster?.role ?? this.yourRole(),
@@ -386,6 +404,7 @@ export class ActiveMeetingService {
       this.applyParticipantChange(dto.participant);
       const p = dto.participant;
       if (p.userId === this.myUserId()) {
+        if (p.displayName) this.lastSelfDisplayName.set(p.displayName);
         // F3 — mi rol cambia por eventos (promote/demote, transfer, sucesión): el roster es la fuente.
         if (p.status === 'Joined' || p.status === 'Waiting') {
           this.yourRole.set(p.role);
@@ -556,21 +575,13 @@ export class ActiveMeetingService {
       if (dto.meetingId !== this.meetingId()) {
         return;
       }
-      this.recordingState.set(dto.state);
-      if (dto.state === 'Recording') {
-        this.startRecordingTimer();
-        if (this.isRecordingRequester() && this.policy) {
-          const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.cameraStream)];
-          void this.recording.start(streams, this.policy.audio.clientRecordingKbps);
-        }
-      } else {
-        this.stopRecordingTimer();
-        if (dto.state === 'Failed') {
-          this.toast.error('The recording failed.');
-        } else if (dto.state === 'Idle') {
-          this.recordingConsentFrom.set(null);
-          this._recordingRequesterId.set(null);
-        }
+      this.applyRecordingState(dto);
+    });
+
+    // F7 — aviso de tope de la grabación; al llegar al tope el servidor la para (la reunión sigue).
+    this.rtc.onRecordingLimitWarning().subscribe(dto => {
+      if (dto.meetingId === this.meetingId()) {
+        this.toast.info(recordingLimitWarningMessage(dto.remainingSeconds));
       }
     });
 
@@ -675,6 +686,8 @@ export class ActiveMeetingService {
     this.isLocked.set(snap.isLocked);
     this.applyLifecycle(snap);
     this.participants.set(mergeMeetingRoster(this.participants(), snap.participants));
+    const mine = snap.participants.find(p => p.userId === this.myUserId())?.displayName;
+    if (mine) this.lastSelfDisplayName.set(mine);
     if (this.phase() !== 'joined') {
       this.joinedAtMs ??= Date.now();
       this.startClock();
@@ -825,7 +838,7 @@ export class ActiveMeetingService {
    * F6 (D-47) — entra como INVITADO EXTERNO desde la página pública `/meet/:token`: el socket ya está
    * conectado con `auth.ticket` (`CommunicationRealtimeService.connectAsGuest`), la política de media ya
    * está en `MediaPolicyService.prime` (del contexto público) y el ICE llega en el ack de `meeting.join`.
-   * Mi userId es `guest:{guestInvitationId}` (así lo nombra el servidor en el roster).
+   * Mi userId es el propio `guestInvitationId` (así me nombra el servidor en el roster).
    */
   async joinAsGuest(meetingId: string, title: string, guestInvitationId: string, media: MeetingJoinMediaOptions = {}): Promise<void> {
     if (this.phase() !== 'idle') {
@@ -843,7 +856,9 @@ export class ActiveMeetingService {
     this.meetingTitle.set(title);
     this.isGuest.set(guestInvitationId !== null);
     this.guestInvitationId = guestInvitationId;
-    this.myUserId.set(guestInvitationId ? `guest:${guestInvitationId}` : (this.auth.currentUser()?.id ?? null));
+    this.lastSelfDisplayName.set(null);
+    // F6: el userId del guest es el propio invitationId (UUID), igual que el principal del servidor.
+    this.myUserId.set(guestInvitationId ?? (this.auth.currentUser()?.id ?? null));
     this.participants.set([]);
     this.peers.set(new Map());
     this.leftUserIds.clear();
@@ -888,7 +903,8 @@ export class ActiveMeetingService {
       onScreenShareStopped: () => this.onScreenShareStopped(),
     });
     this.session = session;
-    const wantAudio = media.audio ?? true;
+    // "Join muted" captura igual el micrófono (en mute): así el medidor avisa "You're muted" y el unmute es inmediato.
+    const wantAudio = true;
     const wantVideo = (media.video ?? !policy.preferences.joinCameraOff) && !policy.preferences.preferAudioOnly;
     const acquired = await session.acquire({ audio: wantAudio, video: wantVideo, profile: 'camera' });
     this.microphoneError.set(acquired.audioError);
@@ -1206,6 +1222,7 @@ export class ActiveMeetingService {
   /** Cambio de micrófono en caliente (panel Devices). */
   async swapMicrophone(deviceId: string): Promise<boolean> {
     const ok = (await this.session?.swapMicrophone(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the microphone. Keeping the current one.');
     this.syncFromSession();
     return ok;
   }
@@ -1213,6 +1230,7 @@ export class ActiveMeetingService {
   /** Cambio de cámara en caliente (panel Devices). */
   async swapCamera(deviceId: string): Promise<boolean> {
     const ok = (await this.session?.swapCamera(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the camera. Keeping the current one.');
     this.syncFromSession();
     return ok;
   }
@@ -1593,7 +1611,42 @@ export class ActiveMeetingService {
     if (!meetingId || this.phase() !== 'joined' || this.recordingState() !== 'Idle') {
       return;
     }
-    this.rtc.requestRecording(meetingId).catch(() => this.toast.error('Could not start recording.'));
+    this.rtc.requestRecording(meetingId).catch(err => {
+      const code = socketErrorCode(err);
+      this.toast.error(
+        recordingStartErrorMessage(code) ?? (isSocketRateLimited(code) ? SOCKET_RATE_LIMITED_MESSAGE : 'Could not start recording.'),
+      );
+    });
+  }
+
+  /**
+   * F7 — aplica `meeting.recording.state_changed`. Con `captureMode: 'Server'` el navegador NO mezcla
+   * ni sube (el recorder captura del SFU); la mezcla local queda para `Client` o sin campo.
+   */
+  private applyRecordingState(dto: MeetingRecordingStateChangedDto): void {
+    this.recordingState.set(dto.state);
+    if (dto.captureMode !== undefined) {
+      this.recordingCaptureMode.set(dto.captureMode);
+    }
+    if (dto.state === 'Recording') {
+      this.recordingClock.start(dto.startedAtUtc, dto.maxDurationSeconds);
+      if (usesClientCapture(dto) && this.isRecordingRequester() && this.policy && !this.recording.active) {
+        const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.cameraStream)];
+        void this.recording.start(streams, this.policy.audio.clientRecordingKbps);
+      }
+      return;
+    }
+    this.recordingClock.stop();
+    const notice = recordingStateNotice(dto);
+    if (notice?.tone === 'error') {
+      this.toast.error(notice.message);
+    } else if (notice) {
+      this.toast.info(notice.message);
+    }
+    if (dto.state === 'Idle') {
+      this.recordingConsentFrom.set(null);
+      this._recordingRequesterId.set(null);
+    }
   }
 
   respondRecordingConsent(accepted: boolean): void {
@@ -1847,31 +1900,12 @@ export class ActiveMeetingService {
     this.screenShareInterrupted.set(false);
     this.pinnedUserId.set(null);
     this.recordingState.set('Idle');
-    this.stopRecordingTimer();
+    this.recordingCaptureMode.set(null);
+    this.recordingClock.stop();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
     this.myUserId.set(null);
     this.isGuest.set(false);
     this.guestInvitationId = null;
-  }
-
-  /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
-  private startRecordingTimer(): void {
-    if (this.recordingTimer) {
-      return;
-    }
-    this.recordingStartedAt = Date.now();
-    this.recordingElapsedMs.set(0);
-    this.recordingTimer = setInterval(() => {
-      this.recordingElapsedMs.set(Date.now() - this.recordingStartedAt);
-    }, RECORDING_TICK_MS);
-  }
-
-  private stopRecordingTimer(): void {
-    if (this.recordingTimer) {
-      clearInterval(this.recordingTimer);
-      this.recordingTimer = null;
-    }
-    this.recordingElapsedMs.set(0);
   }
 }

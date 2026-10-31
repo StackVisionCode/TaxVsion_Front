@@ -62,9 +62,9 @@
         <span *ngIf="screenSharing()" class="flex items-center gap-1 rounded-full bg-brand-bold/80 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm">
           <ion-icon name="desktop-outline" class="text-xs"></ion-icon> Sharing
         </span>
-        <span *ngIf="isRecording()" class="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm tabular-nums">
-          <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
-        </span>
+        <app-recording-badge [state]="recordingState()" [elapsed]="recordingElapsedLabel()" [remaining]="recordingRemainingLabel()"
+          pillClass="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm tabular-nums"
+          processingClass="flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[0.625rem] font-medium backdrop-blur-sm" />
         <span *ngIf="reconnecting()" class="flex items-center gap-1 rounded-full bg-amber-500/90 px-2.5 py-1 text-[0.625rem] font-semibold backdrop-blur-sm">
           <app-infinity-loader size="xs" tone="light" /> Reconnecting…
         </span>
@@ -128,9 +128,9 @@
           <app-quality-badge *ngIf="showQuality()" [quality]="connectionQuality()" [metrics]="connectionMetrics()" [showMetrics]="showMetrics()" data-role="own-quality" />
           <app-quality-badge *ngIf="showQuality()" [quality]="peerQuality()" data-role="peer-quality" />
           <app-infinity-loader *ngIf="reconnecting()" class="ml-1" size="xs" tone="light" />
-          <span *ngIf="isRecording()" class="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums">
-            <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span> REC {{ recordingElapsedLabel() }}
-          </span>
+          <app-recording-badge [state]="recordingState()" [elapsed]="recordingElapsedLabel()" [remaining]="recordingRemainingLabel()"
+            pillClass="ml-1 flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[0.625rem] font-semibold text-white tabular-nums"
+            processingClass="ml-1 text-[0.625rem] font-medium text-white/80" />
         </p>
       </div>
     </div>

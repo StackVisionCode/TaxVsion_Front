@@ -3,6 +3,7 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   DestroyRef,
   ElementRef,
+  ViewChild,
   afterNextRender,
   computed,
   effect,
@@ -16,6 +17,7 @@ import { CommonModule } from '@angular/common';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
+import { ChatMessageSearchComponent } from '../../ui/chat-message-search/chat-message-search.component';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
@@ -68,6 +70,7 @@ const MIN_CHAT_HEIGHT = 360;
     SegmentedComponent,
     ConfirmDialogComponent,
     FileViewerComponent,
+    ChatMessageSearchComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
@@ -131,6 +134,17 @@ export class ChatPageComponent {
   readonly newConversationError = this.store.newConversationError;
   readonly creatingConversation = this.store.creatingConversation;
   readonly canCreateGroups = this.store.canCreateGroups;
+
+  // ---------- F7: búsqueda de mensajes ----------
+  @ViewChild(ChatThreadComponent) private thread?: ChatThreadComponent;
+  readonly searchOpen = signal(false);
+  readonly searchQuery = this.store.searchQuery;
+  readonly searchResults = this.store.searchResults;
+  readonly searchLoading = this.store.searchLoading;
+  readonly searchError = this.store.searchError;
+  readonly searchTruncated = this.store.searchTruncated;
+  /** Resultado elegido que no está cargado en el hilo: queda resaltado en la lista. */
+  readonly searchHighlightId = signal<string | null>(null);
 
   constructor() {
     // El store suena al recibir un mensaje solo mientras esta página está a la vista.
@@ -269,8 +283,43 @@ export class ChatPageComponent {
   }
 
   selectConversation(id: string): void {
+    if (id !== this.store.activeConversationId()) {
+      this.closeSearch();
+    }
     this.store.selectConversation(id);
     this.mobilePane.set('thread');
+  }
+
+  toggleSearch(): void {
+    if (this.searchOpen()) {
+      this.closeSearch();
+    } else {
+      this.searchOpen.set(true);
+    }
+  }
+
+  closeSearch(): void {
+    this.searchOpen.set(false);
+    this.searchHighlightId.set(null);
+    this.store.clearMessageSearch();
+  }
+
+  onSearch(query: string): void {
+    this.searchHighlightId.set(null);
+    this.store.searchMessages(query);
+  }
+
+  /** Salta al mensaje si está cargado en el hilo; si no, solo lo resalta en los resultados. */
+  onSearchResult(messageId: string): void {
+    const found = this.thread?.scrollToMessage(messageId) ?? false;
+    this.searchHighlightId.set(found ? null : messageId);
+  }
+
+  /** F7 — "View transcript" de un mensaje del sistema (transcript de la llamada) en el visor global. */
+  onTranscriptRequested(fileId: string): void {
+    this.viewerFiles.set([this.store.attachmentViewerItem(fileId, 'Call transcript.txt')]);
+    this.viewerIndex.set(0);
+    this.viewerOpen.set(true);
   }
 
   /** Móvil: vuelve de la conversación a la lista. */
@@ -307,6 +356,11 @@ export class ChatPageComponent {
 
   sendMessage(text: string): void {
     void this.store.sendMessage(text);
+  }
+
+  /** F7 — "Transcribe" de una nota de voz: se transcribe a demanda. */
+  onVoiceTranscriptRequested(messageId: string): void {
+    this.store.requestVoiceNoteTranscript(messageId);
   }
 
   onRetryMessage(tempId: string): void {

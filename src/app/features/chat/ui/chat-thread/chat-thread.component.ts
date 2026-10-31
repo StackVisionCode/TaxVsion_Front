@@ -19,7 +19,7 @@ import { FormsModule } from '@angular/forms';
 import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
-import { ChatParticipant } from '../../data-access/chat.model';
+import { ChatParticipant, VoiceNoteTranscriptState } from '../../data-access/chat.model';
 
 export interface ChatMessage {
   id: string;
@@ -28,8 +28,16 @@ export interface ChatMessage {
   isSystem?: boolean;
   text?: string;
   attachment?: { name: string; size: string; fileId: string };
-  /** Nota de voz: player en vez de tarjeta de archivo. */
-  voiceNote?: { fileId: string; durationMs: number; waveform: number[] };
+  /** Nota de voz: player en vez de tarjeta de archivo. F7: + transcript (estado y texto). */
+  voiceNote?: {
+    fileId: string;
+    durationMs: number;
+    waveform: number[];
+    transcriptState?: VoiceNoteTranscriptState | null;
+    transcriptText?: string | null;
+  };
+  /** F7 — mensaje System con archivo (transcript de una llamada): enlace "View transcript". */
+  systemAttachmentFileId?: string;
   time: string;
   dateGroup: string;
   isEdited: boolean;
@@ -61,6 +69,11 @@ export interface MessageEdit {
 /** A qué distancia del borde consideramos "pegado" arriba/abajo (px). */
 const TOP_LOAD_THRESHOLD = 60;
 const BOTTOM_STICK_THRESHOLD = 80;
+/** Transcript de nota de voz más largo que esto se colapsa a 3 líneas con "Show more". */
+const TRANSCRIPT_COLLAPSE_CHARS = 160;
+const TRANSCRIPT_COLLAPSE_LINES = 3;
+/** Cuánto dura el resaltado de un mensaje al saltar desde la búsqueda. */
+const HIGHLIGHT_MS = 2500;
 
 /**
  * Hilo de mensajes del Chat de equipo. Burbujas negras a la derecha ("mí"),
@@ -101,6 +114,10 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   @Output() deleteRequested = new EventEmitter<string>();
   /** Reintentar un mensaje propio que quedó "failed" (id temporal). */
   @Output() retryRequested = new EventEmitter<string>();
+  /** F7 — "View transcript" de un mensaje System (fileId del transcript de la llamada). */
+  @Output() transcriptRequested = new EventEmitter<string>();
+  /** F7 — botón "Transcribe" / "Try again" de una nota de voz (id del mensaje). */
+  @Output() voiceTranscriptRequested = new EventEmitter<string>();
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef<HTMLDivElement>;
   @ViewChild('scrollInner') private scrollInner?: ElementRef<HTMLDivElement>;
@@ -108,6 +125,11 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
 
   readonly editingId = signal<string | null>(null);
   readonly editDraft = signal('');
+  /** F7 — transcripts de notas de voz desplegados ("Show more"). */
+  readonly expandedTranscripts = signal<ReadonlySet<string>>(new Set());
+  /** F7 — mensaje resaltado tras saltar desde la búsqueda. */
+  readonly highlightedId = signal<string | null>(null);
+  private highlightTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * Llegaron mensajes del otro mientras el usuario leía más arriba: en vez de arrancarle la vista
@@ -160,6 +182,48 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    clearTimeout(this.highlightTimer);
+  }
+
+  /**
+   * F7 — salta a un mensaje cargado (resultado de la búsqueda) y lo resalta un momento. false = ese
+   * mensaje no está cargado en el hilo (la búsqueda solo lo resalta en su lista).
+   */
+  scrollToMessage(messageId: string): boolean {
+    const container = this.scrollContainer?.nativeElement;
+    const target = container
+      ? [...container.querySelectorAll<HTMLElement>('[data-message-id]')].find(el => el.dataset['messageId'] === messageId)
+      : undefined;
+    if (!target) {
+      return false;
+    }
+    this.pinToBottom = false; // el usuario va a leer arriba: no re-pegar al fondo
+    target.scrollIntoView?.({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    this.highlightedId.set(messageId);
+    clearTimeout(this.highlightTimer);
+    this.highlightTimer = setTimeout(() => this.highlightedId.set(null), HIGHLIGHT_MS);
+    return true;
+  }
+
+  /** El transcript no cabe en 3 líneas (aprox.): se ofrece "Show more". */
+  isLongTranscript(text: string | null | undefined): boolean {
+    return !!text && (text.length > TRANSCRIPT_COLLAPSE_CHARS || text.split('\n').length > TRANSCRIPT_COLLAPSE_LINES);
+  }
+
+  isTranscriptExpanded(messageId: string): boolean {
+    return this.expandedTranscripts().has(messageId);
+  }
+
+  toggleTranscript(messageId: string): void {
+    this.expandedTranscripts.update(current => {
+      const next = new Set(current);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
   }
 
   ngAfterViewChecked(): void {
